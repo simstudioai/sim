@@ -17,12 +17,44 @@ import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
+  isResolvedSecretProvenanceAbsence,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+
+describe('provenance absence classification', () => {
+  it.each([
+    'value-provenance-absent',
+    'source-provenance-incomplete',
+    'constructed-incomplete',
+    'log-creation-skipped',
+    'durable-provenance-unknown',
+    'inherited-incomplete-source',
+    'inherited-incomplete-input-path',
+  ] as const)('classifies %s as an absence, since no material transited the latch', (reason) => {
+    expect(isResolvedSecretProvenanceAbsence(reason)).toBe(true)
+  })
+
+  /**
+   * Warn-level is not absence: `value-provenance-filter-incomplete` latches after a staged
+   * source registry decrypted real entries it could not narrow to the value, so plaintext was in
+   * flight without ever activating. The absence set must stay narrower than the report split.
+   */
+  it.each([
+    'value-provenance-filter-incomplete',
+    'value-provenance-import-failed',
+    'entry-decrypt-failed',
+    'projection-mismatch',
+    'untrusted-provenance',
+    'restored-provenance-untrusted',
+    'client-tool-seal-failed',
+  ] as const)('keeps %s out of the absence set', (reason) => {
+    expect(isResolvedSecretProvenanceAbsence(reason)).toBe(false)
+  })
+})
 
 describe('ResolvedSecretTraceProvenanceAccumulator', () => {
   const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -416,6 +448,72 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
+  it('narrows each grouped export to its own root', () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', plaintext: 'beta', encryptedValue: 'encrypted-second' },
+      ],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    registry.recordResolvedAtInputPath('SECOND', 'beta', ['rows', '1', 'b'])
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '2', 'c', 'nested'])
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '0', 'a']],
+      [['rows', '1', 'b']],
+      [['rows', '2', 'c']],
+      [['rows']],
+      [['rows', '3', 'untouched']],
+      [],
+      [
+        ['rows', '0', 'a'],
+        ['rows', '1', 'b'],
+      ],
+    ])
+
+    expect(exported.map((provenance) => provenance.entries)).toEqual([
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [{ name: 'SECOND', encryptedValue: 'encrypted-second' }],
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+      [],
+      [],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+    ])
+    expect(exported.every((provenance) => provenance.complete)).toBe(true)
+  })
+
+  it('fails only the grouped exports an incomplete input path overlaps', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' }],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    await registry.importProvenanceForValueAtInputPath(null, 'alpha', ['rows', '1', 'b'], {
+      trusted: false,
+    })
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '1', 'b']],
+      [['rows', '1']],
+      [['rows', '1', 'b', 'deeper']],
+      [['rows', '0', 'a']],
+    ])
+
+    expect(exported.map((provenance) => provenance.complete)).toEqual([false, false, false, true])
+    expect(exported[3].entries).toEqual([{ name: 'FIRST', encryptedValue: 'encrypted-first' }])
+  })
+
   it('fails closed when independent secret paths collapse into one transformed string', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FIRST', plaintext: 'first', encryptedValue: 'encrypted-first' },
@@ -609,6 +707,98 @@ describe('ResolvedSecretTraceRegistry', () => {
       version: 1,
       complete: true,
       entries: [{ name: 'SHARED', encryptedValue: 'workspace-encrypted' }],
+    })
+  })
+
+  describe('getResolvedSecretUsage', () => {
+    it('reports only the secrets a run actually resolved, with their scope', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { PERSONAL_KEY: 'personal-encrypted' },
+        workspaceEncrypted: { WORKSPACE_KEY: 'workspace-encrypted', UNUSED: 'unused-encrypted' },
+        personalDecrypted: { PERSONAL_KEY: 'personal-secret' },
+        workspaceDecrypted: { WORKSPACE_KEY: 'workspace-secret', UNUSED: 'unused-secret' },
+        personalOwners: { PERSONAL_KEY: 'owner-1' },
+      })
+
+      expect(registry.recordResolved('PERSONAL_KEY', 'personal-secret')).toBe(true)
+      expect(registry.recordResolved('WORKSPACE_KEY', 'workspace-secret')).toBe(true)
+
+      expect(registry.getResolvedSecretUsage()).toEqual([
+        { name: 'PERSONAL_KEY', scope: 'personal', ownerUserId: 'owner-1' },
+        { name: 'WORKSPACE_KEY', scope: 'workspace', ownerUserId: null },
+      ])
+    })
+
+    /**
+     * A personal secret shared into the workspace resolves for someone who does not own it.
+     * The trail is read per owner, so it has to be filed under the sharer or it would show up
+     * under the borrower's own same-named secret.
+     */
+    it('attributes a shared personal secret to its owner, not the resolving caller', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { SHARED_KEY: 'personal-encrypted' },
+        workspaceEncrypted: {},
+        personalDecrypted: { SHARED_KEY: 'shared-secret' },
+        workspaceDecrypted: {},
+        personalOwners: { SHARED_KEY: 'sharer-1' },
+        scope: { userId: 'borrower-1', workspaceId: 'workspace-1' },
+      })
+
+      expect(registry.recordResolved('SHARED_KEY', 'shared-secret')).toBe(true)
+      expect(registry.getResolvedSecretUsage()).toEqual([
+        { name: 'SHARED_KEY', scope: 'personal', ownerUserId: 'sharer-1' },
+      ])
+    })
+
+    /**
+     * Recording an unattributed personal row would surface it under every other user's
+     * secret of the same name, so it is dropped instead.
+     */
+    it('drops a personal secret whose owner is unknown', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { PERSONAL_KEY: 'personal-encrypted' },
+        workspaceEncrypted: {},
+        personalDecrypted: { PERSONAL_KEY: 'personal-secret' },
+        workspaceDecrypted: {},
+      })
+
+      expect(registry.recordResolved('PERSONAL_KEY', 'personal-secret')).toBe(true)
+      expect(registry.getResolvedSecretUsage()).toEqual([])
+    })
+
+    it('is empty when a configured secret was never resolved', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: {},
+        workspaceEncrypted: { API_KEY: 'workspace-encrypted' },
+        personalDecrypted: {},
+        workspaceDecrypted: { API_KEY: 'workspace-secret' },
+      })
+
+      expect(registry.getResolvedSecretUsage()).toEqual([])
+    })
+
+    /**
+     * An imported entry is a secret a sub-run or tool call already recorded against its own
+     * execution; counting it again here would double it.
+     */
+    it('omits entries adopted from imported provenance', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: {},
+        workspaceEncrypted: {},
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+
+      await registry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'CROSSED_KEY', encryptedValue: 'crossed-encrypted' }],
+        },
+        { trusted: true }
+      )
+
+      expect(registry.getResolvedSecretUsage()).toEqual([])
     })
   })
 
@@ -1416,6 +1606,107 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  /**
+   * `reason` says what tripped; without this the line says nothing about where, which is the
+   * difference between a signal you can act on and one you can only count.
+   */
+  it('carries a caller-supplied structural detail onto the reported line', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'api', tool: 'http_request', inputPath: 'body.payload' },
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        blockType: 'api',
+        tool: 'http_request',
+        inputPath: 'body.payload',
+      })
+    )
+  })
+
+  /** A detail key must never displace the fields every one of these lines is read by. */
+  /**
+   * The detail type names its fields, so none of these is expressible without a cast. The runtime
+   * guarantee is asserted anyway because the payload is assembled in two places — `reason` is
+   * added a level above, where the caller's spread order cannot reach it — and a line whose
+   * `reason` disagrees with the level it was logged at is worse than one carrying no detail.
+   */
+  it('does not let a detail shadow the canonical fields', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: {
+        reason: 'spoofed',
+        origin: 'spoofed',
+        scopeWorkspaceId: 'spoofed',
+        activeEntryCount: 'spoofed',
+      } as never,
+    })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'structural-input-root-unprojected',
+        scopeWorkspaceId: 'workspace-1',
+        activeEntryCount: 0,
+      })
+    )
+  })
+
+  /**
+   * A run that failed before producing provenance hands the crossing `undefined`. That is the
+   * expected shape of a failed crossing, not a guard catching something wrong, so it reports at
+   * warn under its own name instead of joining the originating faults as a would-be breach.
+   */
+  it('separates a crossing that carried no provenance from one that was rejected', async () => {
+    const absent = new ResolvedSecretTraceRegistry([], scope)
+    await absent.importCrossingProvenance(undefined, 'value', {
+      trusted: true,
+      origin: 'someSurface.failedRunCrossing',
+    })
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reason: 'value-provenance-absent' })
+    )
+  })
+
+  it('still reports a rejected crossing as a fault', async () => {
+    const rejected = new ResolvedSecretTraceRegistry([], scope)
+    await rejected.importCrossingProvenance({ not: 'a bundle' }, 'value', { trusted: true })
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reason: 'value-provenance-untrusted' })
+    )
+  })
+
+  /**
+   * A refusal is usually frames from its cause, which is what this struct exists to bridge — but it
+   * carried only *what* went wrong, so a downstream reporter printed a reason with no location.
+   */
+  it('carries the first guard location through to the diagnostics a refusal reports', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('structural-input-root-unprojected', {
+      detail: { blockType: 'table', tool: 'table_insert_row', inputPath: 'data' },
+    })
+    registry.markIncomplete('inherited-incomplete-source', {
+      detail: { blockType: 'later', tool: 'later_tool' },
+    })
+
+    expect(registry.getIncompletenessDiagnostics()?.detail).toEqual({
+      blockType: 'table',
+      tool: 'table_insert_row',
+      inputPath: 'data',
+    })
+  })
+
   it('names the guard that tripped rather than reporting unspecified', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
@@ -1506,8 +1797,6 @@ describe('incompleteness diagnostics', () => {
     'client-tool-execution-untrusted',
     'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
-    'knowledge-response-capacity-exceeded',
-    'memory-crossing-capacity-exceeded',
     'table-result-provenance-unavailable',
     'mounted-file-provenance-unavailable',
     'workspace-file-provenance-unknown',
@@ -1766,5 +2055,295 @@ describe('non-identifying literals in durable provenance', () => {
     if (snapshot.complete) {
       expect(snapshot.matches.map((match) => match.plaintext)).not.toContain('false')
     }
+  })
+})
+
+describe('unredacted catalog exemption', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `decrypted:${encryptedValue}`,
+    }))
+  })
+
+  it('drops an exempt workspace secret from trace and model matches but keeps usage', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { STAGING_KEY: 'staging-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { STAGING_KEY: 'staging-value-123' },
+      workspaceUnredactedKeys: ['STAGING_KEY'],
+    })
+
+    expect(registry.recordResolved('STAGING_KEY', 'staging-value-123')).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      /** The legacy alias still substitutes; the value and its JSON encoding do not. */
+      expect(snapshot.matches).toEqual([
+        { plaintext: '__var_STAGING_KEY', replacement: '{{STAGING_KEY}}' },
+      ])
+    }
+
+    expect(registry.getResolvedSecretUsage()).toEqual([
+      { name: 'STAGING_KEY', scope: 'workspace', ownerUserId: null },
+    ])
+  })
+
+  it('never stamps a personal secret, even when its name is listed', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { PERSONAL_KEY: 'personal-encrypted' },
+      workspaceEncrypted: {},
+      personalDecrypted: { PERSONAL_KEY: 'personal-value-123' },
+      workspaceDecrypted: {},
+      personalOwners: { PERSONAL_KEY: 'owner-1' },
+      workspaceUnredactedKeys: ['PERSONAL_KEY'],
+    })
+
+    expect(registry.recordResolved('PERSONAL_KEY', 'personal-value-123')).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'personal-value-123', replacement: '{{PERSONAL_KEY}}' },
+    ])
+  })
+
+  it('exempts only the workspace value when it shadows a same-named personal secret', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { SHARED: 'personal-encrypted' },
+      workspaceEncrypted: { SHARED: 'workspace-encrypted' },
+      personalDecrypted: { SHARED: 'personal-value-123' },
+      workspaceDecrypted: { SHARED: 'workspace-value-123' },
+      workspaceUnredactedKeys: ['SHARED'],
+    })
+
+    expect(registry.recordResolved('SHARED', 'workspace-value-123')).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(registry.exportProvenance()).toEqual({ version: 1, complete: true, entries: [] })
+  })
+
+  it('keeps redacting a plaintext an exempt and a non-exempt secret share', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { OTHER_KEY: 'other-encrypted' },
+      workspaceEncrypted: { EXEMPT_KEY: 'exempt-encrypted' },
+      personalDecrypted: { OTHER_KEY: 'shared-value-123' },
+      workspaceDecrypted: { EXEMPT_KEY: 'shared-value-123' },
+      personalOwners: { OTHER_KEY: 'owner-1' },
+      workspaceUnredactedKeys: ['EXEMPT_KEY'],
+    })
+
+    expect(registry.recordResolved('EXEMPT_KEY', 'shared-value-123')).toBe(true)
+    expect(registry.recordResolved('OTHER_KEY', 'shared-value-123')).toBe(true)
+
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'shared-value-123', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+    ])
+    expect(registry.exportProvenanceForValue('payload shared-value-123').entries).toEqual([
+      { name: 'EXEMPT_KEY', encryptedValue: 'exempt-encrypted' },
+      { name: 'OTHER_KEY', encryptedValue: 'other-encrypted' },
+    ])
+  })
+
+  it('omits a solely-exempt entry from every envelope while staying complete', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { STAGING_KEY: 'staging-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { STAGING_KEY: 'staging-value-123' },
+      workspaceUnredactedKeys: ['STAGING_KEY'],
+    })
+
+    expect(
+      registry.recordResolvedAtInputPath('STAGING_KEY', 'staging-value-123', ['params', 'apiKey'])
+    ).toBe(true)
+
+    expect(registry.exportProvenance()).toEqual({ version: 1, complete: true, entries: [] })
+    expect(registry.exportCheckpointProvenance()).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.exportCommittedProvenanceForValue('body staging-value-123')).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.exportCommittedProvenanceForInputPaths([['params', 'apiKey']])).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+  })
+
+  it('keeps an exempt entry, anonymized, in a forced-anonymous crossing envelope', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { STAGING_KEY: 'staging-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { STAGING_KEY: 'staging-value-123' },
+      workspaceUnredactedKeys: ['STAGING_KEY'],
+    })
+
+    expect(registry.recordResolved('STAGING_KEY', 'staging-value-123')).toBe(true)
+    expect(
+      registry.exportCommittedProvenanceForValue('body staging-value-123', { anonymous: true })
+    ).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'staging-encrypted' }],
+    })
+  })
+
+  it('a fork keeps protecting a collider left behind in the parent', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { OTHER_KEY: 'other-encrypted' },
+      workspaceEncrypted: { EXEMPT_KEY: 'exempt-encrypted' },
+      personalDecrypted: { OTHER_KEY: 'shared-value-123' },
+      workspaceDecrypted: { EXEMPT_KEY: 'shared-value-123' },
+      personalOwners: { OTHER_KEY: 'owner-1' },
+      workspaceUnredactedKeys: ['EXEMPT_KEY'],
+    })
+
+    expect(
+      registry.recordResolvedAtInputPath('EXEMPT_KEY', 'shared-value-123', ['params', 'apiKey'])
+    ).toBe(true)
+    expect(registry.recordResolved('OTHER_KEY', 'shared-value-123')).toBe(true)
+
+    const fork = registry.forkForInputPaths([['params', 'apiKey']])
+    expect(fork.getActiveMatches()).toEqual([
+      { plaintext: 'shared-value-123', replacement: '{{EXEMPT_KEY}}' },
+    ])
+    expect(fork.exportProvenanceForValue('shared-value-123').entries).toEqual([
+      { name: 'EXEMPT_KEY', encryptedValue: 'exempt-encrypted' },
+    ])
+  })
+
+  it('exempts an imported duplicate only on an exact name and value match', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { EXEMPT_KEY: 'exempt-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { EXEMPT_KEY: 'decrypted:exempt-encrypted' },
+      workspaceUnredactedKeys: ['EXEMPT_KEY'],
+    })
+
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'EXEMPT_KEY', encryptedValue: 'exempt-encrypted' }],
+      },
+      { trusted: true }
+    )
+    expect(registry.getActiveMatches()).toEqual([])
+
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'EXEMPT_KEY', encryptedValue: 'rotated-encrypted' }],
+      },
+      { trusted: true }
+    )
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'decrypted:rotated-encrypted', replacement: '{{EXEMPT_KEY}}' },
+    ])
+  })
+
+  it('never bypasses fail-closed incompleteness', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { STAGING_KEY: 'staging-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { STAGING_KEY: 'staging-value-123' },
+      workspaceUnredactedKeys: ['STAGING_KEY'],
+    })
+
+    registry.markIncomplete('unspecified')
+    expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+    expect(registry.exportProvenance().complete).toBe(false)
+    /** A missing collider is indistinguishable from none — certify nothing once latched. */
+    expect(registry.getUnredactedSecretNames()).toEqual([])
+  })
+
+  it('releases an exempt-only recorded input leaf to the model raw', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: {},
+      workspaceEncrypted: { STAGING_KEY: 'staging-encrypted' },
+      personalDecrypted: {},
+      workspaceDecrypted: { STAGING_KEY: 'staging-value-123' },
+      workspaceUnredactedKeys: ['STAGING_KEY'],
+    })
+
+    expect(
+      registry.recordResolvedAtInputPath('STAGING_KEY', 'staging-value-123', ['params', 'apiKey'])
+    ).toBe(true)
+    registry.recordResolvedInputProjection(
+      ['params', 'apiKey'],
+      'staging-value-123',
+      '{{STAGING_KEY}}'
+    )
+
+    expect(
+      registry.projectResolvedInputSelection({ params: { apiKey: 'staging-value-123' } })
+    ).toEqual({
+      complete: true,
+      value: { params: { apiKey: 'staging-value-123' } },
+    })
+  })
+
+  it('keeps projecting an input leaf whose plaintext a protected secret shares', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { OTHER_KEY: 'other-encrypted' },
+      workspaceEncrypted: { EXEMPT_KEY: 'exempt-encrypted' },
+      personalDecrypted: { OTHER_KEY: 'shared-value-123' },
+      workspaceDecrypted: { EXEMPT_KEY: 'shared-value-123' },
+      personalOwners: { OTHER_KEY: 'owner-1' },
+      workspaceUnredactedKeys: ['EXEMPT_KEY'],
+    })
+
+    expect(
+      registry.recordResolvedAtInputPath('EXEMPT_KEY', 'shared-value-123', ['params', 'apiKey'])
+    ).toBe(true)
+    expect(registry.recordResolved('OTHER_KEY', 'shared-value-123')).toBe(true)
+    registry.recordResolvedInputProjection(
+      ['params', 'apiKey'],
+      'shared-value-123',
+      '{{EXEMPT_KEY}}'
+    )
+
+    expect(
+      registry.projectResolvedInputSelection({ params: { apiKey: 'shared-value-123' } })
+    ).toEqual({
+      complete: true,
+      value: { params: { apiKey: '{{EXEMPT_KEY}}' } },
+    })
+  })
+
+  it('certifies only collision-free exempt names for the sandbox path', async () => {
+    const registry = await createResolvedSecretTraceRegistry({
+      personalEncrypted: { OTHER_KEY: 'other-encrypted' },
+      workspaceEncrypted: { EXEMPT_KEY: 'exempt-encrypted', CLEAN_KEY: 'clean-encrypted' },
+      personalDecrypted: { OTHER_KEY: 'shared-value-123' },
+      workspaceDecrypted: {
+        EXEMPT_KEY: 'shared-value-123',
+        CLEAN_KEY: 'clean-value-456',
+      },
+      personalOwners: { OTHER_KEY: 'owner-1' },
+      workspaceUnredactedKeys: ['EXEMPT_KEY', 'CLEAN_KEY'],
+    })
+
+    expect(registry.getUnredactedSecretNames()).toEqual(['CLEAN_KEY'])
+
+    /** An anonymous entry activated mid-run withdraws the certification too. */
+    mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted:
+        encryptedValue === 'anon-encrypted' ? 'clean-value-456' : `decrypted:${encryptedValue}`,
+    }))
+    await registry.importProvenance(
+      { version: 1, complete: true, entries: [{ encryptedValue: 'anon-encrypted' }] },
+      { trusted: true, anonymous: true }
+    )
+    expect(registry.getUnredactedSecretNames()).toEqual([])
   })
 })

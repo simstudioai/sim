@@ -28,12 +28,14 @@ import {
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import '@xterm/xterm/css/xterm.css'
 import {
   describeRunningCommand,
@@ -73,7 +75,6 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
 import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -114,10 +115,10 @@ function hideMountedMenuSurfaces(): void {
  */
 const COMMAND_SETTLE_MS = 1_000
 
-/** Full working directory, plus whatever the shell is running in it. */
-function terminalTooltip(tab: TerminalTabState): string {
+/** Full working directory, plus a concise name for whatever the shell is running. */
+export function terminalTooltip(tab: TerminalTabState): string {
   const where = tab.cwd ?? 'Terminal'
-  return tab.running ? `${where} — ${tab.running}` : where
+  return tab.running ? `${where} — ${describeRunningCommand(tab.running)}` : where
 }
 
 function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
@@ -666,15 +667,23 @@ const TerminalView = memo(function TerminalView({
     addMothershipContext(context)
   }, [selectionSnapshot, terminalId])
 
-  const pasteClipboard = useCallback(() => {
+  const pasteClipboard = () => {
     void (async () => {
-      if (await pasteIntoTerminal(terminalId, scopeId)) {
+      reportTerminalFocused(true, scopeId)
+      const result = await pasteIntoTerminal(terminalId, scopeId)
+      if (result === true) {
         terminalRef.current?.focus()
+        return
+      }
+      if (result === 'too-large') {
+        toast.warning('Paste is too large for the terminal', {
+          description: `Paste up to ${formatPasteLimit(PASTE_LIMITS.TERMINAL_BYTES)} at once, or send the content through a file.`,
+        })
         return
       }
       toast.error('Could not paste from the clipboard. Press ⌘V to paste.')
     })()
-  }, [terminalId, scopeId])
+  }
 
   const newTab = useCallback(() => {
     void openTerminal(undefined, scopeId).catch(() => {
@@ -711,6 +720,7 @@ const TerminalView = memo(function TerminalView({
     <>
       <div
         ref={hostRef}
+        data-paste-max-bytes={PASTE_LIMITS.TERMINAL_BYTES}
         onPointerDown={() => terminalRef.current?.focus()}
         onContextMenu={openMenu}
         className={cn('absolute inset-0 pt-[7px] pr-2 pb-1 pl-1.5', !active && 'hidden')}
@@ -902,8 +912,8 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
         id: tab.terminalId,
         title: counts.get(label) === 1 ? label : `${label} ${occurrence}`,
         // The label is a basename, and the tab may be running something it
-        // is not naming yet, so hovering gives the whole picture: where the
-        // shell is, and what it is doing there.
+        // is not naming yet, so hovering identifies the working directory and
+        // foreground program without exposing the literal command.
         tooltip: terminalTooltip(tab),
         icon: (
           <TerminalTabIcon
@@ -1090,26 +1100,27 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
         {...(canReorderTabs ? { onReorder: handleReorder } : {})}
         newTabLabel='New terminal'
         onClose={handleClose}
-      >
-        <ContextMenu
-          isOpen={isContextMenuOpen && Boolean(contextTab)}
-          position={contextMenuPosition}
-          menuRef={contextMenuRef}
-          onClose={closeContextMenu}
-          onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
-          onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
-          onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
-          disableCloseOtherTabs={tabs.length <= 1}
-          disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
-          {...(contextTab
-            ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
-            : {})}
-          onDelete={() => {}}
-          showRename={false}
-          showDuplicate={Boolean(contextTab)}
-          showDelete={false}
-        />
-      </TabStrip>
+        overlays={
+          <ContextMenu
+            isOpen={isContextMenuOpen && Boolean(contextTab)}
+            position={contextMenuPosition}
+            menuRef={contextMenuRef}
+            onClose={closeContextMenu}
+            onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
+            onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
+            onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
+            disableCloseOtherTabs={tabs.length <= 1}
+            disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
+            {...(contextTab
+              ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
+              : {})}
+            onDelete={() => {}}
+            showRename={false}
+            showDuplicate={Boolean(contextTab)}
+            showDelete={false}
+          />
+        }
+      />
 
       <div className='relative min-h-0 flex-1'>
         {tabs.map((tab) => (

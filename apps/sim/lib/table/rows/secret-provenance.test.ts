@@ -20,7 +20,7 @@ vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
-  isTableSnapshotSafeForModelMount,
+  getTableSnapshotModelMountSafety,
   loadTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
   updateTableRowsWithDerivedSecretProvenance,
@@ -67,30 +67,31 @@ describe('table row secret provenance', () => {
     queueTableRows(userTableRows, [])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(true)
+    ).resolves.toBe('safe')
 
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
-  it('rejects the snapshot as soon as an unsafe row exists', async () => {
+  it('classifies unsafe provenance after confirming the snapshot remains current', async () => {
     queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
     queueTableRows(userTableRows, [{ id: 'unsafe-row' }])
+    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe('unsafe-provenance')
 
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
   })
 
   it('rejects a snapshot when the table changes during the safety check', async () => {
@@ -99,12 +100,12 @@ describe('table row secret provenance', () => {
     queueTableRows(userTableRows, [])
 
     await expect(
-      isTableSnapshotSafeForModelMount({
+      getTableSnapshotModelMountSafety({
         tableId: 'table-1',
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe(false)
+    ).resolves.toBe('stale')
   })
 
   it('keeps untouched legacy rows readable with exact-empty provenance', async () => {
@@ -217,6 +218,54 @@ describe('table row secret provenance', () => {
     })
   })
 
+  /**
+   * The response carries one entry per distinct secret, so a page of many rows sharing a few
+   * secrets is small. Counting the collected per-cell entries instead refused this page at 11,000
+   * on its way to reporting 11 — the same rows-times-columns bound a write-side selection cap
+   * used to impose.
+   */
+  it('vouches for a page whose collected entries far exceed the secrets it reports', async () => {
+    const secretCount = 11
+    const rowCount = 1_000
+    const entries = Array.from({ length: secretCount }, (_, index) => ({
+      columnId: `column-${String(index).padStart(2, '0')}`,
+      encryptedValue: `encrypted-${String(index).padStart(2, '0')}`,
+      name: `SECRET_${String(index).padStart(2, '0')}`,
+      sourceUserId: 'user-1',
+      sourceWorkspaceId: 'workspace-1',
+    }))
+    queueTableRows(
+      userTableRows,
+      Array.from({ length: rowCount }, (_, index) => ({
+        id: `row-${index}`,
+        updatedAt: ROW_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        sidecarRowId: `row-${index}`,
+        sidecarStatus: 'exact',
+        sidecarEntries: entries,
+        sidecarIsCurrent: true,
+      }))
+    )
+
+    await expect(
+      loadTableRowSecretProvenance(
+        Array.from({ length: rowCount }, (_, index) => ({
+          id: `row-${index}`,
+          updatedAt: ROW_UPDATED_AT,
+        })),
+        { userId: 'user-1', workspaceId: 'workspace-1' }
+      )
+    ).resolves.toEqual({
+      version: 1,
+      complete: true,
+      entries: entries.map((entry) => ({
+        encryptedValue: entry.encryptedValue,
+        name: entry.name,
+      })),
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
   it('fails closed for stale tracked rows once the table-row surface is enforced', async () => {
     mockIsEnforced.mockReturnValue(true)
     queueTableRows(userTableRows, [
@@ -297,6 +346,7 @@ describe('table row secret provenance', () => {
       cause: 'row-sidecar-not-exact',
       affectedCount: 1,
       workspaceId: 'workspace-1',
+      actorUserId: 'user-1',
     })
   })
 

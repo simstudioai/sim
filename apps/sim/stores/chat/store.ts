@@ -3,6 +3,8 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
+import { saveBlob } from '@/lib/uploads/client/download'
 import type { ChatMessage, ChatState } from './types'
 import { MAX_CHAT_HEIGHT, MAX_CHAT_WIDTH, MIN_CHAT_HEIGHT, MIN_CHAT_WIDTH } from './utils'
 
@@ -99,41 +101,16 @@ export const useChatStore = create<ChatState>()(
             return
           }
 
-          /**
-           * Safely stringify and escape CSV values
-           */
-          const formatCSVValue = (value: any): string => {
-            if (value === null || value === undefined) {
-              return ''
-            }
-
-            let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
-
-            // Truncate very long strings
-            stringValue = truncate(stringValue, 2000)
-
-            // Escape quotes and wrap in quotes if contains special characters
-            if (
-              stringValue.includes('"') ||
-              stringValue.includes(',') ||
-              stringValue.includes('\n')
-            ) {
-              stringValue = `"${stringValue.replace(/"/g, '""')}"`
-            }
-
-            return stringValue
-          }
-
           const headers = ['timestamp', 'type', 'content']
 
           const csvRows = [
-            headers.join(','),
+            toCsvRow(headers),
             ...messages.map((message: ChatMessage) =>
-              [
-                formatCSVValue(message.timestamp),
-                formatCSVValue(message.type),
-                formatCSVValue(message.content),
-              ].join(',')
+              toCsvRow([
+                formatCsvValue(message.timestamp),
+                formatCsvValue(message.type),
+                truncate(formatCsvValue(message.content), 2000),
+              ])
             ),
           ]
 
@@ -143,19 +120,7 @@ export const useChatStore = create<ChatState>()(
           const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
           const filename = `chat-${workflowId}-${timestamp}.csv`
 
-          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-          const link = document.createElement('a')
-
-          if (link.download !== undefined) {
-            const url = URL.createObjectURL(blob)
-            link.setAttribute('href', url)
-            link.setAttribute('download', filename)
-            link.style.visibility = 'hidden'
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            URL.revokeObjectURL(url)
-          }
+          saveBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), filename)
         },
 
         setSelectedWorkflowOutput: (workflowId, outputIds) => {

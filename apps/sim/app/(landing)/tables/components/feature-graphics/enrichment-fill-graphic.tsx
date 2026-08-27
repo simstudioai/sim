@@ -57,7 +57,7 @@ export function EnrichmentFillGraphic() {
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-1 flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
+            <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>
               Enrichments
             </span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
@@ -81,7 +81,7 @@ export function EnrichmentFillGraphic() {
                     'truncate',
                     row.variant === 'mono'
                       ? 'font-mono text-[var(--text-secondary)] text-caption'
-                      : 'font-medium text-[var(--text-primary)] text-caption',
+                      : 'text-[var(--text-primary)] text-caption',
                     VALUE_STEP_CLASSES[index]
                   )}
                 >

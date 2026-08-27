@@ -18,6 +18,64 @@ export const pdfGenerateTask = defineSandboxTask<SandboxTaskInput>({
     globalThis.rgb           = PDFLib.rgb;
     globalThis.StandardFonts = PDFLib.StandardFonts;
 
+    /**
+     * hex('#1E2761') — a pdf-lib color from a CSS-style hex string. pdf-lib's
+     * rgb() takes 0–1 floats, which models habitually feed 0–255 or hex; this
+     * is the safe entry point. Accepts with or without '#'.
+     */
+    globalThis.hex = function hex(h) {
+      const s = String(h).replace(/^#/, '');
+      if (!/^[0-9a-fA-F]{6}$/.test(s)) throw new Error('hex: expected a 6-digit hex color, got ' + h);
+      return PDFLib.rgb(
+        parseInt(s.slice(0, 2), 16) / 255,
+        parseInt(s.slice(2, 4), 16) / 255,
+        parseInt(s.slice(4, 6), 16) / 255
+      );
+    };
+
+    /**
+     * wrapText(font, text, size, maxWidth) — measured line-wrapping. Returns an
+     * array of lines whose rendered width fits maxWidth (points). Words longer
+     * than maxWidth land on their own line rather than looping forever.
+     */
+    globalThis.wrapText = function wrapText(font, text, size, maxWidth) {
+      if (!font || typeof font.widthOfTextAtSize !== 'function') {
+        throw new Error('wrapText: pass an embedded font (await pdf.embedFont(StandardFonts.Helvetica))');
+      }
+      const lines = [];
+      for (const paragraph of String(text).split('\\n')) {
+        const words = paragraph.split(/\\s+/).filter(Boolean);
+        if (words.length === 0) { lines.push(''); continue; }
+        let line = words[0];
+        for (let i = 1; i < words.length; i++) {
+          const candidate = line + ' ' + words[i];
+          if (font.widthOfTextAtSize(candidate, size) <= maxWidth) line = candidate;
+          else { lines.push(line); line = words[i]; }
+        }
+        lines.push(line);
+      }
+      return lines;
+    };
+
+    /**
+     * drawWrappedText(page, text, opts) — wrap and draw in one call. Required
+     * opts: x, y (top baseline), font, size, maxWidth. Optional: lineHeight
+     * (default size * 1.3), color. Returns the y coordinate BELOW the block so
+     * flowing layouts can continue from it.
+     */
+    globalThis.drawWrappedText = function drawWrappedText(page, text, opts) {
+      if (!opts || opts.x == null || opts.y == null || !opts.font || !opts.size || !opts.maxWidth) {
+        throw new Error('drawWrappedText: opts must include x, y, font, size, and maxWidth');
+      }
+      const lineHeight = opts.lineHeight || opts.size * 1.3;
+      let y = opts.y;
+      for (const line of globalThis.wrapText(opts.font, text, opts.size, opts.maxWidth)) {
+        page.drawText(line, { x: opts.x, y, size: opts.size, font: opts.font, color: opts.color });
+        y -= lineHeight;
+      }
+      return y;
+    };
+
     // Page-size constants in points (1pt = 1/72 inch)
     globalThis.LETTER = [612, 792];        // 8.5" × 11"
     globalThis.A4     = [595.28, 841.89];  // 210mm × 297mm

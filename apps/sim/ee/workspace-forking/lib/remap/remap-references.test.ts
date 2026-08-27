@@ -6,16 +6,25 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 // The indexer resolves a tool's params via the tool registry; stub it so the
 // injected blockConfigs subBlocks drive resolution deterministically in tests.
+// Exposed as vi.fn()s (with the historical defaults) so a test that needs an
+// AUTHORITATIVE resolution - i.e. one carrying `paramVisibility` - can opt in.
+const { mockGetToolIdForOperation, mockGetSubBlocksForToolInput } = vi.hoisted(() => ({
+  mockGetToolIdForOperation: vi.fn((): string | undefined => undefined),
+  mockGetSubBlocksForToolInput: vi.fn(
+    (
+      _toolId: string,
+      _type: string,
+      _values: unknown,
+      _modes: unknown,
+      provided?: { subBlocks?: SubBlockConfig[] }
+    ) => ({ subBlocks: provided?.subBlocks ?? [] })
+  ),
+}))
+
 vi.mock('@/tools/params', () => ({
-  getToolIdForOperation: () => undefined,
+  getToolIdForOperation: mockGetToolIdForOperation,
   getToolParametersConfig: () => null,
-  getSubBlocksForToolInput: (
-    _toolId: string,
-    _type: string,
-    _values: unknown,
-    _modes: unknown,
-    provided?: { subBlocks?: SubBlockConfig[] }
-  ) => ({ subBlocks: provided?.subBlocks ?? [] }),
+  getSubBlocksForToolInput: mockGetSubBlocksForToolInput,
   formatParameterLabel: (label: string) => label,
 }))
 
@@ -26,6 +35,7 @@ import {
   applyDependentOverrides,
   clearDependentsOnRemap,
   collectClearedDependents,
+  createCanonicalModeGates,
   createForkSubBlockTransform,
   type ForkReferenceResolver,
   parseNestedDependentKey,
@@ -768,6 +778,118 @@ describe('clearDependentsOnRemap canonical-pair gating', () => {
   })
 })
 
+describe('canonical-mode gates on a mixed action/trigger block', () => {
+  /**
+   * Webflow's shape: an action pair plus a trigger alias sharing one `canonicalParamId` under a
+   * DIFFERENT id. Both surfaces live in one `subBlocks` array and share one `canonicalModes` key.
+   */
+  const mixedSurfaceBlock = () =>
+    blockWith([
+      {
+        id: 'siteSelector',
+        title: 'Site',
+        type: 'project-selector',
+        canonicalParamId: 'siteId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualSiteId',
+        title: 'Site ID',
+        type: 'short-input',
+        canonicalParamId: 'siteId',
+        mode: 'advanced',
+      },
+      {
+        id: 'triggerSiteId',
+        title: 'Site',
+        type: 'dropdown',
+        canonicalParamId: 'siteId',
+        mode: 'trigger',
+      },
+    ])
+
+  const values = {
+    siteSelector: '',
+    manualSiteId: 'stale-manual-site',
+    triggerSiteId: 'site-live',
+  }
+
+  it('does not call a live trigger field dormant when the shared mode is advanced', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    // Configured as an action with the manual Site ID, then switched to trigger mode. The mode key
+    // is shared, so unscoped the trigger field reads as a dormant member of the action pair — and
+    // a fork CLEARS dormant members, silently wiping the trigger's configured site.
+    const gates = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, true)
+    expect(gates.isDormantMember('triggerSiteId')).toBe(false)
+    expect(gates.isActiveManualMember('triggerSiteId')).toBe(false)
+  })
+
+  it('leaves the DORMANT action surface classified exactly as before scoping', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    const scoped = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, true)
+
+    // Scoping decides membership for LIVE fields only. The action surface's own values are still
+    // real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
+    // both whether to clear a value and whether to skip detecting it. Answering "not a member"
+    // here would stop clearing them AND start detecting them, turning a stale action selector on
+    // a trigger-mode block into a mapping requirement that can block a sync.
+    expect(scoped.isDormantMember('siteSelector')).toBe(true)
+    expect(scoped.isActiveManualMember('manualSiteId')).toBe(true)
+
+    // Identical to what the unscoped gates answered for those same keys before the fix.
+    const legacy = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
+    for (const key of ['siteSelector', 'manualSiteId']) {
+      expect(scoped.isDormantMember(key)).toBe(legacy.isDormantMember(key))
+      expect(scoped.isActiveManualMember(key)).toBe(legacy.isActiveManualMember(key))
+    }
+  })
+
+  it('does not turn a dormant action credential into a detected reference', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const subBlocks: SubBlockRecord = {
+      siteSelector: { type: 'project-selector', value: 'source-workspace-site' },
+      manualSiteId: { type: 'short-input', value: 'stale-manual-site' },
+      triggerSiteId: { type: 'dropdown', value: 'site-live' },
+    }
+    const result = remapForkSubBlocks(subBlocks, () => null, 'promote', {
+      blockType: 'webflow',
+      canonicalModes: { siteId: 'advanced' },
+      triggerMode: true,
+    })
+    // The dormant basic member is cleared and never becomes a promote blocker, exactly as it did
+    // before surface scoping — while the live trigger field survives.
+    expect(result.subBlocks.siteSelector.value).toBe('')
+    expect(result.unmapped.some((ref) => ref.subBlockKey === 'siteSelector')).toBe(false)
+    expect(result.subBlocks.triggerSiteId.value).toBe('site-live')
+  })
+
+  it('still gates the action surface normally', () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const config = getBlock('webflow') as BlockConfig
+    const gates = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
+    // Basic is dormant while advanced is active; the manual member is the live one.
+    expect(gates.isDormantMember('siteSelector')).toBe(true)
+    expect(gates.isActiveManualMember('manualSiteId')).toBe(true)
+  })
+
+  it("keeps a trigger-mode block's live field through the fork remap", () => {
+    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
+    const subBlocks: SubBlockRecord = {
+      siteSelector: { type: 'project-selector', value: '' },
+      manualSiteId: { type: 'short-input', value: 'stale-manual-site' },
+      triggerSiteId: { type: 'dropdown', value: 'site-live' },
+    }
+    const result = remapForkSubBlocks(subBlocks, () => null, 'create', {
+      blockType: 'webflow',
+      canonicalModes: { siteId: 'advanced' },
+      triggerMode: true,
+    })
+    expect(result.subBlocks.triggerSiteId.value).toBe('site-live')
+  })
+})
+
 describe('scanWorkflowReferences canonical-pair detection', () => {
   const credBlock = () =>
     blockWith([
@@ -1005,6 +1127,52 @@ describe('collectClearedDependents', () => {
       },
     ])
   })
+
+  it('does not mark a cleared model-supplied tool param as required', () => {
+    // The pre-sync modal treats a `user-or-llm` param as non-blocking (the agent fills it at
+    // runtime). This collector must agree: a `required` entry here makes promote SKIP the
+    // target's redeploy, so disagreeing would let a sync through and then silently withhold
+    // the deployment.
+    mockGetToolIdForOperation.mockReturnValueOnce('gmail_read')
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'gmail')
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'folder',
+            title: 'Label',
+            type: 'folder-selector',
+            dependsOn: ['credential'],
+            required: true,
+            paramVisibility: 'user-or-llm',
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const targetDraft: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        { type: 'gmail', title: 'Gmail', params: { credential: 'c-target', folder: 'INBOX' } },
+      ]),
+    }
+    const merged: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        { type: 'gmail', title: 'Gmail', params: { credential: 'c-new', folder: '' } },
+      ]),
+    }
+    const result = collectClearedDependents('agent', 'b1', 'Agent', targetDraft, merged)
+    // Still surfaced (the value really was cleared), just not gating the redeploy.
+    expect(result).toEqual([
+      {
+        blockId: 'b1',
+        blockName: 'Agent',
+        subBlockKey: 'tools[0].folder',
+        title: 'Label',
+        toolName: 'Gmail',
+        required: false,
+      },
+    ])
+  })
 })
 
 describe('applyDependentOverrides', () => {
@@ -1060,6 +1228,56 @@ describe('applyDependentOverrides', () => {
     )
     const tools = (result.tools as { value: Array<{ params: { folder: string } }> }).value
     expect(tools[0].params.folder).toBe('Label_99')
+  })
+
+  it('applies an invalidated nested child as empty so it cannot survive under a new provider', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira') {
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'projectId',
+            title: 'Project',
+            type: 'project-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'jira.projects',
+          },
+          {
+            id: 'issueKey',
+            title: 'Issue',
+            type: 'issue-selector',
+            dependsOn: ['projectId'],
+            selectorKey: 'jira.issues',
+          },
+        ])
+      }
+      return undefined as unknown as BlockConfig
+    })
+    const subBlocks: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        {
+          type: 'jira',
+          title: 'Jira',
+          params: { credential: 'c-new', projectId: 'project-old', issueKey: 'OLD-1' },
+        },
+      ]),
+    }
+
+    const result = applyDependentOverrides(
+      subBlocks,
+      'agent',
+      new Map([
+        ['tools[0].projectId', 'project-new'],
+        ['tools[0].issueKey', ''],
+      ])
+    )
+    const tools = (
+      result.tools as {
+        value: Array<{ params: { projectId: string; issueKey: string } }>
+      }
+    ).value
+    expect(tools[0].params).toMatchObject({ projectId: 'project-new', issueKey: '' })
   })
 
   it('rejects a nested override for a non-allowlisted tool param', () => {
@@ -1702,6 +1920,52 @@ describe('canonical mode policy (fork/promote)', () => {
     const mapped = mappedTransform(subBlocks(), 'table')
     expect(mapped.tableSelector.value).toBe('tbl-mapped')
     expect(mapped.conflictColumnSelector.value).toBe('')
+  })
+
+  it('preserves a selector-backed multi-column pick under a COPIED table like a column-selector', () => {
+    const tableBlock = () =>
+      blockWith([
+        {
+          id: 'tableSelector',
+          title: 'Table',
+          type: 'table-selector',
+          canonicalParamId: 'tableId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualTableId',
+          title: 'Table ID',
+          type: 'short-input',
+          canonicalParamId: 'tableId',
+          mode: 'advanced',
+        },
+        {
+          id: 'outputColumns',
+          title: 'Columns to Return',
+          type: 'dropdown',
+          selectorKey: 'table.outputColumns',
+          multiSelect: true,
+          dependsOn: { any: ['tableSelector', 'manualTableId'] },
+        },
+      ])
+    const subBlocks = (): SubBlockRecord => ({
+      tableSelector: entry('tableSelector', 'table-selector', 'tbl-src'),
+      outputColumns: entry('outputColumns', 'dropdown', ['col_a', 'col_b']),
+    })
+    vi.mocked(getBlock).mockReturnValue(tableBlock())
+    // Fork-create: the copy keeps the same column ids, so the pick survives verbatim.
+    const forkTransform = createForkBootstrapTransform(((kind: string, id: string) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-copy' : null) as never)
+    const forked = forkTransform(subBlocks(), 'table')
+    expect(forked.tableSelector.value).toBe('tbl-copy')
+    expect(forked.outputColumns.value).toEqual(['col_a', 'col_b'])
+    // Promote onto a MAPPED (different) table: column ids differ - the pick clears.
+    const mappedTransform = createForkSubBlockTransform((kind, id) =>
+      kind === 'table' && id === 'tbl-src' ? 'tbl-mapped' : null
+    )
+    const mapped = mappedTransform(subBlocks(), 'table')
+    expect(mapped.tableSelector.value).toBe('tbl-mapped')
+    expect(mapped.outputColumns.value).toBe('')
   })
 
   it('collectClearedDependents skips a dormant canonical member (only the active mode matters)', () => {

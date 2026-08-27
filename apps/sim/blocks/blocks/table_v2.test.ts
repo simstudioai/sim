@@ -18,6 +18,83 @@ function params(input: Record<string, unknown>): Record<string, unknown> {
 }
 
 describe('table_v2 query_rows transformer', () => {
+  it('passes selected output columns to the query tool and treats an empty selection as all', () => {
+    expect(
+      params({
+        operation: 'query_rows',
+        tableId: 't',
+        outputColumns: ['col_name', 'col_email'],
+      }).columns
+    ).toEqual(['col_name', 'col_email'])
+    expect(
+      params({ operation: 'query_rows', tableId: 't', outputColumns: [] }).columns
+    ).toBeUndefined()
+  })
+
+  it('treats the absent shapes of the selection as all columns', () => {
+    for (const outputColumns of [undefined, null, '']) {
+      expect(
+        params({ operation: 'query_rows', tableId: 't', outputColumns }).columns
+      ).toBeUndefined()
+    }
+  })
+
+  it('accepts an agent-authored JSON string for the selection', () => {
+    expect(
+      params({ operation: 'query_rows', tableId: 't', outputColumns: '["col_name"," wins "]' })
+        .columns
+    ).toEqual(['col_name', 'wins'])
+  })
+
+  it('fails fast instead of silently returning every column for a malformed selection', () => {
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: 'col_name,col_email' })
+    ).toThrow(/Invalid JSON in Columns to Return/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: { col_name: true } })
+    ).toThrow(/Invalid Columns to Return/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: ['col_name', null] })
+    ).toThrow(/non-empty column id or name/)
+    expect(() =>
+      params({ operation: 'query_rows', tableId: 't', outputColumns: ['col_name', ''] })
+    ).toThrow(/non-empty column id or name/)
+  })
+
+  it('falls back to a model-supplied columns param when nothing is picked on the canvas', () => {
+    expect(
+      params({ operation: 'query_rows', tableId: 't', columns: ['col_email'] }).columns
+    ).toEqual(['col_email'])
+    expect(
+      params({ operation: 'query_rows', tableId: 't', outputColumns: [], columns: ['col_email'] })
+        .columns
+    ).toEqual(['col_email'])
+    expect(
+      params({
+        operation: 'query_rows',
+        tableId: 't',
+        outputColumns: ['col_name'],
+        columns: ['col_email'],
+      }).columns
+    ).toEqual(['col_name'])
+  })
+
+  it('configures a searchable multi-select backed by all table columns', () => {
+    const outputColumns = TableV2Block.subBlocks.find((subBlock) => subBlock.id === 'outputColumns')
+
+    expect(outputColumns).toMatchObject({
+      title: 'Columns to Return',
+      type: 'dropdown',
+      selectorKey: 'table.outputColumns',
+      multiSelect: true,
+      searchable: true,
+      preserveLabelCase: true,
+      placeholder: 'All columns',
+      condition: { field: 'operation', value: 'query_rows' },
+      dependsOn: { any: ['tableSelector', 'manualTableId'] },
+    })
+  })
+
   it('keeps limit optional (byte-budget page) but fails fast on a non-numeric one', () => {
     const out = params({ operation: 'query_rows', tableId: 't' })
     expect(out.limit).toBeUndefined()
@@ -132,6 +209,10 @@ describe('table_v2 blank and malformed editor inputs', () => {
   it('treats an empty builder array as absent', () => {
     expect(params({ ...base, filterInput: [] }).filter).toBeUndefined()
     expect(params({ ...base, sortInput: [] }).order).toBeUndefined()
+  })
+
+  it('treats the default null filter as absent', () => {
+    expect(params({ ...base, filterInput: null }).filter).toBeUndefined()
   })
 
   it('still reports genuinely malformed JSON', () => {

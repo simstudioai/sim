@@ -143,11 +143,6 @@ export function useBillingUsageNotifications(): boolean {
   return data?.billingUsageNotificationsEnabled ?? true
 }
 
-export function useErrorNotificationsEnabled(): boolean {
-  const { data } = useGeneralSettings()
-  return data?.errorNotificationsEnabled ?? true
-}
-
 /**
  * The user's effective scheduling timezone: their saved preference, or the
  * browser-detected zone when unset. Use this wherever a task's timezone is

@@ -4,10 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
-import {
-  type ActiveWorkspaceApplicationContext,
-  loadActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ActiveWorkflowApplicationContext {
   workflowId: string
@@ -22,14 +19,6 @@ export interface ActiveWorkflowRunApplicationContext extends ActiveWorkflowAppli
   runId: string
 }
 
-export async function resolveActiveWorkspaceApplicationContext(
-  workspaceId: string
-): Promise<ActiveWorkspaceApplicationContext> {
-  const context = await loadActiveWorkspaceApplicationContext(workspaceId)
-  if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
-  return context
-}
-
 export async function resolveActiveWorkflowApplicationContext(input: {
   workflowId: string
   assertedWorkspaceId?: string
@@ -42,6 +31,41 @@ export async function resolveActiveWorkflowApplicationContext(input: {
     })
     .from(workflow)
     .where(and(eq(workflow.id, input.workflowId), isNull(workflow.archivedAt)))
+    .limit(1)
+
+  if (
+    !canonicalWorkflow?.workspaceId ||
+    (input.assertedWorkspaceId !== undefined &&
+      input.assertedWorkspaceId !== canonicalWorkflow.workspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Workflow not found')
+  }
+  const workspaceContext = await loadActiveWorkspaceApplicationContext(
+    canonicalWorkflow.workspaceId
+  )
+  if (!workspaceContext) throw new OrchestrationError('not_found', 'Workflow not found')
+  return { ...workspaceContext, ...canonicalWorkflow, workspaceId: workspaceContext.workspaceId }
+}
+
+/**
+ * Canonical context for a workflow that may be archived.
+ *
+ * Separate from {@link resolveActiveWorkflowApplicationContext}, which excludes
+ * archived rows by construction — a restore has to reach exactly the rows that
+ * one hides.
+ */
+export async function resolveArchivedWorkflowApplicationContext(input: {
+  workflowId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveWorkflowApplicationContext> {
+  const [canonicalWorkflow] = await db
+    .select({
+      workflowId: workflow.id,
+      workflow,
+      workspaceId: workflow.workspaceId,
+    })
+    .from(workflow)
+    .where(eq(workflow.id, input.workflowId))
     .limit(1)
 
   if (

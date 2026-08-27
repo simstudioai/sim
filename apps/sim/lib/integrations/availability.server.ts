@@ -16,26 +16,11 @@ export type {
   IntegrationAvailabilityState,
 } from '@/lib/integrations/availability'
 
-let unavailableIntegrationTypes: ReadonlySet<string> | null = null
 let integrationAvailabilityByType: ReadonlyMap<string, IntegrationAvailability> | null = null
 const oauthServiceAvailability = new Map<string, boolean>()
 
 export function getIntegrationAvailability() {
   return resolveIntegrationAvailability(env)
-}
-
-export function getUnavailableIntegrationTypes(): ReadonlySet<string> {
-  if (!unavailableIntegrationTypes) {
-    unavailableIntegrationTypes = new Set(
-      getIntegrationAvailability()
-        .filter(
-          (integration) =>
-            integration.state === 'unavailable' || integration.state === 'misconfigured'
-        )
-        .map((integration) => integration.type.toLowerCase())
-    )
-  }
-  return unavailableIntegrationTypes
 }
 
 function getIntegrationAvailabilityByType(): ReadonlyMap<string, IntegrationAvailability> {

@@ -11,6 +11,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -81,7 +82,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 { status: 400 }
               )
             }
-            const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
+            const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger, {
+              maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+            })
             apiImage = { base64: buffer.toString('base64') }
           } else {
             return NextResponse.json(
@@ -114,7 +117,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
-        const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
+        const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger, {
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        })
         apiImage = { base64: buffer.toString('base64') }
       } else {
         return NextResponse.json({ success: false, error: 'Invalid file input' }, { status: 400 })

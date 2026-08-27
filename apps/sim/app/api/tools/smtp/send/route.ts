@@ -7,9 +7,11 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getSmtpEhloName } from '@/lib/messaging/email/ehlo'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
@@ -73,6 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         user: validatedData.smtpUsername,
         pass: validatedData.smtpPassword,
       },
+      name: getSmtpEhloName(),
       tls:
         validatedData.smtpSecure === 'None'
           ? { rejectUnauthorized: false, servername: validatedData.smtpHost }
@@ -130,17 +133,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         let resolved: Array<{ buffer: Buffer; contentType: string }>
         try {
-          resolved = await Promise.all(
-            attachments.map(async (file) => {
-              logger.info(
-                `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
-              )
-              return await downloadServableFileFromStorage(file, requestId, logger)
-            })
-          )
+          resolved = await downloadServableFilesWithinBudget(attachments, requestId, logger, {
+            totalMaxBytes: maxSize,
+            label: 'Total attachment size',
+          })
         } catch (error) {
           const notReady = docNotReadyResponse(error)
           if (notReady) return notReady
+          if (isPayloadSizeLimitError(error)) {
+            const sizeMB = ((error.observedBytes ?? totalSize) / (1024 * 1024)).toFixed(2)
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Total attachment size (${sizeMB}MB) exceeds SMTP limit of 25MB`,
+              },
+              { status: 400 }
+            )
+          }
           logger.error(`[${requestId}] Failed to download an attachment:`, error)
           return NextResponse.json(
             {
@@ -148,18 +157,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               error: `Failed to download attachment: ${getErrorMessage(error, 'Unknown error')}`,
             },
             { status: 500 }
-          )
-        }
-
-        const resolvedTotal = resolved.reduce((sum, r) => sum + r.buffer.length, 0)
-        if (resolvedTotal > maxSize) {
-          const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Total attachment size (${sizeMB}MB) exceeds SMTP limit of 25MB`,
-            },
-            { status: 400 }
           )
         }
 

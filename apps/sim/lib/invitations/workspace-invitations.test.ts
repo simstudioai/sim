@@ -31,6 +31,7 @@ const {
   mockCancelPendingInvitation,
   mockRevertPendingInvitationGrants,
   mockFindPendingGrantWorkspaceIds,
+  mockFindPendingOrganizationInvitation,
   mockGetInvitePlanCategoryForUser,
   mockIsOrganizationOwnerOrAdmin,
   mockWorkspaceMemberInvited,
@@ -50,6 +51,7 @@ const {
   mockCancelPendingInvitation: vi.fn(),
   mockRevertPendingInvitationGrants: vi.fn(),
   mockFindPendingGrantWorkspaceIds: vi.fn(),
+  mockFindPendingOrganizationInvitation: vi.fn(),
   mockGetInvitePlanCategoryForUser: vi.fn(),
   mockIsOrganizationOwnerOrAdmin: vi.fn(),
   mockWorkspaceMemberInvited: vi.fn(),
@@ -84,6 +86,7 @@ vi.mock('@/lib/invitations/send', () => ({
   cancelPendingInvitation: mockCancelPendingInvitation,
   revertPendingInvitationGrants: mockRevertPendingInvitationGrants,
   findPendingGrantWorkspaceIds: mockFindPendingGrantWorkspaceIds,
+  findPendingOrganizationInvitation: mockFindPendingOrganizationInvitation,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
@@ -192,7 +195,10 @@ describe('createWorkspaceInvitation', () => {
       mutationOrganizationId: 'org-1',
     })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
+    mockCancelPendingInvitation.mockResolvedValue(true)
+    mockRevertPendingInvitationGrants.mockResolvedValue(true)
     mockFindPendingGrantWorkspaceIds.mockResolvedValue(new Set())
+    mockFindPendingOrganizationInvitation.mockResolvedValue(null)
     mockGetInvitePlanCategoryForUser.mockResolvedValue('free')
   })
 
@@ -258,6 +264,25 @@ describe('createWorkspaceInvitation', () => {
       expect.objectContaining({ kind: 'workspace', membershipIntent: 'external' })
     )
     expect(mockSendInvitationEmail).toHaveBeenCalled()
+  })
+
+  it('lets privileged admin callers reject a cross-organization internal invitation', async () => {
+    queueWhereResponses([[{ id: 'user-3', email: 'ext@example.com' }], []])
+    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'ext@example.com',
+        permission: 'read',
+        membership: 'member',
+        rejectCrossOrganization: true,
+        request,
+      })
+    ).rejects.toMatchObject({ status: 409 })
+
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
   })
 
   it('creates an internal pending invitation when the registered user has no org', async () => {
@@ -520,6 +545,79 @@ describe('createWorkspaceInvitation', () => {
     )
   })
 
+  it('reuses an existing Enterprise seat reservation when extending a pending invitation', async () => {
+    queueTableRows(userTable, [])
+    const context = makeContext(['ws-2'])
+    context.targets[0].invitePolicy.requiresSeat = true
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await input.validateLockedContext?.({
+          tx: dbChainMock.db as unknown as DbOrTx,
+          organizationId: 'org-1',
+          workspaceIds: ['ws-2'],
+        })
+        return {
+          invitationId: 'inv-existing',
+          token: 'tok-existing',
+          expiresAt: new Date(),
+          created: false,
+          addedWorkspaceIds: ['ws-2'],
+          grants: [{ workspaceId: 'ws-2', permission: 'write' }],
+          mutationUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
+          mutationOrganizationId: 'org-1',
+        }
+      }
+    )
+    mockFindPendingOrganizationInvitation.mockResolvedValueOnce({ id: 'inv-existing' })
+
+    await createWorkspaceInvitation({
+      context,
+      email: 'new@example.com',
+      permission: 'write',
+      request,
+    })
+
+    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).toHaveBeenCalled()
+  })
+
+  it('checks a new Enterprise seat reservation under the organization lock', async () => {
+    queueTableRows(userTable, [])
+    const context = makeContext(['ws-2'])
+    context.targets[0].invitePolicy.requiresSeat = true
+    mockValidateSeatAvailability.mockResolvedValueOnce({
+      canInvite: false,
+      reason: 'No available seats.',
+    })
+    mockCreatePendingInvitation.mockImplementationOnce(
+      async (input: CreatePendingInvitationInput) => {
+        await input.validateLockedContext?.({
+          tx: dbChainMock.db as unknown as DbOrTx,
+          organizationId: 'org-1',
+          workspaceIds: ['ws-2'],
+        })
+        throw new Error('unreachable')
+      }
+    )
+
+    await expect(
+      createWorkspaceInvitation({
+        context,
+        email: 'new@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toMatchObject({ status: 400 })
+
+    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalled()
+    expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1, {
+      executor: dbChainMock.db,
+    })
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      mockValidateSeatAvailability.mock.invocationCallOrder[0]
+    )
+  })
+
   it('rejects when every selected workspace is already invited', async () => {
     queueWhereResponses([[]])
     mockFindPendingGrantWorkspaceIds.mockResolvedValueOnce(new Set(['ws-1', 'ws-2']))
@@ -567,5 +665,20 @@ describe('createWorkspaceInvitation', () => {
       expectedUpdatedAt: new Date('2026-07-30T12:00:00.000Z'),
       expectedOrganizationId: 'org-1',
     })
+  })
+
+  it('surfaces a concurrent rollback conflict instead of reporting a clean email failure', async () => {
+    queueWhereResponses([[]])
+    mockSendInvitationEmail.mockResolvedValueOnce({ success: false, error: 'smtp down' })
+    mockCancelPendingInvitation.mockResolvedValueOnce(false)
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'new@example.com',
+        permission: 'write',
+        request,
+      })
+    ).rejects.toThrow('invitation changed concurrently')
   })
 })

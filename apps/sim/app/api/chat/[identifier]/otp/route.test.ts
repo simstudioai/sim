@@ -31,6 +31,7 @@ const {
   mockSetChatAuthCookie,
   mockGetStorageMethod,
   mockZodParse,
+  mockAfterResponse,
 } = vi.hoisted(() => {
   const mockRedisSet = vi.fn()
   const mockRedisGet = vi.fn()
@@ -49,6 +50,7 @@ const {
   const mockSetChatAuthCookie = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
+  const mockAfterResponse = vi.fn()
 
   return {
     mockRedisSet,
@@ -62,6 +64,7 @@ const {
     mockSetChatAuthCookie,
     mockGetStorageMethod,
     mockZodParse,
+    mockAfterResponse,
   }
 })
 
@@ -82,6 +85,10 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {
     checkRateLimitDirect = mockCheckRateLimitDirect
   },
+}))
+
+vi.mock('@/lib/core/utils/after-response', () => ({
+  afterResponse: mockAfterResponse,
 }))
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
@@ -149,7 +156,14 @@ vi.mock('zod', () => {
   }
 })
 
-import { POST, PUT } from './route'
+import { PUT, POST as routePost } from './route'
+
+const POST: typeof routePost = async (...args) => {
+  const response = await routePost(...args)
+  const task = mockAfterResponse.mock.calls.at(-1)?.[0] as (() => Promise<void>) | undefined
+  if (task) await task()
+  return response
+}
 
 describe('Chat OTP API Route', () => {
   const mockEmail = 'test@example.com'
@@ -209,7 +223,6 @@ describe('Chat OTP API Route', () => {
       remaining: 10,
       resetAt: new Date(Date.now() + 60_000),
     })
-
     mockZodParse.mockImplementation((data: unknown) => data)
 
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000', NODE_ENV: 'test' })
@@ -252,6 +265,27 @@ describe('Chat OTP API Route', () => {
   })
 
   describe('POST - Rate limiting', () => {
+    it('returns the generic acceptance response for a rejected email without a client IP', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+      queueDeployment(emailDeployment)
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'not-allowed@example.com' }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
+      expect(mockAfterResponse).toHaveBeenCalledTimes(1)
+      expect(mockCheckRateLimitDirect).not.toHaveBeenCalled()
+      expect(mockRedisSet).not.toHaveBeenCalled()
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
     it('returns 429 with Retry-After when IP rate limit is exceeded', async () => {
       mockCheckRateLimitDirect.mockResolvedValueOnce({
         allowed: false,
@@ -282,7 +316,42 @@ describe('Chat OTP API Route', () => {
       expect(dbChainMockFns.select).not.toHaveBeenCalled()
     })
 
-    it('returns 429 with Retry-After when email rate limit is exceeded', async () => {
+    it('returns the generic acceptance response when the email rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect
+        .mockResolvedValueOnce({
+          allowed: true,
+          remaining: 9,
+          resetAt: new Date(Date.now() + 60_000),
+        })
+        .mockResolvedValueOnce({
+          allowed: true,
+          remaining: 99,
+          resetAt: new Date(Date.now() + 60_000),
+        })
+        .mockResolvedValueOnce({
+          allowed: false,
+          remaining: 0,
+          resetAt: new Date(Date.now() + 900_000),
+          retryAfterMs: 900_000,
+        })
+
+      queueDeployment(emailDeployment)
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
+    it('returns the generic acceptance response when the chat resource limit is exceeded', async () => {
       mockCheckRateLimitDirect
         .mockResolvedValueOnce({
           allowed: true,
@@ -296,13 +365,6 @@ describe('Chat OTP API Route', () => {
           retryAfterMs: 900_000,
         })
 
-      const headerSet = vi.fn()
-      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
-        json: () => Promise.resolve({ error: message }),
-        status,
-        headers: { set: headerSet },
-      }))
-
       queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
@@ -314,8 +376,8 @@ describe('Chat OTP API Route', () => {
         params: Promise.resolve({ identifier: mockIdentifier }),
       })
 
-      expect(response.status).toBe(429)
-      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ message: 'Verification code sent' })
       expect(mockSendEmail).not.toHaveBeenCalled()
     })
 
@@ -343,8 +405,8 @@ describe('Chat OTP API Route', () => {
       expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
     })
 
-    it('folds spoofed `unknown` client IPs into a single shared bucket', async () => {
-      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
+    it('retains resource and email backstops when the client IP cannot be resolved', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
       queueDeployment(emailDeployment)
 
       const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
@@ -354,14 +416,19 @@ describe('Chat OTP API Route', () => {
 
       await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
+      expect(mockAfterResponse).toHaveBeenCalledTimes(1)
       expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
-      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
-        expect.stringMatching(/^chat-otp:ip:.*:unknown$/),
-        expect.any(Object)
+      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+        1,
+        'chat-otp:resource:chat-123',
+        expect.any(Object),
+        { failClosed: true }
       )
-      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
+        2,
         expect.stringContaining('chat-otp:email:'),
-        expect.any(Object)
+        expect.any(Object),
+        { failClosed: true }
       )
     })
   })

@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ChipCombobox } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -19,6 +19,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -32,7 +33,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <SquareArrowUpRight className='size-3' />
   }
-  return createElement(baseProviderConfig.icon, { className: 'size-3' })
+  return <BrandIcon icon={baseProviderConfig.icon} className='size-3' />
 }
 
 const getProviderName = (providerName: OAuthProvider) => {
@@ -146,6 +147,13 @@ export function ToolCredentialSelector({
   const needsUpdate =
     hasSelection && missingRequiredScopes.length > 0 && !disabled && !credentialsLoading
 
+  useEffect(() => {
+    if (showOAuthModal && selectedId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, selectedId, selectedCredential, credentialsLoading])
+
   const handleSelect = useCallback(
     (credentialId: string) => {
       onChange(credentialId)
@@ -250,6 +258,7 @@ export function ToolCredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)
@@ -276,7 +285,7 @@ export function ToolCredentialSelector({
         />
       )}
 
-      {showOAuthModal && (
+      {showOAuthModal && selectedCredential && (
         <ConnectOAuthModal
           mode='reauthorize'
           open={showOAuthModal}
@@ -294,7 +303,12 @@ export function ToolCredentialSelector({
           // A reauthorize must return to the authorization server that issued
           // the credential — deriving it from the service id would send a
           // sandbox user to production, where they cannot sign in at all.
-          providerId={selectedCredential?.provider ?? effectiveProviderId}
+          providerId={selectedCredential.provider}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: selectedCredential.id,
+            displayName: selectedCredential.name,
+          }}
         />
       )}
     </div>

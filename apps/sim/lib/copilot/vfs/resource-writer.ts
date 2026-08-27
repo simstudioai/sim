@@ -4,6 +4,7 @@ import {
   resolveCopilotFilePrincipal,
 } from '@/lib/copilot/auth/file-delegation'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
@@ -77,7 +78,9 @@ async function resolveCreateTarget(
 
   const existing = await getWorkspaceFileByName(workspaceId, parsed.fileName, { folderId })
   if (existing) {
-    throw new Error(`File already exists at ${parsed.vfsPath}. Use mode "overwrite" to update it.`)
+    throw new Error(
+      `File already exists at ${parsed.vfsPath}. Choose a different name to keep both files, or pass mode "overwrite" only if the user wants that existing file replaced.`
+    )
   }
 
   return {
@@ -146,39 +149,53 @@ export async function writeWorkspaceFileByPath(args: {
   /**
    * Forwarded to {@link updateWorkspaceFileContent} on an overwrite. Defaults to `true` (stream a
    * markdown overwrite into any open collaborative editor). Pass `false` for a write whose content is
-   * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
+   * only a placeholder — e.g. `create_empty_file`'s empty shell, whose real content lands via a later write.
    */
   syncLiveDoc?: boolean
   /** Private provenance for the exact bytes being written. */
   secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<WorkspaceFileWriteResult> {
-  await assertWorkspaceFileWriteAccess(args)
-
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
-    const updated = await updateWorkspaceFileContentBufferByPath.execute({
-      principal: args.principal,
-      input: {
-        workspaceId: args.workspaceId,
-        path: args.target.path,
-        mode: 'overwrite',
-        content: args.buffer,
-        contentType,
-        syncLiveDoc: args.syncLiveDoc,
-        secretProvenance: args.secretProvenance,
-      },
-    })
-
-    return {
-      id: updated.id,
-      name: updated.name,
-      size: updated.size,
-      contentType: updated.contentType,
-      downloadUrl: updated.downloadUrl,
-      vfsPath: updated.vfsPath,
-      mode: 'overwrite',
+    // Overwrite is an upsert: "put these bytes at this path". A missing target
+    // falls through to create instead of failing — otherwise every generator
+    // (generate_image, ffmpeg, downloads) forces the model through a
+    // create-vs-overwrite guessing dance racing its own earlier writes.
+    let missingTarget = false
+    try {
+      await assertWorkspaceFileWriteAccess(args)
+    } catch (accessError) {
+      if (asOrchestrationError(accessError)?.code !== 'not_found') throw accessError
+      missingTarget = true
     }
+    if (!missingTarget) {
+      const updated = await updateWorkspaceFileContentBufferByPath.execute({
+        principal: args.principal,
+        input: {
+          workspaceId: args.workspaceId,
+          path: args.target.path,
+          mode: 'overwrite',
+          content: args.buffer,
+          contentType,
+          syncLiveDoc: args.syncLiveDoc,
+          secretProvenance: args.secretProvenance,
+        },
+      })
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        size: updated.size,
+        contentType: updated.contentType,
+        downloadUrl: updated.downloadUrl,
+        vfsPath: updated.vfsPath,
+        mode: 'overwrite',
+      }
+    }
+    args = { ...args, target: { ...args.target, mode: 'create' } }
   }
+
+  await assertWorkspaceFileWriteAccess(args)
 
   const created = await createWorkspaceFileBufferByPath.execute({
     principal: args.principal,

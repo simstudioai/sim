@@ -1,8 +1,10 @@
 import { v2GetLogContract, v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
+import { v2GetLogStatsContract } from '@/lib/api/contracts/v2/logs-stats'
 import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
   RUN_RETENTION,
@@ -10,6 +12,7 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -23,6 +26,7 @@ const WORKFLOW_ID = '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'
 const LOG_LIST_EXAMPLE = {
   data: [
     {
+      kind: 'workflow',
       runId: RUN_ID,
       workflowId: WORKFLOW_ID,
       deploymentVersionId: 'dep_2c4e6a8b0d1f',
@@ -33,7 +37,15 @@ const LOG_LIST_EXAMPLE = {
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
       cost: { total: 0.0032 },
-      files: null,
+      files: [
+        {
+          id: 'f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04',
+          name: 'summary.pdf',
+          size: 18422,
+          type: 'application/pdf',
+          downloadPath: `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04`,
+        },
+      ],
     },
   ],
   nextCursor: 'eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwMFoifQ==',
@@ -65,8 +77,57 @@ const LOG_DETAIL_EXAMPLE = {
     workflowState: { blocks: {}, edges: [] },
     traceSpans: [],
     finalOutput: { result: 'Hello, world!' },
-    cost: { total: 0.0032 },
+    cost: {
+      total: 0.0032,
+      items: [
+        { category: 'fixed', description: 'Base execution charge', cost: 0.001 },
+        {
+          category: 'model',
+          description: 'gpt-5',
+          cost: 0.0022,
+          inputTokens: 1840,
+          outputTokens: 260,
+        },
+      ],
+    },
+    workflowInput: { ticketId: 'T-4821' },
     createdAt: '2026-01-15T10:30:00.000Z',
+  },
+} as const
+
+const LOG_STATS_EXAMPLE = {
+  data: {
+    workflows: [
+      {
+        workflowId: WORKFLOW_ID,
+        workflowName: 'Customer Support Agent',
+        segments: [
+          {
+            timestamp: '2026-01-15T10:00:00.000Z',
+            totalExecutions: 40,
+            successfulExecutions: 38,
+            avgDurationMs: 1180,
+          },
+        ],
+        totalExecutions: 40,
+        totalSuccessful: 38,
+        overallSuccessRate: 95,
+      },
+    ],
+    workflowsTruncated: false,
+    aggregateSegments: [
+      {
+        timestamp: '2026-01-15T10:00:00.000Z',
+        totalExecutions: 40,
+        successfulExecutions: 38,
+        avgDurationMs: 1180,
+      },
+    ],
+    totalRuns: 40,
+    totalErrors: 2,
+    avgLatency: 1180,
+    timeBounds: { start: '2026-01-15T10:00:00.000Z', end: '2026-01-15T22:00:00.000Z' },
+    segmentMs: 600000,
   },
 } as const
 
@@ -89,14 +150,14 @@ function logsOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListLogsContract,
     logsOperation({
       operationId: 'listLogs',
       summary: 'List Logs',
-      description: `List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. ${RUN_RETENTION}`,
-      errors: RESOURCE_ERRORS,
+      description: `List workflow execution logs for a workspace with filters, selectable detail, sorting by start time, duration, cost, or status, and opaque cursor pagination. Chat and Sim-agent job runs join the sequence with \`includeJobRuns=true\`, which is accepted only under \`sortBy=startedAt\` — their cost is stored as a document and their status is not comparable, so they cannot participate in the other orderings. Each item's \`files\` lists only the files the run itself produced, addressed by \`downloadPath\`; input attachments a caller supplied are read through the files API instead. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
     }),
     {
@@ -120,9 +181,8 @@ const routes = [
     logsOperation({
       operationId: 'getLog',
       summary: 'Get Log',
-      description:
-        'Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.',
-      errors: RESOURCE_ERRORS,
+      description: `Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty \`traceSpans\` array does not mean the run recorded none. ${FOLDER_TREE_TOO_LARGE} ${RUN_RETENTION}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
     }),
     {
@@ -142,14 +202,42 @@ const routes = [
       ),
     }
   ),
+  defineOpenApiRoute(
+    v2GetLogStatsContract,
+    logsOperation({
+      operationId: 'getLogStats',
+      summary: 'Get Log Statistics',
+      description: `Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans \`startDate\` through \`endDate\` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding \`endDate\` when only \`endDate\` was supplied. A supplied \`startDate\` is still used verbatim, so a \`startDate\` without an \`endDate\` yields \`[startDate, now]\`, which can be any width. The window is divided into exactly \`segmentCount\` equal buckets whose width is \`max(60000, floor(windowMs / segmentCount))\` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past \`timeBounds.end\` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and \`workflowsTruncated\` reports whether the cap applied; the workspace totals are always computed from every workflow. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Bucketed execution statistics for the workspace.' },
+    }),
+    {
+      query: documentedSchema(
+        v2GetLogStatsContract.query,
+        'GetLogStatsQuery',
+        'Log statistics query',
+        'Workspace, workflow, folder, trigger, level, date, and bucketing filters.'
+      ),
+      response: documentedSchema(
+        v2GetLogStatsContract.response.schema,
+        'V2LogStatsResponse',
+        'Log statistics response',
+        'Bucketed success rate, error count, and latency for a workspace and its workflows.',
+        [LOG_STATS_EXAMPLE]
+      ),
+    }
+  ),
 ] as const
+
+/** A no-op on these bodyless reads; kept so a future body-taking log operation inherits its 413. */
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const logsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-logs.json',
   info: {
     title: 'Sim API v2 — Logs',
     description:
-      'Version 2 of the Sim REST API for listing workflow execution logs and retrieving complete diagnostic run snapshots.',
+      'Version 2 of the Sim REST API for workflow execution logs: listing and sorting runs with filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

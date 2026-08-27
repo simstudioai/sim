@@ -104,7 +104,6 @@ export const removeAllAttendeesTool: ToolConfig<RemoveAllAttendeesParams, SapCon
       data: {
         type: 'json',
         description: 'Empty response body (Concur returns 204 No Content)',
-        properties: {},
       },
     },
   }

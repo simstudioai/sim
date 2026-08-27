@@ -1,11 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
-import {
-  getCancellationChannel,
-  isExecutionCancelled,
-  isRedisCancellationEnabled,
-} from '@/lib/execution/cancellation'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -64,15 +60,13 @@ export class ExecutionEngine {
         : [this.cancellationController.signal]
     )
     this.initializeAbortHandler()
-    this.subscribeToCancellationChannel()
   }
 
-  private subscribeToCancellationChannel(): void {
+  private async subscribeToCancellationSignal(): Promise<void> {
     if (!this.context.executionId) return
     const executionId = this.context.executionId
-    this.cancellationUnsubscribe = getCancellationChannel().subscribe((event) => {
-      if (event.executionId !== executionId) return
-      this.execLogger.info('Execution cancelled via pub/sub', { executionId })
+    this.cancellationUnsubscribe = await subscribeToExecutionCancellation(executionId, () => {
+      this.execLogger.info('Execution cancelled via Redis signal', { executionId })
       this.signalCancelled()
     })
   }
@@ -107,23 +101,11 @@ export class ExecutionEngine {
     return this.cancelledFlag
   }
 
-  /** Catches cancellations published before this engine subscribed (e.g. resume from snapshot). */
-  private async checkCancellationBackstop(): Promise<void> {
-    if (!this.context.executionId || !isRedisCancellationEnabled()) return
-    const cancelled = await isExecutionCancelled(this.context.executionId)
-    if (cancelled) {
-      this.execLogger.info('Execution already cancelled at engine start (Redis backstop)', {
-        executionId: this.context.executionId,
-      })
-      this.signalCancelled()
-    }
-  }
-
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = performance.now()
     try {
       this.initializeQueue(triggerBlockId)
-      await this.checkCancellationBackstop()
+      await this.subscribeToCancellationSignal()
 
       while (this.hasWork()) {
         if (this.checkCancellation() || this.errorFlag || this.stoppedEarlyFlag) {
@@ -523,25 +505,31 @@ export class ExecutionEngine {
       this.context.finalOutputResolvedSecretTraceProvenance = state.resolvedSecretTraceProvenance
       return
     }
+    /**
+     * A block state without provenance is an absence of a shortcut, not a verdict. Several state
+     * writers legitimately store an output without one — a subflow sentinel aggregating iteration
+     * results is the common case, and a loop that ran no iterations has nothing to merge — so
+     * stamping an incomplete envelope here declared the run unvouchable whenever the last block
+     * was one of them. Every other consumer of a provenance-less block state falls back to the run
+     * registry; deriving does the same, against the value actually being described.
+     */
+    this.deriveFinalOutputProvenance()
+  }
 
-    if (this.context.resolvedSecretTraceRegistry) {
-      this.context.finalOutputResolvedSecretTraceProvenance = {
-        version: 1,
-        complete: false,
-        entries: [],
-      }
-    }
+  /**
+   * Derives the final-output envelope from the run registry. Fails closed on its own terms: a
+   * latched registry exports an incomplete envelope, which is the genuinely unvouchable case.
+   */
+  private deriveFinalOutputProvenance(): void {
+    const registry = this.context.resolvedSecretTraceRegistry
+    if (!registry) return
+    this.context.finalOutputResolvedSecretTraceProvenance =
+      registry.exportCommittedProvenanceForValue(this.finalOutput)
   }
 
   private ensureFinalOutputProvenance(): void {
-    if (
-      Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance') ||
-      !this.context.resolvedSecretTraceRegistry
-    ) {
-      return
-    }
-    this.context.finalOutputResolvedSecretTraceProvenance =
-      this.context.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(this.finalOutput)
+    if (Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance')) return
+    this.deriveFinalOutputProvenance()
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

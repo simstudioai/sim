@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type {
   AsyncCompletionData,
   AsyncConfirmationStatus,
@@ -48,7 +49,13 @@ export async function reportClientToolCompletion(
   const bodySize = new Blob([body]).size
   let lastError: Error | null = null
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // A lost confirmation strands the server-side waiter forever (the turn shows
+  // the tool as running indefinitely), so ride out multi-second network blips:
+  // 5 attempts with jittered exponential backoff (~15s total) instead of a
+  // sub-second give-up. The confirm endpoint claims each resume exactly once,
+  // so duplicate deliveries from retries are discarded server-side.
+  const maxAttempts = 5
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await send(body)
       if (response.ok) return
@@ -78,8 +85,8 @@ export async function reportClientToolCompletion(
       lastError = toError(error)
     }
 
-    if (attempt < 2) {
-      await sleep(250)
+    if (attempt < maxAttempts) {
+      await sleep(backoffWithJitter(attempt, null))
     }
   }
 

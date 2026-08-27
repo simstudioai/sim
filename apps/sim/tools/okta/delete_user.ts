@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaApiError, OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
+import type { OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteUser')
@@ -42,27 +43,16 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail === true
+      const sendEmail = isOktaFlagEnabled(params.sendEmail)
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}?sendEmail=${sendEmail}`
     },
     method: 'DELETE',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // empty response body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to delete user from Okta')
+      await throwOktaError(response, logger, 'Failed to delete user from Okta')
     }
 
     return {
@@ -77,7 +67,11 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
 
   outputs: {
     userId: { type: 'string', description: 'Deleted user ID' },
-    deleted: { type: 'boolean', description: 'Whether the user was deleted' },
+    deleted: {
+      type: 'boolean',
+      description:
+        'Whether the delete request was accepted. An ACTIVE user is deactivated by the first call and needs a second call to actually be deleted.',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

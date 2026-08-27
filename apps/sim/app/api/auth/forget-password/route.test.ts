@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
+import { createMockRequest, requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
@@ -136,6 +136,16 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(429)
     expect(recipientKeys()).toHaveLength(0)
     expect(mockRequestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('uses the recipient backstop when the client IP cannot be resolved', async () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
+
+    const response = await POST(createMockRequest('POST', { email: 'test@example.com' }))
+
+    expect(response.status).toBe(200)
+    expect(recipientKeys()).toHaveLength(1)
+    expect(mockRequestPasswordReset).toHaveBeenCalledOnce()
   })
 
   it('should reject external redirectTo URL', async () => {

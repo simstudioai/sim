@@ -5,7 +5,9 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -91,7 +93,6 @@ interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
-  isProduction: boolean
   emailSignupEnabled: boolean
   /** Server-derived: verification is enabled AND a mail provider is configured. */
   emailVerificationEnabled: boolean
@@ -101,7 +102,6 @@ function SignupFormContent({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
   emailVerificationEnabled,
 }: SignupFormProps) {
@@ -109,6 +109,7 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
+  const { measurement } = useTrackingConsent()
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -346,6 +347,8 @@ function SignupFormContent({
         return
       }
 
+      if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
+
       try {
         await refetchSession()
         logger.info('Session refreshed after successful signup')
@@ -484,7 +487,6 @@ function SignupFormContent({
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
           callbackURL={redirectUrl || '/workspace'}
-          isProduction={isProduction}
         >
           {ssoEnabled && !hasOnlySSO && (
             <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
@@ -507,7 +509,6 @@ export default function SignupPage({
   githubAvailable,
   googleAvailable,
   microsoftAvailable,
-  isProduction,
   emailSignupEnabled,
   emailVerificationEnabled,
 }: SignupFormProps) {
@@ -519,7 +520,6 @@ export default function SignupPage({
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
-        isProduction={isProduction}
         emailSignupEnabled={emailSignupEnabled}
         emailVerificationEnabled={emailVerificationEnabled}
       />

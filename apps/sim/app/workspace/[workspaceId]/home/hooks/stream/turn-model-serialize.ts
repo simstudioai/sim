@@ -167,6 +167,7 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
       block: {
         type: 'subagent',
         content: node.agentId,
+        ...(node.displayName ? { subagentName: node.displayName } : {}),
         spanId: node.spanId,
         parentSpanId: node.parentSpanId,
         ...(node.triggerToolCallId ? { parentToolCallId: node.triggerToolCallId } : {}),
@@ -267,7 +268,10 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             kind: 'subagent',
             event: 'start',
             agent: block.content,
-            data: block.parentToolCallId ? { tool_call_id: block.parentToolCallId } : {},
+            data: {
+              ...(block.parentToolCallId ? { tool_call_id: block.parentToolCallId } : {}),
+              ...(block.subagentName ? { name: block.subagentName } : {}),
+            },
           },
           scopeFor(block),
           block.timestamp

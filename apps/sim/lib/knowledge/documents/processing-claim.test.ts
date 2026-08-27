@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   failStaleDocumentProcessingClaim,
@@ -48,6 +48,8 @@ describe('reclaimStaleDocumentProcessingClaim', () => {
       expect(reclaimed).toBe(true)
       expect(dbChainMockFns.set).toHaveBeenCalledWith({
         processingStatus: 'pending',
+        processingQueueToken: null,
+        processingQueuedAt: null,
         processingStartedAt: null,
         processingCompletedAt: null,
         processingError: null,
@@ -80,6 +82,7 @@ describe('failStaleDocumentProcessingClaim', () => {
   it('rejects an active processing claim', async () => {
     await expect(
       failStaleDocumentProcessingClaim({
+        knowledgeBaseId: 'knowledge-base-1',
         documentId: 'document-1',
         processingStartedAt: new Date(
           NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
@@ -98,6 +101,7 @@ describe('failStaleDocumentProcessingClaim', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
 
     const result = await failStaleDocumentProcessingClaim({
+      knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
       processingStartedAt,
       now: NOW,
@@ -110,6 +114,7 @@ describe('failStaleDocumentProcessingClaim', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       processingStatus: 'failed',
       processingError: 'Processing timed out. Please retry or re-sync the connector.',
+      processingDeferredUntil: null,
       processingCompletedAt: NOW,
     })
   })
@@ -118,6 +123,7 @@ describe('failStaleDocumentProcessingClaim', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     const result = await failStaleDocumentProcessingClaim({
+      knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
       processingStartedAt: new Date(
         NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS - 1
@@ -126,6 +132,31 @@ describe('failStaleDocumentProcessingClaim', () => {
     })
 
     expect(result.success).toBe(false)
+
+    const where = dbChainMockFns.where.mock.calls[0]?.[0]
+    expect(
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.knowledgeBaseId &&
+          node.right === 'knowledge-base-1'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.userExcluded &&
+          node.right === false
+      )
+    ).toBe(true)
+    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
+      expect(
+        hasMockCondition(where, (node) => node.type === 'isNull' && node.column === column)
+      ).toBe(true)
+    }
   })
 })
 
@@ -141,6 +172,7 @@ describe('failUndispatchedDocumentProcessing', () => {
     const failed = await failUndispatchedDocumentProcessing({
       documentId: 'document-1',
       knowledgeBaseId: 'knowledge-base-1',
+      processingQueueToken: 'request-1',
       error: 'Failed to start processing',
       now: NOW,
     })
@@ -149,6 +181,7 @@ describe('failUndispatchedDocumentProcessing', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       processingStatus: 'failed',
       processingError: 'Failed to start processing',
+      processingDeferredUntil: null,
       processingCompletedAt: NOW,
     })
   })
@@ -164,6 +197,7 @@ describe('failUndispatchedDocumentProcessing', () => {
     const failed = await failUndispatchedDocumentProcessing({
       documentId: 'document-1',
       knowledgeBaseId: 'knowledge-base-1',
+      processingQueueToken: 'request-1',
       error: 'Failed to start processing',
       now: NOW,
     })
@@ -174,11 +208,53 @@ describe('failUndispatchedDocumentProcessing', () => {
     expect(
       hasMockCondition(
         where,
-        (node) => node.type === 'eq' && node.left === 'processingStatus' && node.right === 'pending'
+        (node) =>
+          node.type === 'eq' &&
+          node.left === 'document.processingStatus' &&
+          node.right === 'pending'
       )
     ).toBe(true)
     expect(
-      hasMockCondition(where, (node) => node.type === 'isNull' && node.column === 'deletedAt')
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingQueueToken &&
+          node.right === 'request-1'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
+      )
+    ).toBe(false)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.processingQueuedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.userExcluded &&
+          node.right === false
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.archivedAt
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.deletedAt
+      )
     ).toBe(true)
   })
 })

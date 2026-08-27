@@ -5,7 +5,9 @@ import { confluenceUploadAttachmentContract } from '@/lib/api/contracts/selector
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -94,7 +96,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let fileBuffer: Buffer
     let resolvedContentType: string
     try {
-      const servable = await downloadServableFileFromStorage(userFile, 'confluence-upload', logger)
+      const servable = await downloadServableFileFromStorage(
+        userFile,
+        'confluence-upload',
+        logger,
+        {
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        }
+      )
       fileBuffer = servable.buffer
       resolvedContentType = servable.contentType
     } catch (error) {
@@ -105,7 +114,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         {
           error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
-        { status: 500 }
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
       )
     }
 

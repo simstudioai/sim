@@ -76,6 +76,20 @@ export const chipHoverSurfaceClass = 'hover-hover:bg-[var(--surface-hover)]'
 /** @see {@link chipHoverSurfaceClass} — the selected half of the same pair. */
 export const chipActiveSurfaceClass = 'bg-[var(--surface-active)]'
 /**
+ * The third row surface: a drag is over this row and releasing would file into it.
+ *
+ * Neutral by design — hue is not how this app signals "release here"; the workflow sidebar's
+ * own drop affordance is a `--text-subtle` tint. Drawn inside the element's own box so the ring
+ * never overlaps its neighbours. Hand-rolled rows and breadcrumb crumbs import this rather than
+ * restating the literal, so every drop destination reads identically.
+ *
+ * Fills to `--surface-active`, the same weight as a selected row, and leans on the ring to tell
+ * the two apart. Not `--surface-4`: that is the button-base token, and in light mode it is
+ * *lighter* than `--surface-hover`, so the row under the cursor read weaker the moment it became
+ * a drop target — the strongest state painting the faintest fill.
+ */
+export const chipDropTargetSurfaceClass = `${chipActiveSurfaceClass} outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]`
+/**
  * The disclosure chevron that rotates to expand or collapse a sidebar section or a
  * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section
  * body expands on so the chevron and what it reveals read as one gesture. Opacity

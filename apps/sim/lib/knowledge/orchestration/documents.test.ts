@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -75,6 +76,23 @@ const FILE = {
 }
 const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
 
+/**
+ * Lets the fire-and-forget dispatch settle. Both upload paths queue indexing
+ * after their response is decided, so the unwind runs on a later microtask.
+ */
+async function settleDispatch(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+/** The `document` write that records a dispatch that never got off the ground. */
+function undispatchedFailureWrites(): Record<string, unknown>[] {
+  return dbChainMockFns.set.mock.calls
+    .map((call) => call[0] as Record<string, unknown>)
+    .filter((values) => values?.processingStatus === 'failed')
+}
+
 describe('performUploadKnowledgeDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -82,6 +100,31 @@ describe('performUploadKnowledgeDocument', () => {
     mockGetDocumentByUploadId.mockResolvedValue(null)
     mockProcessDocumentsWithQueue.mockResolvedValue(undefined)
     mockProcessDocumentAsync.mockResolvedValue(undefined)
+    resetDbChainMock()
+  })
+
+  /**
+   * Upload documents carry no `connector_id`, so the connector-scoped
+   * stuck-document sweep never sees them. Logging the failure and walking away
+   * leaves the row at `pending`, where nothing finds it again.
+   */
+  it('marks the document failed when its queued dispatch never got off the ground', async () => {
+    mockProcessDocumentsWithQueue.mockRejectedValue(new Error('queue unavailable'))
+
+    await performUploadKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: FILE,
+      startProcessing: 'queue',
+    })
+    await settleDispatch()
+
+    expect(undispatchedFailureWrites()).toEqual([
+      expect.objectContaining({
+        processingStatus: 'failed',
+        processingError: 'queue unavailable',
+      }),
+    ])
   })
 
   it('audits an agent upload, which the copilot path never did', async () => {
@@ -259,6 +302,21 @@ describe('performUploadKnowledgeDocuments', () => {
       { documentId: 'doc-2', filename: 'b.pdf' },
     ])
     mockProcessDocumentsWithQueue.mockResolvedValue(undefined)
+    resetDbChainMock()
+  })
+
+  /** Every document in the batch is stranded by one failed dispatch, not just the first. */
+  it('marks every document in the batch failed when its dispatch never got off the ground', async () => {
+    mockProcessDocumentsWithQueue.mockRejectedValue(new Error('queue unavailable'))
+
+    await performUploadKnowledgeDocuments({
+      ...ACTOR,
+      knowledgeBase: KB,
+      documents: [FILE, { ...FILE, filename: 'b.pdf' }],
+    })
+    await settleDispatch()
+
+    expect(undispatchedFailureWrites()).toHaveLength(2)
   })
 
   it('admits the whole batch in one call and queues it', async () => {
@@ -388,6 +446,7 @@ describe('document processing state changes', () => {
 
   it('refuses to time out a document that is not processing', async () => {
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'completed', processingStartedAt: new Date() },
     })
 
@@ -397,6 +456,7 @@ describe('document processing state changes', () => {
 
   it('refuses to time out a document with no processing start time', async () => {
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: null },
     })
 
@@ -409,6 +469,7 @@ describe('document processing state changes', () => {
     )
 
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
     })
 
@@ -422,20 +483,65 @@ describe('document processing state changes', () => {
     })
 
     const outcome = await performMarkKnowledgeDocumentTimedOut({
+      knowledgeBaseId: 'kb-1',
       document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 
-  it('refuses to retry a document that has not failed', async () => {
+  it('refuses to retry a document in a state no retry applies to', async () => {
     const outcome = await performRetryKnowledgeDocumentProcessing({
       knowledgeBaseId: 'kb-1',
-      document: { ...FILE, id: 'doc-1', processingStatus: 'completed' },
+      document: { ...FILE, id: 'doc-1', processingStatus: 'processing' },
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
     expect(mockRetryDocumentProcessing).not.toHaveBeenCalled()
+  })
+
+  it('lets a stranded pending document reach the guarded requeue', async () => {
+    mockRetryDocumentProcessing.mockResolvedValue({
+      success: true,
+      status: 'pending',
+      message: 'Document retry processing started',
+    })
+
+    /**
+     * A worker killed before its claim UPDATE burns a processing attempt without
+     * moving the document off `pending`, and once its budget is spent the
+     * connector sweep stops taking it too. Rejecting `pending` here made that
+     * row unrecoverable from every surface — the widened SQL guard below it is
+     * unreachable while this check refuses to call it.
+     */
+    const outcome = await performRetryKnowledgeDocumentProcessing({
+      knowledgeBaseId: 'kb-1',
+      document: { ...FILE, id: 'doc-1', processingStatus: 'pending' },
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockRetryDocumentProcessing).toHaveBeenCalled()
+  })
+
+  it('reports a retry whose dispatch never got off the ground as a failure', async () => {
+    mockRetryDocumentProcessing.mockResolvedValue({
+      success: false,
+      status: 'failed',
+      message: 'queue unavailable',
+    })
+
+    const outcome = await performRetryKnowledgeDocumentProcessing({
+      knowledgeBaseId: 'kb-1',
+      document: { ...FILE, id: 'doc-1', processingStatus: 'failed' },
+    })
+
+    // Hard-coding `success: true` here painted the UI green over a document
+    // that will never be indexed.
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'internal',
+      error: 'queue unavailable',
+    })
   })
 
   it('re-queues a failed document and never audits it', async () => {

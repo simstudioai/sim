@@ -54,9 +54,9 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentSubKeys.length !== proposedSubKeys.length) return true
 
   for (const key of currentSubKeys) {
-    if (!proposedSubKeys.includes(key)) return true
     const currentSub = currentBlock.subBlocks[key]
     const proposedSub = proposedBlock.subBlocks?.[key]
+    /* Also covers a key missing from `proposedBlock`, which reads back undefined. */
     if (!proposedSub) return true
     if (JSON.stringify(currentSub.value) !== JSON.stringify(proposedSub.value)) return true
   }

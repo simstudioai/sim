@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { Edge } from 'reactflow'
-import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   putWorkflowNormalizedStateContract,
@@ -100,12 +99,7 @@ export async function applyAutoLayoutAndUpdateStore(
         },
       })
     } catch (error) {
-      const errorMessage =
-        error instanceof ApiClientError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Auto layout failed'
+      const errorMessage = getErrorMessage(error, 'Auto layout failed')
       logger.error('Auto layout API call failed:', { error: errorMessage })
       return { success: false, error: errorMessage }
     }

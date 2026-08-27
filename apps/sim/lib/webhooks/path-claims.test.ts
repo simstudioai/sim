@@ -61,7 +61,7 @@ function createClaimTx(claims: Map<string, ClaimRow>): DbOrTx {
       from: () => ({
         where: (condition: Condition) => ({
           limit: async () => {
-            const path = conditionValue(condition, 'path') as string
+            const path = conditionValue(condition, 'webhookPathClaim.path') as string
             const current = claims.get(path)
             return current ? [current] : []
           },

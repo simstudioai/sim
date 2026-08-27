@@ -25,6 +25,21 @@ OLLAMA_URL=http://host.docker.internal:11434  # macOS/Windows
 OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 ```
 
+## LM Studio Requests Route to Ollama
+
+Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/` prefix. If the endpoint is unavailable and you manually enter the raw LM Studio model identifier, Sim treats that unknown identifier as an Ollama model.
+
+1. Confirm `VLLM_BASE_URL` is available inside the app container:
+
+   ```bash
+   docker compose -f docker-compose.ollama.yml exec simstudio printenv VLLM_BASE_URL
+   ```
+
+2. In LM Studio, enable **Serve on Local Network** and API authentication so the container can connect safely.
+3. From Docker on macOS or Windows, use `http://host.docker.internal:1234` rather than `localhost`. On Linux, use the host IP.
+4. The server root and a URL ending in `/v1` are both accepted.
+5. Recreate `simstudio`, reload the workspace, and select the discovered `vllm/<model-id>` option from the model picker.
+
 ## WebSocket/Realtime Not Working
 
 1. Verify reverse proxy routes `/socket.io` to the realtime service (default port 3002). `NEXT_PUBLIC_SOCKET_URL` is only needed if realtime is on a separate host.

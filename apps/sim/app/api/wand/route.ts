@@ -53,14 +53,6 @@ interface ChatMessage {
   content: string
 }
 
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return '[unserializable]'
-  }
-}
-
 /**
  * Wand enricher function type.
  * Enrichers add context to the system prompt based on generationType.

@@ -352,7 +352,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     // they vanish from VFS listings and name resolution…
     expect(dbChainMockFns.where).toHaveBeenCalledWith({
       type: 'inArray',
-      column: 'id',
+      column: 'workspaceFiles.id',
       values: ['wf_dead1', 'wf_dead2'],
     })
     // …and their resource chips are dropped from the new chat.

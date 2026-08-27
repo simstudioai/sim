@@ -1078,3 +1078,471 @@ describe('code placeholder compiler', () => {
     ).resolves.toEqual(['DELIMITER'])
   })
 })
+
+describe('direct environment reads', () => {
+  it('reports a JavaScript read that never used a placeholder', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'const a = environmentVariables.API_KEY',
+        "const b = environmentVariables['OTHER_KEY']",
+        'return { a, b }',
+      ].join('\n'),
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value', UNUSED: 'c-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY', 'OTHER_KEY'])
+  })
+
+  it('merges direct reads with placeholder resolutions in source order', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'const a = environmentVariables.FIRST',
+        'const b = "{{SECOND}}"',
+        'return { a, b }',
+      ].join('\n'),
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { FIRST: 'one', SECOND: 'two' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual(['FIRST', 'SECOND'])
+  })
+
+  it('ignores an identifier that is not a configured secret', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'return environmentVariables.NOT_A_SECRET',
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  /** A computed key is the boundary: statically unresolvable, so deliberately unreported. */
+  it('does not guess a computed subscript', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: ['const name = "API_KEY"', 'return environmentVariables[name]'].join('\n'),
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  it('does not read off an unrelated object with a matching property', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: ['const other = { API_KEY: 1 }', 'return other.API_KEY'].join('\n'),
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  /**
+   * Copilot mounts a secret only for an explicit placeholder. Analysis must not widen that,
+   * or an identifier in a string would pull a value into agent-authored code.
+   */
+  it('never reports a direct read to the Copilot mount analyzer', async () => {
+    const names = await analyzeCodePlaceholders(
+      'return environmentVariables.API_KEY',
+      CodeLanguage.JavaScript
+    )
+
+    expect(names).toEqual([])
+  })
+})
+
+describe('direct environment reads in Python', () => {
+  it('reports subscript and get() reads', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        "a = environmentVariables['API_KEY']",
+        "b = environmentVariables.get('OTHER_KEY')",
+        'return {"a": a, "b": b}',
+      ].join('\n'),
+      language: CodeLanguage.Python,
+      environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value', UNUSED: 'c-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY', 'OTHER_KEY'])
+  })
+
+  it('ignores a read written inside a string or comment', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: [
+        'doc = "environmentVariables[\'API_KEY\']"',
+        "# environmentVariables['API_KEY']",
+        'return doc',
+      ].join('\n'),
+      language: CodeLanguage.Python,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  it('does not match a longer identifier that merely ends in the binding name', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: "return myenvironmentVariables['API_KEY']",
+      language: CodeLanguage.Python,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  it('does not guess a computed subscript', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: ['name = "API_KEY"', 'return environmentVariables[name]'].join('\n'),
+      language: CodeLanguage.Python,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+})
+
+describe('direct environment reads in shell', () => {
+  it('reports bare and braced parameter expansions', async () => {
+    const compiled = await compileCodePlaceholders({
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+      code: ['echo "$API_KEY"', 'curl -H "Authorization: ${OTHER_KEY}"'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value', UNUSED: 'c-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY', 'OTHER_KEY'])
+  })
+
+  it('keeps the name when a default is supplied', async () => {
+    const compiled = await compileCodePlaceholders({
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+      code: 'echo "${API_KEY:-fallback}"',
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
+  /** Single quotes suppress expansion, so the secret is never read. */
+  it('ignores a single-quoted expansion', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: "echo '$API_KEY'",
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  it('ignores an escaped expansion and positional parameters', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: ['echo "\\$API_KEY"', 'echo "$1 $@ $$"'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+
+  /** A quoted delimiter makes the body literal, so nothing in it expands. */
+  it('ignores an expansion inside a quoted heredoc but reports an unquoted one', async () => {
+    const quoted = await compileCodePlaceholders({
+      code: ["cat <<'EOF'", '$API_KEY', 'EOF'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+    const unquoted = await compileCodePlaceholders({
+      code: ['cat <<EOF', '$API_KEY', 'EOF'].join('\n'),
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(quoted.resolvedSecretNames).toEqual([])
+    expect(unquoted.resolvedSecretNames).toEqual(['API_KEY'])
+  })
+
+  it('ignores a shell variable that is not a configured secret', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'echo "$PATH $HOME"',
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value' },
+    })
+
+    expect(compiled.resolvedSecretNames).toEqual([])
+  })
+})
+
+const directReadEnv = { API_KEY: 'a-value' }
+const directReadNames = async (code: string, language: CodeLanguage) =>
+  (await compileCodePlaceholders({ code, language, environmentVariables: directReadEnv }))
+    .resolvedSecretNames
+
+describe('direct environment read edge cases', () => {
+  it('ignores a Python attribute on an unrelated object with the same name', async () => {
+    expect(
+      await directReadNames("return other.environmentVariables['API_KEY']", CodeLanguage.Python)
+    ).toEqual([])
+  })
+
+  it('reads a Python subscript split across lines', async () => {
+    expect(
+      await directReadNames("x = environmentVariables[\n  'API_KEY'\n]", CodeLanguage.Python)
+    ).toEqual(['API_KEY'])
+  })
+
+  /** The whole f-string is one token, so the read is missed — a miss, never a false claim. */
+  it('does not report a Python f-string read', async () => {
+    expect(
+      await directReadNames('x = f"{environmentVariables[\'API_KEY\']}"', CodeLanguage.Python)
+    ).toEqual([])
+  })
+
+  it('ignores a commented-out shell expansion', async () => {
+    expect(await directReadNames('# echo "$API_KEY"', CodeLanguage.Shell)).toEqual([])
+  })
+
+  it('does not prefix-match a longer shell name', async () => {
+    expect(await directReadNames('echo "$API_KEYS"', CodeLanguage.Shell)).toEqual([])
+  })
+
+  it('does not guess a shell indirect expansion', async () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    expect(await directReadNames('echo "${!API_KEY}"', CodeLanguage.Shell)).toEqual([])
+  })
+
+  it('ignores a double-quoted expansion nested in single quotes', async () => {
+    expect(await directReadNames(`echo '"$API_KEY"'`, CodeLanguage.Shell)).toEqual([])
+  })
+})
+
+describe('touching a configured name reports it, whatever the code does with it', () => {
+  /**
+   * `environmentVariables` is a plain object deserialized from the run payload, not a handle on
+   * the stored secret: writing to it changes nothing outside the sandbox and is discarded when
+   * the run ends. Telling a write apart from a read therefore buys almost nothing, so the
+   * detector does not try — the same rule every language here follows.
+   */
+  it.each([
+    ['property assignment', "environmentVariables.API_KEY = 'x'"],
+    ['subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['compound assignment', "environmentVariables.API_KEY += 'x'"],
+    ['delete', 'delete environmentVariables.API_KEY'],
+  ])('javascript: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  it.each([
+    ['subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['del', "del environmentVariables['API_KEY']"],
+    ['nested read inside a del', "del environmentVariables[environmentVariables['API_KEY']]"],
+  ])('python: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})
+
+describe('a shadowing local does not suppress reads', () => {
+  /**
+   * A read off a shadowing local is reported rather than discarded. Dropping it was file-wide,
+   * so a helper with its own `environmentVariables` silently removed genuine reads elsewhere in
+   * the source — and a dropped read never reaches the output matcher, leaving a real secret
+   * unmasked. Reporting one costs only an exact value the code never emits.
+   */
+  it('reports a read that a helper-scoped binding would previously have discarded', async () => {
+    const code = [
+      'function helper(environmentVariables) { return environmentVariables.API_KEY }',
+      'return helper({}) + environmentVariables.API_KEY',
+    ].join('\n')
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  it.each([
+    [
+      'const declaration',
+      "const environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
+    ],
+    ['bare for-of target', 'for (environmentVariables of rows) log(environmentVariables.API_KEY)'],
+    [
+      'bare reassignment',
+      "environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
+    ],
+  ])('javascript reports despite a shadow: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  it.each([
+    ['assignment', "environmentVariables = {'API_KEY': 'x'}\nk = environmentVariables['API_KEY']"],
+    [
+      'def parameter',
+      "def read(environmentVariables):\n    return environmentVariables['API_KEY']",
+    ],
+  ])('python reports despite a shadow: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})
+
+describe('a dot in prose is not a qualifier', () => {
+  /**
+   * The receiver walk crosses whitespace so a parenthesized `other.` on a previous line is
+   * seen — but a comment or string can also end in a period, and landing on THAT dot must not
+   * discard the read below it. The lexer decides which dots are code.
+   */
+  /** The read sits at line start, so the walk reaches the previous line's final character. */
+  it.each([
+    ['comment ending in a period', "# Load the value.\nenvironmentVariables['API_KEY']"],
+    ['docstring ending in a period', '"""Reads the key."""\nenvironmentVariables[\'API_KEY\']'],
+    ['string ending in a period', "s = 'done.'\nenvironmentVariables['API_KEY']"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+
+  it('still discards a real cross-line attribute access', async () => {
+    expect(
+      await directReadNames(
+        "k = (other.\n     environmentVariables['API_KEY'])",
+        CodeLanguage.Python
+      )
+    ).toEqual([])
+  })
+})
+
+describe('literal computed pattern keys resolve like subscripts', () => {
+  it.each([
+    ['string literal', "const { ['API_KEY']: key } = environmentVariables\nreturn key"],
+    ['template literal', 'const { [`API_KEY`]: key } = environmentVariables\nreturn key'],
+    ['parenthesized literal', "const { [('API_KEY')]: key } = environmentVariables\nreturn key"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  /** A non-literal computed key stays the runtime-name boundary a computed subscript has. */
+  it('does not attribute an identifier computed key', async () => {
+    expect(
+      await directReadNames(
+        'const { [k]: v } = environmentVariables\nreturn v',
+        CodeLanguage.JavaScript
+      )
+    ).toEqual([])
+  })
+})
+
+describe('destructured environment reads are reads', () => {
+  /**
+   * `const { API_KEY } = environmentVariables` delivers the value by name with no property-
+   * or element-access node in the AST, so the member-access walk alone missed it — and a
+   * missed read leaves an emitted value unmasked.
+   */
+  it.each([
+    ['shorthand', 'const { API_KEY } = environmentVariables\nreturn API_KEY'],
+    ['renamed', 'const { API_KEY: key } = environmentVariables\nreturn key'],
+    ['with a default', "const { API_KEY = 'x' } = environmentVariables\nreturn API_KEY"],
+    ['string-literal key', "const { 'API_KEY': key } = environmentVariables\nreturn key"],
+    ['assignment form', 'let key\n;({ API_KEY: key } = environmentVariables)\nreturn key'],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  it.each([
+    [
+      'parameter default',
+      'function f({ API_KEY } = environmentVariables) { return API_KEY }\nreturn f()',
+    ],
+    [
+      'arrow parameter default',
+      'const f = ({ API_KEY } = environmentVariables) => API_KEY\nreturn f()',
+    ],
+    [
+      'binding-element default',
+      'const { config: { API_KEY } = environmentVariables } = payload\nreturn API_KEY',
+    ],
+    ['parenthesized initializer', 'const { API_KEY } = (environmentVariables)\nreturn API_KEY'],
+    [
+      'double-parenthesized initializer',
+      'const { API_KEY } = ((environmentVariables))\nreturn API_KEY',
+    ],
+    ['parenthesized member access', 'return (environmentVariables).API_KEY'],
+    ['parenthesized subscript', "return (environmentVariables)['API_KEY']"],
+  ])('receiver rule covers: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  /**
+   * The environment wrapped in a container and read back out is data flow, not a receiver —
+   * the same documented boundary as an alias (`const e = environmentVariables`) or a computed
+   * key. Attribution stops where the receiver stops being demonstrably the environment
+   * object; following containers has no fixed point.
+   */
+  it('does not follow the environment through an array literal', async () => {
+    expect(
+      await directReadNames(
+        'for (const { API_KEY } of [environmentVariables]) log(API_KEY)',
+        CodeLanguage.JavaScript
+      )
+    ).toEqual([])
+  })
+
+  it('reports every configured name for a rest grab', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'const { ...all } = environmentVariables\nreturn all',
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value-123456', OTHER_KEY: 'b-value-123456' },
+    })
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY', 'OTHER_KEY'])
+  })
+
+  it.each([
+    ['different receiver', 'const { API_KEY } = other\nreturn API_KEY'],
+    ['computed key', 'const { [k]: v } = environmentVariables\nreturn v'],
+    ['unconfigured name', 'const { NOT_CONFIGURED } = environmentVariables\nreturn NOT_CONFIGURED'],
+  ])('does not attribute: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
+  })
+})
+
+describe('shell backslash escaping is parity, not presence', () => {
+  /**
+   * `\\$KEY` is an escaped backslash followed by a LIVE expansion — bash prints `\` plus the
+   * value — while `\$KEY` is an escaped dollar and stays literal. Checking only the adjacent
+   * character read the even case as escaped and dropped a real read from usage and masking.
+   */
+  it.each([
+    ['no backslash', 'echo "$API_KEY"', ['API_KEY']],
+    ['one (escaped dollar)', 'echo "\\$API_KEY"', []],
+    ['two (escaped backslash, live expansion)', 'echo "\\\\$API_KEY"', ['API_KEY']],
+    ['three (escaped both)', 'echo "\\\\\\$API_KEY"', []],
+    ['four (two literal backslashes, live expansion)', 'echo "\\\\\\\\$API_KEY"', ['API_KEY']],
+    ['unquoted even run', 'echo \\\\$API_KEY', ['API_KEY']],
+  ])('%s', async (_label, code, expected) => {
+    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual(expected)
+  })
+})
+
+describe('shell true positives survive the fail-closed rule', () => {
+  it.each([
+    ['bare unquoted', 'echo $API_KEY'],
+    ['assignment', 'export FOO=$API_KEY'],
+    ['inside double quotes', 'curl -H "Authorization: Bearer $API_KEY"'],
+    ['command substitution', 'X=$(echo $API_KEY)'],
+    ['backticks', 'X=`echo $API_KEY`'],
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: shell parameter expansion, not a JS template
+    ['braced', 'echo ${API_KEY}'],
+    ['second line', 'set -e\necho $API_KEY'],
+    ['trailing comment on another line', 'echo $API_KEY # note'],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual(['API_KEY'])
+  })
+})
+
+describe('python true positives survive the dot guard', () => {
+  it.each([
+    ['subscript', "x = environmentVariables['API_KEY']"],
+    ['get', "x = environmentVariables.get('API_KEY')"],
+    ['in a call', "print(environmentVariables['API_KEY'])"],
+    ['after open paren', "x = str(environmentVariables['API_KEY'])"],
+    ['double quotes', 'x = environmentVariables["API_KEY"]'],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+})

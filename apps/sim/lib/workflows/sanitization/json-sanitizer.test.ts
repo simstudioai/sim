@@ -5,7 +5,7 @@ import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 
 beforeAll(() => {
   urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
@@ -184,6 +184,58 @@ describe('sanitizeForCopilot product-gated block inputs', () => {
   })
 })
 
+describe('sanitizeForCopilot subflow config', () => {
+  /**
+   * The model's read view has to use the same field names as the write contract it is
+   * given, or an echoed-back edit is silently dropped. `components/blocks/parallel.json`
+   * declares `count`; `components/blocks/loop.json` declares `iterations`.
+   */
+  it("names a count-parallel's branch count `count`, matching the parallel write contract", () => {
+    const state = makeSingleBlockWorkflow('parallel-1', {
+      type: 'parallel',
+      name: 'Parallel 1',
+      enabled: true,
+      subBlocks: {},
+      data: { parallelType: 'count', count: 5 },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['parallel-1'].inputs).toEqual({
+      parallelType: 'count',
+      count: 5,
+    })
+  })
+
+  it("names a for-loop's trip count `iterations`, matching the loop write contract", () => {
+    const state = makeSingleBlockWorkflow('loop-1', {
+      type: 'loop',
+      name: 'Loop 1',
+      enabled: true,
+      subBlocks: {},
+      data: { loopType: 'for', count: 3 },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['loop-1'].inputs).toEqual({
+      loopType: 'for',
+      iterations: 3,
+    })
+  })
+
+  it('exports a collection parallel without a branch count', () => {
+    const state = makeSingleBlockWorkflow('parallel-2', {
+      type: 'parallel',
+      name: 'Parallel 2',
+      enabled: true,
+      subBlocks: {},
+      data: { parallelType: 'collection', collection: '<start.items>' },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['parallel-2'].inputs).toEqual({
+      parallelType: 'collection',
+      collection: '<start.items>',
+    })
+  })
+})
+
 /** Builds a one-block workflow for webhook-URL synthesis tests. */
 function makeSingleBlockWorkflow(blockId: string, block: Record<string, unknown>): WorkflowState {
   return {
@@ -280,5 +332,47 @@ describe('sanitizeForCopilot webhook trigger URL', () => {
     )
 
     expect(result.blocks['gh-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
+  })
+})
+
+describe('sanitizeForCopilot credential-routed trigger routing', () => {
+  it('synthesizes the read-only routing note for a slack_v2 block in trigger mode', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('slack-1', {
+        type: 'slack_v2',
+        name: 'Slack Trigger',
+        enabled: true,
+        triggerMode: true,
+        subBlocks: {
+          selectedTriggerId: { id: 'selectedTriggerId', type: 'short-input', value: 'slack_oauth' },
+          customBotCredential: {
+            id: 'customBotCredential',
+            type: 'oauth-input',
+            value: 'cred-123',
+          },
+        },
+      })
+    )
+
+    const routing = result.blocks['slack-1'].inputs?.[TRIGGER_ROUTING_FIELD] as
+      | Record<string, unknown>
+      | undefined
+    expect(routing?.model).toBe('credential-routed')
+    expect(routing?.selectedCredentialId).toBe('cred-123')
+    expect(String(routing?.note)).toContain('no per-workflow webhook URL')
+    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_WEBHOOK_URL_FIELD)
+  })
+
+  it('omits the routing note when the block is not in trigger mode', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('slack-1', {
+        type: 'slack_v2',
+        name: 'Slack Action',
+        enabled: true,
+        subBlocks: {},
+      })
+    )
+
+    expect(result.blocks['slack-1'].inputs ?? {}).not.toHaveProperty(TRIGGER_ROUTING_FIELD)
   })
 })

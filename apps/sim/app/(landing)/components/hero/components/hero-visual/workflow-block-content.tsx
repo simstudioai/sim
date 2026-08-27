@@ -33,9 +33,7 @@ export function WorkflowBlockContent({ block }: WorkflowBlockContentProps) {
             <block.icon className='size-[16px] text-white' />
           )}
         </div>
-        <span className='truncate font-medium text-[16px] text-[var(--text-body)]'>
-          {block.name}
-        </span>
+        <span className='truncate text-[16px] text-[var(--text-body)]'>{block.name}</span>
       </div>
 
       {block.rows.length > 0 && (

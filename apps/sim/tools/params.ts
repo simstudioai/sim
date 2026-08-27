@@ -615,6 +615,16 @@ export function createUserToolSchema(
         .filter(Boolean)
         .join(' ')
     }
+    // Copilot agents never see secret values, only names — so tell them the
+    // reference form works here, or they paste placeholders that fail upstream.
+    if (visibility === 'user-only' && surface === 'copilot') {
+      propertySchema.description = [
+        propertySchema.description,
+        'Accepts an environment-variable reference like {{VAR_NAME}} (see environment/variables.json), resolved server-side.',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    }
     schema.properties[paramId] = propertySchema
 
     if (param.required && paramId !== hostedApiKeyParam) {
@@ -804,46 +814,6 @@ async function fetchWorkflowInputFields(
     logger.error('Error fetching workflow input fields:', error)
     return []
   }
-}
-
-/**
- * Creates a complete tool schema for execution with all parameters
- */
-export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
-  const schema: ToolSchema = {
-    type: 'object',
-    properties: {},
-    required: [],
-  }
-
-  Object.entries(toolConfig.params).forEach(([paramId, param]) => {
-    const propertySchema: SchemaProperty = {
-      type: param.type === 'json' ? 'object' : param.type,
-      description: param.description || '',
-    }
-
-    // Include items property for arrays
-    if (param.type === 'array' && param.items) {
-      propertySchema.items = {
-        ...param.items,
-        ...(param.items.properties && {
-          properties: { ...param.items.properties },
-        }),
-      }
-    } else if (param.items) {
-      logger.warn(
-        `items property ignored for non-array param "${paramId}" in tool "${toolConfig.id}"`
-      )
-    }
-
-    schema.properties[paramId] = propertySchema
-
-    if (param.required) {
-      schema.required.push(paramId)
-    }
-  })
-
-  return schema
 }
 
 interface FilterableToolSchema {

@@ -1,8 +1,10 @@
+import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
   setEnv({
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
     GITHUB_CLIENT_ID: 'github_client_id',
@@ -19,6 +21,8 @@ beforeAll(() => {
     JIRA_CLIENT_SECRET: 'jira_client_secret',
     AIRTABLE_CLIENT_ID: 'airtable_client_id',
     AIRTABLE_CLIENT_SECRET: 'airtable_client_secret',
+    BITBUCKET_CLIENT_ID: 'bitbucket_client_id',
+    BITBUCKET_CLIENT_SECRET: 'bitbucket_client_secret',
     NOTION_CLIENT_ID: 'notion_client_id',
     NOTION_CLIENT_SECRET: 'notion_client_secret',
     MICROSOFT_CLIENT_ID: 'microsoft_client_id',
@@ -63,8 +67,11 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
+import { GoogleIcon, GoogleVaultIcon } from '@/components/icons'
+import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { refreshOAuthToken } from '@/lib/oauth'
+import { getSlackApprovalGatedScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
 /**
  * Default OAuth token response for successful requests.
@@ -83,19 +90,238 @@ const defaultOAuthResponse = {
  */
 function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch
-  global.fetch = mockFetch
+  global.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const mocked = (await mockFetch(input, init)) as Partial<Response>
+    if (mocked instanceof Response && mocked.body) return mocked
+
+    let bodyText = ''
+    if (typeof mocked.text === 'function') {
+      bodyText = await mocked.text()
+    } else if (typeof mocked.json === 'function') {
+      bodyText = JSON.stringify(await mocked.json())
+    }
+
+    return new Response(bodyText, {
+      status: mocked.status ?? 200,
+      statusText: mocked.statusText,
+      headers: mocked.headers,
+    })
+  })
   return fn().finally(() => {
     global.fetch = originalFetch
   })
 }
 
+describe('OAuth Provider Branding', () => {
+  it('should use the Google Vault product icon and Google base-provider icon', () => {
+    const googleVault = OAUTH_PROVIDERS.google.services['google-vault']
+
+    expect(googleVault.icon).toBe(GoogleVaultIcon)
+    expect(googleVault.baseProviderIcon).toBe(GoogleIcon)
+  })
+})
+
+describe('Atlassian OAuth connectors', () => {
+  it.each(['confluence', 'jira'] as const)(
+    'sends the required Atlassian audience for %s',
+    (providerId) => {
+      const connector = buildConnectorProviders().find(
+        (candidate) => candidate.providerId === providerId
+      )
+      if (!connector) throw new Error(`${providerId} OAuth connector is not configured`)
+
+      expect(connector.authorizationUrlParams).toEqual({ audience: 'api.atlassian.com' })
+      expect(connector.redirectURI).toBe(
+        `http://localhost:3000/api/auth/oauth2/callback/${providerId}`
+      )
+    }
+  )
+})
+
+function getBitbucketConnector() {
+  const connector = buildConnectorProviders().find(
+    (candidate) => candidate.providerId === 'bitbucket'
+  )
+  if (!connector) throw new Error('Bitbucket OAuth connector is not configured in this test')
+  return connector
+}
+
+describe('Bitbucket OAuth Connector', () => {
+  it('uses the canonical endpoints, scopes, Basic auth, and two-hour expiry', () => {
+    expect(getBitbucketConnector()).toMatchObject({
+      providerId: 'bitbucket',
+      authorizationUrl: 'https://bitbucket.org/site/oauth2/authorize',
+      tokenUrl: 'https://bitbucket.org/site/oauth2/access_token',
+      userInfoUrl: 'https://api.bitbucket.org/2.0/user',
+      scopes: [
+        'account',
+        'repository',
+        'repository:write',
+        'pullrequest',
+        'pullrequest:write',
+        'pipeline',
+        'pipeline:write',
+        'webhook',
+      ],
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      accessTokenExpiresIn: 7200,
+      redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+    })
+  })
+
+  it('exchanges the authorization code with Basic auth and normalizes plural scopes', async () => {
+    const connector = getBitbucketConnector()
+    const getToken = connector.getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const scopes = [
+      'account',
+      'repository',
+      'repository:write',
+      'pullrequest',
+      'pullrequest:write',
+      'pipeline',
+      'pipeline:write',
+      'webhook',
+    ]
+    const mockFetch = createMockFetch({
+      json: {
+        access_token: 'bitbucket_access_token',
+        expires_in: 3600,
+        refresh_token: 'bitbucket_refresh_token',
+        scopes: scopes.join(' '),
+        token_type: 'bearer',
+      },
+    })
+
+    const tokens = await withMockFetch(mockFetch, () =>
+      getToken({
+        code: 'authorization_code',
+        redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+      })
+    )
+
+    expect(tokens.accessToken).toBe('bitbucket_access_token')
+    expect(tokens.refreshToken).toBe('bitbucket_refresh_token')
+    expect(tokens.scopes).toEqual(scopes)
+    expect(tokens.accessTokenExpiresAt).toBeInstanceOf(Date)
+
+    const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ]
+    expect(endpoint).toBe('https://bitbucket.org/site/oauth2/access_token')
+    expect(requestOptions.headers.Authorization).toBe(
+      `Basic ${Buffer.from('bitbucket_client_id:bitbucket_client_secret').toString('base64')}`
+    )
+    expect(Object.fromEntries(new URLSearchParams(requestOptions.body))).toEqual({
+      code: 'authorization_code',
+      grant_type: 'authorization_code',
+      redirect_uri: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+    })
+  })
+
+  it('normalizes Bitbucket’s singular scope response field', async () => {
+    const getToken = getBitbucketConnector().getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const tokens = await withMockFetch(
+      createMockFetch({
+        json: {
+          access_token: 'bitbucket_access_token',
+          refresh_token: 'bitbucket_refresh_token',
+          scope: 'account repository pullrequest webhook',
+          token_type: 'bearer',
+        },
+      }),
+      () =>
+        getToken({
+          code: 'authorization_code',
+          redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+        })
+    )
+
+    expect(tokens.scopes).toEqual(['account', 'repository', 'pullrequest', 'webhook'])
+  })
+
+  it('uses account_id before uuid and always synthesizes an internal email', async () => {
+    const connector = getBitbucketConnector()
+    const getUserInfo = connector.getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const tokens = getOAuth2Tokens({ access_token: 'bitbucket_access_token' })
+
+    const accountIdentity = await withMockFetch(
+      createMockFetch({
+        json: {
+          account_id: 'account-123',
+          uuid: '{uuid-ignored}',
+          display_name: 'Ada Lovelace',
+          links: { avatar: { href: 'https://example.invalid/avatar.png' } },
+        },
+      }),
+      () => getUserInfo(tokens)
+    )
+    expect(accountIdentity?.id).toMatch(/^account-123-/)
+    expect(accountIdentity?.email).toBe('bitbucket-account-123@connectors.sim.invalid')
+    expect(accountIdentity?.name).toBe('Ada Lovelace')
+    expect(accountIdentity?.image).toBe('https://example.invalid/avatar.png')
+
+    const uuidIdentity = await withMockFetch(
+      createMockFetch({ json: { uuid: '{uuid-456}', nickname: 'grace' } }),
+      () => getUserInfo(tokens)
+    )
+    expect(uuidIdentity?.id).toMatch(/^\{uuid-456\}-/)
+    expect(uuidIdentity?.email).toBe('bitbucket-uuid-456@connectors.sim.invalid')
+    expect(uuidIdentity?.name).toBe('grace')
+  })
+
+  it('bounds Bitbucket user-info responses and supplies a provider deadline', async () => {
+    const getUserInfo = getBitbucketConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const mockFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+      return new Response('{}', {
+        headers: {
+          'content-length': String(1024 * 1024 + 1),
+          'content-type': 'application/json',
+        },
+      })
+    })
+
+    await expect(
+      withMockFetch(mockFetch, () =>
+        getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
+      )
+    ).resolves.toBeNull()
+    expect(mockFetch).toHaveBeenCalledOnce()
+  })
+})
+
 describe('OAuth Token Refresh', () => {
+  describe('Slack approval-gated scopes', () => {
+    it('adds the extended scope set only when the deployment capability is enabled', () => {
+      expect(getSlackApprovalGatedScopes(false)).toEqual([])
+      expect(getSlackApprovalGatedScopes(true)).toEqual([
+        'assistant:write',
+        'app_mentions:read',
+        'im:history',
+      ])
+    })
+  })
+
   describe('Basic Auth Providers', () => {
     const basicAuthProviders = [
       {
         name: 'Airtable',
         providerId: 'airtable',
         endpoint: 'https://airtable.com/oauth2/v1/token',
+      },
+      {
+        name: 'Bitbucket',
+        providerId: 'bitbucket',
+        endpoint: 'https://bitbucket.org/site/oauth2/access_token',
       },
       { name: 'X (Twitter)', providerId: 'x', endpoint: 'https://api.x.com/2/oauth2/token' },
       {
@@ -382,9 +608,12 @@ describe('OAuth Token Refresh', () => {
         string,
         { headers: Record<string, string>; body: string },
       ]
-      expect(requestOptions.headers['User-Agent']).toBe(
-        'sim-studio/1.0 (https://github.com/simstudioai/sim)'
-      )
+      expect(requestOptions.headers['User-Agent']).toBe(REDDIT_USER_AGENT)
+      /**
+       * Reddit rate-limits generic User-Agents, so the shared constant must keep
+       * the documented `<platform>:<app ID>:<version>` shape wherever it is used.
+       */
+      expect(REDDIT_USER_AGENT).toMatch(/^[a-z]+:[\w.-]+:v[\d.]+ \(.+\)$/)
     })
   })
 
@@ -399,7 +628,7 @@ describe('OAuth Token Refresh', () => {
       expect(result).toEqual({
         ok: false,
         message:
-          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run bun run setup integration monday.',
+          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run npx sim-setup add integration monday.',
       })
       expect(mockFetch).not.toHaveBeenCalled()
     })
@@ -452,6 +681,62 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
+    it.concurrent(
+      'should redact literal and encoded credentials echoed by a provider',
+      async () => {
+        const refreshToken = 'refresh/with space'
+        const formEncodedRefreshToken = new URLSearchParams({ value: refreshToken })
+          .toString()
+          .slice('value='.length)
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response(
+              `provider echo: ${refreshToken}, ${encodeURIComponent(refreshToken)}, ${formEncodedRefreshToken}, and google_client_secret`,
+              { status: 400 }
+            )
+          )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', refreshToken)
+        )
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          expect(result.message).not.toContain(refreshToken)
+          expect(result.message).not.toContain(encodeURIComponent(refreshToken))
+          expect(result.message).not.toContain(formEncodedRefreshToken)
+          expect(result.message).not.toContain('google_client_secret')
+        }
+      }
+    )
+
+    it.concurrent('should redact a secret from a successful HTTP body error', async () => {
+      const refreshToken = 'slack-refresh-secret'
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(Response.json({ ok: false, error: `invalid_${refreshToken}` }))
+
+      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.message).not.toContain(refreshToken)
+        expect(result.errorCode).toBeUndefined()
+      }
+    })
+
+    it.concurrent('uses canonical endpoints without following credential redirects', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: 'error' })
+      )
+    })
+
     it.concurrent('should return failure for network errors', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'))
       const refreshToken = 'test_refresh_token'
@@ -460,9 +745,40 @@ describe('OAuth Token Refresh', () => {
 
       expect(result.ok).toBe(false)
     })
+
+    it.concurrent(
+      'should reject oversized OAuth error responses without materializing them',
+      async () => {
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 400 })
+          )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', 'test_refresh_token')
+        )
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+      }
+    )
   })
 
   describe('Token Response Handling', () => {
+    it.concurrent('should bound successful token responses before parsing them', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('google', 'test_refresh_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+    })
+
     it.concurrent('should handle providers that return new refresh tokens', async () => {
       const refreshToken = 'old_refresh_token'
       const newRefreshToken = 'new_refresh_token'
@@ -485,6 +801,27 @@ describe('OAuth Token Refresh', () => {
         accessToken: 'new_access_token',
         expiresIn: 3600,
         refreshToken: newRefreshToken,
+      })
+    })
+
+    it.concurrent('should return Bitbucket rotating refresh tokens', async () => {
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: 'new_bitbucket_access_token',
+          expires_in: 3600,
+          refresh_token: 'rotated_bitbucket_refresh_token',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('bitbucket', 'old_bitbucket_refresh_token')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new_bitbucket_access_token',
+        expiresIn: 3600,
+        refreshToken: 'rotated_bitbucket_refresh_token',
       })
     })
 

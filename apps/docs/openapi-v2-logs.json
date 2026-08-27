@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Logs",
-    "description": "Version 2 of the Sim REST API for listing workflow execution logs and retrieving complete diagnostic run snapshots.",
+    "description": "Version 2 of the Sim REST API for workflow execution logs: listing and sorting runs with filters, retrieving complete diagnostic run snapshots, and reading bucketed execution statistics.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
+        "description": "List workflow execution logs for a workspace with filters, selectable detail, sorting by start time, duration, cost, or status, and opaque cursor pagination. Chat and Sim-agent job runs join the sequence with `includeJobRuns=true`, which is accepted only under `sortBy=startedAt` — their cost is stored as a document and their status is not comparable, so they cannot participate in the other orderings. Each item's `files` lists only the files the run itself produced, addressed by `downloadPath`; input attachments a caller supplied are read through the files API instead. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -47,6 +47,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose execution logs should be returned."
             }
           },
@@ -54,20 +55,20 @@
             "name": "workflowIds",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow identifiers to include. An empty entry is rejected.",
+            "description": "Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow identifiers to include. An empty entry is rejected."
+              "description": "Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries."
             }
           },
           {
             "name": "triggers",
             "in": "query",
             "required": false,
-            "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.",
+            "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`."
+              "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries."
             }
           },
           {
@@ -167,12 +168,12 @@
             "name": "details",
             "in": "query",
             "required": false,
-            "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
+            "description": "Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
             "schema": {
               "default": "basic",
               "type": "string",
               "enum": ["basic", "full"],
-              "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
+              "description": "Response detail level. `full` adds the `workflow` summary to every workflow run; a job run never carries one, whatever this is set to. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
             }
           },
           {
@@ -218,15 +219,35 @@
             }
           },
           {
-            "name": "order",
+            "name": "status",
             "in": "query",
             "required": false,
-            "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
+            "description": "Comma-separated execution statuses to include, from `pending` | `running` | `paused` | `redacting` | `completed` | `failed` | `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle.",
             "schema": {
-              "default": "desc",
-              "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
               "type": "string",
-              "enum": ["asc", "desc"]
+              "description": "Comma-separated execution statuses to include, from `pending` | `running` | `paused` | `redacting` | `completed` | `failed` | `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle."
+            }
+          },
+          {
+            "name": "workflowName",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable."
+            }
+          },
+          {
+            "name": "includeJobRuns",
+            "in": "query",
+            "required": false,
+            "description": "Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: \"job\"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.",
+            "schema": {
+              "description": "Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: \"job\"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.",
+              "type": "boolean"
             }
           },
           {
@@ -243,13 +264,37 @@
             }
           },
           {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.",
+            "schema": {
+              "default": "startedAt",
+              "description": "Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.",
+              "type": "string",
+              "enum": ["startedAt", "durationMs", "cost", "status"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
+              "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree, so `/prod` also selects runs in `/prod/nested`. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
             }
           }
         ],
@@ -287,6 +332,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -303,7 +351,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none. A workspace folder tree over 10,000 folders is a `413`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -353,6 +401,156 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/logs/stats": {
+      "get": {
+        "operationId": "getLogStats",
+        "summary": "Get Log Statistics",
+        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans `startDate` through `endDate` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width. The window is divided into exactly `segmentCount` equal buckets whose width is `max(60000, floor(windowMs / segmentCount))` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past `timeBounds.end` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Logs"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose execution statistics to summarize.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose execution statistics to summarize."
+            }
+          },
+          {
+            "name": "workflowIds",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected.",
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected."
+            }
+          },
+          {
+            "name": "folderPaths",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated workflow folder paths to include. At most 100 entries. A path covers its whole subtree. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
+            }
+          },
+          {
+            "name": "triggers",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter.",
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter."
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Severity level to include.",
+            "schema": {
+              "type": "string",
+              "enum": ["info", "error"],
+              "description": "Severity level to include."
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
+            }
+          },
+          {
+            "name": "segmentCount",
+            "in": "query",
+            "required": false,
+            "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+            "schema": {
+              "default": 72,
+              "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bucketed execution statistics for the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2LogStatsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -434,6 +632,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
             }
           }
         }
@@ -444,16 +648,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UsageLimitExceeded": {
-        "description": "The workspace has exceeded its usage or billing limits.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
             }
           }
         }
@@ -464,6 +664,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
             }
           }
         }
@@ -474,31 +683,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Conflict": {
-        "description": "The request conflicts with current resource state.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "RunIdConflict": {
-        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
-        "headers": {
-          "X-Run-Id": {
-            "$ref": "#/components/headers/X-Run-Id"
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
             }
           }
         }
@@ -509,26 +699,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UnsupportedMediaType": {
-        "description": "The request uses an unsupported media type.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Locked": {
-        "description": "The resource is locked and cannot be modified.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Request body is too large"
+              }
             }
           }
         }
@@ -544,16 +720,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
             }
           }
         }
@@ -564,6 +739,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
             }
           }
         }
@@ -579,6 +760,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
             }
           }
         }
@@ -600,7 +787,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
               }
             },
             "required": ["code", "message"],
@@ -624,6 +811,11 @@
       "V2LogListItem": {
         "type": "object",
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["workflow", "job"],
+            "description": "Whether the run executed a workflow or a Chat / Sim-agent job. Job runs appear only when `includeJobRuns=true`."
+          },
           "runId": {
             "type": "string",
             "description": "Unique run identifier."
@@ -718,21 +910,21 @@
                 "type": "null"
               }
             ],
-            "description": "Cost charged for the run, or null when unavailable."
+            "description": "Cost charged for the run, or null when the run has neither a recorded total nor an itemized ledger."
           },
           "files": {
             "anyOf": [
               {
                 "type": "array",
                 "items": {
-                  "description": "Attachment metadata captured for the execution."
+                  "$ref": "#/components/schemas/V2LogFile"
                 }
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Files attached to the run, or null when none are recorded."
+            "description": "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
           },
           "workflow": {
             "type": "object",
@@ -784,6 +976,7 @@
           }
         },
         "required": [
+          "kind",
           "runId",
           "workflowId",
           "deploymentVersionId",
@@ -799,6 +992,37 @@
         "additionalProperties": false,
         "title": "Execution log summary",
         "description": "Summary information for one workflow execution log."
+      },
+      "V2LogFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier to address this file by on the download endpoint."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name, including its extension."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "File size in bytes."
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type recorded for the file."
+          },
+          "downloadPath": {
+            "type": "string",
+            "description": "Path to fetch this file's bytes from, relative to the API host."
+          }
+        },
+        "required": ["id", "name", "size", "type", "downloadPath"],
+        "additionalProperties": false,
+        "title": "Execution log file",
+        "description": "A file produced by the run this log records."
       },
       "LogTraceSpan": {
         "title": "Log trace span",
@@ -998,6 +1222,7 @@
           {
             "data": [
               {
+                "kind": "workflow",
                 "runId": "e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13",
                 "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "deploymentVersionId": "dep_2c4e6a8b0d1f",
@@ -1010,7 +1235,15 @@
                 "cost": {
                   "total": 0.0032
                 },
-                "files": null
+                "files": [
+                  {
+                    "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                    "name": "summary.pdf",
+                    "size": 18422,
+                    "type": "application/pdf",
+                    "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                  }
+                ]
               }
             ],
             "nextCursor": "eyJzdGFydGVkQXQiOiIyMDI2LTAxLTE1VDEwOjMwOjAwMFoifQ=="
@@ -1102,14 +1335,14 @@
               {
                 "type": "array",
                 "items": {
-                  "description": "Attachment metadata captured for the execution."
+                  "$ref": "#/components/schemas/V2LogFile"
                 }
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Files attached to the run, or null when none are recorded."
+            "description": "Files the run produced, or null when none are recorded. Only the run's own output files appear; input attachments a caller supplied are addressed through the files API instead."
           },
           "workflow": {
             "type": "object",
@@ -1264,9 +1497,49 @@
                   "total": {
                     "type": "number",
                     "description": "Total execution cost in USD."
+                  },
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "category": {
+                              "type": "string",
+                              "enum": ["fixed", "model", "tool"],
+                              "description": "What the line is for: the run's base fee (`fixed`), one model's inference (`model`), or one metered tool or integration call (`tool`)."
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "Human-readable name of the billed item, such as the model or tool id."
+                            },
+                            "cost": {
+                              "type": "number",
+                              "description": "Amount billed for this line, in USD."
+                            },
+                            "inputTokens": {
+                              "description": "Input tokens attributed to this line. Absent for lines that do not bill tokens.",
+                              "type": "number"
+                            },
+                            "outputTokens": {
+                              "description": "Output tokens attributed to this line. Absent for lines that do not bill tokens.",
+                              "type": "number"
+                            }
+                          },
+                          "required": ["category", "description", "cost"],
+                          "additionalProperties": false,
+                          "description": "One billed line of a run, folded across every event that billed it."
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Billed lines reconciling to `total`, or null when no itemized ledger exists for the run."
                   }
                 },
-                "required": ["total"],
+                "required": ["total", "items"],
                 "additionalProperties": false
               },
               {
@@ -1274,6 +1547,17 @@
               }
             ],
             "description": "Cost charged for the run, or null when unavailable."
+          },
+          "workflowInput": {
+            "anyOf": [
+              {
+                "description": "Caller-supplied trigger payload for the run."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Input the run was triggered with, or null when the run recorded none. Credential-bearing and PII-masked values are redacted the same way `finalOutput` is."
           },
           "createdAt": {
             "type": "string",
@@ -1298,6 +1582,7 @@
           "traceSpans",
           "finalOutput",
           "cost",
+          "workflowInput",
           "createdAt"
         ],
         "additionalProperties": false,
@@ -1349,9 +1634,221 @@
                 "result": "Hello, world!"
               },
               "cost": {
-                "total": 0.0032
+                "total": 0.0032,
+                "items": [
+                  {
+                    "category": "fixed",
+                    "description": "Base execution charge",
+                    "cost": 0.001
+                  },
+                  {
+                    "category": "model",
+                    "description": "gpt-5",
+                    "cost": 0.0022,
+                    "inputTokens": 1840,
+                    "outputTokens": 260
+                  }
+                ]
+              },
+              "workflowInput": {
+                "ticketId": "T-4821"
               },
               "createdAt": "2026-01-15T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "V2WorkflowLogStats": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow identifier, or the literal `deleted` for the single series that collects runs whose workflow no longer exists."
+          },
+          "workflowName": {
+            "type": "string",
+            "description": "Workflow name, or `Deleted Workflow`."
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2LogStatsSegment"
+            },
+            "description": "One entry per bucket, in order, including buckets with no runs."
+          },
+          "totalExecutions": {
+            "type": "number",
+            "description": "Runs for this workflow across the window."
+          },
+          "totalSuccessful": {
+            "type": "number",
+            "description": "Runs for this workflow that did not error."
+          },
+          "overallSuccessRate": {
+            "type": "number",
+            "description": "Percentage of runs that did not error, from 0 to 100. 100 when there were no runs."
+          }
+        },
+        "required": [
+          "workflowId",
+          "workflowName",
+          "segments",
+          "totalExecutions",
+          "totalSuccessful",
+          "overallSuccessRate"
+        ],
+        "additionalProperties": false,
+        "title": "Per-workflow log stats",
+        "description": "Bucketed run counts and success rate for one workflow."
+      },
+      "V2LogStatsSegment": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 start of the bucket."
+          },
+          "totalExecutions": {
+            "type": "number",
+            "description": "Runs that started inside the bucket."
+          },
+          "successfulExecutions": {
+            "type": "number",
+            "description": "Runs in the bucket that did not error."
+          },
+          "avgDurationMs": {
+            "type": "number",
+            "description": "Mean duration of the bucket's runs in milliseconds, weighted by run count. Zero when no run in the bucket recorded a duration."
+          }
+        },
+        "required": ["timestamp", "totalExecutions", "successfulExecutions", "avgDurationMs"],
+        "additionalProperties": false,
+        "title": "Log stats bucket",
+        "description": "Run counts and mean latency for one time bucket."
+      },
+      "V2LogStats": {
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2WorkflowLogStats"
+            },
+            "description": "Per-workflow series, ordered by error rate descending then by name, capped at 200 entries."
+          },
+          "workflowsTruncated": {
+            "type": "boolean",
+            "description": "Whether `workflows` was cut to 200 entries. The workspace totals and `aggregateSegments` are computed from every workflow before the cut, so they stay exact either way."
+          },
+          "aggregateSegments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2LogStatsSegment"
+            },
+            "description": "Workspace-wide totals per bucket, in the same order as each workflow series."
+          },
+          "totalRuns": {
+            "type": "number",
+            "description": "Runs in the window across the whole workspace."
+          },
+          "totalErrors": {
+            "type": "number",
+            "description": "Runs in the window that errored."
+          },
+          "avgLatency": {
+            "type": "number",
+            "description": "Mean run duration in milliseconds across the window, weighted by run count."
+          },
+          "timeBounds": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 start of the window."
+              },
+              "end": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "description": "ISO 8601 end of the window."
+              }
+            },
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "description": "The window the buckets span. `startDate` and `endDate` are used verbatim when supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width."
+          },
+          "segmentMs": {
+            "type": "number",
+            "description": "Width of one bucket in milliseconds."
+          }
+        },
+        "required": [
+          "workflows",
+          "workflowsTruncated",
+          "aggregateSegments",
+          "totalRuns",
+          "totalErrors",
+          "avgLatency",
+          "timeBounds",
+          "segmentMs"
+        ],
+        "additionalProperties": false,
+        "title": "Execution log statistics",
+        "description": "Bucketed success rate, error count, and latency for a workspace and each of its workflows."
+      },
+      "V2LogStatsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2LogStats"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Log statistics response",
+        "description": "Bucketed success rate, error count, and latency for a workspace and its workflows.",
+        "examples": [
+          {
+            "data": {
+              "workflows": [
+                {
+                  "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                  "workflowName": "Customer Support Agent",
+                  "segments": [
+                    {
+                      "timestamp": "2026-01-15T10:00:00.000Z",
+                      "totalExecutions": 40,
+                      "successfulExecutions": 38,
+                      "avgDurationMs": 1180
+                    }
+                  ],
+                  "totalExecutions": 40,
+                  "totalSuccessful": 38,
+                  "overallSuccessRate": 95
+                }
+              ],
+              "workflowsTruncated": false,
+              "aggregateSegments": [
+                {
+                  "timestamp": "2026-01-15T10:00:00.000Z",
+                  "totalExecutions": 40,
+                  "successfulExecutions": 38,
+                  "avgDurationMs": 1180
+                }
+              ],
+              "totalRuns": 40,
+              "totalErrors": 2,
+              "avgLatency": 1180,
+              "timeBounds": {
+                "start": "2026-01-15T10:00:00.000Z",
+                "end": "2026-01-15T22:00:00.000Z"
+              },
+              "segmentMs": 600000
             }
           }
         ]

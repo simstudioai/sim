@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { shouldClearMissingOption } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
@@ -13,9 +14,9 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { getProviderFromModel } from '@/providers/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
@@ -26,6 +27,9 @@ const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: ComboBoxOption[] = []
 
 const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
   sandbox: 'Create Sandbox',
@@ -49,8 +53,12 @@ type ComboBoxOption =
  * Props for the ComboBox component
  */
 interface ComboBoxProps {
-  /** Available options for selection - can be static array or function that returns options */
-  options: ComboBoxOption[] | (() => ComboBoxOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: ComboBoxOption[] | ((params?: { values: Record<string, unknown> }) => ComboBoxOption[])
   /** Default value to use when no value is set */
   defaultValue?: string
   /** ID of the parent block */
@@ -69,13 +77,10 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
 }
@@ -91,8 +96,8 @@ export const ComboBox = memo(function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   dependsOn,
 }: ComboBoxProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -108,30 +113,30 @@ export const ComboBox = memo(function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const {
-    isProviderAllowed,
-    isModelAllowed,
-    isLoading: isPermissionLoading,
-  } = usePermissionConfig()
+  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowIdForValues = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowIdForValues
+      ? state.workflowValues[activeWorkflowIdForValues]?.[blockId]
+      : undefined
+  )
+
   const staticOptions = useMemo(() => {
-    const opts = typeof options === 'function' ? options() : options
+    const opts =
+      typeof options === 'function'
+        ? options({ values: blockValues ?? {} })
+        : (options ?? EMPTY_OPTIONS)
 
     if (subBlockId === 'model') {
-      return opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+      return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
+  }, [options, blockValues, subBlockId, isModelUsable])
 
   const {
     fetchedOptions,
@@ -139,12 +144,13 @@ export const ComboBox = memo(function ComboBox({
     fetchError,
     hydratedOption,
     missingOptionId,
+    isDynamic,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
     dependsOnFields,
-    fetchOptions,
-    fetchOptionById,
+    selectorKey,
+    selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
     valueToHydrate: value as string | null | undefined,
@@ -207,18 +213,10 @@ export const ComboBox = memo(function ComboBox({
   // Merge static and fetched options - fetched options take priority when available
   const evaluatedOptions = useMemo((): ComboBoxOption[] => {
     let opts: ComboBoxOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
-    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
-      opts = opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+    if (subBlockId === 'model' && isDynamic && normalizedFetchedOptions.length > 0) {
+      opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     // Merge hydrated option if not already present
@@ -245,14 +243,13 @@ export const ComboBox = memo(function ComboBox({
 
     return opts
   }, [
-    fetchOptions,
+    isDynamic,
     normalizedFetchedOptions,
     staticOptions,
     hydratedOption,
     createdOption,
     subBlockId,
-    isProviderAllowed,
-    isModelAllowed,
+    isModelUsable,
   ])
 
   // Convert options to Combobox format

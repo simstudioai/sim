@@ -12,7 +12,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderBatchInvitationEmail,
@@ -131,7 +131,7 @@ async function resolveInvitationOrganizationId(
   return uniqueScopes.length === 1 ? uniqueScopes[0] : input.organizationId
 }
 
-async function findPendingOrganizationInvitation(
+export async function findPendingOrganizationInvitation(
   executor: DbOrTx,
   organizationId: string,
   email: string
@@ -463,20 +463,6 @@ export async function revertPendingInvitationGrants(params: {
       )
     return true
   })
-}
-
-async function countPendingInvitationsForOrganization(organizationId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(invitation)
-    .where(
-      and(
-        eq(invitation.organizationId, organizationId),
-        eq(invitation.status, 'pending'),
-        ne(invitation.membershipIntent, 'external')
-      )
-    )
-  return row?.count ?? 0
 }
 
 /**

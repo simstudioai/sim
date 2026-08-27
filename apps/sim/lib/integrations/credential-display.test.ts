@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it } from 'vitest'
 import {
   getIntegrationsForCredentialProvider,
@@ -9,7 +11,6 @@ import {
   isFamilyServiceAccount,
   resolveCredentialDisplay,
 } from '@/lib/integrations/credential-display'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import { resolveOAuthServiceForIntegration } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -59,6 +60,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
     'google-tasks',
     'google-vault',
   ],
+  'harmonic-service-account': [],
   'hubspot-service-account': ['hubspot'],
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],

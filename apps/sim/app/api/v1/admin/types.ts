@@ -48,19 +48,6 @@ export interface PaginationMeta {
 export const DEFAULT_LIMIT = 50
 export const MAX_LIMIT = 250
 
-export function parsePaginationParams(url: URL): PaginationParams {
-  return {
-    limit: parsePaginationNumber(url.searchParams.get('limit'), DEFAULT_LIMIT, MAX_LIMIT),
-    offset: parsePaginationNumber(url.searchParams.get('offset'), 0),
-  }
-}
-
-function parsePaginationNumber(value: string | null, fallback: number, max?: number): number {
-  const parsed = value ? Number.parseInt(value, 10) : fallback
-  if (!Number.isInteger(parsed) || parsed < 1) return fallback
-  return max === undefined ? parsed : Math.min(parsed, max)
-}
-
 export function createPaginationMeta(total: number, limit: number, offset: number): PaginationMeta {
   return {
     total,
@@ -371,7 +358,6 @@ export interface AdminOrganization {
   logo: string | null
   orgUsageLimit: string | null
   storageUsedBytes: number
-  departedMemberUsage: string
   createdAt: string
   updatedAt: string
 }
@@ -383,15 +369,7 @@ export interface AdminOrganizationDetail extends AdminOrganization {
 
 export type AdminOrganizationSource = Pick<
   DbOrganization,
-  | 'id'
-  | 'name'
-  | 'slug'
-  | 'logo'
-  | 'orgUsageLimit'
-  | 'storageUsedBytes'
-  | 'departedMemberUsage'
-  | 'createdAt'
-  | 'updatedAt'
+  'id' | 'name' | 'slug' | 'logo' | 'orgUsageLimit' | 'storageUsedBytes' | 'createdAt' | 'updatedAt'
 >
 
 export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
@@ -402,7 +380,6 @@ export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrgani
     logo: dbOrg.logo,
     orgUsageLimit: dbOrg.orgUsageLimit,
     storageUsedBytes: dbOrg.storageUsedBytes,
-    departedMemberUsage: dbOrg.departedMemberUsage,
     createdAt: dbOrg.createdAt.toISOString(),
     updatedAt: dbOrg.updatedAt.toISOString(),
   }
@@ -493,8 +470,7 @@ interface AdminUserBilling {
   billedOverageThisPeriod: string
   storageUsedBytes: number
   billingBlocked: boolean
-  // Copilot usage (active per-period baselines)
-  currentPeriodCopilotCost: string
+  // Copilot usage
   lastPeriodCopilotCost: string | null
 }
 

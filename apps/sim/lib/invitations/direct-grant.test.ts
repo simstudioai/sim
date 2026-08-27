@@ -22,6 +22,7 @@ const {
   mockSendWorkspaceAddedEmail,
   mockCaptureServerEvent,
   mockWorkspaceMemberAdded,
+  mockEnqueueOutboxEvent,
 } = vi.hoisted(() => ({
   mockAcquireInvitationMutationLocks: vi.fn(),
   mockAcquireOrganizationUserMutationLocks: vi.fn(),
@@ -33,6 +34,7 @@ const {
   mockSendWorkspaceAddedEmail: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockWorkspaceMemberAdded: vi.fn(),
+  mockEnqueueOutboxEvent: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -54,6 +56,10 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { workspaceMemberAdded: mockWorkspaceMemberAdded },
 }))
 
+vi.mock('@/lib/core/outbox/service', () => ({
+  enqueueOutboxEvent: mockEnqueueOutboxEvent,
+}))
+
 vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
 }))
@@ -73,8 +79,10 @@ vi.mock('@/lib/posthog/server', () => ({
 
 import {
   DirectGrantContextChangedError,
+  directGrantOutboxHandlers,
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
+import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 
 const baseInput = {
   userId: 'user-2',
@@ -128,7 +136,9 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(mockWorkspaceMemberAdded).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'ws-1' })
     )
-    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith(
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      DIRECT_GRANT_EMAIL_EVENT_TYPE,
       expect.objectContaining({ email: 'member@example.com', workspaceId: 'ws-1' })
     )
     expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
@@ -139,6 +149,95 @@ describe('grantWorkspaceAccessDirectly', () => {
       mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
     )
     expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
+  })
+
+  it('delivers the transactionally enqueued notification through the outbox', async () => {
+    await directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+      {
+        email: 'member@example.com',
+        inviterName: 'Owner',
+        workspaceId: 'ws-1',
+        workspaceName: 'Workspace 1',
+      },
+      {
+        eventId: 'email-1',
+        eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+        attempts: 0,
+        maxAttempts: 10,
+        signal: new AbortController().signal,
+        checkpointPayload: vi.fn(),
+      }
+    )
+
+    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith({
+      email: 'member@example.com',
+      inviterName: 'Owner',
+      workspaceId: 'ws-1',
+      workspaceName: 'Workspace 1',
+    })
+  })
+
+  it('retries provider-declined notification delivery instead of dropping it', async () => {
+    mockSendWorkspaceAddedEmail.mockResolvedValueOnce({
+      success: false,
+      error: 'Provider unavailable',
+    })
+
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+          workspaceName: 'Workspace 1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Provider unavailable')
+  })
+
+  it('rejects malformed durable notification payloads instead of dropping fields', async () => {
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Invalid workspace-added email payload')
+
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('preserves an actor-less platform admin in audit instead of substituting the owner', async () => {
+    await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      auditActor: { id: null, name: 'Admin Panel', email: null },
+    })
+
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: null,
+        actorName: 'Admin Panel',
+        actorEmail: null,
+      })
+    )
   })
 
   it('reports unchanged (no audit/email) when a concurrent insert wins the race', async () => {
@@ -162,6 +261,30 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('can explicitly ensure a minimum permission for provisioning reconciliation', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'read' }])
+
+    const result = await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      permission: 'write',
+      existingPermissionPolicy: 'ensure-at-least',
+    })
+
+    expect(result).toEqual({
+      outcome: 'updated',
+      previousPermission: 'read',
+      permission: 'write',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionType: 'write' })
+    )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'member.role_changed', resourceId: 'ws-1' })
+    )
+    expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
   })
 

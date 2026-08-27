@@ -11,6 +11,7 @@ export interface CopilotExecutionContext {
   executionId?: string
   toolCallId?: string
   copilotToolExecution?: boolean
+  copilotInteractionMode?: 'interactive' | 'headless'
 }
 
 export interface TrustedCopilotExecutionContext extends CopilotExecutionContext {
@@ -18,6 +19,17 @@ export interface TrustedCopilotExecutionContext extends CopilotExecutionContext 
   workspaceId: string
   toolCallId: string
   copilotToolExecution: true
+}
+
+export interface TrustedInteractiveCopilotExecutionContext extends TrustedCopilotExecutionContext {
+  copilotInteractionMode: 'interactive'
+}
+
+export class InteractiveCopilotExecutionRequiredError extends Error {
+  constructor() {
+    super('Live platform context is available only in an interactive Copilot session.')
+    this.name = 'InteractiveCopilotExecutionRequiredError'
+  }
 }
 
 export type CopilotResourceScope = Pick<
@@ -76,7 +88,21 @@ export function requireTrustedCopilotExecutionContext(
     ...(context.executionId ? { executionId: context.executionId } : {}),
     toolCallId: context.toolCallId,
     copilotToolExecution: true,
+    ...(context.copilotInteractionMode
+      ? { copilotInteractionMode: context.copilotInteractionMode }
+      : {}),
   })
+}
+
+/** Restricts sensitive live platform reads to a server-classified interactive lifecycle. */
+export function requireInteractiveCopilotExecutionContext(
+  context: CopilotExecutionContext | undefined
+): TrustedInteractiveCopilotExecutionContext {
+  const trustedContext = requireTrustedCopilotExecutionContext(context)
+  if (trustedContext.copilotInteractionMode !== 'interactive') {
+    throw new InteractiveCopilotExecutionRequiredError()
+  }
+  return trustedContext as TrustedInteractiveCopilotExecutionContext
 }
 
 /** Creates a bounded Copilot principal from an explicitly trusted server lifecycle. */

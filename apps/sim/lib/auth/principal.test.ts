@@ -49,6 +49,19 @@ describe('principal subject users', () => {
       })
     ).toThrow(PrincipalSubjectUserRequiredError)
   })
+
+  it('fails fast instead of fabricating a Sim user for an external enrollment', () => {
+    expect(() =>
+      requirePrincipalSubjectUserId({
+        kind: 'credential_group_enrollment',
+        workspaceId: 'workspace-1',
+        credentialGroupId: 'group-1',
+        enrollmentId: 'enrollment-1',
+        email: 'person@example.com',
+        invitationTokenHash: 'hash-1',
+      })
+    ).toThrow(PrincipalSubjectUserRequiredError)
+  })
 })
 
 describe('principal actors', () => {
@@ -85,6 +98,26 @@ describe('principal actors', () => {
       actor: { kind: 'workspace_api_key', keyId: 'key-1', workspaceId: 'workspace-1' },
       actorId: null,
       actorName: 'Workspace API key',
+    })
+    expect(
+      resolvePrincipalAuditAttribution({
+        kind: 'credential_group_enrollment',
+        workspaceId: 'workspace-1',
+        credentialGroupId: 'group-1',
+        enrollmentId: 'enrollment-1',
+        email: 'person@example.com',
+        invitationTokenHash: 'hash-1',
+      })
+    ).toEqual({
+      actor: {
+        kind: 'credential_group_enrollment',
+        workspaceId: 'workspace-1',
+        credentialGroupId: 'group-1',
+        enrollmentId: 'enrollment-1',
+        email: 'person@example.com',
+      },
+      actorId: null,
+      actorName: 'person@example.com',
     })
   })
 
@@ -157,5 +190,18 @@ describe('principal actors', () => {
         workspaceId: 'workspace-1',
       })
     ).toThrow('Workspace API key attribution requires a workspace billing owner')
+  })
+
+  it('fails fast when external enrollment identity is used for user attribution', () => {
+    expect(() =>
+      resolvePrincipalAttribution({
+        kind: 'credential_group_enrollment',
+        workspaceId: 'workspace-1',
+        credentialGroupId: 'group-1',
+        enrollmentId: 'enrollment-1',
+        email: 'person@example.com',
+        invitationTokenHash: 'hash-1',
+      })
+    ).toThrow(PrincipalSubjectUserRequiredError)
   })
 })

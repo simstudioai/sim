@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { V2_ERROR_CODE_BY_STATUS } from '@/lib/api/contracts/v2/error-codes'
 import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
 import type {
   OpenApiErrorResponse,
@@ -6,6 +7,47 @@ import type {
   OpenApiRouteDefinition,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
+
+interface ErrorResponseOptions {
+  /**
+   * The `message` a caller actually receives for this status. Every one below is a literal
+   * the runtime emits — the generic path for that status, not a domain's phrasing of it —
+   * so the reference can be read as the response rather than as an illustration.
+   */
+  message: string
+  /** `error.details`, for the statuses that populate it. Omitted where none is sent. */
+  details?: unknown
+  headers?: readonly string[]
+}
+
+/**
+ * One documented error response, with `error.code` derived from the status rather than
+ * restated beside it.
+ *
+ * Deriving is what keeps the reference honest: a hand-written pair can drift into naming a
+ * code the status never carries, and that mistake reads as authoritative. The v2 codes map
+ * one-to-one onto statuses ({@link V2_ERROR_CODE_BY_STATUS} throws if that ever stops being
+ * true), so the status is
+ * enough to determine the code.
+ */
+function errorResponse(
+  status: number,
+  description: string,
+  { message, details, headers }: ErrorResponseOptions
+): OpenApiErrorResponse {
+  const code = V2_ERROR_CODE_BY_STATUS[status]
+  if (!code) {
+    throw new Error(
+      `No v2 error code is sent with status ${status}; documenting it would publish a response the API cannot produce.`
+    )
+  }
+  return {
+    status,
+    description,
+    ...(headers ? { headers } : {}),
+    example: { error: { code, message, ...(details === undefined ? {} : { details }) } },
+  }
+}
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -46,40 +88,79 @@ const FORBIDDEN_DESCRIPTION =
   'The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.'
 
 export const ERROR_RESPONSES = {
-  BadRequest: {
-    status: 400,
-    description:
-      'The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.',
-  },
-  Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
-  UsageLimitExceeded: {
-    status: 402,
-    description: 'The workspace has exceeded its usage or billing limits.',
-  },
-  Forbidden: { status: 403, description: FORBIDDEN_DESCRIPTION },
-  NotFound: { status: 404, description: 'The requested resource was not found.' },
-  Conflict: { status: 409, description: 'The request conflicts with current resource state.' },
-  RunIdConflict: {
-    status: 409,
-    description:
-      'The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.',
-    headers: ['X-Run-Id'],
-  },
-  PayloadTooLarge: {
-    status: 413,
-    description:
-      'The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.',
-  },
-  UnsupportedMediaType: {
-    status: 415,
-    description: 'The request uses an unsupported media type.',
-  },
-  Locked: { status: 423, description: 'The resource is locked and cannot be modified.' },
-  RateLimited: {
-    status: 429,
-    description: 'The caller exceeded the request rate limit.',
+  BadRequest: errorResponse(
+    400,
+    'The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.',
+    {
+      /**
+       * The fallback `getValidationErrorMessage` uses when an issue carries no message of its
+       * own; a real failure usually names the offending field instead (`limit must be at
+       * least 1`). The generic form is documented because this response is shared by every
+       * operation, and `details` is omitted because only the validation path populates it —
+       * the cursor and malformed-JSON 400s send none.
+       */
+      message: 'Invalid request',
+    }
+  ),
+  Unauthorized: errorResponse(401, 'The API key is missing or invalid.', {
+    message: 'API key required',
+  }),
+  UsageLimitExceeded: errorResponse(
+    402,
+    'The workspace has exceeded its usage or billing limits.',
+    { message: 'Usage limit exceeded. Please upgrade your plan to continue.' }
+  ),
+  Forbidden: errorResponse(403, FORBIDDEN_DESCRIPTION, {
+    message: 'Insufficient workspace permissions',
+    /** The description tells callers to branch on this, so the example has to show it. */
+    details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' },
+  }),
+  NotFound: errorResponse(404, 'The requested resource was not found.', {
+    /**
+     * The surface-wide literal. A resource route answers with its own noun instead — `Workflow
+     * not found`, `Table not found` — which this response cannot name because every domain
+     * shares it.
+     */
+    message: 'Not found',
+  }),
+  Conflict: errorResponse(409, 'The request conflicts with current resource state.', {
+    /**
+     * The workflows phrasing, which is the default because that document does not override
+     * it. Nothing in the response layer supplies a 409 message, so every other document
+     * carrying this status names its own through {@link withErrorExamples}.
+     */
+    message: 'Webhook path already in use',
+  }),
+  RunIdConflict: errorResponse(
+    409,
+    'The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.',
+    {
+      message: 'Run ID has already been used',
+      details: { code: 'RUN_ID_CONFLICT', runId: '0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01' },
+      headers: ['X-Run-Id'],
+    }
+  ),
+  PayloadTooLarge: errorResponse(
+    413,
+    'The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.',
+    { message: 'Request body is too large' }
+  ),
+  UnsupportedMediaType: errorResponse(415, 'The request uses an unsupported media type.', {
+    message: 'Request body must be sent as application/json',
+  }),
+  Locked: errorResponse(423, 'The resource is locked and cannot be modified.', {
+    /**
+     * Also domain-supplied. Workflows and tables are the only documents that carry a `423`,
+     * and tables names its own four lock kinds through {@link withErrorExamples}.
+     */
+    message: 'Workflow is locked',
+  }),
+  RateLimited: errorResponse(429, 'The caller exceeded the request rate limit.', {
+    message: 'API rate limit exceeded',
+    /** Mirrors `Retry-After`, which the description already sends callers to. */
+    details: { retryAfter: '2026-01-01T00:00:30.000Z' },
     headers: ['Retry-After'],
-  },
+  }),
   /**
    * Published on exactly one operation, and deliberately not on the rest.
    *
@@ -90,7 +171,7 @@ export const ERROR_RESPONSES = {
    * an SDK can branch on. Publishing it on every operation would add a branch to
    * every generated client that can never be taken.
    *
-   * `POST /workflows/{id}/execute` is the exception because there an abort
+   * `POST /workflows/{workflowId}/execute` is the exception because there an abort
    * leaves *residue*: the run may keep going and bill, so the response carries
    * `error.details.runId` for the caller to reconcile against once it reconnects.
    * That is caller-actionable information about state that outlives the
@@ -98,21 +179,65 @@ export const ERROR_RESPONSES = {
    * leaves nothing behind to reconcile. Publish a 499 on a new operation only
    * when the same is true of it.
    */
-  ClientClosedRequest: {
-    status: 499,
-    description:
-      'The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
-  },
-  InternalError: { status: 500, description: 'An unexpected server error occurred.' },
-  ServiceUnavailable: {
-    status: 503,
-    description:
-      'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
-    headers: ['Retry-After'],
-  },
+  ClientClosedRequest: errorResponse(
+    499,
+    'The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
+    {
+      message: 'Client cancelled request',
+      /** The run this abort may have left running — the reason the status is published. */
+      details: { runId: '0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01' },
+    }
+  ),
+  InternalError: errorResponse(500, 'An unexpected server error occurred.', {
+    /**
+     * Hardcoded on every path. `v2ErrorForOrchestration` replaces a domain's `internal`
+     * message with this literal, so a 500 never leaks one — the reference showing a
+     * descriptive message here would suggest callers can parse something they never get.
+     */
+    message: 'Internal server error',
+  }),
+  ServiceUnavailable: errorResponse(
+    503,
+    'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
+    { message: 'Service temporarily unavailable', headers: ['Retry-After'] }
+  ),
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
 
 export type ErrorResponseId = keyof typeof ERROR_RESPONSES
+
+/**
+ * {@link ERROR_RESPONSES} with a document's own body for the statuses whose message is the
+ * domain's rather than the surface's.
+ *
+ * Most statuses read the same everywhere — a `401` is `API key required` whatever you were
+ * asking for. `409` and `423` are not: nothing in the response layer supplies them, so the
+ * only real strings are each domain's, and one shared example necessarily shows four of the
+ * seven documents a message they never send. Tables answering `Workflow is locked` is the
+ * same class of wrongness as every status answering `BAD_REQUEST`, just smaller.
+ *
+ * Status, description, and headers are kept — a document may restate what its errors *say*,
+ * never what they *mean* — and the code is re-derived, so an override cannot introduce the
+ * mismatch this whole mechanism exists to prevent.
+ */
+export function withErrorExamples(
+  overrides: Partial<Record<ErrorResponseId, { message: string; details?: unknown }>>
+): Record<ErrorResponseId, OpenApiErrorResponse> {
+  const entries = Object.entries(ERROR_RESPONSES) as [ErrorResponseId, OpenApiErrorResponse][]
+  return Object.fromEntries(
+    entries.map(([id, response]) => {
+      const override = overrides[id]
+      if (!override) return [id, response]
+      return [
+        id,
+        errorResponse(response.status, response.description, {
+          message: override.message,
+          details: override.details,
+          headers: response.headers,
+        }),
+      ]
+    })
+  ) as Record<ErrorResponseId, OpenApiErrorResponse>
+}
 
 /**
  * The three sets below are the base shapes every workspace-scoped resource
@@ -162,16 +287,29 @@ export const RESOURCE_MUTATION_ERRORS = [
  * `413` on any route whose contract declares one — and a status a caller can
  * receive but the spec omits is an unhandled branch in every generated client.
  *
+ * `415` is derived the same way and for the same reason: the JSON builder
+ * answers `UNSUPPORTED_MEDIA_TYPE` for any body sent under a content type it
+ * cannot read (`v2-json-route.ts`), so every route declaring a body can return
+ * it, and none of them had said so.
+ *
  * Derived from the contract rather than chosen per operation, so a new body
- * route cannot forget it. One-directional: it never removes a `413` from a
+ * route cannot forget either. One-directional: it never removes a `413` from a
  * bodyless read, several of which publish one for the folder-tree ceiling.
  */
+const BODY_DERIVED_ERRORS = [
+  'PayloadTooLarge',
+  'UnsupportedMediaType',
+] as const satisfies readonly ErrorResponseId[]
+
+/** @see BODY_DERIVED_ERRORS */
 export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRouteDefinition {
-  if (!route.contract.body || route.operation.errors.includes('PayloadTooLarge')) return route
-  return {
-    ...route,
-    operation: { ...route.operation, errors: [...route.operation.errors, 'PayloadTooLarge'] },
+  if (!route.contract.body) return route
+  const derived = route.operation.errors.slice()
+  for (const code of BODY_DERIVED_ERRORS) {
+    if (!derived.includes(code)) derived.push(code)
   }
+  if (derived.length === route.operation.errors.length) return route
+  return { ...route, operation: { ...route.operation, errors: derived } }
 }
 
 export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const
@@ -275,6 +413,39 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  */
 export const RUN_RETENTION =
   "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
+
+/**
+ * Response headers a binary download declares on top of the common set. Shared
+ * so every document that publishes a byte-serving route describes the same
+ * three headers identically.
+ */
+export const V2_BINARY_DOWNLOAD_HEADERS = {
+  'Content-Type': {
+    schema: z.string().meta({
+      id: 'ContentTypeHeader',
+      title: 'Content type',
+      description:
+        'MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.',
+    }),
+  },
+  'Content-Disposition': {
+    schema: z.string().meta({
+      id: 'ContentDispositionHeader',
+      title: 'Content disposition',
+      description: 'Attachment disposition containing sanitized and RFC 5987 encoded filenames.',
+    }),
+  },
+  'Content-Length': {
+    schema: z
+      .string()
+      .regex(/^(0|[1-9]\d*)$/)
+      .meta({
+        id: 'ContentLengthHeader',
+        title: 'Content length',
+        description: 'File size in bytes.',
+      }),
+  },
+} as const
 
 export const V2_COMMON_HEADERS = {
   'X-RateLimit-Limit': {

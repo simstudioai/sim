@@ -210,17 +210,6 @@ export const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
   { id: 'actions', label: 'Actions' },
 ] as const
 
-/**
- * Maps UI command IDs to API command IDs.
- * Some commands have different IDs for display vs API (e.g., "actions" -> "superagent")
- */
-export function getApiCommandId(uiCommandId: string): string {
-  const commandMapping: Record<string, string> = {
-    actions: 'superagent',
-  }
-  return commandMapping[uiCommandId] || uiCommandId
-}
-
 export const WEB_COMMANDS: readonly SlashCommand[] = [
   { id: 'search', label: 'Search' },
   { id: 'read', label: 'Read' },
@@ -230,37 +219,7 @@ export const WEB_COMMANDS: readonly SlashCommand[] = [
 
 export const ALL_SLASH_COMMANDS: readonly SlashCommand[] = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
-export const ALL_COMMAND_IDS = ALL_SLASH_COMMANDS.map((cmd) => cmd.id)
-
-/**
- * Get display label for a command ID
- */
-export function getCommandDisplayLabel(commandId: string): string {
-  const command = ALL_SLASH_COMMANDS.find((cmd) => cmd.id === commandId)
-  return command?.label || commandId.charAt(0).toUpperCase() + commandId.slice(1)
-}
-
-/**
- * Threshold for considering input "near top" of viewport (in pixels)
- */
-export const NEAR_TOP_THRESHOLD = 300
-
 /**
  * Scroll tolerance for mention menu positioning (in pixels)
  */
 export const SCROLL_TOLERANCE = 8
-
-/**
- * Shared CSS classes for menu state text (loading, empty states)
- */
-export const MENU_STATE_TEXT_CLASSES = 'px-2 py-2 text-caption text-[var(--text-muted)]'
-
-/**
- * Calculates the next index for circular navigation (wraps around at bounds)
- */
-export function getNextIndex(current: number, direction: 'up' | 'down', maxIndex: number): number {
-  if (direction === 'down') {
-    return current >= maxIndex ? 0 : current + 1
-  }
-  return current <= 0 ? maxIndex : current - 1
-}

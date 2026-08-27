@@ -36,6 +36,7 @@ export interface CreateWorkspaceFileResult {
 export interface CreateWorkspaceFileBufferInput
   extends Omit<CreateWorkspaceFileInput, 'content' | 'encoding'> {
   content: Buffer
+  notifyWorkspaceChange?: boolean
 }
 
 async function resolveCreateWorkspaceFileContext(workspaceId: string) {
@@ -51,7 +52,7 @@ async function createAuthorizedWorkspaceFile({
   workspace,
 }: {
   principal: Principal
-  input: Omit<CreateWorkspaceFileInput, 'content' | 'encoding'>
+  input: Omit<CreateWorkspaceFileBufferInput, 'content'>
   content: Buffer
   workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
 }): Promise<CreateWorkspaceFileResult> {
@@ -71,6 +72,7 @@ async function createAuthorizedWorkspaceFile({
         folderPath: input.folderPath,
         exactName: input.exactName,
         secretProvenance: input.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+        notifyWorkspaceChange: input.notifyWorkspaceChange,
       }
     )
   } catch (error) {

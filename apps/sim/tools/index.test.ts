@@ -35,7 +35,10 @@ import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
+import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
@@ -56,6 +59,7 @@ const {
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
+  mockExecuteFunction,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -74,6 +78,7 @@ const {
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
+  mockExecuteFunction: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -119,6 +124,10 @@ vi.mock('@/lib/billing/core/usage-log', () => ({}))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
+vi.mock('@/lib/function-execution/application/execute-function', () => ({
+  executeFunction: { execute: mockExecuteFunction },
+}))
+
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
@@ -143,6 +152,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
   file_get_content: fileGetContentTool,
@@ -216,11 +226,7 @@ const mockRegistryTools: Record<string, any> = {
       url: '/api/function/execute',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
-      body: (p: any) => ({
-        code: Array.isArray(p.code) ? p.code.map((c: any) => c.content).join('\n') : p.code,
-        language: p.language || 'javascript',
-        timeout: p.timeout || 30000,
-      }),
+      body: buildFunctionExecuteBody,
     },
     transformResponse: async (response: any) => {
       const data = await response.json()
@@ -254,7 +260,11 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Read',
     description: 'Read Gmail messages',
     version: '1.0.0',
-    oauth: { required: true, provider: 'google-email' },
+    oauth: {
+      required: true,
+      provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    },
     params: {},
     request: { url: '/api/tools/gmail/read', method: 'GET' },
   },
@@ -263,7 +273,11 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Send',
     description: 'Send Gmail messages',
     version: '1.0.0',
-    oauth: { required: true, provider: 'google-email' },
+    oauth: {
+      required: true,
+      provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
+    },
     params: {},
     request: { url: '/api/tools/gmail/send', method: 'POST' },
   },
@@ -466,6 +480,12 @@ beforeEach(() => {
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
   mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
+  mockExecuteFunction.mockResolvedValue(
+    new Response(JSON.stringify({ success: true, output: { result: 'in-process' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  )
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -694,6 +714,118 @@ describe('executeTool Function', () => {
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
 
     tools.function_execute = originalFunctionTool
+  })
+
+  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+    const fetchSpy = vi.fn()
+    global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
+
+    const largeValueRef = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'array',
+      size: 1024,
+      executionId: 'execution-1',
+    }
+    const result = await executeTool('function_execute', {
+      code: 'return [{{API_KEY}}, __blockRef_0.field]',
+      isCustomTool: true,
+      inputs: { location: 'San Francisco' },
+      envVars: { API_KEY: 'resolved-secret' },
+      contextVariables: {
+        __blockRef_0: { field: 'resolved-output' },
+        __blockRef_1: largeValueRef,
+      },
+      _context: {
+        userId: 'user-1',
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        largeValueExecutionIds: ['execution-1'],
+        largeValueKeys: ['lv_ABCDEFGHIJKL'],
+        fileKeys: ['file-1'],
+        allowLargeValueWorkflowScope: true,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockExecuteFunction).toHaveBeenCalledOnce()
+    expect(mockExecuteFunction.mock.calls[0]?.[0]).toMatchObject({
+      input: {
+        workspaceId: 'workspace-456',
+        body: {
+          code: 'return [{{API_KEY}}, __blockRef_0.field]',
+          isCustomTool: true,
+          inputs: { location: 'San Francisco' },
+          envVars: { API_KEY: 'resolved-secret' },
+          contextVariables: {
+            __blockRef_0: { field: 'resolved-output' },
+            __blockRef_1: largeValueRef,
+          },
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          workspaceId: 'workspace-456',
+          userId: 'user-1',
+          largeValueExecutionIds: ['execution-1'],
+          largeValueKeys: ['lv_ABCDEFGHIJKL'],
+          fileKeys: ['file-1'],
+          allowLargeValueWorkflowScope: true,
+        },
+      },
+    })
+    expect(mockGenerateInternalToken).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('bounds ignored Bitbucket pipeline log ranges through the execution path', async () => {
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+
+    const log = 'line 1\nDONE\n'
+    const response = new Response(log, {
+      status: 200,
+      headers: {
+        'content-length': String(Buffer.byteLength(log)),
+        'content-type': 'text/plain',
+      },
+    })
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: true,
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        get: (name: string) => response.headers.get(name),
+        toRecord: () => Object.fromEntries(response.headers.entries()),
+      },
+      body: response.body,
+    })
+
+    const params = {
+      accessToken: 'oauth-token',
+      workspaceSlug: 'acme',
+      repoSlug: 'demo',
+      pipelineUuid: '{pipeline}',
+      stepUuid: '{step}',
+      maxCharacters: 5,
+    }
+    const accepted = await executeTool('bitbucket_get_pipeline_step_log', params, {
+      skipPostProcess: true,
+    })
+
+    expect(accepted).toMatchObject({
+      success: true,
+      output: {
+        log: 'DONE\n',
+        truncated: true,
+        totalBytes: Buffer.byteLength(log),
+      },
+    })
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      expect.stringContaining('/pipelines/%7Bpipeline%7D/steps/%7Bstep%7D/log'),
+      '93.184.216.34',
+      expect.objectContaining({ maxResponseBytes: 16 * 1024 * 1024 })
+    )
   })
 
   it('retries transient database failures during permission preflight', async () => {
@@ -1456,6 +1588,8 @@ describe('executeTool Function', () => {
     )
 
     await expect(execution).resolves.toMatchObject({ success: true })
+    expect(mockExecuteFunction).not.toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(registry.isComplete()).toBe(true)
     expect(
       projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
@@ -2315,6 +2449,53 @@ describe('executeTool Function', () => {
     tools.function_execute = originalFunctionTool
   })
 
+  it('gives an internal route transport headroom past its requested execution budget', async () => {
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    let observedSignal: AbortSignal | undefined
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        async (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            observedSignal = init.signal as AbortSignal
+            observedSignal.addEventListener('abort', () => {
+              const err = new Error('aborted')
+              err.name = 'AbortError'
+              reject(err)
+            })
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    vi.useFakeTimers()
+    try {
+      const resultPromise = executeTool(
+        'function_execute',
+        { code: 'return 1', timeout: 5000 },
+        { skipPostProcess: true }
+      )
+
+      // The route owns the 5s execution budget and needs to outlive it to report
+      // its own timeout, so the transport must still be waiting at that instant.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(observedSignal?.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      const result = await resultPromise
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/timed out after 35000ms/)
+    } finally {
+      vi.useRealTimers()
+      tools.function_execute = originalFunctionTool
+    }
+  })
+
   it('should add timing information to results', async () => {
     const result = await executeTool(
       'http_request',
@@ -2331,7 +2512,7 @@ describe('executeTool Function', () => {
   })
 })
 
-describe('Automatic Internal Route Detection', () => {
+describe('Internal Route Trust', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -2402,6 +2583,21 @@ describe('Automatic Internal Route Detection', () => {
     expect(mockTool.transformResponse).toHaveBeenCalled()
 
     Object.assign(tools, originalTools)
+  })
+
+  it('rejects a caller-controlled relative URL without minting internal credentials', async () => {
+    global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
+
+    const result = await executeTool('http_request', {
+      url: '/api/auth/oauth/token',
+      method: 'GET',
+      _context: { userId: 'workflow-owner' },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('External tool requests require an absolute HTTP(S) URL')
+    expect(mockGenerateInternalToken).not.toHaveBeenCalled()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('transports only active provenance selected for an internal model input', async () => {
@@ -3425,6 +3621,7 @@ describe('Automatic Internal Route Detection', () => {
         resourceId: { type: 'string', required: true },
       },
       request: {
+        internal: true,
         url: (params: any) => `/api/resources/${params.resourceId}`,
         method: 'GET',
         headers: () => ({ 'Content-Type': 'application/json' }),
@@ -3513,12 +3710,6 @@ describe('Automatic Internal Route Detection', () => {
 
     // Result will fail in test env due to network, but that's expected
     Object.assign(tools, originalTools)
-  })
-
-  it('PLACEHOLDER - external routes are called directly', async () => {
-    // Placeholder test to maintain test count - external URLs now go direct
-    // No proxy is used for external URLs anymore - they use secureFetchWithPinnedIP
-    expect(true).toBe(true)
   })
 
   it('should call external URLs directly with SSRF protection', async () => {
@@ -3776,6 +3967,58 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('Managed OAuth Credential Delegation', () => {
+  it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
+    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: 'managed-access-token' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ messages: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const executorDelegationOrigin = {
+      subjectUserId: 'origin-user',
+      workflowId: 'origin-workflow',
+      executionId: 'origin-execution',
+    }
+    const context = createToolExecutionContext({
+      userId: 'current-user',
+      workflowId: 'current-workflow',
+      executionId: 'current-execution',
+      executorDelegationOrigin,
+    })
+
+    await executeTool(
+      'gmail_read',
+      { oauthCredential: 'managed-credential-id' },
+      { executionContext: context }
+    )
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith(executorDelegationOrigin)
+    const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0]
+    expect(String(tokenUrl)).toContain('/api/auth/oauth/token')
+    expect(tokenRequest.headers).toMatchObject({
+      Authorization: 'Bearer legacy-token',
+      'x-sim-managed-oauth-delegation': 'Bearer executor-token',
+    })
+    expect(JSON.parse(tokenRequest.body)).toMatchObject({
+      credentialId: 'managed-credential-id',
+      toolId: 'gmail_read',
+      scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    })
   })
 })
 
@@ -4103,6 +4346,17 @@ describe('Centralized Error Handling', () => {
       { errors: [{ detail: 'Rate limit exceeded' }] },
       'Rate limit exceeded'
     )
+  })
+
+  it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
+    const originalExtractor = tools.function_execute.errorExtractor
+    tools.function_execute.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
+
+    try {
+      await testErrorFormat('Prospeo', { error: true, error_code: 'NO_MATCH' }, 'NO_MATCH')
+    } finally {
+      tools.function_execute.errorExtractor = originalExtractor
+    }
   })
 
   it('should extract Hunter API error format', async () => {
@@ -4860,6 +5114,14 @@ describe('MCP Tool Execution', () => {
   })
 
   describe('Tool request retries', () => {
+    beforeAll(() => {
+      ;(tools.http_request.request as { internal?: true }).internal = true
+    })
+
+    afterAll(() => {
+      ;(tools.http_request.request as { internal?: true }).internal = undefined
+    })
+
     function makeJsonResponse(
       status: number,
       body: unknown,

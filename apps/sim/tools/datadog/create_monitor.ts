@@ -1,4 +1,5 @@
-import type { CreateMonitorParams, CreateMonitorResponse } from '@/tools/datadog/types'
+import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
+import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorResponse> = {
@@ -86,7 +87,15 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        name: string
+        type: MonitorType
+        query: string
+        message?: string
+        priority?: number
+        tags?: string[]
+        options?: unknown
+      } = {
         name: params.name,
         type: params.type,
         query: params.query,
@@ -102,14 +111,8 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
           .filter((t: string) => t.length > 0)
       }
 
-      if (params.options) {
-        try {
-          body.options =
-            typeof params.options === 'string' ? JSON.parse(params.options) : params.options
-        } catch {
-          // If options parsing fails, skip it
-        }
-      }
+      const options = parseJsonParam<Record<string, unknown>>(params.options, 'options parameter')
+      if (options) body.options = options
 
       return body
     },
@@ -117,13 +120,13 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
-          monitor: {} as any,
+          monitor: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
@@ -164,6 +167,11 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
         overall_state: { type: 'string', description: 'Current monitor state' },
         created: { type: 'string', description: 'Creation timestamp' },
         modified: { type: 'string', description: 'Last modification timestamp' },
+        options: {
+          type: 'json',
+          description: 'Monitor options (thresholds, notification settings)',
+        },
+        creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
       },
     },
   },

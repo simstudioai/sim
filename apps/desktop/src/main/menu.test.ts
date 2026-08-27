@@ -6,18 +6,20 @@ import { BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
-function makeDeps(): MenuDeps {
+function makeDeps(origin = 'https://sim.ai'): MenuDeps {
   return {
     config: {
       filePath: '/tmp/settings.json',
-      getOrigin: vi.fn(() => 'https://sim.ai'),
+      getOrigin: vi.fn(() => origin),
       setOrigin: vi.fn(),
       get: vi.fn(() => undefined),
       set: vi.fn(),
     } as unknown as ConfigStore,
     getMainWindow: vi.fn(() => null),
+    isMainWindow: vi.fn(() => true),
     allowHttpLocalhost: vi.fn(() => false),
     openSettings: vi.fn(),
+    openServerSettings: vi.fn(),
     newWindow: vi.fn(),
     newChat: vi.fn(),
     handleFocusedResourceShortcut: vi.fn(() => false),
@@ -25,6 +27,7 @@ function makeDeps(): MenuDeps {
     openSearch: vi.fn(),
     signOut: vi.fn(),
     checkForUpdates: vi.fn(),
+    openDiagnostics: vi.fn(),
   }
 }
 
@@ -51,10 +54,9 @@ describe('buildMenuTemplate', () => {
     expect(submenu(template, 'Sim').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'about',
       'Settings…',
+      'Server…',
       'Check for Updates…',
       'Sign Out',
-      'separator',
-      'services',
       'separator',
       'hide',
       'hideOthers',
@@ -62,20 +64,27 @@ describe('buildMenuTemplate', () => {
       'separator',
       'quit',
     ])
-    expect(submenu(template, 'File').map((item) => item.label ?? item.role ?? item.type)).toEqual([
+    const file = submenu(template, 'File')
+    expect(
+      file.filter((item) => item.visible !== false).map((item) => item.label ?? item.type)
+    ).toEqual(['New Window', 'New Chat', 'separator', 'Close Window'])
+    // Resource-scoped shortcuts stay registered but never appear in the menu.
+    expect(file.filter((item) => item.visible === false).map((item) => item.label)).toEqual([
       'New Tab',
-      'New Window',
-      'New Chat',
-      'separator',
       'Reopen Closed Tab',
       'Focus Address Bar',
-      'separator',
       'Next Tab',
       'Previous Tab',
-      'Select Tab',
-      'separator',
+      'Tab 1',
+      'Tab 2',
+      'Tab 3',
+      'Tab 4',
+      'Tab 5',
+      'Tab 6',
+      'Tab 7',
+      'Tab 8',
+      'Last Tab',
       'Close Tab',
-      'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
       'Search',
@@ -83,6 +92,7 @@ describe('buildMenuTemplate', () => {
       'separator',
       'Back',
       'Reload',
+      'Force Reload',
       'separator',
       'Actual Size',
       'Zoom In',
@@ -92,9 +102,36 @@ describe('buildMenuTemplate', () => {
     ])
   })
 
-  it('keeps Help limited to documentation and Sim status', () => {
+  it('keeps Help limited to support and diagnostics', () => {
     const help = submenu(buildMenuTemplate(makeDeps()), 'Help')
-    expect(help.map((item) => item.label)).toEqual(['Sim Documentation', 'Sim Status'])
+    expect(help.map((item) => item.label ?? item.type)).toEqual([
+      'Sim Documentation',
+      'Sim Status',
+      'separator',
+      'Show Diagnostic Logs',
+    ])
+  })
+
+  // status.sim.ai reports on Sim's deployments only, so it is worse than
+  // useless to an operator whose own server is the one that is down.
+  it('drops Sim status for a self-hosted server', () => {
+    const help = submenu(buildMenuTemplate(makeDeps('https://sim.example.com')), 'Help')
+    expect(help.map((item) => item.label ?? item.type)).toEqual([
+      'Sim Documentation',
+      'separator',
+      'Show Diagnostic Logs',
+    ])
+  })
+
+  it('opens local diagnostics from Help', () => {
+    const deps = makeDeps()
+    const item = submenu(buildMenuTemplate(deps), 'Help').find(
+      (entry) => entry.label === 'Show Diagnostic Logs'
+    )
+
+    ;(item?.click as () => void)()
+
+    expect(deps.openDiagnostics).toHaveBeenCalledOnce()
   })
 
   it('never exposes developer tools in the application menu', () => {
@@ -102,7 +139,7 @@ describe('buildMenuTemplate', () => {
     expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
   })
 
-  it('reserves the close-tab accelerator for resources and never closes the window', () => {
+  it('closes the main window when no resource claims the close-tab accelerator', () => {
     const handleFocusedResourceShortcut = vi.fn(() => true)
     const deps = Object.assign(makeDeps(), { handleFocusedResourceShortcut })
     const closeItem = submenu(buildMenuTemplate(deps), 'File').find(
@@ -124,7 +161,39 @@ describe('buildMenuTemplate', () => {
 
     handleFocusedResourceShortcut.mockReturnValue(false)
     click({}, focusedWindow)
-    expect(focusedWindow.close).not.toHaveBeenCalled()
+    expect(focusedWindow.close).toHaveBeenCalledOnce()
+  })
+
+  it('keeps resource, reload, and zoom accelerators out of utility windows', () => {
+    const mainWindow = new BrowserWindow()
+    const utilityWindow = new BrowserWindow()
+    const handleFocusedResourceShortcut = vi.fn(() => false)
+    const deps = Object.assign(makeDeps(), {
+      getMainWindow: vi.fn(() => mainWindow),
+      isMainWindow: vi.fn((win: BrowserWindow) => win === mainWindow),
+      handleFocusedResourceShortcut,
+    })
+    const template = buildMenuTemplate(deps)
+    const file = submenu(template, 'File')
+    const view = submenu(template, 'View')
+    const invoke = (item: MenuItemConstructorOptions | undefined) =>
+      (item?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
+        {},
+        utilityWindow
+      )
+
+    invoke(file.find((item) => item.accelerator === 'CmdOrCtrl+T'))
+    invoke(view.find((item) => item.accelerator === 'CmdOrCtrl+R'))
+    invoke(view.find((item) => item.accelerator === 'CmdOrCtrl+Plus'))
+
+    expect(handleFocusedResourceShortcut).not.toHaveBeenCalled()
+    expect(mainWindow.webContents.reload).not.toHaveBeenCalled()
+    expect(utilityWindow.webContents.reload).not.toHaveBeenCalled()
+    expect(deps.config.set).not.toHaveBeenCalledWith('zoomLevel', expect.anything())
+
+    invoke(file.find((item) => item.accelerator === 'CmdOrCtrl+W'))
+    expect(utilityWindow.close).toHaveBeenCalledOnce()
+    expect(mainWindow.close).not.toHaveBeenCalled()
   })
 
   it('always offers a separate close-window accelerator', () => {
@@ -152,7 +221,6 @@ describe('buildMenuTemplate', () => {
       })
     )
     const file = submenu(template, 'File')
-    const selectTabs = submenu(file, 'Select Tab')
     const focusedWindow = new BrowserWindow()
     const invoke = (item: MenuItemConstructorOptions | undefined) =>
       (item?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
@@ -162,7 +230,7 @@ describe('buildMenuTemplate', () => {
 
     invoke(file.find((item) => item.accelerator === 'Ctrl+Tab'))
     invoke(file.find((item) => item.accelerator === 'Ctrl+Shift+Tab'))
-    invoke(selectTabs.find((item) => item.accelerator === 'CmdOrCtrl+9'))
+    invoke(file.find((item) => item.accelerator === 'CmdOrCtrl+9'))
 
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(1, focusedWindow, 'next-tab')
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(2, focusedWindow, 'previous-tab')

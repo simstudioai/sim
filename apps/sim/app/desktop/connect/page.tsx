@@ -35,6 +35,17 @@ function InvalidRequest() {
 }
 
 /**
+ * Absolute URL better-auth returns the browser to once the OAuth callback is
+ * done. Composed through the URL API rather than concatenated, so a trailing
+ * slash on `NEXT_PUBLIC_APP_URL` cannot yield a `//desktop/...` pathname that
+ * matches no route — this page is what bounces the result to the app's
+ * loopback, so a base-URL typo would otherwise strand the whole flow.
+ */
+function buildConnectCompleteUrl(state: string, port: number, draftId?: string): string {
+  return new URL(buildConnectCompletePath(state, port, draftId), getBaseUrl()).toString()
+}
+
+/**
  * Desktop OAuth-connect landing. The desktop app opens this page in the
  * system browser with the provider to connect, a one-time state, and the port
  * of its 127.0.0.1 loopback listener. The whole OAuth flow runs here — in the
@@ -50,8 +61,16 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const port = parseLoopbackPort(typeof params.port === 'string' ? params.port : '')
   const workspaceId = isValidOpaqueId(params.workspaceId) ? params.workspaceId : undefined
   const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
+  const draftId = isValidOpaqueId(params.draftId) ? params.draftId : undefined
   const expectedUserId = isValidOpaqueId(params.user) ? params.user : undefined
-  if (!isValidOAuthProviderId(providerId) || !isValidHandoffState(state) || port === null) {
+  const hasInvalidDraftId = params.draftId !== undefined && draftId === undefined
+  if (
+    !isValidOAuthProviderId(providerId) ||
+    !isValidHandoffState(state) ||
+    port === null ||
+    hasInvalidDraftId ||
+    (workspaceId !== undefined && draftId !== undefined)
+  ) {
     return <InvalidRequest />
   }
 
@@ -65,6 +84,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
         buildDesktopConnectPath(providerId, state, port, {
           workspaceId,
           credentialId,
+          draftId,
           user: expectedUserId,
         })
       )}`
@@ -86,6 +106,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
           returnTo={buildDesktopConnectPath(providerId, state, port, {
             workspaceId,
             credentialId,
+            draftId,
             user: expectedUserId,
           })}
         />
@@ -102,17 +123,24 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
     const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorize.searchParams.set('providerId', providerId)
     authorize.searchParams.set('workspaceId', workspaceId)
-    authorize.searchParams.set(
-      'callbackURL',
-      `${getBaseUrl()}${buildConnectCompletePath(state, port)}`
-    )
+    authorize.searchParams.set('callbackURL', buildConnectCompleteUrl(state, port))
     if (credentialId) {
       authorize.searchParams.set('credentialId', credentialId)
     }
     redirect(authorize.toString())
   }
 
+  if (providerId === 'trello' || providerId === 'instagram' || providerId === 'shopify') {
+    const authorize = new URL(`/api/auth/${providerId}/authorize`, getBaseUrl())
+    authorize.searchParams.set('returnUrl', buildConnectCompleteUrl(state, port))
+    if (draftId) authorize.searchParams.set('draftId', draftId)
+    redirect(authorize.toString())
+  }
+
   return (
-    <ConnectLauncher providerId={providerId} completePath={buildConnectCompletePath(state, port)} />
+    <ConnectLauncher
+      providerId={providerId}
+      completeUrl={buildConnectCompleteUrl(state, port, draftId)}
+    />
   )
 }

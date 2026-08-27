@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -124,10 +125,6 @@ export function classifyStartBlock<T extends MinimalBlock>(block: T): StartBlock
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 
-export function isLegacyStartPath(path: StartBlockPath): boolean {
-  return path !== StartBlockPath.UNIFIED
-}
-
 function toEntries<T extends MinimalBlock>(blocks: Record<string, T> | T[]): Array<[string, T]> {
   if (Array.isArray(blocks)) {
     return blocks.map((block, index) => {
@@ -224,7 +221,7 @@ type SubBlockWithValue = { value?: unknown }
 
 function readSubBlockValue(subBlocks: Record<string, unknown> | undefined, key: string): unknown {
   const raw = subBlocks?.[key]
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+  if (isRecordLike(raw)) {
     return (raw as SubBlockWithValue).value
   }
   return undefined

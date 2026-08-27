@@ -66,6 +66,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'body',
       title: 'Body',
       type: 'code',
+      language: 'json',
       placeholder: 'Enter JSON...',
       wandConfig: {
         enabled: true,
@@ -134,6 +135,22 @@ Example:
       mode: 'advanced',
     },
     {
+      id: 'redirectPolicyVersion',
+      title: 'Redirect policy version',
+      type: 'short-input',
+      defaultValue: 'standard-v1',
+      hidden: true,
+    },
+    {
+      id: 'sendCredentialsOnCrossOriginRedirect',
+      title: 'Send credentials on cross-origin redirects',
+      type: 'switch',
+      defaultValue: true,
+      description:
+        'Forward credential-bearing headers when a redirect changes scheme, host, or port. Enabled by default for compatibility; disable it when redirected destinations should not receive the same credentials.',
+      mode: 'advanced',
+    },
+    {
       id: 'proxyUrl',
       title: 'Proxy URL',
       type: 'short-input',
@@ -162,6 +179,14 @@ Example:
     retryNonIdempotent: {
       type: 'boolean',
       description: 'Allow retries for non-idempotent methods like POST/PATCH',
+    },
+    redirectPolicyVersion: {
+      type: 'string',
+      description: 'Persisted redirect-policy compatibility version',
+    },
+    sendCredentialsOnCrossOriginRedirect: {
+      type: 'boolean',
+      description: 'Send credential-bearing headers on redirects to a different origin',
     },
     proxyUrl: {
       type: 'string',

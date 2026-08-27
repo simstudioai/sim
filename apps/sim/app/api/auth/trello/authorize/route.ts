@@ -8,6 +8,7 @@ import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('TrelloAuthorize')
@@ -16,8 +17,8 @@ export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
 const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
+const TRELLO_CREDENTIAL_DRAFT_COOKIE = 'trello_credential_draft_id'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
-const TRELLO_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -28,7 +29,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(authorizeTrelloContract, request, {})
     if (!parsed.success) return parsed.response
-    const { returnUrl: requestedReturnUrl } = parsed.data.query
+    const { returnUrl: requestedReturnUrl, draftId } = parsed.data.query
 
     const apiKey = env.TRELLO_API_KEY
 
@@ -57,15 +58,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+      maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
       path: TRELLO_STATE_COOKIE_PATH,
     })
+    if (draftId) {
+      response.cookies.set(TRELLO_CREDENTIAL_DRAFT_COOKIE, draftId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
+        path: TRELLO_STATE_COOKIE_PATH,
+      })
+    } else {
+      response.cookies.delete({
+        name: TRELLO_CREDENTIAL_DRAFT_COOKIE,
+        path: TRELLO_STATE_COOKIE_PATH,
+      })
+    }
     if (requestedReturnUrl && isSameOrigin(requestedReturnUrl)) {
       response.cookies.set(TRELLO_RETURN_URL_COOKIE, requestedReturnUrl, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: TRELLO_STATE_COOKIE_PATH,
       })
     } else {

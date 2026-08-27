@@ -23,10 +23,10 @@ services:
       # (apex + www, alias hostnames, reverse-proxy IPs). Empty by default.
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
       # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in
-      # front of the app (ingress, load balancer). Better Auth walks
-      # x-forwarded-for right to left, skips these hops, and uses the first
-      # untrusted address as the client IP. Required for correct session IPs and
-      # rate-limit keying behind a multi-hop proxy chain. Empty by default.
+      # front of the app (ingress, load balancer). Sim and Better Auth walk
+      # x-forwarded-for right to left, skip these hops, and use the first
+      # untrusted address as the client IP. Required to look through known
+      # intermediate proxies in a multi-hop chain. Empty by default.
       - AUTH_TRUSTED_PROXIES=${AUTH_TRUSTED_PROXIES:-}
       # Required. Compose aborts with this message rather than starting the app
       # with an empty secret, which would silently corrupt stored credentials.
@@ -134,12 +134,6 @@ services:
     # and shares no database schema with the app, so it does not need to move in
     # lockstep — and no cron tag exists for releases that predate it.
     image: ghcr.io/simstudioai/cron:${SIM_CRON_VERSION:-latest}
-    # Built from the repo when the published image is not available locally, so a
-    # fresh `git clone && docker compose up -d` works before the first release
-    # that publishes it.
-    build:
-      context: .
-      dockerfile: docker/cron.Dockerfile
     # on-failure, not unless-stopped: with no CRON_SECRET the container exits 0
     # after explaining why, and stays stopped instead of crash-looping. Upgrades
     # from a compose file that predates this service therefore still come up.

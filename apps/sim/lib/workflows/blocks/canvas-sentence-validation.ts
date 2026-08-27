@@ -228,6 +228,8 @@ function buildBlockIndex(config: ValidatableBlockConfig): BlockIndex {
   return {
     subBlocks: config.subBlocks,
     byId: groupSubBlocksById(config.subBlocks),
+    // canonical-index-unscoped: `resolveVisibility` returns `hidden` for every trigger-mode
+    // subblock as its first check, so only action subblocks ever reach this index.
     canonical: buildCanonicalIndex(config.subBlocks),
     seededValues: getSeededSubBlockValues(config),
   }

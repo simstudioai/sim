@@ -20,35 +20,35 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
-  BrowserRequestTakeover,
-  CrawlWebsite,
-  CreateFile,
+  ApplyFileEdit,
+  CreateEmptyFile,
   CreateWorkflow,
-  DeployApi,
-  DeployChat,
-  DeployCustomBlock,
-  DeployMcp,
-  DownloadToWorkspaceFile,
-  EditContent,
+  DeployAsApi,
+  DeployAsChat,
+  DeployAsMcp,
+  DownloadFile,
   Ffmpeg,
-  FunctionExecute,
+  GenerateApiKey,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
-  KnowledgeBase,
   LoadDeployment,
-  MaterializeFile,
+  ManageKnowledgeBase,
   Media,
+  PrepareFileEdit,
   PromoteToLive,
+  PublishCustomBlock,
   Redeploy,
   Run,
   RunBlock,
   RunCode,
   RunFromBlock,
+  RunFunction,
   RunWorkflow,
   RunWorkflowUntilBlock,
+  SaveUpload,
   Search,
-  WorkspaceFile,
+  WebCrawl,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
@@ -77,6 +77,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -216,7 +217,7 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   RunFromBlock.id,
   RunWorkflow.id,
   RunWorkflowUntilBlock.id,
-  FunctionExecute.id,
+  RunFunction.id,
   RunCode.id,
   GenerateImage.id,
   GenerateAudio.id,
@@ -224,17 +225,17 @@ const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
   Ffmpeg.id,
   Media.id,
   Search.id,
-  CrawlWebsite.id,
-  KnowledgeBase.id,
-  DownloadToWorkspaceFile.id,
-  CreateFile.id,
-  EditContent.id,
-  MaterializeFile.id,
-  WorkspaceFile.id,
-  DeployApi.id,
-  DeployChat.id,
-  DeployCustomBlock.id,
-  DeployMcp.id,
+  WebCrawl.id,
+  ManageKnowledgeBase.id,
+  DownloadFile.id,
+  CreateEmptyFile.id,
+  ApplyFileEdit.id,
+  SaveUpload.id,
+  PrepareFileEdit.id,
+  DeployAsApi.id,
+  DeployAsChat.id,
+  PublishCustomBlock.id,
+  DeployAsMcp.id,
   Redeploy.id,
   LoadDeployment.id,
   PromoteToLive.id,
@@ -258,7 +259,7 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 export function pendingToolWaitBudgetMs(
   toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
 ): number | null {
-  if (toolCall?.name === BrowserRequestTakeover.id && toolCall.status === 'executing') {
+  if (toolCall?.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && toolCall?.status === 'executing') {
     return null
   }
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
@@ -609,7 +610,8 @@ async function executeToolAndReportInner(
     if (abortRequested(context, execContext, options)) {
       const copilotResult = inspectToolResultForCopilot(
         result,
-        toolExecutionContext.resolvedSecretTraceRegistry
+        toolExecutionContext.resolvedSecretTraceRegistry,
+        toolCall.name
       ).result
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -725,7 +727,8 @@ async function executeToolAndReportInner(
     }
     const projection = inspectToolResultForCopilot(
       result,
-      toolExecutionContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
     )
     const copilotResult = projection.result
     mergeToolRegistry(projection.safe)
@@ -734,6 +737,16 @@ async function executeToolAndReportInner(
     toolSpan.attributes = {
       ...toolSpan.attributes,
       ...summarizeToolResultForSpan(copilotResult),
+      ...(projection.safe ? {} : { resultWithheld: true }),
+    }
+    if (!projection.safe) {
+      // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
+      // ok and the model just sees a bare `{success: true}` with no output.
+      logger.warn('Tool result withheld by egress projection', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        runtimeSucceeded: result.success,
+      })
     }
 
     setTerminalToolCallState(toolCall, {
@@ -807,8 +820,12 @@ async function executeToolAndReportInner(
       return cancelledCompletion('Request aborted before tool result delivery')
     }
 
-    // Fire-and-forget: notify the copilot backend that the tool completed.
-    // IMPORTANT: We must NOT await this — the Go backend may block on the
+    // A newly generated API key is intentionally included only in this
+    // live/replay client event. Model-facing results and long-term chat records stay redacted.
+    const clientEventOutput =
+      toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
+        ? copilotResult.output
+        : terminalData
     const resultEvent: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
@@ -818,7 +835,7 @@ async function executeToolAndReportInner(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: modelSucceeded,
-        output: terminalData,
+        output: clientEventOutput,
         ...(modelSucceeded
           ? { status: MothershipStreamV1ToolOutcome.success }
           : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),
@@ -856,7 +873,8 @@ async function executeToolAndReportInner(
     const thrownMessage = toError(error).message
     const projection = inspectToolResultForCopilot(
       { success: false, error: thrownMessage },
-      toolExecutionContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
     )
     const copilotError = projection.result
     mergeToolRegistry(projection.safe)

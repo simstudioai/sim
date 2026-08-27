@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaCreateGroupParams,
-  OktaCreateGroupResponse,
-  OktaGroup,
-} from '@/tools/okta/types'
+import type { OktaCreateGroupParams, OktaCreateGroupResponse, OktaGroup } from '@/tools/okta/types'
+import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaCreateGroup')
@@ -49,11 +45,7 @@ export const oktaCreateGroupTool: ToolConfig<OktaCreateGroupParams, OktaCreateGr
       return `https://${domain}/api/v1/groups`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
     body: (params) => {
       const profile: Record<string, string> = { name: params.name }
       if (params.description) profile.description = params.description
@@ -63,14 +55,7 @@ export const oktaCreateGroupTool: ToolConfig<OktaCreateGroupParams, OktaCreateGr
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to create group in Okta')
+      await throwOktaError(response, logger, 'Failed to create group in Okta')
     }
 
     const group: OktaGroup = await response.json()

@@ -6,13 +6,15 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DESKTOP_PRERELEASE_REPOSITORY,
+  DESKTOP_RELEASES_PAGE_SIZE,
   DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
+  releasesApiUrl,
 } from '@/lib/desktop/update-feed'
 import { GET } from '@/app/api/desktop/update/latest-mac.yml/route'
 
-const STABLE_RELEASES_URL = `https://api.github.com/repos/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases?per_page=30`
-const PRERELEASE_RELEASES_URL = `https://api.github.com/repos/${DESKTOP_PRERELEASE_REPOSITORY}/releases?per_page=30`
+const STABLE_RELEASES_URL = releasesApiUrl(DESKTOP_STABLE_RELEASE_REPOSITORY, 1)
+const PRERELEASE_RELEASES_URL = releasesApiUrl(DESKTOP_PRERELEASE_REPOSITORY, 1)
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 function release(tag: string) {
@@ -154,6 +156,61 @@ describe('desktop update manifest route', () => {
     expect(response.headers.get(FEED_STATUS_HEADER)).toBe('no-release')
     expect(await response.json()).toMatchObject({ error: 'No desktop release for channel latest' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('walks past a page of unrelated releases to reach the newest desktop build', async () => {
+    const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
+      tag_name: `python-sdk-v0.${index}.0`,
+      draft: false,
+      prerelease: false,
+      assets: [],
+    }))
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === releasesApiUrl(DESKTOP_STABLE_RELEASE_REPOSITORY, 1)) {
+        return Response.json(filler)
+      }
+      if (url === releasesApiUrl(DESKTOP_STABLE_RELEASE_REPOSITORY, 2)) {
+        return Response.json([release('v1.1.0')])
+      }
+      if (url === `https://downloads.example/v1.1.0/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.1.0'))
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('version: 1.1.0')
+  })
+
+  it('stops walking at a short page rather than requesting empty ones', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json([release('v1.2.0-dev.4'), release('v1.2.0-staging.5')])
+    )
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(404)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails the feed instead of serving an older release when a page cannot be read', async () => {
+    const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
+      tag_name: `python-sdk-v0.${index}.0`,
+      draft: false,
+      prerelease: false,
+      assets: [],
+    }))
+    fetchMock
+      .mockResolvedValueOnce(Response.json(filler))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
   })
 
   it('rejects a manifest whose version does not match its selected release', async () => {

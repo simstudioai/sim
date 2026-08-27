@@ -13,8 +13,9 @@ The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
 action chips), a scroll region, and a centered `max-w-[48rem]` content column led
 by a **title + description from navigation metadata**. The chrome stays mounted
-across section navigation (it never re-renders or re-lays-out). Each section
-renders through the **`SettingsPanel`** registrar
+across section navigation. Its routed title and description are available before
+the section body resolves. Each section renders through the **`SettingsPanel`**
+registrar
 (`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
 the shell its header data and renders only the section body. Sections supply
 **data**, never chrome.
@@ -82,6 +83,9 @@ return (
   `children` instead and omit the prop.
 - `title?` / `description?` — overrides for the nav-driven defaults. **Only** for a
   detail sub-view that needs a different heading; normal pages never pass these.
+  A top-level page's header identity must remain stable while its data loads:
+  never replace navigation metadata with client-fetched copy after first paint.
+  Put data-dependent context in the page body instead.
 - `scrollContainerRef?: React.Ref<HTMLDivElement>` — forwards a ref to the scroll
   region (e.g. programmatic scroll-to-bottom).
 

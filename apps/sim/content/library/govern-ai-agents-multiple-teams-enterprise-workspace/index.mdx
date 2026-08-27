@@ -1,0 +1,164 @@
+---
+slug: govern-ai-agents-multiple-teams-enterprise-workspace
+title: 'Governing AI Agents Built by Different Teams in One Enterprise Workspace'
+description: 'Learn how centralized AI agent governance gives enterprise teams a shared workspace for identity, access control, audit evidence, deployment, and oversight.'
+date: 2026-08-17
+updated: 2026-08-17
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Enterprise AI, AI Governance, Sim]
+ogImage: /library/govern-ai-agents-multiple-teams-enterprise-workspace/cover.jpg
+canonical: https://www.sim.ai/library/govern-ai-agents-multiple-teams-enterprise-workspace
+draft: false
+faq:
+  - q: "Are Access Control and SSO available below Enterprise on Sim Cloud?"
+    a: "No. Sim lists Access Control and SSO under Enterprise, not Free, Pro, or Max. SSO authenticates users through the company identity provider, while Access Control restricts model providers, workflow blocks, and platform features for members inside a workspace."
+  - q: "Do permission groups control who can enter a workspace?"
+    a: "No. Workspace membership determines who has access to a workspace. Enterprise permission groups apply capability restrictions to existing members. A member can belong to at most one group per workspace, and an unassigned member has full access."
+  - q: "Can Sim govern agents that run entirely outside Sim?"
+    a: "Not automatically. Sim's governance model covers agents, workflows, and resources operated inside Sim workspaces. External agents must be migrated, rebuilt, connected through governed workflows where appropriate, or covered by a separate control layer."
+  - q: "What is the difference between audit logs and execution traces?"
+    a: "Audit logs record configuration and security-relevant administrative actions. Execution logs and traces describe workflow runs, including block inputs, outputs, errors, duration, token usage, and cost. The two record types provide complementary administrative and runtime evidence."
+  - q: "What happens to governance logs in a self-hosted deployment?"
+    a: "A self-hosted operator controls the infrastructure on which Sim and its logging environment run. Enterprise data-retention settings determine how long supported data remains, and data drains export workflow logs, audit logs, and Chat data to customer-owned storage or a webhook. The operator remains responsible for infrastructure security, storage, backup, and compliance configuration."
+  - q: "Does self-hosting require a paid Enterprise plan to expose Enterprise features?"
+    a: "No. Sim's self-hosted documentation says Enterprise features are enabled through environment configuration instead of billing. Operators can enable the complete set or configure individual feature flags. A commercial agreement adds support and accountability without taking away the ability to operate Sim independently."
+---
+
+## TL;DR
+
+- Centralized AI agent governance gives IT a common inventory, identity layer, policy model, and evidence trail across business units.
+- Sim governs agents and workflows operated inside shared workspaces, bringing agent logic, integrations, credentials, deployments, and execution history into one operating model.
+- [Sim Enterprise](https://docs.sim.ai/platform/enterprise) adds SSO, Access Control, audit logs, data retention, data drains, workspace forks, SOC 2 compliance, whitelabeling, and supported self-hosting. The [current pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, and Self Hosting as Enterprise features on Sim Cloud.
+- Sim Access Control restricts the model providers, workflow blocks, and platform features available to workspace members. It does not determine who belongs to a workspace.
+- Sim fits organizations establishing one workspace for building, deploying, and governing agents across business units.
+
+## What is centralized AI agent governance across business units?
+
+Centralized AI agent governance gives one enterprise authority a consistent way to inventory agents, manage identity and policy, and investigate activity across business units.
+
+Governance starts with visibility. IT needs to know which agents exist, who owns them, which systems they can reach, and where they run. That inventory must distinguish active production agents from prototypes and abandoned experiments. A practical governance program therefore complements inventory with [AI agent observability](https://www.sim.ai/library/ai-agent-observability) for runtime behavior.
+
+Identity and policy provide the next layer. Central authentication ties activity to company-managed accounts. Workspace membership determines who has access to shared resources, while policy controls restrict the models, tools, and platform capabilities members can use. Teams should also account for the tool-level threats described in this guide to [MCP security](https://www.sim.ai/library/mcp-security).
+
+Evidence completes the governance model. Administrative audit logs record configuration and security-relevant actions. Execution logs and traces show what happened during an agent run, including its inputs, outputs, errors, duration, token usage, and cost. Keeping these records separate makes investigations clearer: audit logs explain changes to the environment, while execution traces explain agent behavior.
+
+Without a common operating model, business units create shadow agents that IT cannot inventory or review. Teams also develop inconsistent identity, credential, and logging practices for agents that handle the same company data.
+
+## Why does agent governance break down when every team builds its own way?
+
+Agent governance breaks down when teams use systems that do not share an inventory, identity lifecycle, policy model, or evidence trail.
+
+The first failure is discovery. A finance agent can run in a hosted builder while a support agent runs through an internal framework. When those environments have no shared registry, IT cannot produce a reliable list of production agents or identify abandoned agents that still access company systems.
+
+The second failure is access consistency. One team assigns individual accounts while another embeds a shared service key. Offboarding can remove an employee from one environment while leaving another credential active. Shared credentials also make it harder to attribute a sensitive action to a person. A governed [bring-your-own-key model](https://www.sim.ai/library/byok-multi-model-ai-agent-builder) can help organizations separate provider credentials while retaining a common workspace.
+
+The third failure is investigation. One framework records prompts and outputs, while another records only errors. After an agent sends incorrect data or changes a business record, investigators must search several systems and reconcile incompatible records.
+
+A governed workspace addresses these failures by giving teams one place to build and operate agents under common identity, policy, deployment, and logging practices. External agents remain outside that governance boundary until the organization migrates them, rebuilds them, or routes their relevant activity through an integrated control layer.
+
+## How does Sim give IT centralized visibility without confusing workspace access and policy?
+
+Sim centralizes governed agent development by keeping workflows, integrations, credentials, knowledge bases, deployments, and execution history inside shared workspaces.
+
+Workspace membership and Access Control perform different jobs. Membership determines who belongs to a workspace. [Enterprise Access Control](https://docs.sim.ai/platform/enterprise#access-control) applies restrictions to members who are already there. Administrators create permission groups that control:
+
+- **Allowed model providers:** Restrict access to providers such as OpenAI, Anthropic, or Google.
+- **Allowed blocks:** Limit which workflow blocks members can use.
+- **Platform settings:** Hide Knowledge Base, disable MCP tools, disable custom tools, or disable invitations.
+
+Each permission group is scoped to one workspace. A person can receive different restrictions in different workspaces, but belongs to at most one permission group per workspace. Members with no assigned group have full access, so administrators should treat the unassigned state deliberately. Restrictions are enforced in the interface and at execution time based on the workflow's workspace.
+
+External workspace members can also be assigned to permission groups. They remain outside the organization roster and do not consume organization seats, which supports governed collaboration with contractors and partners.
+
+This model lets a platform team define a standard environment while business units retain room to build. Finance can use a workspace with a narrower provider and block policy than customer support, while both teams operate under centrally managed enterprise controls.
+
+Sim's governance boundary remains explicit: it covers agents and workflows operated inside Sim workspaces. An agent deployed only in an unrelated external framework does not automatically appear in Sim's inventory or inherit Sim policies.
+
+## What identity, compliance, and presentation controls does Sim Enterprise provide?
+
+Sim Enterprise combines company-managed authentication with workspace-scoped authorization, compliance capabilities, and organization branding.
+
+[Single Sign-On](https://docs.sim.ai/platform/enterprise#single-sign-on-sso) supports SAML 2.0 and OIDC. It works with identity providers including Okta, Microsoft Entra ID, Google Workspace, ADFS, OneLogin, and other standard SAML or OIDC providers. The identity provider authenticates each member, allowing IT to use its existing account lifecycle rather than maintain separate Sim passwords.
+
+Access Control then restricts the model providers, workflow blocks, and platform features available to authenticated workspace members. SSO answers **who the user is**; workspace membership answers **where the user belongs**; permission groups answer **which capabilities the user can use there**.
+
+Sim's [pricing page](https://www.sim.ai/pricing) lists Access Control, SSO, SOC 2 compliance, Self Hosting, and Dedicated Support under Enterprise. It excludes those features from Free, Pro, and Max. [Enterprise whitelabeling](https://docs.sim.ai/platform/enterprise#whitelabeling) lets organizations replace Sim's default logos, product name, and favicons with their own branding.
+
+## How do audit logs and execution traces prove what agents and administrators did?
+
+Sim separates administrative audit evidence from runtime execution evidence so investigators can answer different questions with the right record.
+
+[Audit logs](https://docs.sim.ai/platform/enterprise#audit-logs) track configuration and security-relevant actions across the organization. They support compliance reviews and investigations into changes made to the governed environment.
+
+Execution logs and block-level traces explain workflow runs. They show how a run progressed and expose block inputs, outputs, errors, duration, token usage, and cost. Platform teams can inspect a specific result without relying on the business unit that built the workflow.
+
+Together, these records answer complementary questions:
+
+- **Audit logs:** Who changed a configuration or performed a security-relevant administrative action, and when?
+- **Execution logs and traces:** What happened during a workflow run, and what did each block receive and produce?
+
+Enterprise [data-retention policies](https://docs.sim.ai/platform/enterprise#data-retention) configure how long execution logs, soft-deleted resources, and Chat data remain before permanent deletion. [Data drains](https://docs.sim.ai/platform/enterprise#data-drains) continuously export workflow logs, audit logs, and Chat data to a customer-owned S3 bucket or HTTPS webhook on a schedule. These controls support external archiving, security analysis, and retention requirements.
+
+## How do workspace forks create a controlled promotion path?
+
+Workspace forks create linked environments for controlled development and promotion by synchronizing deployed workflow changes between a parent workspace and its child.
+
+A [workspace fork](https://docs.sim.ai/platform/enterprise#workspace-forks) clones a workspace into a linked child. Teams deploy workflow changes in one environment and then push or pull those deployed changes between the linked workspaces. In this model, a deployment acts like a commit, while synchronization acts like a force push or force pull.
+
+This mechanism gives platform teams a clear boundary between development and production workspaces. Only deployed workflow changes participate in synchronization, which prevents every in-progress editor change from becoming a promotion candidate. Teams should pair workspace forks with review, testing, deployment, and change-management procedures that match their risk requirements.
+
+## What does self-hosting change about Enterprise governance?
+
+Self-hosting makes Sim safer to standardize on because the enterprise retains control of its deployment, data location, and exit path instead of depending permanently on one hosted service.
+
+Sim's [Apache 2.0 core](https://github.com/simstudioai/sim) can run on customer-selected infrastructure through options such as Docker and Kubernetes. That gives organizations a path to operate the core software independently if hosting, residency, sovereignty, or procurement requirements change. Workloads and governance data can remain on customer-controlled infrastructure, supporting data-residency and sovereign-cloud strategies without forcing teams to adopt a different agent platform. The broader tradeoffs are covered in this guide to [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+Sim's [self-hosted Enterprise documentation](https://docs.sim.ai/platform/enterprise#self-hosted-setup) states that self-hosted deployments unlock Enterprise features through environment configuration instead of billing. Setting `ENTERPRISE_ENABLED=true` and `NEXT_PUBLIC_ENTERPRISE_ENABLED=true` enables the full feature set, and per-feature flags can enable or disable individual capabilities. This is evidence of the no-lock-in architecture: access to the software's governance capabilities does not disappear merely because an organization moves from Sim Cloud to infrastructure it controls.
+
+Most Enterprise features read settings from the organization that owns a workspace. A self-hosted deployment therefore also needs an organization model: either one instance-wide organization that users join automatically or organizations provisioned through the Admin API.
+
+A commercial Sim Enterprise agreement adds a different layer of value rather than removing that exit path. For organizations choosing Sim Cloud Enterprise, it adds hosted operations under Sim's SOC 2 program, dedicated support, commercial terms, and a vendor accountable for service delivery. Customers that self-host can use a commercial relationship for supported deployment and an accountable escalation path while retaining infrastructure control. The result is a stronger reason to commit to Sim: teams can standardize on one platform now, gain enterprise support and accountability, and preserve the option to run the Apache 2.0 core and its governance capabilities on customer infrastructure later.
+
+## What steps create a governed multi-team agent workspace?
+
+A governed multi-team workspace starts with inventory and ends with continuous evidence review.
+
+1. **Inventory agents and owners.** Record every production agent, its business owner, its technical owner, connected systems, credentials, models, deployment location, and data classification.
+2. **Choose the governance boundary.** Decide which agents will be built or operated in Sim. Identify external agents that require migration, rebuilding, integration, or separate cross-estate governance.
+3. **Design workspace boundaries.** Separate business units or risk domains when they need distinct members, credentials, integrations, or policies. Avoid creating workspaces solely to compensate for missing ownership discipline.
+4. **Connect corporate identity.** Configure SSO and align organization and workspace membership with the company's account lifecycle.
+5. **Define permission groups.** Restrict allowed model providers, workflow blocks, and platform features for each workspace. Assign every governed member intentionally; an unassigned member has full access.
+6. **Centralize integrations and credentials.** Replace unmanaged copies and shared personal keys with governed workspace resources and documented owners.
+7. **Establish promotion controls.** Use linked workspace forks, deployed workflow changes, review, and testing to create a repeatable path between development and production environments.
+8. **Set evidence policies.** Configure audit review, execution-log retention, and data drains to match security, compliance, and investigation requirements.
+9. **Review continuously.** Reconcile the agent inventory, remove stale access, rotate credentials, inspect exceptions, and confirm that each production agent still has an accountable owner.
+
+## Sim vs. a dedicated AI control plane: which model fits a multi-framework estate?
+
+Sim combines agent development and governance in one workspace, while a control-plane-first platform such as Airia [emphasizes security and governance across enterprise AI](https://airia.com/) in a mixed estate.
+
+| Capability | Sim | Control-plane-first platform such as Airia |
+| --- | --- | --- |
+| Build and orchestration | Sim provides natural-language, visual, and programmatic tools for building and deploying agents. | Airia [provides Agent Builder and orchestration tools](https://airia.com/), while also connecting to agents built in other frameworks. |
+| Governance boundary | Sim policies and evidence center on workflows, members, integrations, and resources inside Sim workspaces. | Airia [positions its platform around securing and governing enterprise AI](https://airia.com/) across connected agents, models, tools, data sources, and runtimes. |
+| Identity and policy | Sim Enterprise provides SSO plus workspace-scoped groups that restrict providers, blocks, and platform features. | Airia [documents centralized AI security and governance controls](https://airia.com/) for connected systems. |
+| Audit and runtime evidence | Sim combines administrative audit logs with detailed block-level execution traces. | Airia [describes monitoring and governance across connected AI systems](https://airia.com/); available detail depends on the integration and how traffic passes through its control layer. |
+| Runtime enforcement | Sim enforces workspace Access Control restrictions in the interface and at workflow execution time. | Airia [emphasizes security guardrails for enterprise AI](https://airia.com/), including controls around agent actions. |
+| Deployment options | Sim offers an Apache 2.0 open-source core, Sim Cloud, and self-hosted deployment. Enterprise features can be enabled through configuration in self-hosted installations. | Airia [offers enterprise deployment options](https://airia.com/) for organizations with different infrastructure requirements. |
+| Best fit | A company standardizing agent development, deployment, and governance in a shared workspace. | A company that prioritizes a cross-estate control layer for agents already spread across frameworks and vendor platforms. |
+
+Airia's [Agent Builder and orchestration capabilities](https://airia.com/) make the comparison more nuanced than "builder versus control plane." Both platforms can support agent creation. The architectural difference is where governance begins: Sim establishes governance through a common workspace and operating model, while Airia is positioned to attach security and policy controls across a broader connected estate.
+
+Organizations evaluating either approach should test the exact integrations, enforcement points, evidence depth, deployment architecture, and operating responsibilities required for their environment. This broader comparison of [enterprise AI agent platforms](https://www.sim.ai/library/best-ai-agent-platforms-for-enterprise-teams-2026) provides additional context for procurement teams.
+
+## Which governance approach fits your organization?
+
+The right governance model depends on whether your priority is standardizing future agent operations or controlling an existing heterogeneous estate.
+
+Choose a common workspace model when the organization wants business units to build and deploy agents under one identity, policy, resource, promotion, and evidence system. Sim combines those functions with the build environment, reducing the number of disconnected systems that platform teams must operate.
+
+Choose a control-plane-first model when the immediate requirement is cross-framework discovery and enforcement without first consolidating agent development. Validate how each external agent connects to the control layer, which actions it can intercept, and how much runtime evidence each integration exposes.
+
+For teams evaluating a shared build-and-govern model, review the [Sim Enterprise documentation](https://docs.sim.ai/platform/enterprise), map the proposed workspace boundaries, and test Access Control, SSO, audit logging, retention, drains, and fork synchronization against a representative production workflow.

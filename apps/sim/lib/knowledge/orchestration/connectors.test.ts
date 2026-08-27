@@ -2,7 +2,14 @@
  * @vitest-environment node
  */
 import { document } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  type MockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -40,8 +47,17 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   createTagDefinition: vi.fn(),
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    notion: {
+      auth: { mode: 'apiKey', optional: true },
+      validateConfig: vi.fn().mockResolvedValue({ valid: true }),
+    },
+  },
+}))
 
 import {
+  performCreateKnowledgeConnector,
   performDeleteKnowledgeConnector,
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
@@ -51,6 +67,82 @@ const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
 const BILLING = { actorUserId: 'user-1', workspaceId: 'ws-1' } as never
 const resolveBillingAttribution = vi.fn().mockResolvedValue(BILLING)
+
+describe('performCreateKnowledgeConnector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
+    mockDispatchSync.mockResolvedValue({ queued: true })
+  })
+
+  afterAll(resetDbChainMock)
+
+  function queueSuccessfulInsert() {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', encryptedApiKey: null },
+    ])
+  }
+
+  const createParams = {
+    ...ACTOR,
+    knowledgeBase: KB,
+    connectorType: 'notion',
+    sourceConfig: {},
+    syncIntervalMinutes: 60,
+    resolveBillingAttribution,
+    resolveAccessToken: vi.fn(),
+  }
+
+  /**
+   * A detached dispatch settles after the caller has already been handed the
+   * connector, so its outcome could never reach the response.
+   */
+  it('waits for the initial sync dispatch before returning', async () => {
+    queueSuccessfulInsert()
+    let dispatchSettled = false
+    mockDispatchSync.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 1)
+      }).then(() => {
+        dispatchSettled = true
+        return { queued: true }
+      })
+    )
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(dispatchSettled).toBe(true)
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: true })
+  })
+
+  it('reports a failed initial dispatch instead of claiming the sync was queued', async () => {
+    queueSuccessfulInsert()
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: false })
+  })
+
+  /**
+   * A dispatch that declines to queue is as invisible to the caller as one that
+   * throws: the connector is created either way, so the only signal that its
+   * first sync never started is this flag.
+   */
+  it('reports a skipped initial dispatch the same as a failed one', async () => {
+    queueSuccessfulInsert()
+    mockDispatchSync.mockResolvedValueOnce({
+      queued: false,
+      reason: 'A sync is already queued or running for this connector',
+    })
+
+    const outcome = await performCreateKnowledgeConnector(createParams)
+
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: false })
+  })
+})
 
 describe('performDeleteKnowledgeConnector', () => {
   beforeEach(() => {
@@ -136,6 +228,8 @@ describe('performUpdateKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockDispatchSync.mockResolvedValue({ queued: true })
+    resolveBillingAttribution.mockResolvedValue(BILLING)
   })
 
   afterAll(resetDbChainMock)
@@ -146,6 +240,7 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: {},
+      resolveBillingAttribution,
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
@@ -161,6 +256,7 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { syncIntervalMinutes: 5 },
+      resolveBillingAttribution,
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'forbidden' })
@@ -175,6 +271,7 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { sourceConfig: { database: 'gone' } },
+      resolveBillingAttribution,
       validateSourceConfig: async () => ({
         message: 'Database not found',
         errorCode: 'validation' as const,
@@ -198,6 +295,7 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { sourceConfig: { database: 'x' } },
+      resolveBillingAttribution,
       validateSourceConfig: async () => ({
         message: 'Failed to refresh access token. Please reconnect your account.',
         errorCode: 'unauthorized' as const,
@@ -218,12 +316,59 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { status: 'active' },
+      resolveBillingAttribution,
     })
 
     expect(outcome).toMatchObject({ success: true })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ consecutiveFailures: 0, lastSyncError: null })
     )
+  })
+
+  it('refuses to flip the status of a connector that is mid-sync', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'active' },
+    })
+
+    /**
+     * `status: 'active'` also writes `nextSyncAt = now`, which summons a second
+     * run alongside the one already holding the lock. `performSyncKnowledgeConnector`
+     * already refuses on the same condition; this is the other half.
+     */
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      error: 'Sync already in progress',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a non-status edit mid-sync too', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'other' } },
+    })
+
+    /**
+     * `sourceConfig` is read once at the start of a run and threaded through it,
+     * so an edit mid-flight yields a pass that lists against one config and
+     * reconciles against another — and reconciliation hard-deletes.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('leaves semantic audit to an authorized application caller when requested', async () => {
@@ -237,11 +382,358 @@ describe('performUpdateKnowledgeConnector', () => {
       knowledgeBase: KB,
       connectorId: 'conn-1',
       updates: { status: 'paused' },
+      resolveBillingAttribution,
       recordSemanticAudit: false,
     })
 
     expect(outcome).toMatchObject({ success: true })
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('queues synchronization after replacing an active connector source', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(resolveBillingAttribution).toHaveBeenCalledOnce()
+    expect(mockDispatchSync).toHaveBeenCalledWith('conn-1', {
+      billingAttribution: BILLING,
+      expectedNextSyncAt: expect.any(Date),
+      requestId: 'req-1',
+      requireRunnable: true,
+    })
+  })
+
+  it('reports a queue failure and leaves the source sync due for retry', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 0,
+      },
+    ])
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'internal',
+      error: 'queue unavailable',
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceConfig: { database: 'next' },
+        nextSyncAt: expect.any(Date),
+      })
+    )
+    expect(mockDispatchSync).toHaveBeenCalledOnce()
+  })
+
+  it('saves a paused connector source without synchronizing it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'paused' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'paused' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('does not synchronize a schedule-only update', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 60 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('preserves an already-due source sync when scheduled sync is disabled', async () => {
+    const pendingSourceSyncAt = new Date(0)
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        nextSyncAt: pendingSourceSyncAt,
+        status: 'active',
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'notion',
+        nextSyncAt: pendingSourceSyncAt,
+        status: 'active',
+      },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ nextSyncAt: pendingSourceSyncAt, syncIntervalMinutes: 0 })
+    )
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects an interval update that races with a source-sync due marker', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'active' },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conn-1',
+          connectorType: 'notion',
+          nextSyncAt: new Date(),
+          status: 'active',
+        },
+      ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects a source replacement while synchronization is in progress', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+    const validateSourceConfig = vi.fn()
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(validateSourceConfig).not.toHaveBeenCalled()
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a schedule change while synchronization is in progress', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'syncing' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      error: 'Sync already in progress',
+      errorCode: 'conflict',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a schedule change that races with synchronization startup', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'active' },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', nextSyncAt: null, status: 'syncing' },
+      ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      error: 'Sync already in progress',
+      errorCode: 'conflict',
+    })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('fails before persisting when sync billing attribution cannot be resolved', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    const rejectsBilling = vi.fn().mockRejectedValue(new Error('billing unavailable'))
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution: rejectsBilling,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects a source replacement that races with a pause', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'active' }])
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'paused' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { sourceConfig: { database: 'next' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('rejects a pause that races with synchronization startup', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'active' }])
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'syncing' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('refuses an update whose status moved after the guards ran', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'pending' }])
+      .mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion', status: 'syncing' }])
+    /** The CAS matches nothing because a worker took the lock in between. */
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+    })
+
+    /**
+     * Leaving `pending` clears the lock columns. Landing that on a row that has
+     * since gone `syncing` would wipe the token the run's heartbeat and terminal
+     * write match on, stranding a sync that had already started.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+
+    /**
+     * The mock does not evaluate predicates, so assert the clause itself is
+     * present — an empty `returning()` alone would pass without it.
+     */
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-2)?.[0],
+        (node: MockCondition) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.status &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
   })
 })
 
@@ -249,7 +741,7 @@ describe('performSyncKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockDispatchSync.mockResolvedValue(undefined)
+    mockDispatchSync.mockResolvedValue({ queued: true })
   })
 
   afterAll(resetDbChainMock)
@@ -289,6 +781,33 @@ describe('performSyncKnowledgeConnector', () => {
     expect(resolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
+
+  it.each(['pending', 'paused', 'disabled'] as const)(
+    'refuses an on-demand sync on a %s connector',
+    async (status) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', status },
+      ])
+
+      const outcome = await performSyncKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        resolveBillingAttribution,
+      })
+
+      /**
+       * `pending` already has a run queued. `paused`/`disabled` have no way
+       * back: queueing overwrites `status`, and every exit from the run writes
+       * its own verdict — success writes `active`, a lost queue entry writes
+       * `error`, which the due-sweep then keeps syncing. One "Sync now" would
+       * silently resume the connector for good.
+       */
+      expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+    }
+  )
 
   it('dispatches and records who asked for it', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -348,6 +867,54 @@ describe('performSyncKnowledgeConnector', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(mockDispatchSync).toHaveBeenCalledOnce()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed dispatch instead of claiming the sync was queued', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    mockDispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: false })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The dispatch guards run after this operation's own, so they see state that
+   * changed underneath it. Reporting their verdict is what stops a sync that was
+   * never queued from being audited and reported as one that was.
+   */
+  it('reports a skipped dispatch, and records neither the audit nor the product event', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+    mockDispatchSync.mockResolvedValueOnce({
+      queued: false,
+      reason: 'A sync is already queued or running for this connector',
+    })
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      error: 'A sync is already queued or running for this connector',
+    })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })

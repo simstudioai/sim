@@ -16,7 +16,7 @@ import {
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { getBareIconStyle } from '@/blocks/brand-icon-style'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
@@ -389,10 +389,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                     i > 0 && 'border-t'
                   )}
                 >
-                  <Icon
-                    className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-                    style={getBareIconStyle(Icon)}
-                  />
+                  <BrandIcon icon={Icon} className='size-[16px] flex-shrink-0' />
                   <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>

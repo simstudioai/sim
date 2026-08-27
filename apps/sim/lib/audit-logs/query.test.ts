@@ -40,7 +40,7 @@ function asCondition(value: unknown): MockCondition {
 function expectOrgLevelCondition(condition: MockCondition, organizationId: string): void {
   expect(condition.type).toBe('and')
   const [nullCheck, orgLink] = condition.conditions!
-  expect(nullCheck).toMatchObject({ type: 'isNull', column: 'workspaceId' })
+  expect(nullCheck).toMatchObject({ type: 'isNull', column: 'auditLog.workspaceId' })
 
   expect(orgLink.type).toBe('or')
   const [metadataMatch, orgResourceMatch] = orgLink.conditions!
@@ -49,8 +49,8 @@ function expectOrgLevelCondition(condition: MockCondition, organizationId: strin
 
   expect(orgResourceMatch.type).toBe('and')
   expect(orgResourceMatch.conditions).toEqual([
-    expect.objectContaining({ type: 'eq', left: 'resourceType', right: 'organization' }),
-    expect.objectContaining({ type: 'eq', left: 'resourceId', right: organizationId }),
+    expect.objectContaining({ type: 'eq', left: 'auditLog.resourceType', right: 'organization' }),
+    expect.objectContaining({ type: 'eq', left: 'auditLog.resourceId', right: organizationId }),
   ])
 }
 
@@ -72,7 +72,7 @@ describe('buildOrgScopeCondition', () => {
     const [workspaceScope, orgLevel] = orgScope.conditions!
     expect(workspaceScope).toMatchObject({
       type: 'inArray',
-      column: 'workspaceId',
+      column: 'auditLog.workspaceId',
       values: WORKSPACE_IDS,
     })
     expectOrgLevelCondition(orgLevel, ORG_ID)
@@ -80,8 +80,12 @@ describe('buildOrgScopeCondition', () => {
     expect(actorFilter).toMatchObject({
       type: 'or',
       conditions: [
-        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
-        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+        expect.objectContaining({
+          type: 'inArray',
+          column: 'auditLog.actorId',
+          values: MEMBER_IDS,
+        }),
+        expect.objectContaining({ type: 'isNull', column: 'auditLog.actorId' }),
       ],
     })
   })
@@ -100,7 +104,7 @@ describe('buildOrgScopeCondition', () => {
     const [workspaceScope, orgLevel] = condition.conditions!
     expect(workspaceScope).toMatchObject({
       type: 'inArray',
-      column: 'workspaceId',
+      column: 'auditLog.workspaceId',
       values: WORKSPACE_IDS,
     })
     expectOrgLevelCondition(orgLevel, ORG_ID)
@@ -137,8 +141,12 @@ describe('buildOrgScopeCondition', () => {
     expect(actorFilter).toMatchObject({
       type: 'or',
       conditions: [
-        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
-        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+        expect.objectContaining({
+          type: 'inArray',
+          column: 'auditLog.actorId',
+          values: MEMBER_IDS,
+        }),
+        expect.objectContaining({ type: 'isNull', column: 'auditLog.actorId' }),
       ],
     })
   })
@@ -155,7 +163,7 @@ describe('buildOrgScopeCondition', () => {
 
     expect(condition.type).toBe('and')
     const [, actorFilter] = condition.conditions!
-    expect(actorFilter).toMatchObject({ type: 'isNull', column: 'actorId' })
+    expect(actorFilter).toMatchObject({ type: 'isNull', column: 'auditLog.actorId' })
   })
 })
 
@@ -169,7 +177,7 @@ describe('getOrgWorkspaceIds', () => {
 
     expect(ids).toEqual([])
     expect(dbChainMockFns.where).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'eq', left: 'organizationId', right: ORG_ID })
+      expect.objectContaining({ type: 'eq', left: 'workspace.organizationId', right: ORG_ID })
     )
   })
 })
@@ -190,7 +198,7 @@ describe('buildFilterConditions resourceType', () => {
   it('trims members so a spaced list filters on the types it names', () => {
     expect(resourceTypeCondition('file, workflow')).toMatchObject({
       type: 'inArray',
-      column: 'resourceType',
+      column: 'auditLog.resourceType',
       values: ['file', 'workflow'],
     })
   })
@@ -214,7 +222,7 @@ describe('buildFilterConditions resourceType', () => {
   it('still collapses a single member to an equality check', () => {
     expect(resourceTypeCondition(' workflow ')).toMatchObject({
       type: 'eq',
-      left: 'resourceType',
+      left: 'auditLog.resourceType',
       right: 'workflow',
     })
   })

@@ -19,6 +19,7 @@ const {
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
+  mockSignalRowsChangedByActor,
   mockUpsertRow,
   mockWithLockedTable,
   mockInsertRow,
@@ -27,6 +28,10 @@ const {
   mockUpdateRowsByFilter,
   mockValidateRowData,
   mockValidateBatchRows,
+  mockBatchUpdateRows,
+  mockGetRowSummaryById,
+  mockLoadExecutionsForRow,
+  mockLoadEnrichmentDetail,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
@@ -41,6 +46,7 @@ const {
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
+  mockSignalRowsChangedByActor: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
   mockInsertRow: vi.fn(),
@@ -49,6 +55,10 @@ const {
   mockUpdateRowsByFilter: vi.fn(),
   mockValidateRowData: vi.fn(),
   mockValidateBatchRows: vi.fn(),
+  mockBatchUpdateRows: vi.fn(),
+  mockGetRowSummaryById: vi.fn(),
+  mockLoadExecutionsForRow: vi.fn(),
+  mockLoadEnrichmentDetail: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -72,13 +82,16 @@ vi.mock('@/lib/table', () => ({
     MAX_BATCH_INSERT_SIZE: 1000,
     MAX_BULK_OPERATION_SIZE: 1000,
     MAX_QUERY_LIMIT: 1000,
+    MAX_ROW_RUN_STATE_BYTES: 256,
   },
   batchInsertRows: mockBatchInsertRows,
+  batchUpdateRows: mockBatchUpdateRows,
   deleteRow: vi.fn(),
   deleteRowsByFilter: vi.fn(),
   deleteRowsByIds: mockDeleteRowsByIds,
   findRowMatches: vi.fn(),
   getRowById: vi.fn(),
+  getRowSummaryById: mockGetRowSummaryById,
   insertRow: mockInsertRow,
   queryRows: mockQueryRows,
   replaceTableRows: mockReplaceRowsPrimitive,
@@ -135,16 +148,30 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mockResolveContext,
 }))
 
-vi.mock('@/lib/table/events', () => ({
-  signalTableRowsChanged: mockSignalRowsChanged,
+vi.mock('@/lib/table/import', () => ({
+  CSV_MAX_BATCH_SIZE: 5000,
 }))
 
+vi.mock('@/lib/table/rows/executions', () => ({
+  loadEnrichmentDetail: mockLoadEnrichmentDetail,
+  loadExecutionsForRow: mockLoadExecutionsForRow,
+}))
+
+vi.mock('@/lib/table/events', () => ({
+  signalTableRowsChanged: mockSignalRowsChanged,
+  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
+}))
+
+import { TABLE_LIMITS } from '@/lib/table'
 import {
+  batchUpdateTableRows,
   createTableRows,
   deleteTableRows,
   listTableRows,
   ProjectedWireRowsValidationError,
   queryTableRows,
+  readTableRow,
+  readTableRowEnrichmentDetail,
   replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
@@ -153,6 +180,7 @@ import {
   updateTableRows,
   upsertTableRow,
 } from '@/lib/table/application/rows'
+import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const TABLE: TableDefinition = {
@@ -171,6 +199,22 @@ const TABLE: TableDefinition = {
 }
 
 const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+/**
+ * The active-table context every row command resolves before it does any work.
+ * Pass a variant table when a test needs a different schema — the surrounding
+ * workspace scope is the same for every command under test.
+ */
+function contextFor(table: TableDefinition = TABLE) {
+  return {
+    tableId: table.id,
+    table,
+    workspaceId: table.workspaceId,
+    workspaceOrganizationId: 'organization-1',
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-owner-1',
+  }
+}
 
 describe('table predicate translation', () => {
   it('maps invalid run filters to the shared row validation error', () => {
@@ -210,14 +254,7 @@ describe('replaceProjectedWireRows application command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockAssertRowCapacity.mockResolvedValue(10_000)
     mockWithLockedTable.mockImplementation(
       async (_tableId: string, run: (table: TableDefinition, trx: unknown) => unknown) =>
@@ -457,14 +494,7 @@ describe('replaceTableRows application use case', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockReplaceRowsPrimitive.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
   })
 
@@ -504,7 +534,12 @@ describe('replaceTableRows application use case', () => {
     await expect(
       replaceTableRows.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }], strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rows: [{ name: 'Ada', unknown: 'x' }],
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Row 1: Unknown column: unknown/)
     expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
@@ -565,14 +600,7 @@ describe('row query and upsert application semantics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
   })
 
   it('rejects a malformed POST query cursor before querying storage', async () => {
@@ -634,6 +662,7 @@ describe('row query and upsert application semantics', () => {
         offset: undefined,
         includeTotal: false,
         withExecutions: false,
+        runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
       },
       expect.any(String)
     )
@@ -724,10 +753,13 @@ describe('row query and upsert application semantics', () => {
       },
     })
 
-    expect(mockLoadSecretProvenance).toHaveBeenCalledWith([row], {
-      userId: 'user-1',
-      workspaceId: TABLE.workspaceId,
-    })
+    // Narrowed to the columns the row still holds: without `selectedValues` a
+    // stale sidecar entry for a dropped column rides along in the envelope, and
+    // the unmigrated `rows`/`query` routes have always narrowed here.
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
+      [{ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data }],
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
     expect(result.secretProvenance).toBe(provenance)
   })
 
@@ -792,6 +824,7 @@ describe('row query and upsert application semantics', () => {
         requestId: 'request-1',
         data: { name: 'Ada' },
         conflictTarget: 'name',
+        dataKeying: 'names',
       },
     })
 
@@ -825,14 +858,7 @@ describe('table row write secret provenance defaulting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockValidateRowData.mockResolvedValue({ valid: true })
     mockValidateBatchRows.mockResolvedValue({ valid: true })
     mockInsertRow.mockResolvedValue(ROW)
@@ -892,14 +918,7 @@ describe('table row write secret provenance defaulting', () => {
       ...TABLE,
       schema: { columns: [{ id: 'column_name', name: 'name', type: 'string' }] },
     }
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: filterableTable,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor(filterableTable))
 
     await updateTableRows.execute({
       principal: PRINCIPAL,
@@ -989,14 +1008,7 @@ describe('unknown column names under strictWrite', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockValidateRowData.mockResolvedValue({ valid: true })
     mockValidateBatchRows.mockResolvedValue({ valid: true })
     mockInsertRow.mockResolvedValue({ id: 'row-1', data: {} })
@@ -1010,7 +1022,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       createTableRows.execute({
         principal: PRINCIPAL,
-        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' }, strictWrite: true },
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { nosuchcol: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: nosuchcol/)
     expect(mockInsertRow).not.toHaveBeenCalled()
@@ -1040,6 +1058,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           data: { zzz: 'x', qqq: 'y' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown columns: zzz, qqq/)
@@ -1054,6 +1073,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           rows: [{ name: 'Ada' }, { zzz: 'x' }],
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Row 2: Unknown column: zzz/)
@@ -1069,6 +1089,7 @@ describe('unknown column names under strictWrite', () => {
           filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
           data: { zzz: 'x' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
@@ -1079,7 +1100,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       updateTableRow.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' }, strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { zzz: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
     expect(mockUpdateRow).not.toHaveBeenCalled()
@@ -1107,7 +1134,13 @@ describe('unknown column names under strictWrite', () => {
   it('carries the strict value policy to the primitive, and nothing without it', async () => {
     await createTableRows.execute({
       principal: PRINCIPAL,
-      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' }, strictWrite: true },
+      input: {
+        kind: 'single',
+        tableId: TABLE.id,
+        data: { name: 'Ada' },
+        strictWrite: true,
+        dataKeying: 'names',
+      },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {
       uncoercibleValues: 'reject',
@@ -1118,5 +1151,510 @@ describe('unknown column names under strictWrite', () => {
       input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {})
+  })
+})
+
+/**
+ * The two wires a table write can arrive on. `/api/v2`, `/api/v1` and the
+ * Copilot tools publish column names; the first-party grid and the internal
+ * `/api/table` routes publish stable storage ids.
+ *
+ * The failure this guards is silent: the name remap drops what it does not
+ * recognise, and a storage id names no column *name*, so an id-keyed write sent
+ * down the name path stores nothing while reporting success.
+ */
+describe('row data keying', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockAssertRowCapacity.mockResolvedValue(10_000)
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
+  })
+
+  it('stores an id-keyed write exactly as given', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'ids',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('does not silently drop an id-keyed write, which the name path would', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    // Pins the hazard itself: the same payload on the name wire stores nothing.
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: {} }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('persists an unrecognised key on the lax id wire, unlike the name wire', async () => {
+    // The asymmetry a non-strict id-keyed caller sees, pinned deliberately: the
+    // name path drops what it cannot resolve, the id path stores what it is
+    // given. This is what the grid does today via the identity `dataIn` in
+    // `row-wire.ts`, so the discriminator preserved it rather than changing it.
+    // Closing it is a behaviour change and belongs with the route migration.
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada', 'no-such-column': 'x' },
+        strictWrite: false,
+        dataKeying: 'ids',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada', 'no-such-column': 'x' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('translates a name-keyed write to storage ids', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('refuses an unknown column id when the caller writes strictly', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { 'column-nope': 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Unknown column: column-nope/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('accepts a legacy column that has no id and is stored under its name', async () => {
+    // Two production tables still carry pre-backfill columns with no `id`.
+    // Their storage key is the name, so a strict id-keyed write naming one must
+    // be accepted, not refused as unknown.
+    mockResolveContext.mockResolvedValue(
+      contextFor({ ...TABLE, schema: { columns: [{ name: 'legacy', type: 'string' }] } })
+    )
+
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { legacy: 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('names every unknown id at once, as the name wire does', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ 'column-name': 'Ada' }, { zzz: 'x', qqq: 'y' }],
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Row 2: Unknown columns: zzz, qqq/)
+  })
+})
+
+/**
+ * Per-cell run state is opt-in. These pin both halves of that: the default read
+ * is byte-identical to what shipped, and the flag changes only the projection —
+ * never which rows come back or in what order.
+ */
+describe('opt-in per-cell run state', () => {
+  const RUN_STATE = {
+    'group-1': {
+      status: 'error' as const,
+      executionId: 'execution-1',
+      jobId: 'job-1',
+      workflowId: 'workflow-1',
+      error: 'boom',
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockQueryRows.mockResolvedValue({
+      rows: [{ id: 'row-1', data: {}, executions: {} }],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: null,
+    })
+  })
+
+  it('does not read the sidecar for a list that did not ask for it', async () => {
+    await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25 },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: false }),
+      expect.any(String)
+    )
+  })
+
+  it('reads the sidecar for a list that asked for it', async () => {
+    await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: true }),
+      expect.any(String)
+    )
+  })
+
+  it('carries the flag through the predicate query the same way', async () => {
+    await queryTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: true }),
+      expect.any(String)
+    )
+  })
+
+  it('leaves the single-row read without run state by default', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    const result = await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1' },
+    })
+
+    expect(mockLoadExecutionsForRow).not.toHaveBeenCalled()
+    expect(result.runState).toBeUndefined()
+  })
+
+  it('attaches run state to the single-row read on request', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+    mockLoadExecutionsForRow.mockResolvedValue(RUN_STATE)
+
+    const result = await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', includeRunState: true },
+    })
+
+    expect(result.runState).toEqual(RUN_STATE)
+  })
+
+  /**
+   * `blockErrors` is unbounded jsonb, so a row carrying one has no ceiling of
+   * its own. The budget travels INTO the drain rather than being measured over
+   * its result: a ceiling checked after materialization can only report a heap
+   * spike that has already happened.
+   */
+  it('hands the single-row sidecar read the published byte budget', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+    mockLoadExecutionsForRow.mockResolvedValue(RUN_STATE)
+
+    await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', includeRunState: true },
+    })
+
+    expect(mockLoadExecutionsForRow).toHaveBeenCalledWith(expect.anything(), 'row-1', {
+      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+    })
+  })
+
+  it('propagates the sidecar refusal rather than answering a short page', async () => {
+    const refusal = Object.assign(new Error('too large'), { code: 'payload_too_large' })
+    mockQueryRows.mockRejectedValueOnce(refusal)
+
+    await expect(
+      listTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 10, includeRunState: true },
+      })
+    ).rejects.toBe(refusal)
+  })
+})
+
+/**
+ * The heterogeneous batch update, which Copilot's batch tool and the public
+ * `POST /rows/bulk-update` now share.
+ */
+describe('batchUpdateTableRows application use case', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 2, affectedRowIds: ['row-1', 'row-2'] })
+  })
+
+  it('translates every name-keyed patch to storage ids under canonical scope', async () => {
+    const result = await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        assertedWorkspaceId: TABLE.workspaceId,
+        strictWrite: true,
+        dataKeying: 'names',
+        updates: [
+          { rowId: 'row-1', data: { name: 'Ada' } },
+          { rowId: 'row-2', data: { name: 'Grace' } },
+        ],
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: TABLE.id,
+        workspaceId: TABLE.workspaceId,
+        actorUserId: 'user-1',
+        updates: [
+          { rowId: 'row-1', data: { 'column-name': 'Ada' } },
+          { rowId: 'row-2', data: { 'column-name': 'Grace' } },
+        ],
+      }),
+      TABLE,
+      expect.any(String)
+    )
+    expect(result.affectedCount).toBe(2)
+  })
+
+  it('refuses a strict patch naming a column the table does not have', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: [{ rowId: 'row-1', data: { nope: 1 } }],
+        },
+      })
+    ).rejects.toBeInstanceOf(TableRowsValidationError)
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('drops the same key for a first-party caller instead of refusing', async () => {
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: false,
+        dataKeying: 'names',
+        updates: [{ rowId: 'row-1', data: { nope: 1 } }],
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: [{ rowId: 'row-1', data: {} }] }),
+      TABLE,
+      expect.any(String)
+    )
+  })
+
+  it('rejects an empty batch before touching storage', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, strictWrite: true, dataKeying: 'names', updates: [] },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  const batchOf = (length: number) =>
+    Array.from({ length }, (_, index) => ({ rowId: `row-${index}`, data: { name: 'Ada' } }))
+
+  /**
+   * The two surfaces cap differently on purpose — the contracts at 1000, the
+   * Copilot tool at 5000 — so the shared backstop sits at the LOOSER ceiling.
+   * Tightening it to the contract's number would make batches Copilot accepts
+   * today start failing here, which is the behavior change this pins against.
+   */
+  it('admits a batch past the contract ceiling that the looser surface allows', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 1001, affectedRowIds: [] })
+
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: false,
+        dataKeying: 'names',
+        updates: batchOf(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1),
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalled()
+  })
+
+  it('refuses past the backstop, naming the bound that actually applied', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: batchOf(CSV_MAX_BATCH_SIZE + 1),
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`,
+    })
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('audits and signals only the authoritative affected count', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 0, affectedRowIds: [] })
+
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: true,
+        dataKeying: 'names',
+        updates: [{ rowId: 'row-1', data: { name: 'Ada' } }],
+      },
+    })
+
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('propagates the missing-row refusal without audit or shared effects', async () => {
+    const failure = Object.assign(new Error('Rows not found: row-9'), { code: 'validation' })
+    mockBatchUpdateRows.mockRejectedValueOnce(failure)
+
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: [{ rowId: 'row-9', data: { name: 'Ada' } }],
+        },
+      })
+    ).rejects.toBe(failure)
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A bogus row or group id used to read back `{ detail: null }` with a 200 — the same
+ * answer as "this cell has no enrichment run yet", so a typo was undetectable.
+ */
+describe('enrichment detail id validation', () => {
+  const ENRICHED_TABLE: TableDefinition = {
+    ...TABLE,
+    schema: {
+      columns: [{ id: 'column-name', name: 'name', type: 'string' }],
+      workflowGroups: [{ id: 'group-1', name: 'Enrich', type: 'enrichment', columnIds: [] }],
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(contextFor(ENRICHED_TABLE))
+    mockLoadEnrichmentDetail.mockResolvedValue(null)
+  })
+
+  it('404s on a row id the table does not have', async () => {
+    mockGetRowSummaryById.mockResolvedValue(null)
+
+    await expect(
+      readTableRowEnrichmentDetail.execute({
+        principal: PRINCIPAL,
+        input: { tableId: ENRICHED_TABLE.id, rowId: 'row-nope', groupId: 'group-1' },
+      })
+    ).rejects.toThrowError(expect.objectContaining({ code: 'not_found' }))
+    expect(mockLoadEnrichmentDetail).not.toHaveBeenCalled()
+  })
+
+  it('404s on a group id the table does not have', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    await expect(
+      readTableRowEnrichmentDetail.execute({
+        principal: PRINCIPAL,
+        input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-nope' },
+      })
+    ).rejects.toThrowError(expect.objectContaining({ code: 'not_found' }))
+    expect(mockLoadEnrichmentDetail).not.toHaveBeenCalled()
+  })
+
+  it('still answers null for a real row and group with no recorded run', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    const result = await readTableRowEnrichmentDetail.execute({
+      principal: PRINCIPAL,
+      input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-1' },
+    })
+
+    expect(result.detail).toBeNull()
   })
 })

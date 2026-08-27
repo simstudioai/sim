@@ -12,7 +12,7 @@ import {
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
-import { getBareIconStyle } from '@/blocks/brand-icon-style'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockRegistry } from '@/blocks/registry'
 
 interface RenderIconArgs {
@@ -42,8 +42,7 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
   if (!context.blockType) return null
   const block = getBlockRegistry()[context.blockType]
   if (!block) return null
-  const Icon = block.icon
-  return <Icon className={className} style={getBareIconStyle(Icon)} />
+  return <BrandIcon icon={block.icon} className={className} />
 }
 
 /**

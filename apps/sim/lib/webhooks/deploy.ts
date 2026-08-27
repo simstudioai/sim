@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getSlackBotCredential,
@@ -25,6 +26,7 @@ import {
   prepareStableWebhookRegistrations,
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
+import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import {
   buildCanonicalIndex,
@@ -209,6 +211,8 @@ export function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
+  // canonical-index-unscoped: a trigger DEFINITION's subblocks are the trigger surface by
+  // construction — this never sees the host block's action fields.
   const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
   const satisfiedCanonicalIds = new Set<string>()
   const filledSubBlockIds = new Set<string>()
@@ -426,11 +430,43 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      if (!botCredential.signingSecret) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The selected Slack bot can run actions but cannot receive events because it has no signing secret. Reconnect it with a signing secret.',
+            status: 400,
+          },
+        }
+      }
       effectiveProvider = 'slack'
       effectivePath = null
       routingKey = slackCredentialId
       providerConfig.credentialId = slackCredentialId
-      if (botCredential.botUserId) providerConfig.bot_user_id = botCredential.botUserId
+      if (botCredential.botUserId) {
+        providerConfig.bot_user_id = botCredential.botUserId
+      } else if (
+        providerConfig.eventType === 'reaction_added' ||
+        providerConfig.eventType === 'reaction_removed'
+      ) {
+        try {
+          const { userId: botUserId } = await fetchSlackTeamId(botCredential.botToken)
+          if (botUserId) providerConfig.bot_user_id = botUserId
+        } catch (error: unknown) {
+          logger.error(
+            `[${input.requestId}] Slack custom bot identity resolution failed for ${input.block.id}`,
+            error
+          )
+          return {
+            success: false,
+            error: {
+              message: 'Could not verify the selected Slack bot. Reconnect it and try again.',
+              status: 400,
+            },
+          }
+        }
+      }
     } else {
       // getSlackBotCredential also returns null for a custom bot credential that
       // was deleted or lost its stored secrets. Name that case so the error
@@ -442,6 +478,16 @@ export async function resolveWebhookConfigForBlock(input: {
           success: false,
           error: {
             message: 'The selected Slack bot credential is missing or invalid. Reconnect it.',
+            status: 400,
+          },
+        }
+      }
+      if (!isSlackExtendedScopesEnabled) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
             status: 400,
           },
         }
@@ -527,6 +573,46 @@ export async function resolveWebhookConfigForBlock(input: {
       // Runtime token resolution and credential-disconnect cleanup key native
       // (`slack_app`) rows on providerConfig.credentialId.
       providerConfig.credentialId = resolvedCredentialId
+    }
+  } else if (triggerId === 'slack_webhook') {
+    const slackCredentialId =
+      typeof providerConfig.botCredential === 'string' ? providerConfig.botCredential : undefined
+
+    if (slackCredentialId) {
+      const botCredential = await getSlackBotCredential(slackCredentialId)
+      const workflowWorkspace =
+        typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : undefined
+      if (!botCredential || !workflowWorkspace || botCredential.workspaceId !== workflowWorkspace) {
+        return {
+          success: false,
+          error: {
+            message: 'The migrated Slack bot credential is not available in this workspace.',
+            status: 400,
+          },
+        }
+      }
+      if (!botCredential.signingSecret) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The migrated Slack bot cannot receive events because it has no signing secret.',
+            status: 400,
+          },
+        }
+      }
+
+      routingKey = slackCredentialId
+      providerConfig.credentialId = slackCredentialId
+      providerConfig.ingressMode = LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE
+    } else if (providerConfig.credentialId || providerConfig.ingressMode) {
+      return {
+        success: false,
+        error: {
+          message: 'The migrated Slack webhook credential association is incomplete.',
+          status: 400,
+        },
+      }
     }
   } else if (triggerDef.provider === 'tiktok') {
     if (!credentialId) {

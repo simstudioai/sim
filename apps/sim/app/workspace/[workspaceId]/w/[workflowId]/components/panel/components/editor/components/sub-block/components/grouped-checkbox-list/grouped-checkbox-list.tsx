@@ -35,23 +35,19 @@ function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCoun
 interface GroupedCheckboxListProps {
   blockId: string
   subBlockId: string
-  title: string
   options: { label: string; id: string; group?: string }[]
   isPreview?: boolean
   subBlockValues: Record<string, any>
   disabled?: boolean
-  maxHeight?: number
 }
 
 export function GroupedCheckboxList({
   blockId,
   subBlockId,
-  title,
   options,
   isPreview = false,
   subBlockValues,
   disabled = false,
-  maxHeight = 400,
 }: GroupedCheckboxListProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)

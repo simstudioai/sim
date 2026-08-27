@@ -1,4 +1,9 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -14,19 +19,478 @@ import type { ExternalDocument } from '@/connectors/types'
  */
 export const CONNECTOR_MAX_FILE_BYTES = KB_DOCUMENT_MAX_BYTES
 
+/** Maximum number of Microsoft Graph folders retained between connector pages. */
+export const MICROSOFT_GRAPH_MAX_PENDING_FOLDERS = 10_000
+
 /**
- * Strips HTML tags from content and decodes common HTML entities.
+ * Graph IDs are opaque strings with no documented maximum. This ceiling is far
+ * above ordinary identifiers while making the traversal's string working set
+ * provably bounded even if a provider response or stored cursor is malformed.
+ */
+export const MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES = 512
+
+/** Maximum server-issued continuation URL accepted into a traversal cursor. */
+export const MICROSOFT_GRAPH_MAX_NEXT_LINK_BYTES = 16 * 1024
+
+/** Maximum serialized traversal state, before and after base64 encoding. */
+export const MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES = 8 * 1024 * 1024
+export const MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES = 12 * 1024 * 1024
+
+/** Parses an optional connector limit where zero or omission means unlimited. */
+export function parseOptionalUnlimitedSafeInteger(value: unknown, errorMessage: string): number {
+  if (value === undefined || value === null) return 0
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    throw new Error(errorMessage)
+  }
+
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') return 0
+  if (typeof normalized === 'string' && !/^\d+$/.test(normalized)) {
+    throw new Error(errorMessage)
+  }
+
+  const parsed = Number(normalized)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(errorMessage)
+  }
+  return parsed
+}
+
+const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com'
+
+export interface MicrosoftGraphTraversalState {
+  nextLink?: string
+  currentFolder?: string
+  folderStack: string[]
+}
+
+export interface MicrosoftGraphDriveItemShape {
+  id: string
+  name: string
+  file?: Record<string, unknown>
+  folder?: Record<string, unknown>
+  package?: Record<string, unknown>
+  remoteItem?: Record<string, unknown>
+}
+
+export function isMicrosoftGraphDriveItem(value: unknown): value is MicrosoftGraphDriveItemShape {
+  return (
+    isPlainRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    (isPlainRecord(value.file) ||
+      isPlainRecord(value.folder) ||
+      isPlainRecord(value.package) ||
+      isPlainRecord(value.remoteItem))
+  )
+}
+
+export function parseMicrosoftGraphDriveItemList(
+  value: unknown,
+  label: string
+): { value: MicrosoftGraphDriveItemShape[]; nextLink?: string } {
+  if (!isPlainRecord(value) || !Array.isArray(value.value)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} list metadata`)
+  }
+  if (!value.value.every(isMicrosoftGraphDriveItem)) {
+    throw new Error(`Microsoft Graph returned malformed ${label} item metadata`)
+  }
+  const nextLink =
+    value['@odata.nextLink'] === undefined
+      ? undefined
+      : assertMicrosoftGraphNextLink(value['@odata.nextLink'])
+  return { value: value.value, nextLink }
+}
+
+function assertBoundedGraphString(
+  value: unknown,
+  maxBytes: number,
+  field: string,
+  allowEmpty = false
+): asserts value is string {
+  if (typeof value !== 'string' || (!allowEmpty && value.length === 0)) {
+    throw new Error(`Invalid Microsoft Graph traversal cursor: ${field} must be a string`)
+  }
+  if (Buffer.byteLength(value, 'utf8') > maxBytes) {
+    throw new Error(`Invalid Microsoft Graph traversal cursor: ${field} exceeds its size limit`)
+  }
+}
+
+/** Validates a Graph continuation URL before a bearer token can be sent to it. */
+export function assertMicrosoftGraphNextLink(value: unknown): string {
+  assertBoundedGraphString(value, MICROSOFT_GRAPH_MAX_NEXT_LINK_BYTES, 'nextLink')
+  const url = new URL(value.trim())
+  if (url.origin !== MICROSOFT_GRAPH_ORIGIN) {
+    throw new Error('Refusing to follow a non-Microsoft Graph @odata.nextLink')
+  }
+  return url.toString()
+}
+
+function validateMicrosoftGraphTraversalState(
+  value: unknown,
+  label: string
+): MicrosoftGraphTraversalState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  if (!Array.isArray(candidate.folderStack)) {
+    throw new Error(`Invalid ${label} pagination cursor: folderStack must be an array`)
+  }
+  if (candidate.folderStack.length > MICROSOFT_GRAPH_MAX_PENDING_FOLDERS) {
+    throw new Error(
+      `${label} folder traversal exceeds the safe limit of ${MICROSOFT_GRAPH_MAX_PENDING_FOLDERS.toLocaleString()} pending folders. Narrow the connector to a document library or subfolder and retry.`
+    )
+  }
+
+  const folderStack = candidate.folderStack.map((folderId, index) => {
+    assertBoundedGraphString(folderId, MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES, `folderStack[${index}]`)
+    return folderId
+  })
+
+  let currentFolder: string | undefined
+  if (candidate.currentFolder !== undefined) {
+    assertBoundedGraphString(
+      candidate.currentFolder,
+      MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+      'currentFolder'
+    )
+    currentFolder = candidate.currentFolder
+  }
+
+  const nextLink =
+    candidate.nextLink === undefined ? undefined : assertMicrosoftGraphNextLink(candidate.nextLink)
+
+  return { folderStack, currentFolder, nextLink }
+}
+
+/**
+ * Encodes bounded Graph traversal state. Base64 is canonical; decoding also
+ * accepts the former OneDrive raw-JSON cursor so in-flight syncs survive rollout.
+ */
+export function encodeMicrosoftGraphTraversalCursor(
+  state: MicrosoftGraphTraversalState,
+  label: string
+): string {
+  const validated = validateMicrosoftGraphTraversalState(state, label)
+  const json = JSON.stringify(validated)
+  if (Buffer.byteLength(json, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: serialized state exceeds its size limit`)
+  }
+  const encoded = Buffer.from(json).toString('base64')
+  if (Buffer.byteLength(encoded, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: encoded state exceeds its size limit`)
+  }
+  return encoded
+}
+
+export function decodeMicrosoftGraphTraversalCursor(
+  cursor: string,
+  label: string
+): MicrosoftGraphTraversalState {
+  if (Buffer.byteLength(cursor, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: encoded state exceeds its size limit`)
+  }
+
+  let json: string
+  try {
+    json = cursor.trimStart().startsWith('{')
+      ? cursor
+      : Buffer.from(cursor, 'base64').toString('utf8')
+  } catch {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+  if (Buffer.byteLength(json, 'utf8') > MICROSOFT_GRAPH_MAX_CURSOR_JSON_BYTES) {
+    throw new Error(`Invalid ${label} pagination cursor: serialized state exceeds its size limit`)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    throw new Error(`Invalid ${label} pagination cursor`)
+  }
+  return validateMicrosoftGraphTraversalState(parsed, label)
+}
+
+export function appendPendingMicrosoftGraphFolders(
+  pendingFolders: string[],
+  discoveredFolders: string[],
+  label: string
+): void {
+  if (pendingFolders.length + discoveredFolders.length > MICROSOFT_GRAPH_MAX_PENDING_FOLDERS) {
+    throw new Error(
+      `${label} folder traversal exceeds the safe limit of ${MICROSOFT_GRAPH_MAX_PENDING_FOLDERS.toLocaleString()} pending folders. Narrow the connector to a document library or subfolder and retry.`
+    )
+  }
+  for (let index = 0; index < discoveredFolders.length; index++) {
+    assertBoundedGraphString(
+      discoveredFolders[index],
+      MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
+      `discoveredFolders[${index}]`
+    )
+  }
+  pendingFolders.push(...discoveredFolders)
+}
+
+/** The named entities connector markup actually carries, decoded to their character. */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  nbsp: ' ',
+}
+
+/**
+ * The C1 range (0x80–0x9F) remapped to the windows-1252 characters browsers
+ * render, per the HTML standard's numeric character reference table.
+ *
+ * Legacy CMS exports — WordPress and Zendesk especially — emit typographic
+ * punctuation as `&#146;`/`&#147;`/`&#151;`. Those code points are unassigned
+ * controls in Unicode, so decoding them literally would put invisible garbage
+ * into the index where the source plainly meant `’`, `“`, `—`.
+ */
+const WINDOWS_1252_C1 = new Map<number, string>([
+  [0x80, '€'],
+  [0x82, '‚'],
+  [0x83, 'ƒ'],
+  [0x84, '„'],
+  [0x85, '…'],
+  [0x86, '†'],
+  [0x87, '‡'],
+  [0x88, 'ˆ'],
+  [0x89, '‰'],
+  [0x8a, 'Š'],
+  [0x8b, '‹'],
+  [0x8c, 'Œ'],
+  [0x8e, 'Ž'],
+  [0x91, '‘'],
+  [0x92, '’'],
+  [0x93, '“'],
+  [0x94, '”'],
+  [0x95, '•'],
+  [0x96, '–'],
+  [0x97, '—'],
+  [0x98, '˜'],
+  [0x99, '™'],
+  [0x9a, 'š'],
+  [0x9b, '›'],
+  [0x9c, 'œ'],
+  [0x9e, 'ž'],
+  [0x9f, 'Ÿ'],
+])
+
+/** Controls worth decoding — every other control code point stays literal. */
+const DECODABLE_CONTROLS = new Set([0x09, 0x0a, 0x0d])
+
+/**
+ * One alternation covering every reference form, so the whole string is decoded
+ * in a single left-to-right pass. That ordering is what makes an escaped entity
+ * safe: `&amp;#8217;` consumes `&amp;` and resumes *after* it, leaving the
+ * literal text `&#8217;` rather than decoding it a second time.
+ */
+const HTML_ENTITY_PATTERN = /&(?:#[xX]([0-9a-fA-F]+)|#([0-9]+)|(amp|lt|gt|quot|nbsp));/g
+
+/**
+ * Resolves a numeric character reference to its character, or returns the
+ * reference as written when the code point would not survive indexing.
+ *
+ * Out-of-range values, lone surrogates, and control characters — notably `&#0;`,
+ * which Postgres rejects outright in a text column — degrade to literal text so
+ * malformed source markup never aborts a sync.
+ */
+function decodeCharacterReference(raw: string, code: number): string {
+  if (code > 0x10ffff) return raw
+  if (code >= 0xd800 && code <= 0xdfff) return raw
+
+  const remapped = WINDOWS_1252_C1.get(code)
+  if (remapped !== undefined) return remapped
+
+  const isControl = code < 0x20 || (code >= 0x7f && code <= 0x9f)
+  if (isControl && !DECODABLE_CONTROLS.has(code)) return raw
+
+  return String.fromCodePoint(code)
+}
+
+/**
+ * Anchored to a tag-name allowlist rather than the looser `<[a-z!/]` shape,
+ * because {@link htmlToPlainText} both strips tags and collapses all whitespace.
+ * A false positive therefore does not merely pass text through untouched — it
+ * deletes the bracketed span and flattens the document's line structure. Plain
+ * text routinely contains angle brackets that are not markup: an email address
+ * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`<https://acme.com>`), or a placeholder (`<redacted>`).
+ */
+const HTML_TAG_PATTERN =
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+
+/**
+ * Reports whether a value carries real HTML markup and is therefore worth routing
+ * through {@link htmlToPlainText}. Use this instead of a hand-rolled tag test so
+ * connectors cannot drift apart on what counts as markup.
+ */
+export function looksLikeHtml(value: string): boolean {
+  return HTML_TAG_PATTERN.test(value)
+}
+
+/**
+ * Strips HTML tags from content and decodes HTML entities, including numeric
+ * character references in decimal (`&#8217;`) and hex (`&#x2019;`) form.
+ *
+ * Rendered CMS content — WordPress, Zendesk, Confluence — emits typographic
+ * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  let text = html.replace(/<[^>]*>/g, ' ')
-  text = text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+      if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
+      if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
+      if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
+      return raw
+    })
   return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Extensions a file-based connector reads straight off the wire as UTF-8. These are
+ * the formats connectors have always accepted, and they deliberately keep bypassing
+ * the knowledge-base parsers: routing `.csv` through `CsvParser` or `.json` through
+ * the JSON parser would reformat content that is already indexed, changing what is
+ * embedded for every existing connector document on its next re-index.
+ */
+const CONNECTOR_TEXT_EXTENSIONS = [
+  'txt',
+  'md',
+  'html',
+  'htm',
+  'csv',
+  'json',
+  'jsonl',
+  'xml',
+  'yaml',
+  'yml',
+  'log',
+  'rst',
+  'tsv',
+] as const
+
+/**
+ * Binary document formats extracted through the shared knowledge-base file parsers.
+ * Listing them separately from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this
+ * additive: a format that synced yesterday takes exactly the path it took yesterday.
+ *
+ * The set covers the variants a real document library actually holds, not just the
+ * headline extension of each family — macro-enabled (`docm`, `xlsm`, `pptm`) and
+ * template (`dotx`, `xltx`, `potx`) files are the same OOXML packages, the binary
+ * workbook (`xlsb`) and legacy BIFF workbook (`xls`) are read by SheetJS, and the
+ * OpenDocument trio covers LibreOffice and Google Docs exports.
+ *
+ * `rtf` is deliberately absent: no bundled library extracts it, and `DocParser`
+ * would pass its control words through as if they were prose. See
+ * {@link CONNECTOR_INDEXABLE_EXTENSIONS} for how an unsupported format surfaces.
+ *
+ * Mapping each to its MIME type rather than listing extensions alone lets the
+ * stored object declare what it is, which is what the pipeline's OCR routing
+ * reads. Derived from the extension rather than trusting the source's own
+ * declaration, so a provider that omits or mislabels it cannot strand a PDF on
+ * the non-OCR path.
+ */
+const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+  ['pdf', 'application/pdf'],
+  ['doc', 'application/msword'],
+  ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ['docm', 'application/vnd.ms-word.document.macroEnabled.12'],
+  ['dotx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.template'],
+  ['xls', 'application/vnd.ms-excel'],
+  ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+  ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
+  ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
+  ['ppt', 'application/vnd.ms-powerpoint'],
+  ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
+  ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
+  ['odt', 'application/vnd.oasis.opendocument.text'],
+  ['ods', 'application/vnd.oasis.opendocument.spreadsheet'],
+  ['odp', 'application/vnd.oasis.opendocument.presentation'],
+])
+
+/**
+ * Every extension a file-based connector will download and index.
+ *
+ * Previously each connector carried its own text-only whitelist, so an Office
+ * document in a synced folder was dropped during listing — no document, no failed
+ * row, no log line. A library of `.docx` SOPs therefore synced as "success, 0
+ * documents", which is indistinguishable from a wrong folder path.
+ */
+export const CONNECTOR_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set<string>([
+  ...CONNECTOR_TEXT_EXTENSIONS,
+  ...PIPELINE_PARSED_MIME_TYPES.keys(),
+])
+
+/** Extracts a lowercased, dotless extension from a file name. */
+export function connectorFileExtension(fileName: string): string | undefined {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex === -1 || dotIndex === fileName.length - 1) return undefined
+  return fileName.slice(dotIndex + 1).toLowerCase()
+}
+
+/**
+ * Reports whether a connector should download and index a file, based on its name.
+ */
+export function isIndexableConnectorFile(fileName: string): boolean {
+  const extension = connectorFileExtension(fileName)
+  return extension !== undefined && CONNECTOR_INDEXABLE_EXTENSIONS.has(extension)
+}
+
+/**
+ * Whether a document carries anything worth indexing.
+ *
+ * A source file has to have bytes. A zero-byte file is not payload: it produces an
+ * empty stored object, and for a PDF that reaches OCR as an empty request and comes
+ * back as an opaque `400 Bad Request` — billing an external call to learn the file
+ * was empty, and reporting it as an API fault rather than as what it is.
+ */
+export function hasIndexablePayload(
+  doc: Pick<ExternalDocument, 'content' | 'sourceFile'>
+): boolean {
+  if (doc.sourceFile) return doc.sourceFile.bytes.length > 0
+  return doc.content.trim().length > 0
+}
+
+/**
+ * MIME type to store a file under when the shared pipeline should parse it, or
+ * `undefined` when the connector should decode it as text itself.
+ *
+ * A format the knowledge base can parse is handed over untouched: the pipeline
+ * routes PDFs to OCR and owns every other parser, so extracting here would strand
+ * the document on a weaker one and discard the original.
+ */
+export function pipelineParsedMimeType(fileName: string): string | undefined {
+  const extension = connectorFileExtension(fileName)
+  return extension ? PIPELINE_PARSED_MIME_TYPES.get(extension) : undefined
+}
+
+/**
+ * Converts a downloaded file body to indexable text.
+ *
+ * Only for formats that are already text — anything the shared parsers handle is
+ * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
+ * additionally reduced to plain text; everything else is a UTF-8 decode.
+ */
+export function extractConnectorText(buffer: Buffer, fileName: string): string {
+  const extension = connectorFileExtension(fileName)
+
+  if (extension === 'html' || extension === 'htm') {
+    return htmlToPlainText(buffer.toString('utf8'))
+  }
+
+  return buffer.toString('utf8')
 }
 
 /**
@@ -127,25 +591,15 @@ export async function readBodyWithLimit(
   response: Response | SecureFetchResponse,
   maxBytes: number
 ): Promise<Buffer | null> {
-  if (!response.body) {
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return buffer.byteLength > maxBytes ? null : buffer
+  try {
+    return await readResponseToBufferWithLimit(response, {
+      maxBytes,
+      label: 'Connector file download',
+    })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) return null
+    throw error
   }
-
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let total = 0
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.byteLength
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => {})
-      return null
-    }
-    chunks.push(value)
-  }
-  return Buffer.concat(chunks)
 }
 
 /**

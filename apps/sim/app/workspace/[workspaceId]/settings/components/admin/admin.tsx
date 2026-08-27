@@ -486,6 +486,7 @@ export function Admin() {
         }}
         srTitle='Ban user'
         title='Ban user'
+        defaultAction='none'
         text={[
           'Banning ',
           { text: pendingUser?.email ?? 'this user', bold: true },

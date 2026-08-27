@@ -32,6 +32,7 @@ describe('forkMappableResourceTypeSchema', () => {
       'file',
       'mcp_server',
       'custom_tool',
+      'custom_block',
       'skill',
     ]) {
       expect(forkMappableResourceTypeSchema.safeParse(type).success).toBe(true)

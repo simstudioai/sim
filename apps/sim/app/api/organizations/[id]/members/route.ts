@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
+import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   organizationMemberQuerySchema,
@@ -10,8 +10,7 @@ import {
 } from '@/lib/api/contracts/organization'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMembersAPI')
@@ -47,6 +46,7 @@ export const GET = withRouteHandler(
           { status: 400 }
         )
       }
+      const { limit, offset } = queryResult.data
       const includeUsage = queryResult.data.include === 'usage'
 
       // Verify user has access to this organization
@@ -67,7 +67,7 @@ export const GET = withRouteHandler(
       const hasAdminAccess = isOrgAdminRole(userRole)
 
       // Get organization members
-      const query = db
+      const memberPageQuery = db
         .select({
           id: member.id,
           userId: member.userId,
@@ -80,82 +80,85 @@ export const GET = withRouteHandler(
         .from(member)
         .innerJoin(user, eq(member.userId, user.id))
         .where(eq(member.organizationId, organizationId))
+        .orderBy(user.name, user.id)
+        .limit(limit)
+        .offset(offset)
+
+      const totalQuery = db
+        .select({ value: count() })
+        .from(member)
+        .where(eq(member.organizationId, organizationId))
 
       // Include usage data if requested and user has admin access
       if (includeUsage && hasAdminAccess) {
-        const base = await db
-          .select({
-            id: member.id,
-            userId: member.userId,
-            organizationId: member.organizationId,
-            role: member.role,
-            createdAt: member.createdAt,
-            userName: user.name,
-            userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
-            currentUsageLimit: userStats.currentUsageLimit,
-            usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
-          })
-          .from(member)
-          .innerJoin(user, eq(member.userId, user.id))
-          .leftJoin(userStats, eq(user.id, userStats.userId))
-          .where(eq(member.organizationId, organizationId))
+        const [base, totalRows] = await Promise.all([
+          db
+            .select({
+              id: member.id,
+              userId: member.userId,
+              organizationId: member.organizationId,
+              role: member.role,
+              createdAt: member.createdAt,
+              userName: user.name,
+              userEmail: user.email,
+              currentUsageLimit: userStats.currentUsageLimit,
+              usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
+            })
+            .from(member)
+            .innerJoin(user, eq(member.userId, user.id))
+            .leftJoin(userStats, eq(user.id, userStats.userId))
+            .where(eq(member.organizationId, organizationId))
+            .orderBy(user.name, user.id)
+            .limit(limit)
+            .offset(offset),
+          totalQuery,
+        ])
 
-        // The billing period is the same for every member — it comes from
-        // whichever subscription covers them. Fetch once and attach to
-        // every row instead of calling `getUserUsageData` per-member,
-        // which would run an O(N) pooled query for each of N rows.
-        const [orgSub] = await db
-          .select({
-            periodStart: subscriptionTable.periodStart,
-            periodEnd: subscriptionTable.periodEnd,
-          })
-          .from(subscriptionTable)
-          .where(
-            and(
-              eq(subscriptionTable.referenceId, organizationId),
-              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-            )
-          )
-          .limit(1)
-
-        const billingPeriodStart = orgSub?.periodStart ?? null
-        const billingPeriodEnd = orgSub?.periodEnd ?? null
-
-        // currentPeriodCost is only a baseline; add each member's attributed
-        // usage_log for the period (batched, one query) so the roster shows real
-        // usage rather than the frozen baseline.
-        const usageByUser = await getOrgMemberLedgerByUser(
+        const { billingPeriod, usageByUser } = await getOrganizationMemberUsageSnapshot(
           organizationId,
-          billingPeriodStart && billingPeriodEnd
-            ? { start: billingPeriodStart, end: billingPeriodEnd }
-            : null
+          {
+            userIds: base.map((row) => row.userId),
+          }
         )
+        const billingPeriodStart = billingPeriod?.start ?? null
+        const billingPeriodEnd = billingPeriod?.end ?? null
 
         const membersWithUsage = base.map((row) => ({
           ...row,
-          currentPeriodCost: (
-            Number(row.currentPeriodCost ?? 0) + (usageByUser.get(row.userId) ?? 0)
-          ).toString(),
+          currentPeriodCost: (usageByUser.get(row.userId) ?? 0).toString(),
           billingPeriodStart,
           billingPeriodEnd,
         }))
 
+        const total = totalRows[0]?.value ?? 0
         return NextResponse.json({
           success: true,
           data: membersWithUsage,
-          total: membersWithUsage.length,
+          total,
+          pagination: {
+            total,
+            limit,
+            offset,
+            hasMore: offset + membersWithUsage.length < total,
+          },
           userRole,
           hasAdminAccess,
         })
       }
 
-      const members = await query
+      const [members, totalRows] = await Promise.all([memberPageQuery, totalQuery])
+      const total = totalRows[0]?.value ?? 0
 
       return NextResponse.json({
         success: true,
         data: members,
-        total: members.length,
+        total,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + members.length < total,
+        },
         userRole,
         hasAdminAccess,
       })

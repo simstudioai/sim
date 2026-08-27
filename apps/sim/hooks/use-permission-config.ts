@@ -16,10 +16,13 @@ import {
 } from '@/lib/integrations/availability'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { createModelAccessGate } from '@/lib/permission-groups/model-access'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
@@ -31,8 +34,12 @@ export interface PermissionConfigResult {
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
-  isProviderAllowed: (providerId: string) => boolean
-  isModelAllowed: (model: string) => boolean
+  /**
+   * Whether a model is usable at all: allowed by the model denylist *and* by
+   * the provider allowlist. Both gates apply to every model field, so this is
+   * the only model predicate the interface exposes.
+   */
+  isModelUsable: (model: string) => boolean
   isToolAllowed: (toolId: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
@@ -44,11 +51,13 @@ const allowedIntegrationsKeys = {
   env: () => [...allowedIntegrationsKeys.all, 'env'] as const,
 }
 
+export const ALLOWED_INTEGRATIONS_STALE_TIME = 5 * 60 * 1000
+
 function useAllowedIntegrationsFromEnv() {
   return useQuery<GetAllowedIntegrationsResponse>({
     queryKey: allowedIntegrationsKeys.env(),
     queryFn: ({ signal }) => requestJson(getAllowedIntegrationsContract, { signal }),
-    staleTime: 5 * 60 * 1000,
+    staleTime: ALLOWED_INTEGRATIONS_STALE_TIME,
   })
 }
 
@@ -56,6 +65,7 @@ export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
   const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const hostContext = useOptionalWorkspaceHostContext()
 
   const { data: permissionData, isLoading: isPermissionLoading } =
     useUserPermissionConfig(workspaceId)
@@ -94,6 +104,9 @@ export function usePermissionConfig(): PermissionConfigResult {
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
       const normalizedBlockType = blockType.toLowerCase()
+      if (normalizedBlockType === 'credential_group' && !hostContext?.features?.credentialGroups) {
+        return false
+      }
       const availability = integrationAvailability.get(normalizedBlockType)
       if (
         isDeploymentGatedIntegrationType(normalizedBlockType) &&
@@ -106,29 +119,21 @@ export function usePermissionConfig(): PermissionConfigResult {
       if (mergedAllowedIntegrations === null) return true
       return mergedAllowedIntegrations.includes(normalizedBlockType)
     }
-  }, [integrationAvailability, mergedAllowedIntegrations])
+  }, [hostContext?.features?.credentialGroups, integrationAvailability, mergedAllowedIntegrations])
 
-  const isProviderAllowed = useMemo(() => {
-    return (providerId: string) => {
-      if (config.allowedModelProviders === null) return true
-      return config.allowedModelProviders.includes(providerId)
-    }
-  }, [config.allowedModelProviders])
+  const isModelUsable = useMemo(
+    () =>
+      createModelAccessGate({
+        deniedModels: config.deniedModels,
+        allowedModelProviders: config.allowedModelProviders,
+      }),
+    [config.deniedModels, config.allowedModelProviders]
+  )
 
-  const isModelAllowed = useMemo(() => {
-    return (model: string) => {
-      if (config.deniedModels.length === 0) return true
-      const normalized = model.toLowerCase()
-      return !config.deniedModels.some((denied) => denied.toLowerCase() === normalized)
-    }
-  }, [config.deniedModels])
-
-  const isToolAllowed = useMemo(() => {
-    return (toolId: string) => {
-      if (config.deniedTools.length === 0) return true
-      return !config.deniedTools.includes(toolId)
-    }
-  }, [config.deniedTools])
+  const isToolAllowed = useMemo(
+    () => createToolAccessGate(config.deniedTools),
+    [config.deniedTools]
+  )
 
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
@@ -166,8 +171,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isProviderAllowed,
-      isModelAllowed,
+      isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
@@ -180,8 +184,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isProviderAllowed,
-      isModelAllowed,
+      isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,

@@ -4,12 +4,14 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { resolveEnvReferenceSecretArg } from '@/lib/copilot/tools/server/env-reference'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   deployWorkflowMcpTool,
   undeployWorkflowMcpTool,
 } from '@/lib/mcp/application/workflow-deployments'
+import { buildWorkflowMcpApiEndpoint, buildWorkflowMcpServerUrl } from '@/lib/mcp/urls'
 import {
   deployWorkflowChat,
   undeployWorkflowChat,
@@ -17,10 +19,6 @@ import {
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
-
-function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
-  return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
-}
 
 function buildWorkflowRunStatusEndpoint(
   baseUrl: string,
@@ -160,7 +158,7 @@ export async function executeDeployApi(
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
       const baseUrl = getBaseUrl()
-      const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+      const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
       return {
         success: true,
         output: {
@@ -211,7 +209,7 @@ export async function executeDeployApi(
       description: versionDescription,
       name: versionName,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -227,7 +225,7 @@ export async function executeDeployApi(
     }
 
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     const isDeployed = Boolean(result.activeDeployment)
@@ -288,7 +286,7 @@ export async function executeDeployChat(
         assertedWorkspaceId: context.workspaceId,
       })
       const baseUrl = getBaseUrl()
-      const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+      const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
       const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
       const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
       return {
@@ -357,6 +355,19 @@ export async function executeDeployChat(
       }
     }
 
+    // "Use the password in {{CHAT_PW}}" arrives as the literal reference —
+    // resolve it, or the placeholder string becomes the chat's real password.
+    const resolvedPassword = await resolveEnvReferenceSecretArg({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      value: params.password ?? undefined,
+      argName: 'password',
+      registry: context.resolvedSecretTraceRegistry,
+    })
+    if (resolvedPassword.error) {
+      return { success: false, error: resolvedPassword.error }
+    }
+
     const result = await executeCopilotWorkflowUseCase(context, deployWorkflowChat, {
       workflowId,
       assertedWorkspaceId: context.workspaceId,
@@ -371,17 +382,17 @@ export async function executeDeployChat(
         imageUrl: params.customizations?.imageUrl ?? params.customizations?.iconUrl,
       },
       authType: params.authType,
-      password: params.password,
+      password: resolvedPassword.value,
       allowedEmails: params.allowedEmails,
       outputConfigs: params.outputConfigs,
       includeThinking: params.includeThinking,
       includeToolCalls: params.includeToolCalls,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_chat'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_chat'),
     })
 
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     return {
@@ -498,8 +509,8 @@ export async function executeDeployMcp(
       parameterDescriptions: params.parameterDescriptions,
     })
     const baseUrl = getBaseUrl()
-    const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const mcpServerUrl = buildWorkflowMcpServerUrl(serverId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const clientExamples = buildMcpClientExamples(result.server.name, mcpServerUrl)
     const toolId = result.tool.id
     const toolName = result.tool.toolName
@@ -591,7 +602,7 @@ export async function executeRedeploy(
       description: versionDescription,
       name: versionName,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
@@ -606,7 +617,7 @@ export async function executeRedeploy(
       return { success: false, error: unconfirmedDeploymentError }
     }
     const baseUrl = getBaseUrl()
-    const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
+    const apiEndpoint = buildWorkflowMcpApiEndpoint(workflowId)
     const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
     const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
     const isDeployed = Boolean(result.activeDeployment)

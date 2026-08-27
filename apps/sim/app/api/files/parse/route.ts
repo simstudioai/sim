@@ -13,8 +13,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
-import { isHtmlComplexityError } from '@/lib/file-parsers/html-parser'
-import { isYamlComplexityError } from '@/lib/file-parsers/yaml-parser'
+import { isFileParserError } from '@/lib/file-parsers/errors'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
@@ -23,6 +22,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import {
   extractCleanFilename,
   extractStorageKey,
@@ -640,9 +640,13 @@ async function handleCloudFile(
     }
 
     let originalFilename: string | undefined
-    if (context === 'workspace') {
+    // Not filtered to `context = 'workspace'`: a chat attachment carries the same key
+    // prefix and has an `originalName` worth recovering too, and without it the parse
+    // result is labelled with the raw storage segment. Access was authorized above;
+    // this only recovers a display name.
+    if (isWorkspaceScopedContext(context)) {
       try {
-        const fileRecord = await getFileMetadataByKey(cloudKey, 'workspace')
+        const fileRecord = await getFileMetadataByKey(cloudKey)
 
         if (fileRecord) {
           originalFilename = fileRecord.originalName
@@ -1045,10 +1049,9 @@ async function handleGenericTextBuffer(
       }
     } catch (parserError) {
       if (isPayloadSizeLimitError(parserError)) throw parserError
-      // Fail closed on a resource-exhaustion rejection instead of silently
-      // storing the crafted document as raw text.
-      if (isYamlComplexityError(parserError)) throw parserError
-      if (isHtmlComplexityError(parserError)) throw parserError
+      if (isFileParserError(parserError) && parserError.code === 'complexity_limit') {
+        throw parserError
+      }
 
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }

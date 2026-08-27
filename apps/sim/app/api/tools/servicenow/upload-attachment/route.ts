@@ -6,7 +6,9 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -56,7 +58,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let fileBuffer: Buffer
     let resolvedContentType: string
     try {
-      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
       fileBuffer = servable.buffer
       resolvedContentType = servable.contentType
     } catch (error) {
@@ -65,7 +69,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.error(`[${requestId}] Failed to download file from storage:`, error)
       return NextResponse.json(
         { success: false, error: getErrorMessage(error, 'Failed to download file') },
-        { status: 500 }
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
       )
     }
 

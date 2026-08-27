@@ -1,4 +1,5 @@
-import { stripVersionSuffix } from '@sim/utils/string'
+import { isRecordLike } from '@sim/utils/object'
+import { stripVersionSuffix, truncate } from '@sim/utils/string'
 
 /**
  * Single source of truth for copilot tool-call display titles.
@@ -18,9 +19,31 @@ type ToolArgs = Record<string, unknown> | undefined
 
 export const CONTEXT_COMPACTION_DISPLAY_TITLE = 'Summarizing context'
 
+/**
+ * A machine id never belongs in a human title ("Running
+ * 5bae7849-ffa5-4f57-984f-feab73e513df"). Matches the UUIDs `generateId()`
+ * mints, in dashed and bare-hex form — what leaks when a model passes a
+ * workflow or block id where a name was expected, whether through an explicit
+ * `*Id` fallback key or by putting the id in a `name` field.
+ *
+ * Deliberately narrow. A looser "looks random" rule would swallow legitimate
+ * names like `GoogleSheets_v2Block`, and a wrong suppression is invisible while
+ * a leaked id is merely ugly.
+ */
+const OPAQUE_ID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
+
+/**
+ * Reads a display-safe string argument. Every title in this module goes through
+ * here, so suppressing opaque ids once covers each call site — including ones
+ * whose fallback list ends in `blockId`, which then degrades to the generic
+ * label instead of printing a UUID.
+ */
 function stringArg(args: ToolArgs, key: string): string {
   const value = args?.[key]
-  return typeof value === 'string' ? value.trim() : ''
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  return OPAQUE_ID_PATTERN.test(trimmed) ? '' : trimmed
 }
 
 function firstStringArg(args: ToolArgs, ...keys: string[]): string {
@@ -45,9 +68,7 @@ function nestedStringArg(args: ToolArgs, parentKey: string, ...keys: string[]): 
 
 function recordArg(args: ToolArgs, key: string): Record<string, unknown> | undefined {
   const value = args?.[key]
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
 }
 
 function stringOrNumberArg(args: ToolArgs, key: string): string {
@@ -55,8 +76,62 @@ function stringOrNumberArg(args: ToolArgs, key: string): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
 }
 
+/**
+ * Titles for the split table tools: each names its own action, refined by the
+ * operation and the named target when the args carry one — a card full of
+ * table work should read as adds, updates, and wiring, never a wall of
+ * identical "Queried table" rows.
+ */
+function splitTableTitle(name: string, args: ToolArgs): string {
+  const op = stringArg(args, 'operation')
+  const target = firstStringArg(args, 'columnName', 'viewName', 'name', 'title')
+  const suffix = target ? ` ${target}` : ''
+  // "in Runtimes" / "of Runtimes" — enrichment resolves the nested tableId.
+  const table = stringArg(args, 'tableName')
+  const inTable = table ? ` in ${table}` : ''
+  const ofTable = table ? ` of ${table}` : ''
+  switch (name) {
+    case 'table_manage':
+      if (op === 'create') return `Creating table${suffix || (table ? ` ${table}` : '')}`
+      if (op === 'delete') return `Deleting table${table ? ` ${table}` : suffix}`
+      if (op === 'read' || op === 'get' || op === 'list')
+        return `Reading${table ? ` ${table}` : ' table'}`
+      return `Updating${table ? ` ${table}` : ' table'}`
+    case 'table_rows':
+      if (op === 'insert' || op === 'add' || op === 'create')
+        return `Adding rows${inTable ? ` to ${table}` : ''}`
+      if (op === 'update') return `Updating rows${inTable}`
+      if (op === 'delete') return `Deleting rows${inTable}`
+      if (op === 'read' || op === 'list' || op === 'query') return `Reading rows${ofTable}`
+      return `Editing rows${ofTable}`
+    case 'table_columns':
+      if (op === 'add' || op === 'create') return `Adding column${suffix}${inTable}`
+      if (op === 'update') return `Updating column${suffix}${inTable}`
+      if (op === 'delete') return `Deleting column${suffix}${inTable}`
+      if (op === 'read' || op === 'list') return `Reading columns${ofTable}`
+      return `Editing columns${ofTable}`
+    case 'table_automations':
+      if (op === 'read' || op === 'list') return `Reading automations${ofTable}`
+      if (op === 'delete') return `Removing automation${inTable}`
+      return `Wiring automation${inTable}`
+    case 'table_enrichments':
+      if (op === 'read' || op === 'list') return `Reading enrichments${ofTable}`
+      if (op === 'delete') return `Removing enrichment${inTable}`
+      return `Configuring enrichment${suffix}${inTable}`
+    case 'table_views':
+      if (op === 'create') return `Creating view${suffix}${inTable}`
+      if (op === 'delete') return `Deleting view${suffix}${inTable}`
+      if (op === 'read' || op === 'list') return `Reading views${ofTable}`
+      return `Editing views${ofTable}`
+    default:
+      return `Updating${table ? ` ${table}` : ' table'}`
+  }
+}
+
 function deploymentTitle(args: ToolArgs, deploymentType: string): string {
-  return `${stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'} ${deploymentType}`
+  const verb = stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'
+  const workflow = firstStringArg(args, 'workflowName', 'name', 'title')
+  return workflow ? `${verb} ${workflow} as ${deploymentType}` : `${verb} as ${deploymentType}`
 }
 
 function resourceTypeLabel(type: string): string {
@@ -94,6 +169,29 @@ function displayUrl(raw: string): string {
   } catch {
     return raw.slice(0, 80)
   }
+}
+
+/**
+ * Human name for a block type id: strip the version suffix and title-case the
+ * snake_case stem (`slack_v2` -> `Slack`, `google_sheets_v2` -> `Google Sheets`).
+ */
+export function blockDisplayName(blockType: string): string {
+  const stem = stripVersionSuffix(blockType.trim())
+  if (!stem) return blockType
+  return stem
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/** Ellipsizes the middle so both ends of a value stay recognizable. */
+function truncateMiddle(value: string, maxChars: number): string {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (text.length <= maxChars) return text
+  const head = Math.ceil((maxChars - 1) / 2)
+  const tail = Math.floor((maxChars - 1) / 2)
+  return `${text.slice(0, head)}…${text.slice(text.length - tail)}`
 }
 
 function isWorkflowArtifactPath(path: string, filename: string): boolean {
@@ -236,12 +334,12 @@ function queryUserTableTitle(args: ToolArgs): string {
 }
 
 function searchKnowledgeBaseTitle(args: ToolArgs): string {
-  const titles: Record<string, string> = {
-    get: 'Reading knowledge base',
-    query: 'Searching knowledge base',
-    list_tags: 'Listing knowledge base tags',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Searching knowledge base'
+  const query = stringArg(args, 'query')
+  const operation = stringArg(args, 'operation')
+  if (operation === 'get') return 'Reading knowledge base'
+  if (operation === 'list_tags') return 'Listing knowledge base tags'
+  // A search row is far more useful with the question it asked.
+  return query ? `Searching knowledge base for ${query}` : 'Searching knowledge base'
 }
 
 function manageSandboxTitle(args: ToolArgs): string {
@@ -252,19 +350,6 @@ function manageSandboxTitle(args: ToolArgs): string {
     list: 'Listing sandboxes',
   }
   return titles[stringArg(args, 'operation')] ?? 'Managing sandbox'
-}
-
-function manageScheduledTaskTitle(args: ToolArgs): string {
-  const operationArgs = recordArg(args, 'args')
-  const title = stringArg(operationArgs, 'title')
-  const titles: Record<string, string> = {
-    create: `Creating ${title || 'scheduled task'}`,
-    list: 'Listing scheduled tasks',
-    get: 'Reading scheduled task',
-    update: `Updating ${title || 'scheduled task'}`,
-    delete: 'Deleting scheduled task',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Managing scheduled task'
 }
 
 function userTableTitle(args: ToolArgs): string {
@@ -352,6 +437,9 @@ function materializeFileTitle(args: ToolArgs): string {
   if (operation === 'import') {
     return `Importing ${summarizeTargets(targets, 'workflow')}`
   }
+  if (operation === 'extract') {
+    return `Extracting ${summarizeTargets(targets, 'archive')}`
+  }
   return `Saving ${summarizeTargets(targets, 'file')}`
 }
 
@@ -366,12 +454,17 @@ function openResourceTitle(args: ToolArgs): string {
 }
 
 function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
+  // Enrichment resolves the workflow id to a name; "in {workflow}" is dropped
+  // when the call targets the workflow already in view and none resolves.
+  const workflow = firstStringArg(args, 'workflowName', 'name')
+  const scope = workflow ? ` in ${workflow}` : ''
   const operations = args?.operations
-  if (!Array.isArray(operations) || operations.length === 0) return 'Setting workflow variables'
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return `Setting workflow variables${scope}`
+  }
 
-  const parsed = operations.filter(
-    (operation): operation is Record<string, unknown> =>
-      Boolean(operation) && typeof operation === 'object' && !Array.isArray(operation)
+  const parsed = operations.filter((operation): operation is Record<string, unknown> =>
+    isRecordLike(operation)
   )
   const operationNames = parsed.map((operation) => stringArg(operation, 'operation'))
   const firstOperation = operationNames[0]
@@ -386,9 +479,9 @@ function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
 
   if (parsed.length === 1) {
     const variableName = stringArg(parsed[0], 'name')
-    return `${verb} workflow variable${variableName ? ` ${variableName}` : ''}`
+    return `${verb} workflow variable${variableName ? ` ${variableName}` : ''}${scope}`
   }
-  return `${verb} ${parsed.length} workflow variables`
+  return `${verb} ${parsed.length} workflow variables${scope}`
 }
 
 /**
@@ -439,56 +532,64 @@ const TOOL_TITLES: Record<string, string> = {
   // covers only the instant before the integration is known. The raw
   // humanized name ("Call Integration Tool") must never render.
   call_integration_tool: 'Calling integration',
+  search_integration_tools: 'Finding the right integration',
+  load_integration_tool: 'Loading integration tools',
+  load_skill: 'Loading skill',
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',
   run_code: 'Running code',
   query_user_table: 'Querying table',
-  workspace_file: 'Editing file',
-  edit_content: 'Applying file content',
+  table_manage: 'Updating table',
+  table_rows: 'Editing rows',
+  table_columns: 'Editing columns',
+  table_automations: 'Wiring automation',
+  table_enrichments: 'Configuring enrichment',
+  table_views: 'Editing views',
+  prepare_file_edit: 'Editing file',
+  apply_file_edit: 'Writing changes',
   create_workflow: 'Creating workflow',
   edit_workflow: 'Editing workflow',
-  knowledge_base: 'Managing knowledge base',
+  manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
   open_resource: 'Opening resource',
-  generate_image: 'Generating image',
-  generate_video: 'Generating video',
-  generate_audio: 'Generating audio',
+
   ffmpeg: 'Processing media',
-  check_deployment_status: 'Checking deployment status',
-  create_file: 'Creating file',
+  get_deployment_status: 'Checking deployment status',
+  create_empty_file: 'Creating file',
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
   delete_workspace_mcp_server: 'Deleting MCP server',
-  deploy_api: 'Deploying API',
-  deploy_chat: 'Deploying chat',
-  deploy_custom_block: 'Deploying custom block',
-  deploy_mcp: 'Deploying MCP tool',
+  deploy_as_api: 'Deploying as API',
+  deploy_as_chat: 'Deploying as chat',
+  publish_custom_block: 'Publishing custom block',
+  deploy_as_mcp: 'Deploying as MCP tool',
   diff_workflows: 'Comparing workflows',
-  download_to_workspace_file: 'Downloading file',
-  function_execute: 'Running code',
-  complete_scheduled_task: 'Completing scheduled task',
+
+  run_function: 'Running code',
   generate_api_key: 'Generating API key',
-  get_block_outputs: 'Getting block outputs',
-  get_block_upstream_references: 'Getting block references',
-  get_deployed_workflow_state: 'Getting deployed workflow',
-  get_deployment_log: 'Getting deployment logs',
-  get_platform_actions: 'Getting platform actions',
-  get_scheduled_task_logs: 'Reading scheduled task logs',
-  get_workflow_data: 'Getting workflow data',
-  get_workflow_run_options: 'Getting run options',
+  // Retired in favor of the account/ and organization/ VFS namespaces. Kept so
+  // a replayed transcript from before the switch still renders its rows.
+  get_account_billing: 'Checking plan and usage',
+  get_block_outputs: 'Reading block outputs',
+  get_block_upstream_references: 'Tracing block inputs',
+  get_deployed_workflow_state: 'Reading the deployed version',
+  get_enterprise_context: 'Checking enterprise access',
+  list_deployment_versions: 'Listing deployment versions',
+  get_workflow_data: 'Reading workflow',
+  get_workflow_run_options: 'Checking run settings',
   list_file_folders: 'Listing folders',
   list_integration_tools: 'Listing integration tools',
   list_user_workspaces: 'Listing workspaces',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
-  materialize_file: 'Preparing file',
+  save_upload: 'Saving upload',
+  connect_slack_bot: 'Connecting Slack bot',
   manage_sandbox: 'Managing sandbox',
-  manage_scheduled_task: 'Managing scheduled task',
   move_file: 'Moving file',
   move_file_folder: 'Moving folder',
   move_workflow: 'Moving workflow',
-  oauth_get_auth_link: 'Getting authorization link',
+  oauth_get_auth_link: 'Creating sign-in link',
   oauth_request_access: 'Requesting access',
   promote_to_live: 'Promoting to live',
   redeploy: 'Redeploying API',
@@ -497,14 +598,11 @@ const TOOL_TITLES: Record<string, string> = {
   rename_workflow: 'Renaming workflow',
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
-  scheduled_task: 'Managing scheduled task',
-  search_documentation: 'Searching documentation',
-  search_patterns: 'Searching patterns',
+  search_docs: 'Searching Sim docs',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
   update_deployment_version: 'Updating deployment',
-  update_scheduled_task_history: 'Updating scheduled task history',
   update_workspace_mcp_server: 'Updating MCP server',
   // Browser agent tools without an argument-aware title.
   browser_go_back: 'Going back',
@@ -517,7 +615,9 @@ const TOOL_TITLES: Record<string, string> = {
   browser_read_text: 'Reading page',
   browser_screenshot: 'Taking screenshot',
   browser_click: 'Clicking element',
-  browser_type: 'Typing text',
+  browser_click_at: 'Clicking point',
+
+  browser_drag: 'Dragging element',
   browser_select_option: 'Selecting option',
   browser_hover: 'Hovering element',
   // Subagent trigger tools, when surfaced as a tool call.
@@ -527,10 +627,11 @@ const TOOL_TITLES: Record<string, string> = {
   auth: 'Auth Agent',
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
-  agent: 'Tools Agent',
+  extensions: 'Extensions Agent',
   research: 'Research Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   file: 'File Agent',
   media: 'Media Agent',
   browser: 'Browser Agent',
@@ -599,6 +700,30 @@ function waitTitle(args: ToolArgs): string {
 }
 
 /**
+ * An async agent id is its slugified display name plus a sequence suffix
+ * ("digest-workflow-build-4"); recover the human name for titles.
+ */
+function humanizeAgentId(id: string): string {
+  const words = id.replace(/-\d+$/, '').split('-').filter(Boolean)
+  if (words.length === 0) return id
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+/** Title for a wait_agents sleep, naming the agents and honoring mode "any". */
+function waitAgentsTitle(args: ToolArgs): string {
+  const raw = args?.agent_ids
+  const ids = Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
+  const names = ids.map(humanizeAgentId)
+  const anyMode = stringArg(args, 'mode') === 'any'
+  if (names.length === 1) return `Waiting for ${names[0]}`
+  if (names.length > 1) {
+    const listed = `${names[0]} + ${names.length - 1}`
+    return anyMode ? `Waiting for the first of ${listed}` : `Waiting for ${listed}`
+  }
+  return 'Waiting for agents'
+}
+
+/**
  * The title of a pause that is still running, counting down what is left.
  *
  * A number that never changes next to a spinner looks the same as a hung turn,
@@ -614,6 +739,19 @@ export function getWaitCountdownTitle(args: ToolArgs, elapsedMs: number): string
 
 /** Past this a command wraps the row; the terminal panel still shows it in full. */
 const MAX_COMMAND_TITLE_LENGTH = 48
+
+/**
+ * Budget for a quoted value embedded in a title.
+ *
+ * Much shorter than {@link MAX_COMMAND_TITLE_LENGTH}: these rows carry a
+ * subagent prefix ("Workflow Agent — ") plus a verb phrase ("Searched Sim docs
+ * for ") ahead of the value, and quotes and an ellipsis cost five more columns —
+ * roughly 44 characters of fixed overhead before the value starts. The chat pane
+ * also narrows whenever a resource panel is open, so the budget is set to keep
+ * the row on one line there rather than at full width. A model-written search
+ * query runs well past any of this if left alone.
+ */
+const MAX_QUOTED_TITLE_VALUE_LENGTH = 32
 
 function runningCommandTitle(rawCommand: string): string {
   const command = rawCommand.replace(/\s+/g, ' ')
@@ -645,10 +783,7 @@ const TERMINAL_OPERATION_TITLES: Record<string, string> = {
 function terminalTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation')
   const nested = args?.args
-  const inner: ToolArgs =
-    nested && typeof nested === 'object' && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>)
-      : undefined
+  const inner: ToolArgs = isRecordLike(nested) ? (nested as Record<string, unknown>) : undefined
   if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
   if (operation === 'handoff') {
     // Matches the browser takeover row: the reason is the whole point of the
@@ -671,32 +806,45 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
-    case 'deploy_api':
+    case 'deploy_as_api':
       return deploymentTitle(args, 'API')
-    case 'deploy_chat':
+    case 'deploy_as_chat':
       return deploymentTitle(args, 'chat')
-    case 'deploy_custom_block':
-      return deploymentTitle(args, 'custom block')
+    case 'publish_custom_block':
+      return `${stringArg(args, 'action') === 'undeploy' ? 'Unpublishing' : 'Publishing'} custom block`
     case 'ffmpeg':
       return ffmpegTitle(args)
-    case 'knowledge_base':
+    case 'manage_knowledge_base':
       return knowledgeBaseTitle(args)
     case 'query_user_table':
       return queryUserTableTitle(args)
+    case 'table_manage':
+    case 'table_rows':
+    case 'table_columns':
+    case 'table_automations':
+    case 'table_enrichments':
+    case 'table_views':
+      return splitTableTitle(name, args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
     case 'manage_sandbox':
       return manageSandboxTitle(args)
-    case 'manage_scheduled_task':
-      return manageScheduledTaskTitle(args)
     case 'user_table':
       return userTableTitle(args)
-    case 'materialize_file':
+    case 'save_upload':
       return materializeFileTitle(args)
     case 'open_resource':
       return openResourceTitle(args)
     case 'wait':
       return waitTitle(args)
+    case 'wait_agents':
+      return waitAgentsTitle(args)
+    case 'tail_agent':
+      return `Checking on ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
+    case 'steer_agent':
+      return `Steering ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
+    case 'interrupt_agent':
+      return `Stopping ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
     case 'terminal':
       return terminalTitle(args)
     // The surface used to be one tool per operation. Conversations recorded
@@ -724,22 +872,12 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const type = stringArg(args, 'type')
       return `Restoring ${type ? resourceTypeLabel(type) : 'resource'}`
     }
-    case 'set_block_enabled': {
-      const enabled = args?.enabled
-      return typeof enabled === 'boolean'
-        ? `${enabled ? 'Enabling' : 'Disabling'} block`
-        : 'Toggling block'
-    }
     case 'load_deployment': {
       const version = stringOrNumberArg(args, 'version')
       if (!version) return 'Loading deployment'
       return version === 'live'
         ? 'Loading live deployment'
         : `Loading deployment version ${version}`
-    }
-    case 'promote_to_live': {
-      const version = stringOrNumberArg(args, 'version')
-      return version ? `Promoting version ${version} to live` : 'Promoting to live'
     }
     case 'update_deployment_version': {
       const version = stringOrNumberArg(args, 'version')
@@ -761,7 +899,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'set_global_workflow_variables':
       return setGlobalWorkflowVariablesTitle(args)
-    case 'create_file':
+    case 'create_empty_file':
       return createFileTitle(args)
     case 'share_file': {
       const action = stringArg(args, 'action') || 'share'
@@ -789,9 +927,15 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'serverName', 'name', 'title')
       return `Deleting ${target || 'MCP server'}`
     }
-    case 'search_online': {
+    case 'web_search': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Searching online for ${target}` : 'Searching online'
+    }
+    case 'search_docs': {
+      const target = firstStringArg(args, 'toolTitle', 'title', 'query')
+      return target
+        ? `Searching Sim docs for "${truncate(target, MAX_QUOTED_TITLE_VALUE_LENGTH)}"`
+        : 'Searching Sim docs'
     }
     case 'grep': {
       const target = firstStringArg(args, 'toolTitle', 'title')
@@ -809,14 +953,24 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         const destination = stringArg(args, 'destination')
         if (destination) return `Renaming ${pathLeaf(sources[0])} to ${pathLeaf(destination)}`
       }
+      // The model's own phrasing wins; otherwise name both ends of the
+      // move: "Moving apple.md to fruits".
       const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `${verb} ${target}` : verb
+      if (target) return `${verb} ${target}`
+      const destination = stringArg(args, 'destination')
+      if (sources.length > 0 && destination) {
+        const what = summarizeTargets(sources.map(pathLeaf), 'files')
+        return `${verb} ${what} to ${pathLeaf(destination)}`
+      }
+      return verb
     }
     case 'cp': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Duplicating ${target}` : 'Duplicating workflow'
     }
     case 'mkdir': {
+      const path = stringArg(args, 'path')
+      if (path) return `Creating folder ${pathLeaf(path)}`
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Creating ${target}` : 'Creating folder'
     }
@@ -828,7 +982,15 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         summarizeTargets(stringArrayArg(args, 'paths').map(pathLeaf), 'resource')
       return target ? `Deleting ${target}` : 'Deleting'
     }
-    case 'enrichment_run': {
+    case 'load_integration_tool': {
+      const integration = firstStringArg(args, 'integration', 'service', 'toolId')
+      return integration ? `Loading ${integration} tools` : 'Loading integration tools'
+    }
+    case 'load_skill': {
+      const skill = firstStringArg(args, 'name', 'skillId', 'skill')
+      return skill ? `Loading skill ${skill}` : 'Loading skill'
+    }
+    case 'run_enrichment': {
       const subject = nestedStringArg(
         args,
         'inputs',
@@ -838,9 +1000,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         'email',
         'companyDomain'
       )
-      return subject ? `Searching for ${subject}` : 'Searching'
+      return subject ? `Looking up ${subject}` : 'Looking up data'
     }
-    case 'scrape_page': {
+    case 'web_scrape': {
       const url = stringArg(args, 'url')
       return url ? `Scraping ${url}` : 'Scraping page'
     }
@@ -860,6 +1022,44 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const text = stringArg(args, 'text')
       return text ? `Waiting for "${text}"` : 'Waiting for page'
     }
+    case 'generate_image':
+    case 'generate_video':
+    case 'generate_audio': {
+      const kind =
+        name === 'generate_image' ? 'image' : name === 'generate_video' ? 'video' : 'audio'
+      const target =
+        firstStringArg(args, 'toolTitle', 'title') ||
+        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '')
+      return target ? `Generating ${target}` : `Generating ${kind}`
+    }
+    case 'download_file': {
+      const target =
+        firstStringArg(args, 'fileName', 'toolTitle', 'title') ||
+        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '') ||
+        (stringArg(args, 'url') ? displayUrl(stringArg(args, 'url')) : '')
+      return target ? `Downloading ${target}` : 'Downloading file'
+    }
+    case 'extract_doc_assets': {
+      const target = stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : ''
+      return target ? `Extracting assets from ${target}` : 'Extracting document assets'
+    }
+    case 'search_library_docs': {
+      const library = firstStringArg(args, 'library_name', 'libraryName', 'library')
+      const query = stringArg(args, 'query')
+      if (library && query) return `Searching ${library} docs for ${query}`
+      if (library) return `Searching ${library} docs`
+      return query ? `Searching library docs for ${query}` : 'Searching library docs'
+    }
+    case 'run_code': {
+      const title = stringArg(args, 'title')
+      return title || 'Running code'
+    }
+    case 'browser_type':
+    case 'browser_insert_text': {
+      const verb = name === 'browser_type' ? 'Typing' : 'Inserting'
+      const text = stringArg(args, 'text')
+      return text ? `${verb} "${truncateMiddle(text, 32)}"` : `${verb} text`
+    }
     case 'browser_press_key': {
       const key = stringArg(args, 'key')
       return key ? `Pressing ${key}` : 'Pressing key'
@@ -876,15 +1076,15 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const reason = stringArg(args, 'reason')
       return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the browser'
     }
-    case 'crawl_website': {
+    case 'web_crawl': {
       const url = stringArg(args, 'url')
       return url ? `Crawling ${url}` : 'Crawling website'
     }
-    case 'get_page_contents': {
+    case 'web_fetch': {
       const urls = stringArrayArg(args, 'urls')
-      if (urls.length === 1) return `Getting ${urls[0]}`
-      if (urls.length > 1) return `Getting ${urls.length} pages`
-      return 'Getting page contents'
+      if (urls.length === 1) return `Fetching ${urls[0]}`
+      if (urls.length > 1) return `Fetching ${urls.length} pages`
+      return 'Fetching page'
     }
     case 'manage_custom_tool': {
       const schema = args?.schema
@@ -893,18 +1093,18 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         (schema && typeof schema === 'object'
           ? nestedStringArg(schema as Record<string, unknown>, 'function', 'name')
           : '')
-      return namedOperationTitle(args, target, 'Custom tool action', {
+      return namedOperationTitle(args, target, 'Managing custom tool', {
         add: { verb: 'Creating', resource: 'custom tool' },
         edit: { verb: 'Updating', resource: 'custom tool' },
         delete: { verb: 'Deleting', resource: 'custom tool' },
         list: { verb: 'Viewing', resource: 'custom tools' },
       })
     }
-    case 'manage_mcp_tool': {
+    case 'manage_mcp_connection': {
       const target =
         firstStringArg(args, 'serverName', 'name', 'title') ||
         nestedStringArg(args, 'config', 'name')
-      return namedOperationTitle(args, target, 'MCP server action', {
+      return namedOperationTitle(args, target, 'Managing MCP server', {
         add: { verb: 'Creating', resource: 'MCP server' },
         edit: { verb: 'Updating', resource: 'MCP server' },
         delete: { verb: 'Deleting', resource: 'MCP server' },
@@ -913,7 +1113,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'manage_skill': {
       const target = firstStringArg(args, 'name', 'skillName', 'title')
-      return namedOperationTitle(args, target, 'Skill action', {
+      return namedOperationTitle(args, target, 'Managing skill', {
         add: { verb: 'Creating', resource: 'skill' },
         edit: { verb: 'Updating', resource: 'skill' },
         delete: { verb: 'Deleting', resource: 'skill' },
@@ -929,27 +1129,128 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         return to ? `Renaming credential to ${to}` : 'Renaming credential'
       }
       const target = firstStringArg(args, 'credentialName', 'displayName', 'name', 'title')
-      return namedOperationTitle(args, target, 'Credential action', {
+      return namedOperationTitle(args, target, 'Managing credential', {
         delete: { verb: 'Deleting', resource: 'credential' },
       })
     }
-    case 'run_workflow':
-    case 'run_from_block':
-    case 'run_workflow_until_block':
-      return 'Running workflow'
+    case 'get_deployment_status': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Checking ${workflow} deployment status` : 'Checking deployment status'
+    }
+    case 'get_deployed_workflow_state': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Reading deployed ${workflow}` : 'Reading the deployed version'
+    }
+    case 'get_workflow_run_options': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Checking ${workflow} run settings` : 'Checking run settings'
+    }
+    case 'get_block_outputs': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Reading ${workflow} block outputs` : 'Reading block outputs'
+    }
+    case 'get_block_upstream_references': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Tracing ${workflow} block inputs` : 'Tracing block inputs'
+    }
+    case 'redeploy': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Redeploying ${workflow}` : 'Redeploying API'
+    }
+    case 'promote_to_live': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      const version = stringOrNumberArg(args, 'version')
+      if (workflow && version) return `Promoting ${workflow} version ${version} to live`
+      if (workflow) return `Promoting ${workflow} to live`
+      return version ? `Promoting version ${version} to live` : 'Promoting to live'
+    }
+    case 'run_workflow': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Running ${workflow}` : 'Running workflow'
+    }
+    case 'run_from_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'startBlockName')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return 'Running workflow'
+      return workflow ? `Running from ${block} in ${workflow}` : `Running from ${block}`
+    }
+    case 'run_workflow_until_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'untilBlockName')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return workflow ? `Running ${workflow}` : 'Running workflow'
+      return `Running ${workflow || 'workflow'} until ${block}`
+    }
+    case 'run_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return 'Running block'
+      return workflow ? `Running ${block} in ${workflow}` : `Running ${block}`
+    }
+    case 'set_block_enabled': {
+      const block = firstStringArg(args, 'blockName', 'block_name')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      const verb =
+        args?.enabled === false ? 'Disabling' : args?.enabled === true ? 'Enabling' : 'Toggling'
+      if (!block) return `${verb} block`
+      return workflow ? `${verb} ${block} in ${workflow}` : `${verb} ${block}`
+    }
     case 'query_logs': {
+      // The model narrates its own query; the per-view titles are fallbacks.
+      const title = stringArg(args, 'title')
+      if (title) return title
       const workflowName = stringArg(args, 'workflowName')
-      return workflowName ? `Querying logs for ${workflowName}` : 'Querying logs'
+      const scope = workflowName ? ` for ${workflowName}` : ''
+      switch (stringArg(args, 'view')) {
+        case 'stats':
+          return `Analyzing run stats${scope}`
+        case 'trace':
+          return 'Reading execution trace'
+        case 'overview':
+          return 'Reading execution overview'
+        case 'full':
+          return 'Reading execution details'
+        case 'list':
+          return `Querying logs${scope}`
+        default:
+          // view is optional: executionId implies the trace digest default.
+          return stringArg(args, 'executionId')
+            ? 'Reading execution trace'
+            : `Querying logs${scope}`
+      }
     }
     case 'read': {
-      if (isWorkflowArtifactPath(stringArg(args, 'path'), 'lint.json')) {
+      const path = stringArg(args, 'path')
+      if (isWorkflowArtifactPath(path, 'lint.json')) {
         return 'Validating workflow state'
       }
+      // Workflow artifacts name BOTH the workflow and which part, so five
+      // reads in a row differentiate instead of all saying the same thing.
+      // A block schema read is the model looking up how a block works; name
+      // the block, not the file. The row's icon is chosen from the same id.
+      const blockSchema = path.match(/^components\/blocks\/([^/]+)\.json$/)
+      if (blockSchema) return `Loading ${blockDisplayName(decodePathSegment(blockSchema[1]))}`
+      const blockTips = path.match(/^components\/blocks\/([^/]+)\/README\.md$/)
+      if (blockTips) return `Loading ${blockDisplayName(decodePathSegment(blockTips[1]))} tips`
+      const workflowArtifact = path.match(/^workflows\/([^/]+)\/([^/]+)$/)
+      if (workflowArtifact) {
+        const part =
+          (
+            {
+              'meta.json': 'meta',
+              'state.json': 'state',
+              'deployment.json': 'deployment',
+              'README.md': 'notes',
+            } as Record<string, string>
+          )[workflowArtifact[2]] ?? decodePathSegment(workflowArtifact[2])
+        return `Reading ${decodePathSegment(workflowArtifact[1])} ${part}`
+      }
+      if (path) return `Reading ${pathLeaf(path)}`
       break
     }
-    case 'workspace_file':
-    case 'function_execute': {
-      const title = name === 'workspace_file' ? workspaceFileTitle(args) : stringArg(args, 'title')
+    case 'prepare_file_edit':
+    case 'run_function': {
+      const title =
+        name === 'prepare_file_edit' ? workspaceFileTitle(args) : stringArg(args, 'title')
       if (title) return title
       break
     }
@@ -979,7 +1280,13 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Crawling: 'Crawled',
   Creating: 'Created',
   Deleting: 'Deleted',
+  Connecting: 'Connected',
   Deploying: 'Deployed',
+  Dragging: 'Dragged',
+  Inserting: 'Inserted',
+  Publishing: 'Published',
+  Unpublishing: 'Unpublished',
+  Analyzing: 'Analyzed',
   Disabling: 'Disabled',
   Downloading: 'Downloaded',
   Duplicating: 'Duplicated',
@@ -991,8 +1298,13 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',
-  Getting: 'Got',
   Going: 'Went',
+  Fetching: 'Fetched',
+  Tracing: 'Traced',
+  Wiring: 'Wired',
+  Configuring: 'Configured',
+  Looking: 'Looked',
+  Rotating: 'Rotated',
   Hovering: 'Hovered',
   Importing: 'Imported',
   Inspecting: 'Inspected',
@@ -1010,6 +1322,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Querying: 'Queried',
   Reading: 'Read',
   Redeploying: 'Redeployed',
+  Removing: 'Removed',
   Renaming: 'Renamed',
   Requesting: 'Requested',
   Resizing: 'Resized',
@@ -1023,6 +1336,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Selecting: 'Selected',
   Setting: 'Set',
   Sharing: 'Shared',
+  Steering: 'Steered',
   Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',
@@ -1059,10 +1373,57 @@ export function getToolCompletedTitle(title: string): string | undefined {
 }
 
 /**
+ * Titles that already say the work is over.
+ *
+ * Two layers project a terminal tense: the client tool store phrases its own
+ * error and skip labels ("Attempted to read X", "Skipped reading X"), and this
+ * module projects again at the render boundary. Re-projecting an
+ * already-projected title stacked prefixes — "Failed: Failed: Attempted to read
+ * metadata for thread_tracking" — and even a single pass over a store label
+ * reads as doubly hedged. Whichever layer spoke first wins.
+ */
+const TERMINAL_TITLE_PREFIXES = new Set(['Failed', 'Attempted', 'Skipped', 'Stopped'])
+
+function firstWordOf(title: string): string {
+  const spaceIndex = title.indexOf(' ')
+  return spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+}
+
+/** Whether a title already states a terminal outcome and must pass through. */
+function statesTerminalOutcome(title: string): boolean {
+  return TERMINAL_TITLE_PREFIXES.has(firstWordOf(title).replace(/:$/, ''))
+}
+
+/**
+ * Rewrite a resolved display title for a FAILED tool call. A gerund title
+ * becomes "Failed <gerund>…" ("Searching for X" → "Failed searching for X");
+ * anything else gets a "Failed: " prefix. Without this, an errored row kept
+ * its present-tense activity title verbatim and read as still running.
+ */
+export function getToolFailedTitle(title: string): string {
+  if (statesTerminalOutcome(title)) return title
+  const firstWord = firstWordOf(title)
+  if (COMPLETED_VERB_REWRITES[firstWord]) {
+    return `Failed ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
+  }
+  return `Failed: ${title}`
+}
+
+/** Rewrite a resolved display title for a CANCELLED tool call ("Stopped <gerund>…"). */
+export function getToolStoppedTitle(title: string): string {
+  if (statesTerminalOutcome(title)) return title
+  const firstWord = firstWordOf(title)
+  if (COMPLETED_VERB_REWRITES[firstWord]) {
+    return `Stopped ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
+  }
+  return `Stopped: ${title}`
+}
+
+/**
  * Resolve the final title for a tool status at a rendering boundary. Persisted
  * and live snapshots intentionally keep the present-tense activity title so a
- * running/error row remains truthful; every successful renderer calls this to
- * project the corresponding completed title from the canonical verb map.
+ * RUNNING row remains truthful; terminal states project a tense that says the
+ * work is over — completed (past tense), failed, or stopped.
  */
 export function getToolStatusDisplayTitle(
   title: string,
@@ -1072,5 +1433,8 @@ export function getToolStatusDisplayTitle(
   if (status === 'success' && toolName === 'browser_request_takeover') {
     return 'Resumed browser control'
   }
-  return status === 'success' ? (getToolCompletedTitle(title) ?? title) : title
+  if (status === 'success') return getToolCompletedTitle(title) ?? title
+  if (status === 'error' || status === 'rejected') return getToolFailedTitle(title)
+  if (status === 'cancelled' || status === 'aborted') return getToolStoppedTitle(title)
+  return title
 }

@@ -4,6 +4,10 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  PROVENANCE_MAX_ENTRIES,
+  PROVENANCE_MAX_SERIALIZED_BYTES,
+} from '@/lib/execution/provenance-limits'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import {
   createResolvedSecretMatcher,
@@ -37,6 +41,11 @@ export type ResolvedSecretIncompletenessReason =
   | 'inherited-incomplete-input-path'
   | 'tool-call-scope-mismatch'
   | 'value-provenance-untrusted'
+  /**
+   * A crossing carried no provenance at all, which is what a run that failed before producing any
+   * looks like. Distinct from `untrusted`: nothing was rejected, there was nothing to reject.
+   */
+  | 'value-provenance-absent'
   | 'value-provenance-import-failed'
   | 'value-provenance-filter-incomplete'
   | 'durable-provenance-unknown'
@@ -57,10 +66,8 @@ export type ResolvedSecretIncompletenessReason =
   | 'client-tool-execution-untrusted'
   | 'client-tool-content-unavailable'
   | 'knowledge-result-provenance-unavailable'
-  | 'knowledge-response-capacity-exceeded'
   | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
-  | 'memory-crossing-capacity-exceeded'
   | 'table-result-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'workspace-file-provenance-unknown'
@@ -92,6 +99,40 @@ export type ResolvedSecretIncompletenessReason =
  * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
  * reason from flooding the error stream. A reason added later without thought stays quiet.
  */
+/**
+ * Reasons meaning provenance was never on offer AND no secret material transited the latching
+ * context. This is a deliberately separate, narrower set than the warn side of the report-level
+ * split below: that split assigns report ownership, and a warn-level reason can still involve
+ * plaintext in flight — `value-provenance-filter-incomplete` latches after a staged source
+ * registry decrypted real entries it then could not narrow to the value, so the plaintext existed
+ * in-process without ever activating. Membership here requires the stronger claim.
+ *
+ * The claim holds for each member: an absent or declared-incomplete envelope carries no entries
+ * (the envelope schema rejects incomplete-with-entries), so nothing was decrypted; a registry
+ * built without a catalog or without a persisted log never handled material; a durable read that
+ * latched did so before importing anything; and the inherited markers never occur alone — the
+ * source's own reasons are copied first, so they are judged by the originals they accompany.
+ *
+ * Consumers use this to separate `unrecorded` (absence — readable under the fail-open policy)
+ * from taint at a write decision. A reason outside this set keeps the taint.
+ */
+const PROVENANCE_ABSENCE_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'value-provenance-absent',
+  'source-provenance-incomplete',
+  'constructed-incomplete',
+  'log-creation-skipped',
+  'durable-provenance-unknown',
+  'inherited-incomplete-source',
+  'inherited-incomplete-input-path',
+])
+
+/** True when {@link PROVENANCE_ABSENCE_REASONS} holds the reason; see its contract. */
+export function isResolvedSecretProvenanceAbsence(
+  reason: ResolvedSecretIncompletenessReason
+): boolean {
+  return PROVENANCE_ABSENCE_REASONS.has(reason)
+}
+
 const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'untrusted-provenance',
   'entry-decrypt-failed',
@@ -139,8 +180,13 @@ function reportIncompleteness(
   details: Record<string, unknown>
 ): void {
   if (BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { reason, ...details })
-  else logger.warn(message, { reason, ...details })
+  /**
+   * `reason` is written last so no detail can displace it. It is the field these lines are
+   * queried and alerted on, and it also selects the level above — a payload whose `reason` says
+   * one thing while the level was chosen from another is worse than no detail at all.
+   */
+  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { ...details, reason })
+  else logger.warn(message, { ...details, reason })
 }
 
 /**
@@ -167,15 +213,23 @@ export interface ResolvedSecretIncompletenessDiagnostics {
   readonly activeEntryCount: number
   /** Correlates a refusal with the guard that caused it; never carries user or secret material. */
   readonly scopeWorkspaceId?: string
+  /**
+   * Where the first guard tripped, carried alongside the reason that named it.
+   *
+   * A refusal is often frames away from its cause, which is why this struct exists — but it only
+   * ever carried *what* went wrong, so a downstream reporter printed a reason with no location and
+   * a reader had to join to the registry's own line to find the block.
+   */
+  readonly detail?: MarkIncompleteDetail
 }
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
 
-const MAX_PROVENANCE_ENTRIES = 10_000
-const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
-const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
-const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
+const MAX_PROVENANCE_ENTRIES = PROVENANCE_MAX_ENTRIES
+const MAX_SERIALIZED_PROVENANCE_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
+const MAX_TRACE_CATALOG_ENTRIES = PROVENANCE_MAX_ENTRIES
+const MAX_TRACE_CATALOG_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
 const MAX_PROVENANCE_FILTER_NODES = 50_000
 const MAX_PROVENANCE_FILTER_CHARACTERS = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_PROVENANCE_FILTER_MATCH_EVENTS = 1_000_000
@@ -185,10 +239,43 @@ const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'sc
 const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
 const PROVENANCE_SCOPE_PROPERTY_NAMES = new Set(['userId', 'workspaceId'])
 
+/** Which environment a catalog entry's value came from, when that is known. */
+export type ResolvedSecretScope = 'workspace' | 'personal'
+
+/** One secret a run resolved, identified the way the usage trail is keyed. */
+export interface ResolvedSecretUsageEntry {
+  name: string
+  scope: ResolvedSecretScope
+  /** The owning user for a personal secret; null for a workspace one. */
+  ownerUserId: string | null
+}
+
 export interface ResolvedSecretTraceCatalogEntry {
   name: string
   plaintext: string
   encryptedValue: string
+  /**
+   * Optional because only a run's own effective catalog knows it. Entries adopted from an
+   * imported provenance envelope carry a name but no scope, and are deliberately left
+   * unattributed — the sub-run or tool call they crossed from records its own usage, so
+   * attributing them here would double-count.
+   */
+  scope?: ResolvedSecretScope
+  /**
+   * Whose personal environment a `personal` entry came from. Required to tell two people's
+   * same-named personal secrets apart, and NOT the same as the run's actor: a personal
+   * secret shared with the workspace resolves for a caller who does not own it, and a
+   * scheduled run resolves the workflow owner's personal slice under a different actor.
+   * Unset for workspace entries, which the workspace itself owns.
+   */
+  ownerUserId?: string
+  /**
+   * Set only on workspace entries whose credential row opts the secret out of redaction.
+   * Never trusted off an entry directly at decision time — every exemption re-derives
+   * through the catalog by name AND plaintext, so an entry adopted from an imported
+   * envelope is exempt only when it is byte-identical to the run's own flagged secret.
+   */
+  unredacted?: true
 }
 
 export interface ResolvedSecretTraceMatch {
@@ -272,6 +359,32 @@ interface MarkIncompleteContext {
    * production latch naming no guard at all.
    */
   origin?: string
+  detail?: MarkIncompleteDetail
+}
+
+/**
+ * Structural facts locating where a guard tripped. `reason` says what went wrong and this says
+ * where, which is the difference between a line you can act on and one you can only count.
+ *
+ * Named fields rather than an open record, for the reason `reason` itself is a closed union: a
+ * shape a caller can extend freely cannot be aggregated, and — because these merge into the
+ * reported payload — an open record also lets a caller land a key that a reader takes to mean
+ * something else, `origin` and `reason` being the two that carry the most weight here.
+ *
+ * Names and types only — never a value, and never a caught error's message. Code that throws while
+ * coercing an input routinely quotes that input back (`JSON.parse` names the text it rejected), and
+ * an input reaching one of these guards may still hold a resolved secret. That is the same promise
+ * `reason` already makes about this log, restated where it is easy to break.
+ */
+export interface MarkIncompleteDetail {
+  /** Block type id, e.g. `api`. */
+  blockType?: string
+  /** Tool id, e.g. `http_request`. */
+  tool?: string
+  /** Dotted input path within the block's inputs, e.g. `body.payload`. */
+  inputPath?: string
+  /** Error class only, e.g. `SyntaxError` — never the thrown message. */
+  failure?: string
 }
 
 export interface ImportResolvedSecretTraceProvenanceOptions {
@@ -302,11 +415,20 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   personalDecrypted: Record<string, string>
   workspaceDecrypted: Record<string, string>
   decryptionFailures?: readonly string[]
+  /** `envKey` → owning user, from the environment snapshot; only personal keys appear. */
+  personalOwners?: Record<string, string>
   restoredProvenance?: unknown
   restoredCheckpointVersion?: unknown
   restoreTrusted?: boolean
   requireRestoredProvenance?: boolean
   scope?: ResolvedSecretTraceScopeV1
+  /**
+   * Workspace env keys flagged `unredacted` on their credential row, from
+   * {@link EnvironmentResolutionSnapshot.workspaceUnredactedKeys}. Stamps the matching
+   * workspace catalog entries so their resolved values render in plaintext instead of
+   * `{{NAME}}` and are omitted from exported provenance envelopes.
+   */
+  workspaceUnredactedKeys?: readonly string[]
 }
 
 function compareStrings(left: string, right: string): number {
@@ -342,6 +464,32 @@ function isInputPathWithin(path: readonly string[], root: readonly string[]): bo
 
 function inputPathsOverlap(left: readonly string[], right: readonly string[]): boolean {
   return isInputPathWithin(left, right) || isInputPathWithin(right, left)
+}
+
+const EMPTY_GROUP_MATCH: readonly number[] = []
+
+/**
+ * Indices of every group whose root sits at or above `path`.
+ *
+ * The prefix form of {@link isInputPathWithin}, read from an index of the roots rather than by
+ * testing each one. Scanning the roots per path is what forced a cap on how many a caller could
+ * vouch for at once; walking `path`'s own prefixes is bounded by its depth instead.
+ *
+ * Copies on the first hit rather than aliasing, because the caller owns the index and a returned
+ * alias would let an append mutate it.
+ */
+function groupsAlongInputPath(
+  groupsByRoot: ReadonlyMap<string, readonly number[]>,
+  path: ResolvedSecretInputPath
+): readonly number[] {
+  let matched: number[] | undefined
+  for (let length = 0; length <= path.length; length += 1) {
+    const indices = groupsByRoot.get(inputPathKey(path.slice(0, length)))
+    if (!indices) continue
+    if (!matched) matched = [...indices]
+    else matched.push(...indices)
+  }
+  return matched ?? EMPTY_GROUP_MATCH
 }
 
 function readInputPath(root: unknown, path: readonly string[]): unknown {
@@ -534,28 +682,64 @@ function isExactProvenanceEntriesArray(value: unknown): value is unknown[] {
 function buildEffectiveCatalogEntry(
   options: CreateResolvedSecretTraceRegistryOptions,
   failedNames: ReadonlySet<string>,
+  unredactedNames: ReadonlySet<string>,
   name: string,
   encryptedValue: string
 ): ResolvedSecretTraceCatalogEntry | undefined {
-  const plaintext = hasOwn(options.workspaceDecrypted, name)
+  const fromWorkspace = hasOwn(options.workspaceDecrypted, name)
+  const plaintext = fromWorkspace
     ? options.workspaceDecrypted[name]
     : options.personalDecrypted[name]
   if (plaintext === undefined || (plaintext.length === 0 && failedNames.has(name))) {
     return undefined
   }
-  return { name, plaintext, encryptedValue }
+  /**
+   * Scope follows the value that actually won, matching the workspace-shadows-personal
+   * precedence the merged environment applies. A name present in both must not be
+   * attributed to the personal secret it shadowed.
+   */
+  if (fromWorkspace) {
+    return {
+      name,
+      plaintext,
+      encryptedValue,
+      scope: 'workspace',
+      /**
+       * Stamped only on the workspace branch: a personal secret shadowed by a flagged
+       * workspace name must not inherit the flag, and a personal value that WON the
+       * name can never carry it.
+       */
+      ...(unredactedNames.has(name) ? { unredacted: true as const } : {}),
+    }
+  }
+
+  const ownerUserId = options.personalOwners?.[name]
+  return {
+    name,
+    plaintext,
+    encryptedValue,
+    scope: 'personal',
+    ...(ownerUserId ? { ownerUserId } : {}),
+  }
 }
 
 function* iterateEffectiveCatalogEntries(
   options: CreateResolvedSecretTraceRegistryOptions,
   failedNames: ReadonlySet<string>
 ): Generator<ResolvedSecretTraceCatalogEntry> {
+  const unredactedNames = new Set(options.workspaceUnredactedKeys ?? [])
   for (const name in options.personalEncrypted) {
     if (!hasOwn(options.personalEncrypted, name)) continue
     const encryptedValue = hasOwn(options.workspaceEncrypted, name)
       ? options.workspaceEncrypted[name]
       : options.personalEncrypted[name]
-    const entry = buildEffectiveCatalogEntry(options, failedNames, name, encryptedValue)
+    const entry = buildEffectiveCatalogEntry(
+      options,
+      failedNames,
+      unredactedNames,
+      name,
+      encryptedValue
+    )
     if (entry) yield entry
   }
 
@@ -566,6 +750,7 @@ function* iterateEffectiveCatalogEntries(
     const entry = buildEffectiveCatalogEntry(
       options,
       failedNames,
+      unredactedNames,
       name,
       options.workspaceEncrypted[name]
     )
@@ -752,6 +937,8 @@ export class ResolvedSecretTraceRegistry {
   private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
   /** Import callers that cost this registry its completeness; bounded by {@link MAX_RETAINED_ORIGINS}. */
   private readonly incompletenessOrigins = new Set<string>()
+  /** First guard's location; later ones describe propagation, not the cause. */
+  private incompletenessDetail: MarkIncompleteDetail | undefined
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
@@ -763,18 +950,28 @@ export class ResolvedSecretTraceRegistry {
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
   /**
-   * A staged registry filters one value and is then discarded. Its caller re-reports whatever
-   * fault it hits against the real input path, so its own summary lines would restate that with
-   * strictly less context. Entry-level detail still logs — the caller cannot reconstruct it.
+   * A staged registry filters values for one operation and is then discarded. Its caller owns the
+   * reporting and says it with strictly more context — the real input path for a value filter, the
+   * execution for a display read — so the registry's own summary lines would only restate it.
+   * Entry-level detail still logs — the caller cannot reconstruct it.
    */
   private readonly staged: boolean
+  /**
+   * Plaintexts a fork's parent was protecting when the fork was cut. A fork copies an
+   * active-entry SUBSET, so a non-exempt entry sharing an unredacted entry's plaintext can be
+   * left behind — and without this set the fork would emit bytes the parent's own log renders
+   * redacted. Collision decisions consult this set alongside the fork's own entries, so the
+   * exemption can only ever narrow across a fork, never widen.
+   */
+  private readonly inheritedProtectedPlaintexts: ReadonlySet<string>
 
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
     scope?: ResolvedSecretTraceScopeV1,
-    options: { staged?: boolean } = {}
+    options: { staged?: boolean; inheritedProtectedPlaintexts?: ReadonlySet<string> } = {}
   ) {
     this.staged = options.staged === true
+    this.inheritedProtectedPlaintexts = options.inheritedProtectedPlaintexts ?? new Set()
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
     this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
     if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
@@ -797,7 +994,9 @@ export class ResolvedSecretTraceRegistry {
    * available to later calls in the run.
    */
   forkForToolCall(): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     for (const entry of this.activeEntries.values()) {
       fork.addActiveEntry(
         { ...entry },
@@ -815,7 +1014,9 @@ export class ResolvedSecretTraceRegistry {
     paths: readonly ResolvedSecretInputPath[],
     options: { propagated?: boolean } = {}
   ): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     if (!this.complete) {
       fork.markIncomplete('inherited-incomplete-source', { source: this })
       return fork
@@ -840,7 +1041,9 @@ export class ResolvedSecretTraceRegistry {
 
   /** Creates a model/output registry containing only provenance explicitly carried by a result. */
   forkForPropagatedEntries(): ResolvedSecretTraceRegistry {
-    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     for (const entry of this.activeEntries.values()) {
       if (this.propagatedEntryKeys.has(activeEntryKey(entry))) {
         fork.addActiveEntry({ ...entry }, { propagated: true })
@@ -894,7 +1097,9 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope, {
+      inheritedProtectedPlaintexts: this.collectProtectedPlaintexts(),
+    })
     let matched = false
     const resolve = (candidate: unknown, path: string[]): unknown => {
       if (typeof candidate === 'string') {
@@ -1203,17 +1408,39 @@ export class ResolvedSecretTraceRegistry {
     }
   }
 
+  /**
+   * Whether a recorded input leaf still needs its placeholder projection applied. A leaf is
+   * released to the model raw only when every entry that activated it is exempt and nothing
+   * else protects those bytes; an entry key that no longer resolves keeps the projection —
+   * fail closed, never open, on bookkeeping gaps.
+   */
+  private shouldProjectInputState(
+    state: ResolvedInputPathState,
+    protectedPlaintexts: ReadonlySet<string>
+  ): boolean {
+    if (state.entryKeys.size === 0) return true
+    for (const entryKey of state.entryKeys) {
+      const entry = this.activeEntries.get(entryKey)
+      if (!entry) return true
+      if (!this.isUnredactedEntry(entry)) return true
+      if (protectedPlaintexts.has(entry.plaintext)) return true
+    }
+    return false
+  }
+
   private projectResolvedInputStates(
     selected: Record<string, unknown>,
     states: Iterable<ResolvedInputPathState>
   ): ResolvedSecretInputProjection {
     const projected = { ...selected }
     const projectedContainers = new WeakMap<object, object>([[selected, projected]])
+    const protectedPlaintexts = this.collectProtectedPlaintexts()
 
     for (const state of states) {
       if (state.rawValue === undefined || state.projectedValue === undefined) continue
       if (!Object.hasOwn(selected, state.path[0])) continue
       if (readInputPath(selected, state.path) !== state.rawValue) continue
+      if (!this.shouldProjectInputState(state, protectedPlaintexts)) continue
       if (
         !writeInputPathOnProjectedCopy(
           selected,
@@ -1291,19 +1518,111 @@ export class ResolvedSecretTraceRegistry {
     paths: readonly ResolvedSecretInputPath[],
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.complete || this.hasIncompleteInputPathOverlapping(paths)) {
-      return this.incompleteProvenance()
+    return this.exportCommittedProvenanceForInputPathGroups([paths], options)[0]
+  }
+
+  /**
+   * Exports resolver-recorded provenance for many input-path groups in a single pass.
+   *
+   * One group per cell a write vouches for. Called per group, each export rescans every resolved
+   * input path and every active entry, so vouching for N cells cost O(N x paths) — and a wide
+   * table write is exactly that shape. That cost is what a selection cap was really bounding, and
+   * the cap failed the whole bundle rather than the work, so every row of an oversized write
+   * landed `unknown` in its durable sidecar with nothing recorded about why.
+   *
+   * Indexing the group roots once makes the batch linear in the resolved paths and the active
+   * entries, so there is no size at which a caller has to stop vouching. Groups are answered
+   * independently and in order: an incomplete input path fails only the groups it overlaps, which
+   * is the same per-group judgement the single-path form has always made.
+   */
+  exportCommittedProvenanceForInputPathGroups(
+    groups: ReadonlyArray<readonly ResolvedSecretInputPath[]>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1[] {
+    if (!this.complete) return groups.map(() => this.incompleteProvenance())
+
+    const groupsByRoot = new Map<string, number[]>()
+    groups.forEach((paths, index) => {
+      for (const path of paths) {
+        const key = inputPathKey(path)
+        const existing = groupsByRoot.get(key)
+        if (existing) existing.push(index)
+        else groupsByRoot.set(key, [index])
+      }
+    })
+
+    /**
+     * Overlap is symmetric, so a group fails on an incomplete path at or below its root — matched
+     * by walking that path — or at or above it, matched by walking the root's own prefixes.
+     */
+    const incompleteGroups = new Set<number>()
+    for (const incompletePath of this.incompleteInputPaths.values()) {
+      for (const index of groupsAlongInputPath(groupsByRoot, incompletePath)) {
+        incompleteGroups.add(index)
+      }
     }
-    const selectedKeys = this.collectInputPathEntryKeys(paths)
-    const entries = [...this.activeEntries]
-      .filter(([key]) => selectedKeys.has(key))
-      .map(([, entry]) => entry)
-    return {
-      version: 1,
-      complete: true,
-      entries: this.buildProvenanceEntries(entries, options.anonymous),
-      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    if (incompleteGroups.size < groups.length) {
+      const incompleteRoots = new Set(this.incompleteInputPaths.keys())
+      groups.forEach((paths, index) => {
+        if (incompleteGroups.has(index)) return
+        for (const path of paths) {
+          for (let length = 0; length <= path.length; length += 1) {
+            if (!incompleteRoots.has(inputPathKey(path.slice(0, length)))) continue
+            incompleteGroups.add(index)
+            return
+          }
+        }
+      })
     }
+
+    /**
+     * Allocated per group only once that group actually selects something. A write whose cells
+     * carry no secrets is the common case and the widest one, and it is the shape that used to
+     * exceed the cap — it should not pay a collection per cell to say so.
+     */
+    const entryKeysByGroup: Array<Set<string> | undefined> = new Array(groups.length)
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.entryKeys.size === 0) continue
+      for (const index of groupsAlongInputPath(groupsByRoot, state.path)) {
+        if (incompleteGroups.has(index)) continue
+        const selected = (entryKeysByGroup[index] ??= new Set<string>())
+        for (const entryKey of state.entryKeys) selected.add(entryKey)
+      }
+    }
+
+    /**
+     * Inverted before the single walk of `activeEntries` so each group's entries keep that map's
+     * insertion order, which is the order the per-group export produced and the order
+     * {@link buildProvenanceEntries} breaks its ties on.
+     */
+    const groupsByEntryKey = new Map<string, number[]>()
+    entryKeysByGroup.forEach((entryKeys, index) => {
+      if (!entryKeys) return
+      for (const entryKey of entryKeys) {
+        const existing = groupsByEntryKey.get(entryKey)
+        if (existing) existing.push(index)
+        else groupsByEntryKey.set(entryKey, [index])
+      }
+    })
+    const entriesByGroup: Array<ActiveSecretEntry[] | undefined> = new Array(groups.length)
+    if (groupsByEntryKey.size > 0) {
+      for (const [entryKey, entry] of this.activeEntries) {
+        const indices = groupsByEntryKey.get(entryKey)
+        if (!indices) continue
+        for (const index of indices) (entriesByGroup[index] ??= []).push(entry)
+      }
+    }
+
+    return groups.map((_, index) =>
+      incompleteGroups.has(index)
+        ? this.incompleteProvenance()
+        : {
+            version: 1,
+            complete: true,
+            entries: this.buildProvenanceEntries(entriesByGroup[index] ?? [], options.anonymous),
+            ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+          }
+    )
   }
 
   /** Imports encrypted provenance only from a boundary that has already established trust. */
@@ -1392,8 +1711,18 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: { trusted: boolean; inputPath?: ResolvedSecretInputPath; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
+    /**
+     * Absence and distrust are different facts and are reported as such. A run that failed before
+     * producing provenance hands this `undefined`, which is the expected shape of a failed
+     * crossing, not a guard catching something wrong — reporting it as a fault put a recurring
+     * by-design state at error level with a name that reads like a breach.
+     */
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted', options.origin)
+      const reason =
+        options.trusted && provenance === undefined
+          ? 'value-provenance-absent'
+          : 'value-provenance-untrusted'
+      this.markInputPathIncomplete(options.inputPath, reason, options.origin)
       return { success: false, matched: false }
     }
 
@@ -1462,6 +1791,65 @@ export class ResolvedSecretTraceRegistry {
   }
 
   /**
+   * Names the configured secrets this run actually resolved, for the usage trail.
+   *
+   * Only named entries from the run's own effective catalog qualify: an anonymous entry has
+   * no name to attribute, and a named entry adopted from an imported envelope has no scope
+   * because the sub-run it crossed from records its own usage. Deduplicated by name, scope,
+   * and owner, since one secret can be activated at many input paths.
+   *
+   * A personal entry with no known owner is dropped rather than recorded unattributed: the
+   * trail is read per owner, so an ownerless row would surface under someone else's
+   * same-named secret.
+   *
+   * Carries no plaintext or ciphertext — the caller persists this, and a usage trail must
+   * never become a second place a secret's value lives.
+   */
+  getResolvedSecretUsage(): ReadonlyArray<ResolvedSecretUsageEntry> {
+    const usage = new Map<string, ResolvedSecretUsageEntry>()
+    for (const entry of this.activeEntries.values()) {
+      if (entry.anonymous || !entry.scope) continue
+      if (entry.scope === 'personal' && !entry.ownerUserId) continue
+      const ownerUserId = entry.scope === 'personal' ? (entry.ownerUserId as string) : null
+      usage.set(`${entry.scope}\u0000${ownerUserId ?? ''}\u0000${entry.name}`, {
+        name: entry.name,
+        scope: entry.scope,
+        ownerUserId,
+      })
+    }
+    return [...usage.values()]
+  }
+
+  /**
+   * Names the sandbox path may treat as exempt when classifying its exported files. The route
+   * sees only names and cannot re-check collisions itself, so any flagged name whose plaintext
+   * another catalog entry or a non-exempt active entry shares is withheld — the file export
+   * then records the colliding owner's provenance exactly as before.
+   *
+   * Certifies nothing once the registry is permanently incomplete: the collision set is built
+   * from the active entries, and a failed import or capacity latch means entries — including a
+   * collider for a flagged plaintext — may be missing. The same bar model egress applies, and
+   * for the same reason: incompleteness must only ever widen protection.
+   */
+  getUnredactedSecretNames(): readonly string[] {
+    if (this.isPermanentlyIncomplete()) return []
+    const protectedPlaintexts = this.collectProtectedPlaintexts()
+    const nonExemptCatalogPlaintexts = new Set<string>()
+    for (const entry of this.catalog.values()) {
+      if (entry.unredacted !== true) nonExemptCatalogPlaintexts.add(entry.plaintext)
+    }
+
+    const names: string[] = []
+    for (const entry of this.catalog.values()) {
+      if (entry.unredacted !== true) continue
+      if (protectedPlaintexts.has(entry.plaintext)) continue
+      if (nonExemptCatalogPlaintexts.has(entry.plaintext)) continue
+      names.push(entry.name)
+    }
+    return names
+  }
+
+  /**
    * Returns committed literals that must be removed before content can cross into a model.
    * Only entries activated by an exact resolver or trusted provenance boundary participate;
    * configured-but-unused catalog values remain inert. Temporary work in another call is
@@ -1524,6 +1912,32 @@ export class ResolvedSecretTraceRegistry {
       )
   }
 
+  /**
+   * Whether one active entry is exempt from redaction. Derived through the catalog at decision
+   * time rather than trusted off the entry, so an imported duplicate of a flagged secret is
+   * exempt only when byte-identical to the run's own catalog value, and replace-on-mismatch
+   * churn in {@link addActiveEntry} cannot change the answer.
+   */
+  private isUnredactedEntry(entry: ActiveSecretEntry): boolean {
+    if (entry.anonymous || entry.name.length === 0) return false
+    const catalogEntry = this.catalog.get(entry.name)
+    return catalogEntry?.unredacted === true && catalogEntry.plaintext === entry.plaintext
+  }
+
+  /**
+   * Plaintexts that must stay redacted regardless of any exemption: every active entry that is
+   * not itself exempt, plus everything a fork's parent was protecting. Computed over the FULL
+   * active set, never a caller's selected subset — the bytes leaving a surface are the same no
+   * matter which selection vouched for them.
+   */
+  private collectProtectedPlaintexts(): Set<string> {
+    const protectedPlaintexts = new Set(this.inheritedProtectedPlaintexts)
+    for (const entry of this.activeEntries.values()) {
+      if (!this.isUnredactedEntry(entry)) protectedPlaintexts.add(entry.plaintext)
+    }
+    return protectedPlaintexts
+  }
+
   private buildMatches(entries: Iterable<ActiveSecretEntry>): readonly ResolvedSecretTraceMatch[] {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     for (const entry of entries) {
@@ -1536,6 +1950,18 @@ export class ResolvedSecretTraceRegistry {
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       candidates.push(entry)
       candidatesByPlaintext.set(entry.plaintext, candidates)
+    }
+
+    /**
+     * A plaintext leaves the match set only when every owner of those bytes is exempt AND no
+     * fork parent was protecting them — any non-exempt owner (a personal secret, an anonymous
+     * token) keeps the substitution, failing toward redaction on collision.
+     */
+    for (const [plaintext, candidates] of candidatesByPlaintext) {
+      if (this.inheritedProtectedPlaintexts.has(plaintext)) continue
+      if (candidates.every((candidate) => this.isUnredactedEntry(candidate))) {
+        candidatesByPlaintext.delete(plaintext)
+      }
     }
 
     const matches = [...candidatesByPlaintext.keys()].map((plaintext) => {
@@ -1578,6 +2004,7 @@ export class ResolvedSecretTraceRegistry {
       incompleteInputPathCount: this.incompleteInputPaths.size,
       activeEntryCount: this.activeEntries.size,
       ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
+      ...(this.incompletenessDetail ? { detail: this.incompletenessDetail } : {}),
     }
   }
 
@@ -1599,6 +2026,7 @@ export class ResolvedSecretTraceRegistry {
   private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
     for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
     for (const origin of source.incompletenessOrigins) this.recordIncompletenessOrigin(origin)
+    this.incompletenessDetail ??= source.incompletenessDetail
   }
 
   isPermanentlyIncomplete(): boolean {
@@ -1619,11 +2047,14 @@ export class ResolvedSecretTraceRegistry {
     if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
     this.recordIncompletenessReason(reason)
     if (context.origin) this.recordIncompletenessOrigin(context.origin)
+    this.incompletenessDetail ??= context.detail
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
     if (this.staged) return
     reportIncompleteness('Resolved secret registry marked incomplete', reason, {
+      /** Spread first so a caller's detail can never shadow the fields every line is read by. */
+      ...(context.detail ?? {}),
       ...(context.origin ? { origin: context.origin } : {}),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
@@ -2153,7 +2584,24 @@ export class ResolvedSecretTraceRegistry {
     activeEntries: ActiveSecretEntry[],
     forceAnonymous = false
   ): ResolvedSecretTraceProvenanceEntryV1[] {
+    /**
+     * Exempt entries are omitted from every envelope — that is what lets per-span display
+     * projection show the plaintext, durable sidecars leave files unlocked, and opaque
+     * model-input validation accept the value. EXCEPT under forced anonymity: that envelope
+     * crosses into a scope where the flagging workspace's decision carries no authority (the
+     * custom-block crossing runs the child in the source workflow's workspace), so exempt
+     * entries are kept — anonymized — rather than dropped. The protected set is computed over
+     * the full active set, not the caller's selection, so a colliding non-exempt owner keeps
+     * the entry no matter which paths vouched for the value.
+     */
+    const protectedPlaintexts = forceAnonymous ? undefined : this.collectProtectedPlaintexts()
     return activeEntries
+      .filter(
+        (entry) =>
+          protectedPlaintexts === undefined ||
+          protectedPlaintexts.has(entry.plaintext) ||
+          !this.isUnredactedEntry(entry)
+      )
       .sort(
         (left, right) =>
           compareStrings(left.name, right.name) ||

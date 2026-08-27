@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -24,7 +24,7 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
+import { BrandIcon } from '@/blocks/brand-icon'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
@@ -131,11 +131,11 @@ export function CredentialSelector({
     [credentialKind, isMergedKinds, serviceId]
   )
 
-  // Canonical resolver for the service-account connect control: the vendor-
-  // accurate label and — critically — the per-viewer preview gate (a custom
-  // Slack bot rides `slack_v2`). Shared with the integrations page and chat so
-  // the gate can't be bypassed here. When `hidden`, the setup action is
-  // suppressed; existing service-account credentials stay selectable.
+  /**
+   * Canonical resolver for the service-account connect control: the vendor-
+   * accurate label and the owning block's per-viewer visibility. When hidden,
+   * the setup action is suppressed while existing credentials stay selectable.
+   */
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId as
       | ServiceAccountProviderId
@@ -209,6 +209,13 @@ export function CredentialSelector({
     !isPreview &&
     !credentialsLoading
 
+  useEffect(() => {
+    if (showOAuthModal && selectedId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, selectedId, selectedCredential, credentialsLoading])
+
   const handleSelect = useCallback(
     (credentialId: string) => {
       if (isPreview) return
@@ -233,8 +240,7 @@ export function CredentialSelector({
     if (!baseProviderConfig) {
       return <SquareArrowUpRight className='size-3' />
     }
-    const Icon: StyleableIcon = baseProviderConfig.icon
-    return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
+    return <BrandIcon icon={baseProviderConfig.icon} className='size-3' />
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
@@ -253,7 +259,9 @@ export function CredentialSelector({
 
   const comboboxOptions = useMemo(() => {
     if (isAllCredentials) {
-      const oauthCredentials = allWorkspaceCredentials.filter((c) => c.type === 'oauth')
+      const oauthCredentials = allWorkspaceCredentials.filter(
+        (credential) => credential.type === 'oauth'
+      )
       return oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
     }
     if (isMergedKinds) return []
@@ -409,7 +417,9 @@ export function CredentialSelector({
       }
 
       const matchedCred = (
-        isAllCredentials ? allWorkspaceCredentials.filter((c) => c.type === 'oauth') : credentials
+        isAllCredentials
+          ? allWorkspaceCredentials.filter((credential) => credential.type === 'oauth')
+          : credentials
       ).find((c) => c.id === value)
       if (matchedCred) {
         handleSelect(value)
@@ -467,6 +477,7 @@ export function CredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.filter((c) => c.type !== 'service_account').length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)
@@ -493,7 +504,7 @@ export function CredentialSelector({
         />
       )}
 
-      {showOAuthModal && (
+      {showOAuthModal && selectedCredential && (
         <ConnectOAuthModal
           mode='reauthorize'
           open={showOAuthModal}
@@ -511,7 +522,12 @@ export function CredentialSelector({
           // A reauthorize must return to the authorization server that issued
           // the credential — deriving it from the service id would send a
           // sandbox user to production, where they cannot sign in at all.
-          providerId={selectedCredential?.provider ?? effectiveProviderId}
+          providerId={selectedCredential.provider}
+          reconnectTarget={{
+            workspaceId,
+            credentialId: selectedCredential.id,
+            displayName: selectedCredential.name,
+          }}
         />
       )}
 

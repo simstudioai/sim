@@ -5,6 +5,7 @@ import { linqUploadAttachmentContract } from '@/lib/api/contracts/tools/communic
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -18,6 +19,16 @@ const logger = createLogger('LinqUploadAttachmentAPI')
 
 /** Linq pre-upload caps attachments at 100MB. */
 const MAX_SIZE_BYTES = 100 * 1024 * 1024
+
+function fileTooLargeError(sizeBytes: number): NextResponse {
+  return NextResponse.json(
+    {
+      success: false,
+      error: `File exceeds Linq's 100MB attachment limit (${(sizeBytes / (1024 * 1024)).toFixed(2)}MB)`,
+    },
+    { status: 400 }
+  )
+}
 
 /**
  * Upload a file to Linq as a reusable attachment.
@@ -61,12 +72,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
       let resolvedContentTypeFromStorage: string
       try {
-        const resolved = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const resolved = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_SIZE_BYTES,
+        })
         buffer = resolved.buffer
         resolvedContentTypeFromStorage = resolved.contentType
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
+        if (isPayloadSizeLimitError(error))
+          return fileTooLargeError(error.observedBytes ?? userFile.size)
         logger.error(`[${requestId}] Failed to download Linq attachment file:`, error)
         return NextResponse.json(
           { success: false, error: getErrorMessage(error, 'Unknown error occurred') },
@@ -93,13 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: 'File is empty' }, { status: 400 })
     }
     if (sizeBytes > MAX_SIZE_BYTES) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `File exceeds Linq's 100MB attachment limit (${(sizeBytes / (1024 * 1024)).toFixed(2)}MB)`,
-        },
-        { status: 400 }
-      )
+      return fileTooLargeError(sizeBytes)
     }
 
     logger.info(`[${requestId}] Registering Linq attachment`, {

@@ -1,4 +1,5 @@
 import type { CancelDowntimeParams, CancelDowntimeResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage, datadogPathSegment } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntimeResponse> = {
@@ -37,7 +38,8 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
   request: {
     url: (params) => {
       const site = params.site || 'datadoghq.com'
-      return `https://api.${site}/api/v2/downtime/${params.downtimeId}`
+      const downtimeId = datadogPathSegment(params.downtimeId)
+      return `https://api.${site}/api/v2/downtime/${downtimeId}`
     },
     method: 'DELETE',
     headers: (params) => ({
@@ -49,13 +51,13 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
 
   transformResponse: async (response: Response) => {
     if (!response.ok && response.status !== 204) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           success: false,
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

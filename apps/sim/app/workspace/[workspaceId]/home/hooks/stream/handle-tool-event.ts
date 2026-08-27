@@ -4,7 +4,7 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ApplyFileEdit, PrepareFileEdit } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import {
   extractResourcesFromToolResult,
@@ -79,7 +79,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     invalidateResourceQueries(deps.queryClient, deps.workspaceId, resource.type, resource.id)
   }
 
-  if ((name === 'edit_content' || name === WorkspaceFile.id) && isSuccess) {
+  if ((name === ApplyFileEdit.id || name === PrepareFileEdit.id) && isSuccess) {
     const out = output as Record<string, unknown> | undefined
     const editData =
       out && typeof out.data === 'object' && out.data !== null
@@ -102,17 +102,20 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
   deps.onToolResultRef.current?.(name, isSuccess, output)
 
   const workspaceFileOperation =
-    name === WorkspaceFile.id && typeof params?.operation === 'string'
+    name === PrepareFileEdit.id && typeof params?.operation === 'string'
       ? params.operation
       : undefined
   const shouldKeepWorkspacePreviewOpen =
-    name === WorkspaceFile.id &&
+    name === PrepareFileEdit.id &&
     (workspaceFileOperation === 'append' ||
       workspaceFileOperation === 'update' ||
       workspaceFileOperation === 'patch')
 
-  if ((name === WorkspaceFile.id || name === 'edit_content') && !shouldKeepWorkspacePreviewOpen) {
-    if (name === WorkspaceFile.id) {
+  if (
+    (name === PrepareFileEdit.id || name === ApplyFileEdit.id) &&
+    !shouldKeepWorkspacePreviewOpen
+  ) {
+    if (name === PrepareFileEdit.id) {
       deps.removePreviewSessionImmediate(node.id)
     }
     const fileResource = extractedResources.find((r) => r.type === 'file')
@@ -128,7 +131,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
 
 /**
  * Side effects for tool events. State (the tool node, its status, args, and the
- * edit_content row merge) is owned by `reduceEvent`; this handler routes preview
+ * apply_file_edit row merge) is owned by `reduceEvent`; this handler routes preview
  * phases, fires client workflow tools, and runs result side effects, then
  * flushes the model-derived snapshot.
  */

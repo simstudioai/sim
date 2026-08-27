@@ -11,7 +11,6 @@ const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       authenticate: vi.fn(),
       preauthRate: vi.fn(),
       operationRate: vi.fn(),
-      gate: vi.fn(),
       list: vi.fn(),
     },
     MockV2ApiKeyUnauthenticatedError,
@@ -41,7 +40,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/secrets/application/use-cases', () => ({
   listSecretsUseCase: { operation: { id: 'secrets.list' }, execute: mocks.list },
 }))
@@ -54,7 +52,6 @@ const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -81,6 +78,7 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
 }
 
 describe('GET /api/v2/secrets', () => {
@@ -89,9 +87,9 @@ describe('GET /api/v2/secrets', () => {
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: null,
       sortBy: 'name',
@@ -113,6 +111,8 @@ describe('GET /api/v2/secrets', () => {
         {
           name: 'STRIPE_API_KEY',
           scope: 'workspace',
+          description: null,
+          unredacted: false,
           role: 'admin',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
@@ -120,7 +120,7 @@ describe('GET /api/v2/secrets', () => {
       ],
       nextCursor: null,
     })
-    expect(JSON.stringify(body)).not.toContain('value')
+    expect(JSON.stringify(body)).not.toContain('"value"')
     expect(mocks.list).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -137,14 +137,114 @@ describe('GET /api/v2/secrets', () => {
     })
   })
 
+  it('carries the stored value for exactly the rows marked visible', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        secret,
+        {
+          ...secret,
+          id: 'secret-3',
+          displayName: 'STAGING_BASE_URL',
+          envKey: 'STAGING_BASE_URL',
+          unredacted: true,
+        },
+      ],
+      values: { STAGING_BASE_URL: 'https://staging.example.com' },
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).not.toHaveProperty('value')
+    expect(body.data[1]).toMatchObject({
+      name: 'STAGING_BASE_URL',
+      unredacted: true,
+      value: 'https://staging.example.com',
+    })
+  })
+
+  it('never attaches an inherited prototype member as a missing value', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        {
+          ...secret,
+          id: 'secret-proto',
+          displayName: 'constructor',
+          envKey: 'constructor',
+          unredacted: true,
+        },
+      ],
+      /** The name is legal but its value is absent — a bare index would read Object's constructor. */
+      values: {},
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).toMatchObject({ name: 'constructor', unredacted: true })
+    expect(body.data[0]).not.toHaveProperty('value')
+  })
+
   /**
    * Pins the binding end-to-end — the mint in `present` and the read in
    * `mapInput` — because the contract-level sweep only checks a hand-maintained
    * map of param names and stays green when a route drops the stamp entirely.
    */
+  it('reports a workspace secret description and never a personal one', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        { ...secret, description: 'Prod billing key' },
+        {
+          ...secret,
+          id: 'secret-2',
+          type: 'env_personal' as const,
+          displayName: 'MY_TEST_KEY',
+          envKey: 'MY_TEST_KEY',
+          envOwnerUserId: 'user-1',
+          description: 'leaked from a workspace mirror',
+        },
+      ],
+      values: {},
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].description).toBe('Prod billing key')
+    expect(body.data[1].description).toBeNull()
+  })
+
   it('refuses a cursor minted under a different filter', async () => {
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
       sortBy: 'name',
@@ -176,6 +276,7 @@ describe('GET /api/v2/secrets', () => {
   it('resumes a cursor replayed under the filters it was minted with', async () => {
     mocks.list.mockResolvedValue({
       secrets: [secret],
+      values: {},
       userId: 'user-1',
       nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
       sortBy: 'name',

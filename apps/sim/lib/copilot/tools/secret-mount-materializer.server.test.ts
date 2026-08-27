@@ -107,9 +107,134 @@ describe('materializeCopilotCodeSecrets', () => {
     ).resolves.toEqual({
       envVars: { API_KEY: 'plain:personal-cipher' },
       catalogEntries: [
-        { name: 'API_KEY', plaintext: 'plain:personal-cipher', encryptedValue: 'personal-cipher' },
+        {
+          name: 'API_KEY',
+          plaintext: 'plain:personal-cipher',
+          encryptedValue: 'personal-cipher',
+          scope: 'personal',
+          ownerUserId: 'user-1',
+        },
       ],
     })
+  })
+
+  it('scopes a workspace-authorized secret to the workspace', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' } })
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:workspace-cipher',
+        encryptedValue: 'workspace-cipher',
+        scope: 'workspace',
+      },
+    ])
+  })
+
+  it('stamps a member-granted workspace mount unredacted when its credential row carries the flag', async () => {
+    queueSources({
+      workspace: { API_KEY: 'workspace-cipher' },
+      credentials: [
+        credentialRow({
+          type: 'env_workspace',
+          envKey: 'API_KEY',
+          role: 'member',
+          status: 'active',
+        }),
+      ],
+    })
+    /** The membership-free unredacted-flag query reads the credential table again. */
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:workspace-cipher',
+        encryptedValue: 'workspace-cipher',
+        scope: 'workspace',
+        unredacted: true,
+      },
+    ])
+  })
+
+  it('stamps an admin-authorized mount that has no credentialMember row at all', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' }, credentials: [] })
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      expect.objectContaining({ name: 'API_KEY', scope: 'workspace', unredacted: true }),
+    ])
+  })
+
+  it('never stamps a personal mount even when a flagged workspace row shares the name', async () => {
+    queueSources({ personal: { API_KEY: 'personal-cipher' } })
+    queueTableRows(credential, [{ envKey: 'API_KEY' }])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries).toEqual([
+      {
+        name: 'API_KEY',
+        plaintext: 'plain:personal-cipher',
+        encryptedValue: 'personal-cipher',
+        scope: 'personal',
+        ownerUserId: 'user-1',
+      },
+    ])
+    expect(result.catalogEntries[0]).not.toHaveProperty('unredacted')
+  })
+
+  it('leaves a workspace mount unstamped when its credential row has no flag', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueSources({ workspace: { API_KEY: 'workspace-cipher' }, credentials: [] })
+    queueTableRows(credential, [])
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.catalogEntries[0]).not.toHaveProperty('unredacted')
   })
 
   it('mounts an own __proto__ secret as data without mutating record prototypes', async () => {
@@ -190,10 +315,38 @@ describe('materializeCopilotCodeSecrets', () => {
     expect(result.envVars).toEqual({ API_KEY: 'plain:workspace-cipher' })
   })
 
+  /**
+   * Use-level on purpose: a workflow Function block resolves the same secret for the same
+   * member, and Copilot can author and run such a workflow itself. The admin bar stays on the
+   * Settings mask and the usage trail, which Copilot cannot route around.
+   */
+  it('lets an active per-secret member mount a workspace secret', async () => {
+    queueSources({
+      workspace: { API_KEY: 'workspace-cipher' },
+      credentials: [
+        credentialRow({
+          type: 'env_workspace',
+          envKey: 'API_KEY',
+          role: 'member',
+          status: 'active',
+        }),
+      ],
+    })
+
+    const result = await materializeCopilotCodeSecrets({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      requestedNames: ['API_KEY'],
+    })
+
+    expect(result.envVars).toEqual({ API_KEY: 'plain:workspace-cipher' })
+  })
+
   it.each([
-    ['member', 'active'],
     ['admin', 'revoked'],
     ['admin', 'pending'],
+    ['member', 'revoked'],
+    ['member', 'pending'],
   ] as const)('denies a workspace secret for a %s/%s credential grant', async (role, status) => {
     queueSources({
       workspace: { API_KEY: 'workspace-cipher' },
@@ -232,7 +385,7 @@ describe('materializeCopilotCodeSecrets', () => {
           type: 'env_workspace',
           envKey: 'API_KEY',
           role: 'member',
-          status: 'active',
+          status: 'revoked',
         }),
       ],
     })
@@ -255,7 +408,7 @@ describe('materializeCopilotCodeSecrets', () => {
           type: 'env_workspace',
           envKey: 'API_KEY',
           role: 'member',
-          status: 'active',
+          status: 'revoked',
         }),
       ],
     })
@@ -317,28 +470,64 @@ describe('materializeCopilotCodeSecrets', () => {
     expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 
-  it('mounts another owner personal secret only for an active per-secret admin', async () => {
+  it.each(['admin', 'member'] as const)(
+    'mounts another owner personal secret for an active per-secret %s',
+    async (role) => {
+      queueSources({
+        credentials: [
+          credentialRow({
+            type: 'env_personal',
+            envKey: 'SHARED_KEY',
+            envOwnerUserId: 'owner-2',
+            role,
+            status: 'active',
+            encryptedValue: 'shared-cipher',
+            encryptedValueBytes: 13,
+          }),
+        ],
+      })
+
+      const result = await materializeCopilotCodeSecrets({
+        actorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        requestedNames: ['SHARED_KEY'],
+      })
+
+      expect(result.envVars).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
+      /**
+       * The usage trail is read per owner, so a borrowed secret has to be filed under the
+       * sharer. Attributing it to the actor would surface it under the actor's own
+       * same-named secret and hide it from the person who can actually rotate it.
+       */
+      expect(result.catalogEntries).toEqual([
+        expect.objectContaining({ name: 'SHARED_KEY', scope: 'personal', ownerUserId: 'owner-2' }),
+      ])
+    }
+  )
+
+  it('does not mount another owner personal secret on a revoked grant', async () => {
     queueSources({
       credentials: [
         credentialRow({
           type: 'env_personal',
           envKey: 'SHARED_KEY',
           envOwnerUserId: 'owner-2',
-          role: 'admin',
-          status: 'active',
+          role: 'member',
+          status: 'revoked',
           encryptedValue: 'shared-cipher',
           encryptedValueBytes: 13,
         }),
       ],
     })
 
-    const result = await materializeCopilotCodeSecrets({
-      actorUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      requestedNames: ['SHARED_KEY'],
-    })
-
-    expect(result.envVars).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
+    await expect(
+      materializeCopilotCodeSecrets({
+        actorUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        requestedNames: ['SHARED_KEY'],
+      })
+    ).rejects.toThrow('Copilot code cannot access the requested secret: SHARED_KEY')
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
   })
 
   it('uses the current encrypted value on every call so rotation is observed', async () => {

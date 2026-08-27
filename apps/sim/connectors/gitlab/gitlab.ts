@@ -114,6 +114,46 @@ function parseNextLink(linkHeader: string | null): string | undefined {
 }
 
 /**
+ * Issues a listing GET, transparently downgrading to offset pagination when the
+ * GitLab instance rejects keyset pagination.
+ *
+ * Keyset support is per-resource and version-gated — GitLab's documented
+ * pagination table records the repository tree gaining it in 17.1 and project
+ * issues only in 18.3 — so self-managed hosts on an older release would fail the
+ * whole sync. The request is therefore retried once without `pagination=keyset`;
+ * offset pagination emits the same `Link: rel="next"` header the caller already
+ * follows, so nothing downstream changes.
+ *
+ * The `405` trigger is NOT documented. It comes from GitLab's own
+ * `lib/api/helpers/pagination_strategies.rb`, which raises
+ * `error!('Keyset pagination is not yet available for this type of request', 405)`
+ * when the relation/order combination has no keyset strategy. Treat it as
+ * observed behavior that could change without a docs-visible deprecation; the
+ * fallback is written to be a no-op when the URL carries no `pagination` param,
+ * so an unrelated 405 is passed straight through.
+ */
+async function fetchListing(url: string, accessToken: string): Promise<SecureFetchResponse> {
+  const response = await secureFetchWithRetry(url, {
+    method: 'GET',
+    headers: authHeaders(accessToken),
+  })
+  if (response.status !== 405) return response
+
+  let offsetUrl: string
+  try {
+    const parsed = new URL(url)
+    if (!parsed.searchParams.has('pagination')) return response
+    parsed.searchParams.delete('pagination')
+    offsetUrl = parsed.toString()
+  } catch {
+    return response
+  }
+
+  logger.warn('GitLab rejected keyset pagination; retrying with offset pagination', { url })
+  return secureFetchWithRetry(offsetUrl, { method: 'GET', headers: authHeaders(accessToken) })
+}
+
+/**
  * Returns the ordered list of active sync phases for a content-type choice.
  */
 function activePhases(choice: ContentTypeChoice): SyncPhase[] {
@@ -197,9 +237,22 @@ function buildApiBase(host: string): string {
 /**
  * Returns the encoded project identifier (numeric ID or URL-encoded path).
  * GitLab accepts a numeric ID or the URL-encoded `group/project` path.
+ *
+ * Decoding first makes `group/project` and an already-encoded
+ * `group%2Fproject` converge on the same single-encoded result — without it a
+ * pasted `%2F` becomes `%252F`, which GitLab decodes once to the literal string
+ * `%2F` and the project lookup 404s. Mirrors `encodeGitLabResourceId` in the
+ * GitLab tools.
  */
 function encodeProjectId(project: unknown): string {
-  return encodeURIComponent(String(project ?? '').trim())
+  const raw = String(project ?? '').trim()
+  let decoded = raw
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    // Not a valid percent-encoding (e.g. a bare `%`) — treat as already raw.
+  }
+  return encodeURIComponent(decoded)
 }
 
 /**
@@ -332,9 +385,15 @@ function fileToDocument(
   if (!blobSha) return null
 
   const title = path.split('/').pop() || path
-  const skippedForSize = (size: number): ExternalDocument => {
-    logger.info('Skipping oversized GitLab file', { path, size })
-    return markSkipped(
+  /**
+   * Returns the file as an explicitly skipped document rather than dropping it.
+   * A dropped (`null`) file is never stored, so the next sync lists it again and
+   * re-downloads the same blob forever; a skipped document carries the blob-SHA
+   * hash, so it surfaces once as a failed row and is not re-fetched until the
+   * file actually changes.
+   */
+  const skipped = (reason: string, size: number): ExternalDocument =>
+    markSkipped(
       {
         externalId: `${FILE_PREFIX}${path}`,
         title,
@@ -344,22 +403,23 @@ function fileToDocument(
         contentHash: buildFileContentHash(encodedProject, path, blobSha),
         metadata: { contentType: 'file', title, path, size },
       },
-      sizeLimitSkipReason(MAX_FILE_SIZE)
+      reason
     )
-  }
 
   if (typeof file.size === 'number' && file.size > MAX_FILE_SIZE) {
-    return skippedForSize(file.size)
+    logger.info('Skipping oversized GitLab file', { path, size: file.size })
+    return skipped(sizeLimitSkipReason(MAX_FILE_SIZE), file.size)
   }
 
   const raw = typeof file.content === 'string' ? file.content : ''
   const buffer = file.encoding === 'base64' ? Buffer.from(raw, 'base64') : Buffer.from(raw, 'utf8')
   if (isBinaryBuffer(buffer)) {
     logger.info('Skipping binary GitLab file', { path })
-    return null
+    return skipped('Binary file was not indexed', buffer.byteLength)
   }
   if (buffer.byteLength > MAX_FILE_SIZE) {
-    return skippedForSize(buffer.byteLength)
+    logger.info('Skipping oversized GitLab file', { path, size: buffer.byteLength })
+    return skipped(sizeLimitSkipReason(MAX_FILE_SIZE), buffer.byteLength)
   }
 
   const content = buffer.toString('utf8')
@@ -493,6 +553,49 @@ async function fetchProject(
 }
 
 /**
+ * Resolves the project's `group/project` path, used to build web UI source URLs.
+ * Cached on syncContext so listing pages and deferred `getDocument` hydration in
+ * the same run share one lookup.
+ *
+ * Throws when the project itself cannot be read. That is not a cosmetic failure:
+ * GitLab collapses "not authorized to read" into `404 Not Found` on read
+ * endpoints, so a token that has lost access would otherwise produce an empty
+ * but apparently successful listing and let deletion reconciliation hard-delete
+ * every previously synced document. Failing here also establishes that the
+ * project is visible, which is what lets the per-phase 404 handling below be read
+ * as "this ref/wiki is genuinely absent" rather than "access was revoked".
+ *
+ * Returns '' only when the project record itself carries no
+ * `path_with_namespace`, in which case callers fall back to API source URLs.
+ */
+async function resolveProjectPath(
+  syncContext: Record<string, unknown> | undefined,
+  apiBase: string,
+  encodedProject: string,
+  accessToken: string
+): Promise<string> {
+  const cached = syncContext?.projectPath
+  if (typeof cached === 'string' && cached) return cached
+
+  const response = await fetchProject(apiBase, encodedProject, accessToken)
+  if (!response.ok) {
+    throw new Error(
+      `Cannot access GitLab project ${encodedProject}: ${response.status}. On GitLab a 404 also means the token is no longer authorized to read it.`
+    )
+  }
+
+  const project = (await response.json()) as GitLabProject
+  const path = project.path_with_namespace ?? ''
+  if (syncContext) {
+    if (path) syncContext.projectPath = path
+    if (project.default_branch && !syncContext.defaultBranch) {
+      syncContext.defaultBranch = project.default_branch
+    }
+  }
+  return path
+}
+
+/**
  * Encodes the listing cursor. The cursor packs the resource phase (repo ➜ wiki ➜
  * issues) and a per-phase continuation token so a single sync walks the phases in
  * order. The repository-tree and issues phases both use GitLab keyset pagination
@@ -613,18 +716,7 @@ export const gitlabConnector: ConnectorConfig = {
     const phases = activePhases(choice)
     if (phases.length === 0) return { documents: [], hasMore: false }
 
-    let projectPath = (syncContext?.projectPath as string) ?? ''
-    if (!projectPath && syncContext) {
-      const projectResponse = await fetchProject(apiBase, encodedProject, accessToken)
-      if (projectResponse.ok) {
-        const project = (await projectResponse.json()) as GitLabProject
-        projectPath = project.path_with_namespace ?? ''
-        syncContext.projectPath = projectPath
-        if (project.default_branch && !syncContext.defaultBranch) {
-          syncContext.defaultBranch = project.default_branch
-        }
-      }
-    }
+    const projectPath = await resolveProjectPath(syncContext, apiBase, encodedProject, accessToken)
 
     let state = decodeCursor(cursor, phases[0])
     if (!phases.includes(state.phase)) state = { phase: phases[0], issuePage: 1 }
@@ -662,13 +754,18 @@ export const gitlabConnector: ConnectorConfig = {
         continued: Boolean(state.fileNextUrl),
       })
 
-      const response = await secureFetchWithRetry(url, {
-        method: 'GET',
-        headers: authHeaders(accessToken),
-      })
+      const response = await fetchListing(url, accessToken)
 
       if (!response.ok) {
-        if (response.status === 404 || response.status === 403) {
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          /**
+           * 401/403 mean the token stopped working mid-sync — flag the listing as
+           * incomplete so deletion reconciliation does not hard-delete previously
+           * synced files. A 404 here is safe to reconcile against precisely because
+           * `resolveProjectPath` already proved the project is readable, so the only
+           * remaining meaning is that the ref or repository is absent.
+           */
+          if (response.status !== 404 && syncContext) syncContext.listingCapped = true
           logger.warn('GitLab repository tree unavailable; skipping files', {
             host,
             project: encodedProject,
@@ -724,7 +821,16 @@ export const gitlabConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        if (response.status === 403 || response.status === 404) {
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          /**
+           * 401/403 mean the token stopped working mid-sync — flag the listing as
+           * incomplete so deletion reconciliation does not hard-delete previously
+           * synced wiki pages. A 404 here is safe to reconcile against precisely
+           * because `resolveProjectPath` already proved the project is readable, so
+           * the only remaining meaning is that the wiki feature or its content is
+           * absent.
+           */
+          if (response.status !== 404 && syncContext) syncContext.listingCapped = true
           logger.warn('GitLab wiki unavailable; skipping wiki phase', {
             host,
             project: encodedProject,
@@ -793,10 +899,7 @@ export const gitlabConnector: ConnectorConfig = {
         incremental: Boolean(lastSyncAt),
       })
 
-      const response = await secureFetchWithRetry(url, {
-        method: 'GET',
-        headers: authHeaders(accessToken),
-      })
+      const response = await fetchListing(url, accessToken)
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '')
@@ -848,9 +951,14 @@ export const gitlabConnector: ConnectorConfig = {
     const encodedProject = encodeProjectId(sourceConfig.project)
     if (!encodedProject || !externalId) return null
 
-    const projectPath = (syncContext?.projectPath as string) ?? ''
-
     try {
+      const projectPath = await resolveProjectPath(
+        syncContext,
+        apiBase,
+        encodedProject,
+        accessToken
+      )
+
       if (externalId.startsWith(WIKI_PREFIX)) {
         const slug = externalId.slice(WIKI_PREFIX.length)
         if (!slug) return null
@@ -920,10 +1028,17 @@ export const gitlabConnector: ConnectorConfig = {
 
       return null
     } catch (error) {
+      /**
+       * Only the 404 checks above (and an unrecognized externalId prefix) mean the object
+       * is genuinely gone. Every other failure is rethrown so the sync engine records a
+       * visible `docsFailed` row. Returning `null` instead would report a transient
+       * GitLab fault as success — an already-indexed document is silently counted as
+       * unchanged, and a new one vanishes from the run with nothing recorded.
+       */
       logger.warn(`Failed to fetch GitLab document ${externalId}`, {
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

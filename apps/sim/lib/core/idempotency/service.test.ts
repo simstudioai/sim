@@ -14,10 +14,26 @@ vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: () => ({ del: redisDelMock, eval: redisEvalMock }),
 }))
 
-import { IdempotencyService } from '@/lib/core/idempotency/service'
+vi.mock('@/lib/core/storage', () => ({
+  getStorageMethod: () => 'redis',
+  isRedisStorage: () => true,
+  isDatabaseStorage: () => false,
+  requireRedis: () => ({ del: redisDelMock, eval: redisEvalMock }),
+  resetStorageMethod: () => {},
+}))
+
+import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
+import {
+  IdempotencyService,
+  WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
+  webhookIdempotency,
+} from '@/lib/core/idempotency/service'
+
+const SEVEN_DAYS_SECONDS = 60 * 60 * 24 * 7
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -209,6 +225,65 @@ describe('IdempotencyService in-progress deadlines', () => {
     expect(claimSpy).toHaveBeenCalledTimes(2)
   })
 
+  it('bounds a webhook lease well under the dedupe window', () => {
+    expect(WEBHOOK_IN_PROGRESS_LEASE_SECONDS).toBeGreaterThan(0)
+    expect(WEBHOOK_IN_PROGRESS_LEASE_SECONDS).toBeLessThan(SEVEN_DAYS_SECONDS)
+  })
+
+  it('leases an untimed webhook claim for the bounded lease, not the seven-day dedupe window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    redisEvalMock.mockResolvedValue([1, ''])
+
+    await webhookIdempotency.atomicallyClaim('gmail', 'wh_1:untimed-delivery')
+
+    const [, , redisKey, serialized, ttlSeconds] = redisEvalMock.mock.calls[0] as [
+      string,
+      number,
+      string,
+      string,
+      number,
+    ]
+    expect(redisKey).toBe('idempotency:webhook:gmail:wh_1:untimed-delivery')
+    expect(ttlSeconds).toBe(WEBHOOK_IN_PROGRESS_LEASE_SECONDS)
+    expect(JSON.parse(serialized).inProgressExpiresAt).toBe(
+      Date.now() + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000
+    )
+  })
+
+  it('keeps the seven-day dedupe window on a completed webhook result', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+    const claim = await webhookIdempotency.atomicallyClaim('gmail', 'wh_1:completed-delivery')
+
+    await webhookIdempotency.storeResult(
+      claim.normalizedKey,
+      { success: true, status: 'completed' },
+      'redis',
+      claim.claimToken as string
+    )
+
+    expect(redisEvalMock.mock.calls[1]?.[4]).toBe(SEVEN_DAYS_SECONDS)
+  })
+
+  it('stops a duplicate webhook delivery waiting at the lease, not at the dedupe window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
+    const startedAt = Date.now() - 1_000
+    vi.spyOn(webhookIdempotency, 'atomicallyClaim').mockResolvedValue({
+      claimed: false,
+      existingResult: { success: false, status: 'in-progress', startedAt },
+      normalizedKey: 'webhook:gmail:wh_1:duplicate-delivery',
+      storageMethod: 'redis',
+    })
+    const waitSpy = vi.spyOn(webhookIdempotency, 'waitForResult').mockResolvedValue(undefined)
+
+    await webhookIdempotency.executeWithIdempotency('gmail', 'wh_1:duplicate-delivery', vi.fn())
+
+    const waitUntil = waitSpy.mock.calls[0]?.[2] as number
+    expect(waitUntil).toBe(startedAt + WEBHOOK_IN_PROGRESS_LEASE_SECONDS * 1000)
+    expect(waitUntil).toBeLessThan(Date.now() + SEVEN_DAYS_SECONDS * 1000)
+  })
+
   it('fences retryable failed-result deletion to the database value observed', async () => {
     const failedResult = { success: false, status: 'failed' as const, error: 'retry me' }
     const service = new IdempotencyService({ forceStorage: 'database', retryFailures: true })
@@ -234,5 +309,45 @@ describe('IdempotencyService in-progress deadlines', () => {
     const condition = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])
     expect(condition).toContain('retry me')
     expect(condition.match(/::jsonb/g)).toHaveLength(2)
+  })
+})
+
+describe('IdempotencyService retryable setup failures', () => {
+  it('releases the claim instead of memoizing when the operation throws a RetryableSetupError', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+
+    const setupError = new RetryableSetupError('Internal error while fetching workflow')
+    await expect(
+      webhookIdempotency.executeWithIdempotency(
+        'sim',
+        'wh_1:setup-failure',
+        vi.fn().mockRejectedValue(setupError)
+      )
+    ).rejects.toBe(setupError)
+
+    const claimSerialized = JSON.parse((redisEvalMock.mock.calls[0] as unknown[])[3] as string)
+    const followUpCall = redisEvalMock.mock.calls[1] as unknown[]
+    // The follow-up must be the owner-fenced DELETE (release), not the failed-result store.
+    expect(followUpCall[0]).toContain("return redis.call('DEL', KEYS[1])")
+    expect(followUpCall[3]).toBe(claimSerialized.claimToken)
+  })
+
+  it('memoizes plain operation failures so duplicate deliveries stay rejected', async () => {
+    redisEvalMock.mockResolvedValueOnce([1, '']).mockResolvedValueOnce(1)
+
+    await expect(
+      webhookIdempotency.executeWithIdempotency(
+        'sim',
+        'wh_1:plain-failure',
+        vi.fn().mockRejectedValue(new Error('handler blew up'))
+      )
+    ).rejects.toThrow('handler blew up')
+
+    const followUpCall = redisEvalMock.mock.calls[1] as unknown[]
+    expect(followUpCall[0]).toContain('SETEX')
+    expect(JSON.parse(followUpCall[5] as string)).toMatchObject({
+      success: false,
+      status: 'failed',
+    })
   })
 })

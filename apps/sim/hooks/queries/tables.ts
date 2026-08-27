@@ -38,8 +38,12 @@ import {
   addWorkflowGroupContract,
   type BatchInsertTableRowsBodyInput,
   type BatchUpdateTableRowsBodyInput,
+  type BulkDeleteTablesBody,
+  type BulkMoveTablesBody,
   batchCreateTableRowsContract,
   batchUpdateTableRowsContract,
+  bulkDeleteTablesContract,
+  bulkMoveTablesContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
   cancelTableRunsContract,
@@ -114,6 +118,7 @@ import { sanitizeName } from '@/lib/table/import'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -129,6 +134,14 @@ const logger = createLogger('TableQueries')
 export const TABLE_DETAIL_STALE_TIME = 30 * 1000
 export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
 export const TABLE_FIND_STALE_TIME = 30 * 1000
+/**
+ * Shorter than the 5-minute default: the grid searches as the user types, so
+ * each typing pause mints its own cache entry holding up to
+ * `TABLE_LIMITS.MAX_FIND_MATCHES` matches. Long enough that backspacing to a
+ * recent term is still instant, short enough that a typed-through term set
+ * doesn't sit resident.
+ */
+export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
@@ -469,9 +482,11 @@ async function fetchTableRowMatches({
 }
 
 /**
- * Server-side find across all cells. `q` is the *submitted* term (search is
- * Enter-triggered), so React Query caches each submitted term and re-searching
- * a prior one is instant. Disabled while `q` is empty.
+ * Server-side find across all cells. `q` is the term the caller has settled on
+ * — the grid debounces the live input before passing it — so React Query caches
+ * each settled term and backspacing to a prior one is instant. Disabled while
+ * `q` is empty; `keepPreviousData` holds the last result set so the match count
+ * doesn't blank between terms.
  */
 export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: FindTableRowsParams) {
   const paramsKey = JSON.stringify({ q, filter: filter ?? null, sort: sort ?? null })
@@ -481,6 +496,48 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
     staleTime: TABLE_FIND_STALE_TIME,
+    gcTime: TABLE_FIND_GC_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Bounded single-page row read for chart files (`.chart` previews): one fetch
+ * of up to `limit` rows with the spec's verbatim filter/sort. Charts accept a
+ * truncated page — they visualize a sample, not a drained table.
+ */
+export function useTableRowsSample({
+  workspaceId,
+  tableId,
+  filter,
+  sort,
+  limit,
+  enabled = true,
+}: {
+  workspaceId?: string
+  tableId?: string
+  /** Passed through verbatim from the chart document; the contract validates. */
+  filter?: unknown
+  sort?: unknown
+  limit: number
+  enabled?: boolean
+}) {
+  const paramsKey = JSON.stringify({ filter: filter ?? null, sort: sort ?? null, limit })
+  return useQuery({
+    // rq-lint-allow: tableId is globally unique; workspaceId is only the authz scope
+    queryKey: tableKeys.sample(tableId ?? '', paramsKey),
+    queryFn: ({ signal }) =>
+      fetchTableRows({
+        workspaceId: workspaceId as string,
+        tableId: tableId as string,
+        limit,
+        filter: (filter ?? null) as TablePredicate | null,
+        sort: (sort ?? null) as SortSpec | null,
+        includeTotal: false,
+        signal,
+      }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: TABLE_ROWS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -1482,14 +1539,7 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
  * is rendered client-side, so this list contains only user-created views and is
  * legitimately empty for a table nobody has saved a view on.
  */
-export function useTableViews({
-  workspaceId,
-  tableId,
-  enabled = true,
-}: RowMutationContext & {
-  /** Carries the `table-views` flag, so a gated-off table never fetches. */
-  enabled?: boolean
-}) {
+export function useTableViews({ workspaceId, tableId }: RowMutationContext) {
   // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
   return useQuery({
     queryKey: tableKeys.views(tableId),
@@ -1501,7 +1551,7 @@ export function useTableViews({
       })
       return response.data.views
     },
-    enabled: enabled && Boolean(workspaceId && tableId),
+    enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_VIEWS_STALE_TIME,
   })
 }
@@ -1524,8 +1574,8 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
         prev ? [...prev, view] : [view]
       )
     },
-    // Returned so the mutation stays pending until the refetch settles — otherwise
-    // the Save chip re-enables and flashes dirty against a stale cached config.
+    // Keep creation pending until the refetch settles so the newly selected
+    // view does not briefly resolve against an incomplete list.
     onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
@@ -1533,7 +1583,7 @@ export function useCreateTableView({ workspaceId, tableId }: RowMutationContext)
 interface UpdateTableViewParams {
   viewId: string
   name?: string
-  /** Full replace (explicit Save). Mutually exclusive with `configPatch`. */
+  /** Full replacement for API consumers. Mutually exclusive with `configPatch`. */
   config?: TableViewConfigInput
   /** Server-side shallow merge — used for the grid's incremental layout writes. */
   configPatch?: TableViewConfigInput
@@ -1549,6 +1599,10 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
+    // View config and layout patches can touch the same top-level JSON keys.
+    // Preserve gesture order so rapid visibility toggles cannot finish out of
+    // order and leave an older snapshot stored last.
+    scope: { id: `table-view:${tableId}` },
     mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
       const response = await requestJson(updateTableViewContract, {
         params: { tableId, viewId },
@@ -1556,21 +1610,43 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       })
       return response.data.view
     },
-    // Without this the edited view's cached config stays stale until the refetch,
-    // so `isViewDirty` re-reads true and the Save chip flashes back after a save.
+    // Keep the active view's server baseline current immediately; the refetch
+    // remains the authoritative reconciliation for concurrent collaborators.
     onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.map((existing) => {
-          if (existing.id !== view.id) return existing
-          // Layout auto-saves and an explicit Save fire concurrently, and their
-          // responses can arrive out of order. The DB merge is authoritative, so
-          // only let a row at least as new as the cached one win — otherwise a
-          // slower response rewinds the cache until the refetch lands.
-          return new Date(view.updatedAt) >= new Date(existing.updatedAt) ? view : existing
+      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
+        if (!prev) return prev
+        // Layout and view controls auto-save concurrently, and their
+        // responses can arrive out of order. The DB merge is authoritative, so
+        // only let a response at least as new as the cached row win — for
+        // installing the row AND for demoting the previous default. A stale
+        // response applies nothing; otherwise it would rewind the cache (or
+        // strip isDefault from a newer default, leaving none) until the
+        // refetch lands.
+        const cached = prev.find((existing) => existing.id === view.id)
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
+        return prev.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
+          return existing.id === view.id ? view : existing
         })
-      )
+      })
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
+    onSettled: () => {
+      // A scoped mutation only needs the database write ahead of the next
+      // patch. Let reconciliation run alongside the queue instead of making
+      // every rapid visibility toggle wait for a full list refetch.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
+    },
   })
 }
 
@@ -2507,6 +2583,84 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/**
+ * Move a mixed selection of tables and table folders into one folder, or to the
+ * workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Tables list interleaves folder and
+ * table rows in a single grid, so a selection is routinely mixed and must not be
+ * split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch. A folder move re-parents rows that the list renders at a
+ * different level, and the response reports per-item outcomes (`skipped`,
+ * `notFound`, `failed`) the client cannot predict, so the caller reads the
+ * result rather than guessing it.
+ */
+export function useBulkMoveTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveTablesContract, {
+        body: { workspaceId, tableIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      }
+    },
+  })
+}
+
+/**
+ * Archive a mixed selection of tables and table folders.
+ *
+ * Deleting a folder cascades to every table and subfolder inside it, so the
+ * response's `deletedItems` totals exceed the explicitly selected count. Cached
+ * detail and row entries are removed only for the tables named in the request —
+ * a cascaded table's detail cache is left to the list invalidation, since the
+ * request never named it.
+ */
+export function useBulkDeleteTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteTablesContract, {
+        body: { workspaceId, tableIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
+        queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      }
     },
   })
 }

@@ -32,6 +32,8 @@ describe('desktop preload bridge', () => {
     await exposed.browserAgent.setPanelOccluded(true, 'chat-default')
     await exposed.browserAgent.setPanelOccluded(false, 'chat-explicit-false', false)
     await exposed.browserAgent.setPanelOccluded(true, 'chat-force', true)
+    await exposed.browserAgent.getSearchSuggestions?.('sim ai')
+    await exposed.settings.setBrowserSearchSuggestionsEnabled?.(false)
 
     expect(invoke.mock.calls).toEqual([
       ['browser-agent:cancel-tool', 'tool-1', 'chat-default'],
@@ -39,6 +41,25 @@ describe('desktop preload bridge', () => {
       ['browser-agent:set-panel-occluded', true, 'chat-default', false],
       ['browser-agent:set-panel-occluded', false, 'chat-explicit-false', false],
       ['browser-agent:set-panel-occluded', true, 'chat-force', true],
+      ['browser-agent:search-suggestions', 'sim ai'],
+      ['desktop:settings:set-browser-search-suggestions', false],
     ])
+  })
+
+  it('exposes native microphone settings only on supported platforms', async () => {
+    const exposed = exposeInMainWorld.mock.calls.find(([name]) => name === 'simDesktop')?.[1] as
+      | SimDesktopApi
+      | undefined
+    if (!exposed) throw new Error('Expected the desktop preload API to be exposed')
+
+    const isSupportedPlatform = process.platform === 'darwin' || process.platform === 'win32'
+    expect(typeof exposed.openMicrophoneSettings).toBe(
+      isSupportedPlatform ? 'function' : 'undefined'
+    )
+
+    if (isSupportedPlatform) {
+      await exposed.openMicrophoneSettings?.()
+      expect(invoke).toHaveBeenLastCalledWith('desktop:open-microphone-settings')
+    }
   })
 })

@@ -1,10 +1,12 @@
-import { type SQL, sql } from 'drizzle-orm'
+import { omit } from '@sim/utils/object'
+import { getTableColumns, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
   boolean,
   check,
   customType,
+  date,
   decimal,
   doublePrecision,
   index,
@@ -77,7 +79,6 @@ export const session = pgTable(
   },
   (table) => ({
     userIdIdx: index('session_user_id_idx').on(table.userId),
-    tokenIdx: index('session_token_idx').on(table.token),
   })
 )
 
@@ -289,6 +290,9 @@ export const workflow = pgTable(
       .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
+    activeWorkspaceSortIdx: index('workflow_active_workspace_sort_idx')
+      .on(table.workspaceId, table.sortOrder, table.createdAt, table.id)
+      .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
     workspaceArchivedAtPartialIdx: index('workflow_workspace_archived_partial_idx')
       .on(table.workspaceId, table.archivedAt)
@@ -460,7 +464,13 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. Drop in a follow-up PR after the `cost_total` backfill. */
+    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+    // cost. Same procedure and argless-read lint as the user_stats marker
+    // (scripts/check-pending-drop-tables.ts). Script migration
+    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
+    // whose json still held a numeric total into cost_total before the drop;
+    // the contract PR must ALSO deregister that script (it reads this column).
+    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
     cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
@@ -512,6 +522,12 @@ export const workflowExecutionLogs = pgTable(
     runningExecutionDeadlineIdx: index('workflow_execution_logs_running_deadline_idx')
       .on(table.executionDeadlineAt)
       .where(sql`${table.status} = 'running' AND ${table.executionDeadlineAt} IS NOT NULL`),
+    redactingStartedAtIdx: index('workflow_execution_logs_redacting_started_at_idx')
+      .on(table.startedAt)
+      .where(sql`status = 'redacting'`),
+    redactingExecutionDeadlineIdx: index('workflow_execution_logs_redacting_deadline_idx')
+      .on(table.executionDeadlineAt)
+      .where(sql`${table.status} = 'redacting' AND ${table.executionDeadlineAt} IS NOT NULL`),
     completedEndedAtIdx: index('workflow_execution_logs_completed_ended_at_idx')
       .on(table.endedAt, table.workspaceId, table.executionId)
       .where(
@@ -519,6 +535,12 @@ export const workflowExecutionLogs = pgTable(
       ),
   })
 )
+
+/**
+ * Live columns of `workflow_execution_logs` while the `cost` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const workflowExecutionLogColumns = omit(getTableColumns(workflowExecutionLogs), ['cost'])
 
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
@@ -686,6 +708,106 @@ export const workspaceEnvironment = pgTable(
   })
 )
 
+/** Which principal a run resolved a secret under, and which surface asked for it. */
+export const secretUsageScopeEnum = pgEnum('secret_usage_scope', ['workspace', 'personal'])
+export const secretUsageSourceEnum = pgEnum('secret_usage_source', ['workflow', 'copilot', 'mcp'])
+
+/**
+ * Per-day rollup of which secrets a run actually resolved.
+ *
+ * Execution logs cannot answer this. They persist the whole *available* encrypted
+ * environment rather than what a run referenced, they only evidence a secret where
+ * value-matching redaction happened to fire, and they expire under
+ * `DataRetentionSettings.logRetentionHours`. A secret's usage trail has to outlive its
+ * runs' logs, so it is written here instead of derived from them.
+ *
+ * Rows are a rollup rather than one per run: a workflow on a one-minute schedule
+ * touching three secrets would otherwise write thousands of rows a day, which is also
+ * why this is not `audit_log` — that table is a human-scale compliance surface and
+ * machine-scale rows would drown it.
+ *
+ * `secretScope` and `secretOwnerUserId` are part of the key because a workspace secret and a
+ * personal secret can share a name — as can two people's personal secrets — and none of them
+ * may merge. `lastTriggeredByUserId` is deliberately *not* in the key: a public endpoint
+ * called by many people would otherwise fragment one bucket per caller.
+ */
+export const secretUsage = pgTable(
+  'secret_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Matches `credential.envKey`; the trail is keyed by name, not by credential row. */
+    secretName: text('secret_name').notNull(),
+    secretScope: secretUsageScopeEnum('secret_scope').notNull(),
+    /**
+     * Whose personal secret this was; empty for a workspace one, which the workspace owns.
+     *
+     * Two people can hold personal secrets under the same name, and a personal secret shared
+     * with the workspace resolves for callers who do not own it, so name and scope alone do
+     * not identify a secret. Without this column one person's trail would show another's runs.
+     * Not the same as `actorUserId`: a scheduled run resolves the workflow owner's personal
+     * slice under the workspace's execution actor.
+     */
+    secretOwnerUserId: text('secret_owner_user_id').notNull().default(''),
+    source: secretUsageSourceEnum('source').notNull(),
+    /**
+     * Empty for a Copilot or MCP resolution, which has no workflow.
+     *
+     * Empty string rather than null because both this and `actorUserId` sit inside the unique
+     * key below, and Postgres treats nulls as distinct — two Copilot rows would never collide,
+     * so the upsert would insert forever instead of incrementing. `NULLS NOT DISTINCT` fixes
+     * that but requires Postgres 15, and this is self-hosted software that must not raise its
+     * database floor for one table. A sentinel keeps the key null-free on every version.
+     *
+     * Deliberately not a foreign key, and neither is `actorUserId`. An `onDelete: 'set null'`
+     * would rewrite a key column, so two rows differing only by the deleted id would collide
+     * and an ordinary workflow or account deletion would fail on this constraint. They are
+     * historical facts in a usage ledger rather than live references, so they are stored as
+     * plain ids and joined leniently; a row outliving its workflow is the point of a trail.
+     */
+    workflowId: text('workflow_id').notNull().default(''),
+    /** Whose access authorized the resolution — the run's actor; empty when there is none. */
+    actorUserId: text('actor_user_id').notNull().default(''),
+    /** UTC day bucket. */
+    usageDate: date('usage_date').notNull(),
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: timestamp('last_used_at').notNull(),
+    /** Deep-links the most recent run in Logs, where the block and its code are visible. */
+    lastExecutionId: text('last_execution_id'),
+    /**
+     * The surface the most recent run came in through (`api`, `webhook`, `schedule`,
+     * `manual`, `chat`, `copilot`). There is deliberately no separate "triggered by" column:
+     * for every trigger kind the executor can name a caller, that caller *is* `actorUserId`,
+     * and for the rest (schedule, webhook, workspace key) no human triggered the run at all.
+     */
+    lastTrigger: text('last_trigger'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Every column is non-null, so ordinary unique semantics make the upsert increment. */
+    bucketUnique: uniqueIndex('secret_usage_bucket_unique').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.source,
+      table.workflowId,
+      table.actorUserId,
+      table.usageDate
+    ),
+    secretRecentIdx: index('secret_usage_secret_recent_idx').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.lastUsedAt.desc()
+    ),
+  })
+)
+
 export const workspaceBYOKKeys = pgTable(
   'workspace_byok_keys',
   {
@@ -703,6 +825,28 @@ export const workspaceBYOKKeys = pgTable(
   (table) => ({
     workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
+      table.providerId
+    ),
+  })
+)
+
+export const organizationBYOKKeys = pgTable(
+  'organization_byok_keys',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationProviderIdx: index('organization_byok_organization_provider_idx').on(
+      table.organizationId,
       table.providerId
     ),
   })
@@ -1045,8 +1189,16 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // Retired usage hot-path counters: no writers/readers; derive from usage_log.
-  // Drop via DROP COLUMN in a follow-up migration.
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // the 19 @deprecated columns in this table. Their last readers/writers were
+  // removed by the ledger cutover (#7078/#7113) and #7134; the declarations
+  // remain ONLY so the app schema keeps matching the deployed database until
+  // the drop. Argless select()/relational reads of this table are forbidden
+  // meanwhile — they would put these columns back into generated SQL and break
+  // the old task set when the contract deploy drops them mid-cutover — enforced
+  // by scripts/check-pending-drop-tables.ts. The follow-up PR deletes the
+  // @deprecated declarations plus this marker and ships the generated DROP
+  // migration in the same change.
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
@@ -1061,27 +1213,26 @@ export const userStats = pgTable('user_stats', {
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written (recordUsage appends to usage_log); legacy/admin reads only. Move readers to ledger aggregation. */
+  /** @deprecated No readers or writers; report cost from usage_log. */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /**
-   * Active per-period baseline (not a per-usage hot-path counter). Current usage
-   * = this baseline + attributed usage_log rows for the period; reset at rollover.
-   */
+  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
-  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
+  lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
    * Threshold/final billing tracker.
    *
-   * This is intentionally still written when threshold billing or invoice
-   * finalization serializes overage collection. It is not incremented by the
-   * ordinary per-usage ledger write path.
+   * Incremented when threshold billing collects overage mid-period; reset to
+   * zero by the cycle-close sweep at period rollover. It is not incremented
+   * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  // Pro usage snapshot when joining a team (to prevent double-billing)
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
+  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
+  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
+  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1089,19 +1240,19 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot cost from usage_log. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** Active per-period Copilot baseline; reset at rollover (not a per-usage counter). */
+  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
-  /** Previous-period Copilot cost; set at rollover. */
+  /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot tokens from usage_log. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written; report Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot calls from usage_log. */
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot calls from usage_log. */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot cost from usage_log. */
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
   /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
@@ -1112,7 +1263,7 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not updated by execution (no user_stats write on completion); legacy/admin reads only. */
+  /** @deprecated No readers or writers; not updated since execution stopped writing user_stats. */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -1132,6 +1283,35 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
+
+/**
+ * Live columns of `user_stats` — the selection every read of this table goes
+ * through while the contract-pending drop (see the marker inside the table) is
+ * outstanding, so generated SQL never names the doomed columns. Enforced by
+ * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
+ * together with the deprecated declarations.
+ */
+export const userStatsColumns = omit(getTableColumns(userStats), [
+  'totalManualExecutions',
+  'totalApiCalls',
+  'totalWebhookTriggers',
+  'totalScheduledExecutions',
+  'totalChatExecutions',
+  'totalMcpExecutions',
+  'totalTokensUsed',
+  'totalCost',
+  'currentPeriodCost',
+  'proPeriodCostSnapshot',
+  'proPeriodCostSnapshotAt',
+  'totalCopilotCost',
+  'currentPeriodCopilotCost',
+  'totalCopilotTokens',
+  'totalCopilotCalls',
+  'totalMcpCopilotCalls',
+  'totalMcpCopilotCost',
+  'currentPeriodMcpCopilotCost',
+  'lastActive',
+])
 
 export const customTools = pgTable(
   'custom_tools',
@@ -1199,22 +1379,16 @@ export const skillMember = pgTable(
   })
 )
 
-export const mothershipSettings = pgTable(
-  'mothership_settings',
-  {
-    workspaceId: text('workspace_id')
-      .primaryKey()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
-    skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('mothership_settings_workspace_id_idx').on(table.workspaceId),
-  })
-)
+export const mothershipSettings = pgTable('mothership_settings', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
+  skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const subscription = pgTable(
   'subscription',
@@ -1237,12 +1411,36 @@ export const subscription = pgTable(
     billingInterval: text('billing_interval'),
     stripeScheduleId: text('stripe_schedule_id'),
     metadata: json('metadata'),
+    /**
+     * Durable cycle-close marker: the `periodStart` of the most recent period
+     * whose close (final overage collection, `billedOverageThisPeriod` reset,
+     * last-period bookkeeping) has been committed. The daily cycle-close sweep
+     * closes the previous period whenever this lags the row's `periodStart`,
+     * then advances it. Null = never initialized; the first sweep initializes
+     * it to the current `periodStart` without billing so historical periods
+     * are never retroactively closed.
+     */
+    lastClosedPeriodStart: timestamp('last_closed_period_start'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(
       table.referenceId,
       table.status
     ),
+    /**
+     * Partial index for the cycle-close sweep's keyset iteration: exactly the
+     * entitled subscriptions whose close marker lags the current period. The
+     * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
+     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * packages cannot import from apps); a drifted predicate degrades to a
+     * seq scan, never a wrong result. The index stays tiny — closes remove
+     * rows from it — so the candidate scan is O(lagging), not O(fleet).
+     */
+    cycleCloseLaggingIdx: index('subscription_cycle_close_lagging_idx')
+      .on(table.id)
+      .where(
+        sql`${table.status} in ('active', 'past_due') and ${table.periodStart} is not null and (${table.lastClosedPeriodStart} is null or ${table.lastClosedPeriodStart} < ${table.periodStart})`
+      ),
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
       sql`plan != 'enterprise' OR metadata IS NOT NULL`
@@ -1457,6 +1655,11 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // departed_member_usage. The last readers/writers (v1 admin exposure,
+  // cycle-close resets) were removed in #7134; same procedure and argless-read
+  // lint as the user_stats marker (scripts/check-pending-drop-tables.ts).
+  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -1468,6 +1671,12 @@ export const organization = pgTable('organization', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * Live columns of `organization` while the `departed_member_usage` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const organizationColumns = omit(getTableColumns(organization), ['departedMemberUsage'])
 
 export const member = pgTable(
   'member',
@@ -1671,6 +1880,12 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -1909,7 +2124,6 @@ export const workspaceFile = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
-    keyIdx: index('workspace_file_key_idx').on(table.key),
     deletedAtIdx: index('workspace_file_deleted_at_idx').on(table.deletedAt),
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
@@ -1951,9 +2165,9 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
-    size: integer('size').notNull(),
-    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
+    size: integer('size').notNull().default(0),
+    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
@@ -2018,6 +2232,10 @@ export const workspaceFiles = pgTable(
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
+
+/** Canonical application projection; the legacy `size` bridge is migration-only. */
+export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
+export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
@@ -2128,7 +2346,7 @@ export const workspaceFileSecretProvenance = pgTable(
   (table) => ({
     statusCheck: check(
       'workspace_file_secret_provenance_status_check',
-      sql`${table.status} IN ('exact', 'unknown')`
+      sql`${table.status} IN ('exact', 'unknown', 'unrecorded')`
     ),
   })
 )
@@ -2271,13 +2489,6 @@ export const permissions = pgTable(
       table.permissionType
     ),
 
-    // User + specific entity queries - get user's permissions for specific entity
-    userEntityIdx: index('permissions_user_entity_idx').on(
-      table.userId,
-      table.entityType,
-      table.entityId
-    ),
-
     // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
     uniquePermissionConstraint: uniqueIndex('permissions_unique_constraint').on(
       table.userId,
@@ -2412,7 +2623,30 @@ export const document = pgTable(
 
     // Processing status
     processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    /**
+     * Dispatches spent on this document since its last successful pass.
+     *
+     * A bounded retry budget, not a dispatch generation. The stuck-document
+     * sweep re-dispatches a failing document every sync for the whole retry
+     * window, and each dispatch re-parses and re-embeds it — so a document that
+     * fails deterministically was billed once per sync indefinitely. Past the
+     * budget it becomes a dead letter: still visible and still user-retryable,
+     * but no longer swept. Reset to 0 whenever a pass completes.
+     */
+    processingAttempts: integer('processing_attempts').notNull().default(0),
+    /**
+     * When indexing was last dispatched to a worker, which is not when a worker
+     * picked it up — a document sits at `pending` in between. Recovery sweeps
+     * measure queue wait from here; `processingStartedAt` is written only once a
+     * worker actually starts. NULL means never dispatched, or dispatched before
+     * this column existed.
+     */
+    processingQueuedAt: timestamp('processing_queued_at'),
+    /** Opaque dispatch generation; NULL identifies payloads created before token rollout. */
+    processingQueueToken: text('processing_queue_token'),
     processingStartedAt: timestamp('processing_started_at'),
+    /** Scheduled execution time of an accepted durable quota continuation. */
+    processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
 
@@ -2479,6 +2713,11 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
+      .on(table.knowledgeBaseId, table.tokenCount)
+      .where(
+        sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // KB file-access liveness: exact lookup by canonical storage key
     storageKeyIdx: index('doc_storage_key_idx')
       .on(table.storageKey)
@@ -3075,7 +3314,6 @@ export const copilotAsyncToolCalls = pgTable(
   (table) => ({
     runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
     checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
-    toolCallIdIdx: index('copilot_async_tool_calls_tool_call_id_idx').on(table.toolCallId),
     statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
     toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
@@ -3573,6 +3811,18 @@ export const customBlock = pgTable(
      */
     outputs: json('outputs').$type<Array<{ blockId: string; path: string; name: string }>>(),
     enabled: boolean('enabled').notNull().default(true),
+    /**
+     * The publisher's org-wide decision on whether this block's runs are joined into
+     * a consumer's trace. It is the ONLY policy — no viewer check runs downstream —
+     * so turning it on publishes the source workflow's block names, inputs, outputs,
+     * and prompts to anyone who can read a consuming workflow's logs, including
+     * consumers with no access to the source workspace.
+     *
+     * Defaults false because of that: this is the same boundary curated outputs and
+     * redacted errors exist to hold, and it may only open by an affirmative act of
+     * the publisher, never by a column default applied to rows nobody revisited.
+     */
+    traceChildRuns: boolean('trace_child_runs').notNull().default(false),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3686,7 +3936,7 @@ export const usageLog = pgTable(
      * a heap fetch per matched row.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
-     * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
+     * the weekly-refresh rollup filters on them and NOT on `billingPeriodEnd`;
      * putting `billingPeriodEnd` in that slot would end the usable prefix at
      * `billingPeriodStart` and leave that query scanning the whole period.
      * `billingPeriodEnd` is functionally determined by `billingPeriodStart`, so it
@@ -3704,6 +3954,16 @@ export const usageLog = pgTable(
         table.userId,
         table.createdAt,
         table.billingPeriodEnd,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingEntityCreatedAtCostIdx: index('usage_log_billing_entity_created_at_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.createdAt,
+        table.userId,
         table.source,
         table.cost
       )
@@ -3726,10 +3986,25 @@ export const usageLog = pgTable(
 
 export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
+  'managed_oauth',
   'env_workspace',
   'env_personal',
   'service_account',
 ])
+
+export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
+  'active',
+  'needs_reauth',
+  'revoked',
+])
+
+export interface ManagedOAuthProviderMetadata {
+  email: string
+  displayName?: string
+  avatarUrl?: string
+  username?: string
+  tenantDisplayName?: string
+}
 
 export const credential = pgTable(
   'credential',
@@ -3741,11 +4016,36 @@ export const credential = pgTable(
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
+    /**
+     * Opts an env_workspace secret out of resolved-secret redaction: its value renders in
+     * plaintext across surfaces (logs, model-visible content, sandbox file exports) instead
+     * of `{{NAME}}`, and is not recorded into durable provenance. Meaningful only for
+     * type = 'env_workspace'; writes for other types are rejected in the orchestration layer.
+     */
+    unredacted: boolean('unredacted').notNull().default(false),
     providerId: text('provider_id'),
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    authorizationAppId: text('authorization_app_id'),
+    credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
+      (): AnyPgColumn => credentialGroupEnrollment.id,
+      { onDelete: 'cascade' }
+    ),
+    credentialGroupOptionId: text('credential_group_option_id'),
+    managedOauthScopeVersion: integer('managed_oauth_scope_version'),
+    providerSubjectId: text('provider_subject_id'),
+    providerTenantId: text('provider_tenant_id'),
+    managedOauthStatus: managedOauthCredentialStatusEnum('managed_oauth_status'),
+    grantedScopes: text('granted_scopes').array(),
+    providerMetadata: jsonb('provider_metadata').$type<ManagedOAuthProviderMetadata>(),
+    encryptedOauthTokenSet: text('encrypted_oauth_token_set'),
+    grantedAt: timestamp('granted_at'),
+    revokedAt: timestamp('revoked_at'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    lastRefreshedAt: timestamp('last_refreshed_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3758,6 +4058,12 @@ export const credential = pgTable(
     providerIdIdx: index('credential_provider_id_idx').on(table.providerId),
     accountIdIdx: index('credential_account_id_idx').on(table.accountId),
     envOwnerUserIdIdx: index('credential_env_owner_user_id_idx').on(table.envOwnerUserId),
+    credentialGroupEnrollmentIdx: index('credential_group_enrollment_idx').on(
+      table.credentialGroupEnrollmentId
+    ),
+    credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
+      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+      .where(sql`${table.type} = 'managed_oauth'`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -3771,6 +4077,29 @@ export const credential = pgTable(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
     ),
+    managedOauthSourceConstraint: check(
+      'credential_managed_oauth_source_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        account_id IS NULL
+        AND provider_id IS NOT NULL
+        AND authorization_app_id IS NOT NULL
+        AND provider_subject_id IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND encrypted_oauth_token_set IS NOT NULL
+        AND granted_at IS NOT NULL
+      )`
+    ),
+    managedOauthGroupBindingConstraint: check(
+      'credential_managed_oauth_group_binding_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NOT NULL
+        AND managed_oauth_scope_version IS NOT NULL
+        AND managed_oauth_scope_version > 0
+      )`
+    ),
     workspaceEnvSourceConstraint: check(
       'credential_workspace_env_source_check',
       sql`(type <> 'env_workspace') OR (env_key IS NOT NULL AND env_owner_user_id IS NULL)`
@@ -3778,6 +4107,108 @@ export const credential = pgTable(
     personalEnvSourceConstraint: check(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
+    ),
+  })
+)
+
+export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
+
+export interface CredentialGroupOptionConfig {
+  id: string
+  provider: string
+  label: string
+  slackBotCredentialId?: string
+  authorizationAppId: string
+  requiredScopes: string[]
+  scopeVersion: number
+  required: boolean
+  status: 'active' | 'disabled'
+}
+
+/** Workspace-owned configuration for collecting several managed OAuth credentials. */
+export const credentialGroup = pgTable(
+  'credential_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    publicId: text('public_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    options: jsonb('options').$type<CredentialGroupOptionConfig[]>().notNull(),
+    encryptedProviderConfiguration: text('encrypted_provider_configuration'),
+    status: credentialGroupStatusEnum('status').notNull().default('active'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
+    workspaceStatusIdx: index('credential_group_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    workspaceNameUnique: uniqueIndex('credential_group_workspace_name_unique').on(
+      table.workspaceId,
+      sql`lower(${table.name})`
+    ),
+  })
+)
+
+export const credentialGroupEnrollmentStatusEnum = pgEnum('credential_group_enrollment_status', [
+  'invited',
+  'delivery_failed',
+  'in_progress',
+  'completed',
+  'revoked',
+])
+
+/** Email-bound invitation and resumable progress for one credential-group recipient. */
+export const credentialGroupEnrollment = pgTable(
+  'credential_group_enrollment',
+  {
+    id: text('id').primaryKey(),
+    credentialGroupId: text('credential_group_id')
+      .notNull()
+      .references(() => credentialGroup.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    status: credentialGroupEnrollmentStatusEnum('status').notNull().default('invited'),
+    invitationTokenHash: text('invitation_token_hash').notNull(),
+    invitationExpiresAt: timestamp('invitation_expires_at').notNull(),
+    invitedAt: timestamp('invited_at').notNull(),
+    sentAt: timestamp('sent_at'),
+    completedAt: timestamp('completed_at'),
+    revokedAt: timestamp('revoked_at'),
+    lastDeliveryError: text('last_delivery_error'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupEmailUnique: uniqueIndex('credential_group_enrollment_group_email_unique').on(
+      table.credentialGroupId,
+      table.email
+    ),
+    invitationTokenHashUnique: uniqueIndex(
+      'credential_group_enrollment_invitation_token_hash_unique'
+    ).on(table.invitationTokenHash),
+    groupStatusIdx: index('credential_group_enrollment_group_status_idx').on(
+      table.credentialGroupId,
+      table.status
+    ),
+    groupInvitedAtIdIdx: index('credential_group_enrollment_group_invited_at_id_idx').on(
+      table.credentialGroupId,
+      table.invitedAt,
+      table.id
+    ),
+    normalizedEmail: check(
+      'credential_group_enrollment_normalized_email_check',
+      sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 320`
+    ),
+    invitationTokenHashLength: check(
+      'credential_group_enrollment_invitation_token_hash_length_check',
+      sql`length(${table.invitationTokenHash}) = 64`
     ),
   })
 )
@@ -3981,6 +4412,11 @@ export const asyncJobs = pgTable(
     scheduleProcessingStartedAtIdx: index('async_jobs_schedule_processing_started_at_idx')
       .on(table.startedAt, table.id)
       .where(sql`${table.type} = 'schedule-execution' AND ${table.status} = 'processing'`),
+    scheduleUnreconciledTerminalIdx: index('async_jobs_schedule_unreconciled_terminal_idx')
+      .on(table.updatedAt, table.id)
+      .where(
+        sql`${table.type} = 'schedule-execution' AND ${table.status} IN ('completed', 'failed', 'cancelled') AND COALESCE(${table.metadata} ->> 'scheduleReconciled', 'false') <> 'true'`
+      ),
   })
 )
 
@@ -4001,12 +4437,48 @@ export const knowledgeConnector = pgTable(
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
+    /**
+     * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
+     *
+     * `pending` and `syncing` are the two halves of a sync in flight: `pending`
+     * is written as the sync is handed to the queue, `syncing` when a worker
+     * takes the lock. The split exists because the queue depth between them is
+     * unbounded — without `pending` the row is indistinguishable from idle for
+     * as long as the hand-off takes, which is what forced readers to guess from
+     * `created_at`. A row left `pending` past the lock TTL is reclaimed by the
+     * scheduler, which is the only thing that ever observes a lost hand-off.
+     */
     status: text('status').notNull().default('active'),
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
     lastSyncDocCount: integer('last_sync_doc_count'),
     nextSyncAt: timestamp('next_sync_at'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+    /**
+     * Identifies the sync run that currently holds this connector's lock.
+     *
+     * `status = 'syncing'` only says *a* run holds it. After the scheduler
+     * reclaims a stale lock and dispatches a replacement, the original run would
+     * still see `syncing` and overwrite the replacement's state. Terminal writes
+     * match this token so a run can prove the lock is still *its own*.
+     */
+    syncLockToken: text('sync_lock_token'),
+    /**
+     * When the run holding this connector's lock last proved it was alive.
+     *
+     * Split off `updated_at`, which the stale-lock reaper used to read as a
+     * lease. `updated_at` is the row's modification time, so every unrelated
+     * write — a config edit, a status change — renewed the lease of a wedged
+     * run and pushed its recovery out by another full TTL. Only lock
+     * acquisition and the heartbeat write this column; both terminal helpers
+     * clear it alongside `sync_lock_token`.
+     *
+     * NULL on a row locked before this column existed, and on any future writer
+     * that forgets it, so every reader compares `COALESCE(lease, updated_at)`
+     * rather than the lease alone — a `lease <= cutoff` test is NULL-false and
+     * would make such a row permanently unreclaimable.
+     */
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
@@ -4041,11 +4513,29 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUpdated: integer('docs_updated').notNull().default(0),
     docsDeleted: integer('docs_deleted').notNull().default(0),
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
+    docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
     errorMessage: text('error_message'),
   },
   (table) => ({
-    connectorIdIdx: index('kcsl_connector_id_idx').on(table.connectorId),
+    connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
+      table.connectorId,
+      sql`${table.startedAt} DESC`
+    ),
+    /**
+     * Serves the scheduler's five-minute sweep for orphaned `started` rows.
+     *
+     * This table is append-only and never pruned, and `connector_id` does not
+     * help a scan that filters on status and age, so the sweep was a sequential
+     * scan of all sync history on every tick. The predicate is partial rather
+     * than a composite `(status, started_at)`: `started` rows are a vanishing
+     * fraction of the table and the only ones the sweep ever reads, so indexing
+     * closed history buys nothing and costs write amplification on every
+     * completion.
+     */
+    startedPartialIdx: index('kcsl_started_at_partial_idx')
+      .on(table.startedAt)
+      .where(sql`${table.status} = 'started'`),
   })
 )
 
@@ -4209,10 +4699,10 @@ export const userTableRowSecretProvenance = pgTable(
 )
 
 /**
- * Saved presets for a user-defined table — a named filter + sort + column layout.
+ * Saved views for a user-defined table — a named filter + sort + column layout.
  * Workspace-shared: anyone who can read the table sees every view, and `write` is
- * required to create, update, or delete one. The absence of a view is the built-in
- * "All" state, so a table is always reachable unfiltered without a seeded row.
+ * required to create, update, or delete one. New tables are seeded with one default
+ * view; legacy tables without one temporarily retain the built-in "All" fallback.
  *
  * A dedicated table rather than a key on `user_table_definitions.metadata`: that
  * column is written read-modify-write with a shallow merge, so a stale snapshot
@@ -4247,8 +4737,13 @@ export const tableViews = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    /** Covers the only read path: list a table's views in creation order. */
     tableCreatedIdx: index('table_views_table_created_idx').on(table.tableId, table.createdAt),
+    /** Covers workspace-scoped hydration without scanning every saved view. */
+    workspaceCreatedIdx: index('table_views_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    ),
     /** At most one default view per table, enforced in the DB. */
     defaultViewUnique: uniqueIndex('table_views_table_default_unique')
       .on(table.tableId)
@@ -4398,6 +4893,14 @@ export const tableRunDispatches = pgTable(
       onDelete: 'set null',
     }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    /** Last time the dispatcher loop made progress on this dispatch. Stamped by
+     *  the same per-window writes that advance `cursor` and `processed_count`,
+     *  so it means "a holder is alive" rather than "this started a while ago" —
+     *  the distinction the cleanup sweep needs, since `requested_at` never moves
+     *  and a legitimately long dispatch would otherwise be reclaimed under a
+     *  live holder. Null on rows written before this column existed; the sweep
+     *  reads `COALESCE(heartbeat_at, requested_at)` so those stay reclaimable. */
+    heartbeatAt: timestamp('heartbeat_at'),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),
   },
@@ -4510,7 +5013,6 @@ export const academyCertificate = pgTable(
       table.userId,
       table.courseId
     ),
-    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
     statusIdx: index('academy_certificate_status_idx').on(table.status),
   })
 )

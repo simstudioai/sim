@@ -4,6 +4,7 @@ import { forwardRef, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -70,8 +71,6 @@ interface MothershipViewProps {
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
-  /** Resolved server-side by the home page; forwarded to the embedded table. */
-  tableViewsEnabled?: boolean
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
 }
@@ -90,7 +89,6 @@ export const MothershipView = memo(
       previewSession,
       isAgentResponding,
       genericResourceData,
-      tableViewsEnabled,
       onUserInteraction,
     }: MothershipViewProps,
     ref
@@ -164,7 +162,10 @@ export const MothershipView = memo(
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (html, svg, …) on the file list loading.
       !(isActiveCsv && filesLoading) &&
-      !(activeFile && isCsvStreamOnly(activeFile))
+      !(activeFile && isCsvStreamOnly(activeFile)) &&
+      // A Sim page is locked to its rendered view (the pdf model — the raw
+      // source is not a mode this surface offers), so no toggle either.
+      activeFile?.type !== SIM_PAGE_CONTENT_TYPE
 
     return (
       <div
@@ -243,7 +244,6 @@ export const MothershipView = memo(
                 isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                tableViewsEnabled={tableViewsEnabled}
                 onNotFound={(resourceId) => removeResource('log', resourceId)}
               />
             )}

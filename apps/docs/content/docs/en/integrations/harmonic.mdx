@@ -1,0 +1,454 @@
+---
+title: Harmonic
+description: Search and enrich private-market contacts
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="harmonic"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Harmonic](https://harmonic.ai/) is a private-market intelligence platform for researching companies, people, and investors. Its Scout agent accepts a natural-language sourcing request—such as “find forward-deployed engineers in enterprise software”—and the Harmonic block converts the result into a predictable `contacts` table for downstream scoring, review, storage in Sim tables, or delivery to CRM and other integration blocks.
+
+### Authentication
+
+This integration uses a reusable Harmonic **team API key** connection. It does not use delegated OAuth. You need an existing Harmonic workspace with API access; ask your Harmonic workspace administrator or [Harmonic support](mailto:support@harmonic.ai) for the team key, then create a Harmonic connection from the block's **Harmonic Account** field. Sim validates and stores the key once, then sends it only in Harmonic's `apikey` request header. The same connection can be reused across Harmonic blocks and replaced or revoked from the credentials settings.
+
+### Working with people data
+
+- **Scout search:** **Search People with Scout** uses an integration-owned schema so every successful request returns the same normalized contact fields. Scout task errors, timeouts, interruptions, and malformed structured results stop the workflow instead of returning an ambiguous partial result.
+- **Saved searches:** A team API key can read only saved searches shared with the team. Make a private people search shared in the Harmonic console, then choose it with the basic selector. Advanced mode accepts a numeric saved-search ID or full URN when a search is not shown. Follow `pageInfo.nextCursor` while `pageInfo.hasNext` is true.
+- **URN-only rows:** Saved-search pages may contain person URNs without full profiles. Pass `personUrns` to **Batch Get People** to hydrate them into the common contact shape. **Get Company Employees** returns URNs the same way, so account-based sourcing chains through the same step.
+- **Starting from an identifier:** **Enrich Person** turns a LinkedIn profile URL or an email address into a contact. When Harmonic has no record yet it returns an error naming the enrichment it just scheduled; poll that URN with **Get Enrichment Status** and read the person once it completes.
+- **Net-new monitoring:** **Get People Saved Search Net-New Results** returns only people who newly matched, which avoids reprocessing the whole result set on every poll. It requires a saved search you have subscribed to in the Harmonic console — there is no API to subscribe. Acknowledge what you processed with **Clear People Saved Search Net-New Results** so the next poll starts clean.
+- **Email enrichment:** **Submit Email Enrichment Job** queues up to 5,000 people from either person URNs or LinkedIn URLs (one list or the other, never both). Poll **Get Email Enrichment Job** until `isTerminal` is true; the per-person rows carry a status but never an address, so pass `succeededPersonUrns` to **Batch Get People** to read the resolved emails. Check **Get Email Enrichment Usage** first to avoid exhausting the monthly quota.
+- **Downstream workflows:** Pass `contacts` directly into Sim tables, scoring or approval steps, and other integrations such as a CRM. Every contact-producing action uses the same camelCase output shape. A nullable array means Harmonic did not return that collection for the record; an empty array means Harmonic returned the collection with no values.
+- **Large batches:** Batch Get People accepts at most 500 combined IDs and URNs and requests only the fields used by the normalized contact output. Exceptionally large profiles can still exceed Sim's response limit; retry with smaller batches if that occurs.
+- **Workspace and list APIs:** This first version intentionally omits Harmonic's retiring V1 workspace and people-list endpoints. Harmonic says those APIs stop serving traffic on November 5, 2026 and already fail after a workspace completes its V2 migration. See Harmonic's [Workspace API migration guide](https://console.harmonic.ai/docs/api-reference/workspace/migration) for the V2 GraphQL replacement.
+
+Harmonic recommends no more than 100 saved-search results per page. Its general API limit is 10 requests per second, while Scout task creation is limited to 10 requests per minute and 100 per hour. Endpoint and field availability can also depend on your Harmonic subscription.
+
+Harmonic does not publish a webhook-registration contract for this workflow surface, so the integration has no native triggers. Use a **Schedule** block to poll a shared saved search when recurring synchronization is needed.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.
+
+
+
+## Actions
+
+### Harmonic Search People with Scout
+
+Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Natural-language people research request, e.g. "Find forward-deployed engineers in enterprise software" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | People matching the Scout request, normalized for downstream workflow use |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `taskId` | string | Harmonic Scout task identifier |
+| `status` | string | Final Scout task status \(success\) |
+| `count` | number | Number of contacts returned |
+
+### Harmonic Enrich Person
+
+Resolve a LinkedIn profile URL or email address into a normalized Harmonic contact, queueing enrichment when the person is not yet in Harmonic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `linkedinUrl` | string | No | LinkedIn profile URL, e.g. https://www.linkedin.com/in/example |
+| `email` | string | No | Email address used as a fallback when the LinkedIn URL is absent or unmatched |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | Normalized Harmonic contact, or null when the person is not yet in Harmonic |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `enrichmentUrn` | string | Enrichment URN to poll with Get Enrichment Status when Harmonic queued a refresh |
+| `mergedPersonUrn` | string | URN this person was merged into, when Harmonic deduplicated the record |
+| `requestedEntityUrn` | string | Person URN Harmonic matched the request to |
+| `found` | boolean | Whether Harmonic returned a person profile |
+| `enrichmentQueued` | boolean | Whether Harmonic queued a background refresh \(HTTP 201\) for this person |
+
+### Harmonic Get Person
+
+Fetch one Harmonic person by numeric ID or URN, including any email resolved by a completed enrichment job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personId` | string | Yes | Harmonic person ID or full person URN |
+| `companyContextUrns` | json | No | Company URNs used to scope the returned experience context; may be a JSON-array string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | Normalized Harmonic contact, or null when Harmonic has no such person |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `found` | boolean | Whether Harmonic returned a person profile |
+
+### Harmonic Batch Get People
+
+Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personIds` | json | No | Array of numeric Harmonic person IDs; may be a JSON-array string |
+| `personUrns` | json | No | Array of Harmonic person URNs; may be a JSON-array string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Fetched Harmonic person profiles normalized as contacts |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `count` | number | Number of contacts returned |
+
+### Harmonic Get Company Employees
+
+List person URNs for a company, filtered by role group and employment status. Pair with Batch Get People to hydrate contacts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `companyId` | string | Yes | Harmonic company ID or full company URN |
+| `employeeGroupType` | string | No | Role group: CEO, FOUNDERS_AND_CEO, EXECUTIVES, FOUNDERS, LEADERSHIP, NON_LEADERSHIP, ALL, ADVISORS, NON_PARTNERS \(default ALL\) |
+| `employeeStatus` | string | No | Employment status: ACTIVE, NOT_ACTIVE, or ACTIVE_AND_NOT_ACTIVE \(default ACTIVE\) |
+| `userConnectionStatus` | string | No | Connection filter: TEAM_CONNECTION or NO_CONNECTION. Harmonic documents per-user connection filtering as unsupported via the API |
+| `size` | number | No | Results to return; Sim caps this at 100 per page \(default 50\) |
+| `cursor` | string | No | Opaque next-page cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personUrns` | array | Person URNs for the matching employees; Harmonic returns URNs only |
+| `totalCount` | number | Total matching employees |
+| `pageInfo` | object | Cursor pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page |
+|   ↳ `currentCursor` | string | Cursor for the current page |
+|   ↳ `hasNext` | boolean | Whether another page is available |
+
+### Harmonic List People Saved Searches
+
+List the team-shared Harmonic saved searches that target people. Use a returned ID or URN to fetch results.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `savedSearches` | array | Team-accessible Harmonic saved searches that target people |
+|   ↳ `savedSearchId` | number | Saved search ID |
+|   ↳ `savedSearchUrn` | string | Saved search URN |
+|   ↳ `name` | string | Saved search name |
+|   ↳ `isPrivate` | boolean | Whether the search is private |
+|   ↳ `savedSearchType` | string | Saved search entity type \(PERSONS\) |
+|   ↳ `userSavedSearchType` | string | User-facing saved search type |
+|   ↳ `creatorUrn` | string | Creator user URN |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `count` | number | Number of people saved searches returned |
+
+### Harmonic Get People Saved Search Results
+
+Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `savedSearchId` | string | Yes | People saved-search ID or full Harmonic saved-search URN |
+| `size` | number | No | Results to return; Sim caps this at 100 per page \(default 50\) |
+| `cursor` | string | No | Opaque next-page cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Full person records returned by the saved search, normalized as contacts |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `personUrns` | array | All person URNs in the page, including rows returned without full profiles |
+| `totalCount` | number | Total matching people |
+| `pageInfo` | object | Cursor pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page |
+|   ↳ `currentCursor` | string | Cursor for the current page |
+|   ↳ `hasNext` | boolean | Whether another page is available |
+
+### Harmonic Get People Saved Search Net-New Results
+
+Get only the people newly matching a subscribed Harmonic people saved search, so a monitor does not reprocess the whole result set.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `savedSearchId` | string | Yes | People saved-search ID or full Harmonic saved-search URN |
+| `size` | number | No | Results to return; Sim caps this at 100 per page \(default 50\) |
+| `cursor` | string | No | Opaque next-page cursor from a previous response |
+| `newResultsSince` | string | No | Only return matches after this UTC point, as YYYY-MM-DD or YYYY-MM-DDTHH:00:00Z |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Newly matching people returned as full profiles, normalized as contacts |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `personId` | number | Numeric Harmonic person ID |
+|   ↳ `fullName` | string | Full name |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `headline` | string | LinkedIn headline or current title |
+|   ↳ `currentTitles` | array | Current job titles |
+|   ↳ `currentCompanyNames` | array | Current company names |
+|   ↳ `currentCompanyUrns` | array | Current Harmonic company URNs |
+|   ↳ `primaryEmail` | string | Primary known email address |
+|   ↳ `emails` | array | Known email addresses |
+|   ↳ `phoneNumbers` | array | Known phone numbers |
+|   ↳ `linkedinUrl` | string | LinkedIn profile URL |
+|   ↳ `formattedLocation` | string | Formatted location |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country |
+|   ↳ `profilePictureUrl` | string | Profile picture URL |
+|   ↳ `summary` | string | Scout-generated contact summary |
+|   ↳ `isRedacted` | boolean | Whether Harmonic marks the person record as redacted |
+| `personUrns` | array | All newly matching person URNs, including rows returned without full profiles |
+| `cursor` | string | Cursor echoed by Harmonic |
+| `pageInfo` | object | Cursor pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page |
+|   ↳ `currentCursor` | string | Cursor for the current page |
+|   ↳ `hasNext` | boolean | Whether another page is available |
+
+### Harmonic Clear People Saved Search Net-New Results
+
+Acknowledge net-new people on a saved search so the next poll returns only fresh matches. Clearing everything requires setting the scope explicitly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `savedSearchId` | string | Yes | People saved-search ID or full Harmonic saved-search URN |
+| `personUrns` | json | No | Person URNs to acknowledge when clearScope is "selected". May be a JSON-array string |
+| `clearScope` | string | No | Either "selected" \(default, acknowledge only the listed URNs\) or "all" \(clear every net-new result\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cleared` | boolean | Whether Harmonic accepted the acknowledgement |
+| `clearedPersonUrns` | array | Person URNs acknowledged, or null when every net-new result was cleared |
+
+### Harmonic Submit Email Enrichment Job
+
+Queue bulk email enrichment for up to 5,000 people, given either person URNs or LinkedIn profile URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `personUrns` | json | No | Array of Harmonic person URNs, 1-5000; may be a JSON-array string. Mutually exclusive with personLinkedinUrls |
+| `personLinkedinUrls` | json | No | Array of LinkedIn profile URLs, 1-5000; may be a JSON-array string. Mutually exclusive with personUrns |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job identifier to poll with Get Email Enrichment Job |
+| `status` | string | Job status \(PENDING, IN_PROGRESS, COMPLETED, FAILED\) |
+| `acceptedCount` | number | People accepted into the job |
+| `monthlyRemaining` | number | Email enrichments left in the team monthly quota |
+| `createdAt` | string | Job creation timestamp |
+| `dropped` | array | Identifiers Harmonic dropped before queueing, with the reason for each |
+|   ↳ `submittedIdentifier` | string | Identifier submitted to Harmonic |
+|   ↳ `reason` | string | Why Harmonic dropped it \(NOT_FOUND, INVALID_URL, ALREADY_HAS_EMAIL, RECENTLY_ATTEMPTED\) |
+
+### Harmonic Get Email Enrichment Job
+
+Check a Harmonic bulk email enrichment job. Per-person results appear once the job is terminal; fetch the emails with Get Person or Batch Get People.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | Job ID returned by Submit Email Enrichment Job |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | Job identifier |
+| `status` | string | Job status \(PENDING, IN_PROGRESS, COMPLETED, FAILED\) |
+| `isTerminal` | boolean | Whether the job finished, meaning results will no longer change |
+| `counts` | object | Per-outcome tallies for the job |
+|   ↳ `totalProcessed` | number | People processed |
+|   ↳ `totalSucceeded` | number | People with an email found |
+|   ↳ `totalFailed` | number | People whose enrichment failed |
+|   ↳ `totalSkipped` | number | People skipped |
+|   ↳ `totalNotFound` | number | People Harmonic could not resolve |
+| `results` | array | Per-person outcomes; null until the job reaches a terminal status |
+|   ↳ `personUrn` | string | Harmonic person URN |
+|   ↳ `status` | string | Per-person job status \(PENDING, SUCCESS, NOT_FOUND, FAILED, SKIPPED\) |
+| `succeededPersonUrns` | array | Person URNs whose email was found; pass these to Batch Get People |
+| `createdAt` | string | Job creation timestamp |
+| `completedAt` | string | Job completion timestamp |
+
+### Harmonic Get Email Enrichment Usage
+
+Read the team monthly email-enrichment quota. Check this before a large batch to avoid a quota rejection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `monthlyUsage` | number | Emails enriched so far this month |
+| `monthlyLimit` | number | Monthly email enrichment allowance |
+| `monthlyRemaining` | number | Enrichments left this month |
+
+### Harmonic Get Enrichment Status
+
+Check enrichment jobs Harmonic queued for people it did not already have, and read the person URN each one produced.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `enrichmentUrns` | json | Yes | Array of Harmonic enrichment URNs or bare enrichment UUIDs from Enrich Person; may be a JSON-array string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `enrichments` | array | Status of each requested enrichment job |
+|   ↳ `enrichmentUrn` | string | Harmonic enrichment URN |
+|   ↳ `status` | string | Enrichment job status \(QUEUED, IN_PROGRESS, COMPLETE, FAILED, NOT_FOUND, EXPERIENCES_HIDDEN\) |
+|   ↳ `message` | string | Provider status message |
+|   ↳ `enrichedEntityUrn` | string | Resulting company or person URN once enrichment completes |
+| `count` | number | Number of enrichment statuses returned |
+
+

@@ -16,17 +16,23 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
+  type DeniedBlockOperations,
+  projectIntegrationToolsForViewer,
+  resolveDeniedBlockOperations,
+} from '@/lib/copilot/integration-tool-projection'
+import {
   type ExposedIntegrationTool,
-  filterExposedIntegrationTools,
   getExposedIntegrationTools,
 } from '@/lib/copilot/integration-tools'
 import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
@@ -40,11 +46,6 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
-import {
-  collectWorkflowFieldIssues,
-  lintEditedWorkflowState,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
-import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
@@ -60,12 +61,19 @@ import {
   buildVfsFolderPathMap,
   canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
+  decodeVfsSegmentSafe,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
+  buildOrganizationReadme,
   describeServiceAccountForOAuthProvider,
+  serializeAccessControl,
+  serializeAccountBilling,
+  serializeAccountMembers,
+  serializeAccountWorkspace,
+  serializeAccountWorkspaces,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -73,6 +81,7 @@ import {
   serializeConnectorOverview,
   serializeConnectorSchema,
   serializeConnectors,
+  serializeCredentialGroups,
   serializeCredentials,
   serializeCustomTool,
   serializeDeployments,
@@ -82,15 +91,22 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeMcpServer,
+  serializeOrganization,
+  serializeOrganizationCustomBlocks,
+  serializeOrganizationWorkspaces,
+  serializeOrgCustomBlockDetail,
+  serializePermissionGroupRoster,
   serializeRecentExecutions,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
+  serializeTableViews,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
   serializeWorkflowMeta,
+  serializeWorkspaceForks,
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import {
@@ -98,6 +114,9 @@ import {
   isDocSandboxEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
+import { listCredentialGroups } from '@/lib/credential-groups/service'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -109,6 +128,7 @@ import {
   listWorkspaceSandboxes,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import {
   isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
@@ -117,13 +137,28 @@ import { createIntegrationCredentialVisibility } from '@/lib/integrations/creden
 import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import {
-  listArchivedKnowledgeBases,
   listKnowledgeBaseCatalog,
+  listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
+import {
+  intersectIntegrationAllowlists,
+  toAllowedIntegrationTypes,
+} from '@/lib/permission-groups/integration-allowlist'
+import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
+import {
+  listOrganizationWorkspaceRefs,
+  listPermissionGroupRoster,
+} from '@/lib/permission-groups/queries'
 import { listTables } from '@/lib/table/service'
+import {
+  listTableViewsByWorkspace,
+  normalizeStoredViewConfig,
+  pruneViewConfig,
+  viewConfigIdsToNames,
+} from '@/lib/table/views/service'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type {
@@ -131,10 +166,18 @@ import type {
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
-import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import {
+  type CustomBlockWithInputs,
+  listCustomBlocksWithInputsForWorkspace,
+} from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -143,17 +186,31 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import {
+  collectSimPageDiagnostics,
+  isSimPageSource,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import {
+  getUserPermissionConfig,
+  resolveVerifiedUserAccessControlContext,
+} from '@/ee/access-control/utils/permission-check'
+import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
+import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
+import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -237,42 +294,60 @@ const triggerPathOwners = new Map<string, Array<Pick<BlockConfig, 'type' | 'prev
 function isBlockOwnerHidden(
   owner: Pick<BlockConfig, 'type' | 'preview'>,
   vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null
+  gate: StaticFileGate
 ): boolean {
   const config = BLOCK_REGISTRY[owner.type]
   if (config?.hideFromToolbar) return true
   if (!isIntegrationDeploymentAvailableForVisibility(owner.type, vis)) return true
   if (
-    allowedIntegrationTypes !== null &&
+    gate.allowedIntegrationTypes !== null &&
     !isBlockTypeAccessControlExempt(owner.type) &&
-    !allowedIntegrationTypes.has(owner.type.toLowerCase())
+    !gate.allowedIntegrationTypes.has(owner.type.toLowerCase())
   ) {
     return true
   }
+  /* Every operation denied leaves nothing the viewer could configure, so the
+     block is withheld outright rather than published with an empty selector. */
+  if (gate.fullyDeniedBlockTypes.has(owner.type)) return true
   return isHiddenUnder(vis, owner)
+}
+
+/**
+ * The per-viewer gates the static-file filter applies, carried together so a
+ * caller cannot pass one and forget the other.
+ */
+interface StaticFileGate {
+  /** Lowercased block types the viewer may use; `null` when unrestricted. */
+  allowedIntegrationTypes: ReadonlySet<string> | null
+  /** Block types whose every selectable operation the viewer's group denies. */
+  fullyDeniedBlockTypes: ReadonlySet<string>
+}
+
+const UNGATED_STATIC_FILES: StaticFileGate = {
+  allowedIntegrationTypes: null,
+  fullyDeniedBlockTypes: new Set(),
 }
 
 function isStaticFileHidden(
   path: string,
   vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null = null
+  gate: StaticFileGate = UNGATED_STATIC_FILES
 ): boolean {
   const blockMatch = path.match(/^components\/(?:blocks|triggers\/sim)\/([^/]+)\.json$/)
   if (blockMatch) {
     const config = BLOCK_REGISTRY[blockMatch[1]!]
-    return config ? isBlockOwnerHidden(config, vis, allowedIntegrationTypes) : false
+    return config ? isBlockOwnerHidden(config, vis, gate) : false
   }
   const triggerOwners = triggerPathOwners.get(path)
   if (triggerOwners) {
     return (
       triggerOwners.length > 0 &&
-      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+      triggerOwners.every((owner) => isBlockOwnerHidden(owner, vis, gate))
     )
   }
   const owners = integrationPathOwners.get(path)
   return owners
-    ? owners.length > 0 &&
-        owners.every((owner) => isBlockOwnerHidden(owner, vis, allowedIntegrationTypes))
+    ? owners.length > 0 && owners.every((owner) => isBlockOwnerHidden(owner, vis, gate))
     : false
 }
 
@@ -317,20 +392,13 @@ function buildIntegrationAggregateFiles(
   ])
 }
 
-function buildTriggerOverview(
-  vis: BlockVisibilityState | null,
-  allowedIntegrationTypes: ReadonlySet<string> | null
-): string {
+function buildTriggerOverview(vis: BlockVisibilityState | null, gate: StaticFileGate): string {
   const builtinTriggers = Object.values(BLOCK_REGISTRY)
     .filter(
       (block) =>
         block.category === 'triggers' &&
         !block.preview &&
-        !isStaticFileHidden(
-          `components/triggers/sim/${block.type}.json`,
-          vis,
-          allowedIntegrationTypes
-        )
+        !isStaticFileHidden(`components/triggers/sim/${block.type}.json`, vis, gate)
     )
     .map((block) => ({
       id: block.type,
@@ -341,11 +409,7 @@ function buildTriggerOverview(
   const externalTriggers = Object.entries(TRIGGER_REGISTRY)
     .filter(
       ([id, trigger]) =>
-        !isStaticFileHidden(
-          `components/triggers/${trigger.provider}/${id}.json`,
-          vis,
-          allowedIntegrationTypes
-        )
+        !isStaticFileHidden(`components/triggers/${trigger.provider}/${id}.json`, vis, gate)
     )
     .map(([id, trigger]) => ({
       id,
@@ -373,6 +437,66 @@ function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
 }
 
 /**
+ * Tool configs keyed by every id a block schema may reference, memoized for the
+ * process. Shared by the one-time static build and the per-viewer re-projection
+ * of a block whose operations are partly denied.
+ */
+let staticToolConfigs: ReadonlyMap<string, ToolConfig> | null = null
+
+function getStaticToolConfigs(): ReadonlyMap<string, ToolConfig> {
+  if (staticToolConfigs) return staticToolConfigs
+  const configs = new Map<string, ToolConfig>()
+  for (const { toolId, config } of getExposedIntegrationTools()) {
+    configs.set(toolId, config)
+    configs.set(config.id, config)
+  }
+  staticToolConfigs = configs
+  return configs
+}
+
+const BLOCK_SCHEMA_PATH_PREFIX = 'components/blocks/'
+const INTEGRATION_SCHEMA_PATH_PREFIX = 'components/integrations/'
+
+/** The per-viewer projections applied to a shared static component file. */
+interface StaticFileProjection {
+  sandboxEntitled: boolean
+  deniedOperations: DeniedBlockOperations
+  isToolAllowed: IsToolAllowed
+}
+
+/**
+ * The viewer's copy of one shared static component file.
+ *
+ * Returns the shared string untouched unless this viewer actually loses
+ * something, so the process-global build stays the hot path and only a block
+ * carrying a denied operation pays for a re-serialization.
+ */
+function projectStaticComponentFile(
+  path: string,
+  content: string,
+  projection: StaticFileProjection
+): string {
+  if (path === 'components/blocks/function.json' && !projection.sandboxEntitled) {
+    return staticFunctionSchemaWithRestrictedSimSandboxes ?? content
+  }
+  if (projection.deniedOperations.needsProjection.size === 0) return content
+  if (!path.startsWith(BLOCK_SCHEMA_PATH_PREFIX)) return content
+
+  const blockType = path.match(/^components\/blocks\/([^/]+)\.json$/)?.[1]
+  if (!blockType) return content
+  const deniedOperationIds = projection.deniedOperations.needsProjection.get(blockType)
+  if (!deniedOperationIds) return content
+  const block = BLOCK_REGISTRY[blockType]
+  if (!block) return content
+
+  return serializeBlockSchema(block, {
+    toolConfigs: getStaticToolConfigs(),
+    deniedOperationIds,
+    isToolAllowed: projection.isToolAllowed,
+  })
+}
+
+/**
  * Build the static component files from block and tool registries.
  * This only needs to happen once per process.
  *
@@ -393,11 +517,7 @@ function getStaticComponentFiles(): Map<string, string> {
   const allBlocks = Object.values(BLOCK_REGISTRY)
   const visibleBlocks = allBlocks.filter((block) => !block.hideFromToolbar)
   const exposedTools = getExposedIntegrationTools()
-  const toolConfigs = new Map<string, ToolConfig>()
-  for (const { toolId, config } of exposedTools) {
-    toolConfigs.set(toolId, config)
-    toolConfigs.set(config.id, config)
-  }
+  const toolConfigs = getStaticToolConfigs()
 
   let blocksFiltered = 0
   for (const block of visibleBlocks) {
@@ -543,7 +663,7 @@ function getStaticComponentFiles(): Map<string, string> {
     externalTriggerCount++
   }
 
-  files.set('components/triggers/triggers.md', buildTriggerOverview(null, null))
+  files.set('components/triggers/triggers.md', buildTriggerOverview(null, UNGATED_STATIC_FILES))
 
   logger.info('Static component files built', {
     blocks: visibleBlocks.length,
@@ -580,6 +700,14 @@ function getStaticComponentFiles(): Map<string, string> {
  *   custom-tools/{name}.json
  *   agent/sandboxes/README.md
  *   agent/sandboxes/{name}.json
+ *   account/workspace.json                           (this workspace + your role; always present)
+ *   account/workspaces.json                          (every workspace you can reach)
+ *   account/members.json                             (workspace members; emails admin-only)
+ *   account/billing.json                             (plan/usage/credits; lazy, read fresh)
+ *   organization/organization.json                   (org standing; only when org-hosted)
+ *   organization/access-control.json                 (your governing group + restrictions)
+ *   organization/custom-blocks.json                  (org-published block provenance)
+ *   organization/forks.json                          (fork topology; workspace admins only)
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -612,6 +740,7 @@ export class WorkspaceVFS {
     Promise<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>>
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
+  private customBlocksPromise: Promise<CustomBlockWithInputs[]> | undefined
   private _workspaceId = ''
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
@@ -739,7 +868,13 @@ export class WorkspaceVFS {
       if (!scope || ops.pathWithinGrepScope(path, scope)) targets.push(path)
     }
     if (targets.length === 0) return
-    await Promise.all(targets.map((path) => this.resolveLazyPath(path)))
+    // One unmaterializable artifact (e.g. an over-limit knowledge base's
+    // documents.json) must not fail the whole sweep — that would make every
+    // unscoped grep on the workspace error on content the caller never asked
+    // about. Skip it: grep proceeds over everything that resolved, the loader
+    // stays re-armed, and reading the failing path directly still surfaces its
+    // own error (resolveLazyPath logs each failure).
+    await Promise.allSettled(targets.map((path) => this.resolveLazyPath(path)))
   }
 
   /**
@@ -782,6 +917,7 @@ export class WorkspaceVFS {
     this.lazy = new Map()
     this.normalizedCache = new Map()
     this.deploymentCache = new Map()
+    this.customBlocksPromise = undefined
     this._customBlockTypes = null
     this._workspaceId = workspaceId
 
@@ -810,6 +946,13 @@ export class WorkspaceVFS {
             const sandboxEntitlementPromise = timed(
               'sandbox_entitlement',
               hasWorkspaceSandboxAccess(workspaceId)
+            )
+            // Shared with the account/ and organization/ namespaces so the
+            // roster and host context are each read once per materialization.
+            const membersPromise = timed('members', getUsersWithPermissions(workspaceId))
+            const hostContextPromise = timed(
+              'host_context',
+              getWorkspaceHostContextForViewer(workspaceId, userId).catch(() => null)
             )
             const [
               wfSummary,
@@ -852,9 +995,18 @@ export class WorkspaceVFS {
                 )
               ),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
-              timed('members', getUsersWithPermissions(workspaceId)),
+              membersPromise,
               permissionConfigPromise,
               sandboxEntitlementPromise,
+            ])
+
+            // account/ and organization/ describe the viewer's standing rather
+            // than workspace resources, so they are materialized after the
+            // resource pass and contribute nothing to WORKSPACE.md.
+            const hostContext = await hostContextPromise
+            await Promise.all([
+              timed('account', this.materializeAccount(workspaceId, userId, hostContext, members)),
+              timed('organization', this.materializeOrganization(workspaceId, userId, hostContext)),
             ])
             const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
@@ -879,29 +1031,35 @@ export class WorkspaceVFS {
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
-            const configuredAllowedIntegrations = intersectIntegrationAllowlists(
-              permissionConfig?.allowedIntegrations ?? null,
-              getAllowedIntegrationsFromEnv()
+            const {
+              tools: viewerIntegrationTools,
+              allowedBlockTypes,
+              isToolAllowed,
+            } = projectIntegrationToolsForViewer(blockVisibility, permissionConfig)
+            const deniedOperations = resolveDeniedBlockOperations(
+              permissionConfig?.deniedTools,
+              isToolAllowed
             )
-            const allowedIntegrationTypes = configuredAllowedIntegrations
-              ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
-              : null
-            for (const [path, content] of getStaticComponentFiles()) {
-              if (isStaticFileHidden(path, blockVisibility, allowedIntegrationTypes)) continue
-              const projectedContent =
-                path === 'components/blocks/function.json' && !sandboxEntitled
-                  ? (staticFunctionSchemaWithRestrictedSimSandboxes ?? content)
-                  : content
-              this.files.set(path, projectedContent)
+            const staticFileGate: StaticFileGate = {
+              allowedIntegrationTypes: allowedBlockTypes,
+              fullyDeniedBlockTypes: deniedOperations.fullyDenied,
             }
-            const viewerIntegrationTools = filterExposedIntegrationTools(
-              getExposedIntegrationTools(),
-              blockVisibility,
-              (owner) =>
-                isIntegrationDeploymentAvailableForVisibility(owner.blockType, blockVisibility) &&
-                (allowedIntegrationTypes === null ||
-                  allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
-            )
+            const staticFileProjection: StaticFileProjection = {
+              sandboxEntitled,
+              deniedOperations,
+              isToolAllowed,
+            }
+            for (const [path, content] of getStaticComponentFiles()) {
+              /* Integration schemas are authored per viewer from
+                 `viewerIntegrationTools` immediately below, which is the only
+                 projection that knows the group's per-tool denylist. Stamping
+                 the shared copy first would publish a denied operation's schema
+                 that the loop below never overwrites, because it only writes the
+                 operations the viewer may use. */
+              if (path.startsWith(INTEGRATION_SCHEMA_PATH_PREFIX)) continue
+              if (isStaticFileHidden(path, blockVisibility, staticFileGate)) continue
+              this.files.set(path, projectStaticComponentFile(path, content, staticFileProjection))
+            }
             for (const exposedTool of viewerIntegrationTools) {
               const { config: tool, service, operation, blockType } = exposedTool
               this.files.set(
@@ -918,7 +1076,7 @@ export class WorkspaceVFS {
             }
             this.files.set(
               'components/triggers/triggers.md',
-              buildTriggerOverview(blockVisibility, allowedIntegrationTypes)
+              buildTriggerOverview(blockVisibility, staticFileGate)
             )
 
             span.setAttributes({
@@ -1018,9 +1176,18 @@ export class WorkspaceVFS {
     const normalized = path.replace(/^\/+/, '')
     // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
     // named "content"); otherwise drop a trailing "/content" read suffix.
-    const leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
+    let leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
 
-    const isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    let isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    if (isWorkspaceFilePath && !this.files.has(leaf)) {
+      // Same encoding tolerance as vfs_read: a decoded display form that maps
+      // to exactly one canonical key resolves instead of erroring.
+      const decodedEquivalent = this.resolveDecodedEquivalent(leaf)
+      if (decodedEquivalent) {
+        leaf = decodedEquivalent
+        isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+      }
+    }
     if (!isWorkspaceFilePath || !this.files.has(leaf)) {
       const suggestions = this.suggestSimilar(leaf)
       const hint =
@@ -1036,6 +1203,9 @@ export class WorkspaceVFS {
     const result = await this.readFileContentWithProvenance(contentPath)
     if (!result) {
       throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
+    }
+    if (result.value.placeholder === 'oversized') {
+      throw new ops.WorkspaceFileGrepError(`File is too large to search: ${result.value.content}`)
     }
 
     return {
@@ -1062,6 +1232,25 @@ export class WorkspaceVFS {
 
   suggestSimilar(missingPath: string, max?: number): string[] {
     return ops.suggestSimilar(this.keyView(true), missingPath, max)
+  }
+
+  /**
+   * Resolves a missing path to an existing one when the two differ ONLY by
+   * percent-encoding (the model typed the decoded display form — spaces
+   * instead of %20). Returns the canonical existing path when exactly one key
+   * decodes to the same segments; ambiguity or a genuine miss returns null so
+   * the not-found error (with suggestions) still fires. Never fuzzy: same
+   * name, different bytes only.
+   */
+  resolveDecodedEquivalent(missingPath: string): string | null {
+    const target = decodeVfsPathSegmentsSafe(missingPath)
+    let match: string | null = null
+    for (const key of this.keyView(true).keys()) {
+      if (decodeVfsPathSegmentsSafe(key) !== target) continue
+      if (match !== null) return null
+      match = key
+    }
+    return match
   }
 
   private async resolveWorkspaceFileForDynamicRead(
@@ -1444,7 +1633,12 @@ export class WorkspaceVFS {
         const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-        if (!e2bFmt && !taskId && !isMermaidFile) return null
+        // Sim pages (and legacy .html-named page source) compile-check too:
+        // this is the only way an agent can retrieve the "block skipped"
+        // diagnostics for an ALREADY-written page — without it, "find the
+        // malformed table" degenerates into guessing.
+        const maybeSimPage = record.type === SIM_PAGE_CONTENT_TYPE || ext === 'html'
+        if (!e2bFmt && !taskId && !isMermaidFile && !maybeSimPage) return null
         const { content: buffer } = await readWorkspaceFileContent.execute({
           principal: this.requireFilePrincipal(),
           input: {
@@ -1459,6 +1653,37 @@ export class WorkspaceVFS {
             content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
             totalLines: 1,
           })
+        }
+        if (maybeSimPage && isSimPageSource(code)) {
+          const diagnostics = collectSimPageDiagnostics(code)
+          const result =
+            diagnostics.length === 0
+              ? { ok: true }
+              : {
+                  ok: false,
+                  error: `${diagnostics.length} block(s) fail to compile and are omitted from the rendered page: ${diagnostics.join('; ')}`,
+                }
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify(result),
+            totalLines: 1,
+          })
+        }
+        if (maybeSimPage && !e2bFmt && !taskId && !isMermaidFile) {
+          if (record.type === SIM_PAGE_CONTENT_TYPE) {
+            // A page-typed file whose bytes are not page source (e.g. a crash
+            // between upload registration and source restore) — report it
+            // rather than pretending the path does not exist.
+            return bindWorkspaceFileResult(record, {
+              content: JSON.stringify({
+                ok: false,
+                error:
+                  'Stored content is not page source (no YAML frontmatter with a title) — the file renders as raw HTML',
+              }),
+              totalLines: 1,
+            })
+          }
+          // Bespoke raw HTML has no compiler to check.
+          return null
         }
         if (isMermaidFile) {
           const result = await validateMermaidSource(code)
@@ -1557,6 +1782,8 @@ export class WorkspaceVFS {
 
     const scope = deletedMatch ? 'archived' : 'active'
 
+    let sizeCappedRecord: WorkspaceFileRecord | undefined
+    let sizeCap = MAX_TEXT_READ_BYTES
     try {
       const { files } = await listAllWorkspaceFiles.execute({
         principal: this.requireFilePrincipal(),
@@ -1564,15 +1791,17 @@ export class WorkspaceVFS {
       })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
+      sizeCappedRecord = record
+      sizeCap = isImageFileType(resolveEffectiveMimeType(record.type, record.name))
+        ? MAX_IMAGE_SOURCE_BYTES
+        : MAX_TEXT_READ_BYTES
       const { file, content } = await readWorkspaceFileContent.execute({
         principal: this.requireFilePrincipal(),
         input: {
           fileId: record.id,
           assertedWorkspaceId: this._workspaceId,
           includeDeleted: scope === 'archived',
-          maxBytes: isImageFileType(resolveEffectiveMimeType(record.type, record.name))
-            ? MAX_IMAGE_SOURCE_BYTES
-            : MAX_TEXT_READ_BYTES,
+          maxBytes: sizeCap,
         },
       })
       const result = await readFileRecord(file, content)
@@ -1584,6 +1813,15 @@ export class WorkspaceVFS {
           )
         : null
     } catch (err) {
+      // A cap breach is an answer, not a lookup failure: returning null here
+      // reported multi-MB files as "content not found". The oversized
+      // placeholder tells the model the file exists and why it can't be read.
+      if (isPayloadSizeLimitError(err) && sizeCappedRecord) {
+        return bindWorkspaceFileResult(
+          sizeCappedRecord,
+          readPlaceholder.fileTooLarge(sizeCappedRecord.name, sizeCappedRecord.size ?? 0, sizeCap)
+        )
+      }
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
         path,
@@ -1601,6 +1839,26 @@ export class WorkspaceVFS {
     folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
   ): Map<string, string> {
     return buildVfsFolderPathMap(folders)
+  }
+
+  /**
+   * Folder paths for a non-workflow resource tree (tables, knowledge bases),
+   * plus `.folder` markers so empty folders are discoverable via glob — the
+   * same contract workflows/ has. Returns folderId → encoded folder path.
+   */
+  private async registerResourceFolders(
+    workspaceId: string,
+    resourceType: 'table' | 'knowledge_base',
+    rootSegment: 'tables' | 'knowledgebases'
+  ): Promise<Map<string, string>> {
+    const folders = await listFoldersForWorkspace(workspaceId, 'active', resourceType)
+    const paths = buildVfsFolderPathMap(
+      folders.map((f) => ({ folderId: f.id, folderName: f.name, parentId: f.parentId }))
+    )
+    for (const folderPath of paths.values()) {
+      this.files.set(`${rootSegment}/${folderPath}/.folder`, '')
+    }
+    return paths
   }
 
   /**
@@ -1695,7 +1953,6 @@ export class WorkspaceVFS {
         }
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
-        const workflowPath = prefix.replace(/\/$/, '')
 
         const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
         this.files.set(
@@ -1772,11 +2029,24 @@ export class WorkspaceVFS {
           })
         }
 
+        // deployment.json exists for EVERY workflow: "is it deployed?" is a
+        // question with an answer either way, and a not-found error here was a
+        // recurring red herring — agents probing an undeployed workflow read a
+        // failure instead of the fact. Versions stay gated: they genuinely
+        // don't exist before the first deploy.
+        this.registerLazy(`${prefix}deployment.json`, async () => {
+          if (!versionedWorkflowIds.has(wf.id)) {
+            return JSON.stringify({
+              deployed: false,
+              note: 'This workflow has never been deployed.',
+            })
+          }
+          const deploymentData = await this.loadDeployments(wf.id)
+          return deploymentData
+            ? serializeDeployments(deploymentData)
+            : JSON.stringify({ deployed: false, note: 'This workflow has never been deployed.' })
+        })
         if (versionedWorkflowIds.has(wf.id)) {
-          this.registerLazy(`${prefix}deployment.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf.id)
-            return deploymentData ? serializeDeployments(deploymentData) : null
-          })
           this.registerLazy(`${prefix}versions.json`, async () => {
             const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData?.versions && deploymentData.versions.length > 0
@@ -1805,10 +2075,18 @@ export class WorkspaceVFS {
       input: { workspaceId },
     })
     const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
+    const folderPaths = await this.registerResourceFolders(
+      workspaceId,
+      'knowledge_base',
+      'knowledgebases'
+    )
 
     for (const { knowledgeBase: kb, tagDefinitions } of knowledgeBases) {
       const safeName = sanitizeName(kb.name)
-      const prefix = `knowledgebases/${safeName}/`
+      const folderPath = kb.folderId ? folderPaths.get(kb.folderId) : undefined
+      const prefix = folderPath
+        ? `knowledgebases/${folderPath}/${safeName}/`
+        : `knowledgebases/${safeName}/`
 
       this.files.set(
         `${prefix}meta.json`,
@@ -1824,6 +2102,7 @@ export class WorkspaceVFS {
           documentCount: kb.docCount,
           connectorTypes: kb.connectorTypes,
           tagDefinitions: tagDefinitions.map((definition) => ({
+            id: definition.id,
             tagName: definition.displayName,
             tagSlot: definition.tagSlot,
             fieldType: definition.fieldType,
@@ -1903,12 +2182,45 @@ export class WorkspaceVFS {
    */
   private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
-      const tables = await listTables(workspaceId)
+      const [tables, folderPaths, viewsByTable] = await Promise.all([
+        listTables(workspaceId),
+        this.registerResourceFolders(workspaceId, 'table', 'tables'),
+        listTableViewsByWorkspace(workspaceId),
+      ])
 
       for (const table of tables) {
         const safeName = sanitizeName(table.name)
+        const folderPath = table.folderId ? folderPaths.get(table.folderId) : undefined
+        const prefix = folderPath ? `tables/${folderPath}/${safeName}` : `tables/${safeName}`
+        const viewRows = viewsByTable.get(table.id) ?? []
+        if (viewRows.length > 0) {
+          const columns = table.schema.columns
+          this.files.set(
+            `${prefix}/views.json`,
+            serializeTableViews(
+              viewRows.map((row) => {
+                const config = viewConfigIdsToNames(
+                  pruneViewConfig(
+                    normalizeStoredViewConfig(row.config as Record<string, unknown>),
+                    columns
+                  ),
+                  columns
+                )
+                return {
+                  id: row.id,
+                  name: row.name,
+                  isDefault: row.isDefault,
+                  filter: config.filter ?? null,
+                  sort: config.sort ?? null,
+                  hiddenColumns: config.hiddenColumns,
+                  updatedAt: row.updatedAt,
+                }
+              })
+            )
+          )
+        }
         this.files.set(
-          `tables/${safeName}/meta.json`,
+          `${prefix}/meta.json`,
           serializeTableMeta({
             id: table.id,
             name: table.name,
@@ -2018,6 +2330,10 @@ export class WorkspaceVFS {
           authType: chatTable.authType,
           customizations: chatTable.customizations,
           isActive: chatTable.isActive,
+          allowedEmails: chatTable.allowedEmails,
+          outputConfigs: chatTable.outputConfigs,
+          includeThinking: chatTable.includeThinking,
+          includeToolCalls: chatTable.includeToolCalls,
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
@@ -2028,6 +2344,7 @@ export class WorkspaceVFS {
           toolId: workflowMcpTool.id,
           toolName: workflowMcpTool.toolName,
           toolDescription: workflowMcpTool.toolDescription,
+          parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
         })
         .from(workflowMcpTool)
         .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
@@ -2155,7 +2472,7 @@ export class WorkspaceVFS {
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['customBlocks']>> {
     try {
-      const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+      const blocks = await this.loadCustomBlocks(workspaceId)
       // Every current definition (incl. disabled) — the authoritative set used to
       // drop deleted-definition instances from workflow state (see loadNormalized).
       this._customBlockTypes = new Set(blocks.map((cb) => cb.type))
@@ -2189,6 +2506,380 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
+    }
+  }
+
+  /** Load the org's custom blocks once per VFS materialization. Failed loads remain retryable. */
+  private async loadCustomBlocks(workspaceId: string): Promise<CustomBlockWithInputs[]> {
+    const request = this.customBlocksPromise ?? listCustomBlocksWithInputsForWorkspace(workspaceId)
+    this.customBlocksPromise = request
+    try {
+      return await request
+    } catch (error) {
+      if (this.customBlocksPromise === request) this.customBlocksPromise = undefined
+      throw error
+    }
+  }
+
+  /**
+   * Materialize `account/` — the acting user's vantage: this workspace and
+   * their role in it, the workspaces they can reach, who else is here, and
+   * their live plan.
+   *
+   * Read-only and always mounted. `billing.json` is registered lazily because
+   * usage ticks between requests: materializing it would freeze the numbers at
+   * snapshot time and pay for a billing read on every turn that never asks.
+   * Membership reuses the roster already loaded for WORKSPACE.md rather than
+   * issuing a second query.
+   */
+  private async materializeAccount(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>,
+    members: Awaited<ReturnType<typeof getUsersWithPermissions>>
+  ): Promise<void> {
+    try {
+      const [rows, entitlements] = await Promise.all([
+        listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+        computeWorkspaceEntitlements(workspaceId, userId).catch(() => [] as string[]),
+      ])
+
+      const current = rows.find((row) => row.workspace.id === workspaceId)
+      const parentId = current?.workspace.forkedFromWorkspaceId ?? null
+      // Name the parent only when the viewer can reach it; otherwise the id
+      // stands alone rather than leaking a workspace name they cannot open.
+      const parentRow = parentId ? rows.find((row) => row.workspace.id === parentId) : undefined
+      const isAdmin = hostContext?.viewer.permission === 'admin'
+
+      this.files.set(
+        'account/workspace.json',
+        serializeAccountWorkspace({
+          workspace: {
+            id: workspaceId,
+            name: hostContext?.workspace.name ?? current?.workspace.name ?? '',
+            workspaceMode: hostContext?.workspace.workspaceMode ?? null,
+          },
+          viewer: {
+            permission: hostContext?.viewer.permission ?? current?.permissionType ?? null,
+            organizationRole: hostContext?.viewer.organizationRole ?? null,
+          },
+          organization: hostContext?.hostOrganizationId
+            ? { id: hostContext.hostOrganizationId }
+            : null,
+          forkedFrom: parentId
+            ? { id: parentId, name: parentRow?.workspace.name ?? parentId }
+            : null,
+          entitlements,
+        })
+      )
+
+      this.files.set(
+        'account/workspaces.json',
+        serializeAccountWorkspaces(
+          rows.map((row) => ({
+            id: row.workspace.id,
+            name: row.workspace.name,
+            role: row.permissionType,
+            organizationId: row.workspace.organizationId,
+            forkedFromWorkspaceId: row.workspace.forkedFromWorkspaceId,
+            isCurrent: row.workspace.id === workspaceId,
+          }))
+        )
+      )
+
+      this.files.set(
+        'account/members.json',
+        serializeAccountMembers(members, { includeContactDetails: isAdmin })
+      )
+
+      this.registerLazy('account/billing.json', async () => {
+        try {
+          return serializeAccountBilling(await getAccountBillingSnapshot(userId))
+        } catch (err) {
+          logger.warn('Failed to load account billing', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize account namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
+    }
+  }
+
+  /**
+   * Materialize `organization/` — org standing, the access-control rules that
+   * actually bind this viewer, org-published block provenance, and fork
+   * topology.
+   *
+   * The namespace exists only when the workspace belongs to an organization, so
+   * its absence is itself the answer for a personal workspace. Fork detail is
+   * mounted only for a workspace admin of a forking-enabled org, matching the
+   * gate the fork routes apply.
+   */
+  private async materializeOrganization(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>
+  ): Promise<void> {
+    const organizationId = hostContext?.hostOrganizationId
+    if (!hostContext || !organizationId) return
+
+    try {
+      this.files.set(
+        'organization/organization.json',
+        serializeOrganization({
+          organization: {
+            id: organizationId,
+            relationship: hostContext.viewer.isHostOrganizationMember ? 'internal' : 'external',
+            role: hostContext.viewer.organizationRole ?? null,
+          },
+          capabilities: {
+            canManageOrganization: hostContext.viewer.isHostOrganizationAdmin,
+            canManageBilling: hostContext.viewer.isHostOrganizationAdmin,
+          },
+          plan: hostContext.ownerBilling.plan,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+        })
+      )
+
+      this.registerLazy('organization/access-control.json', async () => {
+        try {
+          const accessControl = await resolveVerifiedUserAccessControlContext(
+            userId,
+            workspaceId,
+            organizationId
+          )
+          return serializeAccessControl({
+            entitled: accessControl.entitled,
+            permissionGroup: accessControl.permissionGroup,
+            restrictions: getActivePermissionGroupRestrictions(accessControl.config),
+          })
+        } catch (err) {
+          logger.warn('Failed to load access control context', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+
+      // The block list is fetched at materialize time (one indexed query, the
+      // same one the components pass already ran) because the README and the
+      // names-only index need it, and each block's detail path must exist in
+      // the key view for glob to list. Only the deployed graph stays lazy —
+      // it is the expensive part and most turns never read it.
+      const orgBlocks = await this.loadCustomBlocks(workspaceId).catch((err) => {
+        logger.warn('Failed to list org custom blocks', {
+          workspaceId,
+          error: toError(err).message,
+        })
+        return []
+      })
+      if (orgBlocks.length > 0) {
+        this.files.set(
+          'organization/custom-blocks.json',
+          serializeOrganizationCustomBlocks(orgBlocks)
+        )
+        // The names index matches editor visibility: anyone who can open the
+        // workspace sees the block in the toolbar. The deployed GRAPH is org
+        // implementation internals, so an external collaborator — workspace
+        // access without org membership — gets the interface (components/
+        // schema) but not the graph; for them the detail files simply do not
+        // exist.
+        if (hostContext.viewer.isHostOrganizationMember)
+          for (const orgBlock of orgBlocks) {
+            this.registerLazy(`organization/custom-blocks/${orgBlock.type}.json`, async () => {
+              try {
+                const deployed = await loadDeployedWorkflowState(
+                  orgBlock.workflowId,
+                  orgBlock.workspaceId ?? undefined
+                )
+                return serializeOrgCustomBlockDetail(orgBlock, deployed)
+              } catch (err) {
+                logger.warn('Failed to load deployed state for org custom block', {
+                  workspaceId,
+                  blockType: orgBlock.type,
+                  error: toError(err).message,
+                })
+                return null
+              }
+            })
+          }
+      }
+
+      // Everything below is registered LAZILY: the paths appear in the key
+      // view (so glob lists them) but no query runs until something reads
+      // one. Registration itself is the permission gate — an unpermitted
+      // viewer's file simply does not exist.
+      if (hostContext.viewer.isHostOrganizationMember) {
+        this.registerLazy('organization/workspaces.json', async () => {
+          try {
+            const [refs, accessible] = await Promise.all([
+              listOrganizationWorkspaceRefs(organizationId),
+              listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+            ])
+            const accessibleIds = new Set(accessible.map((row) => row.workspace.id))
+            const forkParents = new Map(
+              accessible.map((row) => [row.workspace.id, row.workspace.forkedFromWorkspaceId])
+            )
+            return serializeOrganizationWorkspaces(
+              refs.map((ref) => ({
+                id: ref.id,
+                name: ref.name,
+                hasAccess: accessibleIds.has(ref.id),
+                forkedFromWorkspaceId: forkParents.get(ref.id) ?? null,
+              }))
+            )
+          } catch (err) {
+            logger.warn('Failed to load org workspaces', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      if (hostContext.viewer.isHostOrganizationAdmin) {
+        this.registerLazy('organization/permission-groups.json', async () => {
+          try {
+            const roster = await listPermissionGroupRoster(organizationId)
+            if (roster.length === 0) return null
+            return serializePermissionGroupRoster(roster)
+          } catch (err) {
+            logger.warn('Failed to load permission-group roster', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      const credentialGroupsAvailable = hostContext.features?.credentialGroups === true
+      if (credentialGroupsAvailable) {
+        const includeEmails = hostContext.viewer.permission === 'admin'
+        this.registerLazy('organization/credential-groups.json', async () => {
+          try {
+            const records = await listCredentialGroups(workspaceId)
+            if (records.length === 0) return null
+            const groups = await Promise.all(
+              records.map(async (record) => {
+                const enrollmentCounts: Record<string, number> = {}
+                let people: Array<{ email: string; status: string }> | undefined
+                let truncated = false
+                try {
+                  const page = await listCredentialGroupEnrollments(workspaceId, record.id, 100)
+                  truncated = page.nextCursor !== null
+                  for (const enrollment of page.enrollments) {
+                    enrollmentCounts[enrollment.status] =
+                      (enrollmentCounts[enrollment.status] ?? 0) + 1
+                  }
+                  if (includeEmails) {
+                    people = page.enrollments.map((enrollment) => ({
+                      email: enrollment.email,
+                      status: enrollment.status,
+                    }))
+                  }
+                } catch {
+                  // Counts degrade to empty; the group itself still lists.
+                }
+                return {
+                  id: record.id,
+                  name: record.name,
+                  description: record.description,
+                  status: record.status,
+                  options: record.options.map((option) => ({
+                    provider: option.provider,
+                    label: 'label' in option ? option.label : undefined,
+                    required: 'required' in option ? option.required : undefined,
+                    configurationStatus: option.configurationStatus,
+                  })),
+                  enrollmentCounts,
+                  enrollmentsTruncated: truncated,
+                  ...(people ? { people } : {}),
+                }
+              })
+            )
+            return serializeCredentialGroups(groups, { includeEmails })
+          } catch (err) {
+            logger.warn('Failed to load credential groups', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      const forksAvailable =
+        hostContext.viewer.permission === 'admin' &&
+        (await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))
+
+      this.files.set(
+        'organization/README.md',
+        buildOrganizationReadme({
+          organizationId,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+          customBlocks: orgBlocks,
+          forksMounted: forksAvailable,
+          permissionGroupsMounted: hostContext.viewer.isHostOrganizationAdmin,
+          credentialGroupsMounted: credentialGroupsAvailable,
+        })
+      )
+
+      if (!forksAvailable) return
+
+      this.registerLazy('organization/forks.json', async () => {
+        try {
+          const [parent, children] = await Promise.all([
+            getForkParent(workspaceId),
+            getForkChildren(workspaceId),
+          ])
+          if (!parent && children.length === 0) return null
+
+          const resourceMappingCounts: Record<string, number> = {}
+          let blockMappingCount = 0
+          if (parent) {
+            const [resourceRows, blockMap] = await Promise.all([
+              getEdgeMappingRows(db, workspaceId),
+              loadForkBlockMap(db, workspaceId),
+            ])
+            for (const row of resourceRows) {
+              resourceMappingCounts[row.resourceType] =
+                (resourceMappingCounts[row.resourceType] ?? 0) + 1
+            }
+            blockMappingCount = blockMap.parentToChild.size
+          }
+
+          return serializeWorkspaceForks({
+            parent: parent ? { id: parent.id, name: parent.name } : null,
+            children: children.map((child) => ({
+              id: child.id,
+              name: child.name,
+              createdAt: child.createdAt,
+            })),
+            resourceMappingCounts,
+            blockMappingCount,
+          })
+        } catch (err) {
+          logger.warn('Failed to load fork topology', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize organization namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
     }
   }
 
@@ -2348,12 +3039,12 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        listArchivedKnowledgeBases
+        listKnowledgeBases
           .execute({
             principal: this.requireKnowledgePrincipal(),
-            input: { workspaceId },
+            input: { workspaceId, scope: 'archived' },
           })
-          .then(({ knowledgeBases }) => knowledgeBases),
+          .then(({ knowledgeBases }) => knowledgeBases.map((entry) => entry.knowledgeBase)),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -2490,14 +3181,13 @@ export class WorkspaceVFS {
           getPersonalAndWorkspaceEnv(userId, workspaceId),
           permissionConfigPromise,
         ])
-      const configuredAllowedIntegrations = intersectIntegrationAllowlists(
-        permissionConfig?.allowedIntegrations ?? null,
-        getAllowedIntegrationsFromEnv()
-      )
       const credentialVisibility = createIntegrationCredentialVisibility({
-        allowedIntegrationTypes: configuredAllowedIntegrations
-          ? new Set(configuredAllowedIntegrations.map((type) => type.toLowerCase()))
-          : null,
+        allowedIntegrationTypes: toAllowedIntegrationTypes(
+          intersectIntegrationAllowlists(
+            permissionConfig?.allowedIntegrations ?? null,
+            getAllowedIntegrationsFromEnv()
+          )
+        ),
         blockVisibility,
       })
       const visibleOAuthCredentials = oauthCredentials.filter((credential) =>
@@ -2521,6 +3211,7 @@ export class WorkspaceVFS {
         serializeCredentials([
           ...visibleEnvCredentials.map((c) => ({
             providerId: c.envKey,
+            description: c.description,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
           })),
@@ -2546,9 +3237,18 @@ export class WorkspaceVFS {
         Object.keys(envData.workspaceEncrypted),
         secretMountPolicy
       )
+      /** Intersected with the policy-filtered names, so the mount policy applies here too. */
+      const workspaceVarNameSet = new Set(workspaceVarNames)
+      const unredactedWorkspaceVarNames = envData.workspaceUnredactedKeys.filter((name) =>
+        workspaceVarNameSet.has(name)
+      )
       this.files.set(
         'environment/variables.json',
-        serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
+        serializeEnvironmentVariables(
+          personalVarNames,
+          workspaceVarNames,
+          unredactedWorkspaceVarNames
+        )
       )
 
       const envKeys = [...visibleEnvCredentialNames]
@@ -2599,4 +3299,11 @@ export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
  */
 export function sanitizeName(name: string): string {
   return normalizeVfsSegment(name)
+}
+
+function decodeVfsPathSegmentsSafe(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => decodeVfsSegmentSafe(segment))
+    .join('/')
 }

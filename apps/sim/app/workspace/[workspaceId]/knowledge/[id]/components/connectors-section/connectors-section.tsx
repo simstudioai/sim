@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -11,7 +11,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Loader,
   Tooltip,
 } from '@sim/emcn'
 import {
@@ -19,6 +18,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  Loader,
   Pause,
   Play,
   RefreshCw,
@@ -29,6 +29,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -38,6 +39,7 @@ import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
+  isConnectorSyncingOrPending,
   useConnectorDetail,
   useDeleteConnector,
   useTriggerSync,
@@ -57,15 +59,21 @@ interface ConnectorsSectionProps {
   className?: string
 }
 
-/** 5-minute cooldown after a manual sync trigger */
-const SYNC_COOLDOWN_MS = 5 * 60 * 1000
+const EMPTY_REQUIRED_SCOPES: string[] = []
 
 const STATUS_CONFIG = {
   active: { label: 'Active', variant: 'green' as const },
+  pending: { label: 'Queued', variant: 'blue' as const },
   syncing: { label: 'Syncing', variant: 'amber' as const },
   error: { label: 'Error', variant: 'red' as const },
   paused: { label: 'Paused', variant: 'gray' as const },
   disabled: { label: 'Disabled', variant: 'orange' as const },
+} as const
+
+/** Covers exactly the statuses {@link isConnectorSyncingOrPending} matches. */
+const SYNC_IN_FLIGHT_TOOLTIP = {
+  pending: 'Sync queued',
+  syncing: 'Sync in progress',
 } as const
 
 const CONNECTOR_ACTION_BUTTON_CLASSES =
@@ -80,109 +88,60 @@ export function ConnectorsSection({
   className,
 }: ConnectorsSectionProps) {
   const { mutate: triggerSync } = useTriggerSync()
-  const { mutate: updateConnector } = useUpdateConnector()
+  const {
+    mutate: updateConnector,
+    isPending: isUpdatingConnector,
+    variables: updatingVariables,
+  } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const deleteDocumentsId = useId()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
 
-  const closeDeleteModal = useCallback(() => {
+  const closeDeleteModal = () => {
     setDeleteTarget(null)
     setDeleteDocuments(false)
-  }, [])
+  }
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
 
-  const addToSet = useCallback((setter: typeof setSyncingIds, id: string) => {
-    setter((prev) => new Set(prev).add(id))
-  }, [])
-
-  const removeFromSet = useCallback((setter: typeof setSyncingIds, id: string) => {
-    setter((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-  }, [])
-
-  const syncTriggeredAt = useRef<Record<string, number>>({})
-  const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
-  cooldownTimersRef.current ??= new Set()
-  const [, forceUpdate] = useState(0)
-
-  useEffect(() => {
-    return () => {
-      for (const timer of cooldownTimersRef.current ?? []) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
-
-  const isSyncOnCooldown = useCallback((connectorId: string) => {
-    const triggeredAt = syncTriggeredAt.current[connectorId]
-    if (!triggeredAt) return false
-    return Date.now() - triggeredAt < SYNC_COOLDOWN_MS
-  }, [])
-
-  const handleSync = useCallback(
-    (connectorId: string, rehydrate = false) => {
-      if (isSyncOnCooldown(connectorId)) return
-
-      syncTriggeredAt.current[connectorId] = Date.now()
-      addToSet(setSyncingIds, connectorId)
-
-      triggerSync(
-        { knowledgeBaseId, connectorId, rehydrate },
-        {
-          onSuccess: () => {
-            setError(null)
-            const timer = setTimeout(() => {
-              cooldownTimersRef.current?.delete(timer)
-              forceUpdate((n) => n + 1)
-            }, SYNC_COOLDOWN_MS)
-            cooldownTimersRef.current?.add(timer)
-          },
-          onError: (err) => {
-            logger.error('Sync trigger failed', { error: err.message })
-            setError(err.message)
-            delete syncTriggeredAt.current[connectorId]
-            forceUpdate((n) => n + 1)
-          },
-          onSettled: () => removeFromSet(setSyncingIds, connectorId),
-        }
-      )
-    },
-    [knowledgeBaseId, triggerSync, isSyncOnCooldown, addToSet, removeFromSet]
-  )
-
-  const handleTogglePause = useCallback(
-    (connector: ConnectorData) => {
-      addToSet(setUpdatingIds, connector.id)
-      updateConnector(
-        {
-          knowledgeBaseId,
-          connectorId: connector.id,
-          updates: {
-            status:
-              connector.status === 'paused' || connector.status === 'disabled'
-                ? 'active'
-                : 'paused',
-          },
+  /**
+   * In-flight state is written optimistically into the connector list, so the
+   * row's own `status` is the only thing the UI reads — local id sets would not
+   * survive the modal holding them unmounting.
+   */
+  const handleSync = (connectorId: string, rehydrate = false) => {
+    triggerSync(
+      { knowledgeBaseId, connectorId, rehydrate },
+      {
+        onSuccess: () => setError(null),
+        onError: (err) => {
+          logger.error('Sync trigger failed', { error: err.message })
+          setError(err.message)
         },
-        {
-          onSettled: () => removeFromSet(setUpdatingIds, connector.id),
-          onSuccess: () => setError(null),
-          onError: (err) => {
-            logger.error('Toggle pause failed', { error: err.message })
-            setError(err.message)
-          },
-        }
-      )
-    },
-    [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
-  )
+      }
+    )
+  }
+
+  const handleTogglePause = (connector: ConnectorData) => {
+    updateConnector(
+      {
+        knowledgeBaseId,
+        connectorId: connector.id,
+        updates: {
+          status:
+            connector.status === 'paused' || connector.status === 'disabled' ? 'active' : 'paused',
+        },
+      },
+      {
+        onSuccess: () => setError(null),
+        onError: (err) => {
+          logger.error('Toggle pause failed', { error: err.message })
+          setError(err.message)
+        },
+      }
+    )
+  }
 
   const handleDeleteConnector = () => {
     if (!deleteTarget) return
@@ -223,9 +182,14 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
-              isSyncPending={syncingIds.has(connector.id)}
-              isUpdating={updatingIds.has(connector.id)}
-              syncCooldown={isSyncOnCooldown(connector.id)}
+              /**
+               * The optimistic status flip relabels this control Pause -> Resume
+               * immediately, so without a guard a second click would send
+               * `active` before the first pause settles and resume a connector
+               * the user meant to pause. Read from the mutation rather than a
+               * local id set: React Query already knows which row is in flight.
+               */
+              isUpdating={isUpdatingConnector && updatingVariables?.connectorId === connector.id}
               onSync={(rehydrate) => handleSync(connector.id, rehydrate)}
               onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
@@ -282,9 +246,7 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
-  isSyncPending: boolean
   isUpdating: boolean
-  syncCooldown: boolean
   onSync: (rehydrate?: boolean) => void
   onEdit: () => void
   onTogglePause: () => void
@@ -296,9 +258,7 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
-  isSyncPending,
   isUpdating,
-  syncCooldown,
   onSync,
   onEdit,
   onTogglePause,
@@ -315,23 +275,41 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes = useMemo(
-    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
-    [connectorDef]
-  )
+  const requiredScopes =
+    connectorDef?.auth.mode === 'oauth'
+      ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
+      : EMPTY_REQUIRED_SCOPES
 
-  const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
+  const {
+    data: credentials,
+    isFetching: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(providerId, {
     workspaceId,
   })
 
-  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
+  const selectedCredential = useMemo(() => {
+    if (!credentials || !connector.credentialId) return undefined
+    return credentials.find((credential) => credential.id === connector.credentialId)
+  }, [credentials, connector.credentialId])
 
-  const missingScopes = useMemo(() => {
-    if (!credentials || !connector.credentialId) return []
-    const credential = credentials.find((c) => c.id === connector.credentialId)
-    if (!credential) return []
-    return getMissingRequiredScopes(credential, requiredScopes)
-  }, [credentials, connector.credentialId, requiredScopes])
+  useCredentialRefreshTriggers(
+    refetchCredentials,
+    selectedCredential?.provider ?? providerId ?? '',
+    workspaceId
+  )
+
+  const missingScopes = useMemo(
+    () => (selectedCredential ? getMissingRequiredScopes(selectedCredential, requiredScopes) : []),
+    [selectedCredential, requiredScopes]
+  )
+
+  useEffect(() => {
+    if (showOAuthModal && connector.credentialId && !selectedCredential && !credentialsLoading) {
+      consumeOAuthReturnContext()
+      setShowOAuthModal(false)
+    }
+  }, [showOAuthModal, connector.credentialId, selectedCredential, credentialsLoading])
 
   const { data: detail, isLoading: detailLoading } = useConnectorDetail(
     expanded ? knowledgeBaseId : undefined,
@@ -340,12 +318,17 @@ function ConnectorCard({
   const syncLogs = detail?.syncLogs ?? []
 
   const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
-  const syncDisabled =
-    connector.status === 'syncing' ||
-    connector.status === 'disabled' ||
-    isSyncPending ||
-    syncCooldown
-  const syncTooltip = syncCooldown ? 'Sync recently triggered' : canFullResync ? 'Sync' : 'Sync now'
+  const syncInFlight = isConnectorSyncingOrPending(connector)
+  const isPaused = connector.status === 'paused'
+  /**
+   * A queued sync is what stops a second one being dispatched — the server
+   * rejects it as a conflict anyway, so the button reflects that rather than
+   * running a client-side cooldown timer alongside it.
+   */
+  const syncDisabled = syncInFlight || connector.status === 'disabled' || isPaused
+  const syncTooltip =
+    SYNC_IN_FLIGHT_TOOLTIP[connector.status as keyof typeof SYNC_IN_FLIGHT_TOOLTIP] ??
+    (isPaused ? 'Resume to sync' : canFullResync ? 'Sync' : 'Sync now')
 
   return (
     <div
@@ -358,36 +341,29 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='relative size-9 flex-shrink-0'>
-            <div
-              className={cn(
-                'flex size-full items-center justify-center rounded-xl border',
-                brandBg
-                  ? 'border-[var(--border-1)]'
-                  : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-              )}
-              style={brandBg ? { background: brandBg } : undefined}
-            >
-              {Icon && (
-                <Icon
-                  className={cn(
-                    'size-5',
-                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                  )}
-                />
-              )}
-            </div>
-            {connector.status === 'disabled' && (
-              <TriangleAlert className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
+          <div
+            className={cn(
+              'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border',
+              brandBg
+                ? 'border-[var(--border-1)]'
+                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+            )}
+            style={brandBg ? { background: brandBg } : undefined}
+          >
+            {Icon && (
+              <Icon
+                className={cn(
+                  'size-5',
+                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                )}
+              />
             )}
           </div>
           <div className='flex min-w-0 flex-col gap-0.5'>
             <div className='flex min-w-0 items-center gap-2'>
               <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
                 <span className='truncate'>{connectorDef?.name || connector.connectorType}</span>
-                {(isSyncPending || connector.status === 'syncing') && (
-                  <Loader className='size-3 text-[var(--text-muted)]' animate />
-                )}
+                {syncInFlight && <Loader className='size-3 text-[var(--text-muted)]' animate />}
               </span>
               <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>
                 {statusConfig.label}
@@ -403,7 +379,7 @@ function ConnectorCard({
                   <span>{connector.lastSyncDocCount} docs</span>
                 </>
               )}
-              {connector.nextSyncAt && connector.status === 'active' && (
+              {connector.nextSyncAt && connector.status === 'active' && !syncInFlight && (
                 <>
                   <span>·</span>
                   <span>
@@ -442,12 +418,7 @@ function ConnectorCard({
                             className={CONNECTOR_ACTION_BUTTON_CLASSES}
                             disabled={syncDisabled}
                           >
-                            <RefreshCw
-                              className={cn(
-                                'size-3.5',
-                                connector.status === 'syncing' && 'animate-spin'
-                              )}
-                            />
+                            <RefreshCw className='size-3.5' />
                           </Button>
                         </DropdownMenuTrigger>
                       </span>
@@ -471,12 +442,7 @@ function ConnectorCard({
                         disabled={syncDisabled}
                         onClick={() => onSync(false)}
                       >
-                        <RefreshCw
-                          className={cn(
-                            'size-3.5',
-                            connector.status === 'syncing' && 'animate-spin'
-                          )}
-                        />
+                        <RefreshCw className='size-3.5' />
                       </Button>
                     </span>
                   </Tooltip.Trigger>
@@ -505,9 +471,7 @@ function ConnectorCard({
                     onClick={onTogglePause}
                     disabled={isUpdating}
                   >
-                    {isUpdating ? (
-                      <Loader className='size-3.5' animate />
-                    ) : connector.status === 'paused' || connector.status === 'disabled' ? (
+                    {connector.status === 'paused' || connector.status === 'disabled' ? (
                       <Play className='size-3.5' />
                     ) : (
                       <Pause className='size-3.5' />
@@ -569,15 +533,18 @@ function ConnectorCard({
             {canEdit && serviceId && providerId && (
               <Button
                 variant='primary'
+                disabled={Boolean(connector.credentialId && !selectedCredential)}
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
@@ -605,13 +572,15 @@ function ConnectorCard({
                 variant='primary'
                 onClick={() => {
                   if (connector.credentialId) {
+                    if (!selectedCredential) return
                     writeOAuthReturnContext({
                       origin: 'kb-connectors',
                       knowledgeBaseId,
                       displayName: connectorDef?.name ?? connector.connectorType,
-                      providerId: providerId!,
+                      providerId: selectedCredential.provider,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
@@ -652,25 +621,69 @@ function ConnectorCard({
         />
       )}
 
-      {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <ConnectOAuthModal
-          mode='reauthorize'
-          open={showOAuthModal}
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setShowOAuthModal(false)
-            }
-          }}
-          toolName={connectorDef?.name ?? connector.connectorType}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          newScopes={missingScopes}
-          serviceId={serviceId}
-          providerId={providerId}
-        />
-      )}
+      {showOAuthModal &&
+        serviceId &&
+        providerId &&
+        connector.credentialId &&
+        selectedCredential && (
+          <ConnectOAuthModal
+            mode='reauthorize'
+            open={showOAuthModal}
+            onOpenChange={(open) => {
+              if (!open) {
+                consumeOAuthReturnContext()
+                setShowOAuthModal(false)
+              }
+            }}
+            toolName={connectorDef?.name ?? connector.connectorType}
+            requiredScopes={getCanonicalScopesForProvider(providerId)}
+            newScopes={missingScopes}
+            serviceId={serviceId}
+            providerId={selectedCredential.provider}
+            reconnectTarget={{
+              workspaceId,
+              credentialId: selectedCredential.id,
+              displayName: selectedCredential.name,
+            }}
+          />
+        )}
     </div>
   )
+}
+
+/**
+ * How a sync-log row should read to a user.
+ *
+ * `interrupted` has no status of its own: the scheduler reclaims a stale
+ * `syncing` lock by flipping the *connector* to `error`, and never rewrites the
+ * log row, so a run killed mid-flight (deploy, OOM) stays `started` forever.
+ * Past the stale-lock TTL that row is a crashed run, not a live one.
+ *
+ * Treating the TTL as a hard ceiling is a deliberate policy choice, not an
+ * assumption that no run can outlive it. The in-process fallback sync runs
+ * unawaited in the web process with no duration limit, so it genuinely can —
+ * but nothing writes to the row between lock acquisition and completion, so a
+ * live run past the TTL and a dead one are byte-identical to this component.
+ * Rendering it as still running is the failure this state exists to fix; the
+ * same TTL already governs the reclaim that takes its lock away.
+ */
+type SyncLogState = 'running' | 'interrupted' | 'failed' | 'completed'
+
+function getSyncLogState(log: SyncLogData, now: number): SyncLogState {
+  switch (log.status) {
+    case 'completed':
+      return 'completed'
+    case 'failed':
+      return 'failed'
+    case 'started': {
+      const ageMs = now - new Date(log.startedAt).getTime()
+      return ageMs > CONNECTOR_SYNC_STALE_LOCK_TTL_MS ? 'interrupted' : 'running'
+    }
+    default: {
+      const exhaustive: never = log.status
+      return exhaustive
+    }
+  }
 }
 
 interface SyncHistoryProps {
@@ -678,7 +691,7 @@ interface SyncHistoryProps {
   isLoading: boolean
 }
 
-function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
+export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
@@ -696,20 +709,27 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
     )
   }
 
+  const now = Date.now()
+
   return (
     <div className='flex flex-col gap-0.5'>
       {logs.map((log) => {
-        const isError = log.status === 'error' || log.status === 'failed'
-        const isRunning = log.status === 'running' || log.status === 'syncing'
+        const state = getSyncLogState(log, now)
         const totalChanges =
-          log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
+          log.docsAdded +
+          log.docsUpdated +
+          log.docsDeleted +
+          log.docsSkipped +
+          (log.docsFailed ?? 0)
 
         return (
           <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
             <div className='mt-[1px] flex-shrink-0'>
-              {isRunning ? (
+              {state === 'running' ? (
                 <Loader className='size-3 text-[var(--text-muted)]' animate />
-              ) : isError ? (
+              ) : state === 'interrupted' ? (
+                <TriangleAlert className='size-3 text-[var(--caution)]' />
+              ) : state === 'failed' ? (
                 <CircleX className='size-3 text-[var(--text-error)]' />
               ) : (
                 <CircleCheck className='size-3 text-[var(--success)]' />
@@ -721,7 +741,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                 <span className='text-[var(--text-muted)]'>
                   {format(new Date(log.startedAt), 'MMM d, h:mm a')}
                 </span>
-                {!isRunning && !isError && (
+                {state === 'completed' && (
                   <span className='text-[var(--text-muted)]'>
                     {totalChanges > 0 ? (
                       <>
@@ -747,16 +767,31 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                             <span className='text-[var(--text-error)]'>!{log.docsFailed}</span>
                           </>
                         )}
+                        {log.docsSkipped > 0 && (
+                          <>
+                            {(log.docsAdded > 0 ||
+                              log.docsUpdated > 0 ||
+                              log.docsDeleted > 0 ||
+                              log.docsFailed > 0) &&
+                              ' '}
+                            <span className='text-[var(--caution)]'>⊘{log.docsSkipped}</span>
+                          </>
+                        )}
                       </>
                     ) : (
                       'No changes'
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
+                {state === 'running' && (
+                  <span className='text-[var(--text-muted)]'>In progress…</span>
+                )}
+                {state === 'interrupted' && (
+                  <span className='text-[var(--caution)]'>Interrupted</span>
+                )}
               </div>
 
-              {isError && log.errorMessage && (
+              {state === 'failed' && log.errorMessage && (
                 <span className='truncate text-[var(--text-error)]'>{log.errorMessage}</span>
               )}
             </div>

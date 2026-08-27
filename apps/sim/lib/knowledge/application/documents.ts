@@ -33,7 +33,12 @@ import {
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
+} from '@/lib/knowledge/constants'
+import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -44,7 +49,6 @@ import {
   getDocuments,
   getProcessingConfig,
   type ProcessingOptions,
-  processDocumentsWithQueue,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
@@ -62,6 +66,7 @@ import {
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { validateTagValue } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
@@ -180,11 +185,74 @@ type BulkDeleteKnowledgeDocumentsContext = ActiveKnowledgeResourceBaseContext & 
 export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
   filename?: string
   enabled?: boolean
+  tagValues?: KnowledgeDocumentTagValueAssignment[]
   updates?: Parameters<typeof updateDocument>[1]
   markFailedDueToTimeout?: boolean
   retryProcessing?: boolean
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   source?: string
+}
+
+export interface KnowledgeDocumentTagValueAssignment {
+  tagDefinitionId: string
+  value: string | number | boolean | null
+}
+
+type KnowledgeDocumentUpdates = Parameters<typeof updateDocument>[1]
+
+function isAllTagSlot(tagSlot: string): tagSlot is AllTagSlot {
+  return (ALL_TAG_SLOTS as readonly string[]).includes(tagSlot)
+}
+
+async function resolveKnowledgeDocumentTagValueUpdates(
+  knowledgeBaseId: string,
+  tagValues: readonly KnowledgeDocumentTagValueAssignment[]
+): Promise<KnowledgeDocumentUpdates> {
+  const definitions = await getDocumentTagDefinitions(knowledgeBaseId)
+  const definitionsById = new Map(definitions.map((definition) => [definition.id, definition]))
+  const seenDefinitionIds = new Set<string>()
+  const updates: KnowledgeDocumentUpdates = {}
+
+  for (const assignment of tagValues) {
+    if (seenDefinitionIds.has(assignment.tagDefinitionId)) {
+      throw new OrchestrationError(
+        'validation',
+        `Duplicate tag definition ID: ${assignment.tagDefinitionId}`
+      )
+    }
+    seenDefinitionIds.add(assignment.tagDefinitionId)
+
+    const definition = definitionsById.get(assignment.tagDefinitionId)
+    if (!definition) {
+      throw new OrchestrationError(
+        'validation',
+        `Tag definition ${assignment.tagDefinitionId} does not belong to this knowledge base`
+      )
+    }
+    if (!isAllTagSlot(definition.tagSlot)) {
+      throw new Error(`Tag definition ${definition.id} has an unsupported slot`)
+    }
+
+    if (assignment.value === null) {
+      updates[definition.tagSlot] = ''
+      continue
+    }
+
+    const value = String(assignment.value).trim()
+    if (!value) {
+      throw new OrchestrationError(
+        'validation',
+        `Tag "${definition.displayName}" requires a value; use null to clear it`
+      )
+    }
+    const validationError = validateTagValue(definition.displayName, value, definition.fieldType)
+    if (validationError) {
+      throw new OrchestrationError('validation', validationError)
+    }
+    updates[definition.tagSlot] = value
+  }
+
+  return updates
 }
 
 export interface BulkKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmissionInput {
@@ -622,18 +690,12 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         throw new Error('Failed to replace existing document', { cause: error })
       }
     }
-    processDocumentsWithQueue(
-      createdDocuments,
-      context.knowledgeBaseId,
-      input.processingOptions ?? {},
+    void dispatchDocumentProcessing({
+      documents: createdDocuments,
+      knowledgeBaseId: context.knowledgeBaseId,
+      processingOptions: input.processingOptions ?? {},
       requestId,
-      billingAttribution
-    ).catch((error: unknown) => {
-      logger.error('Knowledge document upsert processing pipeline failed', {
-        knowledgeBaseId: context.knowledgeBaseId,
-        documentId: createdDocument.documentId,
-        error,
-      })
+      billingAttribution,
     })
     const isUpdate = existingDocumentId !== null
     const { maxConcurrentDocuments, batchSize } = getProcessingConfig()
@@ -803,7 +865,10 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, input, context }) {
     if (input.markFailedDueToTimeout || input.retryProcessing) {
       const outcome = input.markFailedDueToTimeout
-        ? await performMarkKnowledgeDocumentTimedOut({ document: context.document })
+        ? await performMarkKnowledgeDocumentTimedOut({
+            knowledgeBaseId: context.knowledgeBaseId,
+            document: context.document,
+          })
         : await performRetryKnowledgeDocumentProcessing({
             knowledgeBaseId: context.knowledgeBaseId,
             document: context.document,
@@ -828,7 +893,15 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         message: outcome.message,
       }
     }
-    const updates = input.updates ?? { filename: input.filename, enabled: input.enabled }
+    const updates: KnowledgeDocumentUpdates = input.updates
+      ? { ...input.updates }
+      : { filename: input.filename, enabled: input.enabled }
+    if (input.tagValues !== undefined) {
+      Object.assign(
+        updates,
+        await resolveKnowledgeDocumentTagValueUpdates(context.knowledgeBaseId, input.tagValues)
+      )
+    }
     const updatedFields = Object.keys(updates).filter(
       (key) => updates[key as keyof typeof updates] !== undefined
     )
@@ -857,6 +930,9 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         fileName: result.document.filename,
         updatedFields: result.updatedFields,
         ...(input.enabled !== undefined && { enabled: input.enabled }),
+        ...(input.tagValues !== undefined && {
+          tagDefinitionIds: input.tagValues.map((assignment) => assignment.tagDefinitionId),
+        }),
       },
     }
   },

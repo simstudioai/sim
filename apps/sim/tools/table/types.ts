@@ -61,6 +61,7 @@ export interface TableRowGetParams {
 /** v2 query params: typed predicate/sort objects + opaque cursor (no offset). */
 export interface TableRowQueryV2Params {
   tableId: string
+  columns?: string[]
   filter?: TablePredicateInput
   order?: SortSpec
   limit?: number

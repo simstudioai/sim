@@ -4,19 +4,28 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPlanByName, mockResolveDefaultPaymentMethod, stripeMock } = vi.hoisted(() => {
-  const stripeMock = {
-    subscriptions: {
-      retrieve: vi.fn(),
-      update: vi.fn(),
-    },
-  }
-  return {
-    mockGetPlanByName: vi.fn(),
-    mockResolveDefaultPaymentMethod: vi.fn(),
-    stripeMock,
-  }
-})
+const { mockGetPlanByName, mockRecordAuditOnce, mockResolveDefaultPaymentMethod, stripeMock } =
+  vi.hoisted(() => {
+    const stripeMock = {
+      subscriptions: {
+        cancel: vi.fn(),
+        retrieve: vi.fn(),
+        update: vi.fn(),
+      },
+    }
+    return {
+      mockGetPlanByName: vi.fn(),
+      mockRecordAuditOnce: vi.fn(),
+      mockResolveDefaultPaymentMethod: vi.fn(),
+      stripeMock,
+    }
+  })
+
+vi.mock('@sim/audit', () => ({
+  AuditAction: { SUBSCRIPTION_CANCELLED: 'subscription.cancelled' },
+  AuditResourceType: { SUBSCRIPTION: 'subscription' },
+  recordAuditOnce: mockRecordAuditOnce,
+}))
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: () => stripeMock,
@@ -33,6 +42,8 @@ vi.mock('@/lib/billing/stripe-payment-method', () => ({
 import { billingOutboxHandlers, OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 
 const seatSyncHandler = billingOutboxHandlers[OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS]
+const immediateCancellationHandler =
+  billingOutboxHandlers[OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY]
 
 const ctx = {
   eventId: 'evt-1',
@@ -200,5 +211,35 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
 
     expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled()
     expect(stripeMock.subscriptions.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripeCancelSubscriptionImmediately outbox handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    stripeMock.subscriptions.cancel.mockResolvedValue({ id: 'stripe_sub', status: 'canceled' })
+  })
+
+  it('uses the durable event id for Stripe idempotency and leaves Sim cleanup to the webhook', async () => {
+    await immediateCancellationHandler(
+      {
+        stripeSubscriptionId: 'stripe_sub',
+        subscriptionId: 'sub-1',
+        organizationId: 'org-1',
+        operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
+        requestedBy: { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' },
+      },
+      {
+        eventId: 'cancel-event-1',
+        eventType: OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY,
+        attempts: 0,
+      }
+    )
+
+    expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith(
+      'stripe_sub',
+      { prorate: true, invoice_now: true },
+      { idempotencyKey: 'outbox:cancel-event-1' }
+    )
   })
 })

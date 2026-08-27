@@ -77,10 +77,7 @@ function enrichLastModelSegmentFromBedrockResponse(
       return {
         id: b.toolUse.toolUseId ?? '',
         name: b.toolUse.name ?? '',
-        arguments:
-          input && typeof input === 'object' && !Array.isArray(input)
-            ? (input as Record<string, unknown>)
-            : {},
+        arguments: isRecordLike(input) ? (input as Record<string, unknown>) : {},
       }
     })
 
@@ -633,10 +630,9 @@ export const bedrockProvider: ProviderConfig = {
         const toolExecutionPromises = currentToolUses.map(async (toolUse: ToolUseBlock) => {
           const toolCallStartTime = Date.now()
           const toolName = toolUse.name || ''
-          const toolArgs =
-            toolUse.input && typeof toolUse.input === 'object' && !Array.isArray(toolUse.input)
-              ? (toolUse.input as Record<string, unknown>)
-              : undefined
+          const toolArgs = isRecordLike(toolUse.input)
+            ? (toolUse.input as Record<string, unknown>)
+            : undefined
           const toolUseId = toolUse.toolUseId || generateToolUseId(toolName)
 
           try {
@@ -663,7 +659,12 @@ export const bedrockProvider: ProviderConfig = {
               }
             }
 
-            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+            const { toolParams, executionParams } = prepareToolExecution(
+              tool,
+              toolArgs,
+              request,
+              toolUse.toolUseId
+            )
             const { rawResponse, modelResponse } = await executeProviderTool(
               toolName,
               executionParams,

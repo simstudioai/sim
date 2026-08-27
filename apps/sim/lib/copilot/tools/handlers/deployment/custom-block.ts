@@ -3,14 +3,13 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -19,6 +18,8 @@ import {
   type CustomBlockWithInputs,
   deleteCustomBlock,
   getCustomBlockWithInputsByWorkflowId,
+  isCustomBlocksDeploymentEnabled,
+  isCustomBlocksEligibleForOrganization,
   publishCustomBlock,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
@@ -147,9 +148,14 @@ export async function executeDeployCustomBlock(
         error: "Managing a custom block requires admin permission on the workflow's workspace",
       }
     }
-    const workspaceId = workflowRecord.workspaceId
-    if (!workspaceId) {
+    if (!workflowRecord.workspaceId) {
       return { success: false, error: 'Workflow must belong to a workspace' }
+    }
+    let workspaceId: string
+    try {
+      workspaceId = requireCopilotWorkspace(context, workflowRecord.workspaceId)
+    } catch (error) {
+      return { success: false, error: toError(error).message }
     }
 
     const ws = await getWorkspaceWithOwner(workspaceId)
@@ -160,15 +166,9 @@ export async function executeDeployCustomBlock(
         error: 'Publishing a block requires the workspace to belong to an organization',
       }
     }
-    if (
-      !(await isFeatureEnabled('deploy-as-block', {
-        userId: context.userId,
-        orgId: organizationId,
-      }))
-    ) {
+    if (!isCustomBlocksDeploymentEnabled()) {
       return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
-
     const existing = await getCustomBlockWithInputsByWorkflowId(workflowId)
 
     if (action === 'undeploy') {
@@ -252,8 +252,8 @@ export async function executeDeployCustomBlock(
       return { success: true, output: { ...customBlockOutput(updated, 'deploy'), updated: true } }
     }
 
-    if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
-      return { success: false, error: 'Custom blocks require an enterprise plan' }
+    if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
+      return { success: false, error: 'Custom blocks are not enabled for this organization' }
     }
     if (!name) {
       return { success: false, error: 'name is required when publishing a new custom block' }
@@ -262,7 +262,7 @@ export async function executeDeployCustomBlock(
       return {
         success: false,
         error:
-          'Workflow must be deployed before publishing as a custom block. Use deploy_api first.',
+          'Workflow must be deployed before publishing as a custom block. Use deploy_as_api first.',
       }
     }
     // Curation is required on publish: every consumer-visible field must be one
@@ -276,6 +276,10 @@ export async function executeDeployCustomBlock(
       }
     }
 
+    // `traceChildRuns` is deliberately not passed and must never become a
+    // parameter here: opening a block's runs to every consumer in the org exposes
+    // the source workflow's internals, and that is a decision for a human
+    // publisher in the settings UI, not one an agent makes on their behalf.
     const block = await publishCustomBlock({
       organizationId,
       workspaceId,
@@ -303,6 +307,10 @@ export async function executeDeployCustomBlock(
       return { success: false, error: error.message }
     }
     logger.error('Custom block deployment failed', { error })
-    return { success: false, error: 'Custom block deployment failed due to a system error' }
+    return {
+      success: false,
+      error:
+        'Publishing the custom block failed inside Sim; assume it was NOT published. Call get_deployment_status to confirm, retry once, and report the failure if it repeats instead of retrying further.',
+    }
   }
 }

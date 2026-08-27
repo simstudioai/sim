@@ -19,14 +19,3 @@ export function computeContainerZIndex(
 
   return depth
 }
-
-export function computeBlockZIndex(
-  block: Pick<BlockState, 'type' | 'data'>,
-  allBlocks: Record<string, Pick<BlockState, 'type' | 'data'>>
-): number {
-  if (block.type === 'loop' || block.type === 'parallel') {
-    return computeContainerZIndex(block, allBlocks)
-  }
-
-  return block.data?.parentId ? Z_INDEX.CHILD_BLOCK : Z_INDEX.ROOT_BLOCK
-}

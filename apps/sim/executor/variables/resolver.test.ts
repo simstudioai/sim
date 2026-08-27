@@ -3,6 +3,8 @@
  */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { compileCodePlaceholders } from '@/lib/execution/code-placeholders'
+import { CodeLanguage } from '@/lib/execution/languages'
 import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import {
   LARGE_ARRAY_MANIFEST_VERSION,
@@ -125,8 +127,55 @@ function createResolver(
   }
 }
 
+/** Runs one condition expression through the resolver and returns the value the handler receives. */
+async function resolveConditionExpression(
+  value: string,
+  environmentVariables: Record<string, string>
+): Promise<string> {
+  const { ctx, resolver } = createResolver()
+  ctx.environmentVariables = environmentVariables
+  const conditionBlock = createBlock('condition', 'Condition', BlockType.CONDITION)
+  const result = await resolver.resolveInputs(
+    ctx,
+    conditionBlock.id,
+    { conditions: JSON.stringify([{ id: 'condition-1', title: 'if', value }]) },
+    conditionBlock
+  )
+  return (result.conditions as Array<{ value: string }>)[0].value
+}
+
+/**
+ * Completes the round trip a condition actually takes: resolver, then the execution-boundary
+ * compiler, then evaluation of the same `Boolean(...)` wrapper `condition-handler.ts` builds.
+ */
+async function evaluateResolvedCondition(
+  value: string,
+  environmentVariables: Record<string, string>
+): Promise<boolean> {
+  const expression = await resolveConditionExpression(value, environmentVariables)
+  const compiled = await compileCodePlaceholders({
+    code: `const context = {};\nreturn Boolean(${expression})`,
+    language: CodeLanguage.JavaScript,
+    environmentVariables,
+  })
+  const installed: string[] = []
+  try {
+    for (const binding of compiled.bindings) {
+      Object.defineProperty(globalThis, binding.name, {
+        configurable: true,
+        value: binding.value,
+        writable: true,
+      })
+      installed.push(binding.name)
+    }
+    return Boolean(new Function(compiled.code)())
+  } finally {
+    for (const name of installed) Reflect.deleteProperty(globalThis, name)
+  }
+}
+
 describe('VariableResolver function block inputs', () => {
-  it('preserves legacy condition environment substitution semantics', async () => {
+  it('inlines only structurally inert condition literals and defers the rest to the compiler', async () => {
     const { ctx, resolver } = createResolver()
     ctx.environmentVariables = {
       API_KEY: 'token',
@@ -152,8 +201,74 @@ describe('VariableResolver function block inputs', () => {
     expect(result.conditions).toEqual([
       { id: 'condition-1', title: 'if', value: '123 === 123' },
       { id: 'condition-2', title: 'else if', value: 'true === true' },
-      { id: 'condition-3', title: 'else if', value: '"Bearer token" === "Bearer token"' },
+      {
+        id: 'condition-3',
+        title: 'else if',
+        value: '"Bearer {{API_KEY}}" === "Bearer token"',
+      },
     ])
+  })
+
+  it('preserves legacy condition outcomes end to end through the boundary compiler', async () => {
+    const environmentVariables = {
+      API_KEY: 'token',
+      BOOLEAN_VALUE: 'true',
+      NUMBER_VALUE: '123',
+      NULL_VALUE: 'null',
+      NEGATIVE: '-5',
+      EXPONENT: '1e3',
+    }
+    const cases = [
+      { value: '{{NUMBER_VALUE}} === 123', expected: true },
+      { value: '{{BOOLEAN_VALUE}} === true', expected: true },
+      { value: '"Bearer {{API_KEY}}" === "Bearer token"', expected: true },
+      { value: `'{{API_KEY}}' === 'token'`, expected: true },
+      { value: '{{NULL_VALUE}} === null', expected: true },
+      { value: '{{NEGATIVE}} === -5', expected: true },
+      { value: '{{EXPONENT}} === 1000', expected: true },
+      { value: '{{NUMBER_VALUE}} === 999', expected: false },
+    ]
+
+    /** A padded value must stay byte-identical: numeric bare, exact string when quoted. */
+    expect(await evaluateResolvedCondition('{{PADDED}} === 123', { PADDED: ' 123 ' })).toBe(true)
+    expect(await evaluateResolvedCondition(`'{{PADDED}}' === ' 123 '`, { PADDED: ' 123 ' })).toBe(
+      true
+    )
+
+    for (const { value, expected } of cases) {
+      expect(
+        await evaluateResolvedCondition(value, environmentVariables),
+        `condition ${value} should evaluate to ${expected}`
+      ).toBe(expected)
+    }
+  })
+
+  it('stops a secret value from breaking or forging a condition', async () => {
+    await expect(
+      evaluateResolvedCondition(`'{{NAME}}' === 'bob'`, { NAME: `x' || true || '` })
+    ).resolves.toBe(false)
+    await expect(
+      evaluateResolvedCondition(`'{{NAME}}' === "O'Brien"`, { NAME: "O'Brien" })
+    ).resolves.toBe(true)
+    await expect(
+      evaluateResolvedCondition(`'{{NAME}}' === 'a\\nb'`, { NAME: 'a\nb' })
+    ).resolves.toBe(true)
+  })
+
+  it('compares a bare string placeholder instead of throwing a reference error', async () => {
+    await expect(
+      evaluateResolvedCondition(`{{NAME}} === 'alice'`, { NAME: 'alice' })
+    ).resolves.toBe(true)
+    await expect(evaluateResolvedCondition(`{{NAME}} === 'alice'`, { NAME: 'bob' })).resolves.toBe(
+      false
+    )
+  })
+
+  it('keeps a resolved secret out of the code sent to the execution boundary', async () => {
+    const resolved = await resolveConditionExpression(`'{{API_KEY}}' === 'token'`, {
+      API_KEY: 'token',
+    })
+    expect(resolved).toBe(`'{{API_KEY}}' === 'token'`)
   })
 
   it('does not log malformed Condition source while falling back to legacy resolution', async () => {

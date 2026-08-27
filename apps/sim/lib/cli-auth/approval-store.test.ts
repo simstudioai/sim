@@ -46,15 +46,53 @@ describe('cli-auth approval store', () => {
       expect(JSON.parse(value)).toEqual({
         challenge: CHALLENGE,
         userId: 'user-1',
+        scope: 'copilot',
         createdAt: expect.any(Number),
       })
       expect([px, ttl]).toEqual(['PX', 120_000])
     })
+
+    it('records the consented scope and workspace', async () => {
+      await createApproval('user-1', REQUEST, CHALLENGE, {
+        scope: 'platform',
+        workspaceId: 'ws-1',
+        workspaceBound: true,
+      })
+      expect(JSON.parse(mockSet.mock.calls[0][1])).toMatchObject({
+        scope: 'platform',
+        workspaceId: 'ws-1',
+        workspaceBound: true,
+      })
+    })
+
+    it('omits the workspace fields entirely when no workspace was picked', async () => {
+      await createApproval('user-1', REQUEST, CHALLENGE, { scope: 'platform' })
+      const record = JSON.parse(mockSet.mock.calls[0][1])
+      expect(record).not.toHaveProperty('workspaceId')
+      expect(record).not.toHaveProperty('workspaceBound')
+    })
+
+    it('records a picked workspace as unbound unless binding was asked for', async () => {
+      await createApproval('user-1', REQUEST, CHALLENGE, {
+        scope: 'platform',
+        workspaceId: 'ws-1',
+      })
+      expect(JSON.parse(mockSet.mock.calls[0][1])).toMatchObject({
+        workspaceId: 'ws-1',
+        workspaceBound: false,
+      })
+    })
   })
 
   describe('pollApproval', () => {
-    const storedApproval = () =>
-      JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
+    const storedApproval = (overrides: Record<string, unknown> = {}) =>
+      JSON.stringify({
+        challenge: CHALLENGE,
+        userId: 'user-1',
+        scope: 'copilot',
+        createdAt: Date.now(),
+        ...overrides,
+      })
 
     it('returns pending when no approval exists yet', async () => {
       mockGet.mockResolvedValue(null)
@@ -68,6 +106,9 @@ describe('cli-auth approval store', () => {
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({
         status: 'approved',
         userId: 'user-1',
+        scope: 'copilot',
+        workspaceId: null,
+        workspaceBound: false,
       })
       // NX lock on the mint key; TTL matches the approval so they expire together
       // and a failed cleanup can't leave a re-mintable window. Record not deleted here.
@@ -75,6 +116,37 @@ describe('cli-auth approval store', () => {
       expect(key).toContain('cli:auth:mint:')
       expect([val, px, ttl, nx]).toEqual(['1', 'PX', 120_000, 'NX'])
       expect(mockDel).not.toHaveBeenCalled()
+    })
+
+    it('returns the recorded scope and workspace binding', async () => {
+      mockGet.mockResolvedValue(
+        storedApproval({ scope: 'platform', workspaceId: 'ws-1', workspaceBound: true })
+      )
+      mockSet.mockResolvedValue('OK')
+      await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({
+        status: 'approved',
+        userId: 'user-1',
+        scope: 'platform',
+        workspaceId: 'ws-1',
+        workspaceBound: true,
+      })
+    })
+
+    it('reports an unbound workspace pick as a default, not a key scope', async () => {
+      mockGet.mockResolvedValue(storedApproval({ scope: 'platform', workspaceId: 'ws-1' }))
+      mockSet.mockResolvedValue('OK')
+      await expect(pollApproval(REQUEST, SECRET)).resolves.toMatchObject({
+        workspaceId: 'ws-1',
+        workspaceBound: false,
+      })
+    })
+
+    it('treats a record written before scopes existed as a copilot approval', async () => {
+      mockGet.mockResolvedValue(
+        JSON.stringify({ challenge: CHALLENGE, userId: 'user-1', createdAt: Date.now() })
+      )
+      mockSet.mockResolvedValue('OK')
+      await expect(pollApproval(REQUEST, SECRET)).resolves.toMatchObject({ scope: 'copilot' })
     })
 
     it('does NOT touch the record when the secret is wrong', async () => {

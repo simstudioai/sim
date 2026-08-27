@@ -74,6 +74,19 @@ function applyResponseHeaders(
 }
 
 /**
+ * Extracts the 32-hex trace id from a W3C `traceparent` header
+ * (`00-<trace-id>-<span-id>-<flags>`) so cross-service log lines can be
+ * grepped by the same trace id the Go copilot logs. Returns undefined for
+ * absent or malformed headers and the all-zero (invalid) trace id.
+ */
+function traceIdFromTraceparent(header: string | null | undefined): string | undefined {
+  if (!header) return undefined
+  const match = /^[0-9a-f]{2}-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$/.exec(header.trim())
+  if (!match || match[1] === '00000000000000000000000000000000') return undefined
+  return match[1]
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
@@ -96,8 +109,9 @@ export function withRouteHandler<T>(
     const method = request?.method ?? 'UNKNOWN'
     const path =
       request?.nextUrl?.pathname ?? new URL(request?.url ?? '/', 'http://localhost').pathname
+    const traceId = traceIdFromTraceparent(request?.headers?.get?.('traceparent'))
 
-    return runWithRequestContext({ requestId, method, path }, async () => {
+    return runWithRequestContext({ requestId, method, path, traceId }, async () => {
       let response: NextResponse | Response
       try {
         response = await handler(request, context)

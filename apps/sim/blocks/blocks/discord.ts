@@ -446,6 +446,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       id: 'webhookToken',
       title: 'Webhook Token',
       type: 'short-input',
+      password: true,
       placeholder: 'Enter webhook token',
       required: true,
       condition: {

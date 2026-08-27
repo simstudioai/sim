@@ -54,7 +54,7 @@ Tables are created from the **Tables** section in the sidebar. Each table requir
 
 ## Usage Instructions
 
-Create and manage custom data tables. Store, query, and manipulate structured data within workflows.
+Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.
 
 
 
@@ -213,7 +213,7 @@ Query rows from a table with filtering, sorting, and pagination
 | `tableId` | string | Yes | Table ID |
 | `filter` | object | No | Filter conditions \(MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty\) |
 | `sort` | object | No | Sort order as \{field: "asc"\|"desc"\} |
-| `limit` | number | No | Maximum rows to return \(default: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT\}, max: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}\) |
+| `limit` | number | No | Maximum rows to return. Omit to return every matching row; the query fails if the result exceeds the 5MB response budget. |
 | `offset` | number | No | Number of rows to skip \(default: 0\) |
 
 #### Output

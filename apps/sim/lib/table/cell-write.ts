@@ -24,7 +24,6 @@ import {
 import type {
   RowData,
   RowExecutionMetadata,
-  RowExecutions,
   TableDefinition,
   TableRowSecretProvenanceWrite,
   WorkflowGroup,
@@ -410,11 +409,4 @@ export function buildOutputsByBlockId(
     map.set(out.blockId, list)
   }
   return map
-}
-
-/** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(
-  row: { executions?: RowExecutions } | null | undefined
-): RowExecutions {
-  return row?.executions ?? {}
 }

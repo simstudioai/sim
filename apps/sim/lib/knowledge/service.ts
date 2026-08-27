@@ -1,16 +1,11 @@
 import { db } from '@sim/db'
-import {
-  document,
-  knowledgeBase,
-  knowledgeConnector,
-  permissions,
-  workspace,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { filterUndefined } from '@sim/utils/object'
+import type { SQL } from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
 import type { CursorKey, KeysetKey, ListSortOrder } from '@/lib/api/list-query'
 import {
@@ -34,10 +29,6 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
-import {
-  MAX_KNOWLEDGE_BASES_PER_WORKSPACE,
-  MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST,
-} from '@/lib/knowledge/constants'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -55,7 +46,10 @@ const logger = createLogger('KnowledgeBaseService')
  */
 export class KnowledgeBaseConflictError extends OrchestrationError {
   constructor(name: string) {
-    super('conflict', `A knowledge base named "${name}" already exists in this workspace`)
+    super(
+      'conflict',
+      `A knowledge base named "${name}" already exists in this workspace. Names are unique across the whole workspace — folders do not namespace them — so pick a different name, or rename/delete the existing knowledge base first.`
+    )
     this.name = 'KnowledgeBaseConflictError'
   }
 }
@@ -160,14 +154,68 @@ export interface GetKnowledgeBasesOptions {
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
   sortOrder?: ListSortOrder
-  /**
-   * Page size. Omitted reads the whole workspace set as one page, capped by
-   * {@link MAX_KNOWLEDGE_BASES_PER_WORKSPACE} — what the internal callers that
-   * need every row still do.
-   */
+  /** Page size. Omitted reads the whole set as one page. */
   limit?: number
   /** Keyset to resume after, from the previous page's `nextCursorKeys`. */
   cursorKeys?: CursorKey[]
+}
+
+/** `active` hides soft-deleted rows, `archived` shows only them, `all` filters neither. */
+function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
+  if (scope === 'all') return undefined
+  return scope === 'archived'
+    ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
+    : isNull(knowledgeBase.deletedAt)
+}
+
+/**
+ * The one projection every knowledge-base list renders: the base's own columns plus its live
+ * document count. Both list queries read through here so a column added to one list can never
+ * be missing from the other — they are concatenated into a single rendered list.
+ */
+async function readKnowledgeBaseRows(
+  where: SQL | undefined,
+  orderBy: SQL[],
+  limit?: number
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+  const query = db
+    .select({
+      id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
+      name: knowledgeBase.name,
+      description: knowledgeBase.description,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+      embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
+      chunkingConfig: knowledgeBase.chunkingConfig,
+      createdAt: knowledgeBase.createdAt,
+      updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      docCount: count(document.knowledgeBaseId),
+    })
+    .from(knowledgeBase)
+    .leftJoin(
+      document,
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .where(where)
+    .groupBy(knowledgeBase.id)
+    .orderBy(...orderBy)
+
+  const rows = limit === undefined ? await query : await query.limit(limit)
+
+  return rows.map((kb) => ({
+    ...kb,
+    chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+    docCount: Number(kb.docCount),
+  }))
 }
 
 async function attachConnectorTypes(
@@ -189,13 +237,7 @@ async function attachConnectorTypes(
               isNull(knowledgeConnector.deletedAt)
             )
           )
-          .limit(MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST + 1)
       : []
-  if (connectorRows.length > MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST) {
-    throw new Error(
-      `Knowledge connector projection exceeds the ${MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST} row limit`
-    )
-  }
 
   const connectorTypesByKb = new Map<string, string[]>()
   for (const row of connectorRows) {
@@ -215,11 +257,14 @@ async function attachConnectorTypes(
  * authorization. Unlike the legacy user-oriented query, this never widens the
  * scope to workspace-less rows and never depends on a human permission join.
  */
-export async function getWorkspaceKnowledgeBases(
+async function readWorkspaceKnowledgeBaseRows(
   workspaceId: string,
-  scope: KnowledgeBaseScope = 'active',
+  scope: KnowledgeBaseScope,
   options?: GetKnowledgeBasesOptions
-): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }> {
+): Promise<{
+  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>
+  nextCursorKeys: CursorKey[] | null
+}> {
   const {
     folderId,
     search,
@@ -229,210 +274,124 @@ export async function getWorkspaceKnowledgeBases(
     cursorKeys,
   } = options ?? {}
   const keys = KNOWLEDGE_BASE_SORTS[sortBy]
-  const resumeAfter = resumeKeyset(keys, cursorKeys, sortOrder)
 
   /**
-   * An unpaged read still reads one row past the cap so an oversized workspace
-   * is a hard failure rather than a silently truncated list.
+   * An unpaged read is unbounded, matching the sibling internal lists (`listTables`, workspace
+   * files). A row cap could only ever fire for a caller that did not ask for a page — the one
+   * kind with no cursor to respond with — so it can only turn a slow list into a 500.
    */
-  const readLimit = (limit ?? MAX_KNOWLEDGE_BASES_PER_WORKSPACE) + 1
-  const scopeCondition =
-    scope === 'all'
-      ? undefined
-      : scope === 'archived'
-        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
-        : isNull(knowledgeBase.deletedAt)
+  const readLimit = limit === undefined ? undefined : limit + 1
 
-  const rows = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      description: knowledgeBase.description,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .where(
-      and(
-        eq(knowledgeBase.workspaceId, workspaceId),
-        scopeCondition,
-        folderId === undefined
-          ? undefined
-          : folderId === null
-            ? isNull(knowledgeBase.folderId)
-            : eq(knowledgeBase.folderId, folderId),
-        searchFilter(knowledgeBase.name, search),
-        resumeAfter
-      )
-    )
-    .groupBy(knowledgeBase.id)
-    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
-    .limit(readLimit)
-
-  if (limit === undefined && rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
-    throw new Error(
-      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
-    )
-  }
-
-  const page = keysetPage(keys, rows, limit)
-
-  return {
-    data: await attachConnectorTypes(
-      page.data.map((kb) => ({
-        ...kb,
-        chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-        docCount: Number(kb.docCount),
-      }))
+  const rows = await readKnowledgeBaseRows(
+    and(
+      eq(knowledgeBase.workspaceId, workspaceId),
+      knowledgeBaseScopeCondition(scope),
+      folderId === undefined
+        ? undefined
+        : folderId === null
+          ? isNull(knowledgeBase.folderId)
+          : eq(knowledgeBase.folderId, folderId),
+      searchFilter(knowledgeBase.name, search),
+      resumeKeyset(keys, cursorKeys, sortOrder)
     ),
+    listOrderBy(keysetColumns(keys), sortOrder),
+    readLimit
+  )
+
+  return keysetPage(keys, rows, limit)
+}
+
+export async function getWorkspaceKnowledgeBases(
+  workspaceId: string,
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
+): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }> {
+  const page = await readWorkspaceKnowledgeBaseRows(workspaceId, scope, options)
+  return {
+    data: await attachConnectorTypes(page.data),
     nextCursorKeys: page.nextCursorKeys,
   }
 }
 
 /**
- * Get knowledge bases that a user can access.
+ * Lists the caller's legacy personal knowledge bases — the ones that predate workspaces and
+ * carry no `workspaceId`, where the creator is the only possible authority. Workspace-owned
+ * rows are read by {@link getWorkspaceKnowledgeBases} after an application use case has
+ * authorized the workspace; nothing here re-derives that access.
  *
- * Filter and sort are applied in the query, so a search costs one narrowed scan
- * rather than materializing every knowledge base the caller can reach.
+ * @deprecated Nothing creates workspace-less knowledge bases any more, so this population only
+ * shrinks. Backfill the remaining rows onto a workspace and this function, its branch in
+ * {@link listWorkspaceAndLegacyKnowledgeBases}, and the concept itself can go.
  */
-export async function getKnowledgeBases(
+async function readLegacyPersonalKnowledgeBaseRows(
   userId: string,
-  workspaceId?: string | null,
-  scope: KnowledgeBaseScope = 'active',
-  options?: GetKnowledgeBasesOptions
+  scope: KnowledgeBaseScope
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+  const rows = await readKnowledgeBaseRows(
+    and(
+      knowledgeBaseScopeCondition(scope),
+      eq(knowledgeBase.userId, userId),
+      isNull(knowledgeBase.workspaceId)
+    ),
+    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc')
+  )
+
+  return rows
+}
+
+export async function getLegacyPersonalKnowledgeBases(
+  userId: string,
+  scope: KnowledgeBaseScope = 'active'
 ): Promise<KnowledgeBaseWithCounts[]> {
-  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
-  const scopeCondition =
-    scope === 'all'
-      ? undefined
-      : scope === 'archived'
-        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
-        : isNull(knowledgeBase.deletedAt)
+  return attachConnectorTypes(await readLegacyPersonalKnowledgeBaseRows(userId, scope))
+}
 
-  /**
-   * Legacy knowledge bases predate workspaces and have no `workspaceId`, so the creator is
-   * their only possible authority. Anything with a `workspaceId` must clear
-   * `currentWorkspaceMembership` instead — creator identity goes stale the moment a member
-   * is removed from the workspace.
-   */
-  const legacyOwnedKnowledgeBase = and(
-    eq(knowledgeBase.userId, userId),
-    isNull(knowledgeBase.workspaceId)
-  )
-  const currentWorkspaceMembership = and(
-    isNotNull(permissions.userId),
-    isNull(workspace.archivedAt)
-  )
+/**
+ * Every knowledge base a caller can see under one workspace, as one ordered list.
+ *
+ * Two reads, because the list answers to two authorities. The workspace's own rows are read
+ * once the caller has been authorized FOR that workspace — re-deriving that access from a
+ * `permissions` row would contradict the authorization that just passed, since workspace
+ * `admin` can come from an organization role with no such row behind it. Legacy workspace-less
+ * bases answer only to their creator and belong under no workspace at all, so they ride along
+ * here; otherwise they are reachable from nowhere.
+ *
+ * Callers authorize first. Nothing here decides access.
+ */
+export async function listWorkspaceAndLegacyKnowledgeBases(
+  userId: string,
+  workspaceId: string,
+  scope: KnowledgeBaseScope = 'active'
+): Promise<KnowledgeBaseWithCounts[]> {
+  const [workspaceRows, legacyPersonalRows] = await Promise.all([
+    readWorkspaceKnowledgeBaseRows(workspaceId, scope).then((page) => page.data),
+    readLegacyPersonalKnowledgeBaseRows(userId, scope),
+  ])
 
-  const knowledgeBasesWithCounts = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      description: knowledgeBase.description,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .leftJoin(
-      permissions,
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, knowledgeBase.workspaceId),
-        eq(permissions.userId, userId)
-      )
-    )
-    .leftJoin(workspace, eq(knowledgeBase.workspaceId, workspace.id))
-    .where(
-      and(
-        scopeCondition,
-        folderId === undefined
-          ? undefined
-          : folderId === null
-            ? isNull(knowledgeBase.folderId)
-            : eq(knowledgeBase.folderId, folderId),
-        searchFilter(knowledgeBase.name, search),
-        or(
-          and(
-            workspaceId ? eq(knowledgeBase.workspaceId, workspaceId) : undefined,
-            currentWorkspaceMembership
-          ),
-          legacyOwnedKnowledgeBase
+  /** One connector projection over the merged set, rather than one per source. */
+  return attachConnectorTypes(
+    legacyPersonalRows.length === 0
+      ? workspaceRows
+      : [...workspaceRows, ...legacyPersonalRows].sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
         )
-      )
-    )
-    .groupBy(knowledgeBase.id)
-    .orderBy(...listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS[sortBy]), sortOrder))
+  )
+}
 
-  const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
-
-  const connectorRows =
-    kbIds.length > 0
-      ? await db
-          .select({
-            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
-            connectorType: knowledgeConnector.connectorType,
-          })
-          .from(knowledgeConnector)
-          .where(
-            and(
-              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
-              isNull(knowledgeConnector.archivedAt),
-              isNull(knowledgeConnector.deletedAt)
-            )
-          )
-      : []
-
-  const connectorTypesByKb = new Map<string, string[]>()
-  for (const row of connectorRows) {
-    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
-    if (!types.includes(row.connectorType)) {
-      types.push(row.connectorType)
-    }
-    connectorTypesByKb.set(row.knowledgeBaseId, types)
-  }
-
-  return knowledgeBasesWithCounts.map((kb) => ({
-    ...kb,
-    chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-    docCount: Number(kb.docCount),
-    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
-  }))
+/** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
+export async function findActiveKnowledgeBasesByExactName(
+  workspaceId: string,
+  name: string
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+  return readKnowledgeBaseRows(
+    and(
+      eq(knowledgeBase.workspaceId, workspaceId),
+      eq(knowledgeBase.name, name),
+      isNull(knowledgeBase.deletedAt)
+    ),
+    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
+    2
+  )
 }
 
 /**
@@ -539,11 +498,7 @@ export async function updateKnowledgeBase(
     description?: string
     workspaceId?: string | null
     folderId?: string | null
-    chunkingConfig?: {
-      maxSize: number
-      minSize: number
-      overlap: number
-    }
+    chunkingConfig?: ChunkingConfig
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
@@ -558,7 +513,21 @@ export async function updateKnowledgeBase(
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.folderId !== undefined) updateData.folderId = updates.folderId
   if (updates.chunkingConfig !== undefined) {
-    updateData.chunkingConfig = updates.chunkingConfig
+    /**
+     * Projected field by field rather than assigned whole, so every member of
+     * {@link ChunkingConfig} is named here: `strategy` and `strategyOptions`
+     * used to survive only because structural typing let them ride on an
+     * object typed as the three size fields, and the first destructure of
+     * those three would have dropped them silently.
+     */
+    const { maxSize, minSize, overlap, strategy, strategyOptions } = updates.chunkingConfig
+    updateData.chunkingConfig = filterUndefined({
+      maxSize,
+      minSize,
+      overlap,
+      strategy,
+      strategyOptions,
+    })
   }
 
   if (updates.workspaceId !== undefined && !options?.actorUserId) {
@@ -924,7 +893,7 @@ export async function updateKnowledgeBase(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(
@@ -963,6 +932,33 @@ export async function updateKnowledgeBase(
 }
 
 /**
+ * Display names for knowledge bases that live in `workspaceId`, keyed by id.
+ *
+ * Scoped by workspace in the query rather than checked afterwards, so an id belonging to another
+ * tenant resolves to nothing at all. Deliberately narrower than {@link getKnowledgeBaseById}, which
+ * joins `document` and aggregates counts — far more than a name lookup needs.
+ */
+export async function getKnowledgeBaseNames(
+  knowledgeBaseIds: readonly string[],
+  workspaceId: string
+): Promise<Map<string, string>> {
+  if (knowledgeBaseIds.length === 0) return new Map()
+
+  const rows = await db
+    .select({ id: knowledgeBase.id, name: knowledgeBase.name })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        eq(knowledgeBase.workspaceId, workspaceId),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
+/**
  * Get a single knowledge base by ID
  */
 export async function getKnowledgeBaseById(
@@ -983,7 +979,7 @@ export async function getKnowledgeBaseById(
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
       folderId: knowledgeBase.folderId,
-      docCount: count(document.id),
+      docCount: count(document.knowledgeBaseId),
     })
     .from(knowledgeBase)
     .leftJoin(

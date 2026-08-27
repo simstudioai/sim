@@ -11,7 +11,7 @@ export const updateExpenseTool: ToolConfig<UpdateExpenseParams, SapConcurProxyRe
   id: 'sap_concur_update_expense',
   name: 'SAP Concur Update Expense',
   description:
-    'Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId}).',
+    'Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId}). Only Company JWT authentication is allowed on this endpoint — the password grant is rejected. A submitted report cannot be updated once it has reached a Paid workflow status. Although the primary intent of this operation is for submitted report updates, it also works on unsubmitted reports, but with the same limited set of fields.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -98,7 +98,6 @@ export const updateExpenseTool: ToolConfig<UpdateExpenseParams, SapConcurProxyRe
       type: 'json',
       description:
         'Empty body on success (HTTP 204 No Content). Error details when status is non-2xx',
-      properties: {},
     },
   },
 }

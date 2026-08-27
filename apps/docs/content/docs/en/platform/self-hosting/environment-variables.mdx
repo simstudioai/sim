@@ -81,8 +81,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
-| `VLLM_BASE_URL` | vLLM server URL, **without** a `/v1` suffix (e.g. `http://localhost:8000`) — Sim appends `/v1` itself |
-| `VLLM_API_KEY` | Optional bearer token for vLLM |
+| `VLLM_BASE_URL` | OpenAI-compatible vLLM or LM Studio URL. Both the server root (`http://localhost:8000`) and versioned API URL (`http://localhost:8000/v1`) are accepted |
+| `VLLM_API_KEY` | Optional bearer token for the vLLM or LM Studio endpoint |
 | `LITELLM_BASE_URL` | LiteLLM proxy base URL |
 | `LITELLM_API_KEY` | Optional bearer token for LiteLLM |
 
@@ -178,9 +178,7 @@ See [Observability](/platform/self-hosting/observability).
 | Variable | Description |
 |----------|-------------|
 | `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
-| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `bun run setup` sets it for you if you skip the chat key |
-| `PII_REDACTION` | Redact PII from workflow logs via Data Retention rules; requires the PII service and a cluster-reachable `INTERNAL_API_BASE_URL` |
-| `PII_GRANULAR_REDACTION` | Additionally expose the execution-altering redaction stages |
+| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `npx sim-setup` sets it for you if you skip the chat key |
 | `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`. Unset (nothing enforced) by default |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
 
@@ -222,7 +220,7 @@ Configure at least one. Every configured provider stays active and is tried in o
 | Shared | `FROM_EMAIL_ADDRESS`, `EMAIL_DOMAIN`, `EMAIL_VERIFICATION_ENABLED` |
 | Resend | `RESEND_API_KEY` |
 | AWS SES | `AWS_SES_REGION` (credentials via the AWS provider chain) |
-| SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` |
+| SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_EHLO_NAME` |
 | Azure ACS | `AZURE_ACS_CONNECTION_STRING` |
 | Gmail | `GMAIL_CREDENTIALS_JSON`, `GMAIL_SENDER` |
 
@@ -248,6 +246,27 @@ Self-hosted deployments (billing disabled) run without plan limits: no rate limi
 <Callout type="warn">
   Neither deployment presets these. The Helm chart previously did, which enforced hosted-plan caps on self-hosted installs; chart 1.5.0 removed the presets so Compose and Kubernetes behave identically.
 </Callout>
+
+### Removing a limit you already inherited
+
+If a limit is still enforced after upgrading — most often a `FREE_TABLES_LIMIT` or `FREE_TABLE_ROWS_LIMIT` carried forward from a chart older than 1.5.0, or copied into your own values file — the variable is still reaching the pod. On Helm, remove it by overriding it with `null`:
+
+```yaml
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: null
+    FREE_TABLE_ROWS_LIMIT: null
+```
+
+Setting the variable to an empty string does **not** remove it: the chart reads an empty value as "not specified", so the inherited value still applies.
+
+Null the variable in every layer that sets it. If it appears in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry lets the `envDefaults` value apply again and the limit stays in force. With External Secrets, also drop the key from `externalSecrets.remoteRefs.app`, which keeps syncing it independently. Confirm what the pod will actually receive before rolling out:
+
+```bash
+helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+```
+
+`null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.
 
 ## Example .env
 

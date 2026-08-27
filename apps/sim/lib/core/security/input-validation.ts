@@ -1696,6 +1696,89 @@ export function validateWorkdayTenantUrl(
 }
 
 /**
+ * Every production Databricks control-plane DNS zone, mirroring `ALL_ENVS` in the
+ * Databricks SDK (`databricks/sdk/environments.py`). The SDK's `.dev.*`/`.staging.*`
+ * zones are internal and deliberately omitted; the ones that are subdomains of a
+ * zone listed here (e.g. `.staging.cloud.databricks.com`) match by suffix anyway.
+ */
+const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
+  '.cloud.databricks.com',
+  '.cloud.databricks.us',
+  '.gcp.databricks.com',
+  '.azuredatabricks.net',
+  '.databricks.azure.us',
+  '.databricks.azure.cn',
+] as const
+
+/**
+ * Validates a Databricks workspace host to prevent SSRF attacks.
+ *
+ * Databricks is host-scoped: every workspace has its own per-workspace URL, and
+ * every REST call is made against it. Example valid hosts:
+ * - dbc-1234abcd-5678.cloud.databricks.com (AWS)
+ * - dbc-1234abcd-5678.cloud.databricks.us (AWS GovCloud)
+ * - adb-1234567890123456.7.azuredatabricks.net (Azure)
+ * - adb-1234567890123456.7.databricks.azure.us (Azure US Government)
+ * - adb-1234567890123456.7.databricks.azure.cn (Azure China)
+ * - 1234567890123456.7.gcp.databricks.com (GCP)
+ *
+ * The value is user-supplied and fetched server-side, so it is normalized to an
+ * https origin and then checked against a Databricks-owned domain allowlist.
+ * Users routinely paste a full console URL (a `#notebook/123` deep link, a
+ * trailing slash, a `?o=<workspace-id>` query); every API path is built by
+ * appending `/api/2.0/...`, so any surviving path, query or fragment would
+ * produce a 404. `URL.origin` also lower-cases the host and drops the default
+ * port.
+ *
+ * Note: legacy regional URLs (`https://oregon.cloud.databricks.com`) match the
+ * allowlist but are not recommended by Databricks — point the connector at the
+ * per-workspace URL instead.
+ *
+ * @param host - The workspace host or URL to validate, with or without a scheme
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult whose `sanitized` value is the https origin
+ *
+ * @example
+ * ```typescript
+ * const result = validateDatabricksWorkspaceHost(workspaceHost)
+ * if (!result.isValid) {
+ *   throw new Error(result.error)
+ * }
+ * ```
+ */
+export function validateDatabricksWorkspaceHost(
+  host: string | null | undefined,
+  paramName = 'workspaceHost'
+): ValidationResult {
+  const raw = typeof host === 'string' ? host.trim() : ''
+  if (!raw) {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+
+  const urlResult = validateExternalUrl(withScheme, paramName)
+  if (!urlResult.isValid) return urlResult
+
+  const parsed = new URL(withScheme)
+  const hostname = parsed.hostname.toLowerCase()
+  const isAllowedHost = DATABRICKS_ALLOWED_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
+
+  if (!isAllowedHost) {
+    logger.warn('Databricks workspace host not on allowlist', {
+      paramName,
+      hostname: hostname.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a Databricks-hosted domain (e.g., *.cloud.databricks.com, *.azuredatabricks.net, or *.gcp.databricks.com)`,
+    }
+  }
+
+  return { isValid: true, sanitized: parsed.origin }
+}
+
+/**
  * Validates a database identifier (table or column name) to prevent SQL injection.
  *
  * Accepts only identifiers that start with a letter or underscore and contain

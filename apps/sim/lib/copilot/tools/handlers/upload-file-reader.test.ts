@@ -45,7 +45,7 @@ function makeRow(overrides: Partial<Record<string, unknown>> = {}) {
     originalName: 'image.png',
     displayName: 'image.png',
     contentType: 'image/png',
-    size: 1024,
+    sizeBytes: 1024,
     deletedAt: null,
     uploadedAt: NOW,
     updatedAt: NOW,
@@ -184,7 +184,7 @@ describe('readChatUpload', () => {
 
     const result = await readChatUpload('bundle.zip', CHAT_ID)
 
-    expect(result?.content).toContain('materialize_file')
+    expect(result?.content).toContain('save_upload')
     expect(result?.content).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })
@@ -194,13 +194,13 @@ describe('readChatUpload', () => {
       id: 'wf_z',
       displayName: 'huge.zip',
       contentType: 'application/zip',
-      size: 50 * 1024 * 1024,
+      sizeBytes: 50 * 1024 * 1024,
     })
     mockOrderByThenLimit([row])
 
     const result = await readChatUpload('huge.zip', CHAT_ID)
 
-    expect(result?.content).toContain('materialize_file')
+    expect(result?.content).toContain('save_upload')
     expect(mockFetchBuffer).not.toHaveBeenCalled()
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })
@@ -243,7 +243,7 @@ describe('grepChatUpload', () => {
     const error = await grepChatUpload('bundle.zip', CHAT_ID, 'foo').catch((e) => e)
 
     expect(error).toBeInstanceOf(WorkspaceFileGrepError)
-    expect(error.message).toContain('materialize_file')
+    expect(error.message).toContain('save_upload')
     expect(error.message).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })

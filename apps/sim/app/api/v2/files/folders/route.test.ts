@@ -6,7 +6,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -22,7 +21,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
   getRateLimitHeaders: vi.fn().mockReturnValue(null),
@@ -60,7 +58,6 @@ const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -94,7 +91,6 @@ describe('/api/v2/files/folders', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.listFolders.mockResolvedValue({ folders: [folder] })
@@ -126,6 +122,7 @@ describe('/api/v2/files/folders', () => {
       principal: PRINCIPAL,
       input: {
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         parentPath: undefined,
         search: undefined,
         sortBy: 'name',
@@ -133,6 +130,38 @@ describe('/api/v2/files/folders', () => {
       },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * The archived set is how a caller finds a path to hand to the folder
+   * restore route; without it a recursive delete is unrecoverable over the API.
+   */
+  it('lists the archived set when scope=archived', async () => {
+    mocks.listFolders.mockResolvedValueOnce({ folders: [] })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&scope=archived`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listFolders).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+  })
+
+  it('rejects an unknown scope', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&scope=everything`
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listFolders).not.toHaveBeenCalled()
   })
 
   it('preserves an escaped slash within a folder name', async () => {

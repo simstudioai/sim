@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import {
+  nonEmptyIdSchema,
+  organizationRoleSchema,
+  requiredFieldSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -19,6 +23,12 @@ export const workspaceSchema = z.object({
   role: z.string().optional(),
   membershipId: z.string().optional(),
   permissions: workspacePermissionSchema.nullable().optional(),
+  /**
+   * The viewer holds admin here through their organization role rather than a
+   * permission row, so they cannot leave. Optional because not every workspace
+   * response builder resolves organization standing.
+   */
+  isOrgAdmin: z.boolean().optional(),
   billedAccountUserId: z.string().nullable().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
   inviteMembersEnabled: z.boolean().optional(),
@@ -94,6 +104,7 @@ export const workspaceUserSchema = z.object({
   isExternal: z.boolean(),
   joinedAt: z.string(),
   roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isOrgAdmin: z.boolean(),
   isBilledAccount: z.boolean(),
 })
 
@@ -160,14 +171,6 @@ export const workspaceMemberSchema = z.object({
 })
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
-
-export const workspacePreviewBodySchema = z
-  .object({
-    code: z
-      .string({ error: 'code is required' })
-      .refine((code) => code.trim().length > 0, { message: 'code is required' }),
-  })
-  .passthrough()
 
 export const workspaceMetricsExecutionsQuerySchema = z.object({
   startTime: z.string().optional(),
@@ -263,7 +266,14 @@ export const workspaceHostContextSchema = z.object({
     permission: workspacePermissionSchema,
     isHostOrganizationMember: z.boolean(),
     isHostOrganizationAdmin: z.boolean(),
+    /** Optional for rolling compatibility with app versions that predate organization-role projection. */
+    organizationRole: organizationRoleSchema.nullable().optional(),
   }),
+  features: z
+    .object({
+      credentialGroups: z.boolean(),
+    })
+    .optional(),
 })
 
 export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>

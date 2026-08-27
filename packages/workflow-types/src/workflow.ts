@@ -343,6 +343,8 @@ export type WorkflowConnectionSide = (typeof WORKFLOW_CONNECTION_SIDES)[number]
 export const WORKFLOW_SOURCE_HANDLE_ID = 'source'
 /** The one input handle every block that accepts a connection exposes. */
 export const WORKFLOW_TARGET_HANDLE_ID = 'target'
+/** The output handle a block's error branch leaves through. */
+export const WORKFLOW_ERROR_HANDLE_ID = 'error'
 
 /**
  * Side-anchored handle ids (`source-right`, `target-left`, …) briefly existed
@@ -386,6 +388,45 @@ export function normalizeWorkflowEdgeTargetHandle(
     return WORKFLOW_TARGET_HANDLE_ID
   }
   return canonical
+}
+
+/**
+ * Collects the ids of blocks an error edge leaves, canonicalizing handles first
+ * so the set is the same however the edge list was loaded.
+ */
+export function collectErrorSourceBlockIds(
+  edges: readonly WorkflowEdgeHandles[] | null | undefined
+): Set<string> {
+  const sources = new Set<string>()
+  for (const edge of edges || []) {
+    if (normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) === WORKFLOW_ERROR_HANDLE_ID) {
+      sources.add(edge.source)
+    }
+  }
+  return sources
+}
+
+/**
+ * Whether a block's error output is on, read from the edges as well as the flag.
+ *
+ * An error edge means the port is live whatever the flag says: `setBlockErrorEnabled`
+ * leaves existing error edges in place, and both block renderers draw the port on
+ * `errorEnabled || hasErrorConnection`, so a block can sit at `errorEnabled: false`
+ * with a connected error edge indefinitely. The executor never reads the flag at
+ * all — the edge alone decides routing — so the two spellings are one state.
+ *
+ * Every reader that compares or materializes a block must apply this rule rather
+ * than the flag alone. Applying it on one side only is what pinned a workflow to
+ * "needs redeploy" with nothing to deploy: change detection read a backfilled
+ * `true` against a live `false`, and redeploying snapshotted the live `false` that
+ * the next read backfilled straight back to `true`.
+ */
+export function resolveEffectiveErrorEnabled(
+  block: Pick<BlockState, 'errorEnabled'>,
+  blockId: string,
+  errorSourceBlockIds: ReadonlySet<string>
+): boolean {
+  return Boolean(block.errorEnabled) || errorSourceBlockIds.has(blockId)
 }
 
 /**

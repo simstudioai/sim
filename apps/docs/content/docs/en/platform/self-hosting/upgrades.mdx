@@ -142,11 +142,11 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
   <Tab value="Docker Compose">
 
 ```bash
-bun run sim update
+npx sim-setup update
 docker compose -f docker-compose.prod.yml logs migrations
 ```
 
-`bun run sim update` pulls the versions configured by `SIM_VERSION` (or `latest` when it is
+`npx sim-setup update` pulls the versions configured by `SIM_VERSION` (or `latest` when it is
 unset), recreates the changed services, and keeps data volumes. It is equivalent to running
 `docker compose pull` followed by `docker compose up -d`.
 

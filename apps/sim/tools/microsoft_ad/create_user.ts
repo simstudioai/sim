@@ -2,7 +2,7 @@ import type {
   MicrosoftAdCreateUserParams,
   MicrosoftAdCreateUserResponse,
 } from '@/tools/microsoft_ad/types'
-import { USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { CREATED_USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createUserTool: ToolConfig<
@@ -93,7 +93,7 @@ export const createUserTool: ToolConfig<
     },
   },
   request: {
-    url: 'https://graph.microsoft.com/v1.0/users?$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled',
+    url: 'https://graph.microsoft.com/v1.0/users',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -132,10 +132,10 @@ export const createUserTool: ToolConfig<
           userPrincipalName: user.userPrincipalName ?? null,
           mail: user.mail ?? null,
           jobTitle: user.jobTitle ?? null,
-          department: user.department ?? null,
           officeLocation: user.officeLocation ?? null,
           mobilePhone: user.mobilePhone ?? null,
-          accountEnabled: user.accountEnabled ?? null,
+          businessPhones: user.businessPhones ?? [],
+          preferredLanguage: user.preferredLanguage ?? null,
         },
       },
     }
@@ -144,7 +144,7 @@ export const createUserTool: ToolConfig<
     user: {
       type: 'object',
       description: 'Created user details',
-      properties: USER_OUTPUT_PROPERTIES,
+      properties: CREATED_USER_OUTPUT_PROPERTIES,
     },
   },
 }

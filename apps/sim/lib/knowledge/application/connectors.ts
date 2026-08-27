@@ -12,7 +12,10 @@ import {
   resolveCredentialTokenIdentity,
 } from '@/lib/credentials/access'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
-import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+import {
+  resolveKnowledgeAttributedUserId,
+  resolveKnowledgeBillingAttribution,
+} from '@/lib/knowledge/application/billing'
 import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
@@ -46,6 +49,10 @@ interface KnowledgeConnectorApplicationInput {
 
 export interface ListKnowledgeConnectorsInput extends KnowledgeConnectorApplicationInput {
   knowledgeBaseId: string
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
 }
 
 export interface ReadKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -60,7 +67,7 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
-  resolveBillingAttribution(workspaceId: string): Promise<BillingAttributionSnapshot>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
 export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -70,6 +77,7 @@ export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplica
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
   }
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
 export interface DeleteKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -80,7 +88,7 @@ export interface DeleteKnowledgeConnectorInput extends KnowledgeConnectorApplica
 export interface SyncKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
   connectorId: string
   rehydrate?: boolean
-  resolveBillingAttribution(workspaceId: string): Promise<BillingAttributionSnapshot>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
 export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
@@ -173,12 +181,16 @@ async function validateConnectorSourceConfig(input: {
   let accessToken: string | null = null
   if (connectorConfig.auth.mode === 'apiKey') {
     if (!input.connector.encryptedApiKey) {
-      return {
-        message: 'API key not found. Please reconfigure the connector.',
-        errorCode: 'validation',
+      if (!connectorConfig.auth.optional) {
+        return {
+          message: 'API key not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
       }
+      accessToken = ''
+    } else {
+      accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
     }
-    accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
   } else {
     if (!input.connector.credentialId) {
       return {
@@ -220,8 +232,15 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listConnectors,
   resolveContext: ({ input }: { input: ListKnowledgeConnectorsInput }) =>
     resolveActiveKnowledgeResourceContext(input),
-  async execute({ context }) {
-    const connectors = await db
+  async execute({ input, context }) {
+    const sortOrder = input.sortOrder === 'asc' ? asc : desc
+    const sortColumn =
+      input.sortBy === 'connectorType'
+        ? knowledgeConnector.connectorType
+        : input.sortBy === 'updatedAt'
+          ? knowledgeConnector.updatedAt
+          : knowledgeConnector.createdAt
+    const orderedQuery = db
       .select()
       .from(knowledgeConnector)
       .where(
@@ -231,8 +250,20 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
           isNull(knowledgeConnector.deletedAt)
         )
       )
-      .orderBy(desc(knowledgeConnector.createdAt))
-    return { connectors: connectors.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => rest) }
+      .orderBy(sortOrder(sortColumn), sortOrder(knowledgeConnector.id))
+    const offset = input.offset ?? 0
+    const rows =
+      input.limit === undefined
+        ? await orderedQuery
+        : await orderedQuery.limit(input.limit + 1).offset(offset)
+    const hasMore = input.limit !== undefined && rows.length > input.limit
+    const page = input.limit === undefined ? rows : rows.slice(0, input.limit)
+    return {
+      connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => rest),
+      hasMore,
+      offset,
+      limit: input.limit ?? page.length,
+    }
   },
 })
 
@@ -269,7 +300,9 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       apiKey: input.apiKey,
       sourceConfig: input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
-      resolveBillingAttribution: () => input.resolveBillingAttribution(workspaceId),
+      resolveBillingAttribution: () =>
+        input.resolveBillingAttribution?.(workspaceId) ??
+        resolveKnowledgeBillingAttribution(principal, context),
       resolveAccessToken: (credentialId) =>
         resolveConnectorCredentialAccessToken({
           credentialId,
@@ -315,6 +348,13 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
       updates: input.updates,
+      resolveBillingAttribution: () => {
+        const workspaceId = requireConnectorWorkspaceId(context)
+        return (
+          input.resolveBillingAttribution?.(workspaceId) ??
+          resolveKnowledgeBillingAttribution(principal, context)
+        )
+      },
       validateSourceConfig: (connector, sourceConfig) => {
         const workspaceId = requireConnectorWorkspaceId(context)
         return validateConnectorSourceConfig({
@@ -409,7 +449,9 @@ export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const outcome = await performSyncKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
-      resolveBillingAttribution: () => input.resolveBillingAttribution(workspaceId),
+      resolveBillingAttribution: () =>
+        input.resolveBillingAttribution?.(workspaceId) ??
+        resolveKnowledgeBillingAttribution(principal, context),
       rehydrate: input.rehydrate,
       userId: resolveKnowledgeAttributedUserId(principal, context),
       source: input.source ?? 'agent',
@@ -495,18 +537,23 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         : Promise.resolve([{ value: 0 }]),
     ])
     const excludedCount = excludedCountRows[0]
-    const documents = await db
+    const rows = await db
       .select(connectorDocumentSelection)
       .from(document)
       .where(
         and(...baseConditions, input.includeExcluded ? undefined : eq(document.userExcluded, false))
       )
       .orderBy(asc(document.userExcluded), asc(document.filename))
-      .limit(limit)
+      .limit(limit + 1)
       .offset(offset)
+    const hasMore = rows.length > limit
+    const documents = rows.slice(0, limit)
     return {
       documents,
       counts: { active: activeCount?.value ?? 0, excluded: excludedCount?.value ?? 0 },
+      hasMore,
+      offset,
+      limit,
     }
   },
 })
@@ -534,7 +581,7 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
         and(
           eq(document.connectorId, context.connectorId),
           inArray(document.id, documentIds),
-          eq(document.userExcluded, !restoring),
+          eq(document.userExcluded, restoring),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
         )

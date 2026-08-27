@@ -9,10 +9,11 @@ import {
   cn,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
 import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
+import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -38,11 +39,54 @@ import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
-import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+
+/**
+ * Sections whose JS chunk is warmed when a row receives navigation intent.
+ *
+ * Deliberately not all of them, and the reason is the boundary audit rather than bundle weight.
+ * Each section is already `dynamic()`-imported by the settings panel, so naming it here adds an
+ * async-chunk reference, not parsed JS — but `check-tool-registry-boundary` counts `import()`
+ * as a graph edge on purpose, and listing all of them measured +126..+172 modules against six of
+ * the app's hottest route baselines. Code-splitting this sidebar does not help: measured, it
+ * moves exactly one module, because the audit follows the dynamic edge either way.
+ *
+ * These six predate this map and are already inside those baselines, so warming them is free.
+ * Widening it means either raising the ratchet on the routes it exists to protect, or teaching
+ * the audit to track async reach separately from initial-chunk weight.
+ *
+ * Every section still gets its route payload warmed through {@link SettingsIntentLink}.
+ */
+const SECTION_CHUNK_WARMERS: Partial<Record<SettingsSection, () => Promise<unknown>>> = {
+  general: () => import('@/app/workspace/[workspaceId]/settings/components/general/general'),
+  secrets: () => import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets'),
+  billing: () => import('@/app/workspace/[workspaceId]/settings/components/billing/billing'),
+  desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
+  browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
+  terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
+}
+
+/**
+ * Sections whose first paint waits on a query the sidebar is able to start early.
+ *
+ * `general` is absent because a warm cannot help here: this sidebar only renders inside the
+ * workspace layout, whose `SettingsLoader` holds a live observer on that key with an hour-long
+ * stale time, so `prefetchQuery` short-circuits on every hover.
+ *
+ * The type argument is load-bearing: workspace credentials are cached per type and the secrets
+ * panel subscribes to `env_workspace`, so warming the unfiltered list writes a different cache
+ * entry and leaves the panel to fetch cold anyway.
+ */
+const SECTION_QUERY_WARMERS: Partial<
+  Record<SettingsSection, (queryClient: QueryClient, workspaceId: string) => void>
+> = {
+  secrets: (queryClient, workspaceId) =>
+    prefetchWorkspaceCredentials(queryClient, workspaceId, 'env_workspace'),
+}
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -141,6 +185,15 @@ export function SettingsSidebar({
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
         return false
       }
+      if (
+        item.id === 'credential-groups' &&
+        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
+      ) {
+        return false
+      }
+      if (item.id === 'custom-blocks' && !hostContext.hostOrganizationId) {
+        return false
+      }
 
       if (item.selfHostedOverride && !isHosted) {
         /**
@@ -220,35 +273,12 @@ export function SettingsSidebar({
     return 'general'
   }, [pathname])
 
-  const handlePrefetch = useCallback(
-    (itemId: string) => {
-      switch (itemId) {
-        case 'general':
-          prefetchGeneralSettings(queryClient)
-          void import('@/app/workspace/[workspaceId]/settings/components/general/general')
-          break
-        case 'secrets':
-          prefetchWorkspaceCredentials(queryClient, workspaceId)
-          void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
-          break
-        case 'billing':
-          void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
-          break
-        case 'desktop':
-          void import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop')
-          break
-        case 'browser':
-          void import('@/app/workspace/[workspaceId]/settings/components/browser/browser')
-          break
-        case 'terminal':
-          void import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal')
-          break
-      }
-    },
-    [queryClient, workspaceId]
-  )
-
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
+
+  const handleIntent = (section: SettingsSection) => {
+    void SECTION_CHUNK_WARMERS[section]?.()
+    SECTION_QUERY_WARMERS[section]?.(queryClient, workspaceId)
+  }
 
   const handleBack = useCallback(() => {
     requestLeave(() => {
@@ -350,6 +380,8 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const section = item.id as SettingsSection
+                    const href = getSettingsHref({ section })
                     const selfHostedUnlocked = Boolean(item.selfHostedOverride && !isHosted)
                     const isLocked =
                       !selfHostedUnlocked &&
@@ -385,21 +417,25 @@ export function SettingsSidebar({
                         {content}
                       </a>
                     ) : (
-                      <button
-                        type='button'
+                      <SettingsIntentLink
+                        href={href}
+                        replace
+                        scroll={false}
+                        aria-current={active ? 'page' : undefined}
                         className={itemClassName}
-                        onMouseEnter={() => handlePrefetch(item.id)}
-                        onFocus={() => handlePrefetch(item.id)}
-                        onClick={() => {
-                          const section = item.id as SettingsSection
-                          if (section === activeSection) return
-                          requestLeave(() => {
-                            router.replace(getSettingsHref({ section }), { scroll: false })
-                          })
+                        onIntent={() => handleIntent(section)}
+                        onNavigate={(event) => {
+                          if (active) {
+                            event.preventDefault()
+                            return
+                          }
+                          if (!useSettingsDirtyStore.getState().isDirty) return
+                          event.preventDefault()
+                          requestLeave(() => router.replace(href, { scroll: false }))
                         }}
                       >
                         {content}
-                      </button>
+                      </SettingsIntentLink>
                     )
 
                     return (

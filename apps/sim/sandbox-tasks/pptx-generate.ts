@@ -1,3 +1,4 @@
+import { PPTX_SHIM_JS } from '@/lib/copilot/tools/server/files/pptx-shim'
 import { MAX_SANDBOX_IMAGE_DATA_URI_CHARS } from '@/lib/execution/isolated-vm-limits'
 import { workspaceFileBroker } from '@/lib/execution/sandbox/brokers/workspace-file'
 import { defineSandboxTask } from '@/lib/execution/sandbox/define-task'
@@ -59,6 +60,8 @@ export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
       const data = await globalThis.getFileBase64(fileId);
       slide.addImage(Object.assign({}, opts, { data }));
     };
+
+    ${PPTX_SHIM_JS}
   `,
   finalize: `
     if (!globalThis.pptx) {

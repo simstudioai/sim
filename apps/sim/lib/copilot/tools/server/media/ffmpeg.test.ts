@@ -309,3 +309,131 @@ describe('ffmpeg server tool secret provenance', () => {
     })
   })
 })
+
+describe('ffmpeg server tool input admission', () => {
+  const context = {
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    toolCallId: 'tool-1',
+    copilotToolExecution: true as const,
+    resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    }),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resolveWorkspaceFileReferenceMock.mockResolvedValue(file)
+    fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('media'))
+    getBoundWorkspaceFileSecretProvenanceMock.mockResolvedValue(EXACT_EMPTY)
+    mergeWorkspaceFileSecretProvenanceMock.mockImplementation(mergeProvenance)
+    runFfmpegOperationMock.mockResolvedValue({
+      buffer: Buffer.from('output'),
+      ext: 'mp4',
+      contentType: 'video/mp4',
+    })
+    writeWorkspaceFileByPathMock.mockResolvedValue({
+      id: 'output-1',
+      name: 'converted.mp4',
+      vfsPath: 'files/converted.mp4',
+      downloadUrl: '/api/files/serve/converted.mp4',
+      mode: 'create',
+    })
+  })
+
+  it('refuses more inputs than one call may transcode, before reading any of them', async () => {
+    const files = Array.from({ length: 21 }, () => ({ path: 'files/input.mp4' }))
+
+    const result = await ffmpegServerTool.execute(
+      { operation: 'concat', inputs: { files } },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('at most 20')
+    expect(resolveWorkspaceFileReferenceMock).not.toHaveBeenCalled()
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
+  it('admits a batch at the input ceiling', async () => {
+    const files = Array.from({ length: 20 }, () => ({ path: 'files/input.mp4' }))
+
+    const result = await ffmpegServerTool.execute(
+      { operation: 'concat', inputs: { files } },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(runFfmpegOperationMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects on the recorded size before spending the download', async () => {
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({ ...file, size: 300 * 1024 * 1024 })
+
+    const result = await ffmpegServerTool.execute(
+      { operation: 'convert', inputs: { files: [{ path: 'files/huge.mp4' }] } },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('byte limit')
+    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+  })
+
+  it('stops preparing inputs the moment the caller cancels', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'concat',
+        inputs: { files: [{ path: 'files/a.mp4' }, { path: 'files/b.mp4' }] },
+      },
+      { ...context, abortSignal: controller.signal }
+    )
+
+    expect(result.success).toBe(false)
+    // Not one storage read, let alone all of them.
+    expect(resolveWorkspaceFileReferenceMock).not.toHaveBeenCalled()
+    expect(fetchWorkspaceFileBufferMock).not.toHaveBeenCalled()
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
+  it('stops between inputs when the cancel lands mid-preparation', async () => {
+    const controller = new AbortController()
+    // Abort once the first input has been read, so the second is never fetched.
+    fetchWorkspaceFileBufferMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return Buffer.from('media')
+    })
+
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'concat',
+        inputs: { files: [{ path: 'files/a.mp4' }, { path: 'files/b.mp4' }] },
+      },
+      { ...context, abortSignal: controller.signal }
+    )
+
+    expect(result.success).toBe(false)
+    expect(fetchWorkspaceFileBufferMock).toHaveBeenCalledTimes(1)
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
+  it('hands the caller cancellation signal to the transcode', async () => {
+    const controller = new AbortController()
+
+    await ffmpegServerTool.execute(
+      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
+      { ...context, abortSignal: controller.signal }
+    )
+
+    expect(runFfmpegOperationMock).toHaveBeenCalledWith(
+      'convert',
+      expect.anything(),
+      expect.anything(),
+      { signal: controller.signal }
+    )
+  })
+})

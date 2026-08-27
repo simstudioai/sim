@@ -33,7 +33,11 @@ import {
   InvalidInternalDelegationBindingError,
 } from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export class InternalUnauthenticatedError extends Error {
@@ -142,7 +146,10 @@ export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
     const classified = asOrchestrationError(error)
     if (!classified) return null
     return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      error: classified.message,
+      error: messageForOrchestrationError(
+        { error: classified.message, errorCode: classified.code },
+        'Internal server error'
+      ),
     })
   },
   unhandled() {
@@ -199,15 +206,33 @@ type InternalJsonParseOptions = Pick<
   'maxBodyBytes' | 'validationErrorResponse'
 >
 
-type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
-  ContractJsonResponse<C>,
-]
-  ? {
-      present?(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
-  : {
-      present(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
+/**
+ * What a presenter may render from, beyond the use case's result.
+ *
+ * A surface that serves more than one caller kind can owe them different wire
+ * shapes for the same domain result — the internal table row routes answer a
+ * session in stable column ids and a workflow execution in column names. That is
+ * presentation, not domain, so it belongs in the adapter rather than the use
+ * case. {@link InternalJsonRouteOptions.responseHeaders} and
+ * {@link InternalJsonRouteOptions.finalizeResponse} already receive this pair;
+ * this closes the same gap for `present`.
+ */
+export interface InternalJsonPresenterContext<I, P extends Principal> {
+  principal: P
+  input: I
+}
+
+type InternalJsonPresentFn<C extends JsonApiRouteContract, I, R, P extends Principal> = (
+  result: NoInfer<R>,
+  context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
+) => ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+
+/** The presenter is optional exactly when the result already is the response body. */
+type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Principal> = [
+  R,
+] extends [ContractJsonResponse<C>]
+  ? { present?: InternalJsonPresentFn<C, I, R, P> }
+  : { present: InternalJsonPresentFn<C, I, R, P> }
 
 type InternalJsonRouteOptions<
   C extends JsonApiRouteContract,
@@ -230,6 +255,7 @@ type InternalJsonRouteOptions<
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
+  statusForResult?(result: NoInfer<R>): number
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -238,7 +264,7 @@ type InternalJsonRouteOptions<
     result: NoInfer<R>
     body: ContractJsonResponse<C>
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
-} & InternalJsonPresenter<C, R>
+} & InternalJsonPresenter<C, I, R, P>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
   return NextResponse.json(withRequestId(descriptor.body), {
@@ -287,12 +313,6 @@ export function defineInternalJsonRoute<
     options.operation,
     options.useCase.operation
   )
-  if (successStatuses.length !== 1) {
-    throw new Error(
-      `${options.contract.method} ${options.contract.path} internal JSON route requires one success status`
-    )
-  }
-
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -338,12 +358,18 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = options.present ? await options.present(result) : result
+        const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
         }
         const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
+        const responseStatus = options.statusForResult?.(result) ?? successStatus
+        if (!successStatuses.includes(responseStatus)) {
+          throw new Error(
+            `Internal JSON route produced undeclared success status ${responseStatus}; expected ${successStatuses.join(', ')}`
+          )
+        }
         const headers = options.responseHeaders?.({ principal, input, result })
         const finalization = options.finalizeResponse
           ? await options.finalizeResponse({
@@ -357,7 +383,7 @@ export function defineInternalJsonRoute<
         return NextResponse.json(
           appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
           {
-            status: successStatus,
+            status: responseStatus,
             headers: appendFinalizedHeaders(headers, finalization?.headers),
           }
         )

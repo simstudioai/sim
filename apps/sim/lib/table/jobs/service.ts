@@ -13,8 +13,9 @@
 
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
+import type { Column, SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { CsvSkippedRecord } from '@/lib/table/import'
 import { pendingDeleteMask } from '@/lib/table/rows/pending-delete-mask'
 import type {
   RowData,
@@ -25,7 +26,7 @@ import type {
 } from '@/lib/table/types'
 
 /** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
-interface DerivedJobFields {
+export interface DerivedJobFields {
   jobStatus: TableDefinition['jobStatus']
   jobId: string | null
   jobType: TableDefinition['jobType']
@@ -49,23 +50,29 @@ export const EMPTY_JOB_FIELDS: DerivedJobFields = {
   pendingDeleteRemaining: 0,
 }
 
-function mapJobRow(
-  row:
-    | {
-        id: string
-        type: string
-        status: string
-        rowsProcessed: number
-        error: string | null
-        payload: unknown
-      }
-    | undefined
-): DerivedJobFields {
+/**
+ * The shape every latest-job read produces, whether it comes back as query columns
+ * (the batch `DISTINCT ON`) or as one jsonb object (the correlated lateral folded
+ * into the table SELECT). The single source of truth for the doomed-count rule is
+ * {@link mapJobRow} — never re-derive `pendingDeleteRemaining` at a call site.
+ */
+export interface LatestJobRow {
+  id: string
+  type: string
+  status: string
+  rowsProcessed: number
+  error: string | null
+  /**
+   * The one field {@link mapJobRow} needs out of {@link TableDeleteJobPayload},
+   * projected on its own so the read never drags the rest of the payload back.
+   * `null` when the job has no payload, or a payload without the key.
+   */
+  doomedCount: number | null
+}
+
+export function mapJobRow(row: LatestJobRow | null | undefined): DerivedJobFields {
   if (!row) return EMPTY_JOB_FIELDS
-  const doomedCount =
-    row.type === 'delete' && row.status === 'running'
-      ? ((row.payload as TableDeleteJobPayload | null)?.doomedCount ?? 0)
-      : 0
+  const doomedCount = row.type === 'delete' && row.status === 'running' ? (row.doomedCount ?? 0) : 0
   return {
     jobStatus: row.status as TableDefinition['jobStatus'],
     jobId: row.id,
@@ -76,32 +83,69 @@ function mapJobRow(
   }
 }
 
+/**
+ * The one number {@link mapJobRow} wants out of `table_jobs.payload`, extracted in
+ * SQL so the payload itself never crosses the wire. `payload` also carries the
+ * delete job's `filter` and an unbounded `excludeRowIds` array, and the latest
+ * non-export job is read on essentially every table request — a table that once ran
+ * a large delete would otherwise ship that id list on every read, forever.
+ *
+ * `->` (not `->>`) keeps the value jsonb: postgres-js decodes jsonb through its
+ * built-in `JSON.parse` handler (OID 3802), so this arrives as a JS `number`, or
+ * `null` for a missing payload, a payload without the key, a payload that is not an
+ * object, or an explicit JSON `null`. `->>` would hand back text and force a parse.
+ * All four null cases collapse to the same `?? 0` {@link mapJobRow} already applied
+ * to `payload?.doomedCount`, so no boundary coercion is needed.
+ */
+const doomedCountExpr = sql<number | null>`${tableJobs.payload}->'doomedCount'`
+
+/**
+ * What {@link mapJobRow} reads, as one source for both job reads: the batch
+ * `DISTINCT ON` selects it directly, and {@link latestNonExportJobJson} derives its
+ * `jsonb_build_object` pairs from it. Adding or renaming a field here reaches both —
+ * the two cannot drift into disagreeing about what a job row is. Entries may be a
+ * plain `Column` or a derived `SQL` expression; both render in either position.
+ */
 const JOB_PROJECTION = {
   id: tableJobs.id,
   type: tableJobs.type,
   status: tableJobs.status,
   rowsProcessed: tableJobs.rowsProcessed,
   error: tableJobs.error,
-  payload: tableJobs.payload,
-} as const
+  doomedCount: doomedCountExpr,
+} as const satisfies Record<keyof LatestJobRow, Column | SQL>
 
 /**
- * The latest job for one table (the running one if present, else the most recent terminal).
- * Exports are excluded: they're read-only, run concurrently with other jobs, and have their own
- * client surface — surfacing one here would clobber the import/delete/backfill status the tray
- * and SSE consumer derive from these fields.
+ * The latest non-export job for one table, as a single jsonb value correlated to
+ * `outerTableId` — i.e. a `LEFT JOIN LATERAL (... LIMIT 1) ON true` expressed in the
+ * select list, which is the form drizzle can type without `leftJoinLateral`.
+ *
+ * It exists so {@link getTableById} stays ONE database round trip. With prepared
+ * statements disabled (PgBouncer transaction mode) every extra `await` is a full
+ * round trip, and `getTableById` is on essentially every table request. The job row
+ * cannot simply be skipped: a table's reported `rowCount` is the stored count minus
+ * this job's `pendingDeleteRemaining`, so the count and the job row are one read.
+ *
+ * Semantics match the batch {@link latestJobsForTables} exactly — same
+ * {@link JOB_PROJECTION} fields (which is `doomedCount` extracted from the payload,
+ * never the payload itself), exports excluded (they run concurrently and have their
+ * own client surface), newest `started_at` first, one row. `NULL` when the table has
+ * no such job; feed the result straight to {@link mapJobRow}.
  */
-export async function latestJobForTable(
-  tableId: string,
-  executor: DbOrTx = db
-): Promise<DerivedJobFields> {
-  const [row] = await executor
-    .select(JOB_PROJECTION)
-    .from(tableJobs)
-    .where(and(eq(tableJobs.tableId, tableId), ne(tableJobs.type, 'export')))
-    .orderBy(desc(tableJobs.startedAt))
-    .limit(1)
-  return mapJobRow(row)
+export function latestNonExportJobJson(outerTableId: Column): SQL<LatestJobRow | null> {
+  // Keys come from JOB_PROJECTION, never from input, so `sql.raw` here cannot
+  // carry anything a caller controls.
+  const pairs = Object.entries(JOB_PROJECTION).flatMap(([key, expression]) => [
+    sql.raw(`'${key}'`),
+    expression,
+  ])
+  return sql<LatestJobRow | null>`(
+    select jsonb_build_object(${sql.join(pairs, sql`, `)})
+    from ${tableJobs}
+    where ${tableJobs.tableId} = ${outerTableId} and ${tableJobs.type} <> 'export'
+    order by ${tableJobs.startedAt} desc
+    limit 1
+  )`
 }
 
 /** Latest non-export job per table for a batch of ids, via `DISTINCT ON (table_id)`. */
@@ -258,6 +302,55 @@ export async function updateJobProgressInWorkspace(
 }
 
 /**
+ * Rejection accounting an import worker folds into `table_jobs.payload`, so a partial
+ * import is observable on the import record. Kept in the existing payload column
+ * rather than new columns because the payload is already the job's type-specific
+ * descriptor (see `doomedCount`), and an import record must be able to report loss
+ * without a schema migration.
+ */
+export interface TableImportRejectionSummary {
+  /**
+   * Lower bound on the source records the CSV parser could not read and dropped —
+   * one per parser failure, and a single failure can discard many records.
+   */
+  rowsRejected: number
+  /** Non-empty cell values the target column type could not represent (stored as null). */
+  cellsRejected: number
+  /** Bounded sample of the dropped records, for locating them in the source file. */
+  rejectedSamples: CsvSkippedRecord[]
+}
+
+/**
+ * Merges an import's rejection summary into its job payload.
+ *
+ * Deliberately NOT scoped to `status = 'running'` like the progress writes: the summary is
+ * written once the run is terminal (including cancel/failure), when the row is no longer
+ * active. It is still scoped to the job id, table, workspace and type, so a stale worker can
+ * only ever annotate its own job row. `||` merges into the existing payload, leaving the
+ * import descriptor `parseImportJobPayload` reads intact.
+ */
+export async function recordImportRejections(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  summary: TableImportRejectionSummary
+): Promise<void> {
+  await db
+    .update(tableJobs)
+    .set({
+      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || ${JSON.stringify(summary)}::jsonb`,
+    })
+    .where(
+      and(
+        eq(tableJobs.id, jobId),
+        eq(tableJobs.tableId, tableId),
+        eq(tableJobs.workspaceId, workspaceId),
+        eq(tableJobs.type, 'import')
+      )
+    )
+}
+
+/**
  * Reads the persisted progress of an in-flight job this worker still owns (`null` when the job
  * was canceled/superseded). A retried run seeds its counter from this so progress stays
  * cumulative — earlier attempts' batches are already committed, and restarting from zero would
@@ -385,25 +478,6 @@ export async function getTableJob(
     .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
     .limit(1)
   return job ?? null
-}
-
-/**
- * Stamps an export job's generated-file storage key onto its payload (`{ resultKey }` merge).
- * Scoped to the still-running job so a superseded attempt can't clobber a newer run's result.
- * The download route reads it; the janitor deletes the file when the terminal job is pruned.
- */
-export async function setJobResultKey(
-  tableId: string,
-  jobId: string,
-  resultKey: string
-): Promise<void> {
-  await db
-    .update(tableJobs)
-    .set({
-      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
-      updatedAt: new Date(),
-    })
-    .where(ownsActiveJob(tableId, jobId))
 }
 
 /** Stamps an export result only while the canonical workspace-scoped job is active. */

@@ -138,6 +138,7 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
       id: 'secretValue',
       title: 'Secret Value',
       type: 'code',
+      password: true,
       placeholder: '{"username":"admin","password":"secret123"}',
       condition: { field: 'operation', value: ['create_secret', 'update_secret'] },
       required: { field: 'operation', value: ['create_secret', 'update_secret'] },

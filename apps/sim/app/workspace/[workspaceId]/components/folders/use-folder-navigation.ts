@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useQueryStates } from 'nuqs'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import {
@@ -15,12 +15,36 @@ import {
 export interface UseFolderNavigationOptions {
   resourceType: ServedFolderResourceType
   workspaceId?: string
+  /**
+   * Runs before {@link FolderNavigation.openFolder} moves, for state the destination
+   * invalidates — in practice, clearing the list's search. Not run by
+   * {@link FolderNavigation.setCurrentFolderId}.
+   */
+  onBeforeOpenFolder?: () => void
 }
 
 export interface FolderNavigation extends FolderAncestors {
   /** The open folder, or `null` at the workspace root. */
   currentFolderId: string | null
-  setCurrentFolderId: (folderId: string | null) => void
+  /**
+   * Moves to a folder without side effects. For writes that are not a chosen navigation —
+   * a spring-open mid-drag, which is undone when the drag ends without a drop, or the heal
+   * below. Pass `{ history: 'replace' }` to keep such a write out of the back stack.
+   */
+  setCurrentFolderId: (folderId: string | null, options?: { history?: 'push' | 'replace' }) => void
+  /**
+   * Opens a folder because the user chose to, running {@link
+   * UseFolderNavigationOptions.onBeforeOpenFolder} first.
+   *
+   * Separate from {@link FolderNavigation.setCurrentFolderId} because opening a folder ends a
+   * search — the results span every folder, so the one the user picked out of them is a
+   * destination, not a narrower place to keep searching — while a spring-open must not, or an
+   * abandoned drag would discard the search that produced the row being dragged.
+   *
+   * Defaults to the param group's `history: 'push'`: a chosen folder is a destination, and
+   * Back returns to the results that led there.
+   */
+  openFolder: (folderId: string | null, options?: { history?: 'push' | 'replace' }) => void
 }
 
 /**
@@ -35,6 +59,7 @@ export interface FolderNavigation extends FolderAncestors {
 export function useFolderNavigation({
   resourceType,
   workspaceId,
+  onBeforeOpenFolder,
 }: UseFolderNavigationOptions): FolderNavigation {
   const [{ folderId: currentFolderId }, setFolderParams] = useQueryStates(
     folderNavParsers,
@@ -49,8 +74,24 @@ export function useFolderNavigation({
   const { folderById, foldersResolved } = ancestry
 
   const setCurrentFolderId = useCallback(
-    (folderId: string | null) => {
-      void setFolderParams({ folderId })
+    (folderId: string | null, options?: { history?: 'push' | 'replace' }) => {
+      void setFolderParams({ folderId }, options)
+    },
+    [setFolderParams]
+  )
+
+  const onBeforeOpenFolderRef = useRef(onBeforeOpenFolder)
+  onBeforeOpenFolderRef.current = onBeforeOpenFolder
+
+  /**
+   * Both writes land in one URL update: nuqs batches same-tick writes across param groups and
+   * escalates the batch to `push` when any of them pushes, so clearing a `history: 'replace'`
+   * search alongside the folder change stays a single history entry.
+   */
+  const openFolder = useCallback(
+    (folderId: string | null, options?: { history?: 'push' | 'replace' }) => {
+      onBeforeOpenFolderRef.current?.()
+      void setFolderParams({ folderId }, options)
     },
     [setFolderParams]
   )
@@ -79,5 +120,5 @@ export function useFolderNavigation({
     void setFolderParams({ folderId: null }, { history: 'replace' })
   }, [foldersResolved, currentFolderId, folderById, setFolderParams])
 
-  return { ...ancestry, currentFolderId, setCurrentFolderId }
+  return { ...ancestry, currentFolderId, setCurrentFolderId, openFolder }
 }

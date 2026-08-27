@@ -1,5 +1,6 @@
-import { type MouseEvent as ReactMouseEvent, useState } from 'react'
+import { type ComponentType, type MouseEvent as ReactMouseEvent, useState } from 'react'
 import {
+  Chip,
   chipVariants,
   cn,
   DropdownMenu,
@@ -11,110 +12,118 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Loader,
 } from '@sim/emcn'
-import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
+import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
+import {
+  SidebarNavChip,
+  type SidebarNavItemData,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-nav-chip'
 import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
-import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
-interface FileFolderFlyoutNode extends WorkspaceFileFolderApi {
-  children: FileFolderFlyoutNode[]
-  files: WorkspaceFileRecord[]
+interface CollapsedResourceFlyoutProps {
+  entries: FlyoutEntry[]
+  /** Icon for the resource rows. Folders always carry the folder glyph. */
+  icon: ComponentType<{ className?: string }>
+  /** Resource open on the current route, so its row reads as selected. */
+  currentItemId?: string
+  /**
+   * True until the lists that decide which rows EXIST have resolved once — the resources and
+   * their folders. Both are needed before anything renders: a resource whose folder has not
+   * arrived yet would show at the root and then jump into it. Pins are deliberately not
+   * waited on, since they only reorder rows that are already correct.
+   */
+  isLoading?: boolean
+  emptyLabel: string
 }
-
-type FileFlyoutEntry =
-  | { kind: 'folder'; id: string; name: string; folder: FileFolderFlyoutNode }
-  | { kind: 'file'; id: string; name: string; file: WorkspaceFileRecord }
 
 /**
- * Orders one level of the file flyout as a single list. Folders are not hoisted
- * above the files beside them — the Files page sorts folders and files together,
- * and a flyout that partitioned them would contradict the page it links into.
+ * Rail flyout body for a foldered workspace resource (Tables, Files). Every row
+ * is a link — the flyout is a jump list, so folders open as submenus rather than
+ * navigating, and an empty one has nowhere to go and is inert.
  */
-function fileFlyoutEntries(
-  folders: FileFolderFlyoutNode[],
-  files: WorkspaceFileRecord[]
-): FileFlyoutEntry[] {
-  const entries: FileFlyoutEntry[] = [
-    ...folders.map(
-      (folder): FileFlyoutEntry => ({
-        kind: 'folder',
-        id: folder.id,
-        name: folder.name,
-        folder,
-      })
-    ),
-    ...files.map(
-      (file): FileFlyoutEntry => ({
-        kind: 'file',
-        id: file.id,
-        name: file.name,
-        file,
-      })
-    ),
-  ]
-  return entries.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+export function CollapsedResourceFlyout({
+  entries,
+  icon,
+  currentItemId,
+  isLoading = false,
+  emptyLabel,
+}: CollapsedResourceFlyoutProps) {
+  if (isLoading) {
+    return (
+      <DropdownMenuItem disabled>
+        <Loader className='size-[14px]' animate />
+        Loading...
+      </DropdownMenuItem>
+    )
+  }
+  if (entries.length === 0) {
+    return <DropdownMenuItem disabled>{emptyLabel}</DropdownMenuItem>
+  }
+  return <CollapsedFlyoutRows entries={entries} icon={icon} currentItemId={currentItemId} />
 }
 
-const FILE_FLYOUT_ICON = (
-  <File className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' aria-hidden='true' />
-)
+/**
+ * Matches the glyph `Resource`'s label cell renders: pinned rows sort to the top of every
+ * list, and the ordering reads as arbitrary without it. Non-interactive here too — pinning
+ * is an action on the row's own menu, not something a jump list offers.
+ */
+function PinnedGlyph() {
+  return (
+    <Pin className='size-[12px] shrink-0 text-[var(--text-icon)]' role='img' aria-label='Pinned' />
+  )
+}
 
-export function CollapsedFileFolderItems({
-  nodes,
-  rootFiles,
-  workspaceId,
-  currentFileId,
-}: {
-  nodes: FileFolderFlyoutNode[]
-  rootFiles?: WorkspaceFileRecord[]
-  workspaceId: string
-  currentFileId?: string
-}) {
+function CollapsedFlyoutRows({
+  entries,
+  icon: Icon,
+  currentItemId,
+}: Pick<CollapsedResourceFlyoutProps, 'entries' | 'icon' | 'currentItemId'>) {
   return (
     <>
-      {fileFlyoutEntries(nodes, rootFiles ?? []).map((entry) => {
-        if (entry.kind === 'file') {
+      {entries.map((entry) => {
+        if (entry.kind === 'item') {
           return (
-            <DropdownMenuItem key={entry.id} asChild active={currentFileId === entry.file.id}>
-              <Link href={`/workspace/${workspaceId}/files/${entry.file.id}`}>
-                {FILE_FLYOUT_ICON}
+            <DropdownMenuItem key={entry.id} asChild active={currentItemId === entry.id}>
+              <Link href={entry.href}>
+                <Icon className='size-[14px]' />
                 <span className='truncate'>{entry.name}</span>
+                {entry.pinned && <PinnedGlyph />}
               </Link>
             </DropdownMenuItem>
           )
         }
 
-        const folder = entry.folder
-        const hasChildren = folder.children.length > 0 || folder.files.length > 0
-
-        if (!hasChildren) {
+        if (entry.children.length === 0) {
           return (
-            <DropdownMenuItem key={folder.id} disabled>
+            <DropdownMenuItem key={entry.id} disabled>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <span className='truncate'>{entry.name}</span>
+              {entry.pinned && <PinnedGlyph />}
             </DropdownMenuItem>
           )
         }
 
         return (
-          <DropdownMenuSub key={folder.id}>
+          <DropdownMenuSub key={entry.id}>
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <span className='truncate'>{entry.name}</span>
+              {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <CollapsedFileFolderItems
-                nodes={folder.children}
-                rootFiles={folder.files}
-                workspaceId={workspaceId}
-                currentFileId={currentFileId}
+              <CollapsedFlyoutRows
+                entries={entry.children}
+                icon={Icon}
+                currentItemId={currentItemId}
               />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -124,16 +133,28 @@ export function CollapsedFileFolderItems({
   )
 }
 
-interface CollapsedSidebarMenuProps {
-  icon: React.ReactNode
+/**
+ * Rail trigger for a menu whose nav item also has a page of its own. The chip stays the
+ * ordinary nav chip, so the flyout is purely additive: clicking still opens the resource's
+ * list page, and right-click still reaches the nav item's context menu.
+ */
+export interface CollapsedSidebarMenuNavLink {
+  item: SidebarNavItemData
+  active: boolean
+  onContextMenu?: (e: ReactMouseEvent, href: string) => void
+}
+
+type CollapsedSidebarMenuProps = {
   hover: ReturnType<typeof useHoverMenu>
-  ariaLabel?: string
   children: React.ReactNode
   primaryAction?: {
     label: string
     onSelect: () => void
   }
-}
+} & (
+  | { icon: React.ReactNode; ariaLabel?: string; navLink?: never }
+  | { icon?: never; ariaLabel?: never; navLink: CollapsedSidebarMenuNavLink }
+)
 
 interface CollapsedChatFlyoutItemProps {
   chat: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
@@ -188,48 +209,76 @@ const EDIT_ROW_CLASS = cn(
   'min-w-0 cursor-default select-none text-small'
 )
 
+/**
+ * Radix's menu trigger swallows Enter to toggle the menu, which would leave a rail nav chip
+ * with no keyboard route to its own page. The flyout opens on hover, so Enter belongs to the
+ * link — and defaulting the event is what keeps Radix's composed handler from running.
+ */
+function activateLinkOnEnter(e: React.KeyboardEvent<HTMLElement>) {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  e.currentTarget.click()
+}
+
+/**
+ * Hover-opened rail flyout. The component owns only the trigger and the menu —
+ * the caller places it, so spacing stays with the surrounding list.
+ */
 export function CollapsedSidebarMenu({
   icon,
   hover,
   ariaLabel,
   children,
   primaryAction,
+  navLink,
 }: CollapsedSidebarMenuProps) {
   return (
-    <div className='flex flex-col px-2'>
-      <DropdownMenu
-        open={hover.isOpen}
-        onOpenChange={(open) => {
-          if (open) hover.open()
-          else hover.close()
-        }}
-        modal={false}
-      >
-        <div {...hover.triggerProps}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
+    <DropdownMenu
+      open={hover.isOpen}
+      onOpenChange={(open) => {
+        if (open) hover.open()
+        else hover.close()
+      }}
+      modal={false}
+    >
+      <div {...hover.triggerProps}>
+        <DropdownMenuTrigger asChild>
+          {navLink ? (
+            <SidebarNavChip
+              item={navLink.item}
+              active={navLink.active}
+              onContextMenu={
+                navLink.onContextMenu && navLink.item.href
+                  ? (e) => navLink.onContextMenu?.(e, navLink.item.href as string)
+                  : undefined
+              }
+              onKeyDown={activateLinkOnEnter}
+            />
+          ) : (
+            <Chip
               aria-label={ariaLabel}
-              className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
-            >
-              {icon}
-            </button>
-          </DropdownMenuTrigger>
-        </div>
-        <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
-          {primaryAction && (
-            <>
-              <DropdownMenuItem onSelect={primaryAction.onSelect}>
-                <Plus className='size-[14px]' />
-                {primaryAction.label}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
+              /* `leftAdornment`, not children: a chip wraps children in its label span, which
+                 would stretch the bare rail glyph across the pill. */
+              leftAdornment={icon}
+              fullWidth
+              className={SIDEBAR_RAIL_CHIP_CLASS}
+            />
           )}
-          {children}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </DropdownMenuTrigger>
+      </div>
+      <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
+        {primaryAction && (
+          <>
+            <DropdownMenuItem onSelect={primaryAction.onSelect}>
+              <Plus className='size-[14px]' />
+              {primaryAction.label}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -293,8 +342,10 @@ export function CollapsedChatFlyoutItem({
         ) : undefined
       }
     >
-      <Link
+      <ChatNavigationLink
+        chatId={chat.id}
         href={chat.href}
+        isCurrentRoute={isCurrentRoute}
         onContextMenu={
           chat.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, chat.id) : undefined
         }
@@ -304,7 +355,7 @@ export function CollapsedChatFlyoutItem({
           isActive={!!chat.isActive}
           isUnread={!!chat.isUnread && !isCurrentRoute}
         />
-      </Link>
+      </ChatNavigationLink>
     </DropdownMenuItem>
   )
 }

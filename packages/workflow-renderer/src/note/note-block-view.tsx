@@ -1,10 +1,12 @@
 import {
   type ComponentProps,
+  createContext,
   memo,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -14,7 +16,7 @@ import {
 import { ChevronsDownUp, Expand } from '@sim/emcn/icons'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
-import { Streamdown } from 'streamdown'
+import { defaultRehypePlugins, Streamdown, type StreamdownProps } from 'streamdown'
 import 'streamdown/styles.css'
 import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { getEmbedInfo } from '@sim/utils/media-embed'
@@ -26,6 +28,11 @@ import {
   type WorkflowBorderPort,
 } from '../workflow-block/workflow-block-border'
 import { DEFAULT_NOTE_COLOR, getNoteColorOption, type NoteColor } from './note-colors'
+import {
+  type NoteSearchHighlight,
+  type NoteSearchRange,
+  noteSearchHighlightPlugin,
+} from './note-search-highlight'
 
 const EMBED_SCALE = 0.78
 const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`
@@ -106,6 +113,68 @@ const NOTE_TASK_CHECKBOX_CLASS = [
   "checked:after:size-[10px] checked:after:bg-[var(--surface-2)] checked:after:content-['']",
   'checked:after:[clip-path:polygon(14%_44%,0_65%,50%_100%,100%_16%,80%_0%,43%_62%)]',
 ].join(' ')
+
+/**
+ * The ordinal of the mark to paint as current, or null when no workflow search
+ * points at this note.
+ *
+ * Carried by context rather than by prop because the rehype plugin below is
+ * keyed on the query alone: cycling between two matches inside one note then
+ * re-renders the marks instead of re-parsing the whole document on every press
+ * of Enter.
+ */
+const NoteSearchActiveIndexContext = createContext<number | null>(null)
+
+/*
+ * A note paints its own card fill, so the editor panel's fixed orange cannot
+ * simply be reused: it disappears against a light card and fights the white
+ * text on a dark one. Other matches wash the card's own colour, and the current
+ * one paints both fill and text so it reads on every colour in the palette.
+ */
+const NOTE_SEARCH_MARK_CLASS = 'rounded-sm bg-current/20 text-inherit'
+const NOTE_SEARCH_ACTIVE_MARK_CLASS = 'rounded-sm bg-orange-400 text-black'
+
+interface NoteSearchMarkProps {
+  children?: ReactNode
+  'data-note-search-index'?: string
+}
+
+function NoteSearchMark({
+  children,
+  'data-note-search-index': indexAttribute,
+}: NoteSearchMarkProps) {
+  const activeIndex = useContext(NoteSearchActiveIndexContext)
+  const index = Number.parseInt(indexAttribute ?? '', 10)
+  const isActive = Number.isInteger(index) && index === activeIndex
+
+  return (
+    <mark
+      data-note-search-active={isActive ? '' : undefined}
+      className={isActive ? NOTE_SEARCH_ACTIVE_MARK_CLASS : NOTE_SEARCH_MARK_CLASS}
+    >
+      {children}
+    </mark>
+  )
+}
+
+/**
+ * The title with its search hit marked, or undefined to render it plain.
+ *
+ * Takes a range rather than a query: a name match carries an exact one, so
+ * there is no occurrence to guess at the way there is in the markdown body.
+ */
+function renderMarkedName(name: string, range: NoteSearchRange | null): ReactNode | undefined {
+  if (!range) return undefined
+  return (
+    <>
+      {name.slice(0, range.start)}
+      <mark data-note-search-active='' className={NOTE_SEARCH_ACTIVE_MARK_CLASS}>
+        {name.slice(range.start, range.end)}
+      </mark>
+      {name.slice(range.end)}
+    </>
+  )
+}
 
 const NOTE_COMPONENTS = {
   p: ({ children }: { children?: ReactNode }) => (
@@ -267,6 +336,7 @@ const NOTE_COMPONENTS = {
   em: ({ children }: { children?: ReactNode }) => (
     <em className='break-words text-current opacity-80'>{children}</em>
   ),
+  mark: NoteSearchMark,
   blockquote: ({ children }: { children?: ReactNode }) => (
     <blockquote className='my-4 break-words border-current/25 border-l-2 pl-4 text-current italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
       {children}
@@ -305,12 +375,52 @@ const NOTE_COMPONENTS = {
  */
 export const NOTE_MARKDOWN_FLOW = 'space-y-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
 
-const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
+interface NoteMarkdownProps {
+  content: string
+  /** Omitted when no search points here, so the pipeline stays the default one. */
+  searchQuery?: string
+}
+
+const NoteMarkdown = memo(function NoteMarkdown({ content, searchQuery }: NoteMarkdownProps) {
+  /*
+   * `defaultRehypePlugins` is a record keyed by role, not a list — the array
+   * Streamdown actually defaults to is `Object.values` of it, in that order.
+   * Appending rather than replacing is what keeps this note's sanitization and
+   * link hardening intact; the marks are added afterwards precisely because
+   * sanitization would otherwise strip them as an unknown tag.
+   */
+  const rehypePlugins = useMemo<StreamdownProps['rehypePlugins']>(
+    () =>
+      searchQuery
+        ? [
+            ...Object.values(defaultRehypePlugins),
+            [noteSearchHighlightPlugin, { query: searchQuery }],
+          ]
+        : undefined,
+    [searchQuery]
+  )
+
   return (
+    /*
+     * Keyed on the query so a change to it remounts.
+     *
+     * Streamdown is memoised behind a hand-written comparator that checks
+     * `children`, `mode`, `className`, `dir` and friends — but NOT
+     * `rehypePlugins`, `remarkPlugins` or `components`. Starting or ending a
+     * search changes only the plugin list, so without a key Streamdown bails
+     * out and keeps its previous render: marks appear only if something else
+     * happens to remount the card, and once painted they survive the query
+     * being cleared. The key is the query rather than a counter because the
+     * pipeline genuinely has to re-parse when the plugin changes; the current
+     * occurrence still travels by context, so cycling matches inside one note
+     * re-renders the marks without remounting the document.
+     */
     <Streamdown
+      key={searchQuery ?? ''}
       mode='static'
       className={NOTE_MARKDOWN_FLOW}
       remarkPlugins={NOTE_REMARK_PLUGINS}
+      rehypePlugins={rehypePlugins}
       components={NOTE_COMPONENTS}
     >
       {content}
@@ -375,6 +485,21 @@ export interface NoteBlockViewProps {
   renderContentEditor: (props: NoteContentEditorProps) => ReactNode
   /** Editor-only action bar; omit in read-only / preview contexts. */
   actionBar?: ReactNode
+  /**
+   * The workflow search match to paint, or null when no search points here.
+   *
+   * Applies to the read view only. A note the user has clicked into is a live
+   * markdown editor holding its own document, and repainting a match inside it
+   * would put decorations on text the user is editing; the highlight comes back
+   * when they click out.
+   */
+  searchHighlight?: NoteSearchHighlight | null
+  /**
+   * Range of a workflow search hit inside `name`, or null. Separate from
+   * {@link searchHighlight} because a title and a body are different surfaces
+   * with different match shapes, and only one of the two can be current.
+   */
+  nameSearchRange?: NoteSearchRange | null
 }
 
 /**
@@ -402,6 +527,8 @@ export function NoteBlockView({
   onImageFilesDrop,
   renderContentEditor,
   actionBar,
+  searchHighlight = null,
+  nameSearchRange = null,
 }: NoteBlockViewProps) {
   const colorOption = getNoteColorOption(noteColor)
   const showActionMenu = Boolean(actionBar)
@@ -423,6 +550,12 @@ export function NoteBlockView({
   const [isFileDropTarget, setIsFileDropTarget] = useState(false)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
+  /* Unpacked to primitives so the scroll below re-runs when the match moves and
+     not merely when the search panel hands over an equal target under a new
+     identity — which it does often, and which would yank a note the user has
+     scrolled by hand back onto the mark. */
+  const searchQuery = searchHighlight?.query
+  const searchOccurrenceIndex = searchHighlight?.occurrenceIndex
   const activeContent = editingField === 'content' ? draftContent : content
   const isEmpty = activeContent.trim().length === 0
   const hasVisualFocus = isFocused || isExpanded
@@ -680,6 +813,58 @@ export function NoteBlockView({
     updateScrollFades()
   }, [content, editingField, hasVisualFocus, updateScrollFades])
 
+  /**
+   * Scrolls the current search match into the card's own scroll region.
+   *
+   * `scrollTop` arithmetic, never `scrollIntoView`: the card sits inside
+   * ReactFlow's transformed viewport, and `scrollIntoView` keeps walking past
+   * this region to scroll every scrollable ancestor — which drags the canvas
+   * itself off-frame. Summing `offsetTop` up the offset-parent chain stays in
+   * layout space, so the canvas zoom never enters the arithmetic.
+   *
+   * Called again when the card finishes resizing, because the host expands a
+   * note that holds a match: the region's height animates for 280ms, so the
+   * position computed on arrival is measured against a card that is still
+   * growing.
+   */
+  const scrollActiveMatchIntoView = useCallback(() => {
+    const scrollRegion = scrollRegionRef.current
+    const activeMark = scrollRegion?.querySelector<HTMLElement>('[data-note-search-active]')
+    if (!scrollRegion || !activeMark) return
+
+    let markTop = 0
+    let ancestor: HTMLElement | null = activeMark
+    while (ancestor && ancestor !== scrollRegion) {
+      markTop += ancestor.offsetTop
+      const nextAncestor: Element | null = ancestor.offsetParent
+      ancestor = nextAncestor instanceof HTMLElement ? nextAncestor : null
+    }
+    /* The walk left the region without passing through it — the offsets just
+       summed are measured against something else entirely. */
+    if (!ancestor) return
+
+    const maxScrollTop = Math.max(0, scrollRegion.scrollHeight - scrollRegion.clientHeight)
+    const centeredTop = markTop - (scrollRegion.clientHeight - activeMark.offsetHeight) / 2
+    scrollRegion.scrollTop = Math.max(0, Math.min(centeredTop, maxScrollTop))
+    updateScrollFades()
+  }, [updateScrollFades])
+
+  /**
+   * Declared after the reset above so it wins the commit where a note gains
+   * both focus and a match.
+   */
+  useEffect(() => {
+    if (searchQuery === undefined || editingField === 'content') return
+    scrollActiveMatchIntoView()
+  }, [
+    content,
+    editingField,
+    isExpanded,
+    scrollActiveMatchIntoView,
+    searchOccurrenceIndex,
+    searchQuery,
+  ])
+
   const {
     rootRef: actionMenuRootRef,
     hostRef: actionMenuHostRef,
@@ -772,7 +957,13 @@ export function NoteBlockView({
              icons), so an unguarded handler forces a sync layout read on every
              hover. */
           onTransitionEnd={(event) => {
-            if (event.target === event.currentTarget) updateScrollFades()
+            if (event.target !== event.currentTarget) return
+            updateScrollFades()
+            /* Only the size transitions, never the card's own colour one: a
+               re-scroll on every hover tint would yank a note the user has
+               scrolled by hand back onto the mark. */
+            const isResize = event.propertyName === 'height' || event.propertyName === 'width'
+            if (isResize && searchQuery !== undefined) scrollActiveMatchIntoView()
           }}
           onKeyDown={(event) => {
             if (event.target === event.currentTarget) {
@@ -842,13 +1033,17 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan value={name ?? ''} className='truncate text-[17px] text-current' />
+                  <OverflowSpan value={name ?? ''} className='truncate text-[17px] text-current'>
+                    {renderMarkedName(name ?? '', nameSearchRange)}
+                  </OverflowSpan>
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
                   className={cn('truncate text-[17px] text-current', !isEnabled && 'opacity-50')}
-                />
+                >
+                  {renderMarkedName(name ?? '', nameSearchRange)}
+                </OverflowSpan>
               )}
             </div>
             {canEdit && onExpandedChange && (
@@ -998,7 +1193,9 @@ export function NoteBlockView({
                   {isEmpty ? (
                     <p className={cn('text-sm', colorOption.placeholderClassName)}>Add note…</p>
                   ) : (
-                    <NoteMarkdown content={content} />
+                    <NoteSearchActiveIndexContext.Provider value={searchOccurrenceIndex ?? null}>
+                      <NoteMarkdown content={content} searchQuery={searchQuery} />
+                    </NoteSearchActiveIndexContext.Provider>
                   )}
                 </div>
               </>

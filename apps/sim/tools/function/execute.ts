@@ -1,3 +1,4 @@
+import type { FunctionExecuteBody } from '@/lib/api/contracts'
 import {
   normalizeRecord,
   normalizeRecordMap,
@@ -13,6 +14,52 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { ToolConfig } from '@/tools/types'
+
+/** Builds the canonical Function protocol body for both HTTP compatibility and in-process calls. */
+export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionExecuteBody {
+  const codeContent = Array.isArray(params.code)
+    ? params.code.map((entry: { content: string }) => entry.content).join('\n')
+    : params.code
+
+  return {
+    code: codeContent,
+    sourceCode: params.sourceCode,
+    language: params.language || DEFAULT_CODE_LANGUAGE,
+    timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
+    title: params.title,
+    outputPath: params.outputPath,
+    outputFormat: params.outputFormat,
+    outputTable: params.outputTable,
+    outputSandboxPath: params.outputSandboxPath,
+    outputMimeType: params.outputMimeType,
+    sandboxId: params.sandboxId,
+    secretScope: params.secretScope,
+    mountedSecrets: params.mountedSecrets,
+    unredactedSecretNames: params.unredactedSecretNames,
+    overwriteFileId: params.overwriteFileId,
+    inputs: params.inputs,
+    outputs: params.outputs,
+    envVars: normalizeStringRecord(params.envVars),
+    workflowVariables: normalizeWorkflowVariables(params.workflowVariables),
+    blockData: normalizeRecord(params.blockData),
+    blockNameMapping: normalizeStringRecord(params.blockNameMapping),
+    blockOutputSchemas: normalizeRecordMap(params.blockOutputSchemas),
+    contextVariables: normalizeRecord(params.contextVariables),
+    workflowId: params._context?.workflowId,
+    executionId: params._context?.executionId,
+    largeValueExecutionIds: params._context?.largeValueExecutionIds,
+    largeValueKeys: params._context?.largeValueKeys,
+    fileKeys: params._context?.fileKeys,
+    allowLargeValueWorkflowScope: params._context?.allowLargeValueWorkflowScope,
+    userId: params._context?.userId,
+    workspaceId: params._context?.workspaceId,
+    isCustomTool: params.isCustomTool || false,
+    ...(params[PRIVATE_SECRET_PROVENANCE_FIELD]
+      ? { [PRIVATE_SECRET_PROVENANCE_FIELD]: params[PRIVATE_SECRET_PROVENANCE_FIELD] }
+      : {}),
+    ...(params._sandboxFiles ? { _sandboxFiles: params._sandboxFiles } : {}),
+  }
+}
 
 export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
@@ -154,56 +201,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         ? { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
         : {}),
     }),
-    body: (params: CodeExecutionInput) => {
-      const codeContent = Array.isArray(params.code)
-        ? params.code.map((c: { content: string }) => c.content).join('\n')
-        : params.code
-
-      const body: Record<string, unknown> = {
-        code: codeContent,
-        sourceCode: params.sourceCode,
-        language: params.language || DEFAULT_CODE_LANGUAGE,
-        timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
-        title: params.title,
-        outputPath: params.outputPath,
-        outputFormat: params.outputFormat,
-        outputTable: params.outputTable,
-        outputSandboxPath: params.outputSandboxPath,
-        outputMimeType: params.outputMimeType,
-        sandboxId: params.sandboxId,
-        secretScope: params.secretScope,
-        mountedSecrets: params.mountedSecrets,
-        overwriteFileId: params.overwriteFileId,
-        inputs: params.inputs,
-        outputs: params.outputs,
-        envVars: normalizeStringRecord(params.envVars),
-        workflowVariables: normalizeWorkflowVariables(params.workflowVariables),
-        blockData: normalizeRecord(params.blockData),
-        blockNameMapping: normalizeStringRecord(params.blockNameMapping),
-        blockOutputSchemas: normalizeRecordMap(params.blockOutputSchemas),
-        contextVariables: normalizeRecord(params.contextVariables),
-        workflowId: params._context?.workflowId,
-        executionId: params._context?.executionId,
-        largeValueExecutionIds: params._context?.largeValueExecutionIds,
-        largeValueKeys: params._context?.largeValueKeys,
-        fileKeys: params._context?.fileKeys,
-        allowLargeValueWorkflowScope: params._context?.allowLargeValueWorkflowScope,
-        userId: params._context?.userId,
-        workspaceId: params._context?.workspaceId,
-        isCustomTool: params.isCustomTool || false,
-        ...(params[PRIVATE_SECRET_PROVENANCE_FIELD]
-          ? {
-              [PRIVATE_SECRET_PROVENANCE_FIELD]: params[PRIVATE_SECRET_PROVENANCE_FIELD],
-            }
-          : {}),
-      }
-
-      if (params._sandboxFiles) {
-        body._sandboxFiles = params._sandboxFiles
-      }
-
-      return body
-    },
+    body: buildFunctionExecuteBody,
   },
 
   transformResponse: async (response: Response): Promise<CodeExecutionOutput> => {
@@ -217,6 +215,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
           stdout: result.output?.stdout || '',
         },
         error: result.error,
+        retryable: result.retryable,
         resources: result.resources,
         largeValueKeys: result.largeValueKeys,
         fileKeys: result.fileKeys,
@@ -232,6 +231,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,
       fileKeys: result.fileKeys,
+      retryable: result.retryable,
     }
   },
 

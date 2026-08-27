@@ -11,6 +11,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -85,7 +86,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { buffer, contentType } = await downloadServableFileFromStorage(
       userFile,
       requestId,
-      logger
+      logger,
+      {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      }
     )
 
     const formData = new FormData()

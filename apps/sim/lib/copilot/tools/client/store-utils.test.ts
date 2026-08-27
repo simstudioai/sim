@@ -8,9 +8,18 @@ import { resolveToolDisplay } from './store-utils'
 import { ClientToolCallState } from './tool-call-state'
 
 const gmailBlock = { type: 'gmail_v2', name: 'Gmail', icon: () => null }
+const customBlock = {
+  type: 'custom_block_invoice_parser',
+  name: 'Invoice Parser',
+  icon: () => null,
+}
 
 vi.mock('@/blocks/registry', () => ({
-  getBlock: vi.fn((type: string) => (type === 'gmail_v2' ? gmailBlock : undefined)),
+  getBlock: vi.fn((type: string) => {
+    if (type === 'gmail_v2') return gmailBlock
+    if (type === 'custom_block_invoice_parser') return customBlock
+    return undefined
+  }),
   getLatestBlock: vi.fn((baseType: string) => (baseType === 'gmail' ? gmailBlock : undefined)),
 }))
 
@@ -40,13 +49,61 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/My Workflow/meta.json',
       })?.text
-    ).toBe('Read My Workflow')
+    ).toBe('Read metadata for My Workflow')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/Folder 1/RET XYZ/state.json',
       })?.text
     ).toBe('Read RET XYZ')
+  })
+
+  it('labels resource artifact reads distinctly instead of repeating the resource name', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/state.json',
+      })?.text
+    ).toBe('Read The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/deployment.json',
+      })?.text
+    ).toBe('Read deployment status for The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
+        path: 'workflows/Elder v2/The Elder/lint.json',
+      })?.text
+    ).toBe('Attempted to validate The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'tables/CRM/Leads/views.json',
+      })?.text
+    ).toBe('Read views of Leads')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'knowledgebases/Contracts/documents.json',
+      })?.text
+    ).toBe('Read documents in Contracts')
+  })
+
+  it('formats docs corpus reads as section/page', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'docs/workflows/blocks/agent.mdx',
+      })?.text
+    ).toBe('Read workflows/agent')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'docs/integrations/gmail.mdx',
+      })?.text
+    ).toBe('Reading integrations/gmail')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
+        path: 'docs/getting-started.mdx',
+      })?.text
+    ).toBe('Attempted to read getting-started')
   })
 
   it('decodes percent-encoded VFS path segments for display', () => {
@@ -60,7 +117,7 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/My%20Workflow/meta.json',
       })?.text
-    ).toBe('Read My Workflow')
+    ).toBe('Read metadata for My Workflow')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
@@ -132,7 +189,7 @@ describe('resolveToolDisplay', () => {
     ).toBe('Read style details for deck.pptx')
   })
 
-  it('shows the block display name for block and integration schema reads', () => {
+  it('shows the block display name for block, integration, and custom-block reads', () => {
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'components/blocks/gmail_v2.json',
@@ -150,6 +207,12 @@ describe('resolveToolDisplay', () => {
         path: 'components/blocks/unknown_block.json',
       })?.text
     ).toBe('Read Unknown block')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'organization/custom-blocks/custom_block_invoice_parser.json',
+      })?.text
+    ).toBe('Read Invoice Parser')
   })
 
   it('humanizes internal VFS resource identifiers', () => {
@@ -173,8 +236,8 @@ describe('resolveToolDisplay', () => {
   })
 
   it('falls back to a humanized tool label for generic tools', () => {
-    expect(resolveToolDisplay('deploy_api', ClientToolCallState.success)?.text).toBe(
-      'Executed Deploy API'
+    expect(resolveToolDisplay('deploy_as_api', ClientToolCallState.success)?.text).toBe(
+      'Executed Deploy As API'
     )
     expect(resolveToolDisplay('oauth-integrations', ClientToolCallState.success)?.text).toBe(
       'Executed OAuth Integrations'
@@ -183,5 +246,26 @@ describe('resolveToolDisplay', () => {
 
   it('hides internal deferred tool loaders', () => {
     expect(resolveToolDisplay('load_custom_tool', ClientToolCallState.executing)).toBeUndefined()
+  })
+})
+
+describe('lint reads render as validation', () => {
+  it.each([
+    [ClientToolCallState.generating, 'Validating The Elder'],
+    [ClientToolCallState.success, 'Validated The Elder'],
+    [ClientToolCallState.error, 'Attempted to validate The Elder'],
+    [ClientToolCallState.aborted, 'Skipped validating The Elder'],
+  ])('state %s -> %s', (state, expected) => {
+    expect(
+      resolveToolDisplay('read', state, { path: 'workflows/Elder v2/The Elder/lint.json' })?.text
+    ).toBe(expected)
+  })
+
+  it('only workflow lint artifacts get the verb; other reads keep Reading', () => {
+    expect(
+      resolveToolDisplay('read', ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/meta.json',
+      })?.text
+    ).toBe('Read metadata for The Elder')
   })
 })

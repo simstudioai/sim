@@ -39,7 +39,7 @@ vi.mock('@sim/db/schema', () => ({
     displayName: 'workspaceFiles.displayName',
     originalName: 'workspaceFiles.originalName',
     contentType: 'workspaceFiles.contentType',
-    size: 'workspaceFiles.size',
+    sizeBytes: 'workspaceFiles.sizeBytes',
     deletedAt: 'workspaceFiles.deletedAt',
   },
 }))
@@ -95,7 +95,7 @@ describe('POST /api/mothership/local-files/stage', () => {
         displayName: null,
         originalName: 'report.pdf',
         contentType: 'application/pdf',
-        size: 42,
+        sizeBytes: 42,
       },
     ])
     mockWhere.mockReturnValue({ limit: mockLimit })
@@ -139,7 +139,7 @@ describe('POST /api/mothership/local-files/stage', () => {
         displayName: 'report (2).pdf',
         originalName: 'report.pdf',
         contentType: 'application/pdf',
-        size: 42,
+        sizeBytes: 42,
       },
     ])
     const response = await POST(request())

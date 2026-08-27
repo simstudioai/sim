@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 
 const { getOrMaterializeVFS } = vi.hoisted(() => ({
@@ -103,7 +103,7 @@ describe('vfs handlers oversize policy', () => {
     expect(result.error).toContain('context window')
   })
 
-  it('fails oversized read results from VFS with grep guidance', async () => {
+  it('fails oversized read results from VFS with paging guidance', async () => {
     const vfs = makeVfs()
     vfs.readFileContent.mockResolvedValue(null)
     vfs.read.mockReturnValue({ content: OVERSIZED_INLINE_CONTENT, totalLines: 1 })
@@ -112,9 +112,56 @@ describe('vfs handlers oversize policy', () => {
     const result = await executeVfsRead({ path: 'workflows/My Workflow/state.json' }, GREP_CTX)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('Use grep')
-    expect(result.error).toContain('offset/limit')
+    expect(result.error).toContain('Page it')
+    expect(result.error).toContain('grep')
     expect(result.error).toContain('context window')
+  })
+
+  it('pages an oversized workspace file when offset/limit are passed', async () => {
+    const vfs = makeVfs()
+    const lines = Array.from({ length: 5000 }, (_, i) => `line ${i} ${'y'.repeat(50)}`)
+    vfs.readFileContent.mockResolvedValue({
+      content: lines.join('\n'),
+      totalLines: lines.length,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const whole = await executeVfsRead({ path: 'files/big.log/content' }, GREP_CTX)
+    expect(whole.success).toBe(false)
+    expect(whole.error).toContain('Page it')
+
+    const paged = await executeVfsRead(
+      { path: 'files/big.log/content', offset: 10, limit: 5 },
+      GREP_CTX
+    )
+    expect(paged.success).toBe(true)
+    expect((paged.output as { content: string }).content).toBe(lines.slice(10, 15).join('\n'))
+  })
+
+  it('tells the model to reduce limit when the requested window is still oversized', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({
+      content: Array.from({ length: 100 }, () => OVERSIZED_INLINE_CONTENT).join('\n'),
+      totalLines: 100,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/big.log/content', offset: 0, limit: 50 },
+      GREP_CTX
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Reduce limit')
+  })
+
+  it('notes an empty file instead of returning bare empty content', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({ content: '', totalLines: 0 })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead({ path: 'files/hi.txt/content' }, GREP_CTX)
+    expect(result.success).toBe(true)
+    expect((result.output as { note?: string }).note).toContain('empty')
   })
 
   it('fails file-backed oversized read placeholders with original message', async () => {
@@ -723,6 +770,26 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     expect((broad.output as { files: string[] }).files).not.toContain('uploads/My%20Report.json')
   })
 
+  it('explains an empty uploads glob instead of returning a bare []', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([])
+
+    const result = await executeVfsGlob({ pattern: 'uploads/*' }, GREP_CTX_CHAT)
+    expect(result.success).toBe(true)
+    expect((result.output as { files: string[]; note?: string }).files).toEqual([])
+    expect((result.output as { note?: string }).note).toContain('no uploads')
+  })
+
+  it('explains an empty user-local glob instead of returning a bare []', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsGlob({ pattern: 'user-local/**' }, GREP_CTX_CHAT)
+    expect(result.success).toBe(true)
+    expect((result.output as { note?: string }).note).toContain('user-local')
+  })
+
   it('reads an upload directly, tolerating a spurious /content suffix', async () => {
     const vfs = makeVfs()
     getOrMaterializeVFS.mockResolvedValue(vfs)
@@ -744,5 +811,143 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     await executeVfsGrep({ pattern: 'x', path: 'uploads/report.json/content' }, GREP_CTX_CHAT)
 
     expect(grepChatUpload).toHaveBeenCalledWith('report.json', 'chat-1', 'x', expect.any(Object))
+  })
+})
+
+describe('vfs handlers docs corpus routing', () => {
+  const fetchMock = vi.fn()
+  const DOCS_PAGE = 'docs/workflows/blocks/agent.mdx'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('globs the docs corpus without materializing the workspace VFS', async () => {
+    const result = await executeVfsGlob({ pattern: 'docs/**' }, GREP_CTX)
+
+    expect(result.success).toBe(true)
+    expect((result.output as { files: string[] }).files).toContain(DOCS_PAGE)
+    expect(getOrMaterializeVFS).not.toHaveBeenCalled()
+  })
+
+  it('reads a docs page via the live-site fetch, not the workspace VFS', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => 'line one\nline two',
+    })
+
+    const result = await executeVfsRead({ path: DOCS_PAGE }, GREP_CTX)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({ content: 'line one\nline two', totalLines: 2 })
+    expect(getOrMaterializeVFS).not.toHaveBeenCalled()
+  })
+
+  it('surfaces DocsCorpusError messages verbatim from read, without fetching', async () => {
+    const unknown = await executeVfsRead({ path: 'docs/not-a-real-page.mdx' }, GREP_CTX)
+    expect(unknown.success).toBe(false)
+    expect(unknown.error).toContain('Docs page not found')
+
+    const dir = await executeVfsRead({ path: 'docs/workflows/blocks' }, GREP_CTX)
+    expect(dir.success).toBe(false)
+    expect(dir.error).toContain('is a directory')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('greps one docs page and rejects directory scope without touching the workspace VFS', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => 'alpha\ncron beta\ngamma',
+    })
+
+    const single = await executeVfsGrep({ pattern: 'cron', path: DOCS_PAGE }, GREP_CTX)
+    expect(single.success).toBe(true)
+
+    const directory = await executeVfsGrep(
+      { pattern: 'cron', path: 'docs/workflows', maxResults: 10_000 },
+      GREP_CTX
+    )
+    expect(directory.success).toBe(false)
+    expect(directory.error).toContain('grep must target one docs page')
+    expect(fetchMock).toHaveBeenCalledOnce()
+
+    const invalid = await executeVfsGrep({ pattern: 'cron', path: 'docs/not-a-page.mdx' }, GREP_CTX)
+    expect(invalid.success).toBe(false)
+    expect(invalid.error).toContain('not a docs page')
+    expect(getOrMaterializeVFS).not.toHaveBeenCalled()
+  })
+
+  it('truncates an oversized multi-line docs page to fit the inline cap', async () => {
+    const line = 'y'.repeat(200)
+    const totalLines = Math.ceil((TOOL_RESULT_MAX_INLINE_CHARS * 2) / (line.length + 1))
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => Array.from({ length: totalLines }, () => line).join('\n'),
+    })
+
+    const result = await executeVfsRead({ path: DOCS_PAGE }, GREP_CTX)
+
+    expect(result.success).toBe(true)
+    const output = result.output as { content: string; totalLines: number }
+    expect(output.totalLines).toBe(totalLines)
+    expect(output.content).toContain('[Page truncated: returned lines 1-')
+    expect(output.content).toMatch(/offset: \d+ and limit: \d+/)
+    expect(output.content).toContain('reduce the limit if that window is still too large')
+    expect(JSON.stringify(output).length).toBeLessThanOrEqual(TOOL_RESULT_MAX_INLINE_CHARS)
+  })
+
+  it('fails a docs page whose single line cannot fit inline instead of returning it oversized', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => 'z'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1000),
+    })
+
+    const result = await executeVfsRead({ path: DOCS_PAGE }, GREP_CTX)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Grep this page')
+  })
+
+  it('rejects an explicit window that still overflows instead of truncating it', async () => {
+    const line = 'y'.repeat(200)
+    const totalLines = Math.ceil((TOOL_RESULT_MAX_INLINE_CHARS * 2) / (line.length + 1))
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => Array.from({ length: totalLines }, () => line).join('\n'),
+    })
+
+    const result = await executeVfsRead({ path: DOCS_PAGE, offset: 0, limit: totalLines }, GREP_CTX)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('still too large over the requested window')
+  })
+
+  it('forwards caller cancellation to docs read and grep without fetching', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('user stopped docs tool'))
+    const context = { ...GREP_CTX, abortSignal: controller.signal }
+
+    const read = await executeVfsRead({ path: DOCS_PAGE }, context)
+    const grep = await executeVfsGrep({ pattern: 'agent', path: DOCS_PAGE }, context)
+
+    expect(read).toEqual({ success: false, error: 'user stopped docs tool' })
+    expect(grep).toEqual({ success: false, error: 'user stopped docs tool' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

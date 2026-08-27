@@ -118,6 +118,8 @@ interface TagInputProps extends VariantProps<typeof tagInputVariants> {
    * Return true if the value was valid and added, false if invalid.
    */
   onAdd: (value: string) => boolean
+  /** Batch counterpart used by paste/file import to avoid one render per value. */
+  onAddMany?: (values: string[]) => void
   /** Callback when a tag is removed (receives value, index, and isValid) */
   onRemove: (value: string, index: number, isValid: boolean) => void
   /** Callback when the input value changes (useful for clearing errors) */
@@ -213,6 +215,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
     {
       items,
       onAdd,
+      onAddMany,
       onRemove,
       onInputChange,
       placeholder = 'Enter values',
@@ -256,11 +259,12 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           const extractValues = fileInputOptions?.extractValues
           if (extractValues) {
             const values = extractValues(text)
-            values.forEach((value) => onAdd(value))
+            if (onAddMany) onAddMany(values)
+            else values.forEach((value) => onAdd(value))
           }
         } catch {}
       },
-      [fileInputOptions?.extractValues, onAdd]
+      [fileInputOptions?.extractValues, onAdd, onAddMany]
     )
 
     const handleDragOver = React.useCallback(
@@ -347,12 +351,18 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault()
         const pastedText = e.clipboardData.getData('text')
-        const pastedValues = pastedText.split(/[\s,;]+/).filter(Boolean)
-        pastedValues.forEach((value) => {
-          onAdd(value.trim())
-        })
+        const pastedValues = Array.from(
+          new Set(
+            pastedText
+              .split(/[\s,;]+/)
+              .map((value) => value.trim())
+              .filter(Boolean)
+          )
+        )
+        if (onAddMany) onAddMany(pastedValues)
+        else pastedValues.forEach((value) => onAdd(value))
       },
-      [onAdd]
+      [onAdd, onAddMany]
     )
 
     const handleBlur = React.useCallback(() => {

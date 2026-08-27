@@ -1,7 +1,9 @@
 import type {
   CloudflareListCertificatesParams,
   CloudflareListCertificatesResponse,
+  CloudflareRawCertificatePack,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCertificatesTool: ToolConfig<
@@ -24,7 +26,8 @@ export const listCertificatesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter certificate packs by status (e.g., "all", "active", "pending")',
+      description:
+        'Set to "all" to include every certificate pack regardless of status. Cloudflare documents no other value for this filter; omitting it returns only active packs',
     },
     page: {
       type: 'number',
@@ -55,7 +58,7 @@ export const listCertificatesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/ssl/certificate_packs`
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/ssl/certificate_packs`
       )
       if (params.status) url.searchParams.append('status', params.status)
       if (params.page) url.searchParams.append('page', String(params.page))
@@ -71,7 +74,7 @@ export const listCertificatesTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawCertificatePack[]>(response)
 
     if (!data.success) {
       return {
@@ -84,59 +87,58 @@ export const listCertificatesTool: ToolConfig<
     return {
       success: true,
       output: {
-        certificates:
-          data.result?.map((cert: any) => ({
-            id: cert.id ?? '',
-            type: cert.type ?? '',
-            hosts: cert.hosts ?? [],
-            primary_certificate: cert.primary_certificate ?? '',
-            status: cert.status ?? '',
-            certificates:
-              cert.certificates?.map((c: any) => ({
-                id: c.id ?? '',
-                hosts: c.hosts ?? [],
-                issuer: c.issuer ?? '',
-                signature: c.signature ?? '',
-                status: c.status ?? '',
-                bundle_method: c.bundle_method ?? '',
-                zone_id: c.zone_id ?? '',
-                uploaded_on: c.uploaded_on ?? '',
-                modified_on: c.modified_on ?? '',
-                expires_on: c.expires_on ?? '',
-                priority: c.priority ?? 0,
-                geo_restrictions: c.geo_restrictions ?? undefined,
-              })) ?? [],
-            cloudflare_branding: cert.cloudflare_branding ?? false,
-            validation_method: cert.validation_method ?? '',
-            validity_days: cert.validity_days ?? 0,
-            certificate_authority: cert.certificate_authority ?? '',
-            validation_errors:
-              cert.validation_errors?.map((e: any) => ({
-                message: e.message ?? '',
-              })) ?? [],
-            validation_records:
-              cert.validation_records?.map((r: any) => ({
-                cname: r.cname ?? '',
-                cname_target: r.cname_target ?? '',
-                emails: r.emails ?? [],
-                http_body: r.http_body ?? '',
-                http_url: r.http_url ?? '',
-                status: r.status ?? '',
-                txt_name: r.txt_name ?? '',
-                txt_value: r.txt_value ?? '',
-              })) ?? [],
-            dcv_delegation_records:
-              cert.dcv_delegation_records?.map((r: any) => ({
-                cname: r.cname ?? '',
-                cname_target: r.cname_target ?? '',
-                emails: r.emails ?? [],
-                http_body: r.http_body ?? '',
-                http_url: r.http_url ?? '',
-                status: r.status ?? '',
-                txt_name: r.txt_name ?? '',
-                txt_value: r.txt_value ?? '',
-              })) ?? [],
-          })) ?? [],
+        certificates: (Array.isArray(data.result) ? data.result : []).map((cert) => ({
+          id: cert.id ?? '',
+          type: cert.type ?? '',
+          hosts: cert.hosts ?? [],
+          primary_certificate: cert.primary_certificate ?? '',
+          status: cert.status ?? '',
+          certificates:
+            cert.certificates?.map((c) => ({
+              id: c.id ?? '',
+              hosts: c.hosts ?? [],
+              issuer: c.issuer ?? '',
+              signature: c.signature ?? '',
+              status: c.status ?? '',
+              bundle_method: c.bundle_method ?? '',
+              zone_id: c.zone_id ?? '',
+              uploaded_on: c.uploaded_on ?? '',
+              modified_on: c.modified_on ?? '',
+              expires_on: c.expires_on ?? '',
+              priority: c.priority ?? 0,
+              geo_restrictions: c.geo_restrictions ?? undefined,
+            })) ?? [],
+          cloudflare_branding: cert.cloudflare_branding ?? false,
+          validation_method: cert.validation_method ?? '',
+          validity_days: cert.validity_days ?? 0,
+          certificate_authority: cert.certificate_authority ?? '',
+          validation_errors:
+            cert.validation_errors?.map((e) => ({
+              message: e.message ?? '',
+            })) ?? [],
+          validation_records:
+            cert.validation_records?.map((r) => ({
+              cname: r.cname ?? '',
+              cname_target: r.cname_target ?? '',
+              emails: r.emails ?? [],
+              http_body: r.http_body ?? '',
+              http_url: r.http_url ?? '',
+              status: r.status ?? '',
+              txt_name: r.txt_name ?? '',
+              txt_value: r.txt_value ?? '',
+            })) ?? [],
+          dcv_delegation_records:
+            cert.dcv_delegation_records?.map((r) => ({
+              cname: r.cname ?? '',
+              cname_target: r.cname_target ?? '',
+              emails: r.emails ?? [],
+              http_body: r.http_body ?? '',
+              http_url: r.http_url ?? '',
+              status: r.status ?? '',
+              txt_name: r.txt_name ?? '',
+              txt_value: r.txt_value ?? '',
+            })) ?? [],
+        })),
         total_count: data.result_info?.total_count ?? data.result?.length ?? 0,
       },
     }

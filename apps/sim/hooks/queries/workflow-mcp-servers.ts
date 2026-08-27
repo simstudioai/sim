@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -43,6 +49,10 @@ export const WORKFLOW_MCP_SERVER_DETAIL_STALE_TIME = 30 * 1000
 export const WORKFLOW_MCP_TOOLS_STALE_TIME = 30 * 1000
 export const WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME = 30 * 1000
 
+interface UseWorkflowMcpServersOptions {
+  enabled?: boolean
+}
+
 /**
  * Fetch workflow MCP servers for a workspace
  */
@@ -64,17 +74,23 @@ async function fetchWorkflowMcpServers(
   }
 }
 
-/**
- * Hook to fetch workflow MCP servers
- */
-export function useWorkflowMcpServers(workspaceId: string) {
-  return useQuery({
+export function workflowMcpServersQueryOptions(workspaceId: string) {
+  return queryOptions({
     queryKey: workflowMcpServerKeys.servers(workspaceId),
     queryFn: ({ signal }) => fetchWorkflowMcpServers(workspaceId, signal),
-    enabled: !!workspaceId,
     retry: false,
     staleTime: WORKFLOW_MCP_SERVERS_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Hook to fetch workflow MCP servers
+ */
+export function useWorkflowMcpServers(workspaceId: string, options?: UseWorkflowMcpServersOptions) {
+  return useQuery({
+    ...workflowMcpServersQueryOptions(workspaceId),
+    enabled: !!workspaceId && (options?.enabled ?? true),
   })
 }
 

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   extractProspeoError,
   type ProspeoSearchSuggestionsParams,
@@ -14,6 +15,7 @@ export const searchSuggestionsTool: ToolConfig<
   description:
     'Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   params: {
     apiKey: {

@@ -134,12 +134,25 @@
         "noStaticOnlyClass": "off"
       },
       "performance": {
-        "noAccumulatingSpread": "off",
+        "noAccumulatingSpread": "error",
         "noDelete": "error",
         "noImgElement": "off"
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["packages/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedFunctionParameters": "error",
+            "noUnusedVariables": "error"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "jsxQuoteStyle": "single",

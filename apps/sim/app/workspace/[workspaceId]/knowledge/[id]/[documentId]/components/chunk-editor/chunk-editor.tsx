@@ -6,7 +6,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
-import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
+import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/accurate'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
 import { useAutosave } from '@/hooks/use-autosave'
 

@@ -1010,6 +1010,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       success: true,
+      durablyRecorded: false,
       reason: 'already_cancelled',
     })
     expect(mockCancelByExecution).not.toHaveBeenCalled()

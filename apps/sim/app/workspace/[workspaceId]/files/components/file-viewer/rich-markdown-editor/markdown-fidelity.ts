@@ -76,21 +76,24 @@ export function applyFrontmatter(frontmatter: string, body: string): string {
   return frontmatter + body
 }
 
-/** A leading `scheme://` URL (network protocol). */
-const SCHEME_URL = /^([a-z][a-z0-9+.-]*):\/\//i
 /** A leading `scheme:` token (per the URL grammar). */
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i
 /** A bare `host:port` (digits after the colon) — looks scheme-like but is really a domain. */
 const HOST_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i
 
 /**
+ * The only schemes a document link may target — an allowlist, because `scheme://` is well-formed for
+ * every scheme: rejecting just the ones known to be dangerous leaves the next one through, and
+ * `javascript://…` is a valid URL whose `//` run is merely a comment.
+ */
+const SAFE_SCHEME = /^(?:(?:https?|ftps?):\/\/|(?:mailto|tel):)/i
+
+/**
  * Normalize a user-entered link target: prefix a bare domain with `https://` so it doesn't resolve
  * as an in-app relative URL, while leaving already-qualified, relative (`./other.md`, `../doc.md`), and
- * protocol-relative URLs intact. Dangerous schemes are rejected outright rather than trusted or mangled:
- * any `scheme:` without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`,
- * `blob:`, …), and `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …)
- * pass through. A bare `host:port` (digits after the colon) is a domain, not a scheme, so it still gets
- * the `https://` prefix.
+ * protocol-relative URLs intact. A scheme is kept only when {@link SAFE_SCHEME} matches; every other
+ * one is dropped to `''`, which callers render as inert text rather than a link. A bare `host:port`
+ * (digits after the colon) is a domain, not a scheme, so it still gets the `https://` prefix.
  */
 export function normalizeLinkHref(href: string): string {
   const trimmed = href.trim()
@@ -99,9 +102,7 @@ export function normalizeLinkHref(href: string): string {
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
   if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed
-  if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
-  const schemed = trimmed.match(SCHEME_URL)
-  if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed
+  if (SAFE_SCHEME.test(trimmed)) return trimmed
   if (HAS_SCHEME.test(trimmed) && !HOST_PORT.test(trimmed)) return ''
   return `https://${trimmed}`
 }

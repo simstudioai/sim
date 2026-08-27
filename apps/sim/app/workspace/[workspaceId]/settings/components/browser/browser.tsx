@@ -114,6 +114,14 @@ export function Browser() {
     setPreferences
   )
 
+  const { pending: searchSuggestionsPending, mutate: setSearchSuggestionsEnabled } =
+    useDesktopPreferenceMutation(
+      async (bridge, enabled: boolean) =>
+        bridge.settings.setBrowserSearchSuggestionsEnabled?.(enabled),
+      'Could not update browser search suggestions',
+      setPreferences
+    )
+
   const clear = useCallback(async (kinds: readonly BrowserDataKind[]) => {
     const desktop = getDesktopBridge()
     if (!desktop) return
@@ -128,8 +136,24 @@ export function Browser() {
     }
   }, [])
 
+  const actions = [
+    {
+      id: 'passwords',
+      text: 'Passwords',
+      onSelect: () => setShowPasswords(true),
+      disabled: !preferences,
+    },
+    {
+      id: 'clear-all',
+      text: 'Clear all',
+      variant: 'destructive' as const,
+      onSelect: () => setConfirming('all'),
+      disabled: !preferences || clearPending,
+    },
+  ]
+
   if (!preferences) {
-    return null
+    return <SettingsPanel actions={actions} />
   }
 
   if (showPasswords) {
@@ -145,21 +169,14 @@ export function Browser() {
   }
 
   const enabled = preferences.browserEnabled
+  const supportsSearchSuggestions = Boolean(
+    getDesktopBridge()?.settings.setBrowserSearchSuggestionsEnabled
+  )
   const target = confirming === 'all' ? null : confirming
 
   return (
     <>
-      <SettingsPanel
-        actions={[
-          { text: 'Passwords', onSelect: () => setShowPasswords(true) },
-          {
-            text: 'Clear all',
-            variant: 'destructive' as const,
-            onSelect: () => setConfirming('all'),
-            disabled: clearPending,
-          },
-        ]}
-      >
+      <SettingsPanel actions={actions}>
         <SettingsSection label='General'>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
@@ -171,6 +188,23 @@ export function Browser() {
                 onCheckedChange={(checked) => void setEnabled(checked)}
               />
             </div>
+
+            {supportsSearchSuggestions && (
+              <div className='flex items-center justify-between gap-4'>
+                <div className='flex min-w-0 flex-col gap-1'>
+                  <Label htmlFor='browser-search-suggestions'>Search suggestions</Label>
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    Send address-bar typing to Google for live completions
+                  </p>
+                </div>
+                <Switch
+                  id='browser-search-suggestions'
+                  checked={preferences.browserSearchSuggestionsEnabled ?? true}
+                  disabled={searchSuggestionsPending}
+                  onCheckedChange={(checked) => void setSearchSuggestionsEnabled(checked)}
+                />
+              </div>
+            )}
 
             <div className='flex items-center justify-between gap-4'>
               <Label>Theme</Label>
@@ -229,6 +263,7 @@ export function Browser() {
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
         title={target ? target.action : 'Clear all browsing data'}
+        defaultAction={target?.kind === 'cache' ? 'confirm' : 'dismiss'}
         text={[
           'This will ',
           {

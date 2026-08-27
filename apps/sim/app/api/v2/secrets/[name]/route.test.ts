@@ -11,7 +11,6 @@ const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       authenticate: vi.fn(),
       preauthRate: vi.fn(),
       operationRate: vi.fn(),
-      gate: vi.fn(),
       set: vi.fn(),
       remove: vi.fn(),
     },
@@ -42,7 +41,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/secrets/application/use-cases', () => ({
   setSecretUseCase: { operation: { id: 'secrets.set' }, execute: mocks.set },
   deleteSecretUseCase: { operation: { id: 'secrets.delete' }, execute: mocks.remove },
@@ -56,7 +54,6 @@ const SECRET_NAME = 'STRIPE_API_KEY'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -83,6 +80,7 @@ const secret = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
   hasServiceAccountKey: false,
   role: 'admin' as const,
+  unredacted: false,
 }
 const context = { params: Promise.resolve({ name: SECRET_NAME }) }
 
@@ -110,7 +108,6 @@ describe('/api/v2/secrets/[name]', () => {
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
     mocks.set.mockResolvedValue({ secret, userId: 'user-1', created: true })
     mocks.remove.mockResolvedValue({ name: SECRET_NAME, scope: 'workspace' })
   })
@@ -135,6 +132,69 @@ describe('/api/v2/secrets/[name]', () => {
     })
   })
 
+  it('forwards a workspace description to the set operation', async () => {
+    const response = await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '  Prod billing key  ',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.set).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: 'Prod billing key',
+      },
+      request: expect.anything(),
+    })
+  })
+
+  it('omits description entirely when unset so a rotation cannot erase it', async () => {
+    await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'rotated' }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('description')
+  })
+
+  it('normalizes an empty description to null so it matches the UI clear path', async () => {
+    await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '   ',
+      }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input.description).toBeNull()
+  })
+
+  it('rejects a description on a personal secret rather than dropping it', async () => {
+    const response = await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'personal',
+        value: 'secret-value',
+        description: 'has no shared audience',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
   it('returns 200 when replacing an existing secret', async () => {
     mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
 
@@ -144,6 +204,59 @@ describe('/api/v2/secrets/[name]', () => {
     )
 
     expect(response.status).toBe(200)
+  })
+
+  it('sends a value-less workspace write through as a metadata-only update at 200', async () => {
+    mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
+
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: false }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.set).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        unredacted: false,
+      },
+      request: expect.anything(),
+    })
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('value')
+  })
+
+  it('answers 404 rather than creating when a metadata-only write names no secret', async () => {
+    mocks.set.mockRejectedValueOnce(new OrchestrationError('not_found', 'Secret not found'))
+
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: true }),
+      context
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('rejects a value-less personal write, which has no metadata field to update', async () => {
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'personal' }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workspace write carrying nothing to write', async () => {
+    const response = await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace' }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
   })
 
   it('deletes a secret through the semantic delete operation', async () => {

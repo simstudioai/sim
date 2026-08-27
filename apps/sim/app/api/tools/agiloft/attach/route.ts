@@ -6,7 +6,9 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -75,13 +77,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let fileBuffer: Buffer
     try {
-      const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+      const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+      })
       fileBuffer = servable.buffer
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
       logger.error(`[${requestId}] Failed to download file from storage:`, error)
-      return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: toError(error).message },
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      )
     }
 
     const resolvedFileName = data.fileName || userFile.name || 'attachment'

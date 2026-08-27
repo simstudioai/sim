@@ -6,7 +6,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -20,7 +19,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
@@ -45,14 +43,12 @@ vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/v2/files/[fileId]/share/route'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -103,7 +99,6 @@ describe('GET /api/v2/files/[fileId]/share', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.gate.mockResolvedValue(null)
     mocks.getShare.mockResolvedValue({ share: SHARE })
   })
 
@@ -117,15 +112,6 @@ describe('GET /api/v2/files/[fileId]/share', () => {
     expect(response.status).toBe(401)
     expect(mocks.getShare).not.toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    v2RouteMocks.gate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
-
-    const response = await callGet()
-
-    expect(response.status).toBe(404)
-    expect(mocks.getShare).not.toHaveBeenCalled()
   })
 
   it('validates the asserted workspace before executing the use case', async () => {
@@ -174,7 +160,6 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.gate.mockResolvedValue(null)
     mocks.updateShare.mockResolvedValue({ share: SHARE })
   })
 
@@ -210,7 +195,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
       workspaceId: WORKSPACE_ID,
       isActive: true,
       authType: 'password',
-      password: 'hunter2hunter2',
+      password: 'hunter2hunter2!',
     })
 
     expect(response.status).toBe(200)
@@ -222,7 +207,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         isActive: true,
         authType: 'password',
-        password: 'hunter2hunter2',
+        password: 'hunter2hunter2!',
         allowedEmails: undefined,
       },
       request: expect.anything(),

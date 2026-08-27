@@ -196,6 +196,7 @@ describe('Permission Utils', () => {
           isExternal: false,
           joinedAt: '2026-04-22T00:00:00.000Z',
           roleSource: 'explicit',
+          isOrgAdmin: false,
           isBilledAccount: false,
         },
       ])
@@ -253,8 +254,39 @@ describe('Permission Utils', () => {
       expect(orgAdmin).toMatchObject({
         permissionType: 'admin',
         roleSource: 'org-admin',
+        isOrgAdmin: true,
         isExternal: false,
       })
+    })
+
+    it('reports isOrgAdmin on a workspace owner whose roleSource outranks it', async () => {
+      mockSelectSequence([
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: 'org-1' }],
+        [
+          {
+            userId: 'owner-user',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            permissionType: 'admin' as PermissionType,
+            joinedAt,
+            userOrganizationId: 'org-1',
+          },
+        ],
+        [
+          {
+            userId: 'owner-user',
+            email: 'owner@example.com',
+            name: 'Owner',
+            image: null,
+            joinedAt,
+          },
+        ],
+      ])
+
+      const result = await getUsersWithPermissions('ws')
+
+      expect(result[0]).toMatchObject({ roleSource: 'owner', isOrgAdmin: true })
     })
 
     it('marks users as external when they are not members of the workspace organization', async () => {

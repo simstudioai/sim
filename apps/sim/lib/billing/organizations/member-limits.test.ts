@@ -140,6 +140,27 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
     expect(mixedHistoryCall).toBeDefined()
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
   })
+
+  it('uses only immutable same-organization ledger rows for a custom reporting window', async () => {
+    const billingPeriod = {
+      start: new Date('2025-08-13T00:00:00.000Z'),
+      end: new Date('2026-08-13T00:00:00.000Z'),
+      source: 'reporting' as const,
+    }
+    queueTableRows(schemaTables.usageLog, [{ cost: '18.25' }])
+
+    await expect(
+      getOrgMemberUsageForBillingPeriod('contract-org', 'actor-2', billingPeriod)
+    ).resolves.toBe(18.25)
+
+    expect(mockEq).toHaveBeenCalledWith('usageLog.userId', 'actor-2')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityType', 'organization')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'contract-org')
+    expect(mockGte).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.start)
+    expect(mockLt).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.end)
+    expect(mockEq).not.toHaveBeenCalledWith('workspace.organizationId', 'contract-org')
+    expect(mockIsNull).not.toHaveBeenCalledWith('usageLog.billingEntityType')
+  })
 })
 
 describe('setOrgMemberUsageLimit', () => {

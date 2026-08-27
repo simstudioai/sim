@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { V2KnowledgeDocumentSummary } from '@/lib/api/contracts/v2/knowledge'
+import type { KnowledgeDocumentUploadRecipe } from '@/lib/knowledge/upload-metadata'
 import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
@@ -49,7 +50,7 @@ export interface UploadError {
 }
 
 export interface ProcessingOptions {
-  recipe?: string
+  recipe?: KnowledgeDocumentUploadRecipe
 }
 
 export interface UseKnowledgeUploadOptions {
@@ -117,6 +118,14 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         lang: 'en',
       },
     })
+  }
+
+  /** Reconciles both caches an upload moves: the base's documents and the list's `docCount`. */
+  const invalidateKnowledgeCaches = async (knowledgeBaseId: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) }),
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+    ])
   }
 
   const uploadFilesInBatches = async (
@@ -209,15 +218,20 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
       logger.info(`Successfully started processing ${uploadedDocuments.length} documents`)
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) }),
-        /** The knowledge-base list rows carry `docCount`, so an upload changes them too. */
-        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
-      ])
+      await invalidateKnowledgeCaches(knowledgeBaseId)
 
       return uploadedDocuments
     } catch (err) {
       logger.error('Error uploading documents:', err)
+
+      /**
+       * A partial batch failure still created every document that did upload, so the caches
+       * must reconcile on this path too — otherwise the list is missing rows that exist until
+       * its staleTime expires. Admission failures create nothing and need no refetch.
+       */
+      if (err instanceof KnowledgeUploadError && err.code === 'PARTIAL_UPLOAD_FAILURE') {
+        void invalidateKnowledgeCaches(knowledgeBaseId)
+      }
 
       const error: UploadError =
         err instanceof KnowledgeUploadError

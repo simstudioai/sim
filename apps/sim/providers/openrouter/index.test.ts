@@ -129,7 +129,6 @@ function toolCallResponse(
 function tool(id: string): ProviderToolConfig {
   return {
     id,
-    name: id,
     description: 'test tool',
     params: {},
     parameters: { type: 'object', properties: {}, required: [] },

@@ -6,7 +6,9 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { getLogById } from '@/lib/logs/service'
+import type { TableSchema } from '@/lib/table'
 import { getTableById } from '@/lib/table/service'
+import { getTableView } from '@/lib/table/views/service'
 import {
   findWorkspaceFileRecord,
   type WorkspaceFileRecord,
@@ -64,7 +66,9 @@ async function resolveResource(
     const wf = await getWorkflowById(item.id)
     if (!wf) return { error: `No workflow with id "${item.id}".` }
     if (context.workspaceId && wf.workspaceId !== context.workspaceId)
-      return { error: `Workflow not found in the current workspace.` }
+      return {
+        error: `Workflow "${item.id}" is not in the current workspace — run glob("workflows/*/meta.json") for workflows you can reference.`,
+      }
     resourceId = wf.id
     title = wf.name
   }
@@ -73,9 +77,26 @@ async function resolveResource(
     const tbl = await getTableById(item.id)
     if (!tbl) return { error: `No table with id "${item.id}".` }
     if (context.workspaceId && tbl.workspaceId !== context.workspaceId)
-      return { error: `Table not found in the current workspace.` }
+      return {
+        error: `Table "${item.id}" is not in the current workspace — run glob("tables/*") for tables you can reference.`,
+      }
     resourceId = tbl.id
     title = tbl.name
+    if (item.view) {
+      const view = await getTableView(
+        item.view.trim(),
+        tbl.id,
+        (tbl.schema as TableSchema).columns,
+        context.workspaceId ?? undefined
+      )
+      if (!view) {
+        return {
+          error: `No view with id "${item.view.trim()}" on table "${tbl.name}". View ids are listed in the table's views.json.`,
+        }
+      }
+      title = `${tbl.name} — ${view.name}`
+      return { type: resourceType, id: resourceId, title, viewId: view.id }
+    }
   }
   if (resourceType === 'knowledgebase') {
     if (!item.id) return { error: 'knowledgebase resources require `id`.' }
@@ -96,7 +117,9 @@ async function resolveResource(
         classified?.code === 'forbidden' ||
         classified?.code === 'unauthorized'
       ) {
-        return { error: 'Knowledge base not found in the current workspace.' }
+        return {
+          error: `Knowledge base "${item.id}" is not readable in the current workspace — it does not exist here or you lack access. Run glob("knowledgebases/*") for ids you can open.`,
+        }
       }
       throw error
     }
@@ -108,7 +131,9 @@ async function resolveResource(
     const logRecord = await getLogById(item.id)
     if (!logRecord) return { error: `No log with id "${item.id}".` }
     if (context.workspaceId && logRecord.workspaceId !== context.workspaceId)
-      return { error: `Log not found in the current workspace.` }
+      return {
+        error: `Log "${item.id}" is not in the current workspace — use query_logs to find valid execution ids.`,
+      }
     resourceId = logRecord.id
     const workflowName = logRecord.workflowName ?? 'Unknown Workflow'
     const timestamp = logRecord.startedAt.toLocaleString('en-US', {
@@ -174,5 +199,8 @@ function validateOpenResourceItem(
   if (!item.id && !(item.type === 'file' && item.path)) {
     return { success: false, error: `${item.type} resources require \`id\`` }
   }
-  return { success: true, params: { type: item.type, id: item.id, path: item.path } }
+  return {
+    success: true,
+    params: { type: item.type, id: item.id, path: item.path, view: item.view },
+  }
 }

@@ -85,4 +85,30 @@ describe('useKnowledgeUpload admission', () => {
 
     unmount()
   })
+
+  /**
+   * A partial batch failure still created every document that DID upload, so the caches have
+   * to reconcile on the throwing path too — otherwise the list renders without rows the
+   * server already has.
+   */
+  it('reconciles the caches when part of a batch fails', async () => {
+    const onError = vi.fn()
+    const { result, unmount } = renderKnowledgeUploadHook(onError)
+    mockUploadKnowledgeDocumentSession
+      .mockResolvedValueOnce({ id: 'doc-1', filename: 'ok.bin' })
+      .mockRejectedValueOnce(new Error('network died'))
+
+    await act(async () => {
+      await expect(
+        result().uploadFiles([sizedFile('ok.bin', 10), sizedFile('bad.bin', 10)], 'kb-1')
+      ).rejects.toMatchObject({ code: 'PARTIAL_UPLOAD_FAILURE' })
+    })
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['knowledge', 'detail', 'kb-1'],
+    })
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['knowledge', 'list'] })
+
+    unmount()
+  })
 })

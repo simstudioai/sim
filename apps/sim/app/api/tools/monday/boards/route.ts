@@ -6,6 +6,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,13 +73,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let page = 1
 
     for (; page <= MAX_MONDAY_PAGES; page++) {
-      const response = await fetch('https://api.monday.com/v2', {
+      const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: accessToken,
-          'API-Version': '2024-10',
-        },
+        headers: mondayHeaders(accessToken),
         body: JSON.stringify({
           query: `{ boards(limit: ${MONDAY_BOARDS_LIMIT}, page: ${page}, state: active) { id name } }`,
         }),

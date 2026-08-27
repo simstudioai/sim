@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -114,7 +114,16 @@ function isParticipantScope(value: unknown): value is ParticipantScope {
  * produces no `filter` (full sync). Returns undefined when no scoping is configured.
  *
  * Supported keys (verified against the in-repo Grain list_recordings tool / Public API):
- * - `after_datetime` — derived from `lookbackDays`; recordings on/after the window start
+ * - `after_datetime` — derived from `lookbackDays`; recordings on/after the window start.
+ *   Grain's Recording Filter table documents this field as "Only return recordings
+ *   which `start_datetime` is *before* the selected date (inclusive)" and
+ *   `before_datetime` as "…is *after* the selected date (exclusive)". The two
+ *   descriptions are consistent with each other but inverted relative to the field
+ *   names, so the pair reads as transposed upstream; nothing else on the page
+ *   disambiguates and no example uses either key. The name-implied direction is used
+ *   here and the ambiguity is deliberately left unresolved rather than guessed. If a
+ *   live Grain source ever returns the complement of the requested lookback window,
+ *   swap to `before_datetime` rather than re-deriving the timestamp.
  * - `participant_scope` — `internal` or `external`
  * - `title_search` — substring match against recording titles
  * - `team` — recordings belonging to the given team UUID
@@ -282,7 +291,7 @@ function formatTranscriptContent(
  * Returns null on 404 (recording deleted/inaccessible).
  */
 async function fetchRecording(accessToken: string, id: string): Promise<GrainRecording | null> {
-  const response = await fetchWithRetry(`${GRAIN_API_BASE}/recordings/${id}`, {
+  const response = await fetchWithRetry(`${GRAIN_API_BASE}/recordings/${encodeURIComponent(id)}`, {
     method: 'POST',
     headers: grainHeaders(accessToken),
     body: JSON.stringify({ include: RECORDING_INCLUDE }),
@@ -304,10 +313,13 @@ async function fetchTranscript(
   accessToken: string,
   id: string
 ): Promise<GrainTranscriptSegment[] | null> {
-  const response = await fetchWithRetry(`${GRAIN_API_BASE}/recordings/${id}/transcript`, {
-    method: 'GET',
-    headers: grainHeaders(accessToken),
-  })
+  const response = await fetchWithRetry(
+    `${GRAIN_API_BASE}/recordings/${encodeURIComponent(id)}/transcript`,
+    {
+      method: 'GET',
+      headers: grainHeaders(accessToken),
+    }
+  )
 
   if (!response.ok) {
     if (response.status === 404) return null
@@ -379,7 +391,16 @@ export const grainConnector: ConnectorConfig = {
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxRecordings > 0 && totalFetched >= maxRecordings
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+
+    /**
+     * The cap only truncates the listing when recordings were actually withheld —
+     * either sliced off this page or still reachable behind a cursor. Reaching the
+     * cap exactly as the source is exhausted yields a complete listing, so flagging
+     * it would permanently block deletion reconciliation for that connector.
+     */
+    const truncatedByCap =
+      hitLimit && (documents.length < allDocuments.length || Boolean(nextCursor))
+    if (truncatedByCap && syncContext) syncContext.listingCapped = true
 
     const hasMore = !hitLimit && Boolean(nextCursor)
 
@@ -390,45 +411,43 @@ export const grainConnector: ConnectorConfig = {
     }
   },
 
+  /**
+   * Hydrates a listing stub with its transcript.
+   *
+   * Returns `null` only when the recording genuinely has nothing to index — a 404
+   * from either fetch (recording or transcript deleted/inaccessible) or a transcript
+   * that has not finished processing. Transport, rate-limit, and server errors
+   * propagate so the sync engine records them as failed documents instead of
+   * reporting a clean sync that silently dropped recordings.
+   */
   getDocument: async (
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const [recording, segments] = await Promise.all([
-        fetchRecording(accessToken, externalId),
-        fetchTranscript(accessToken, externalId),
-      ])
-      if (!recording) return null
-      if (!segments) return null
+    const [recording, segments] = await Promise.all([
+      fetchRecording(accessToken, externalId),
+      fetchTranscript(accessToken, externalId),
+    ])
+    if (!recording || !segments) return null
 
-      const hasTranscript = segments.some((segment) => segment.text?.trim())
-      if (!hasTranscript) {
-        logger.info('Transcript not yet available for Grain recording', { externalId })
-        return null
-      }
-
-      const content = formatTranscriptContent(recording, segments)
-
-      return {
-        externalId,
-        title: recordingTitle(recording),
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: recording.url || undefined,
-        contentHash: buildContentHash(recording),
-        metadata: buildMetadata(recording),
-      }
-    } catch (error) {
-      logger.warn('Failed to get Grain recording', {
-        externalId,
-        error: toError(error).message,
-      })
+    const hasTranscript = segments.some((segment) => segment.text?.trim())
+    if (!hasTranscript) {
+      logger.info('Transcript not yet available for Grain recording', { externalId })
       return null
+    }
+
+    return {
+      externalId,
+      title: recordingTitle(recording),
+      content: formatTranscriptContent(recording, segments),
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: recording.url || undefined,
+      contentHash: buildContentHash(recording),
+      metadata: buildMetadata(recording),
     }
   },
 
@@ -436,9 +455,20 @@ export const grainConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxRecordings = sourceConfig.maxRecordings as string | undefined
-    if (maxRecordings && (Number.isNaN(Number(maxRecordings)) || Number(maxRecordings) < 0)) {
-      return { valid: false, error: 'Max recordings must be a non-negative number' }
+    const maxRecordings = sourceConfig.maxRecordings
+    if (maxRecordings != null && maxRecordings !== '') {
+      const parsed = Number(maxRecordings)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return { valid: false, error: 'Max recordings must be a non-negative number' }
+      }
+    }
+
+    const lookbackDays = sourceConfig.lookbackDays
+    if (lookbackDays != null && lookbackDays !== '') {
+      const parsed = Number(lookbackDays)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return { valid: false, error: 'Lookback window must be a non-negative number of days' }
+      }
     }
 
     try {

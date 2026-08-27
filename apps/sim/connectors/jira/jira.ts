@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -8,7 +9,17 @@ import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
 
-const PAGE_SIZE = 50
+/**
+ * `maxResults` on `/rest/api/3/search/jql` is a ceiling, not a guarantee: the
+ * docs state the API "may return fewer items per page where a large number of
+ * fields or properties are requested", and that the documented 5000 maximum is
+ * only reached "when requesting `id` or `key` only". Since this listing requests
+ * a field selection, a request for more than ~100 buys nothing.
+ *
+ * Under-delivery is harmless either way — end-of-results is signalled purely by
+ * the absence of `nextPageToken`, never by a short page.
+ */
+const PAGE_SIZE = 100
 
 /**
  * Builds a JQL clause restricting issues to the given project keys.
@@ -36,11 +47,25 @@ function buildIssueContent(fields: Record<string, unknown>): string {
   const description = extractAdfText(fields.description)
   if (description) parts.push(description)
 
-  const comments = fields.comment as { comments?: Array<{ body?: unknown }> } | undefined
+  const comments = fields.comment as
+    | { comments?: Array<{ body?: unknown }>; total?: number }
+    | undefined
   if (comments?.comments) {
     for (const comment of comments.comments) {
       const text = extractAdfText(comment.body)
       if (text) parts.push(text)
+    }
+    /**
+     * The `comment` field on `GET /rest/api/3/issue/{id}` is a paginated
+     * container: it reports `total` alongside the subset it actually inlines. No
+     * exact inline limit is documented, so the only reliable signal that an issue
+     * was indexed without part of its thread is `total` exceeding what arrived.
+     */
+    if (typeof comments.total === 'number' && comments.total > comments.comments.length) {
+      logger.warn('Jira issue comments truncated by the API; indexing the returned subset', {
+        returned: comments.comments.length,
+        total: comments.total,
+      })
     }
   }
 
@@ -52,7 +77,7 @@ function buildIssueContent(fields: Record<string, unknown>): string {
  * stub with deferred content. The contentHash is metadata-based so it is
  * identical whether produced during listing or full fetch.
  */
-function issueToStub(issue: Record<string, unknown>, domain: string): ExternalDocument {
+function issueToStub(issue: Record<string, unknown>, siteUrl: string): ExternalDocument {
   const fields = (issue.fields || {}) as Record<string, unknown>
   const key = issue.key as string
   const issueType = fields.issuetype as Record<string, unknown> | undefined
@@ -70,7 +95,7 @@ function issueToStub(issue: Record<string, unknown>, domain: string): ExternalDo
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: `https://${domain}/browse/${key}`,
+    sourceUrl: `${siteUrl}/browse/${key}`,
     contentHash: `jira:${issue.id}:${updated}`,
     metadata: {
       key,
@@ -91,8 +116,8 @@ function issueToStub(issue: Record<string, unknown>, domain: string): ExternalDo
  * Converts a fully-fetched Jira issue (with description and comments) into an
  * ExternalDocument with resolved content.
  */
-function issueToFullDocument(issue: Record<string, unknown>, domain: string): ExternalDocument {
-  const stub = issueToStub(issue, domain)
+function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): ExternalDocument {
+  const stub = issueToStub(issue, siteUrl)
   const fields = (issue.fields || {}) as Record<string, unknown>
   const content = buildIssueContent(fields)
 
@@ -113,6 +138,7 @@ export const jiraConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const domain = sourceConfig.domain as string
+    const siteUrl = normalizeAtlassianSiteUrl(domain)
     const projectKeys = parseMultiValue(sourceConfig.projectKey)
     const jqlFilter = (sourceConfig.jql as string) || ''
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
@@ -154,6 +180,12 @@ export const jiraConnector: ConnectorConfig = {
 
     const remaining = maxIssues > 0 ? Math.max(0, maxIssues - collectedSoFar) : PAGE_SIZE
     if (maxIssues > 0 && remaining === 0) {
+      /**
+       * The cap was already exhausted by an earlier page, so this listing is a
+       * strict subset of the source. Flag it so the sync engine does not treat
+       * the missing issues as deletions.
+       */
+      if (syncContext) syncContext.listingCapped = true
       return { documents: [], hasMore: false }
     }
 
@@ -193,25 +225,53 @@ export const jiraConnector: ConnectorConfig = {
     const data = await response.json()
     let issues = (data.issues || []) as Record<string, unknown>[]
     /**
-     * `/rest/api/3/search/jql` signals end-of-results purely by the absence
-     * of `nextPageToken`. `data.isLast` is unreliable on this endpoint and
-     * has been observed returning `true` alongside a valid token
-     * (JRACLOUD-95477), so we ignore it.
+     * `/rest/api/3/search/jql` signals end-of-results purely by the absence of
+     * `nextPageToken` — the parameter docs state the field "is **not included**
+     * in the response for the last page". `data.isLast` carries the same intent
+     * but is redundant, so the token is the single source of truth here.
      */
     const nextPageToken = data.nextPageToken as string | undefined
     const isLast = !nextPageToken
 
+    let slicedByCap = false
     if (maxIssues > 0 && issues.length > remaining) {
       issues = issues.slice(0, remaining)
+      slicedByCap = true
     }
 
-    const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, domain))
+    /**
+     * `warnings` is documented as covering the cases where the server itself
+     * degraded the result set — "when a JQL clause exceeded its argument limit
+     * or when the result set was truncated due to an ingestion limit" — so any
+     * warning means this page is not a faithful view of the source. The field is
+     * flagged Experimental and "may be absent, empty, or change shape without
+     * notice", so only its presence is relied on, never its contents.
+     */
+    const warnings = data.warnings as Array<{ type?: string; message?: string }> | undefined
+    const serverDegradedResults = Boolean(warnings?.length)
+    if (serverDegradedResults) {
+      logger.warn('Jira search returned warnings; skipping deletion reconciliation', { warnings })
+    }
+
+    const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, siteUrl))
 
     const newCollected = collectedSoFar + issues.length
     if (syncContext) syncContext.collectedCount = newCollected
 
     const reachedCap = maxIssues > 0 && newCollected >= maxIssues
     const hasMore = !isLast && !reachedCap
+
+    /**
+     * The sync engine hard-deletes stored documents absent from a complete
+     * listing, so a `maxIssues` cap that truncated the source set must suppress
+     * reconciliation. Only flag when issues actually remain unlisted — a cap
+     * that happens to land exactly on the last page is genuine exhaustion and
+     * must still reconcile deletions. The user-supplied JQL filter is an
+     * intentional scope narrowing and deliberately does NOT flag.
+     */
+    if ((slicedByCap || (reachedCap && !isLast) || serverDegradedResults) && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -227,6 +287,7 @@ export const jiraConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const domain = sourceConfig.domain as string
+    const siteUrl = normalizeAtlassianSiteUrl(domain)
     let cloudId = syncContext?.cloudId as string | undefined
     if (!cloudId) {
       cloudId = await getJiraCloudId(domain, accessToken)
@@ -239,7 +300,7 @@ export const jiraConnector: ConnectorConfig = {
       'summary,description,comment,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
     )
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${externalId}?${params.toString()}`
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(externalId)}?${params.toString()}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -255,7 +316,7 @@ export const jiraConnector: ConnectorConfig = {
     }
 
     const issue = await response.json()
-    return issueToFullDocument(issue, domain)
+    return issueToFullDocument(issue, siteUrl)
   },
 
   validateConfig: async (
@@ -302,7 +363,7 @@ export const jiraConnector: ConnectorConfig = {
         if (response.status === 400) {
           return {
             valid: false,
-            error: `One or more projects not found (${projectKeys.join(', ')}) or JQL is invalid`,
+            error: `One or more projects not found or not accessible: ${projectKeys.join(', ')}`,
           }
         }
         return { valid: false, error: `Failed to validate: ${response.status} - ${errorText}` }

@@ -24,12 +24,6 @@ function parseStructuredValue(value: unknown): unknown[] | null {
   return Array.isArray(value) ? value : null
 }
 
-export function isDynamicHandleBlockType(
-  type: string | undefined
-): type is 'condition' | 'router_v2' {
-  return type === 'condition' || type === 'router_v2'
-}
-
 export function getDynamicHandleSubblockId(
   blockType: string | undefined
 ): 'conditions' | 'routes' | null {

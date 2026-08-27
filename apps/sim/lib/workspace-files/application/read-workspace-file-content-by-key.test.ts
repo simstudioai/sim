@@ -26,6 +26,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
@@ -75,7 +76,9 @@ describe('readWorkspaceFileContentByKey', () => {
     expect(mocks.getFile).toHaveBeenCalledWith(file.workspaceId, file.id, {
       throwOnError: true,
     })
-    expect(mocks.fetchContent).toHaveBeenCalledWith(file)
+    expect(mocks.fetchContent).toHaveBeenCalledWith(file, {
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
   })
 
   it('rejects a stale key instead of serving the file current at the same ID', async () => {

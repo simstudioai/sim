@@ -36,6 +36,21 @@ vi.mock('@/lib/table/workflow-columns', () => ({
   stripGroupDeps: vi.fn(),
 }))
 
+const { mockLoadExecutionsByRow } = vi.hoisted(() => ({
+  mockLoadExecutionsByRow: vi.fn(async () => new Map()),
+}))
+
+vi.mock('@/lib/table/rows/executions', () => ({
+  applyExecutionsPatch: vi.fn((existing: unknown) => existing),
+  deriveExecClearsForDataPatch: vi.fn(() => ({
+    executionsPatch: undefined,
+    inFlightDownstreamGroups: [],
+  })),
+  loadExecutionsByRow: mockLoadExecutionsByRow,
+  loadExecutionsForRow: vi.fn(async () => ({})),
+  writeExecutionsPatch: vi.fn(async () => 'wrote'),
+}))
+
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: vi.fn(() => ({ valid: true, errors: [] })),
   validateRowAgainstSchema: vi.fn(() => ({ valid: true, errors: [] })),
@@ -219,6 +234,21 @@ describe('queryRows byte budget', () => {
     updatedAt: new Date('2024-01-01'),
   })
 
+  const mockRowsPastFormerBatchSafetyLimit = () => {
+    const largeRow = row(1, TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    const smallRow = row(2, 0)
+    const state = { drainBatch: 0 }
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockImplementation(async (ask: number) => {
+      state.drainBatch++
+      if (state.drainBatch > 1001) return []
+      const rows = Array.from({ length: ask }, () => smallRow)
+      if (state.drainBatch === 1) rows[0] = largeRow
+      return rows
+    })
+    return state
+  }
+
   it('returns an empty page with a null cursor', async () => {
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
     expect(result.rows).toEqual([])
@@ -243,6 +273,59 @@ describe('queryRows byte budget', () => {
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
 
     expect(result.rows).toHaveLength(2)
+    expect(result.nextCursor).toBeNull()
+  })
+
+  /**
+   * The sidecar is a second, unbounded read: its `blockErrors` are jsonb with no
+   * ceiling of its own, so the drain has to carry a byte budget rather than have
+   * one measured over an already-materialized result.
+   */
+  it('hands the run-state drain the budget its caller asked for', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8)])
+
+    await queryRows(
+      TABLE,
+      {
+        limit: 5,
+        includeTotal: false,
+        withExecutions: true,
+        runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+      },
+      'req-1'
+    )
+
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(expect.anything(), ['row_1', 'row_2'], {
+      budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+    })
+  })
+
+  /**
+   * Only the public reads publish a `413` for the sidecar. The first-party grid
+   * reads run state at five times the row limit with no such contract, so a
+   * budget there turns a large page into a hard failure where it used to render.
+   */
+  it('leaves the drain unbounded for a caller that asked for no budget', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([row(1, 8), row(2, 8)])
+
+    await queryRows(TABLE, { limit: 5, includeTotal: false, withExecutions: true }, 'req-1')
+
+    expect(mockLoadExecutionsByRow).toHaveBeenCalledWith(
+      expect.anything(),
+      ['row_1', 'row_2'],
+      undefined
+    )
+  })
+
+  it('returns an entire under-budget result past the former batch safety limit', async () => {
+    const state = mockRowsPastFormerBatchSafetyLimit()
+
+    const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+
+    expect(state.drainBatch).toBe(1002)
+    expect(result.rows.length).toBeGreaterThan(TABLE_LIMITS.MAX_QUERY_LIMIT)
     expect(result.nextCursor).toBeNull()
   })
 

@@ -11,14 +11,6 @@ let cachedTriggerOptions: TriggerOption[] | null = null
 let cachedTriggerMetadataMap: Map<string, { label: string; color: string }> | null = null
 
 /**
- * Reset cache - useful for HMR in development or testing
- */
-export function resetTriggerOptionsCache() {
-  cachedTriggerOptions = null
-  cachedTriggerMetadataMap = null
-}
-
-/**
  * Dynamically generates trigger filter options from the trigger registry and block definitions.
  * Results are cached after first call for performance (~98% faster on subsequent calls).
  */

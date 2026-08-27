@@ -32,7 +32,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isCopilotBillingProtocolRequired } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
@@ -63,12 +63,12 @@ type AdmissionBillingDecision =
 /**
  * Resolves admission against the versioned Go callback protocol.
  *
- * Markerless old-Go admission is explicitly legacy-v0. A locally resolvable
+ * Markerless self-hosted admission is legacy-v0. A locally resolvable
  * workspace selects its current payer; an absent or opaque workspace preserves
- * account billing. Because old Go cannot return admission material, this
- * mutable resolution is repeated at callback time. Direct-v1 remains scoped
- * only to the authenticated Chat/Copilot key owner's hosted account, and
- * attributed-v1 never falls back from its immutable envelope.
+ * account billing. This mutable resolution is repeated at callback time for
+ * local self-hosted compatibility. Direct-v1 remains scoped only to the
+ * authenticated Chat/Copilot key owner's hosted account, and attributed-v1
+ * never falls back from its immutable envelope.
  */
 async function resolveAdmissionBillingDecision(
   req: NextRequest,
@@ -117,7 +117,7 @@ async function resolveAdmissionBillingDecision(
     return invalidBillingProtocolResponse()
   }
 
-  if (protocol === undefined && isCopilotBillingProtocolRequired) {
+  if (protocol === undefined && isHosted) {
     return invalidBillingProtocolResponse()
   }
 
@@ -169,7 +169,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
       onError: 'throw',
     })
     const billingContext = deriveBillingContext(admission.userId, subscription)
-    const usage = await checkServerSideUsageLimits(admission.userId, subscription)
+    const usage = await checkServerSideUsageLimits(admission.userId, subscription, billingContext)
     return {
       isExceeded: usage.isExceeded,
       currentUsage: usage.currentUsage,
@@ -181,6 +181,9 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
         billingPeriod: {
           start: billingContext.billingPeriod.start.toISOString(),
           end: billingContext.billingPeriod.end.toISOString(),
+          ...(billingContext.billingPeriod.source
+            ? { source: billingContext.billingPeriod.source }
+            : {}),
         },
       },
     }

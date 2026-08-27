@@ -47,6 +47,25 @@ export interface UrlSuggestion {
   visits?: number
 }
 
+export type OmniboxSuggestion =
+  | ({ kind: 'site' } & UrlSuggestion)
+  | { kind: 'search'; query: string; url: string }
+
+const HOST_LIKE_INPUT =
+  /^([a-z0-9-]+(\.[a-z0-9-]+)+|localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?([/?#].*)?$/i
+
+/** Whether an omnibox value should search rather than navigate directly. */
+export function isSearchQueryInput(raw: string): boolean {
+  const input = raw.trim()
+  if (!input || /^https?:\/\//i.test(input)) return false
+  return input.includes(' ') || !HOST_LIKE_INPUT.test(input)
+}
+
+/** The canonical Google results URL used by search rows and bare submission. */
+export function googleSearchUrl(query: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`
+}
+
 function timestamp(value: string | undefined): number {
   if (!value) return 0
   const parsed = Date.parse(value)
@@ -187,6 +206,42 @@ export function rankSuggestions(
   }
   scored.sort((a, b) => b.score - a.score || byConfidence(a.suggestion, b.suggestion))
   return scored.slice(0, limit).map((entry) => entry.suggestion)
+}
+
+/**
+ * Combines immediate navigation/search actions with the user's known sites and
+ * live completions. The exact typed search leads, known sites retain priority,
+ * and remote completions fill whatever room remains.
+ */
+export function buildOmniboxSuggestions(
+  siteCorpus: readonly UrlSuggestion[],
+  rawQuery: string,
+  searchCompletions: readonly string[] = [],
+  limit: number = MAX_URL_SUGGESTIONS
+): OmniboxSuggestion[] {
+  if (limit <= 0) return []
+  const query = rawQuery.trim()
+  const sites = rankSuggestions(siteCorpus, query, limit)
+  if (!query || !isSearchQueryInput(query)) {
+    return sites.map((site) => ({ ...site, kind: 'site' }))
+  }
+
+  const results: OmniboxSuggestion[] = [{ kind: 'search', query, url: googleSearchUrl(query) }]
+  for (const site of sites) {
+    if (results.length === limit) return results
+    results.push({ ...site, kind: 'site' })
+  }
+
+  const seen = new Set([query.toLocaleLowerCase()])
+  for (const candidate of searchCompletions) {
+    const completion = candidate.trim()
+    const key = completion.toLocaleLowerCase()
+    if (!completion || seen.has(key)) continue
+    seen.add(key)
+    results.push({ kind: 'search', query: completion, url: googleSearchUrl(completion) })
+    if (results.length === limit) break
+  }
+  return results
 }
 
 /**

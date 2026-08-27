@@ -7,8 +7,13 @@ vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
-import { buildSelectorContextFromBlock, SELECTOR_CONTEXT_FIELDS } from './context'
-import { buildCanonicalIndex, isCanonicalPair } from './visibility'
+import { bitbucketSelectors } from '@/hooks/selectors/providers/bitbucket/selectors'
+import {
+  buildSelectorContextFromBlock,
+  getSelectorContextSubBlocks,
+  SELECTOR_CONTEXT_FIELDS,
+} from './context'
+import { buildCanonicalIndex, isCanonicalPair, resolveDependencyValue } from './visibility'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -22,6 +27,10 @@ const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRea
 afterAll(() => {
   getBlockSpy.mockRestore()
 })
+
+function subBlocksFromValues(values: Record<string, unknown>): Record<string, { value: unknown }> {
+  return Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value }]))
+}
 
 describe('buildSelectorContextFromBlock', () => {
   it('should extract knowledgeBaseId from knowledgeBaseSelector via canonical mapping', () => {
@@ -86,6 +95,15 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.knowledgeBaseId).toBeUndefined()
   })
 
+  it('skips a run-time reference so a dependent selector stays disabled instead of fetching it', () => {
+    const ctx = buildSelectorContextFromBlock('table_v2', {
+      operation: { id: 'operation', type: 'dropdown', value: 'query_rows' },
+      manualTableId: { id: 'manualTableId', type: 'short-input', value: '<start.tableId>' },
+    })
+
+    expect(ctx.tableId).toBeUndefined()
+  })
+
   it('should return empty context for unknown block types', () => {
     const ctx = buildSelectorContextFromBlock('nonexistent_block', {
       foo: { id: 'foo', type: 'short-input', value: 'bar' },
@@ -121,6 +139,126 @@ describe('buildSelectorContextFromBlock', () => {
     })
 
     expect(ctx.jobId).toBe('job-7')
+  })
+
+  it('exposes the active Bitbucket workspace slug to repository selectors', () => {
+    const subBlocks = {
+      operation: {
+        id: 'operation',
+        type: 'dropdown',
+        value: 'bitbucket_get_repository',
+      },
+      workspacePicker: {
+        id: 'workspacePicker',
+        type: 'project-selector',
+        value: 'acme-platform',
+      },
+      workspaceSlugInput: {
+        id: 'workspaceSlugInput',
+        type: 'short-input',
+        value: 'advanced-team',
+      },
+    }
+
+    expect(buildSelectorContextFromBlock('bitbucket', subBlocks).workspaceSlug).toBe(
+      'acme-platform'
+    )
+    expect(
+      buildSelectorContextFromBlock('bitbucket', subBlocks, {
+        canonicalModes: { workspaceSlug: 'advanced' },
+      }).workspaceSlug
+    ).toBe('advanced-team')
+  })
+
+  it('preserves Gmail action credential resolution in basic and advanced modes', () => {
+    const subBlocks = subBlocksFromValues({
+      credential: 'action-basic',
+      manualCredential: 'action-advanced',
+    })
+
+    expect(buildSelectorContextFromBlock('gmail', subBlocks).oauthCredential).toBe('action-basic')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('action-advanced')
+    expect(
+      buildSelectorContextFromBlock(
+        'gmail',
+        subBlocksFromValues({ credential: '', triggerCredentials: 'dormant-trigger' })
+      ).oauthCredential
+    ).toBeUndefined()
+  })
+
+  it('uses trigger credentials with and without canonical metadata after action conversion', () => {
+    const clickupValues = {
+      selectedTriggerId: 'clickup_task_created',
+      credential: 'dormant-action',
+      triggerCredentials: 'active-trigger',
+    }
+    const cases = [
+      { blockType: 'clickup', values: clickupValues },
+      {
+        blockType: 'airtable',
+        values: { credential: 'dormant-action', triggerCredentials: 'active-trigger' },
+      },
+    ]
+
+    for (const { blockType, values } of cases) {
+      expect(
+        buildSelectorContextFromBlock(blockType, subBlocksFromValues(values), {
+          triggerMode: true,
+        }).oauthCredential
+      ).toBe('active-trigger')
+    }
+
+    const clickupConfig = getRealBlock('clickup')
+    const triggerCanonicalIndex = buildCanonicalIndex(
+      getSelectorContextSubBlocks(clickupConfig?.subBlocks ?? [], clickupValues, true)
+    )
+    expect(resolveDependencyValue('triggerCredentials', clickupValues, triggerCanonicalIndex)).toBe(
+      'active-trigger'
+    )
+  })
+
+  it('does not leak a dormant action credential when an unmapped trigger credential is blank', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'airtable',
+      subBlocksFromValues({ credential: 'dormant-action', triggerCredentials: '' }),
+      { triggerMode: true }
+    )
+
+    expect(ctx.oauthCredential).toBeUndefined()
+  })
+
+  it('exposes a trigger workspace slug to the Bitbucket repository selector', () => {
+    const context = buildSelectorContextFromBlock(
+      'bitbucket',
+      {
+        selectedTriggerId: {
+          id: 'selectedTriggerId',
+          type: 'dropdown',
+          value: 'bitbucket_push',
+        },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'credential-1',
+        },
+        workspacePicker: {
+          id: 'workspacePicker',
+          type: 'project-selector',
+          value: 'acme-platform',
+        },
+      },
+      { triggerMode: true }
+    )
+
+    expect(context).toMatchObject({
+      oauthCredential: 'credential-1',
+      workspaceSlug: 'acme-platform',
+    })
+    expect(bitbucketSelectors['bitbucket.repositories'].enabled({ context } as never)).toBe(true)
   })
 
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {

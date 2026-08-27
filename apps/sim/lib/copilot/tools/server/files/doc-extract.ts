@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
 
@@ -28,7 +29,10 @@ export interface DocExtract {
 export async function extractDocText(args: { binary: Buffer; ext: string }): Promise<DocExtract> {
   const ext = args.ext.toLowerCase()
   if (!isExtractableDocExt(ext)) {
-    throw new Error(`Cannot extract text from .${ext} (supported: pdf, pptx, docx, xlsx)`)
+    throw new OrchestrationError(
+      'validation',
+      `Cannot extract text from .${ext} (supported: pdf, pptx, docx, xlsx)`
+    )
   }
 
   const script = `
@@ -102,7 +106,7 @@ print("__SIM_RESULT__=" + json.dumps({"text": text}))
   })
 
   if (result.error) {
-    throw new Error(`Document extraction failed: ${result.error}`)
+    throw new OrchestrationError('validation', `Document extraction failed: ${result.error}`)
   }
   const payload = result.result as { text?: string } | null
   const full = payload?.text ?? ''

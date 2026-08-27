@@ -3,12 +3,19 @@
  * mirrors the Agent block — keys resolve through `getApiKeyWithBYOK`, so a
  * Sim-hosted key may be used and billed. Review Code has the same host-side key
  * boundary. Create PR, Update PR, and Plan require the user's own key (the
- * block's API Key field, or a stored workspace BYOK key) because those modes run
- * the model client in an untrusted sandbox. Cost uses the billing multiplier and
- * is zeroed for BYOK / non-billable models.
+ * block's API Key field, or a stored BYOK key) because those modes run the model
+ * client in an untrusted sandbox. Cost uses the billing multiplier and is zeroed
+ * for BYOK / non-billable models.
  *
- * Optional web search is keyed separately and more strictly: the block field or a
- * stored workspace key, never a Sim-hosted one, in every mode.
+ * `getBYOKKey` resolves the workspace pool first and falls back to the
+ * organization's, so the key handed to the sandbox may be one the workspace
+ * never stored and that its siblings share. That is a deliberate consequence of
+ * organization BYOK — an organization that does not want its key reachable from
+ * a sandbox gives the workspace its own key for that provider, which always
+ * wins. The BYOK settings page says so where the key is entered.
+ *
+ * Optional web search is keyed separately and more strictly: the block field
+ * only, never a stored key and never a Sim-hosted one, in every mode.
  */
 
 import type { CreateAgentSessionOptions } from '@earendil-works/pi-coding-agent'
@@ -115,14 +122,16 @@ export function parsePiSearchProvider(value: unknown): PiSearchProvider | 'none'
 /**
  * Resolves the search key from the block's Search API Key field, which is the only source.
  *
- * Deliberately no workspace BYOK fallback, and never a Sim-hosted key. Unlike the model key, the
+ * Deliberately no stored-BYOK fallback, and never a Sim-hosted key. Unlike the model key, the
  * Search API Key field is shown on every deployment — its visibility depends only on whether a
  * provider is selected — so there is no configuration where the field is unavailable and a fallback
- * would be needed. Reading a stored workspace key here would instead mean a member who cannot
- * otherwise see that credential (the BYOK API only ever returns it masked, and only admins may
- * manage it) could route it into the Create PR sandbox, where the agent holds bash and can read the
- * environment. Requiring the key on the block keeps that exposure something the block's author
- * opted into with a key they already hold.
+ * would be needed. Reading a stored key here would instead mean a member who cannot otherwise see
+ * that credential (the BYOK API only ever returns it masked, and only admins may manage it) could
+ * route it into the Create PR sandbox, where the agent holds bash and can read the environment.
+ * Since `getBYOKKey` inherits organization keys, that credential need not even belong to this
+ * workspace — one member could reach a key every workspace in the organization shares. Requiring
+ * the key on the block keeps that exposure something the block's author opted into with a key they
+ * already hold.
  *
  * Trimmed, with a blank treated as absent: `executeTool` only skips hosted-key injection for a key
  * with `trim().length > 0`, so a whitespace-only value would otherwise fall through to a rotating

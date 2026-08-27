@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
+  claimMediaPermissionResponse,
   clearOmniboxSelection,
+  exceededOmniboxDragThreshold,
   hasConfirmedBrowserTabCreation,
   initialUrlSuggestionIndex,
   resolveUrlBarInput,
@@ -14,6 +16,19 @@ import {
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+
+describe('claimMediaPermissionResponse', () => {
+  it('allows one response per request id across effect recreation', () => {
+    const handledRequestId = { current: null as string | null }
+
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(false)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+
+    handledRequestId.current = null
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+  })
+})
 
 describe('browserPanelSnapshotStyle', () => {
   const snapshot = {
@@ -156,6 +171,13 @@ describe('clearOmniboxSelection', () => {
   })
 })
 
+describe('exceededOmniboxDragThreshold', () => {
+  it('preserves select-all through pointer jitter but cancels it for a drag', () => {
+    expect(exceededOmniboxDragThreshold(100, 100, 103, 102)).toBe(false)
+    expect(exceededOmniboxDragThreshold(100, 100, 105, 100)).toBe(true)
+  })
+})
+
 describe('shouldOpenUrlSuggestions', () => {
   it('opens only once the renderer owns the painted frame', () => {
     expect(shouldOpenUrlSuggestions('suggestions', 3)).toBe(true)
@@ -188,6 +210,10 @@ describe('initialUrlSuggestionIndex', () => {
 
   it('leaves existing pages unselected so Enter submits the current URL', () => {
     expect(initialUrlSuggestionIndex('https://sim.ai', 3)).toBeNull()
+  })
+
+  it('selects the exact search row after typing on an existing page', () => {
+    expect(initialUrlSuggestionIndex('https://sim.ai', 3, 'what is the best')).toBe(0)
   })
 
   it('selects nothing when there are no suggestions', () => {

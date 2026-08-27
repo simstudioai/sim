@@ -184,12 +184,15 @@ export async function executeManageMcpTool(
       }
     }
 
-    return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
+    return {
+      success: false,
+      error: `Unsupported operation for manage_mcp_connection: ${operation}`,
+    }
   } catch (error) {
     logger.error(
       context.messageId
-        ? `manage_mcp_tool execution failed [messageId:${context.messageId}]`
-        : 'manage_mcp_tool execution failed',
+        ? `manage_mcp_connection execution failed [messageId:${context.messageId}]`
+        : 'manage_mcp_connection execution failed',
       {
         operation,
         workspaceId,
@@ -202,7 +205,7 @@ export async function executeManageMcpTool(
       error:
         classified && classified.code !== 'internal'
           ? classified.message
-          : 'Failed to manage MCP server',
+          : `The ${operation ?? 'MCP server'} operation failed inside Sim. The write may or may not have landed — run operation "list" to check current state before retrying.`,
     }
   }
 }

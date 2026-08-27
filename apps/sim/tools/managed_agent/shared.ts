@@ -71,17 +71,3 @@ export function resolveSessionTarget(
   }
   return { ok: true, apiKey, sessionId }
 }
-
-/** Validates the credential alone, for operations that do not target a session. */
-export function resolveApiKey(
-  params: Pick<ManagedAgentSessionParams, 'accessToken'>
-): { ok: true; apiKey: string } | { ok: false; error: string } {
-  const apiKey = params.accessToken
-  if (!apiKey) {
-    return {
-      ok: false,
-      error: 'No Claude Platform credential is selected, or it could not be resolved.',
-    }
-  }
-  return { ok: true, apiKey }
-}

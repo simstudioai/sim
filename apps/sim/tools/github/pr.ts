@@ -1,5 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
-  isRecord,
   nullableBoolean,
   nullableString,
   optionalString,
@@ -31,7 +31,7 @@ const PULL_REQUEST_FILES_PER_PAGE = 100
 const MAX_PULL_REQUEST_FILES = 3_000
 
 function parsePullRequestUser(value: unknown, context: string): GitHubPullRequestUser {
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
 
   return {
     login: requiredString(value, 'login', context),
@@ -57,12 +57,12 @@ function parseNullablePullRequestUser(
  */
 function parseBranchRepoFullName(repo: unknown, context: string): string | null {
   if (repo === null || repo === undefined) return null
-  if (!isRecord(repo)) throw new Error(`${context} must be an object or null`)
+  if (!isRecordLike(repo)) throw new Error(`${context} must be an object or null`)
   return requiredString(repo, 'full_name', context)
 }
 
 function parsePullRequestBranch(value: unknown, context: string): GitHubPullRequestBranch {
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
 
   return {
     label: requiredString(value, 'label', context),
@@ -73,7 +73,7 @@ function parsePullRequestBranch(value: unknown, context: string): GitHubPullRequ
 }
 
 function parsePullRequest(value: unknown): GitHubPullRequest {
-  if (!isRecord(value)) throw new Error('GitHub pull request response must be an object')
+  if (!isRecordLike(value)) throw new Error('GitHub pull request response must be an object')
 
   return {
     id: requiredNumber(value, 'id', 'pull_request'),
@@ -104,7 +104,7 @@ function parsePullRequest(value: unknown): GitHubPullRequest {
 
 function parsePullRequestFile(value: unknown, index: number): GitHubPullRequestFile {
   const context = `pull_request_files[${index}]`
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
 
   const patch = optionalString(value, 'patch', context)
   const previousFilename = optionalString(value, 'previous_filename', context)

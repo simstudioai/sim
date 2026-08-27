@@ -10,6 +10,7 @@ import {
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/copilot/chat/selection-context'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
 const {
@@ -25,6 +26,7 @@ const {
   readKnowledgeBase,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
+  searchDocsExecute,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getBlock: vi.fn(),
@@ -38,6 +40,7 @@ const {
   readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
+  searchDocsExecute: vi.fn(),
 }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
@@ -56,6 +59,9 @@ vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   readKnowledgeBase: { execute: readKnowledgeBase },
+}))
+vi.mock('@/lib/copilot/tools/server/docs/search-docs', () => ({
+  searchDocsServerTool: { execute: searchDocsExecute },
 }))
 
 /**
@@ -279,6 +285,121 @@ describe('processContextsServer - skill contexts', () => {
     expect(logged).not.toContain('private-skill-id')
     expect(logged).not.toContain('__var_')
     expect(logged).not.toContain('__sim_')
+  })
+})
+
+describe('processContextsServer - docs contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('routes @Docs to an unscoped search_docs query', async () => {
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+    const results = [
+      {
+        path: 'docs/workflows/loops.mdx',
+        url: 'https://docs.sim.ai/workflows/loops',
+        title: 'Loops',
+        content: 'Use a loop block to iterate.',
+        similarity: 0.9,
+      },
+    ]
+    searchDocsExecute.mockResolvedValue({ results, query: 'how do loops work?', totalResults: 1 })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs how do loops work?',
+      'ws-1',
+      undefined,
+      resolvedSecretTraceRegistry
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'how do loops work?' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: undefined,
+        resolvedSecretTraceRegistry,
+      }
+    )
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({ results }),
+      },
+    ])
+  })
+
+  it('preserves the search note when @Docs has no relevant matches', async () => {
+    const note =
+      'No relevant matches. This does NOT mean the docs lack this topic. Rephrase the query.'
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'new topic', totalResults: 0, note })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs new topic',
+      'ws-1',
+      undefined,
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({ results: [], note }),
+      },
+    ])
+  })
+
+  it('uses the Docs label when the message only contains the mention', async () => {
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'Docs', totalResults: 0 })
+
+    await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'Docs' },
+      expect.objectContaining({ workspaceId: 'ws-1', chatId: 'chat-1' })
+    )
+  })
+
+  it('preserves an explicit unavailable note when docs search fails', async () => {
+    searchDocsExecute.mockRejectedValue(new Error('embedding service unavailable'))
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs explain schedules',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({
+          results: [],
+          note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+        }),
+      },
+    ])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Failed to process docs context',
+      expect.any(Error)
+    )
   })
 })
 

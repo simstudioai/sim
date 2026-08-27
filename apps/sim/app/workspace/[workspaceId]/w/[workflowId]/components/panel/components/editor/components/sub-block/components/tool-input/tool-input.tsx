@@ -27,6 +27,10 @@ import {
 } from '@/lib/mcp/tool-validation'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
@@ -67,7 +71,7 @@ import { getAllBlocks, getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
-import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
@@ -87,6 +91,7 @@ import {
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useOperationAccess } from '@/hooks/use-operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -362,25 +367,23 @@ function resolveCustomToolFromReference(
 /**
  * Checks if a block supports multiple operations.
  *
- * @param blockType - The block type to check
+ * @param block - The block config to check
  * @returns `true` if the block has more than one tool operation available
  */
-function hasMultipleOperations(blockType: string): boolean {
-  const block = getAllBlocks().find((b) => b.type === blockType)
+function hasMultipleOperations(block: BlockConfig | undefined): boolean {
   return (block?.tools?.access?.length || 0) > 1
 }
 
 /**
  * Gets the available operation options for a multi-operation tool.
  *
- * @param blockType - The block type to get operations for
+ * @param block - The block config to get operations for
  * @returns Array of operation options with label and id properties
  */
-function getOperationOptions(blockType: string): { label: string; id: string }[] {
-  const block = getAllBlocks().find((b) => b.type === blockType)
+function getOperationOptions(block: BlockConfig | undefined): { label: string; id: string }[] {
   if (!block || !block.tools?.access) return []
 
-  const operationSubBlock = block.subBlocks.find((sb) => sb.id === 'operation')
+  const operationSubBlock = block.subBlocks.find((sb) => sb.id === OPERATION_SUBBLOCK_ID)
   if (
     operationSubBlock &&
     operationSubBlock.type === 'dropdown' &&
@@ -468,6 +471,8 @@ function UnsupportedToolBadge({ message }: { message: string }) {
   )
 }
 
+const EMPTY_COMBOBOX_GROUPS: ComboboxOptionGroup[] = []
+
 export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
@@ -520,7 +525,7 @@ export const ToolInput = memo(function ToolInput({
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
   const blockType = useWorkflowStore(useCallback((state) => state.blocks[blockId]?.type, [blockId]))
   const unsupportedToolTypes = useMemo<readonly ('mcp' | 'custom-tool')[]>(() => {
-    const block = getAllBlocks().find((b) => b.type === blockType)
+    const block = blockType ? getBlock(blockType) : undefined
     return block?.subBlocks.find((sb) => sb.id === subBlockId)?.unsupportedToolTypes ?? []
   }, [blockType, subBlockId])
   const mcpUnsupported = unsupportedToolTypes.includes('mcp')
@@ -529,10 +534,11 @@ export const ToolInput = memo(function ToolInput({
   // Look up credential type for reactive condition filtering (e.g. service account detection).
   // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
-    const allBlocks = getAllBlocks()
     for (const [toolIndex, tool] of selectedTools.entries()) {
-      const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
+      const blockConfig = tool.type ? getBlock(tool.type) : undefined
       if (!blockConfig?.subBlocks) continue
+      // canonical-index-unscoped: a nested tool resolves against `tool.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
       const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
       const scopedOverrides = scopeCanonicalModesForTool(
         canonicalModeOverrides,
@@ -668,13 +674,47 @@ export const ToolInput = memo(function ToolInput({
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const { filterBlocks, config: permissionConfig } = usePermissionConfig()
+  const {
+    filterBlocks,
+    config: permissionConfig,
+    isLoading: isPermissionLoading,
+  } = usePermissionConfig()
+  const { getDeniedOperations } = useOperationAccess()
+
+  /**
+   * A tool block's selectable operations paired with the ones the caller's
+   * permission group denies.
+   *
+   * Both callers derive from this single result so they cannot drift: the
+   * picker *removes* denied operations (it must never offer or default to one),
+   * while the editor's selector *hides* them (a tool already saved on one keeps
+   * showing its name).
+   */
+  const getOperationChoices = useCallback(
+    (block: BlockConfig | undefined) => {
+      const options = getOperationOptions(block).filter((option) => option.id !== '')
+      return {
+        options,
+        denied: getDeniedOperations(
+          block,
+          options.map((option) => option.id)
+        ),
+      }
+    },
+    [getDeniedOperations]
+  )
 
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
     const allToolBlocks = getAllBlocks().filter(isAgentToolBlock)
-    return filterBlocks(allToolBlocks)
-  }, [filterBlocks, customBlockOverlayVersion])
+    /* An empty option list means the block declares no selectable operation, so
+       there is nothing to gate — only a wholly denied one leaves the picker. */
+    return filterBlocks(allToolBlocks).filter((block) => {
+      if (!hasMultipleOperations(block)) return true
+      const { options, denied } = getOperationChoices(block)
+      return options.length === 0 || options.some((option) => !denied.has(option.id))
+    })
+  }, [filterBlocks, customBlockOverlayVersion, getOperationChoices])
 
   const hasBackfilledRef = useRef(false)
   useEffect(() => {
@@ -750,7 +790,7 @@ export const ToolInput = memo(function ToolInput({
    * @returns `true` if tool is already selected (for single-operation tools only)
    */
   const isToolAlreadySelected = (toolId: string, blockType: string) => {
-    if (hasMultipleOperations(blockType)) {
+    if (hasMultipleOperations(getBlock(blockType))) {
       return false
     }
     // Custom blocks all share toolId `workflow_executor`, so dedup-by-toolId would
@@ -789,9 +829,10 @@ export const ToolInput = memo(function ToolInput({
     (toolBlock: (typeof toolBlocks)[0]) => {
       if (isPreview || disabled) return
 
-      const hasOperations = hasMultipleOperations(toolBlock.type)
-      const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
-      const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
+      const { options, denied } = hasMultipleOperations(toolBlock)
+        ? getOperationChoices(toolBlock)
+        : { options: [], denied: NO_DENIED_OPERATIONS }
+      const defaultOperation = options.find((option) => !denied.has(option.id))?.id
 
       const toolId = getToolIdForOperation(toolBlock.type, defaultOperation, toolBlock)
       if (!toolId) return
@@ -827,7 +868,7 @@ export const ToolInput = memo(function ToolInput({
 
       setOpen(false)
     },
-    [isPreview, disabled, isToolAlreadySelected, selectedTools, setStoreValue]
+    [isPreview, disabled, isToolAlreadySelected, selectedTools, setStoreValue, getOperationChoices]
   )
 
   const handleAddCustomTool = useCallback(
@@ -1373,6 +1414,7 @@ export const ToolInput = memo(function ToolInput({
    * @returns Array of option groups for the combobox component
    */
   const toolGroups = useMemo((): ComboboxOptionGroup[] => {
+    if (!open) return EMPTY_COMBOBOX_GROUPS
     const groups: ComboboxOptionGroup[] = []
 
     // MCP Server drill-down: when navigated into a server, show only its tools
@@ -1651,6 +1693,7 @@ export const ToolInput = memo(function ToolInput({
 
     return groups
   }, [
+    open,
     mcpServerDrilldown,
     customTools,
     availableMcpTools,
@@ -1678,7 +1721,11 @@ export const ToolInput = memo(function ToolInput({
         options={[]}
         groups={toolGroups}
         placeholder='Add tool...'
-        disabled={disabled}
+        /* Every list this picker offers — blocks, operations, MCP and custom
+           tools — reads as unrestricted until the permission config resolves,
+           and adding a tool is a one-shot write that nothing revisits. Closed
+           rather than optimistic for that beat. */
+        disabled={disabled || isPermissionLoading}
         searchable
         searchPlaceholder='Search tools...'
         maxHeight={240}
@@ -1740,7 +1787,8 @@ export const ToolInput = memo(function ToolInput({
               : null
 
           const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
-            ? buildCanonicalIndex(toolBlock.subBlocks)
+            ? // canonical-index-unscoped: nested tool params are always the action surface
+              buildCanonicalIndex(toolBlock.subBlocks)
             : null
 
           const toolContextValues = toolCanonicalIndex
@@ -1807,7 +1855,8 @@ export const ToolInput = memo(function ToolInput({
               )
             : []
 
-          const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
+          const hasOperations =
+            !isCustomTool && !isMcpTool && hasMultipleOperations(toolBlock ?? undefined)
           const hasParams = useSubBlocks
             ? displaySubBlocks.length > 0
             : displayParams.filter((param) => evaluateParameterCondition(param, tool)).length > 0
@@ -2025,28 +2074,33 @@ export const ToolInput = memo(function ToolInput({
                 <div className='flex flex-col gap-2.5 overflow-visible border-[var(--border)] border-t p-2'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
-                    const hasOperations = hasMultipleOperations(tool.type)
-                    const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
+                    if (!hasOperations) return null
+                    const { options: operationOptions, denied } = getOperationChoices(
+                      toolBlock ?? undefined
+                    )
+                    if (operationOptions.length === 0) return null
 
-                    return hasOperations && operationOptions.length > 0 ? (
+                    return (
                       <div className='relative space-y-1.5'>
-                        <div className='font-medium text-[var(--text-primary)] text-small'>
-                          Operation
-                        </div>
+                        <div className='text-[var(--text-primary)] text-small'>Operation</div>
                         <ChipCombobox
-                          options={operationOptions
-                            .filter((option) => option.id !== '')
-                            .map((option) => ({
-                              label: option.label,
-                              value: option.id,
-                            }))}
-                          value={tool.operation || operationOptions[0].id}
+                          options={operationOptions.map((option) => ({
+                            label: option.label,
+                            value: option.id,
+                            hidden: denied.has(option.id),
+                          }))}
+                          value={
+                            tool.operation ||
+                            operationOptions.find((option) => !denied.has(option.id))?.id
+                          }
                           onChange={(value) => handleOperationChange(toolIndex, value)}
                           placeholder='Select operation'
-                          disabled={disabled}
+                          /* Denied operations only drop out once the config
+                             resolves, and picking one rewrites the stored tool. */
+                          disabled={disabled || isPermissionLoading}
                         />
                       </div>
-                    ) : null
+                    )
                   })()}
 
                   {(() => {

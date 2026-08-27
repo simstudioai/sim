@@ -1,12 +1,11 @@
 import type { SapConcurProxyResponse, UploadReceiptImageParams } from '@/tools/sap_concur/types'
 import {
   baseProxyBody,
+  SAP_CONCUR_UPLOAD_URL,
   transformSapConcurProxyResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
-
-export const SAP_CONCUR_UPLOAD_URL = '/api/tools/sap_concur/upload'
 
 export const uploadReceiptImageTool: ToolConfig<UploadReceiptImageParams, SapConcurProxyResponse> =
   {
@@ -69,14 +68,7 @@ export const uploadReceiptImageTool: ToolConfig<UploadReceiptImageParams, SapCon
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Receipt image file (UserFile reference). Supported formats: PDF, PNG, JPEG, GIF, TIFF',
-      },
-      forwardId: {
-        type: 'string',
-        required: false,
-        visibility: 'user-or-llm',
-        description:
-          'Optional client-supplied dedup id (max 40 chars). Sent as the concur-forwardid header.',
+          'Receipt image file (UserFile reference). Supported formats: png, jpg, jpeg, tiff, tif, gif, pdf. TIFF/TIF files are converted to PDF server-side. Maximum size 25 MB.',
       },
     },
     request: {
@@ -90,7 +82,6 @@ export const uploadReceiptImageTool: ToolConfig<UploadReceiptImageParams, SapCon
           operation: 'upload_receipt_image',
           userId,
           receipt: params.receipt,
-          forwardId: params.forwardId,
         }
       },
     },
@@ -110,7 +101,8 @@ export const uploadReceiptImageTool: ToolConfig<UploadReceiptImageParams, SapCon
           },
           link: {
             type: 'string',
-            description: 'Link header URL pointing to /receipts/v4/status/{receiptId}',
+            description:
+              'Raw Link header value, forwarded verbatim — it is not a bare URL. Format: <https://{datacenter}/receipts/v4/status/{receiptId}>; rel="processing-status". Parse the href out of the angle brackets before using it.',
             optional: true,
           },
         },

@@ -14,6 +14,7 @@ import {
   moveTableToFolder,
   queryTables,
   renameTable,
+  restoreTable,
   type TableDefinition,
   type TableSchema,
   updateTableDescription,
@@ -21,14 +22,31 @@ import {
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
   resolveActiveTableContext,
+  resolveArchivedTableContext,
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
-import { resolveTableFolderPath, tableFolderPathForId } from '@/lib/table/application/folder-paths'
+import {
+  archivableTableFolderPath,
+  resolveTableFolderPath,
+  tableFolderPathForId,
+} from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 
 export interface ListTablesInput {
   workspaceId: string
+  /**
+   * Which lifecycle set to list. Omitted means `active`, matching every shipped
+   * caller. Deliberately narrower than the `TableScope` the query layer takes:
+   * its third value, `'all'`, would mix archived rows into a page projected by
+   * the strict folder-path resolver, which throws on the dangling `folderId` a
+   * folder archive leaves behind.
+   *
+   * The value set is the one `ListWorkflowsInput['scope']` accepts; the
+   * optionality is not, since that sibling requires a scope where this one
+   * defaults an absent scope through to the query.
+   */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy
@@ -51,6 +69,7 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     }
 
     const { tables, nextKeys } = await queryTables(context.workspaceId, {
+      scope: input.scope,
       folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
@@ -62,7 +81,10 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     return {
       tables: tables.map((table) => ({
         table,
-        folderPath: tableFolderPathForId(folderIndex, table.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableTableFolderPath(folderIndex, table.folderId)
+            : tableFolderPathForId(folderIndex, table.folderId),
       })),
       nextKeys,
       sortBy: input.sortBy,
@@ -219,7 +241,10 @@ export const updateTableUseCase = defineAuthorizedTableUseCase({
 
       const table = await getTableById(current.id)
       if (!table || table.workspaceId !== context.workspaceId) {
-        throw new OrchestrationError('not_found', 'Table not found')
+        throw new OrchestrationError(
+          'not_found',
+          'Table not found in this workspace — list the tables in this workspace to see valid table ids'
+        )
       }
       const index =
         resolution?.index ??
@@ -290,7 +315,11 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
     const { archived } = await deleteTable(context.table.id, generateRequestId(), {
       expectedWorkspaceId: context.workspaceId,
     })
-    if (!archived) throw new OrchestrationError('not_found', 'Table not found')
+    if (!archived)
+      throw new OrchestrationError(
+        'not_found',
+        'Table not found in this workspace — list the tables in this workspace to see valid table ids'
+      )
     return {
       id: context.table.id,
       deleted: true as const,
@@ -308,5 +337,60 @@ export const deleteTableUseCase = defineAuthorizedTableUseCase({
       resourceName: result.tableName,
       description: `Archived table "${result.tableName}"`,
     }
+  },
+})
+
+/**
+ * Un-archives a table that {@link deleteTableUseCase} archived.
+ *
+ * Calls the service primitive rather than `performRestoreTable`: that
+ * orchestration records its own audit row keyed on a bare `userId`, which
+ * cannot represent a workspace-key or delegated principal. Audit is projected
+ * here instead, from the authoritative restored row.
+ *
+ * Restore is deliberately not gated by the delete lock — see `restoreTable`.
+ *
+ * Idempotent: a table that is already active is returned unchanged, with no
+ * restore performed and no audit entry recorded. A `409` there would make a
+ * retry after a dropped response look like a failure, and restore has no state
+ * a second call could corrupt — the same position the knowledge surface takes
+ * on its own restore.
+ */
+export const restoreTableUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.restore,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveArchivedTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    const restored = context.table.archivedAt !== null
+    if (restored) {
+      await restoreTable(context.table.id, generateRequestId())
+    }
+    const table = await getTableById(context.table.id)
+    if (!table || table.workspaceId !== context.workspaceId) {
+      throw new OrchestrationError('not_found', 'Table not found')
+    }
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    return { table, folderPath: tableFolderPathForId(index, table.folderId), restored }
+  },
+  projectAudit({ result }) {
+    return result.restored
+      ? [
+          {
+            action: AuditAction.TABLE_RESTORED,
+            resourceType: AuditResourceType.TABLE,
+            resourceId: result.table.id,
+            resourceName: result.table.name,
+            description: `Restored table "${result.table.name}"`,
+          },
+        ]
+      : []
+  },
+  afterSuccess({ result }) {
+    if (result.restored) signalTableSchemaChanged(result.table.id)
   },
 })

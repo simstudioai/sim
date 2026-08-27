@@ -15,7 +15,6 @@ interface SocialLoginButtonsProps {
   googleAvailable: boolean
   microsoftAvailable: boolean
   callbackURL?: string
-  isProduction: boolean
   children?: ReactNode
 }
 
@@ -24,7 +23,6 @@ export function SocialLoginButtons({
   googleAvailable,
   microsoftAvailable,
   callbackURL = '/workspace',
-  isProduction,
   children,
 }: SocialLoginButtonsProps) {
   const [isGithubLoading, setIsGithubLoading] = useState(false)

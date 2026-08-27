@@ -34,6 +34,11 @@ interface RowActionsMenuProps {
  * An action with a `tooltip` gets its item wrapped in a plain span tooltip
  * trigger (the settings-header chip pattern) — a disabled item is
  * `pointer-events-none`, so the wrapper is what keeps hover working.
+ *
+ * A disabled item's tooltip also folds into its accessible name, because Radix
+ * skips disabled items in a menu's roving focus: without this the explanation
+ * would reach pointer users only, and assistive tech would announce a dead
+ * "Remove" with no reason attached.
  */
 export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsMenuProps) {
   return (
@@ -50,6 +55,11 @@ export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsM
               key={action.label}
               onSelect={action.onSelect}
               disabled={action.disabled}
+              aria-label={
+                action.disabled && action.tooltip
+                  ? `${action.label} — ${action.tooltip}`
+                  : undefined
+              }
               className={action.destructive ? 'text-[var(--text-error)]' : undefined}
             >
               {action.label}

@@ -73,7 +73,12 @@ vi.mock('@/lib/copilot/request/tools/workflow-context', () => ({
 }))
 
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
-import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolOutcome,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { GenerateApiKey } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import {
   buildToolExecutionContext,
@@ -110,7 +115,7 @@ describe('toolWatchdogTimeoutMs', () => {
     expect(toolWatchdogTimeoutMs('read')).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
 
-  it.each(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy', 'promote_to_live'])(
+  it.each(['deploy_as_api', 'deploy_as_chat', 'deploy_as_mcp', 'redeploy', 'promote_to_live'])(
     'does not undercut deployment tool %s with the default watchdog',
     (toolName) => {
       expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
@@ -329,6 +334,61 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(registry.isComplete()).toBe(true)
     expect(registry.getActiveMatches()).toEqual([])
     expect(JSON.stringify([completion, onEvent.mock.calls])).not.toContain('secret-value')
+  })
+
+  it('reveals a generated API key only in the live client event', async () => {
+    const generatedKey = 'sk-sim-one-time-secret'
+    const statusMessage = 'API key "streaming-test" created.'
+    executeTool.mockResolvedValueOnce({
+      success: true,
+      output: {
+        id: 'key-1',
+        name: 'streaming-test',
+        key: generatedKey,
+        workspaceId: 'workspace-1',
+        message: statusMessage,
+      },
+    })
+    const toolCall: ToolCallState = {
+      id: 'generate-key-call',
+      name: GenerateApiKey.id,
+      status: 'pending',
+      params: { name: 'streaming-test' },
+    }
+
+    const completion = await executeToolAndReport(
+      toolCall.id,
+      buildStreamingContext(toolCall),
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      },
+      { onEvent }
+    )
+
+    expect(completion).toEqual({
+      status: MothershipStreamV1ToolOutcome.success,
+      message: 'Tool completed',
+      data: statusMessage,
+    })
+    expect(completeAsyncToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ result: statusMessage })
+    )
+    expect(JSON.stringify([completion, completeAsyncToolCall.mock.calls])).not.toContain(
+      generatedKey
+    )
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolName: GenerateApiKey.id,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: true,
+          output: expect.objectContaining({ key: generatedKey }),
+        }),
+      })
+    )
   })
 })
 

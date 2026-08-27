@@ -4,18 +4,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
-const {
-  mockCheckAttributedUsageLimits,
-  mockSubscribe,
-  mockUnsubscribe,
-  mockIsExecutionCancelled,
-  mockIsRedisCancellationEnabled,
-} = vi.hoisted(() => ({
+const { mockCheckAttributedUsageLimits, mockSubscribe, mockUnsubscribe } = vi.hoisted(() => ({
   mockCheckAttributedUsageLimits: vi.fn(),
   mockSubscribe: vi.fn(),
   mockUnsubscribe: vi.fn(),
-  mockIsExecutionCancelled: vi.fn(),
-  mockIsRedisCancellationEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -23,9 +15,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
-  getCancellationChannel: () => ({ subscribe: mockSubscribe }),
-  isExecutionCancelled: mockIsExecutionCancelled,
-  isRedisCancellationEnabled: mockIsRedisCancellationEnabled,
+  subscribeToExecutionCancellation: mockSubscribe,
 }))
 
 import {
@@ -43,9 +33,7 @@ const attribution = { actorUserId: 'owner-1', workspaceId: 'workspace-source' } 
 describe('admitCustomBlockChildExecution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSubscribe.mockReturnValue(mockUnsubscribe)
-    mockIsRedisCancellationEnabled.mockReturnValue(true)
-    mockIsExecutionCancelled.mockResolvedValue(false)
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
   })
 
   it('passes when the source payer has headroom', async () => {
@@ -134,9 +122,7 @@ describe('buildCustomBlockCorrelation', () => {
 describe('createChildCancellationSignal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSubscribe.mockReturnValue(mockUnsubscribe)
-    mockIsRedisCancellationEnabled.mockReturnValue(true)
-    mockIsExecutionCancelled.mockResolvedValue(false)
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
   })
 
   it('aborts when the parent signal aborts', async () => {
@@ -174,15 +160,13 @@ describe('createChildCancellationSignal', () => {
     expect(signal.aborted).toBe(true)
   })
 
-  it('aborts on the parent cancellation event, and ignores other runs', async () => {
+  it('aborts on the bound parent cancellation signal', async () => {
     const { signal } = await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
-    const handler = mockSubscribe.mock.calls[0][0]
+    const handler = mockSubscribe.mock.calls[0][1]
 
-    handler({ executionId: 'someone-else' })
-    expect(signal.aborted).toBe(false)
-
-    handler({ executionId: 'parent-1' })
+    handler()
     expect(signal.aborted).toBe(true)
+    expect(mockSubscribe).toHaveBeenCalledWith('parent-1', handler)
   })
 
   it('unsubscribes on dispose so a looped block leaks nothing', async () => {
@@ -211,52 +195,15 @@ describe('CustomBlockAdmissionError', () => {
 describe('createChildCancellationSignal durable backstop', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSubscribe.mockReturnValue(mockUnsubscribe)
-    mockIsRedisCancellationEnabled.mockReturnValue(true)
-    mockIsExecutionCancelled.mockResolvedValue(false)
+    mockSubscribe.mockResolvedValue(mockUnsubscribe)
   })
 
-  it('aborts on a cancel published before the bridge subscribed', async () => {
-    // The pub/sub event is long gone; only the durable key remains.
-    mockIsExecutionCancelled.mockResolvedValue(true)
+  it('fails closed when the durable cancellation subscription cannot be established', async () => {
+    mockSubscribe.mockRejectedValue(new Error('redis down'))
 
-    const { signal } = await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
-
-    expect(mockIsExecutionCancelled).toHaveBeenCalledWith('parent-1')
-    expect(signal.aborted).toBe(true)
-  })
-
-  it('subscribes before reading the durable key so no window is left open', async () => {
-    const order: string[] = []
-    mockSubscribe.mockImplementation(() => {
-      order.push('subscribe')
-      return mockUnsubscribe
-    })
-    mockIsExecutionCancelled.mockImplementation(async () => {
-      order.push('durable-read')
-      return false
-    })
-
-    await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
-
-    expect(order).toEqual(['subscribe', 'durable-read'])
-  })
-
-  it('fails open when the durable read throws', async () => {
-    mockIsExecutionCancelled.mockRejectedValue(new Error('redis down'))
-
-    const { signal } = await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
-
-    expect(signal.aborted).toBe(false)
-  })
-
-  it('skips the durable read when redis cancellation is unavailable', async () => {
-    mockIsRedisCancellationEnabled.mockReturnValue(false)
-
-    const { signal } = await createChildCancellationSignal({ parentExecutionId: 'parent-1' })
-
-    expect(mockIsExecutionCancelled).not.toHaveBeenCalled()
-    expect(signal.aborted).toBe(false)
+    await expect(createChildCancellationSignal({ parentExecutionId: 'parent-1' })).rejects.toThrow(
+      'redis down'
+    )
   })
 })
 

@@ -1,10 +1,17 @@
 import type { MuteMonitorParams, MuteMonitorResponse } from '@/tools/datadog/types'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse> = {
   id: 'datadog_mute_monitor',
   name: 'Datadog Mute Monitor',
-  description: 'Mute a monitor to temporarily suppress notifications.',
+  description:
+    'Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.',
   version: '1.0.0',
 
   params: {
@@ -26,7 +33,7 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Unix timestamp in seconds when the mute should end (e.g., 1705323600). If not specified, mutes indefinitely.',
+        'Unix timestamp in seconds when the mute should end (e.g., 1705323600). If not specified, the monitor stays muted until it is unmuted.',
     },
     apiKey: {
       type: 'string',
@@ -48,41 +55,48 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
     },
   },
 
+  /**
+   * `scope` and `end` are query parameters, not a request body: the MuteMonitor
+   * operation declares no `requestBody` and documents both under "Query
+   * Strings". Sent as a body they are dropped, turning a scoped, time-boxed
+   * mute into an indefinite mute across every scope — with a 200 and the full
+   * monitor object back, so the caller never sees it.
+   */
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
-      return `https://api.${site}/api/v1/monitor/${params.monitorId}/mute`
+      const queryParams = new URLSearchParams()
+      if (params.scope) queryParams.set('scope', params.scope)
+      if (params.end !== undefined && params.end !== null)
+        queryParams.set('end', String(params.end))
+
+      const queryString = queryParams.toString()
+      return datadogApiUrl(
+        params.site,
+        `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/mute${queryString ? `?${queryString}` : ''}`
+      )
     },
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      'DD-API-KEY': params.apiKey,
-      'DD-APPLICATION-KEY': params.applicationKey,
-    }),
-    body: (params) => {
-      const body: Record<string, any> = {}
-      if (params.scope) body.scope = params.scope
-      if (params.end) body.end = params.end
-      return body
-    },
+    headers: datadogHeaders,
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
       return {
         success: false,
-        output: {
-          success: false,
-        },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        output: { success: false },
+        error: await datadogErrorMessage(response),
       }
     }
+
+    const data = await response.json().catch(() => ({}))
 
     return {
       success: true,
       output: {
         success: true,
+        monitorId: data.id,
+        name: data.name,
+        overallState: data.overall_state,
       },
     }
   },
@@ -91,6 +105,21 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
     success: {
       type: 'boolean',
       description: 'Whether the monitor was successfully muted',
+    },
+    monitorId: {
+      type: 'number',
+      description: 'ID of the muted monitor',
+      optional: true,
+    },
+    name: {
+      type: 'string',
+      description: 'Name of the muted monitor',
+      optional: true,
+    },
+    overallState: {
+      type: 'string',
+      description: 'Monitor state after muting',
+      optional: true,
     },
   },
 }

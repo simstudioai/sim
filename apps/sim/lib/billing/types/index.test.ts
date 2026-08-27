@@ -53,6 +53,7 @@ describe('Enterprise subscription metadata', () => {
       plan: 'enterprise',
       referenceId: 'org-1',
       monthlyPrice: 500,
+      invoiceAmountUsd: 500,
       seats: 25,
     })
   })
@@ -67,7 +68,26 @@ describe('Enterprise subscription metadata', () => {
       plan: 'enterprise',
       referenceId: 'org-1',
       monthlyPrice: 500,
+      invoiceAmountUsd: 500,
       seats: 25,
+    })
+  })
+
+  it('prefers the neutral invoice amount for annual Enterprise metadata', () => {
+    expect(
+      parseEnterpriseSubscriptionMetadata({
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        invoiceAmountCents: '120000',
+        seats: '25',
+        reportingPeriodAnchorDate: '2026-01-31',
+        reportingPeriodInterval: 'year',
+      })
+    ).toMatchObject({
+      invoiceAmountCents: 120000,
+      invoiceAmountUsd: 1200,
+      reportingPeriodAnchorDate: '2026-01-31',
+      reportingPeriodInterval: 'year',
     })
   })
 })

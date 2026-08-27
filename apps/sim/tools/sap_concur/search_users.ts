@@ -61,7 +61,7 @@ export const searchUsersTool: ToolConfig<SearchUsersParams, SapConcurProxyRespon
       required: true,
       visibility: 'user-or-llm',
       description:
-        'SCIM search request payload ({ schemas, attributes, filter, count, startIndex })',
+        'SCIM search payload. Required: schemas: ["urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest"] (Concur-specific URN, not the standard SearchRequest URN). Optional: filter, count (1-1000), attributes, excludedAttributes, cursor (the nextCursor value from a prior response). The startIndex request parameter is not supported (responses still return a startIndex value).',
     },
   },
   request: {

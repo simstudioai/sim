@@ -386,7 +386,9 @@ Co-locate a `search-params.ts` per feature exporting the parser map (single sour
 
 A list orders itself the way the user already reads the same things somewhere else. Resource menus (`+` attach, `@` mention, resource-tab `+`) mirror the **sidebar** top-down; a row or root **context menu** mirrors that surface's **toolbar**, left-to-right becoming top-to-bottom; tab strips mirror their nav. Platform-only entries (desktop Browser, Terminal) trail the shared set.
 
-Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency. Full rule in `.claude/rules/sim-list-ordering.md`.
+Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency.
+
+**Grouping**: a `DropdownMenuSeparator` marks a change in WHAT the action acts on — the clicked item (no rule), something else like the page's filters or a new sibling (rule), or destroying it (rule). Most row menus have only the destructive transition and carry one rule before Delete/Leave/Close/Hide; menus that also filter the page or insert siblings carry two. Never band by verb (navigation/status/edit/copy) — the toolbars are flat, so that taxonomy exists nowhere else. No toolbar in the app renders a divider, so multi-band menus teach a taxonomy that exists on no other surface. Build each separator's guard from the EXACT render conditions of the items on both sides — a looser guard is what leaves a dangling rule when its group is conditional. Never add a prop to move a rule. Full rule in `.claude/rules/sim-list-ordering.md`.
 
 ## Styling
 
@@ -471,6 +473,22 @@ describe('my route', () => {
 - **Avoid real timers** — use 1ms delays or `vi.useFakeTimers()`
 
 Use `@sim/testing` mocks/factories over local test data.
+
+## Caching
+
+Never hand-roll TTL arithmetic — a `Map` plus `Date.now() - fetchedAt < TTL` re-implements expiry,
+the ceiling, and coalescing badly. Use `lru-cache` (a direct dependency), and always set `max`:
+`ttl` alone does not bound memory, so a tenant-keyed cache without a ceiling grows for the life of
+the process. Prefer `fetchMethod` + `cache.fetch(key)` for async read-through — it gives TTL,
+coalescing, and eviction-on-rejection in one primitive — and compose `coalesceLocally` around an
+`LRUCache` only when a hung producer would otherwise wedge callers for the whole TTL.
+
+First check the thing is a cache at all: a lifecycle map whose entry is deleted when the tracked
+thing ends (`activeStreams`, `pendingChildRuns`) is a plain `Map`, and giving it a TTL or a ceiling
+introduces an expiry that races the lifecycle. Cache the gate, never the credential — entitlements
+tolerate bounded staleness in the safe direction, key material must stay fresh so revocation is
+immediate. Full decision tree, sizing, `!== undefined` reads, and the invalidation rule are in
+`.claude/rules/sim-caching.md`.
 
 ## Utils Rules
 

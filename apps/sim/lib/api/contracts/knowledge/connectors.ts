@@ -60,7 +60,8 @@ export const connectorDataSchema = z
     sourceConfig: z.record(z.string(), z.unknown()),
     syncMode: z.string().nullable(),
     syncIntervalMinutes: z.number(),
-    status: z.enum(['active', 'paused', 'syncing', 'error', 'disabled']),
+    /** `pending` means a sync is queued but no worker has taken the lock yet. */
+    status: z.enum(['active', 'paused', 'pending', 'syncing', 'error', 'disabled']),
     lastSyncAt: z.string().nullable(),
     lastSyncError: z.string().nullable(),
     lastSyncDocCount: z.number().nullable(),
@@ -72,17 +73,28 @@ export const connectorDataSchema = z
   .passthrough()
 export type ConnectorData = z.output<typeof connectorDataSchema>
 
+/**
+ * The complete set of sync-log statuses the sync engine writes: `started` on
+ * insert, then exactly one of `completed` / `failed` on exit. Deliberately an
+ * enum rather than a free string — a connector's own `status` values
+ * (`syncing`, `error`, …) are a different vocabulary, and typing this as
+ * `z.string()` is what let the UI branch on literals no producer ever wrote.
+ */
+export const syncLogStatusSchema = z.enum(['started', 'completed', 'failed'])
+export type SyncLogStatus = z.output<typeof syncLogStatusSchema>
+
 export const syncLogDataSchema = z
   .object({
     id: z.string(),
     connectorId: z.string(),
-    status: z.string(),
+    status: syncLogStatusSchema,
     startedAt: z.string(),
     completedAt: z.string().nullable(),
     docsAdded: z.number(),
     docsUpdated: z.number(),
     docsDeleted: z.number(),
     docsUnchanged: z.number(),
+    docsSkipped: z.number().int().nonnegative().default(0),
     docsFailed: z.number(),
     errorMessage: z.string().nullable(),
   })

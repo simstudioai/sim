@@ -1,6 +1,14 @@
 /** @vitest-environment node */
 
-import { organization, workspace } from '@sim/db/schema'
+import {
+  invitation,
+  invitationWorkspaceGrant,
+  member,
+  organization,
+  outboxEvent,
+  subscription,
+  workspace,
+} from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +16,8 @@ import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import {
   buildPendingInvitationMergeScopeCondition,
   classifyWorkspaceMoveState,
+  getWorkspaceMoveOperation,
+  getWorkspaceMovePreflight,
   invitationMigrationOutboxHandlers,
   MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
   moveWorkspaceToOrganization,
@@ -19,6 +29,7 @@ vi.unmock('drizzle-orm')
 
 const {
   recordAudit,
+  recordAuditOnce,
   enqueueOrReschedulePendingOutboxEvent,
   invalidateWorkspaceTableLimitsCache,
   changeWorkspaceStoragePayerInTx,
@@ -26,8 +37,11 @@ const {
   getInvitationById,
   isInvitationExpired,
   sendInvitationEmail,
+  countPendingSeatInvitations,
+  resolveSeatCapacity,
 } = vi.hoisted(() => ({
   recordAudit: vi.fn(),
+  recordAuditOnce: vi.fn(),
   enqueueOrReschedulePendingOutboxEvent: vi.fn(),
   invalidateWorkspaceTableLimitsCache: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
@@ -35,18 +49,34 @@ const {
   getInvitationById: vi.fn(),
   isInvitationExpired: vi.fn(() => false),
   sendInvitationEmail: vi.fn(),
+  countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
+  resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
 }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { WORKSPACE_UPDATED: 'workspace.updated', INVITATION_UPDATED: 'invitation.updated' },
   AuditResourceType: { WORKSPACE: 'workspace' },
   recordAudit,
+  recordAuditOnce,
 }))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
 }))
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({ changeWorkspaceStoragePayerInTx }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOrReschedulePendingOutboxEvent }))
+vi.mock('@/lib/billing/validation/seat-management', () => ({
+  countPendingSeatInvitations,
+  planHasFixedSeatCap: vi.fn((plan: string) => plan === 'enterprise'),
+  resolveSeatCapacity,
+}))
+vi.mock('@/lib/core/outbox/service', () => ({
+  addOutboxEventSourceOperationId: vi.fn(),
+  enqueueOrReschedulePendingOutboxEvent,
+  outboxEventHasSourceOperationId: vi.fn(() => undefined),
+  outboxPayloadHasSourceOperationId: vi.fn(
+    (payload: { sourceOperationId?: string; sourceOperationIds?: string[] }, operationId: string) =>
+      payload.sourceOperationId === operationId || payload.sourceOperationIds?.includes(operationId)
+  ),
+}))
 vi.mock('@/lib/invitations/core', () => ({
   getInvitationById,
   isInvitationExpired,
@@ -167,6 +197,58 @@ describe('classifyWorkspaceMoveState', () => {
         'org-1'
       )
     ).toBe('move')
+  })
+})
+
+describe('workspace move invitation bounds', () => {
+  it('blocks a move preflight instead of truncating an oversized pending invitation set', async () => {
+    queueTableRows(workspace, [personalWorkspace])
+    queueTableRows(organization, [destination])
+    queueTableRows(
+      invitationWorkspaceGrant,
+      Array.from({ length: 1_001 }, (_, index) => ({
+        id: `invitation-${index}`,
+        email: `invitee-${index}@example.com`,
+        organizationId: null,
+        membershipIntent: 'internal',
+        permission: 'read',
+      }))
+    )
+
+    await expect(getWorkspaceMovePreflight('workspace-1', 'org-1')).rejects.toMatchObject({
+      code: 'invitation-volume-exceeded',
+      message: expect.stringContaining('none were migrated'),
+    })
+  })
+
+  it('blocks a move when bounded invitation rows expand into too many workspace grants', async () => {
+    queueTableRows(workspace, [personalWorkspace])
+    queueTableRows(organization, [destination])
+    queueTableRows(invitationWorkspaceGrant, [
+      {
+        id: 'invitation-1',
+        email: 'one@example.com',
+        organizationId: null,
+        membershipIntent: 'internal',
+        permission: 'read',
+      },
+      {
+        id: 'invitation-2',
+        email: 'two@example.com',
+        organizationId: null,
+        membershipIntent: 'internal',
+        permission: 'read',
+      },
+    ])
+    queueTableRows(invitationWorkspaceGrant, [
+      { invitationId: 'invitation-1', value: 5_001 },
+      { invitationId: 'invitation-2', value: 5_000 },
+    ])
+
+    await expect(getWorkspaceMovePreflight('workspace-1', 'org-1')).rejects.toMatchObject({
+      code: 'invitation-volume-exceeded',
+      message: expect.stringContaining('none were migrated'),
+    })
   })
 })
 
@@ -368,6 +450,189 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+  })
+
+  it('repairs the idempotent move audit when a committed move is retried after response loss', async () => {
+    queueMoveSelects(movedWorkspace)
+
+    await moveWorkspaceToOrganization({
+      workspaceId: movedWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      auditOperationId: 'operation-1',
+    })
+
+    expect(recordAuditOnce).toHaveBeenCalledWith(
+      `operation-1:workspace-move:${movedWorkspace.id}`,
+      expect.objectContaining({
+        action: 'workspace.updated',
+        metadata: expect.objectContaining({ recoveredAfterResponseLoss: true }),
+      })
+    )
+    expect(recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('persists a standalone operation marker atomically with a new move', async () => {
+    queueMoveSelects(personalWorkspace)
+
+    await moveWorkspaceToOrganization({
+      workspaceId: personalWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      expectedOwnerId: personalWorkspace.ownerId,
+      auditOperationId: 'operation-1',
+      operationCorrelationId: 'operation-1',
+      durableOperationId: 'operation-1',
+    })
+
+    expect(dbChainMockFns.values.mock.calls.map(([values]) => values)).toContainEqual(
+      expect.objectContaining({
+        id: 'operation-1',
+        eventType: 'admin.workspace-move-operation',
+        status: 'completed',
+        payload: {
+          request: {
+            workspaceId: personalWorkspace.id,
+            destinationOrganizationId: destination.id,
+            expectedOwnerId: personalWorkspace.ownerId,
+          },
+          audit: {
+            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+            newBillingOwnerId: destination.ownerId,
+            organizationAssignedAt: expect.any(String),
+          },
+        },
+      })
+    )
+  })
+
+  it('refuses a move that would exceed the locked Enterprise seat capacity', async () => {
+    queueMoveSelects(personalWorkspace)
+    queueTableRows(subscription, [
+      { id: 'subscription-1', plan: 'enterprise', status: 'active', metadata: { seats: 1 } },
+    ])
+    queueTableRows(member, [{ value: 1 }])
+    queueTableRows(invitation, [])
+    queueTableRows(invitation, [])
+    queueTableRows(invitationWorkspaceGrant, [
+      {
+        id: 'invitation-1',
+        email: 'new-seat@example.com',
+        organizationId: null,
+        membershipIntent: 'internal',
+        permission: 'read',
+      },
+    ])
+    queueTableRows(invitationWorkspaceGrant, [{ invitationId: 'invitation-1', value: 1 }])
+    resolveSeatCapacity.mockResolvedValueOnce(1)
+
+    await expect(
+      moveWorkspaceToOrganization({
+        workspaceId: personalWorkspace.id,
+        destinationOrganizationId: destination.id,
+        adminEmail: 'admin@sim.ai',
+      })
+    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'seat-capacity-exceeded' })
+
+    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+  })
+
+  it('does not let a new operation ID claim a workspace moved by another operation', async () => {
+    queueMoveSelects(movedWorkspace)
+
+    await expect(
+      moveWorkspaceToOrganization({
+        workspaceId: movedWorkspace.id,
+        destinationOrganizationId: destination.id,
+        adminEmail: 'admin@sim.ai',
+        expectedOwnerId: movedWorkspace.ownerId,
+        auditOperationId: 'operation-2',
+        operationCorrelationId: 'operation-2',
+        durableOperationId: 'operation-2',
+      })
+    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({
+      code: 'already-organization-workspace',
+    })
+
+    expect(recordAuditOnce).not.toHaveBeenCalled()
+  })
+
+  it('recovers an already-moved workspace only for its exact durable operation', async () => {
+    queueMoveSelects(movedWorkspace)
+    queueTableRows(outboxEvent, [
+      {
+        eventType: 'admin.workspace-move-operation',
+        status: 'completed',
+        payload: {
+          request: {
+            workspaceId: movedWorkspace.id,
+            destinationOrganizationId: destination.id,
+            expectedOwnerId: movedWorkspace.ownerId,
+          },
+          audit: {
+            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+            newBillingOwnerId: destination.ownerId,
+            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+          },
+        },
+      },
+    ])
+
+    await expect(
+      moveWorkspaceToOrganization({
+        workspaceId: movedWorkspace.id,
+        destinationOrganizationId: destination.id,
+        adminEmail: 'admin@sim.ai',
+        expectedOwnerId: movedWorkspace.ownerId,
+        auditOperationId: 'operation-1',
+        operationCorrelationId: 'operation-1',
+        durableOperationId: 'operation-1',
+      })
+    ).resolves.toMatchObject({ workspace: { id: movedWorkspace.id } })
+  })
+
+  it('keeps a completed move recoverable after a later workspace-owner change', async () => {
+    const currentWorkspace = { ...movedWorkspace, ownerId: 'new-owner' }
+    queueTableRows(outboxEvent, [
+      {
+        eventType: 'admin.workspace-move-operation',
+        status: 'completed',
+        payload: {
+          request: {
+            workspaceId: movedWorkspace.id,
+            destinationOrganizationId: destination.id,
+            expectedOwnerId: movedWorkspace.ownerId,
+          },
+          audit: {
+            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+            newBillingOwnerId: destination.ownerId,
+            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+          },
+        },
+      },
+    ])
+    queueTableRows(workspace, [currentWorkspace])
+    queueTableRows(workspace, [currentWorkspace])
+    queueTableRows(organization, [destination])
+
+    await expect(
+      getWorkspaceMoveOperation(
+        movedWorkspace.id,
+        destination.id,
+        movedWorkspace.ownerId,
+        'operation-1'
+      )
+    ).resolves.toMatchObject({ workspace: { id: movedWorkspace.id, ownerId: 'new-owner' } })
+    expect(recordAuditOnce).toHaveBeenCalledWith(
+      `operation-1:workspace-move:${movedWorkspace.id}`,
+      expect.objectContaining({
+        actorEmail: 'admin@sim.ai',
+        metadata: expect.objectContaining({ requestOperationId: 'operation-1' }),
+      })
+    )
   })
 
   it('takes shared advisory locks before the workspace row lock and payer mutation', async () => {

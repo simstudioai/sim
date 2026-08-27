@@ -55,11 +55,7 @@ function fieldValue(field: LogField) {
       <span className='font-mono text-[var(--text-secondary)] text-caption'>{field.value}</span>
     )
   }
-  return (
-    <span className='truncate font-medium text-[var(--text-primary)] text-caption'>
-      {field.value}
-    </span>
-  )
+  return <span className='truncate text-[var(--text-primary)] text-caption'>{field.value}</span>
 }
 
 /**
@@ -125,9 +121,7 @@ export function RunMonitoringGraphic({
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-1.5 flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
-              {title}
-            </span>
+            <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>{title}</span>
             <span className='flex shrink-0 items-center gap-1.5'>
               <span
                 className={cn('size-2 rounded-full bg-[var(--text-primary)]', styles.livePulse)}

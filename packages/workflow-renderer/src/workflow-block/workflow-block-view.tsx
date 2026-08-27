@@ -105,6 +105,7 @@ const WORKFLOW_ROLE_ACCENTS = {
   state: { variant: 'workflow', tone: 'yellow' },
   flow: { variant: 'workflow', tone: 'ash' },
   records: { variant: 'workflow', tone: 'green' },
+  identity: { variant: 'workflow', tone: 'identity' },
   neutral: { variant: 'workflow', tone: 'neutral' },
   generative: { variant: 'workflow', tone: 'purple' },
   knowledge: { variant: 'workflow', tone: 'content' },
@@ -118,6 +119,7 @@ const WORKFLOW_TYPE_ROLES = {
   api: 'interface',
   condition: 'logic',
   credential: 'state',
+  credential_group: 'identity',
   deployments: 'neutral',
   enrichment: 'knowledge',
   evaluator: 'logic',
@@ -391,8 +393,6 @@ export interface WorkflowBlockViewProps {
   runPathStatus?: BlockRunStatus
   /** Whether execution controls are active for this block. */
   isRunning?: boolean
-  /** Whether the parent workflow is executing. Holds every block's action swell open. */
-  isWorkflowRunning?: boolean
   /** Whether this block participates in the current execution handoff. */
   isExecutionHighlighted?: boolean
   /** Block icon component and its background color. */
@@ -519,7 +519,6 @@ export function WorkflowBlockView({
   ringStyles,
   runPathStatus,
   isRunning = false,
-  isWorkflowRunning = false,
   isExecutionHighlighted = false,
   Icon,
   iconBgColor,

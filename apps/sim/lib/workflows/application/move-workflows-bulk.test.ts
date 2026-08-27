@@ -40,7 +40,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.permission,
 }))
 
-vi.mock('@/lib/workflows/application/context', () => ({
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveContext,
 }))
 
@@ -141,14 +141,37 @@ describe('moveWorkflowsBulk', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('rejects a non-Copilot principal before canonical workspace loading', async () => {
+  it('rejects a delegated service the operation does not accept, before canonical loading', async () => {
     await expect(
       moveWorkflowsBulk.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: {
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'delegation-1',
+          audience: 'sim:workflows',
+          issuedAt: new Date('2026-01-01T00:00:00Z'),
+          expiresAt: new Date('2026-01-01T01:00:00Z'),
+        },
         input: { workspaceId: 'workspace-1', workflowIds: ['workflow-1'], folderId: null },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveContext).not.toHaveBeenCalled()
+  })
+
+  it('refuses folderPath and folderId together', async () => {
+    await expect(
+      moveWorkflowsBulk.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          workflowIds: ['workflow-1'],
+          folderId: null,
+          folderPath: '/Operations',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

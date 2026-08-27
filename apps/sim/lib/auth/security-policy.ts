@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 
 const logger = createLogger('SecurityPolicy')
 
@@ -16,12 +17,24 @@ export const SECURITY_POLICY_VERSION_CACHE_TTL_MS = 60 * 1000
 
 const DEFAULT_VERSION = 1
 
-interface VersionCacheEntry {
-  version: number
-  fetchedAt: number
-}
-
-const versionCache = new Map<string, VersionCacheEntry>()
+/**
+ * Read on every session read, keyed by organization, so an unbounded `Map`
+ * grew for the life of the process. `LRUCache` supplies both
+ * the TTL and a ceiling; `invalidateSecurityPolicyVersionCache` still evicts
+ * by key. Reads must test `!== undefined`, since the value is a number.
+ *
+ * The ceiling is a memory backstop, not an operating limit. `getSessionCookieCacheVersion`
+ * feeds Better Auth's `session.cookieCache.version`, so these are read on every session
+ * read — if the live key set ever exceeded the cap, LRU would start evicting inside the
+ * TTL and each miss becomes one indexed lookup. That degrades to exactly the behaviour
+ * before any caching existed (never a wrong answer), but it is a hit-rate cliff on a hot
+ * path, so the cap is set far above any plausible per-instance working set in a 60s window.
+ * Entries are a few dozen bytes, so the headroom costs single-digit MB at worst.
+ */
+const versionCache = new LRUCache<string, number>({
+  max: 20_000,
+  ttl: SECURITY_POLICY_VERSION_CACHE_TTL_MS,
+})
 
 /**
  * Resolves the org's security-policy version — the shared monotonic counter
@@ -36,9 +49,7 @@ export async function getSecurityPolicyVersion(
   if (!organizationId) return DEFAULT_VERSION
 
   const cached = versionCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SECURITY_POLICY_VERSION_CACHE_TTL_MS) {
-    return cached.version
-  }
+  if (cached !== undefined) return cached
 
   try {
     const [row] = await db
@@ -48,7 +59,7 @@ export async function getSecurityPolicyVersion(
       .limit(1)
 
     const version = row?.version ?? DEFAULT_VERSION
-    versionCache.set(organizationId, { version, fetchedAt: Date.now() })
+    versionCache.set(organizationId, version)
     return version
   } catch (error) {
     logger.error('Failed to resolve security policy version; using default', {
@@ -64,12 +75,22 @@ export function invalidateSecurityPolicyVersionCache(organizationId: string): vo
   versionCache.delete(organizationId)
 }
 
+/**
+ * Wraps the value in an object because `LRUCache` cannot store `null`, and a
+ * non-member is exactly what `null` means here.
+ *
+ * Keyed by user rather than organization, so this was the least bounded cache
+ * of the three: one entry per user who ever authenticated on the process,
+ * released only by an explicit join/leave invalidation.
+ */
 interface MembershipCacheEntry {
   organizationId: string | null
-  fetchedAt: number
 }
 
-const membershipCache = new Map<string, MembershipCacheEntry>()
+const membershipCache = new LRUCache<string, MembershipCacheEntry>({
+  max: 100_000,
+  ttl: SECURITY_POLICY_VERSION_CACHE_TTL_MS,
+})
 
 /**
  * Negative (non-member) membership results use a much shorter TTL than
@@ -78,7 +99,17 @@ const membershipCache = new Map<string, MembershipCacheEntry>()
  * ones outside this codebase (Better Auth SSO JIT provisioning). Positive
  * results change only through leave/transfer, which invalidate explicitly.
  */
-const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
+export const NEGATIVE_MEMBERSHIP_CACHE_TTL_MS = 15 * 1000
+
+/**
+ * The TTL a membership result is cached under. Named rather than inlined at the
+ * `set` call because the asymmetry is a security property, not a tuning knob:
+ * collapsing it to one value would silently restore the dodge the short
+ * negative TTL exists to close.
+ */
+export function membershipCacheTtlMs(organizationId: string | null): number {
+  return organizationId ? SECURITY_POLICY_VERSION_CACHE_TTL_MS : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
+}
 
 /** Drops the cached membership for a user (call when they join/leave an org). */
 export function invalidateMembershipCache(userId: string): void {
@@ -99,12 +130,7 @@ export async function getMemberOrganizationId(
   if (!userId) return null
 
   const cached = membershipCache.get(userId)
-  if (cached) {
-    const ttl = cached.organizationId
-      ? SECURITY_POLICY_VERSION_CACHE_TTL_MS
-      : NEGATIVE_MEMBERSHIP_CACHE_TTL_MS
-    if (Date.now() - cached.fetchedAt < ttl) return cached.organizationId
-  }
+  if (cached) return cached.organizationId
 
   try {
     const [row] = await db
@@ -114,7 +140,7 @@ export async function getMemberOrganizationId(
       .limit(1)
 
     const organizationId = row?.organizationId ?? null
-    membershipCache.set(userId, { organizationId, fetchedAt: Date.now() })
+    membershipCache.set(userId, { organizationId }, { ttl: membershipCacheTtlMs(organizationId) })
     return organizationId
   } catch (error) {
     logger.error('Failed to resolve org membership; treating session as org-less', {

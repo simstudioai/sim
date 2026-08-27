@@ -78,14 +78,6 @@ export function generateSlug(name: string): string {
 }
 
 /**
- * Validate organization slug format
- */
-export function validateSlug(slug: string): boolean {
-  const slugRegex = /^[a-z0-9-_]+$/
-  return slugRegex.test(slug)
-}
-
-/**
  * Validate email format
  */
 export function validateEmail(email: string): boolean {

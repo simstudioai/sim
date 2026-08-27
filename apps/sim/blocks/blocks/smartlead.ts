@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { SmartleadIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -1206,7 +1207,7 @@ function parseJsonArray(value: unknown, label: string): unknown[] | undefined {
 }
 
 function parseJsonObject(value: unknown, label: string): Record<string, unknown> | undefined {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return value as Record<string, unknown>
   }
   if (typeof value !== 'string' || value.trim() === '') return undefined

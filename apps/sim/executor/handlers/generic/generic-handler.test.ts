@@ -1,6 +1,7 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { HarmonicBlock } from '@/blocks/blocks/harmonic'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/constants'
@@ -91,7 +92,7 @@ describe('GenericBlockHandler', () => {
     const inputs = { param1: 'resolvedValue1' }
     const expectedToolParams = {
       ...inputs,
-      _context: { workflowId: mockContext.workflowId },
+      _context: { workflowId: mockContext.workflowId, blockId: mockBlock.id },
     }
     const expectedOutput: any = { customResult: 'OK' }
 
@@ -102,6 +103,55 @@ describe('GenericBlockHandler', () => {
       executionContext: mockContext,
     })
     expect(result).toEqual(expectedOutput)
+  })
+
+  /**
+   * `table_insert_row` posts row data to an internal API and declares no `modelInput` — nothing on
+   * that path reaches a model, and its provenance travels in the private bundle. Marking its
+   * `secretProvenance` roots as required-to-project made a projection failure fatal for a tool with
+   * no way to project, and the Table block's `parseJSON` throws once a placeholder stands where the
+   * JSON object was. The whole run's registry latched, costing provenance for every later boundary
+   * including the table write that prompted it.
+   */
+  it('keeps vouching when a bundle-only tool cannot project and its block params throw', async () => {
+    mockTool.request.secretProvenance = {
+      request: () => [{ key: '0', inputPaths: [['data', 'apiKey']] }],
+      response: { incomplete: 'propagate' },
+    } as never
+    mockGetBlock.mockReturnValue({
+      tools: {
+        access: ['some_custom_tool'],
+        config: {
+          tool: () => 'some_custom_tool',
+          params: (params: Record<string, unknown>) => {
+            /**
+             * Throws only on the projected copy. Real blocks reach this by validating or parsing a
+             * field a placeholder now sits in — the Table block runs `parseJSON` over `data` — and
+             * which shape breaks does not matter to the invariant under test.
+             */
+            if (typeof params.data === 'string' && params.data.includes('{{')) {
+              throw new Error('cannot coerce a projected input')
+            }
+            return { data: params.data }
+          },
+        },
+      },
+      inputs: { data: { type: 'json', description: 'Row data' } },
+    } as never)
+
+    /** Valid JSON, so the block's first `params` call over the real inputs succeeds. */
+    const rowJson = '{"apiKey":"x"}'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'ROW_SECRET', plaintext: rowJson, encryptedValue: 'encrypted-row-secret' },
+    ])
+    registry.recordResolvedAtInputPath('ROW_SECRET', rowJson, ['data'])
+    registry.recordResolvedInputProjection(['data'], rowJson, '{{ROW_SECRET}}')
+    mockContext.resolvedSecretTraceRegistry = registry
+
+    await handler.execute(mockContext, mockBlock, { data: rowJson })
+
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getIncompletenessDiagnostics()).toBeUndefined()
   })
 
   it('preserves exact secret provenance when block params rename a selected input', async () => {
@@ -488,6 +538,47 @@ describe('GenericBlockHandler', () => {
     await handler.execute(mockContext, mockBlock, { param1: 'value1' })
 
     expect(transform).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not expose an invalid resolved Harmonic batch value in handler errors', async () => {
+    const resolvedSecret = 'sk-live-invalid-json-secret'
+    mockBlock.metadata = { id: 'harmonic', name: 'Harmonic' }
+    mockGetBlock.mockReturnValue(HarmonicBlock)
+    mockExecuteTool.mockResolvedValue({
+      success: false,
+      error: 'Harmonic "personUrns" must be a JSON array',
+    })
+
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'BATCH_IDENTIFIERS',
+        plaintext: resolvedSecret,
+        encryptedValue: 'encrypted-batch-identifiers',
+      },
+    ])
+    registry.recordResolvedAtInputPath('BATCH_IDENTIFIERS', resolvedSecret, ['personUrns'])
+    registry.recordResolvedInputProjection(['personUrns'], resolvedSecret, '{{BATCH_IDENTIFIERS}}')
+    mockContext.resolvedSecretTraceRegistry = registry
+
+    let thrown: unknown
+    try {
+      await handler.execute(mockContext, mockBlock, {
+        operation: 'harmonic_batch_get_people',
+        oauthCredential: 'credential-id',
+        personUrns: resolvedSecret,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toBe('Harmonic "personUrns" must be a JSON array')
+    expect((thrown as Error).message).not.toContain(resolvedSecret)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'some_custom_tool',
+      expect.objectContaining({ personUrns: resolvedSecret }),
+      { executionContext: mockContext }
+    )
   })
 
   it('should throw error if the associated tool is not found', async () => {

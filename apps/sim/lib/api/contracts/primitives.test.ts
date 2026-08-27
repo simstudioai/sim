@@ -2,19 +2,33 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   customPatternSchema,
   isCanonicalBase64,
+  MAX_ID_LENGTH,
   organizationIdSchema,
+  organizationRoleSchema,
   piiStagePolicySchema,
   piiStagesSchema,
   privateSecretProvenanceBundleSchema,
   resolvedSecretTraceProvenanceSchema,
+  withMissingFieldMessage,
   workflowIdSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
+
+describe('organizationRoleSchema', () => {
+  it.each(['owner', 'admin', 'member'] as const)('accepts canonical role %s', (role) => {
+    expect(organizationRoleSchema.parse(role)).toBe(role)
+  })
+
+  it.each(['billing-owner', 'viewer', '', null, undefined])('rejects invalid role %j', (role) => {
+    expect(organizationRoleSchema.safeParse(role).success).toBe(false)
+  })
+})
 
 describe('workspaceFileNameSchema', () => {
   it('trims and accepts one bounded file name', () => {
@@ -256,5 +270,78 @@ describe('shared id schemas name the field when it is missing', () => {
     const result = workspaceIdSchema.safeParse(undefined)
 
     expect(result.error?.issues[0]?.message).not.toContain('received undefined')
+  })
+
+  /**
+   * A schema-level `error` string replaces the message for *every* issue, so the
+   * required-field wording used to answer a wrong-typed value too: `{"name": 123}`
+   * came back "Name is required" when a name had in fact been supplied. Missing and
+   * wrong-typed are different mistakes and must read differently.
+   */
+  for (const [name, schema, message] of cases) {
+    it(`${name}: a wrong-typed value reports the type, not "${message}"`, () => {
+      const result = schema.safeParse(123)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe(
+        'Invalid input: expected string, received number'
+      )
+    })
+  }
+
+  it('workspaceFileNameSchema separates a missing name from a wrong-typed one', () => {
+    expect(workspaceFileNameSchema.safeParse(undefined).error?.issues[0]?.message).toBe(
+      'Name is required'
+    )
+    expect(workspaceFileNameSchema.safeParse(123).error?.issues[0]?.message).toBe(
+      'Invalid input: expected string, received number'
+    )
+  })
+})
+
+/**
+ * An unbounded `workspaceId` reached the workspace lookup at whatever length the
+ * caller chose. No workspace id this repo mints approaches the bound, so it only
+ * rejects values that could never have resolved.
+ */
+describe('workspaceIdSchema length bound', () => {
+  it('accepts an id at the bound', () => {
+    expect(workspaceIdSchema.safeParse('a'.repeat(MAX_ID_LENGTH)).success).toBe(true)
+  })
+
+  it('rejects an id one character past the bound, naming the field', () => {
+    const result = workspaceIdSchema.safeParse('a'.repeat(MAX_ID_LENGTH + 1))
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toBe('Workspace ID is too long')
+  })
+
+  it('still accepts a UUID workspace id', () => {
+    expect(workspaceIdSchema.safeParse('7a6cce2b-78b8-40bc-b8d3-0a2a6dfd9023').success).toBe(true)
+  })
+})
+
+describe('withMissingFieldMessage', () => {
+  const base = z.string().min(1, 'Description is required').max(8, 'Description is too long')
+  const retrofitted = withMissingFieldMessage(base, 'Description is required')
+
+  it('names the field when the value is omitted', () => {
+    expect(retrofitted.safeParse(undefined).error?.issues[0]?.message).toBe(
+      'Description is required'
+    )
+  })
+
+  it('keeps Zod default wording for a wrong-typed value', () => {
+    expect(retrofitted.safeParse(5).error?.issues[0]?.message).toBe(
+      'Invalid input: expected string, received number'
+    )
+  })
+
+  it('preserves the checks the source schema carried', () => {
+    expect(retrofitted.safeParse('').error?.issues[0]?.message).toBe('Description is required')
+    expect(retrofitted.safeParse('a'.repeat(9)).error?.issues[0]?.message).toBe(
+      'Description is too long'
+    )
+    expect(retrofitted.safeParse('ok').success).toBe(true)
   })
 })

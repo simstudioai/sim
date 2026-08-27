@@ -16,41 +16,50 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockDelete, mockEnsureFolder, mockDeleteFolder } = vi.hoisted(() => ({
-  store: {
-    folderIdByPath: new Map<string, string>(),
-    fileKeys: new Set<string>(),
-    /** Paths passed to the folder-delete operation, in call order. */
-    deletedFolderPaths: [] as string[],
-    sequence: 0,
-  },
-  mockUpload: vi.fn(),
-  mockDelete: vi.fn(),
-  mockEnsureFolder: vi.fn(),
-  mockDeleteFolder: vi.fn(),
-}))
+const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty, mockNotify } =
+  vi.hoisted(() => ({
+    store: {
+      folderIdByPath: new Map<string, string>(),
+      fileKeys: new Set<string>(),
+      blockedFolderIds: new Set<string>(),
+      /** Paths passed to the folder-delete operation, in call order. */
+      deletedFolderPaths: [] as string[],
+      sequence: 0,
+    },
+    mockUpload: vi.fn(),
+    mockPurge: vi.fn(),
+    mockEnsureFolder: vi.fn(),
+    mockArchiveFolderIfEmpty: vi.fn(),
+    mockNotify: vi.fn(),
+  }))
+vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
-  deleteWorkspaceFileFolderOperation: { execute: mockDeleteFolder },
 }))
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   createWorkspaceFileFromBuffer: {
     execute: mockUpload,
   },
 }))
-vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
-  deleteWorkspaceFileOperation: {
-    execute: mockDelete,
-  },
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  purgeCreatedWorkspaceFile: mockPurge,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
+  archiveWorkspaceFileFolderIfEmpty: mockArchiveFolderIfEmpty,
 }))
 
-import { buildFolderPath } from '@/lib/folders/paths'
+import {
+  buildFolderPath,
+  MAX_FOLDER_PATH_BYTES,
+  MAX_FOLDER_PATH_SEGMENTS,
+} from '@/lib/folders/paths'
 import {
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES,
   MAX_ARCHIVE_CENTRAL_DIR_RECORDS,
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
 const TEST_PRINCIPAL = {
   kind: 'session',
@@ -137,6 +146,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.folderIdByPath.clear()
   store.fileKeys.clear()
+  store.blockedFolderIds.clear()
   store.deletedFolderPaths.length = 0
   store.sequence = 0
 
@@ -161,24 +171,20 @@ beforeEach(() => {
     return { folderId, createdFolderIds }
   })
 
-  mockDeleteFolder.mockImplementation(
-    async ({ input }: { input: { folderId?: string; recursive?: boolean } }) => {
-      const path = folderPathById(input.folderId)
-      // Mirrors `deleteWorkspaceFileFolderOperation`, which raises `not_found` when
-      // nothing was archived — deleting a parent before its children would make the
-      // child's own delete hit this.
-      if (!path) throw new Error('Folder not found')
-      store.deletedFolderPaths.push(path)
-      for (const [candidate] of store.folderIdByPath) {
-        if (candidate === path || candidate.startsWith(`${path}/`)) {
-          store.folderIdByPath.delete(candidate)
-        }
-      }
-      return { deletedItems: { files: 0, folders: 1 } }
-    }
-  )
+  mockArchiveFolderIfEmpty.mockImplementation(async ({ folderId }: { folderId: string }) => {
+    const path = folderPathById(folderId)
+    if (!path) throw new Error('Folder not found')
+    const hasChild = [...store.folderIdByPath.keys()].some((candidate) =>
+      candidate.startsWith(`${path}/`)
+    )
+    if (store.blockedFolderIds.has(folderId) || hasChild) throw new Error('Folder is not empty')
+    store.deletedFolderPaths.push(path)
+    store.folderIdByPath.delete(path)
+    return true
+  })
 
-  mockDelete.mockResolvedValue(undefined)
+  mockPurge.mockResolvedValue(true)
+  mockNotify.mockResolvedValue(undefined)
   mockUpload.mockImplementation(
     async ({
       input,
@@ -223,6 +229,8 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(result.extracted).toHaveLength(2)
     expect(result.skippedUnsafePaths).toEqual([])
     expect(mockUpload).toHaveBeenCalledTimes(2)
+    expect(mockNotify).toHaveBeenCalledOnce()
+    expect(mockNotify).toHaveBeenCalledWith('ws')
     const leafNames = mockUpload.mock.calls.map(([args]) => args.input.name).sort()
     expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
     // Entries are rooted under the archive's folder; nested paths are preserved.
@@ -319,7 +327,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
       'other.txt',
       'report (1).txt',
     ])
-    expect(mockDelete).not.toHaveBeenCalled()
+    expect(mockPurge).not.toHaveBeenCalled()
   })
 
   it('marks extracted files unknown when an archive has secret provenance', async () => {
@@ -338,7 +346,10 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(mockUpload).toHaveBeenCalledTimes(2)
     for (const call of mockUpload.mock.calls) {
       expect(call[0].input).toEqual(
-        expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+        expect.objectContaining({
+          secretProvenance: { status: 'unknown' },
+          notifyWorkspaceChange: false,
+        })
       )
     }
   })
@@ -459,12 +470,29 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     // (storage/DB error, quota crossed). Every file written before the failure
     // must be deleted so callers and retries never observe a partial tree.
     const buffer = await buildZip({ 'a.txt': 'first', 'b.txt': 'second', 'c.txt': 'third' })
+    const uploadedAt = new Date('2026-08-17T12:00:00.000Z')
     mockUpload
       .mockResolvedValueOnce({
-        file: { id: 'f_a', name: 'a.txt', url: '/a', key: 'k/a', size: 5 },
+        file: {
+          id: 'f_a',
+          name: 'a.txt',
+          url: '/a',
+          key: 'k/a',
+          size: 5,
+          folderId: 'folder_archive',
+          updatedAt: uploadedAt,
+        },
       })
       .mockResolvedValueOnce({
-        file: { id: 'f_b', name: 'b.txt', url: '/b', key: 'k/b', size: 6 },
+        file: {
+          id: 'f_b',
+          name: 'b.txt',
+          url: '/b',
+          key: 'k/b',
+          size: 6,
+          folderId: 'folder_archive',
+          updatedAt: uploadedAt,
+        },
       })
       .mockRejectedValueOnce(new Error('storage quota exceeded'))
 
@@ -475,17 +503,29 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
       })
     ).rejects.toThrow('storage quota exceeded')
 
-    expect(mockDelete).toHaveBeenCalledTimes(2)
-    expect(mockDelete).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { fileId: 'f_a', assertedWorkspaceId: 'ws' } })
-    )
-    expect(mockDelete).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { fileId: 'f_b', assertedWorkspaceId: 'ws' } })
-    )
+    expect(mockPurge).toHaveBeenCalledTimes(2)
+    expect(mockNotify).toHaveBeenCalledOnce()
+    expect(mockNotify).toHaveBeenCalledWith('ws')
+    expect(mockPurge).toHaveBeenCalledWith({
+      workspaceId: 'ws',
+      fileId: 'f_a',
+      key: 'k/a',
+      expectedName: 'a.txt',
+      expectedFolderId: 'folder_archive',
+      expectedUpdatedAt: uploadedAt,
+    })
+    expect(mockPurge).toHaveBeenCalledWith({
+      workspaceId: 'ws',
+      fileId: 'f_b',
+      key: 'k/b',
+      expectedName: 'b.txt',
+      expectedFolderId: 'folder_archive',
+      expectedUpdatedAt: uploadedAt,
+    })
   })
 
   it('rolls back the folders it created when an upload fails mid-extraction', async () => {
-    // `materialize_file` refuses to re-extract into a root folder that still has any
+    // `save_upload` refuses to re-extract into a root folder that still has any
     // child, so a folder left behind by a failed run turns every retry into
     // "already extracted" until a human deletes the tree by hand.
     const buffer = await buildZip({ 'a/one.txt': 'first', 'b/two.txt': 'second' })
@@ -504,10 +544,8 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     ).rejects.toThrow('storage quota exceeded')
 
     expect([...store.folderIdByPath.keys()]).toEqual([])
-    expect(mockDeleteFolder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ workspaceId: 'ws', recursive: true }),
-      })
+    expect(mockArchiveFolderIfEmpty).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws' })
     )
   })
 
@@ -533,7 +571,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     expect([...store.folderIdByPath.keys()].sort()).toEqual(['/bundle', '/bundle/keep'])
     expect(store.deletedFolderPaths).toEqual(['/bundle/fresh'])
-    const deletedIds = mockDeleteFolder.mock.calls.map(([args]) => args.input.folderId)
+    const deletedIds = mockArchiveFolderIfEmpty.mock.calls.map(([args]) => args.folderId)
     for (const preexistingId of preexistingIds) {
       expect(deletedIds).not.toContain(preexistingId)
     }
@@ -562,6 +600,27 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect([...store.folderIdByPath.keys()]).toEqual([])
   })
 
+  it('preserves created folders that gain collaborator content before rollback', async () => {
+    const buffer = await buildZip({ 'nested/one.txt': 'first', 'nested/two.txt': 'second' })
+    mockUpload
+      .mockImplementationOnce(async ({ input }) => {
+        store.blockedFolderIds.add(input.folderId)
+        return { file: { id: 'f_one', name: 'one.txt', url: '/one', key: 'k/one', size: 5 } }
+      })
+      .mockRejectedValueOnce(new Error('storage quota exceeded'))
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: ['bundle'],
+      })
+    ).rejects.toThrow('storage quota exceeded')
+
+    expect([...store.folderIdByPath.keys()]).toEqual(['/bundle', '/bundle/nested'])
+    expect(store.deletedFolderPaths).toEqual([])
+  })
+
   it('does not count noise entries toward the extraction cap when they are being skipped', async () => {
     // macOS Finder zips carry a __MACOSX/._* shadow per file, doubling the raw
     // entry count. 501 files + 501 shadows = 1002 raw entries — over the
@@ -582,6 +641,173 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     expect(result.extracted).toHaveLength(501)
     expect(result.skipped).toBe(501)
+  })
+
+  it('rejects a materialized tree above the bulk-operation limit before creating its root', async () => {
+    const buffer = await buildZip({ 'nested/file.txt': 'x' })
+    const prepareRootFolder = vi.fn(async () => ['bundle'])
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        prepareRootFolder,
+        maxMaterializedItems: 2,
+      })
+    ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'too_many_entries' })
+
+    expect(prepareRootFolder).not.toHaveBeenCalled()
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        prepareRootFolder,
+        maxMaterializedItems: 3,
+      })
+    ).resolves.toMatchObject({ extracted: [expect.objectContaining({ name: 'file.txt' })] })
+    expect(prepareRootFolder).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    {
+      label: 'too many folder segments',
+      entryName: `${Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'x').join('/')}/file.txt`,
+      expectedMessage: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    },
+    {
+      label: 'too many encoded folder-path bytes',
+      entryName: `${'x'.repeat(MAX_FOLDER_PATH_BYTES)}/file.txt`,
+      expectedMessage: `Folder paths cannot exceed ${MAX_FOLDER_PATH_BYTES} bytes`,
+    },
+  ])(
+    'rejects $label before enumerating or creating folders',
+    async ({ entryName, expectedMessage }) => {
+      const buffer = await buildZip({ [entryName]: 'x' })
+      const prepareRootFolder = vi.fn(async () => ['bundle'])
+
+      await expect(
+        decompressArchiveBufferToWorkspaceFiles(buffer, {
+          workspaceId: 'ws',
+          principal: TEST_PRINCIPAL,
+          prepareRootFolder,
+          maxMaterializedItems: 5000,
+        })
+      ).rejects.toMatchObject({
+        name: 'ArchiveError',
+        reason: 'invalid',
+        message: expect.stringContaining(expectedMessage),
+      })
+
+      expect(prepareRootFolder).not.toHaveBeenCalled()
+      expect(mockEnsureFolder).not.toHaveBeenCalled()
+      expect(mockUpload).not.toHaveBeenCalled()
+    }
+  )
+
+  it('includes the destination prefix when validating archive folder paths', async () => {
+    const buffer = await buildZip({ 'nested/file.txt': 'x' })
+    const prepareRootFolder = vi.fn(async () => ['unused'])
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: Array.from(
+          { length: MAX_FOLDER_PATH_SEGMENTS },
+          (_, index) => `existing-${index}`
+        ),
+        prepareRootFolder,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'invalid',
+      message: expect.stringContaining(
+        `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`
+      ),
+    })
+
+    expect(prepareRootFolder).not.toHaveBeenCalled()
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('aborts mid-extraction on the caller signal and rolls the partial tree back', async () => {
+    const buffer = await buildZip({ 'a.txt': 'x', 'b.txt': 'y', 'c.txt': 'z' })
+    const controller = new AbortController()
+    const commit = mockUpload.getMockImplementation()!
+    mockUpload.mockImplementation(async (args: any) => {
+      const uploaded = await commit(args)
+      // Abort once the first file is committed, so rollback has something to undo.
+      controller.abort()
+      return uploaded
+    })
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(mockUpload).toHaveBeenCalledOnce()
+    expect(mockPurge).toHaveBeenCalledOnce()
+    expect(mockPurge).toHaveBeenCalledWith(expect.objectContaining({ expectedName: 'a.txt' }))
+  })
+
+  it('applies the workspace bulk limit by default, so every caller is bounded', async () => {
+    // 1000 files, each under six folders unique to it: 7000 materialized items from an entry
+    // count that is itself within MAX_ARCHIVE_ENTRIES. No caller opts in to this cap.
+    const entries: Record<string, string> = {}
+    for (let index = 0; index < 1000; index += 1) {
+      entries[`a${index}/b/c/d/e/f/file.txt`] = 'x'
+    }
+    const buffer = await buildZip(entries)
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'too_many_entries',
+      message: expect.stringContaining(`the maximum is ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS}`),
+    })
+
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('re-validates the segments prepareRootFolder actually returned, before any upload', async () => {
+    const buffer = await buildZip({ 'nested/file.txt': 'x' })
+    // A callback that validates one path and returns a different, invalid one. The callee
+    // cannot trust the callback to have checked what it returns, so it re-checks itself.
+    const prepareRootFolder = vi.fn(async (validate: (segments: string[]) => void) => {
+      validate(['bundle'])
+      return Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, (_, index) => `deep-${index}`)
+    })
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        prepareRootFolder,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'invalid',
+      message: expect.stringContaining(
+        `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`
+      ),
+    })
+
+    expect(prepareRootFolder).toHaveBeenCalledOnce()
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
   })
 
   it('throws ArchiveError invalid for a non-zip buffer (no files written)', async () => {

@@ -15,6 +15,13 @@ export type KnowledgeQueryScope = KnowledgeScope
 /** Shared with the server prefetch so a hydrated list and a client fetch never disagree. */
 export const KNOWLEDGE_BASE_LIST_STALE_TIME = 60 * 1000
 
+/**
+ * `document`, `documents`, `chunks`, `tagDefinitions`, and `tagUsage` all sit UNDER
+ * `detail(kb)`, so invalidating `detail` non-exactly refetches all of them at once. A mutation
+ * scoped to one document instead invalidates the two keys that actually render it — its own
+ * `document` key and the `documentLists` prefix, which are siblings — and, when the base's own
+ * totals move, `detail` with `exact: true`.
+ */
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
   lists: () => [...knowledgeKeys.all, 'list'] as const,
@@ -27,10 +34,25 @@ export const knowledgeKeys = {
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagUsage'] as const,
+  /**
+   * Prefix over every cached page of a base's document list. `documents` and `document` are
+   * SIBLINGS, not parent and child — a write to one document does not reach the lists that
+   * render its filename, status, tags, and counts unless this key is invalidated too.
+   */
+  documentLists: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'documents'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'documents', paramsKey] as const,
+    [...knowledgeKeys.documentLists(knowledgeBaseId), paramsKey] as const,
+  /**
+   * Prefix over every per-document cache in a base — each `document` entry and
+   * the `chunks` / `search` keys nested under it. Needed when a mutation
+   * invalidates documents it cannot name, so the alternative would be the
+   * `detail` prefix, which also drags in the connector and tag caches.
+   */
+  documentDetails: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'document'] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
-    [...knowledgeKeys.detail(knowledgeBaseId), 'document', documentId] as const,
+    [...knowledgeKeys.documentDetails(knowledgeBaseId), documentId] as const,
   documentTagDefinitions: (knowledgeBaseId: string, documentId: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>

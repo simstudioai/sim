@@ -49,14 +49,36 @@ describe('v2 API key authentication', () => {
 
     expect(result).toEqual({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
+      keyExpiresAt: null,
     })
     expect(mocks.getHighestPrioritySubscription).toHaveBeenCalledWith('user-1', {
       onError: 'throw',
     })
+  })
+
+  /**
+   * `GET /api/v2/meta` reports the key's expiry. Carrying it here — from the
+   * row `requireValidRow` has already read and checked — is what keeps the
+   * application layer out of the `api_key` table.
+   */
+  it('carries the authenticated row expiry so no surface re-reads the key', async () => {
+    queueTableRows(schemaMock.apiKey, [
+      {
+        id: 'key-1',
+        userId: 'user-1',
+        workspaceId: null,
+        type: 'personal',
+        expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+        userBanned: false,
+      },
+    ])
+
+    const result = await authenticateV2ApiKey('secret')
+
+    expect(result.keyExpiresAt).toEqual(new Date('2027-01-01T00:00:00.000Z'))
   })
 
   it('normalizes a workspace key as the workspace, not its creator', async () => {
@@ -83,10 +105,10 @@ describe('v2 API key authentication', () => {
 
     expect(result).toEqual({
       principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-      rolloutUserId: 'billing-owner-1',
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: { plan: 'team', referenceId: 'organization-1' },
       keyType: 'workspace',
+      keyExpiresAt: null,
     })
     expect(mocks.getHighestPrioritySubscription).not.toHaveBeenCalled()
   })

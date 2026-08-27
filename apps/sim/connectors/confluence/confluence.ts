@@ -190,67 +190,32 @@ function buildSpaceClause(spaceKeys: string[]): string {
 }
 
 /**
- * Fetches labels for a batch of page IDs using the v2 labels endpoint.
+ * Reads the `labels` field returned by the v2 single-content GET when
+ * `include-labels=true` is set, which removes the need for a second round trip
+ * to `/{type}/{id}/labels`. That embedded list is capped at 50 labels (the
+ * dedicated endpoint defaulted to 25), so this widens rather than narrows what
+ * a page can report; labels beyond the cap are paginated behind
+ * `labels._links` and are deliberately not followed.
  */
-const LABEL_FETCH_CONCURRENCY = 5
+export function readIncludedLabels(page: Record<string, unknown>): string[] {
+  const wrapper = page.labels as Record<string, unknown> | undefined
+  const results = (wrapper?.results as Record<string, unknown>[] | undefined) ?? []
+  return results.map((label) => String(label.name ?? '')).filter(Boolean)
+}
 
-async function fetchLabelsForPages(
-  cloudId: string,
-  accessToken: string,
-  pageIds: string[]
-): Promise<Map<string, string[]>> {
-  const labelsByPageId = new Map<string, string[]>()
-
-  for (let i = 0; i < pageIds.length; i += LABEL_FETCH_CONCURRENCY) {
-    const batch = pageIds.slice(i, i + LABEL_FETCH_CONCURRENCY)
-    const results = await Promise.all(
-      batch.map(async (pageId) => {
-        try {
-          let data: Record<string, unknown> | null = null
-          for (const contentType of ['pages', 'blogposts']) {
-            const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${contentType}/${pageId}/labels`
-            const response = await fetchWithRetry(url, {
-              method: 'GET',
-              headers: {
-                Accept: 'application/json',
-                Authorization: `Bearer ${accessToken}`,
-              },
-            })
-
-            if (response.ok) {
-              data = await response.json()
-              break
-            }
-            if (response.status !== 404) {
-              logger.warn(`Failed to fetch labels for ${contentType} ${pageId}`, {
-                status: response.status,
-              })
-            }
-          }
-
-          if (!data) {
-            return { pageId, labels: [] as string[] }
-          }
-
-          const labels = ((data.results as Record<string, unknown>[]) || []).map(
-            (label) => label.name as string
-          )
-          return { pageId, labels }
-        } catch (error) {
-          logger.warn(`Error fetching labels for page ${pageId}`, {
-            error: toError(error).message,
-          })
-          return { pageId, labels: [] as string[] }
-        }
-      })
-    )
-
-    for (const { pageId, labels } of results) {
-      labelsByPageId.set(pageId, labels)
-    }
+/**
+ * Extracts the `cursor` query value from a relative `_links.next` URL. Both the
+ * v2 endpoints and the v1 CQL search return the next page as a relative path
+ * carrying an opaque cursor, so the value has to be parsed back out rather than
+ * derived.
+ */
+export function extractCursor(nextLink: unknown): string | undefined {
+  if (typeof nextLink !== 'string' || !nextLink) return undefined
+  try {
+    return new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
+  } catch {
+    return undefined
   }
-
-  return labelsByPageId
 }
 
 /**
@@ -418,7 +383,7 @@ export const confluenceConnector: ConnectorConfig = {
      */
     let page: Record<string, unknown> | null = null
     for (const endpoint of ['pages', 'blogposts']) {
-      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${externalId}?body-format=view`
+      const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=view&include-labels=true`
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
@@ -442,13 +407,10 @@ export const confluenceConnector: ConnectorConfig = {
     const rawContent = (view?.value as string) || ''
     const plainText = htmlToPlainText(preserveConfluenceCallouts(rawContent))
 
-    const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
-    const labels = labelMap.get(String(page.id)) ?? []
-
     const links = page._links as Record<string, unknown> | undefined
     const stub = pageToStub(page, {
       spaceId: page.spaceId,
-      labels,
+      labels: readIncludedLabels(page),
       sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
     })
 
@@ -590,20 +552,18 @@ async function listDocumentsV2(
       })
     })
 
-  let nextCursor: string | undefined
-  const nextLink = (data._links as Record<string, string>)?.next
-  if (nextLink) {
-    try {
-      nextCursor = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
-    } catch {
-      // Ignore malformed URLs
-    }
-  }
+  const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
-  if (hitLimit && syncContext) syncContext.listingCapped = true
+  /**
+   * Only a cap that actually truncates a listing may suppress deletion
+   * reconciliation. When the source is exhausted (no next cursor) the listing is
+   * complete even though the count reached `maxPages`, and flagging it would
+   * permanently strand documents deleted upstream.
+   */
+  if (hitLimit && nextCursor && syncContext) syncContext.listingCapped = true
 
   return {
     documents,
@@ -698,6 +658,13 @@ async function listAllContentTypes(
 }
 
 /**
+ * Page size for CQL search. The endpoint defaults to 25 and documents no hard
+ * maximum, so this stays conservatively below the fixed system limits it warns
+ * about rather than mirroring the v2 endpoints' 250.
+ */
+const CQL_PAGE_SIZE = 50
+
+/**
  * Lists documents using CQL search via the v1 API (used when label filtering is enabled).
  */
 async function listDocumentsViaCql(
@@ -721,10 +688,17 @@ async function listDocumentsViaCql(
 
   if (contentType === 'blogpost') {
     cql += ' AND type="blogpost"'
-  } else if (contentType === 'page' || !contentType) {
+  } else if (contentType === 'all') {
+    /**
+     * An unconstrained CQL search matches every content type the index holds —
+     * attachments, comments, space descriptions and user profiles included — none
+     * of which `getDocument` can resolve through the page/blogpost endpoints. "All
+     * content" means both indexable content types, not literally everything.
+     */
+    cql += ' AND type in ("page","blogpost")'
+  } else {
     cql += ' AND type="page"'
   }
-  // contentType === 'all' — no type filter
 
   if (labels.length === 1) {
     cql += ` AND label="${escapeCql(labels[0])}"`
@@ -733,18 +707,33 @@ async function listDocumentsViaCql(
     cql += ` AND label in (${labelList})`
   }
 
-  const limit = maxPages > 0 ? Math.min(maxPages, 50) : 50
-  const start = cursor ? Number(cursor) : 0
+  const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
+  const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY
 
+  /**
+   * The page size stays constant for every request of a run. This endpoint
+   * paginates by opaque cursor, and Atlassian does not document that a cursor
+   * issued against one `limit` stays valid when the following request asks for a
+   * different one, so narrowing `limit` to the remaining budget risks skipping or
+   * repeating results. The cap is applied by trimming the returned page instead.
+   */
   const queryParams = new URLSearchParams()
   queryParams.append('cql', cql)
-  queryParams.append('limit', String(limit))
-  queryParams.append('start', String(start))
+  queryParams.append('limit', String(CQL_PAGE_SIZE))
   queryParams.append('expand', 'version,metadata.labels')
+  /**
+   * `/wiki/rest/api/content/search` paginates by opaque cursor only — it has no
+   * `start` parameter, and its response carries no total count. The next page is
+   * reachable solely through the cursor embedded in `_links.next`.
+   */
+  if (cursor) queryParams.append('cursor', cursor)
 
   const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/search?${queryParams.toString()}`
 
-  logger.info(`Searching Confluence via CQL: ${cql}`, { start, limit })
+  logger.info(`Searching Confluence via CQL: ${cql}`, {
+    limit: CQL_PAGE_SIZE,
+    hasCursor: Boolean(cursor),
+  })
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -766,22 +755,36 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+  const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
     .map((item) => cqlResultToStub(item, domain))
 
-  const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+  /**
+   * Trim to the remaining budget. Trimming stops the walk (`hitLimit` below is
+   * then true), so the discarded tail is never skipped over — the run simply
+   * ends here.
+   */
+  const documents =
+    allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
+  const trimmedByCap = documents.length < allDocuments.length
+
+  const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
+
+  const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
-  if (hitLimit && syncContext) syncContext.listingCapped = true
+  /**
+   * Both truncation shapes count: pages this run trimmed off, and a page left
+   * unread behind a live cursor. A cap that lands exactly on source exhaustion
+   * is a complete listing and must still reconcile deletions.
+   */
+  if (hitLimit && (trimmedByCap || nextCursor) && syncContext) syncContext.listingCapped = true
 
-  const totalSize = (data.totalSize as number) ?? 0
-  const nextStart = start + results.length
-  const hasMore = !hitLimit && nextStart < totalSize
+  const hasMore = !hitLimit && Boolean(nextCursor)
 
   return {
     documents,
-    nextCursor: hasMore ? String(nextStart) : undefined,
+    nextCursor: hasMore ? nextCursor : undefined,
     hasMore,
   }
 }

@@ -89,6 +89,7 @@ const chipTagVariants = cva(
         green: '',
         yellow: '',
         purple: '',
+        identity: '',
         content: '',
       },
       brandForeground: {
@@ -118,6 +119,7 @@ const chipTagVariants = cva(
       { variant: 'workflow', tone: 'green', className: 'bg-[#188F00] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'yellow', className: 'bg-[#FFEF08] text-[#1A1A1A]' },
       { variant: 'workflow', tone: 'purple', className: 'bg-[#AA00FF] text-[#F8F8F8]' },
+      { variant: 'workflow', tone: 'identity', className: 'bg-[#8B5CF6] text-[#F8F8F8]' },
       { variant: 'workflow', tone: 'content', className: 'bg-[#007E80] text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'light', className: 'text-[#FFFFFF]' },
       { variant: 'brand', brandForeground: 'dark', className: 'text-[#000000]' },

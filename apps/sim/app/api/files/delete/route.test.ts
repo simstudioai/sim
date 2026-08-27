@@ -57,8 +57,6 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/uploads/setup.server', () => ({}))
-
 vi.mock('fs/promises', () => ({
   unlink: vi.fn().mockResolvedValue(undefined),
   access: vi.fn().mockResolvedValue(undefined),

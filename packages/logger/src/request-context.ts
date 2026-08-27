@@ -2,6 +2,13 @@ export interface RequestContext {
   requestId: string
   method?: string
   path?: string
+  /**
+   * The 32-hex OTel trace id correlating this request across services
+   * (the same value the Go copilot logs as trace_id/request_id). Seeded
+   * from an incoming `traceparent` header, or stamped mid-request via
+   * `setRequestTraceId` when the trace root is created locally.
+   */
+  traceId?: string
 }
 
 /**
@@ -43,4 +50,17 @@ export function runWithRequestContext<T>(context: RequestContext, fn: () => T): 
  */
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore()
+}
+
+/**
+ * Stamps the cross-service trace id onto the current request context so
+ * every subsequent log line in this request carries it. The trace root is
+ * often created after the route context (e.g. the copilot chat POST derives
+ * its trace id when it starts the OTel root), so this mutates the live
+ * store rather than requiring the id at `runWithRequestContext` time.
+ * No-op outside a request context.
+ */
+export function setRequestTraceId(traceId: string): void {
+  const store = storage.getStore()
+  if (store && traceId) store.traceId = traceId
 }

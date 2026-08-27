@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   AzureDataExplorerQueryParams,
   AzureDataExplorerTableResponse,
@@ -16,7 +17,7 @@ function parseProperties(
   if (typeof input === 'object') return input
   try {
     const parsed = JSON.parse(input)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isRecordLike(parsed)) {
       return parsed as Record<string, unknown>
     }
   } catch {

@@ -30,6 +30,7 @@ export type BrowserPanelSnapshotLayer = 'modal' | 'popover'
 export type BrowserPanelOverlay =
   | 'credentials'
   | 'downloads'
+  | 'permissions'
   | 'resources'
   | 'suggestions'
   | 'tab'
@@ -37,7 +38,11 @@ export type BrowserPanelOverlay =
 
 export interface BrowserPanelOverlayController {
   /** True when the renderer overlay owns the painted frame; false when fallback handled it. */
-  requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<boolean>
+  requestOverlay: (
+    overlay: BrowserPanelOverlay,
+    fallback: () => void,
+    onOwnershipLost?: () => void
+  ) => Promise<boolean>
   closeOverlay: (overlay: BrowserPanelOverlay) => Promise<void>
 }
 
@@ -184,15 +189,40 @@ async function decodeSnapshot(dataUrl: string): Promise<boolean> {
  * changing layers never reveals or recaptures the native view, and the view is
  * revealed only after the final reason disappears.
  */
+
+/** Largest tolerated drift, in CSS px, between a capture and the live host rect. */
+const SNAPSHOT_GEOMETRY_TOLERANCE_PX = 1
+
+/**
+ * Whether a captured frame still describes the rectangle the panel occupies.
+ * A capture with no viewport bounds is positioned by the fallback
+ * `absolute inset-0` style, which tracks the host by construction.
+ */
+export function snapshotMatchesHost(
+  frame: Pick<BrowserPanelSnapshot, 'viewportBounds'>,
+  hostRect: DOMRect | null
+): boolean {
+  const bounds = frame.viewportBounds
+  if (!bounds || !hostRect) return true
+  return (
+    Math.abs(bounds.x - hostRect.x) <= SNAPSHOT_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(bounds.y - hostRect.y) <= SNAPSHOT_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(bounds.width - hostRect.width) <= SNAPSHOT_GEOMETRY_TOLERANCE_PX &&
+    Math.abs(bounds.height - hostRect.height) <= SNAPSHOT_GEOMETRY_TOLERANCE_PX
+  )
+}
+
 export function useBrowserPanelOcclusion(
   scopeId: string,
   activeTabId: string | null,
-  panelVisible = true
+  panelVisible = true,
+  getHostRect?: () => DOMRect | null
 ): BrowserPanelOcclusion {
   const [snapshotRender, setSnapshotRender] = useState<SnapshotRender | null>(null)
   const [activeOverlay, setActiveOverlay] = useState<BrowserPanelOverlay | null>(null)
   const snapshotRenderRef = useRef<SnapshotRender | null>(null)
   const activeOverlayRef = useRef<BrowserPanelOverlay | null>(null)
+  const activeOverlayOwnershipLostRef = useRef<(() => void) | null>(null)
   const pendingOverlayRef = useRef<BrowserPanelOverlay | null>(null)
   const activeTabIdRef = useRef(activeTabId)
   const panelVisibleRef = useRef(panelVisible)
@@ -204,8 +234,10 @@ export function useBrowserPanelOcclusion(
   const paintFramesRef = useRef<number[]>([])
   const reconcileChainRef = useRef<Promise<boolean>>(Promise.resolve(true))
   const mountedRef = useRef(true)
+  const getHostRectRef = useRef(getHostRect)
   activeTabIdRef.current = activeTabId
   panelVisibleRef.current = panelVisible
+  getHostRectRef.current = getHostRect
 
   const updateSnapshotRender = useCallback((render: SnapshotRender | null) => {
     snapshotRenderRef.current = render
@@ -303,7 +335,7 @@ export function useBrowserPanelOcclusion(
 
       // Modal scroll locking can alter panel geometry between capture and the
       // final native hide. One fresh capture retries that now-settled layout.
-      const maxAttempts = desired === 'modal' ? 2 : 1
+      const maxAttempts = desired === 'modal' ? 3 : 1
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
         if (!mountedRef.current || version !== transitionVersionRef.current) return false
@@ -317,6 +349,13 @@ export function useBrowserPanelOcclusion(
         if (!mountedRef.current || version !== transitionVersionRef.current) return false
         desired = desiredLayer()
         if (!desired || !decoded) continue
+
+        // Painting a capture whose geometry no longer matches the host is the
+        // flash: a modal's scroll lock changes the window's content width
+        // between capture and paint, so the replacement lands offset from the
+        // page it is standing in for. Skip that frame and re-capture at the
+        // settled layout instead of showing a misaligned one.
+        if (!snapshotMatchesHost(frame, getHostRectRef.current?.() ?? null)) continue
 
         const paintId = ++paintIdRef.current
         const painted = new Promise<boolean>((resolve) => {
@@ -411,9 +450,12 @@ export function useBrowserPanelOcclusion(
   }, [cancelPendingPaint, reconcile])
 
   const clearBrowserOverlay = useCallback(() => {
+    const onOwnershipLost = activeOverlayOwnershipLostRef.current
     pendingOverlayRef.current = null
     activeOverlayRef.current = null
+    activeOverlayOwnershipLostRef.current = null
     if (mountedRef.current) setActiveOverlay(null)
+    onOwnershipLost?.()
   }, [])
 
   const prepareScreenOcclusion = useCallback((): Promise<boolean> => {
@@ -438,6 +480,7 @@ export function useBrowserPanelOcclusion(
       }
       if (activeOverlayRef.current === overlay) {
         activeOverlayRef.current = null
+        activeOverlayOwnershipLostRef.current = null
         setActiveOverlay(null)
       }
       if (pendingOverlayRef.current === overlay) pendingOverlayRef.current = null
@@ -447,7 +490,11 @@ export function useBrowserPanelOcclusion(
   )
 
   const requestOverlay = useCallback(
-    async (overlay: BrowserPanelOverlay, fallback: () => void): Promise<boolean> => {
+    async (
+      overlay: BrowserPanelOverlay,
+      fallback: () => void,
+      onOwnershipLost?: () => void
+    ): Promise<boolean> => {
       if (!panelVisibleRef.current || screenOcclusionPresentRef.current) return false
       if (activeOverlayRef.current === overlay) return true
       if (pendingOverlayRef.current === overlay) {
@@ -458,17 +505,15 @@ export function useBrowserPanelOcclusion(
       // A different renderer popover can replace the current one without
       // revealing the native page between them. Keeping a pending popover owns
       // the existing captured frame while the old controlled menu closes.
+      if (activeOverlayRef.current) clearBrowserOverlay()
       pendingOverlayRef.current = overlay
-      if (activeOverlayRef.current) {
-        activeOverlayRef.current = null
-        setActiveOverlay(null)
-      }
       const ready = await scheduleReconcile()
       if (!mountedRef.current || pendingOverlayRef.current !== overlay) return false
 
       if (ready && nativeHiddenRef.current && desiredLayer() === 'popover') {
         pendingOverlayRef.current = null
         activeOverlayRef.current = overlay
+        activeOverlayOwnershipLostRef.current = onOwnershipLost ?? null
         setActiveOverlay(overlay)
         return true
       }
@@ -478,7 +523,7 @@ export function useBrowserPanelOcclusion(
       fallback()
       return false
     },
-    [desiredLayer, scheduleReconcile]
+    [clearBrowserOverlay, desiredLayer, scheduleReconcile]
   )
 
   // The canonical modal pauses its first visible frame and dispatches this
@@ -559,6 +604,7 @@ export function useBrowserPanelOcclusion(
       screenOcclusionPresentRef.current = false
       pendingOverlayRef.current = null
       activeOverlayRef.current = null
+      activeOverlayOwnershipLostRef.current = null
       transitionVersionRef.current++
       cancelPendingPaint()
       // Run once now and once behind any in-flight capture/hide. The second

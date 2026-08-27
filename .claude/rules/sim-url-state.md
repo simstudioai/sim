@@ -143,6 +143,11 @@ import KnowledgeBaseLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/l
 
 Reference: `apps/sim/app/workspace/[workspaceId]/knowledge/[id]/page.tsx`.
 
+The narrow exception is a continuity-focused peer switch that deliberately keeps the current
+view mounted and follows the full-route plus critical-data intent-prefetch rule in
+`sim-react-performance.md`. It still needs a real in-page Suspense fallback; it only omits the
+route-level `loading.tsx` that would replace the current peer before the destination is ready.
+
 This applies to **page entries**. An inner `<Suspense>` wrapping a `lazy()` component is the exception: there `fallback={null}` is correct, precisely so the suspend resolves at the nearest boundary instead of flashing the whole route — see `sim-imports.md`, "Code-splitting through barrels".
 
 ## Debounced text inputs

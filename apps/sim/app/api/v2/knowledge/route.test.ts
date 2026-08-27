@@ -42,8 +42,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
-
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   listKnowledgeBases: { operation: { id: 'knowledge.list' }, execute: mockList },
   createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreate },
@@ -59,9 +57,11 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { v2ListKnowledgeBasesContract } from '@/lib/api/contracts/v2/knowledge'
 import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
-import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
+import { writeSortedCursor } from '@/app/api/v2/lib/response'
 
 const WORKSPACE_ID = 'workspace-1'
 const RATE_LIMIT_OK = {
@@ -98,7 +98,6 @@ describe('/api/v2/knowledge route composition', () => {
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockAuthenticate.mockResolvedValue({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -126,6 +125,7 @@ describe('/api/v2/knowledge route composition', () => {
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         folderPath: '/',
         search: 'support',
         sortBy: 'name',
@@ -139,6 +139,7 @@ describe('/api/v2/knowledge route composition', () => {
       data: [
         expect.objectContaining({
           id: 'kb-1',
+          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/knowledge/kb-1`,
           folderPath: '/',
           ownerEmail: 'owner@example.com',
           connectorTypes: ['notion'],
@@ -150,10 +151,128 @@ describe('/api/v2/knowledge route composition', () => {
   })
 
   /**
+   * The archived set is this list under `scope=archived`, not a sibling path:
+   * one semantic operation over the same rows with a different `deleted_at`
+   * predicate, matching files, tables, and workflows.
+   */
+  it('lists the archived set through the same operation and reports when each was archived', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [
+        {
+          knowledgeBase: {
+            ...buildKnowledgeBase(),
+            deletedAt: new Date('2024-02-02T00:00:00Z'),
+          },
+          folderPath: '/',
+        },
+      ],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockList).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
+    )
+    const [item] = (await response.json()).data
+    expect(item.deletedAt).toBe('2024-02-02T00:00:00.000Z')
+    expect(item.folderPath).toBe('/')
+  })
+
+  it('reports a null archive instant for an active knowledge base', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+
+    expect((await response.json()).data[0].deletedAt).toBeNull()
+  })
+
+  it('rejects a scope outside the published set', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=all`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
+  /**
    * Pins the binding end-to-end — the mint in `present` and the read in
    * `mapInput` — because the contract-level sweep only checks a hand-maintained
    * map of param names and stays green when a route drops the stamp entirely.
    */
+  it('refuses a cursor minted under one scope and replayed under the other', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: ['Support docs', 'kb-1'],
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'secret' },
+      })
+    )
+    const { nextCursor } = await minted.json()
+
+    mockList.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `scope` carries `.default('active')`, so it is present on every parsed
+   * query — and it is new on this list. Stamping it unconditionally would put a
+   * constant in every fingerprint and refuse every cursor the deployed build
+   * handed out, reporting {@link REFILTERED_CURSOR_MESSAGE} to a caller that
+   * changed nothing. The default must contribute nothing to the scope.
+   */
+  it('resumes a cursor minted before scope entered the binding', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: undefined,
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+    const legacyCursor = writeSortedCursor(
+      ['Support docs', 'kb-1'],
+      'name',
+      'desc',
+      cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), { workspaceId: WORKSPACE_ID })
+    ) as string
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&sortBy=name&sortOrder=desc&cursor=${encodeURIComponent(legacyCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockList).toHaveBeenCalled()
+  })
+
   it('refuses a cursor minted under a different filter', async () => {
     mockList.mockResolvedValue({
       knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
@@ -258,7 +377,6 @@ describe('/api/v2/knowledge route composition', () => {
   it('does not attribute workspace-key creation analytics to a billing owner', async () => {
     mockAuthenticate.mockResolvedValue({
       principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-      rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
       rateLimitSubscription: null,
       keyType: 'workspace',

@@ -34,7 +34,6 @@ interface ConnectionBlocksProps {
 interface FieldTreeNodesProps {
   fields: SchemaField[]
   parentPath: string
-  level: number
   connection: ConnectedBlock
   isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
   onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
@@ -44,7 +43,6 @@ interface FieldTreeNodesProps {
 function FieldTreeNodes({
   fields,
   parentPath,
-  level,
   connection,
   isFieldExpanded,
   onToggleFieldExpansion,
@@ -61,7 +59,6 @@ function FieldTreeNodes({
           connection={connection}
           field={field}
           path={fieldPath}
-          level={level}
           hasChildren={hasChildren}
           isExpanded={expanded}
           onToggleExpand={(p) => onToggleFieldExpansion(connection.id, p)}
@@ -73,7 +70,6 @@ function FieldTreeNodes({
             <FieldTreeNodes
               fields={field.children!}
               parentPath={fieldPath}
-              level={level + 1}
               connection={connection}
               isFieldExpanded={isFieldExpanded}
               onToggleFieldExpansion={onToggleFieldExpansion}
@@ -178,7 +174,6 @@ function ConnectionItem({
           <FieldTreeNodes
             fields={fields}
             parentPath=''
-            level={0}
             connection={connection}
             isFieldExpanded={isFieldExpanded}
             onToggleFieldExpansion={onToggleFieldExpansion}

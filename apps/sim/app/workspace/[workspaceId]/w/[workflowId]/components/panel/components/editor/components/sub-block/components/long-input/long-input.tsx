@@ -11,6 +11,10 @@ import { Button, cn } from '@sim/emcn'
 import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { ReferenceTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -46,6 +50,8 @@ const MIN_HEIGHT_PX = 80
 interface LongInputProps {
   /** Placeholder text to display when empty */
   placeholder?: string
+  /** Whether to conceal the value except while the textarea is focused */
+  password?: boolean
   /** Unique identifier for the block */
   blockId: string
   /** Unique identifier for the sub-block */
@@ -79,10 +85,12 @@ interface LongInputProps {
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
  * - Resizable with custom drag handle
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export function LongInput({
   placeholder,
+  password,
   blockId,
   subBlockId,
   config,
@@ -99,6 +107,7 @@ export function LongInput({
   const activeSearchTarget = useActiveSearchTarget()
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
+  const [isFocused, setIsFocused] = useState(false)
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Wand functionality - always call the hook unconditionally
@@ -190,6 +199,13 @@ export function LongInput({
 
   // During streaming, use local content; otherwise use the controller value
   const value = wandHook.isStreaming ? localContent : ctrl.valueString
+
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+  const displayValue = shouldMask ? maskSecretText(value) : value
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false)
+  }, [])
 
   // Base value for syncing (not including streaming)
   const baseValue = isPreview
@@ -324,11 +340,15 @@ export function LongInput({
               containerRef={containerRef}
               containerStyle={{ height: `${height}px` }}
               overlayRef={overlayRef}
-              overlayContent={formatDisplayText(value, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-                workflowSearchHighlight,
-              })}
+              overlayContent={
+                shouldMask
+                  ? displayValue
+                  : formatDisplayText(value, {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight,
+                    })
+              }
               overlayClassName={cn(showWandButton && 'pr-7')}
               interactiveOverlay={isPreview || Boolean(disabled)}
               className={cn(
@@ -337,12 +357,16 @@ export function LongInput({
               )}
               rows={rows ?? DEFAULT_ROWS}
               placeholder={placeholder ?? ''}
-              value={value}
+              value={displayValue}
               onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
               onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
               onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
               onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
-              onFocus={onFocus}
+              onFocus={(event) => {
+                setIsFocused(true)
+                onFocus(event)
+              }}
+              onBlur={handleBlur}
               disabled={isPreview || disabled}
               adornment={
                 <>

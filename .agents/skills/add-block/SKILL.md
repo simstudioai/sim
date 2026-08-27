@@ -172,8 +172,8 @@ Optional companions: `credentialLabels` (override the picker's section/connect-r
 ### OAuth deployment availability (required for integration blocks)
 
 A visible tools-category block with OAuth is deployment-gated. Its `oauth-input.serviceId` is
-projected into `apps/sim/lib/integrations/integrations.json`, then resolved through
-`resolveOAuthClientCapabilityId()` in `apps/sim/lib/core/config/env-capabilities.ts`.
+projected into `packages/deployment-config/src/integrations.json`, then resolved through
+`resolveOAuthClientCapabilityId()` in `packages/deployment-config/src/env-capabilities.ts`.
 
 When adding or changing an OAuth integration block:
 
@@ -184,13 +184,14 @@ When adding or changing an OAuth integration block:
 3. For a new capability, add its required client fields to `OAUTH_CLIENT_CAPABILITIES` and ensure
    every referenced field exists in the env schema in `apps/sim/lib/core/config/env.ts`. Then add
    the matching `text` or `secret` input modes to `OAUTH_CLIENT_SETUP_FIELDS` in
-   `scripts/setup/capability-config.ts`. The CLI catalog is exhaustively typed and checked against
-   the runtime field list; do not infer secrecy from the field name.
-4. If the canonical OAuth service declares `serviceAccountProviderId`, keep
-   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
-   `apps/sim/lib/integrations/service-account-metadata.ts` aligned. Set
-   `deploymentRequirement` only when the service-account path is preview-gated or depends on the
-   OAuth client fields; otherwise omit it.
+   `packages/sim-setup/src/capability-config.ts`. The CLI catalog is exhaustively typed and checked
+   against the runtime field list; do not infer secrecy from the field name.
+4. If the canonical OAuth service declares `serviceAccountProviderId`, run
+   `bun run deployment-config:generate`; this regenerates the provider-ID facts in
+   `packages/deployment-config/src/service-account-providers.generated.ts`. Never hand-edit that
+   generated map. Add `deploymentRequirement` policy in
+   `packages/deployment-config/src/service-account-metadata.ts` only when the service-account path
+   is preview-gated or depends on the OAuth client fields; otherwise omit it.
 
 Missing capability metadata is a runtime configuration error, not a reason to make the integration
 silently available.
@@ -992,12 +993,21 @@ After adding or changing one, run:
 
 ```bash
 bun run scripts/generate-docs.ts
+bun run deployment-config:generate
 bun run integration-catalog:check
+bun run deployment-config:check
+bun run docs:check
 ```
 
 The catalog check independently derives deployment metadata from the executable block registry and
-compares it with the committed `apps/sim/lib/integrations/integrations.json`. Review the generated
-diff and keep only intentional changes.
+compares it with the committed `packages/deployment-config/src/integrations.json`. The deployment
+config check verifies the generated service-account facts against the canonical OAuth registry and
+catalog. `docs:check` re-renders every generated docs artifact in memory and fails on any committed
+file that differs — it runs in CI via `check:audits`, so commit the full generator output. If the
+generator also trues up pages an earlier PR left stale, commit that catch-up too; reverting it as
+"unrelated drift" makes `docs:check` fail. Review the generated diff and keep only intentional
+changes.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -1018,6 +1028,7 @@ diff and keep only intentional changes.
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run integration-catalog:check` passes
+- [ ] `bun run docs:check` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
@@ -1041,3 +1052,34 @@ After creating the block, you MUST validate it against every tool it references:
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
 5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 6. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs
+
+## Option Lists: `selectorKey` or `options`, never a per-block fetcher
+
+A sub-block gets its choices from exactly one of two places. There is no third.
+
+**`selectorKey` — every remote list.** Register the list in `hooks/selectors/providers/<service>/selectors.ts`, add its key to `SelectorKey`, and point the sub-block at it. A selector is parameterized by an explicit `SelectorContext`, so the same definition serves the canvas, the workspace-fork sync modal, and anything added later.
+
+```ts
+{ id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
+{ id: 'labelIds', type: 'dropdown', multiSelect: true,
+  selectorKey: 'gmail.labels', dependsOn: ['triggerCredentials'], mode: 'trigger' },
+{ id: 'manualLabelIds', type: 'short-input', mode: 'trigger-advanced' },
+```
+
+`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. `buildSelectorContextFromBlock` keys the context on a sub-block's CANONICAL id, so without it `context.oauthCredential` is never set and the picker looks unfixable without reading the store. (A credential field is also recognised by its `oauth-input` TYPE as a fallback, so a block whose shipped param is already named something else does not have to rename it.)
+
+**`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
+
+```ts
+options: (params) => {
+  const model = params?.values.model
+  return typeof model === 'string' ? effortsFor(model) : DEFAULT_EFFORTS
+}
+```
+
+**Never fetch inside `options`, and never reach into the stores from a block definition.** A fetcher that resolves its credential with `readSubBlockValue(blockId, ...)` only works on the canvas — every surface that is not the editor gets an empty list. `fetchOptions`/`fetchOptionById` were removed for exactly this reason.
+
+Two rules the checks enforce:
+
+- **A secret never enters a selector's `getQueryKey`.** A query key identifies a resource; a credential authorizes access to it. A credential *id* is fine; a typed password is not (see `imap.mailboxes`).
+- **A sub-block that `dependsOn` a credential / knowledge-base / table selector must be reconfigurable at fork-sync time** — a `selectorKey`, a canonical pair whose basic member is a selector, or a `short-input`/`long-input`. `bun run check:fork-dependent-coverage` fails otherwise, because a fork sync clears those fields on every push and an unofferable one can never be set anywhere that sticks.

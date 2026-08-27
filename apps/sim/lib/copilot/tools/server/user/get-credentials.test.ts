@@ -25,6 +25,7 @@ const {
   getUserPermissionConfigMock,
   getAccessibleOAuthCredentialsMock,
   checkWorkspaceAccessMock,
+  verifyWorkflowAccessMock,
 } = vi.hoisted(() => ({
   getAllOAuthServicesMock: vi.fn(),
   decodeJwtMock: vi.fn(),
@@ -33,6 +34,7 @@ const {
   getUserPermissionConfigMock: vi.fn(),
   getAccessibleOAuthCredentialsMock: vi.fn(),
   checkWorkspaceAccessMock: vi.fn(),
+  verifyWorkflowAccessMock: vi.fn(),
 }))
 
 const getPersonalAndWorkspaceEnvMock = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
@@ -91,6 +93,11 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('jose', () => ({
   decodeJwt: decodeJwtMock,
+}))
+
+vi.mock('@/lib/copilot/auth/permissions', () => ({
+  verifyWorkflowAccess: verifyWorkflowAccessMock,
+  createPermissionError: (action: string) => `Permission denied: ${action}`,
 }))
 
 import { getCredentialsServerTool } from './get-credentials'
@@ -383,6 +390,30 @@ describe('getCredentialsServerTool', () => {
     )
 
     expect(result.oauth.connected.credentials).toEqual([])
+  })
+
+  it('resolves the workspace from a workflow in the execution workspace', async () => {
+    verifyWorkflowAccessMock.mockResolvedValue({ hasAccess: true, workspaceId: 'workspace-1' })
+    getUserPermissionConfigMock.mockResolvedValue({ allowedIntegrations: null })
+
+    await getCredentialsServerTool.execute(
+      { workflowId: 'wf-1' },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(verifyWorkflowAccessMock).toHaveBeenCalledWith('user-1', 'wf-1')
+    expect(getUserPermissionConfigMock).toHaveBeenCalledWith('user-1', 'workspace-1')
+  })
+
+  it('rejects a workflowId whose workspace differs from the execution workspace', async () => {
+    verifyWorkflowAccessMock.mockResolvedValue({ hasAccess: true, workspaceId: 'workspace-other' })
+
+    await expect(
+      getCredentialsServerTool.execute(
+        { workflowId: 'wf-other' },
+        { userId: 'user-1', workspaceId: 'workspace-1' }
+      )
+    ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
   })
 
   it('rejects unauthenticated callers without touching the database', async () => {

@@ -89,6 +89,7 @@ import {
   resolveForkTriggerPaths,
 } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
+import { createForkBlockTypeTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
 import {
   createForkSubBlockTransform,
   type ForkReference,
@@ -557,6 +558,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       targetWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
     })
 
@@ -646,6 +648,12 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       // copy-faithful dependents (a copied table's column picks) instead of clearing them.
       isCopiedTarget: (kind, sourceId) => copyIdMapByKind?.get(kind)?.has(sourceId) ?? false,
     })
+    // Custom blocks reference by block TYPE, not by a sub-block value, so their rewrite runs
+    // on its own channel. An unmapped one keeps the source's type — the sync gate has already
+    // refused the promote by then (`unmapped-custom-block`), so this never silently ships.
+    const blockTypeTransform = createForkBlockTypeTransform(
+      (kind, sourceId) => resolver(kind, sourceId) ?? null
+    )
 
     // Batch every prior-version read (replace + archive targets) into one query before any
     // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
@@ -734,6 +742,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         workflowIdMap: plan.workflowIdMap,
         folderIdMap,
         transformSubBlocks: transform,
+        transformBlockType: blockTypeTransform,
         targetCurrentBlocks:
           item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
         dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),

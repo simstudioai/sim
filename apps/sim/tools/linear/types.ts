@@ -296,49 +296,6 @@ export const WORKFLOW_STATE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for issue relation objects
- */
-export const ISSUE_RELATION_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Relation ID' },
-  type: { type: 'string', description: 'Relation type (blocks, duplicate, related)' },
-  issue: ISSUE_MINIMAL_OUTPUT,
-  relatedIssue: ISSUE_MINIMAL_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for favorite objects
- */
-export const FAVORITE_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Favorite ID' },
-  type: { type: 'string', description: 'Favorite type (issue, project, cycle)' },
-  issue: ISSUE_MINIMAL_OUTPUT,
-  project: PROJECT_OUTPUT,
-  cycle: CYCLE_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for project update objects
- */
-export const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Project update ID' },
-  body: { type: 'string', description: 'Update body (Markdown)' },
-  health: { type: 'string', description: 'Project health (onTrack, atRisk, offTrack)' },
-  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
-  user: USER_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for notification objects
- */
-export const NOTIFICATION_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Notification ID' },
-  type: { type: 'string', description: 'Notification type' },
-  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
-  readAt: { type: 'string', description: 'Read timestamp (ISO 8601)' },
-  issue: ISSUE_MINIMAL_OUTPUT,
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output definition for customer objects
  */
 export const CUSTOMER_OUTPUT_PROPERTIES = {
@@ -362,30 +319,6 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for customer need/request objects
- */
-export const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Customer need ID' },
-  body: { type: 'string', description: 'Need body/description' },
-  priority: { type: 'number', description: 'Priority (0-4)' },
-  createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
-  updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
-  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
-  customer: {
-    type: 'object',
-    description: 'Associated customer',
-    properties: {
-      id: { type: 'string', description: 'Customer ID' },
-      name: { type: 'string', description: 'Customer name' },
-    },
-  },
-  issue: ISSUE_MINIMAL_OUTPUT,
-  project: PROJECT_OUTPUT,
-  creator: USER_OUTPUT,
-  url: { type: 'string', description: 'Customer need URL' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -445,14 +378,6 @@ export const PROJECT_MILESTONE_OUTPUT_PROPERTIES = {
   status: { type: 'string', description: 'Milestone status (done, next, overdue, unstarted)' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for nested project milestone objects
- */
-export const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Project milestone ID' },
-  name: { type: 'string', description: 'Milestone name' },
 } as const satisfies Record<string, OutputProperty>
 
 /**

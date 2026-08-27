@@ -407,7 +407,7 @@ async function tryAcquireDistributedLease(
     ])
     return Number(result) === 1 ? 'acquired' : 'limit_exceeded'
   } catch (error) {
-    logger.warn('Failed to acquire distributed owner lease — falling back to local execution', {
+    logger.error('Failed to acquire distributed owner lease; execution will be rejected', {
       ownerKey,
       error,
     })
@@ -1390,6 +1390,15 @@ export async function executeInIsolatedVM(
     distributedLeaseId,
     req.timeoutMs
   )
+  if (leaseAcquireResult !== 'acquired' && signal?.aborted) {
+    maybeCleanupOwner(ownerKey)
+    return {
+      result: null,
+      stdout: '',
+      error: { message: 'Execution cancelled', name: 'AbortError' },
+      termination: 'cancelled',
+    }
+  }
   if (leaseAcquireResult === 'limit_exceeded') {
     logger.warn('Isolated-vm saturation: distributed lease limit exceeded', {
       reason: 'distributed_lease_limit',
@@ -1408,8 +1417,19 @@ export async function executeInIsolatedVM(
     }
   }
   if (leaseAcquireResult === 'unavailable') {
-    logger.warn('Distributed lease unavailable, falling back to local execution', { ownerKey })
-    // Continue execution — local pool still enforces per-process concurrency limits
+    logger.error('Isolated-vm execution rejected because its distributed lease is unavailable', {
+      ownerKey,
+    })
+    maybeCleanupOwner(ownerKey)
+    return {
+      result: null,
+      stdout: '',
+      error: {
+        message: 'Code execution coordination is temporarily unavailable. Please try again later.',
+        name: 'Error',
+        isSystemError: true,
+      },
+    }
   }
 
   let settled = false

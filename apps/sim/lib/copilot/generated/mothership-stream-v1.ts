@@ -160,6 +160,7 @@ export interface MothershipStreamV1AdditionalPropertiesMap {
 export interface MothershipStreamV1ToolUI {
   clientExecutable?: boolean
   hidden?: boolean
+  inbandOwned?: boolean
   internal?: boolean
 }
 export interface MothershipStreamV1ToolArgsDeltaEventEnvelope {
@@ -468,12 +469,14 @@ export type MothershipStreamV1RunKind =
   | 'resumed'
   | 'compaction_start'
   | 'compaction_done'
+  | 'steering_applied'
 
 export const MothershipStreamV1RunKind = {
   checkpoint_pause: 'checkpoint_pause',
   resumed: 'resumed',
   compaction_start: 'compaction_start',
   compaction_done: 'compaction_done',
+  steering_applied: 'steering_applied',
 } as const
 
 export type MothershipStreamV1SessionKind = 'trace' | 'chat' | 'title' | 'start'

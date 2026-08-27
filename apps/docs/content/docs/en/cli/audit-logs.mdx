@@ -1,0 +1,66 @@
+---
+title: Audit Logs
+description: Manage audit logs — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+`sim audit-logs` is also spelled `sim audit-log`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Get audit log
+
+```bash
+sim audit-logs get <auditLogId> [options]
+```
+
+Get Audit Log (personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `auditLogId` | Yes | Audit-log entry identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+
+</CommandTable>
+
+## List audit logs
+
+```bash
+sim audit-logs list [options]
+```
+
+List Audit Logs (personal API key required)
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--action <value>` | No | Filter by exact action name. |
+| `--resource-type <value>` | No | Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor. |
+| `--resource-id <value>` | No | Filter by exact resource identifier. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--include-departed` | No | Include actions by users who have left the organization. |
+| `--no-include-departed` | No | Send --include-departed as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--actor-email <value>` | No | Filter by actor email address. |
+| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+
+</CommandTable>

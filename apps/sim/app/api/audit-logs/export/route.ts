@@ -10,8 +10,8 @@ import {
   queryAuditLogs,
 } from '@/lib/audit-logs/query'
 import { getSession } from '@/lib/auth'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 

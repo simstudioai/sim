@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -8,12 +9,6 @@ import type {
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:ServiceNow')
-
-function asRecord(body: unknown): Record<string, unknown> {
-  return body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as Record<string, unknown>)
-    : {}
-}
 
 export const servicenowHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
@@ -42,7 +37,7 @@ export const servicenowHandler: WebhookProviderHandler = {
 
     const { isServiceNowEventMatch } = await import('@/triggers/servicenow/utils')
     const configuredTableName = providerConfig.tableName as string | undefined
-    const obj = asRecord(body)
+    const obj = toRecord(body)
 
     if (!isServiceNowEventMatch(triggerId, obj, configuredTableName)) {
       logger.debug(

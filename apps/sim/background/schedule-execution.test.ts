@@ -24,6 +24,7 @@ vi.mock('@sim/db', () => ({ ...databaseMock, ...schemaMock }))
 import {
   applyScheduleFailureUpdate,
   buildScheduleCancellationUpdate,
+  buildScheduleSuccessUpdate,
   classifyScheduleExecutionResult,
   releaseScheduleLock,
 } from '@/background/schedule-execution'
@@ -140,5 +141,21 @@ describe('schedule cancellation accounting', () => {
     })
     expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('failedCount')
     expect(buildScheduleCancellationUpdate(now, nextRunAt)).not.toHaveProperty('lastFailedAt')
+  })
+
+  it('advances cadence, releases the claim and clears failure accounting on success', () => {
+    const now = new Date('2026-08-03T12:00:00.000Z')
+    const nextRunAt = new Date('2026-08-03T13:00:00.000Z')
+
+    expect(buildScheduleSuccessUpdate(now, nextRunAt)).toEqual({
+      lastRanAt: now,
+      updatedAt: now,
+      nextRunAt,
+      failedCount: 0,
+      lastQueuedAt: null,
+      infraRetryCount: 0,
+    })
+    expect(buildScheduleSuccessUpdate(now, nextRunAt)).not.toHaveProperty('lastFailedAt')
+    expect(buildScheduleSuccessUpdate(now, nextRunAt)).not.toHaveProperty('status')
   })
 })

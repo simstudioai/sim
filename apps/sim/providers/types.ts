@@ -119,8 +119,9 @@ export interface ProviderResponse {
 export type ToolUsageControl = 'auto' | 'force' | 'none'
 
 export interface ProviderToolConfig {
+  /** Canonical registry id when {@link id} is a request-scoped provider wire alias. */
+  canonicalId?: string
   id: string
-  name: string
   description: string
   params: Record<string, any>
   parameters: {

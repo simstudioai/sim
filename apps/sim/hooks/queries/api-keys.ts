@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
@@ -37,6 +43,10 @@ type CombinedApiKeysData = {
 }
 
 export type ApiKeyScope = 'combined' | 'personal' | 'workspace'
+
+interface UseApiKeysOptions {
+  enabled?: boolean
+}
 
 /**
  * Fetch API keys for one settings plane, or both for compatibility callers.
@@ -77,11 +87,8 @@ export async function fetchApiKeys(
   }
 }
 
-/**
- * Hook to fetch API keys for the requested settings plane.
- */
-export function useApiKeys(workspaceId: string, scope: ApiKeyScope = 'combined') {
-  return useQuery({
+export function apiKeysQueryOptions(workspaceId: string, scope: ApiKeyScope = 'combined') {
+  return queryOptions({
     queryKey:
       scope === 'personal'
         ? apiKeysKeys.personal()
@@ -89,9 +96,22 @@ export function useApiKeys(workspaceId: string, scope: ApiKeyScope = 'combined')
           ? apiKeysKeys.workspace(workspaceId)
           : apiKeysKeys.combined(workspaceId),
     queryFn: ({ signal }) => fetchApiKeys(workspaceId, scope, signal),
-    enabled: scope === 'personal' || !!workspaceId,
     staleTime: API_KEYS_COMBINED_STALE_TIME,
     placeholderData: scope === 'personal' ? undefined : keepPreviousData,
+  })
+}
+
+/**
+ * Hook to fetch API keys for the requested settings plane.
+ */
+export function useApiKeys(
+  workspaceId: string,
+  scope: ApiKeyScope = 'combined',
+  options?: UseApiKeysOptions
+) {
+  return useQuery({
+    ...apiKeysQueryOptions(workspaceId, scope),
+    enabled: (scope === 'personal' || !!workspaceId) && (options?.enabled ?? true),
   })
 }
 

@@ -82,7 +82,13 @@ export const privateSecretProvenanceBundleSchema = z
           })
           .strict()
       )
-      .max(10_000)
+      /**
+       * Deliberately uncounted. One selection per cell a write vouches for, so a count cap here
+       * is a cap on how wide a write may be — a 25-column table crossed 10,000 at 401 rows. The
+       * sender that used to enforce the same number silently gave up and marked every row of the
+       * write `unknown`; rejecting the request instead would turn that into a failed write. The
+       * aggregate byte bound below and the route's body limit are the real bounds.
+       */
       .describe('Selections and their encrypted provenance.'),
   })
   .strict()
@@ -193,33 +199,73 @@ export const jobIdParamsSchema = z.object({
 export const nonEmptyIdSchema = z.string().min(1)
 
 /**
+ * Schema-level error customizer that applies a message **only when the value is
+ * absent**, and defers to Zod's default wording for everything else.
+ *
+ * A plain `z.string({ error: message })` replaces the message for *every* issue
+ * the schema raises, including `invalid_type`. A caller who sent `{"name": 123}`
+ * then reads `Name is required` — a name was supplied, it was the wrong type, and
+ * the message sends them looking for the wrong bug. Returning `undefined` for a
+ * present-but-wrong-typed value lets Zod render `Invalid input: expected string,
+ * received number` instead.
+ */
+export function missingFieldError(message: string) {
+  return (issue: z.core.$ZodRawIssue): string | undefined =>
+    issue.input === undefined ? message : undefined
+}
+
+/**
+ * Re-issues an existing string schema with a missing-value message, keeping every
+ * check (bounds, regex, trim) it already carries.
+ *
+ * Use this when the field's bounds are owned by a shared schema elsewhere and only
+ * the omitted-field wording needs to be added at this boundary — re-declaring the
+ * bounds locally would let the two copies drift.
+ */
+export function withMissingFieldMessage<TSchema extends z.ZodString>(
+  schema: TSchema,
+  message: string
+): TSchema {
+  return schema.clone({ ...schema._zod.def, error: missingFieldError(message) })
+}
+
+/**
+ * Bound shared by the id primitives below. Every identifier this repo mints —
+ * UUID v4, `wf_<shortId>`, and the legacy free-form `text` keys — is far shorter,
+ * so the bound rejects only values that were never going to resolve while keeping
+ * an unbounded string from reaching a lookup.
+ */
+export const MAX_ID_LENGTH = 128
+
+/**
  * Builds a required, non-empty string schema whose message covers **both**
  * failure modes.
  *
  * `.min(1, message)` alone only fires for a present-but-empty string; an omitted
  * field falls through to Zod's default `Invalid input: expected string, received
- * undefined`, which never names the field the caller left out. Passing the same
- * message to the `z.string({ error })` constructor closes that gap.
+ * undefined`, which never names the field the caller left out.
+ * {@link missingFieldError} closes that gap without also swallowing the
+ * wrong-type message.
  *
  * Prefer this over a bare `z.string().min(1, '...')` for any required request
  * field. When a named primitive below already carries the right wording, import
  * that instead of rebuilding it here.
  */
 export function requiredFieldSchema(message: string) {
-  return z.string({ error: message }).min(1, message)
+  return z.string({ error: missingFieldError(message) }).min(1, message)
 }
 
 /** Non-empty `workspaceId` field with a stable, human-readable message. */
-export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required').describe(
-  'Unique workspace identifier.'
-)
+export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
+  .max(MAX_ID_LENGTH, 'Workspace ID is too long')
+  .describe('Unique workspace identifier.')
 
 /**
  * A single workspace-file name, not a path. Folder placement is carried by a
  * separate folder id or path field, so separators and dot segments are invalid.
  */
 export const workspaceFileNameSchema = z
-  .string({ error: 'Name is required' })
+  .string({ error: missingFieldError('Name is required') })
   .trim()
   .min(1, 'Name is required')
   .max(255, 'Name is too long')
@@ -230,6 +276,12 @@ export const workspaceFileNameSchema = z
 
 /** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')
+
+/** Canonical organization membership role shared across API resource families. */
+export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
+  error: 'Invalid role',
+})
+export type OrganizationRole = z.output<typeof organizationRoleSchema>
 
 /** Non-empty `workflowId` field with a stable, human-readable message. */
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
@@ -257,7 +309,7 @@ export const runIdSchema = z
  * two-state and three-state spellings stay explicit at each call site.
  */
 export const folderIdSchema = requiredFieldSchema('Folder ID is required').max(
-  128,
+  MAX_ID_LENGTH,
   'Folder ID is too long'
 )
 
@@ -269,7 +321,7 @@ export const folderIdSchema = requiredFieldSchema('Folder ID is required').max(
  * UUID-only schema — a `.uuid()` constraint here silently 400s every `wf_` file.
  */
 export const workspaceFileIdSchema = requiredFieldSchema('File ID is required')
-  .max(128, 'File ID is too long')
+  .max(MAX_ID_LENGTH, 'File ID is too long')
   .regex(/^[A-Za-z0-9_-]+$/, 'Invalid file id')
 
 /**

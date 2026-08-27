@@ -17,6 +17,7 @@ import {
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -141,7 +142,7 @@ export function TokenServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} ${descriptor.connectNoun}`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>

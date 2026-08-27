@@ -2,6 +2,7 @@ import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
   listWorkspaceFiles,
@@ -21,11 +22,41 @@ export interface QueryWorkspaceFilePageInput {
   /** Lifecycle set to page over. Omission preserves the active-only default. */
   scope?: 'active' | 'archived'
   folderPath?: string
+  /**
+   * Whether `folderPath` covers its whole subtree rather than its direct children. Ignored
+   * without a `folderPath`, which already spans the workspace. The surface decides the
+   * default — see the v2 route, where a `search` implies a recursive look.
+   */
+  recursive?: boolean
   search?: string
   sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
+}
+
+/**
+ * Which folders a page covers, in the shape {@link queryWorkspaceFiles} takes: one id, `null`
+ * for the workspace root, several ids for a subtree, or `undefined` for the whole workspace.
+ *
+ * `unfiltered` (no `folderPath`) and a recursive filter on the root both mean the whole
+ * workspace, so both drop the folder predicate. A recursive filter on a real folder names
+ * every folder in its subtree, which the query takes as one `IN (...)` over the index already
+ * loaded for the path lookup — no second read, and no recursive CTE.
+ */
+function resolveFolderScope(
+  folderIndex: Awaited<ReturnType<typeof loadActiveFolderPathIndex>>,
+  folderFilter: ReturnType<typeof resolveFolderPathFilter>,
+  recursive: boolean | undefined
+): string | null | string[] | undefined {
+  if (folderFilter.kind !== 'folder') return undefined
+  if (!recursive) return folderFilter.folderId
+  if (folderFilter.folderId === null) return undefined
+  const childrenByParent = indexFolderChildren(folderIndex.rowById.values())
+  return [
+    folderFilter.folderId,
+    ...collectDescendantFolderIdsFrom(childrenByParent, folderFilter.folderId),
+  ]
 }
 
 async function resolveListWorkspaceFileContext(workspaceId: string) {
@@ -68,7 +99,7 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
 
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       scope: input.scope,
-      folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
+      folderId: resolveFolderScope(folderIndex, folderFilter, input.recursive),
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

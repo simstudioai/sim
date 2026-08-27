@@ -145,6 +145,14 @@ const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
 
 export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
 
+export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.extend({
+  folderName: z.string(),
+  extractedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+})
+
+export type ExtractWorkspaceFileResponse = z.output<typeof extractWorkspaceFileResponseSchema>
+
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',
@@ -182,6 +190,16 @@ export const renameWorkspaceFileContract = defineRouteContract({
     }),
   },
   error: renameWorkspaceFileErrorSchema,
+})
+
+export const extractWorkspaceFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/extract',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: extractWorkspaceFileResponseSchema,
+  },
 })
 
 export const updateWorkspaceFileDimensionsContract = defineRouteContract({

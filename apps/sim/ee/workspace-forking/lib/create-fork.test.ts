@@ -77,6 +77,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
+  createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/reference-scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
@@ -134,10 +135,12 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map(),
       idMap: new Map(),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map(),
       mappingEntries: [],
+      folderIdMap: new Map(),
       contentPlan: {
         sourceWorkspaceId: 'src-ws',
         childWorkspaceId: 'child-ws',
@@ -224,6 +227,7 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map([['workspace/src-ws/a.png', 'workspace/child/a.png']]),
       idMap: new Map([['file-1', 'file-1-copy']]),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
 
     await createFork(forkParams({ files: ['file-1'] }))

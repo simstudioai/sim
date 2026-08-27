@@ -22,6 +22,7 @@ import {
   CONTAINER_DIMENSIONS,
   EDGE_Z_BASE,
   EDGE_Z_MAX,
+  getEdgeZIndexForTarget,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -567,6 +568,14 @@ export function PreviewWorkflow({
     return normalizeWorkflowEdgeHandles(workflowState.edges).map((edge) => {
       const status = getEdgeExecutionStatus(edge)
       const isErrorEdge = edge.sourceHandle === 'error'
+      const baseZIndex =
+        status === 'success' ? EDGE_Z_MAX : isErrorEdge ? EDGE_Z_BASE + 2 : EDGE_Z_BASE
+      const targetBlock = workflowState.blocks[edge.target]
+      const targetContainerZIndex =
+        targetBlock?.type === 'loop' || targetBlock?.type === 'parallel'
+          ? calculateNestingDepth(targetBlock, workflowState.blocks)
+          : undefined
+
       return {
         id: edge.id,
         source: edge.source,
@@ -580,12 +589,14 @@ export function PreviewWorkflow({
         /* Inside the shared edge band, so a line clears the opaque container it
            crosses and still passes behind cards. Execution status orders edges
            within the band: a successful path draws over an error one, which
-           draws over an unexecuted one. */
-        zIndex: status === 'success' ? EDGE_Z_MAX : isErrorEdge ? EDGE_Z_BASE + 2 : EDGE_Z_BASE,
+           draws over an unexecuted one. A Loop/Parallel target overrides that
+           ordering so its node paints over the incoming segment. */
+        zIndex: getEdgeZIndexForTarget(baseZIndex, targetContainerZIndex),
       }
     })
   }, [
     edgesStructure,
+    workflowState.blocks,
     workflowState.edges,
     isValidWorkflowState,
     blockExecutionMap,

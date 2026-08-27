@@ -2,7 +2,7 @@
  * Contrast helpers for brand tiles. Pure colour maths — deliberately free of any
  * `@/blocks/registry` import so the public landing `/integrations` page can use
  * these without pulling 282 block configs and the tool registry into its bundle.
- * Registry-backed icon styling lives in `@/blocks/brand-icon-style`.
+ * Registry-backed icon styling lives in `@/blocks/brand-icon`.
  */
 import { isLightColor } from '@/lib/colors'
 

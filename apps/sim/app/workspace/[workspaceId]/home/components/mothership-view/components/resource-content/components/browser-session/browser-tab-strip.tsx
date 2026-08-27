@@ -11,7 +11,7 @@ import {
 } from 'react'
 import type { BrowserTabState } from '@sim/browser-protocol'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
-import { Globe, Loader } from '@sim/emcn/icons'
+import { CircleAlert, Globe, Loader } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
@@ -48,6 +48,14 @@ function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
   const faviconLoaded = Boolean(hostname && loadedHostname === hostname)
   const faviconFailed = Boolean(hostname && failedHostname === hostname)
   const showSpinner = shouldShowBrowserTabSpinner(tab.loading, hostname, loadedHostname)
+
+  if (tab.issue) {
+    return (
+      <span className='flex size-[16px] shrink-0 items-center justify-center'>
+        <CircleAlert className='size-[12px] text-[var(--text-icon)]' />
+      </span>
+    )
+  }
 
   return (
     <span className='relative flex size-[16px] shrink-0 items-center justify-center'>
@@ -207,33 +215,32 @@ export function BrowserTabStrip({
       onTabContextMenu={openTabContextMenu}
       onTabDragStart={startTabDrag}
       onReorder={onReorderTab}
-    >
-      <ContextMenu
-        isOpen={contextMenuOpen && Boolean(contextTab)}
-        position={contextMenuPosition}
-        menuRef={contextMenuRef}
-        onClose={closeTabContextMenu}
-        onOpenInNewTab={openTabInExternalBrowser}
-        openInNewTabLabel='Open in External Browser'
-        openInNewTabPosition='last'
-        separateNavigationAction
-        showOpenInNewTab={Boolean(contextTab?.url && contextTab.url !== 'about:blank')}
-        groupNonDestructiveActions
-        onTogglePin={
-          contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
-        }
-        onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
-        // Pinned tabs are durable and deliberately have no close action.
-        {...(contextTab && !contextTab.pinned
-          ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
-          : {})}
-        onDelete={() => {}}
-        showPin={Boolean(contextTab)}
-        isPinned={Boolean(contextTab?.pinned)}
-        showRename={false}
-        showDuplicate={Boolean(contextTab)}
-        showDelete={false}
-      />
-    </TabStrip>
+      overlays={
+        <ContextMenu
+          isOpen={contextMenuOpen && Boolean(contextTab)}
+          position={contextMenuPosition}
+          menuRef={contextMenuRef}
+          onClose={closeTabContextMenu}
+          onOpenInNewTab={openTabInExternalBrowser}
+          openInNewTabLabel='Open in External Browser'
+          openInNewTabPosition='last'
+          showOpenInNewTab={Boolean(contextTab?.url && contextTab.url !== 'about:blank')}
+          onTogglePin={
+            contextTab ? () => onSetTabPinned(contextTab.tabId, !contextTab.pinned) : undefined
+          }
+          onDuplicate={contextTab ? () => onDuplicateTab(contextTab.tabId) : undefined}
+          // Pinned tabs are durable and deliberately have no close action.
+          {...(contextTab && !contextTab.pinned
+            ? { onCloseTab: () => onCloseTab(contextTab.tabId), showCloseTab: true }
+            : {})}
+          onDelete={() => {}}
+          showPin={Boolean(contextTab)}
+          isPinned={Boolean(contextTab?.pinned)}
+          showRename={false}
+          showDuplicate={Boolean(contextTab)}
+          showDelete={false}
+        />
+      }
+    />
   )
 }

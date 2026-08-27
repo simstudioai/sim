@@ -15,12 +15,12 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
 import type {
   ContentBlock,
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
@@ -53,6 +53,8 @@ export interface PersistedContentBlock {
   lifecycle?: MothershipStreamV1SpanLifecycleEvent
   status?: MothershipStreamV1CompletionStatus
   content?: string
+  /** Orchestrator-chosen display name on a subagent start block. */
+  name?: string
   toolCall?: PersistedToolCall
   timestamp?: number
   endedAt?: number
@@ -150,7 +152,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
     const userInstruction =
-      toolCall.name === BrowserRequestTakeover.id && isPlainRecord(output)
+      toolCall.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && isPlainRecord(output)
         ? output.userInstruction
         : undefined
     const normalizedInstruction = typeof userInstruction === 'string' ? userInstruction.trim() : ''
@@ -243,6 +245,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         kind: MothershipStreamV1SpanPayloadKind.subagent,
         lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
         content: block.content,
+        ...(block.subagentName ? { name: block.subagentName } : {}),
       }
     case 'subagent_text':
       return {
@@ -432,6 +435,9 @@ interface RawBlock {
   type: string
   lane?: string
   agent?: string
+  /** Orchestrator-chosen subagent display name (legacy blocks store it as `subagentName`). */
+  name?: string
+  subagentName?: string
   content?: string
   /** Go persists text blocks with key "text" instead of "content" */
   text?: string
@@ -499,6 +505,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
     result.lane = block.lane
   }
   if (block.agent) result.agent = block.agent
+  if (block.name) result.name = block.name
   const blockContent = block.content ?? block.text
   if (blockContent !== undefined) result.content = blockContent
   if (block.channel) result.channel = block.channel as MothershipStreamV1TextChannel
@@ -580,6 +587,7 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
       kind: MothershipStreamV1SpanPayloadKind.subagent,
       lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
       content: block.content,
+      ...(block.subagentName ? { name: block.subagentName } : {}),
     }
   }
 

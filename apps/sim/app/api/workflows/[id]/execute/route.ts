@@ -21,7 +21,6 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isWorkflowToolExecutionClaimable } from '@/lib/copilot/async-runs/lifecycle'
 import {
   claimWorkflowToolExecution,
   getAsyncToolCall,
@@ -29,10 +28,12 @@ import {
   releaseWorkflowToolExecutionClaim,
 } from '@/lib/copilot/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
+import { CopilotDegradedReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/copilot/request/metrics'
 import {
   ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
-  isWorkflowToolName,
-  resolveWorkflowToolTargetId,
+  type CopilotWorkflowToolBindingResult,
+  classifyWorkflowToolBinding,
 } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import {
@@ -62,7 +63,8 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
-  setExecutionMeta,
+  markExecutionStreamTerminal,
+  setExecutionActiveBlockStarts,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
@@ -104,8 +106,10 @@ import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execu
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
+  type BlockStartedData,
   type ExecutionEvent,
   encodeSSEEvent,
+  getBlockInvocationKey,
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
 import {
@@ -168,25 +172,19 @@ const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function isValidCopilotWorkflowToolBinding(params: {
+async function resolveCopilotWorkflowToolBinding(params: {
   toolCallId: string
   userId: string
   workflowId: string
-}): Promise<boolean> {
+}): Promise<CopilotWorkflowToolBindingResult> {
   const toolCall = await getAsyncToolCall(params.toolCallId)
-  if (
-    !toolCall ||
-    !isWorkflowToolName(toolCall.toolName) ||
-    !isWorkflowToolExecutionClaimable(toolCall.status, toolCall.permissionDecision)
-  ) {
-    return false
-  }
-
-  const run = await getRunSegment(toolCall.runId)
-  return (
-    run?.userId === params.userId &&
-    resolveWorkflowToolTargetId(toolCall.args, run.workflowId) === params.workflowId
-  )
+  const run = toolCall ? await getRunSegment(toolCall.runId) : null
+  return classifyWorkflowToolBinding({
+    toolCall,
+    run,
+    userId: params.userId,
+    workflowId: params.workflowId,
+  })
 }
 
 function createExecutionJsonResponse(
@@ -1021,18 +1019,29 @@ async function handleExecutePost(
       )
     }
 
-    if (
-      copilotToolCallId &&
-      !(await isValidCopilotWorkflowToolBinding({
+    if (copilotToolCallId) {
+      const binding = await resolveCopilotWorkflowToolBinding({
         toolCallId: copilotToolCallId,
         userId,
         workflowId,
-      }))
-    ) {
-      return NextResponse.json(
-        { error: 'Copilot workflow tool binding was not found' },
-        { status: 403 }
-      )
+      })
+      if (!binding.ok) {
+        // This rejection happens before any LoggingSession exists, so it leaves
+        // no execution log and no workflow span — log the reason or it is
+        // invisible everywhere except the browser console.
+        // This rejection happens before a LoggingSession or any workflow span
+        // exists, so the counter is the only place it becomes visible.
+        recordDegraded(CopilotDegradedReason.BindingRejected)
+        reqLogger.warn('Rejected Copilot workflow tool execution', {
+          copilotToolCallId,
+          workflowId,
+          reason: binding.rejection.code,
+        })
+        return NextResponse.json(
+          { error: binding.rejection.message, code: binding.rejection.code },
+          { status: binding.rejection.statusCode }
+        )
+      }
     }
 
     if (inputFromExecutionId) {
@@ -1746,6 +1755,7 @@ async function handleExecutePost(
       isTimeoutError(error)
     let isStreamClosed = false
     let isManualAbortRegistered = false
+    const activeBlockStarts = new Map<string, { eventId: number; data: BlockStartedData }>()
 
     const eventWriter = createExecutionEventWriter(executionId, {
       workspaceId,
@@ -1782,63 +1792,73 @@ async function handleExecutePost(
         isManualAbortRegistered = true
 
         let terminalEventPublished = false
-        const sendEvent = async (
+        let sendFailure: unknown
+        let sendQueue: Promise<void> = Promise.resolve()
+        const sendEvent = (
           event: ExecutionEvent,
           terminalStatus?: TerminalExecutionStreamStatus
         ) => {
-          const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
-          let eventToSend = event
-          let terminalBufferWriteFailed = false
-          if (isBuffered) {
-            try {
+          const task = sendQueue.then(async () => {
+            if (sendFailure) throw sendFailure
+            const isBuffered = !LIVE_ONLY_EXECUTION_EVENT_TYPES.has(event.type)
+            let eventToSend = event
+            if (isBuffered) {
               const entry = terminalStatus
                 ? await eventWriter.writeTerminal(event, terminalStatus)
                 : await eventWriter.write(event)
+              if (!terminalStatus) {
+                await eventWriter.flush()
+              }
               eventToSend = entry.event
               eventToSend.eventId = entry.eventId
               terminalEventPublished ||= Boolean(terminalStatus)
-            } catch (e) {
-              // The event buffer (Redis replay store) rejected this event — e.g. the flush
-              // batch exceeds the per-write byte cap for large block outputs. The buffer only
-              // backs reconnect/replay; the live SSE stream is the primary delivery. Fall
-              // through to enqueue the event live (below) instead of throwing, so terminal
-              // events still reach the active client and the UI doesn't hang on "running".
-              // Marking a terminal event delivered-live as published lets finalization close
-              // the stream cleanly instead of aborting it with controller.error().
-              reqLogger.warn(
-                'Event buffer write failed; delivering event over live stream only',
-                loggingSession.projectDiagnosticError(e, {
-                  eventType: event.type,
-                  terminal: Boolean(terminalStatus),
+
+              if (eventToSend.type === 'block:started') {
+                activeBlockStarts.set(getBlockInvocationKey(eventToSend.data), {
+                  eventId: entry.eventId,
+                  data: eventToSend.data,
                 })
-              )
-              terminalBufferWriteFailed = Boolean(terminalStatus)
-              terminalEventPublished ||= Boolean(terminalStatus)
+              } else if (
+                eventToSend.type === 'block:completed' ||
+                eventToSend.type === 'block:error'
+              ) {
+                activeBlockStarts.delete(getBlockInvocationKey(eventToSend.data))
+              } else if (terminalStatus) {
+                activeBlockStarts.clear()
+              }
+
+              if (
+                eventToSend.type === 'block:started' ||
+                eventToSend.type === 'block:completed' ||
+                eventToSend.type === 'block:error'
+              ) {
+                const activeSnapshotPersisted = await setExecutionActiveBlockStarts(executionId, [
+                  ...activeBlockStarts.values(),
+                ])
+                if (!activeSnapshotPersisted) {
+                  throw new Error('Failed to persist active execution snapshot')
+                }
+              }
             }
-          }
-          if (!isStreamClosed) {
-            try {
-              controller.enqueue(encodeSSEEvent(eventToSend))
-            } catch {
+            if (!isStreamClosed) {
+              try {
+                controller.enqueue(encodeSSEEvent(eventToSend))
+              } catch {
+                isStreamClosed = true
+              }
+            }
+          })
+          sendQueue = task.catch((error) => {
+            sendFailure ??= error
+            timeoutController.abort()
+            if (!isStreamClosed) {
+              try {
+                controller.error(error)
+              } catch {}
               isStreamClosed = true
             }
-          }
-          if (terminalBufferWriteFailed && terminalStatus) {
-            // Without this the reconnect route polls an `active` stream until its
-            // deadline. The meta write is a plain HSET, so it bypasses the byte budget
-            // that rejected the event. Runs after the live enqueue because Redis is the
-            // likely reason we are here at all, and a slow best-effort durability write
-            // must not delay the primary delivery path.
-            const metaPersisted = await setExecutionMeta(executionId, {
-              status: terminalStatus,
-            })
-            if (!metaPersisted) {
-              reqLogger.error(
-                'Failed to record terminal execution meta after buffer write failure',
-                { executionId, status: terminalStatus }
-              )
-            }
-          }
+          })
+          return task
         }
 
         try {
@@ -2051,13 +2071,13 @@ async function handleExecutePost(
             }
 
             try {
-              if (timeoutController.signal.aborted || isStreamClosed) return
+              if (timeoutController.signal.aborted) return
               timeoutController.signal.addEventListener('abort', cancelReader, { once: true })
 
               while (true) {
-                if (timeoutController.signal.aborted || isStreamClosed) break
+                if (timeoutController.signal.aborted) break
                 const { done, value } = await reader.read()
-                if (timeoutController.signal.aborted || isStreamClosed) break
+                if (timeoutController.signal.aborted) break
                 if (done) break
 
                 if (answerTextFromSink) continue
@@ -2077,7 +2097,7 @@ async function handleExecutePost(
                 })
               }
 
-              if (!timeoutController.signal.aborted && !isStreamClosed) {
+              if (!timeoutController.signal.aborted) {
                 await sendEvent({
                   type: 'stream:done',
                   timestamp: new Date().toISOString(),
@@ -2087,7 +2107,7 @@ async function handleExecutePost(
                 })
               }
             } catch (error) {
-              if (!timeoutController.signal.aborted && !isStreamClosed) {
+              if (!timeoutController.signal.aborted) {
                 reqLogger.error(
                   'Error streaming block content',
                   loggingSession.projectDiagnosticError(error, { blockId })
@@ -2394,10 +2414,15 @@ async function handleExecutePost(
               executionId,
               eventWriter
             )
+            const terminalMetaPersisted = await markExecutionStreamTerminal(
+              executionId,
+              finalMetaStatus
+            )
             reqLogger.error('Failed to publish terminal execution event durably', {
               executionId,
               status: finalMetaStatus,
               replayBufferFlushed,
+              terminalMetaPersisted,
             })
             if (!isStreamClosed) {
               controller.error(new Error('Run buffer terminal event publish failed'))
@@ -2434,8 +2459,7 @@ async function handleExecutePost(
       },
       cancel() {
         isStreamClosed = true
-        timeoutController.abort()
-        reqLogger.info('Client disconnected from SSE stream')
+        reqLogger.info('Client detached from SSE stream; workflow execution remains active')
       },
     })
 

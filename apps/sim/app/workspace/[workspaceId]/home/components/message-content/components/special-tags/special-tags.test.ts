@@ -1218,3 +1218,159 @@ describe('parser properties', () => {
     }
   })
 })
+
+describe('flattened options payload recovery', () => {
+  // Observed in the wild: no <options> wrapper, and the LAST entry lost its
+  // braces so its title sits on the numeric key with the description hoisted.
+  const flattened =
+    'options {"1": {"title": "Test files and a second turn in the same DM thread", "description": "watermark + file-delta live check"}, "2": {"title": "Put /chat/the-elder on Brain with a password", "description": "finish chat cutover"}, "3": "Add thinking-status keepalive for long Brain runs", "description": "refresh shimmer past 2 minutes"}'
+
+  it('renders it as an options card instead of raw JSON', () => {
+    const { segments } = parseSpecialTags(flattened, false)
+    const options = segments.find((segment) => segment.type === 'options')
+    expect(options).toBeDefined()
+    expect(Object.keys((options as { data: Record<string, unknown> }).data)).toEqual([
+      '1',
+      '2',
+      '3',
+    ])
+  })
+
+  it('rebuilds the flattened entry from the hoisted description', () => {
+    const { segments } = parseSpecialTags(flattened, false)
+    const data = (segments.find((s) => s.type === 'options') as { data: Record<string, unknown> })
+      .data
+    expect(data['3']).toEqual({
+      title: 'Add thinking-status keepalive for long Brain runs',
+      description: 'refresh shimmer past 2 minutes',
+    })
+  })
+
+  it('drops the bare "options" label rather than leaving it as prose', () => {
+    const { segments } = parseSpecialTags(flattened, false)
+    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
+  })
+
+  it('repairs the same corruption inside a well-formed tag', () => {
+    const tagged =
+      '<options>{"1": {"title": "A", "description": "a"}, "2": "B", "description": "b"}</options>'
+    const { segments } = parseSpecialTags(tagged, false)
+    const data = (segments.find((s) => s.type === 'options') as { data: Record<string, unknown> })
+      .data
+    expect(data['2']).toEqual({ title: 'B', description: 'b' })
+  })
+
+  it('leaves prose JSON alone', () => {
+    const prose = 'Here is the config: {"name": "x", "description": "y"}'
+    const { segments } = parseSpecialTags(prose, false)
+    expect(segments.some((segment) => segment.type === 'options')).toBe(false)
+  })
+
+  it('does not fire mid-stream', () => {
+    expect(parseSpecialTags(flattened, true).segments.some((s) => s.type === 'options')).toBe(false)
+  })
+})
+
+describe('bare options with a capitalized label', () => {
+  // Well-formed payload, but no wrapper and a "Options:" label instead of the
+  // lowercase bare word — the second shape seen in the wild.
+  const labeled =
+    'Options: {"1": {"title": "Live-test ASK top-level, ASK thread, and a mention in another channel", "description": "confirm the new accept rule in Slack"}, "2": {"title": "Test files and a second turn in the same DM thread", "description": "watermark + file-delta live check"}}'
+
+  it('renders it as an options card', () => {
+    const { segments } = parseSpecialTags(labeled, false)
+    const options = segments.find((segment) => segment.type === 'options')
+    expect(options).toBeDefined()
+    expect(Object.keys((options as { data: Record<string, unknown> }).data)).toEqual(['1', '2'])
+  })
+
+  it('leaves no stray "Options:" prose above the card', () => {
+    const { segments } = parseSpecialTags(labeled, false)
+    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
+  })
+
+  it('keeps real prose that precedes the payload', () => {
+    const withProse = `Here is what I suggest.\n\n${labeled}`
+    const { segments } = parseSpecialTags(withProse, false)
+    const text = segments.find((segment) => segment.type === 'text') as { content: string }
+    expect(text.content).toBe('Here is what I suggest.')
+    expect(segments.some((segment) => segment.type === 'options')).toBe(true)
+  })
+})
+
+describe('bare options JSON with no label at all', () => {
+  const naked =
+    '{"1": {"title": "Live-test ASK top-level, ASK thread, and a mention in another channel", "description": "confirm the new accept rule in Slack"}, "2": {"title": "Test files and a second turn in the same DM thread", "description": "watermark + file-delta live check"}}'
+
+  it('renders the payload alone as an options card', () => {
+    const { segments } = parseSpecialTags(naked, false)
+    const options = segments.find((segment) => segment.type === 'options')
+    expect(options).toBeDefined()
+    expect(Object.keys((options as { data: Record<string, unknown> }).data)).toEqual(['1', '2'])
+    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
+  })
+
+  it('renders it after prose with no label between them', () => {
+    const { segments } = parseSpecialTags(`Two ways to go from here.\n\n${naked}`, false)
+    const text = segments.find((segment) => segment.type === 'text') as { content: string }
+    expect(text.content).toBe('Two ways to go from here.')
+    expect(segments.some((segment) => segment.type === 'options')).toBe(true)
+  })
+
+  it('recovers a flattened payload with no label either', () => {
+    const flattenedNaked = '{"1": {"title": "A", "description": "a"}, "2": "B", "description": "b"}'
+    const { segments } = parseSpecialTags(flattenedNaked, false)
+    const data = (segments.find((s) => s.type === 'options') as { data: Record<string, unknown> })
+      .data
+    expect(data['2']).toEqual({ title: 'B', description: 'b' })
+  })
+})
+
+describe('bare question payload recovery', () => {
+  const bare =
+    '{"type": "single_select", "prompt": "Which channel should the bot post to?", "options": [{"id": "a", "label": "#general"}, {"id": "b", "label": "#alerts"}]}'
+
+  it('renders an unwrapped question payload as a question card', () => {
+    const { segments } = parseSpecialTags(bare, false)
+    const question = segments.find((segment) => segment.type === 'question')
+    expect(question).toBeDefined()
+    expect((question as { data: Array<{ prompt: string }> }).data[0].prompt).toBe(
+      'Which channel should the bot post to?'
+    )
+    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
+  })
+
+  it('accepts an array payload and strips a bare label', () => {
+    const { segments } = parseSpecialTags(`Question: [${bare}]`, false)
+    expect(segments.some((segment) => segment.type === 'question')).toBe(true)
+    expect(segments.some((segment) => segment.type === 'text')).toBe(false)
+  })
+
+  it('keeps prose that precedes the payload', () => {
+    const { segments } = parseSpecialTags(`I need one detail.\n\n${bare}`, false)
+    const text = segments.find((segment) => segment.type === 'text') as { content: string }
+    expect(text.content).toBe('I need one detail.')
+  })
+
+  it('does not fire mid-stream', () => {
+    expect(parseSpecialTags(bare, true).segments.some((s) => s.type === 'question')).toBe(false)
+  })
+})
+
+describe('ordinary JSON in prose is never turned into a card', () => {
+  const prose = [
+    'Here is the config: {"name": "elder", "description": "the bot", "enabled": true}',
+    'The API returned {"1": "ok", "2": "ok"}',
+    'Response shape: {"type": "object", "prompt": "n/a", "options": []}',
+    'Use {"type": "single_select"} as the discriminator.',
+    'Rows: [{"id": "1", "label": "one"}, {"id": "2", "label": "two"}]',
+    'Payload: {"data": {"title": "x", "description": "y"}}',
+    'Env: {"0": {"title": "a", "description": "b"}}',
+  ]
+
+  it.each(prose)('leaves %s as text', (content) => {
+    const { segments } = parseSpecialTags(content, false)
+    expect(segments.some((s) => s.type === 'options' || s.type === 'question')).toBe(false)
+    expect(segments.some((s) => s.type === 'text')).toBe(true)
+  })
+})

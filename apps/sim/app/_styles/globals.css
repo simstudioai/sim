@@ -58,6 +58,13 @@
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
+  /* Full-screen takeovers replace the app entirely, so they sit above every
+     other layer including poppers. The desktop shell gate is the outermost of
+     them: an incompatible shell invalidates everything the web app renders
+     inside it, so it outranks in-app takeovers rather than tying with them and
+     letting document order decide. */
+  --z-takeover: 500;
+  --z-shell-gate: 600;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
@@ -89,23 +96,24 @@
 }
 
 /**
- * Electron's `titleBarOverlay` publishes the window controls' geometry as these
- * `titlebar-area-*` env vars, and Chromium rescales them under page zoom so the
- * lane holds its physical size. Fallbacks are the platform's measured values, for
- * a shell predating the overlay; the `:root` zeros cover the different case of the
- * attribute being absent entirely, where this block never matches.
+ * The lane scales with page zoom like the rest of the UI (Codex-style): the
+ * 38px/81px terms are CSS px, so zooming in grows the lane and its controls
+ * with the content while the OS-drawn traffic lights hold their physical size
+ * inside it. The `env(titlebar-area-*)` terms — which Chromium rescales under
+ * zoom to keep physical geometry — act only as a floor, so zooming OUT can
+ * never shrink the lane under the lights or slide the controls beneath them.
+ * Fallbacks are the platform's measured values, for a shell predating the
+ * overlay; the `:root` zeros cover the different case of the attribute being
+ * absent entirely, where this block never matches.
  */
 html[data-sim-desktop-title-bar="inset"] {
   --sidebar-collapsed-width: 0px;
-  --desktop-title-bar-height: env(titlebar-area-height, 38px);
-  --desktop-title-bar-inset-x: env(titlebar-area-x, 81px);
-  /* 0.79 = 30px of the 38px lane, and 0.53 of that = 16px. Proportions rather
-     than px because px would scale with page zoom while the OS-drawn lights
-     would not — and calc cannot divide a length by a length to get a scale.
-     `navigator.windowControlsOverlay` could, but reading it in JS would race
-     first paint for a value the blocking script needs. */
-  --desktop-title-bar-control-size: calc(var(--desktop-title-bar-height) * 0.79);
-  --desktop-title-bar-control-icon-size: calc(var(--desktop-title-bar-control-size) * 0.53);
+  --desktop-title-bar-height: max(env(titlebar-area-height, 38px), 38px);
+  --desktop-title-bar-inset-x: max(env(titlebar-area-x, 81px), 81px);
+  /* 30px of the 38px lane, and 16px of that — CSS px on purpose, so the
+     controls zoom with the page instead of staying pinned to physical size. */
+  --desktop-title-bar-control-size: 30px;
+  --desktop-title-bar-control-icon-size: 16px;
   --desktop-title-bar-control-offset: calc(
     (var(--desktop-title-bar-height) - var(--desktop-title-bar-control-size)) /
     2

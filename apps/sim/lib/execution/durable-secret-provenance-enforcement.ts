@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 
@@ -8,8 +9,26 @@ const logger = createLogger('DurableSecretProvenanceEnforcement')
  *
  * Named by the call site rather than derived, so the surface survives refactors and stays
  * greppable — the same convention the projection-refusal `site` strings use.
+ *
+ * One policy governs all of them: an **absence** — nobody recorded what these bytes carry — may be
+ * read, with an audit entry naming the surface, because a value nobody recorded says exactly what
+ * an untracked one does. A **taint** — a writer that knew secrets were present and could not map
+ * them to this output — is refused, and no policy relaxes it.
+ *
+ * Only `workspace-file` stores the difference, and that is deliberate rather than drift. On the
+ * other surfaces every non-exact sidecar comes from one condition, an incomplete incoming bundle
+ * or registry, which is always an absence; two stored statuses say everything there is to say.
+ * Files are the only surface that derives one stored object from another — an archive extracted
+ * into children, a generated asset, a transcoded output — so they are the only one that can refuse
+ * on purpose, and the only one with two claims to keep apart. Adding a third status elsewhere would
+ * encode a distinction that surface cannot make; removing it here would collapse one that matters.
  */
-export const DURABLE_SECRET_PROVENANCE_SURFACES = ['memory', 'table-row', 'knowledge'] as const
+export const DURABLE_SECRET_PROVENANCE_SURFACES = [
+  'memory',
+  'table-row',
+  'knowledge',
+  'workspace-file',
+] as const
 
 export type DurableSecretProvenanceSurface = (typeof DURABLE_SECRET_PROVENANCE_SURFACES)[number]
 
@@ -61,9 +80,13 @@ let enforcedSurfaces: ReadonlySet<DurableSecretProvenanceSurface> | undefined
  * Set `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` to `all`, or to a comma-separated subset of
  * {@link DURABLE_SECRET_PROVENANCE_SURFACES}, to close a surface.
  *
- * Workspace files are deliberately not a surface here: their unknown check sits in the callers
- * rather than in the shared import, and one unknown file locks vfs reads, chat attachments, sandbox
- * mounts, and the file tool routes at once. They stay fail-closed until that is its own decision.
+ * Workspace files were held out of this list while their fail-closed posture was its own decision.
+ * That decision arrived as broken state: because a file that was never tracked already reads as
+ * exact-empty, refusing only the file whose provenance could not be recorded made a writer that
+ * momentarily could not vouch permanently worse off than one that never tried — with no way back,
+ * since nothing rewrites a file's provenance but another content write. Live files across several
+ * workspaces sat unreadable behind it, by every tool route at once, carrying exactly as much
+ * information about their contents as the untracked files beside them: none.
  */
 export function isDurableSecretProvenanceEnforced(
   surface: DurableSecretProvenanceSurface
@@ -90,6 +113,11 @@ export interface UnrecordedDurableProvenanceReport {
   /** How many records in this one read were unrecorded, when the caller reads a page at a time. */
   affectedCount?: number
   workspaceId?: string
+  /**
+   * Whose access authorized the read. Null where the surface cannot name one — an audit row with
+   * no actor still carries the workspace, surface, and cause, which is what the trail is for.
+   */
+  actorUserId?: string | null
 }
 
 /**
@@ -108,6 +136,34 @@ export function reportUnrecordedDurableProvenance(report: UnrecordedDurableProve
     enforced: false,
     ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+  })
+
+  /**
+   * The log line is for us; this is for the people who own the secrets.
+   *
+   * Recorded here rather than where provenance was lost, because losing it costs nothing on its
+   * own — a write nobody could vouch for is just data at rest. The exposure is this moment: a
+   * value crossing into a run that will project it to a model with no way to recognise a secret
+   * inside it and redact it. That is what a reader needs told, and it is why the entry names the
+   * surface and the count rather than a secret, which is precisely what was not recorded.
+   *
+   * Fire-and-forget by construction — `recordAudit` never throws — so the trail can never be the
+   * reason a run fails. Skipped without a workspace: the entry would name no one it concerns.
+   */
+  if (!report.workspaceId) return
+  recordAudit({
+    workspaceId: report.workspaceId,
+    actorId: report.actorUserId ?? null,
+    action: AuditAction.SECRET_PROVENANCE_UNRECORDED,
+    resourceType: AuditResourceType.SECRET_PROVENANCE,
+    resourceId: report.surface,
+    description:
+      'A run read data whose secret provenance was never recorded, so any secret it carries could not be redacted before reaching a model.',
+    metadata: {
+      surface: report.surface,
+      cause: report.cause,
+      ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
+    },
   })
 }
 

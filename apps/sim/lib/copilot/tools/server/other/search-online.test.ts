@@ -9,7 +9,7 @@ const { mockExecuteTool } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
-  SearchOnline: { id: 'search_online' },
+  WebSearch: { id: 'web_search' },
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 

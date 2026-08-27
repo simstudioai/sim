@@ -3,6 +3,7 @@
  */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import type { BlockState, ExecutionContext } from '@/executor/types'
@@ -24,6 +25,17 @@ import { executeTool } from '@/tools'
 
 const mockExecuteTool = executeTool as ReturnType<typeof vi.fn>
 const mockCollectBlockData = collectBlockData as ReturnType<typeof vi.fn>
+
+/** The handler evaluates every testable branch in one call, so a whole condition list resolves to a single verdict. */
+const matchedAt = (index: number) => ({
+  success: true,
+  output: { result: { matchedIndex: index } },
+})
+const noMatch = () => ({ success: true, output: { result: { matchedIndex: -1 } } })
+const threwAt = (index: number, message: string) => ({
+  success: true,
+  output: { result: { matchedIndex: -1, threwAtIndex: index, message } },
+})
 const mockConditionLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi
     .mocked(loggerMock.createLogger)
@@ -123,8 +135,8 @@ describe('ConditionBlockHandler', () => {
 
     vi.clearAllMocks()
 
-    // Default: condition evaluates to false (else path). Individual tests override with mockResolvedValueOnce.
-    mockExecuteTool.mockResolvedValue({ success: true, output: { result: false } })
+    // Default: no branch matches (else path). Individual tests override with mockResolvedValueOnce.
+    mockExecuteTool.mockResolvedValue(noMatch())
   })
 
   it('should handle condition blocks', () => {
@@ -135,7 +147,7 @@ describe('ConditionBlockHandler', () => {
 
   it('should execute condition block correctly and select first path', async () => {
     // Mock executeTool to return true for the condition
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.value > 5' },
@@ -162,7 +174,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should pass correct parameters to function_execute tool', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.value > 5' },
@@ -195,7 +207,7 @@ describe('ConditionBlockHandler', () => {
       blockData: { 'huge-block': { payload: 'x'.repeat(1024) } },
       blockNameMapping: { hugeblock: 'huge-block' },
     })
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'true' },
@@ -209,7 +221,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should select the else path if other conditions fail', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+    mockExecuteTool.mockResolvedValueOnce(noMatch())
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.value < 0' },
@@ -247,7 +259,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('finds whitespace and mixed-case else branches during fallback', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+    mockExecuteTool.mockResolvedValueOnce(noMatch())
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'false' },
@@ -282,7 +294,7 @@ describe('ConditionBlockHandler', () => {
 
   it('should handle evaluation errors gracefully', async () => {
     const secret = 'condition-runtime-secret-value'
-    mockExecuteTool.mockResolvedValueOnce({
+    mockExecuteTool.mockResolvedValue({
       success: false,
       error: `Cannot read ${secret} through __var_API_KEY`,
     })
@@ -300,8 +312,25 @@ describe('ConditionBlockHandler', () => {
     expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain('__var_API_KEY')
   })
 
+  it('names the branch an expression threw on without leaking the failure into logs', async () => {
+    const secret = 'condition-throw-secret-value'
+    mockExecuteTool.mockResolvedValueOnce(threwAt(1, `Cannot read ${secret}`))
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'context.value > 5' },
+      { id: 'cond2', title: 'else if', value: 'context.missing.deep()' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await expect(
+      handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+    ).rejects.toThrow(/Evaluation error in condition "else if": Cannot read/)
+    expect(mockExecuteTool).toHaveBeenCalledOnce()
+    expect(JSON.stringify(mockConditionLogger.error.mock.calls)).not.toContain(secret)
+  })
+
   it('should handle missing source block output gracefully', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
@@ -318,7 +347,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should throw error if target block is missing', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
@@ -331,8 +360,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should return no-match result if no condition matches and no else exists', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+    mockExecuteTool.mockResolvedValueOnce(noMatch())
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'false' },
@@ -358,7 +386,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('falls back to else path when loop context data is unavailable', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+    mockExecuteTool.mockResolvedValueOnce(noMatch())
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'context.item === "apple"' },
@@ -373,7 +401,7 @@ describe('ConditionBlockHandler', () => {
   })
 
   it('should use collectBlockData to gather block state', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
     const conditions = [
       { id: 'cond1', title: 'if', value: 'true' },
@@ -403,9 +431,219 @@ describe('ConditionBlockHandler', () => {
     )
   })
 
+  describe('Batched evaluation', () => {
+    const manyConditions = [
+      { id: 'cond1', title: 'if', value: 'context.value === 1' },
+      { id: 'cond2', title: 'else if', value: 'context.value === 2' },
+      { id: 'cond3', title: 'else if', value: 'context.value === 3' },
+      { id: 'cond4', title: 'else if', value: 'context.value === 4' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    it('evaluates every testable branch in a single call', async () => {
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+      await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(manyConditions),
+      })
+
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('tests the expressions in declaration order and stops at the first truthy one', async () => {
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+      await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(manyConditions),
+      })
+
+      const [, toolParams] = mockExecuteTool.mock.calls[0]
+      const code = toolParams.code as string
+      const positions = manyConditions.slice(0, 4).map((condition) => code.indexOf(condition.value))
+
+      expect(positions.every((position) => position >= 0)).toBe(true)
+      expect(positions).toEqual([...positions].sort((a, b) => a - b))
+      // The else branch carries no expression and must never reach the sandbox.
+      expect(code).toContain('return { matchedIndex: -1 }')
+    })
+
+    it('never sends the else branch for evaluation', async () => {
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+      await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([
+          { id: 'cond1', title: 'if', value: 'context.value === 1' },
+          { id: 'else1', title: 'else', value: 'SHOULD_NEVER_BE_EVALUATED' },
+          { id: 'cond2', title: 'else if', value: 'context.value === 2' },
+        ]),
+      })
+
+      const [, toolParams] = mockExecuteTool.mock.calls[0]
+      expect(toolParams.code).not.toContain('SHOULD_NEVER_BE_EVALUATED')
+      expect(toolParams.code).not.toContain('context.value === 2')
+    })
+
+    it('re-evaluates one branch at a time when the batch returns no verdict', async () => {
+      // A syntax error anywhere fails the whole script at parse time, so the
+      // fallback must still take the branch an earlier condition matches.
+      mockExecuteTool.mockResolvedValueOnce({
+        success: false,
+        error: 'SyntaxError: Unexpected identifier',
+      })
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(manyConditions),
+      })
+
+      expect((result as any).selectedOption).toBe('cond1')
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    })
+
+    it('emits a batch script a trailing line comment cannot break', async () => {
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+      await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([
+          { id: 'cond1', title: 'if', value: 'context.value > 5 // gate' },
+          { id: 'else1', title: 'else', value: '' },
+        ]),
+      })
+
+      const [, toolParams] = mockExecuteTool.mock.calls[0]
+      // Compiling is the assertion: a comment that swallowed the closing
+      // parenthesis would fail the whole script at parse time.
+      expect(() => new Function(toolParams.code as string)).not.toThrow()
+    })
+
+    it('wraps a comment-bearing expression the same way when falling back', async () => {
+      // The fallback recovers a batch the sandbox could not parse, so it has to
+      // accept every expression the batch accepts — otherwise the recovery path
+      // rejects a branch the primary path would have matched.
+      mockExecuteTool.mockResolvedValueOnce({
+        success: false,
+        error: 'Invalid JavaScript syntax: Unexpected token',
+      })
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([
+          { id: 'cond1', title: 'if', value: 'context.value > 5 // gate' },
+          { id: 'cond2', title: 'else if', value: 'context.value ===' },
+          { id: 'else1', title: 'else', value: '' },
+        ]),
+      })
+
+      expect((result as any).selectedOption).toBe('cond1')
+      const [, fallbackParams] = mockExecuteTool.mock.calls[1]
+      expect(() => new Function(fallbackParams.code as string)).not.toThrow()
+    })
+
+    it('does not fan a timed-out batch out into one call per branch', async () => {
+      mockExecuteTool.mockResolvedValue({
+        success: false,
+        error: 'Request timed out after 5000ms',
+      })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toThrow(/Evaluation error in condition "if".*Request timed out/)
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('does not replay an indeterminate Function execution', async () => {
+      mockExecuteTool.mockResolvedValue({
+        success: false,
+        error: 'The sandbox may have started this Function',
+        retryable: false,
+      })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        name: 'NonRetryableExecutionError',
+        retryable: false,
+      })
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('does not enter per-branch fallback when the batched Function call throws indeterminate', async () => {
+      mockExecuteTool.mockRejectedValueOnce(
+        new NonRetryableExecutionError('The sandbox may have started this Function')
+      )
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        name: 'NonRetryableExecutionError',
+        retryable: false,
+      })
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('preserves an indeterminate result during individual fallback', async () => {
+      mockExecuteTool
+        .mockResolvedValueOnce({
+          success: false,
+          error: 'Invalid JavaScript syntax: Unexpected token',
+        })
+        .mockResolvedValueOnce({
+          success: false,
+          error: 'The sandbox may have started this Function',
+          retryable: false,
+        })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        cause: expect.objectContaining({
+          name: 'NonRetryableExecutionError',
+          retryable: false,
+        }),
+      })
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    })
+
+    it('falls back when the batch reports a branch index outside the list', async () => {
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(99))
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(manyConditions),
+      })
+
+      expect((result as any).selectedOption).toBe('cond1')
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not take the else path on a reply that carries no verdict', async () => {
+      // Reading a garbled reply as "nothing matched" would silently reroute the
+      // run, so an unrecognized shape has to fall back rather than fall through.
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: { ok: true } } })
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(manyConditions),
+      })
+
+      expect((result as any).selectedOption).toBe('cond1')
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not retry per branch once the run has been cancelled', async () => {
+      mockContext.abortSignal = AbortSignal.abort()
+      mockExecuteTool.mockResolvedValue({ success: false, error: 'Execution cancelled' })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toThrow(/Evaluation error in condition "if".*Execution cancelled/)
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('Multiple branches to same target', () => {
     it('should handle if and else pointing to same target', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'context.value > 5' },
@@ -431,7 +669,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should select else branch to same target when if fails', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'context.value < 0' },
@@ -457,10 +695,8 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should handle if→A, elseif→B, else→A pattern', async () => {
-      // First condition (cond1): false
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
-      // Second condition (cond2): false
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      // Neither cond1 nor cond2 matches, so the else branch wins.
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'context.value === 1' },
@@ -486,7 +722,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Condition evaluation with different data types', () => {
     it('should evaluate string comparison conditions', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { name: 'test', status: 'active' },
@@ -506,7 +742,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should evaluate boolean conditions', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { isEnabled: true, count: 5 },
@@ -526,7 +762,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should evaluate array length conditions', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { items: [1, 2, 3, 4, 5] },
@@ -546,7 +782,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should evaluate null/undefined check conditions', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { data: null },
@@ -568,8 +804,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Multiple else-if conditions', () => {
     it('should evaluate multiple else-if conditions in order', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(1))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { score: 75 },
@@ -612,9 +847,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should skip to else when all else-if fail', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { score: 30 },
@@ -638,7 +871,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Condition with no outgoing edge', () => {
     it('should set selectedOption when condition matches but has no edge', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'true' },
@@ -660,7 +893,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should set selectedOption when else is selected but has no edge', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'false' },
@@ -682,7 +915,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should deactivate if-path when else is selected with no edge', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'context.value > 100' },
@@ -715,7 +948,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should handle conditions passed as array directly', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       const conditions = [
         { id: 'cond1', title: 'if', value: 'true' },
@@ -731,7 +964,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Source output filtering', () => {
     it('should not propagate error field from source block output', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { value: 10, text: 'hello', error: 'upstream block failed' },
@@ -753,7 +986,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should not propagate _pauseMetadata from source block output', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { value: 10, _pauseMetadata: { contextId: 'abc' } },
@@ -774,7 +1007,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should still pass through non-control fields from source output', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       ;(mockContext.blockStates as any).set(mockSourceBlock.id, {
         output: { value: 10, text: 'hello', customData: { nested: true } },
@@ -798,7 +1031,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Virtual block ID handling', () => {
     it('should use currentVirtualBlockId for decision key when available', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       mockContext.currentVirtualBlockId = 'virtual-block-123'
 
@@ -817,7 +1050,7 @@ describe('ConditionBlockHandler', () => {
 
   describe('Parallel branch handling', () => {
     it('should resolve connections and block data correctly when inside a parallel branch', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       const parallelConditionBlock: SerializedBlock = {
         id: 'cond-block-1₍0₎',
@@ -897,7 +1130,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should find correct source block output in parallel branch context', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
 
       const parallelConditionBlock: SerializedBlock = {
         id: 'cond-block-1₍1₎',
@@ -969,7 +1202,7 @@ describe('ConditionBlockHandler', () => {
     })
 
     it('should fall back to else when condition is false in parallel branch', async () => {
-      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: false } })
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
 
       const parallelConditionBlock: SerializedBlock = {
         id: 'cond-block-1₍2₎',

@@ -47,6 +47,27 @@ export function isRecordLike(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Coerces {@link value} to a record, falling back to an empty object. The
+ * coercion counterpart to {@link isRecordLike}, for the common
+ * `isRecordLike(v) ? v : {}` shape when reading an untyped payload whose absence
+ * should read as "no fields" rather than as an error.
+ *
+ * @remarks Returns a fresh `{}` on every miss, so the result is never shared.
+ */
+export function toRecord(value: unknown): Record<string, unknown> {
+  return isRecordLike(value) ? value : {}
+}
+
+/**
+ * Coerces {@link value} to a record, falling back to `null`. Use over
+ * {@link toRecord} when callers must distinguish "absent or malformed" from
+ * "present but empty".
+ */
+export function toRecordOrNull(value: unknown): Record<string, unknown> | null {
+  return isRecordLike(value) ? value : null
+}
+
+/**
  * Recursively sorts the keys of every plain object reachable from {@link value},
  * preserving array order while recursing into array elements. Primitives and
  * `null` are returned unchanged. Produces a structurally equivalent value with

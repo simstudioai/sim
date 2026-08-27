@@ -12,7 +12,10 @@ import {
   getReplayCompletedWorkflowToolCallIds,
   panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
+  selectDeletedWorkflowResources,
   selectReconnectReplayState,
+  shouldActivateResourceEvent,
+  shouldQueueOutgoingMessage,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
@@ -29,6 +32,76 @@ vi.mock('next/navigation', () => ({
     refresh: vi.fn(),
   }),
 }))
+
+describe('selectDeletedWorkflowResources', () => {
+  const resource = (id: string) => ({ type: 'workflow' as const, id, title: id })
+  const cached = (id: string) => ({
+    id,
+    name: id,
+    lastModified: new Date(0),
+    createdAt: new Date(0),
+    sortOrder: 0,
+  })
+
+  it('selects a hydrated workflow the server no longer has', () => {
+    expect(selectDeletedWorkflowResources([resource('wf-gone')], new Set(), [])).toEqual([
+      resource('wf-gone'),
+    ])
+  })
+
+  it('keeps a workflow present in the fetched list', () => {
+    expect(selectDeletedWorkflowResources([resource('wf-1')], new Set(['wf-1']), [])).toEqual([])
+  })
+
+  it('keeps a workflow the stream inserted into the cache after the list snapshot', () => {
+    expect(
+      selectDeletedWorkflowResources([resource('wf-new')], new Set(), [cached('wf-new')])
+    ).toEqual([])
+  })
+})
+
+describe('shouldActivateResourceEvent', () => {
+  it('requests activation for browser work', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session')).toBe(true)
+  })
+
+  it('requests activation for every other resource the agent touches', () => {
+    expect(shouldActivateResourceEvent('file-1', 'workflow-1')).toBe(true)
+    expect(shouldActivateResourceEvent('browser-session', 'terminal-session')).toBe(true)
+    expect(shouldActivateResourceEvent(null, 'browser-session')).toBe(true)
+  })
+
+  it('honors an explicit request to activate', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session', { activate: true })).toBe(true)
+  })
+
+  it('lets an event opt out of stealing focus', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session', { activate: false })).toBe(
+      false
+    )
+  })
+})
+
+describe('shouldQueueOutgoingMessage', () => {
+  it('queues while a send is in flight', () => {
+    expect(shouldQueueOutgoingMessage(true, false, 0)).toBe(true)
+  })
+
+  it('queues while a stop is still settling', () => {
+    expect(shouldQueueOutgoingMessage(false, true, 0)).toBe(true)
+  })
+
+  it('queues behind messages still waiting after the turn ended', () => {
+    // The regression: a message queued mid-stream must dispatch before one
+    // typed in the idle gap after the turn stopped — a direct send here would
+    // jump the queue and swap the user's message order.
+    expect(shouldQueueOutgoingMessage(false, false, 1)).toBe(true)
+  })
+
+  it('sends directly on an idle chat with an empty queue', () => {
+    expect(shouldQueueOutgoingMessage(false, false, 0)).toBe(false)
+  })
+})
 
 function userMessage(id: string): PersistedMessage {
   return {

@@ -1,10 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaActivateUserParams,
-  OktaActivateUserResponse,
-  OktaApiError,
-} from '@/tools/okta/types'
+import type { OktaActivateUserParams, OktaActivateUserResponse } from '@/tools/okta/types'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaActivateUser')
@@ -46,27 +43,16 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail ?? true
+      const sendEmail = params.sendEmail === undefined ? true : isOktaFlagEnabled(params.sendEmail)
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/activate?sendEmail=${sendEmail}`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // empty response body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to activate user in Okta')
+      await throwOktaError(response, logger, 'Failed to activate user in Okta')
     }
 
     let activationUrl: string | null = null

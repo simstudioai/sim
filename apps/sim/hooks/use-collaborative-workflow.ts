@@ -25,10 +25,10 @@ import {
   type WorkflowSearchSubflowFieldId,
   workflowSearchSubflowFieldMatchesExpected,
 } from '@/lib/workflows/search-replace/subflow-fields'
+import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { getSubBlocksDependingOnChange } from '@/blocks/utils'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import {

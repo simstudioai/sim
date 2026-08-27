@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
@@ -12,6 +17,7 @@ import type {
   Filter,
   ReplaceRowsResult,
   RowData,
+  RowExecutions,
   Sort,
   SortSpec,
   TableDefinition,
@@ -21,17 +27,19 @@ import type {
 } from '@/lib/table'
 import {
   batchInsertRows,
+  batchUpdateRows,
   deleteRow,
   deleteRowsByFilter,
   deleteRowsByIds,
   findRowMatches,
-  getRowById,
+  getRowSummaryById,
   insertRow,
   queryRows,
   replaceTableRows as replaceTableRowsPrimitive,
   rowDataNameToId,
   sortSpecNamesToIds,
   TABLE_LIMITS,
+  type TableRowSummary,
   updateRow,
   updateRowsByFilter,
   upsertRow,
@@ -42,11 +50,16 @@ import {
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
+import {
+  resolveRowWriteProvenance,
+  type TableRowProvenanceEnvelope,
+} from '@/lib/table/application/row-secret-provenance'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
+import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
+import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -55,6 +68,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { loadEnrichmentDetail, loadExecutionsForRow } from '@/lib/table/rows/executions'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
@@ -81,20 +95,35 @@ interface TableScopedInput {
   tableId: string
   assertedWorkspaceId?: string
   requestId?: string
-  /**
-   * Whether the calling surface publishes the stricter `/api/v2` write contract:
-   * a row naming a column the table does not have is refused rather than having
-   * that key dropped, and a value the column's type cannot coerce is answered
-   * with a 400 rather than stored as `null`.
-   *
-   * Absent — every first-party surface, and the only behavior any of them has
-   * ever had: the workspace grid, the internal `/api/table` routes, `/api/v1`,
-   * the Copilot table tools, and the executor's Table block all drop the
-   * unknown key and blank the uncoercible cell. Read-only use cases ignore it.
-   */
 }
 
-/** The write policy `strictWrite` selects, for the row-service primitives. */
+/**
+ * Opt-in on every read that returns whole rows.
+ *
+ * The projection stays byte-identical by default: the sidecar is a second query
+ * and its `blockErrors` are unbounded, so a shipped caller must never start
+ * paying for it. When a caller does opt in, the sidecar drain accumulates its
+ * own byte budget and refuses past `TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES` — the
+ * ceiling is spent inside the read rather than measured after it, so an
+ * over-budget page never gets materialized in the first place.
+ */
+interface RunStateReadInput {
+  includeRunState?: boolean
+}
+
+/**
+ * The write policy `strictWrite` selects, for the row-service primitives.
+ *
+ * `strictWrite` means the calling surface publishes the stricter `/api/v2` write
+ * contract: a row naming a column the table does not have is refused rather than
+ * having that key dropped, and a value the column's type cannot coerce is
+ * answered with a 400 rather than stored as `null`.
+ *
+ * Absent — every first-party surface, and the only behavior any of them has ever
+ * had: the workspace grid, the internal `/api/table` routes, `/api/v1`, the
+ * Copilot table tools, and the executor's Table block all drop the unknown key
+ * and blank the uncoercible cell.
+ */
 function rowWriteOptions(input: { strictWrite: boolean }): RowWriteOptions {
   return input.strictWrite ? { uncoercibleValues: 'reject' } : {}
 }
@@ -108,14 +137,22 @@ type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenanc
 async function loadAuthorizedRowsProvenance(
   principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
-  rows: TableRow[],
+  // The loader reads only id, updatedAt and the selected values, so a row
+  // without its executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
+  rows: TableRowSummary[],
   include: boolean | undefined
 ): Promise<TableRowsProvenance | undefined> {
   if (!include) return undefined
-  return loadTableRowSecretProvenance(rows, {
-    userId: requirePrincipalSubjectUserId(principal),
-    workspaceId,
-  })
+  return loadTableRowSecretProvenance(
+    // `selectedValues` narrows the sidecar to the columns the row still holds.
+    // Without it a stale entry for a dropped column rides along in the envelope,
+    // which is how the unmigrated `rows`/`query` routes have always behaved.
+    rows.map((row) => ({ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data })),
+    {
+      userId: requirePrincipalSubjectUserId(principal),
+      workspaceId,
+    }
+  )
 }
 
 function requestId(input: TableScopedInput): string {
@@ -133,7 +170,7 @@ function actorUserId(
 
 /**
  * Refuses a wire row naming a column the table does not have. Applied only to a
- * `strictWrite` caller — see {@link TableScopedInput.strictWrite}.
+ * `strictWrite` caller — see {@link rowWriteOptions}.
  *
  * The name→id remap drops unrecognised keys, so without this an insert of
  * `{"nosuchcol":"x"}` created an empty row under a 201, and a patch of
@@ -147,7 +184,14 @@ function assertKnownColumnNames(
   idByName: ReadonlyMap<string, string>,
   rowLabel?: string
 ): void {
-  const unknown = unknownColumnNames(data, idByName)
+  assertNoUnknownColumns(unknownColumnNames(data, idByName), rowLabel)
+}
+
+/**
+ * Refuses a wire row naming a column the table does not have, on either wire.
+ * Shared so the two keyings cannot drift in how they name the offending keys.
+ */
+function assertNoUnknownColumns(unknown: string[], rowLabel?: string): void {
   if (unknown.length === 0) return
   const where = rowLabel ? `${rowLabel}: ` : ''
   throw new TableRowsValidationError(
@@ -155,22 +199,86 @@ function assertKnownColumnNames(
   )
 }
 
-function namedDataToStorage(data: RowData, table: TableDefinition, strict = false): RowData {
+/**
+ * Which column keying a write's row data arrives in.
+ *
+ * `'names'` — the caller publishes column **names** on its wire: `/api/v2`,
+ * `/api/v1`, and the Copilot table tools, where a name is what the caller (or
+ * the model) can read off a row. Names are remapped to storage ids here.
+ *
+ * `'ids'` — the caller already speaks stable storage column **ids**: the
+ * first-party grid and the internal `/api/table` routes, which hold the schema
+ * they rendered and address cells by id.
+ *
+ * Required so a new write surface must state which contract it publishes. The
+ * name remap drops keys it does not recognise, and a storage id names no column
+ * *name*, so feeding id-keyed data through the name path silently drops every
+ * cell and reports the write as successful.
+ *
+ * Row data needs this and filters, sorts and predicates do not: their
+ * translators pass an unrecognised field through unchanged (`idByName.get(key)
+ * ?? key`), so they are already correct under either keying. Only the row-data
+ * remap is lossy, which is why only it carries a discriminator.
+ */
+export type TableRowDataKeying = 'names' | 'ids'
+
+/**
+ * The id-keyed counterpart of {@link assertKnownColumnNames}, applied on the same
+ * `strictWrite` condition so strictness means the same thing on either wire.
+ *
+ * `buildColumnNameById` keys by {@link getColumnId}, so a legacy pre-backfill
+ * column — which has no id and is stored under its name — is recognised rather
+ * than reported unknown.
+ */
+function assertKnownColumnIds(data: RowData, table: TableDefinition, rowLabel?: string): void {
+  assertNoUnknownColumns(
+    unknownColumnNames(data, buildColumnNameById(table.schema.columns)),
+    rowLabel
+  )
+}
+
+/**
+ * Normalizes one wire row to storage keying. See {@link TableRowDataKeying}.
+ *
+ * Note the asymmetry a lax (non-`strictWrite`) caller sees: the name path drops
+ * keys naming no column, while the id path stores what it is given. That
+ * matches what each wire did before this discriminator existed, and only
+ * `strictWrite` makes the two agree.
+ */
+function rowDataToStorage(
+  data: RowData,
+  table: TableDefinition,
+  keying: TableRowDataKeying,
+  strict = false
+): RowData {
+  if (keying === 'ids') {
+    if (strict) assertKnownColumnIds(data, table)
+    return data
+  }
   const idByName = buildIdByName(table.schema)
   if (strict) assertKnownColumnNames(data, idByName)
   return rowDataNameToId(data, idByName)
 }
 
 /**
- * {@link namedDataToStorage} over a batch. The name index is built once for the
+ * {@link rowDataToStorage} over a batch. Either index is built once for the
  * whole batch rather than per row — these paths run over up to
  * `MAX_BATCH_INSERT_SIZE` rows.
  */
-function namedRowsToStorage(
+function rowsToStorage(
   rows: readonly RowData[],
   table: TableDefinition,
+  keying: TableRowDataKeying,
   strict = false
 ): RowData[] {
+  if (keying === 'ids') {
+    if (!strict) return [...rows]
+    const nameById = buildColumnNameById(table.schema.columns)
+    return rows.map((row, index) => {
+      assertNoUnknownColumns(unknownColumnNames(row, nameById), `Row ${index + 1}`)
+      return row
+    })
+  }
   const idByName = buildIdByName(table.schema)
   return rows.map((row, index) => {
     if (strict) assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
@@ -190,6 +298,38 @@ function defaultedRowSecretProvenance(
   provided: TableRowSecretProvenanceWrite | undefined
 ): TableRowSecretProvenanceWrite {
   return provided ?? createExactEmptyTableRowSecretProvenance(storageData)
+}
+
+/**
+ * The stamp a single-row write should carry: resolved from the caller's envelope
+ * when it handed one over, otherwise defaulted. Shared by the update and upsert
+ * use cases so the envelope contract has one implementation, not two.
+ */
+function singleRowWriteProvenance(options: {
+  principal: Principal
+  workspaceId: string
+  table: TableDefinition
+  input: {
+    dataKeying: TableRowDataKeying
+    data: RowData
+    secretProvenance?: TableRowSecretProvenanceWrite
+    secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  }
+  storageData: RowData
+}): TableRowSecretProvenanceWrite | undefined {
+  const { principal, workspaceId, table, input, storageData } = options
+  if (!input.secretProvenanceEnvelope) {
+    return defaultedRowSecretProvenance(storageData, input.secretProvenance)
+  }
+  return resolveRowWriteProvenance({
+    envelope: input.secretProvenanceEnvelope,
+    principal,
+    workspaceId,
+    table,
+    keying: input.dataKeying,
+    wireRows: [input.data],
+    storageRows: [storageData],
+  }).stamps[0]
 }
 
 function defaultedRowsSecretProvenance(
@@ -239,7 +379,7 @@ function rethrowQueryValidation(error: unknown): never {
   throw error
 }
 
-export interface ListTableRowsInput extends TableScopedInput {
+export interface ListTableRowsInput extends TableScopedInput, RunStateReadInput {
   limit: number
   cursor?: string
 }
@@ -264,7 +404,8 @@ export const listTableRows = defineAuthorizedTableUseCase({
           after: cursor?.after,
           offset: cursor?.offset,
           includeTotal: false,
-          withExecutions: false,
+          withExecutions: input.includeRunState ?? false,
+          runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         },
         requestId(input)
       )
@@ -279,7 +420,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface QueryTableRowsInput extends TableScopedInput {
+export interface QueryTableRowsInput extends TableScopedInput, RunStateReadInput {
   predicate?: TablePredicate
   sort?: SortSpec
   limit?: number
@@ -328,7 +469,8 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           after: cursor?.after,
           offset: cursor?.offset,
           includeTotal: input.includeTotal ?? false,
-          withExecutions: false,
+          withExecutions: input.includeRunState ?? false,
+          runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         },
         requestId(input)
       )
@@ -348,21 +490,21 @@ export const queryTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface FindTableRowsInput extends TableScopedInput {
+export interface SearchTableRowsInput extends TableScopedInput {
   q: string
   predicate?: TablePredicate
   sort?: SortSpec
 }
 
-export interface FindTableRowsResult extends TableResult {
+export interface SearchTableRowsResult extends TableResult {
   matches: FindRowMatch[]
   truncated: boolean
 }
 
-export const findTableRows = defineAuthorizedTableUseCase({
-  operation: tableOperations.findRows,
-  resolveContext: ({ input }: { input: FindTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<FindTableRowsResult> {
+export const searchTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.searchRows,
+  resolveContext: ({ input }: { input: SearchTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<SearchTableRowsResult> {
     try {
       if (input.q.length === 0) {
         throw new TableRowsValidationError('q must be a non-empty search string')
@@ -388,13 +530,16 @@ export const findTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface ReadTableRowInput extends TableScopedInput {
+export interface ReadTableRowInput extends TableScopedInput, RunStateReadInput {
   rowId: string
   includePersistedSecretProvenance?: boolean
 }
 
 export interface ReadTableRowResult extends TableResult {
-  row: TableRow
+  /** The stored row without its sidecars; run state travels separately below. */
+  row: TableRowSummary
+  /** Per-group run state, present only when the read asked for it. */
+  runState?: RowExecutions
   secretProvenance?: TableRowsProvenance
 }
 
@@ -402,11 +547,17 @@ export const readTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
-    const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
+    const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    const runState = input.includeRunState
+      ? await loadExecutionsForRow(db, input.rowId, {
+          budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+        })
+      : undefined
     return {
       table: context.table,
       row,
+      ...(runState ? { runState } : {}),
       secretProvenance: await loadAuthorizedRowsProvenance(
         principal,
         context.workspaceId,
@@ -417,10 +568,53 @@ export const readTableRow = defineAuthorizedTableUseCase({
   },
 })
 
+export interface ReadTableRowEnrichmentInput extends TableScopedInput {
+  rowId: string
+  groupId: string
+}
+
+export interface ReadTableRowEnrichmentResult extends TableResult {
+  detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
+}
+
+/**
+ * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
+ * cell. Deliberately kept off the hot grid read and fetched on demand by the
+ * details panel; `null` for a cell with no recorded run, or a run predating the
+ * feature. The row id and group id are validated first so an unknown id 404s
+ * instead of being indistinguishable from "no enrichment run yet".
+ *
+ * Shares {@link tableOperations.readRow}: this is a projection of the same row,
+ * under the same role, so it is not a second semantic operation.
+ */
+export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRow,
+  resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
+    const rowExists = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
+    if (!rowExists) throw new OrchestrationError('not_found', 'Row not found')
+    const groupExists = (context.table.schema.workflowGroups ?? []).some(
+      (group) => group.id === input.groupId
+    )
+    if (!groupExists) {
+      throw new OrchestrationError('not_found', 'Workflow group not found')
+    }
+    return {
+      table: context.table,
+      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+    }
+  },
+})
+
 interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   kind: 'single'
+  /** See {@link UpdateTableRowInput.actorClientId}. */
+  actorClientId?: string
   data: RowData
   position?: number
   afterRowId?: string
@@ -431,6 +625,8 @@ interface CreateSingleTableRowInput extends TableScopedInput {
 interface CreateBatchTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   kind: 'batch'
   rows: RowData[]
   orderKeys?: string[]
@@ -458,7 +654,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       ) {
         throw new TableRowsValidationError('Position must be 0 or greater')
       }
-      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
       const writeOptions = rowWriteOptions(input)
       await throwValidationResponse(
         await validateRowData({
@@ -496,7 +692,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
     if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
-    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
+    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
     const batchWriteOptions = rowWriteOptions(input)
     await throwValidationResponse(
       await validateBatchRows({
@@ -521,9 +717,16 @@ export const createTableRows = defineAuthorizedTableUseCase({
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
-  afterSuccess: ({ context, result }) => {
-    const affected = result.kind === 'single' ? 1 : result.rows.length
-    if (affected > 0) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    // Narrowed on the input, not the result: only the single-row variant carries
+    // an actor, and the two discriminants always agree.
+    if (input.kind === 'single') {
+      signalTableRowsChangedByActor(context.tableId, input.actorClientId)
+      return
+    }
+    // A batch insert is not reconciled locally by the acting tab, so it must
+    // refetch like every other subscriber.
+    if (result.kind === 'batch' && result.rows.length > 0) signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -532,6 +735,8 @@ const MAX_REPLACE_TABLE_ROWS = 10_000
 export interface ReplaceTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   rows: RowData[]
   secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
@@ -551,7 +756,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
     }
 
-    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
+    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
     const result = await replaceTableRowsPrimitive(
       {
         tableId: context.tableId,
@@ -663,7 +868,16 @@ function projectedRowsSecretProvenance(
   })
 }
 
-/** Atomically validates name-keyed projected rows against the locked schema and replaces the table. */
+/**
+ * Atomically validates name-keyed projected rows against the locked schema and
+ * replaces the table.
+ *
+ * Deliberately carries no {@link TableRowDataKeying}: unlike the six generic
+ * write use cases this one is not surface-agnostic. Its resolved-secret gate and
+ * its "row matches no column" check both compare by `column.name` (see
+ * {@link projectedRowsForTable}), and its only caller is Copilot's
+ * `Function.execute` output — keys a model can only have written as names.
+ */
 export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
   operation: tableOperations.replaceRows,
   resolveContext: ({ input }: { input: ReplaceProjectedWireRowsInput }) =>
@@ -742,10 +956,28 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
 export interface UpdateTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
+  /**
+   * Private provenance envelope as it arrived on the wire, resolved here against
+   * the canonical schema. Mutually exclusive with {@link secretProvenance}: a
+   * surface either resolves its own stamp or hands over the envelope for this
+   * use case to resolve, never both.
+   */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
   includePersistedSecretProvenance?: boolean
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that tab
+   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
+   * whose soundness condition is that the caller's hook reconciles the write
+   * locally across every cached rows query. Only the single-row paths accept
+   * one: a batch or filter-scoped write genuinely needs the acting tab to
+   * refetch. Absent by default, which broadcasts to every subscriber as before.
+   */
+  actorClientId?: string
 }
 
 export interface UpdateTableRowResult extends TableResult {
@@ -758,7 +990,14 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.updateRow,
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
-    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -766,7 +1005,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
@@ -785,14 +1024,16 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       ),
     }
   },
-  afterSuccess: ({ context, result }) => {
-    if (result.changed) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
 })
 
 export interface UpdateTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   filter: TablePredicate
   data: RowData
   limit?: number
@@ -809,7 +1050,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
-      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
       const result = await updateRowsByFilter(
         context.table,
         {
@@ -832,8 +1073,103 @@ export const updateTableRows = defineAuthorizedTableUseCase({
   },
 })
 
+export interface BatchUpdateTableRowsInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
+  /** One merge patch per row. A row identifier may appear at most once. */
+  updates: readonly { rowId: string; data: RowData }[]
+}
+
+export interface BatchUpdateTableRowsResult extends TableResult, BulkOperationResult {}
+
+/**
+ * Heterogeneous batch row update: a distinct merge patch per row, committed as
+ * one authorized operation.
+ *
+ * The sibling {@link updateTableRows} applies ONE patch to every row a
+ * predicate matches, so N different writes are N requests through it. This is
+ * the surface-neutral home of the behavior Copilot's batch tool and the public
+ * `POST /rows/bulk-update` both need: identical business semantics, so one
+ * semantic operation ({@link tableOperations.updateRows}) and one use case.
+ *
+ * Membership is atomic. `batchUpdateRows` refuses the whole batch when a
+ * `rowId` names no row in the table, which reaches the wire as a `400` listing
+ * the missing ids — a caller that sent explicit identifiers is better served by
+ * a refusal it can retry than by a partial commit it has to reconcile.
+ *
+ * The upper `CSV_MAX_BATCH_SIZE` bound is a BACKSTOP NO CURRENT SURFACE
+ * REACHES, and is set to the loosest surface's ceiling on purpose so it can
+ * never contradict one. Every caller is stopped earlier, by its own ceiling:
+ * the internal and v2 contracts cap `updates` at
+ * `TABLE_LIMITS.MAX_BULK_OPERATION_SIZE` (1000) and answer a `400` naming that
+ * number, and the Copilot tool — which parses no contract — refuses past
+ * `CSV_MAX_BATCH_SIZE` (5000) with a message the model can act on. The two
+ * surfaces legitimately differ; what matters is that each caller sees the bound
+ * that actually applies to it. This one exists for a future caller that arrives
+ * with neither guard, so do not tighten it to one surface's number — that would
+ * make the other surface's accepted batches start failing here.
+ */
+export const batchUpdateTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateRows,
+  resolveContext: ({ input }: { input: BatchUpdateTableRowsInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<BatchUpdateTableRowsResult> {
+    if (input.updates.length < 1 || input.updates.length > CSV_MAX_BATCH_SIZE) {
+      throw new OrchestrationError(
+        'validation',
+        `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`
+      )
+    }
+    const storageData = rowsToStorage(
+      input.updates.map((update) => update.data),
+      context.table,
+      input.dataKeying,
+      input.strictWrite
+    )
+    const updates = input.updates.map((update, index) => ({
+      rowId: update.rowId,
+      data: storageData[index],
+    }))
+    const result = await batchUpdateRows(
+      {
+        tableId: context.tableId,
+        updates,
+        workspaceId: context.workspaceId,
+        actorUserId: actorUserId(principal, context.billedAccountUserId),
+        secretProvenanceByRowId: Object.fromEntries(
+          updates.map((update) => [
+            update.rowId,
+            createExactEmptyTableRowSecretProvenance(update.data),
+          ])
+        ),
+      },
+      context.table,
+      requestId(input)
+    )
+    return { table: context.table, ...result }
+  },
+  projectAudit({ context, result }) {
+    if (result.affectedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
+      metadata: { op: 'batch_update', rowsUpdated: result.affectedCount },
+    }
+  },
+  afterSuccess({ context, result }) {
+    if (result.affectedCount > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
+  /** See {@link UpdateTableRowInput.actorClientId}. */
+  actorClientId?: string
 }
 
 export interface DeleteTableRowResult extends TableResult {
@@ -847,7 +1183,8 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
-  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+  afterSuccess: ({ context, input }) =>
+    signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
 
 export type DeleteTableRowsInput = TableScopedInput &
@@ -918,24 +1255,41 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
 export interface UpsertTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   data: RowData
   conflictTarget?: string
   secretProvenance?: TableRowSecretProvenanceWrite
+  /** See {@link UpdateTableRowInput.secretProvenanceEnvelope}. */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface UpsertTableRowResult extends TableResult {
-  row: TableRow
+  /** Without the executions sidecar — see {@link UpsertResult.row}. */
+  row: TableRowSummary
   operation: 'insert' | 'update'
+  secretProvenance?: TableRowsProvenance
 }
 
 export const upsertTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.upsertRow,
   resolveContext: ({ input }: { input: UpsertTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpsertTableRowResult> {
-    const conflictTarget = input.conflictTarget
-      ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
-      : undefined
-    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+    // An id-keyed caller already names the storage column; only a name-keyed
+    // one needs the lookup, and its miss falls through as before.
+    const conflictTarget =
+      input.conflictTarget && input.dataKeying !== 'ids'
+        ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
+        : input.conflictTarget
+    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const result = await upsertRow(
       {
         tableId: context.tableId,
@@ -943,13 +1297,23 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
       rowWriteOptions(input)
     )
-    return { table: context.table, row: result.row, operation: result.operation }
+    return {
+      table: context.table,
+      row: result.row,
+      operation: result.operation,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [result.row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })

@@ -8,6 +8,12 @@ const HUMAN_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const HTTP_SKILL_EDITOR_READ_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+} as const
+const HUMAN_HTTP_SKILL_EDITOR_POLICY = {
+  principalKinds: ['session', 'personal_api_key'],
+} as const
 
 /**
  * Every skill write is human-subject-only. Reads are not.
@@ -82,6 +88,24 @@ export const skillOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     ...HUMAN_PRINCIPAL_POLICY,
+  }),
+  listEditors: defineWorkspaceOperation({
+    id: 'skills.editors.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...HTTP_SKILL_EDITOR_READ_POLICY,
+  }),
+  grantEditor: defineWorkspaceOperation({
+    id: 'skills.editors.grant',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
+  }),
+  revokeEditor: defineWorkspaceOperation({
+    id: 'skills.editors.revoke',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
 } as const
 

@@ -1,24 +1,8 @@
-import type { OutputProperty, ToolResponse } from '@/tools/types'
+import type { ToolResponse } from '@/tools/types'
 
 interface LeadMagicBaseParams {
   apiKey: string
 }
-
-// Shared output property constants
-
-export const LEADMAGIC_PROFILE_OUTPUT_PROPERTIES = {
-  profile_url: { type: 'string', description: 'LinkedIn profile URL' },
-  first_name: { type: 'string', description: 'First name' },
-  last_name: { type: 'string', description: 'Last name' },
-  full_name: { type: 'string', description: 'Full name' },
-  professional_title: { type: 'string', description: 'Current job title', optional: true },
-  bio: { type: 'string', description: 'Profile bio / summary', optional: true },
-  location: { type: 'string', description: 'Location string', optional: true },
-  country: { type: 'string', description: 'Country', optional: true },
-  company_name: { type: 'string', description: 'Current employer', optional: true },
-  company_industry: { type: 'string', description: 'Industry of current employer', optional: true },
-  company_website: { type: 'string', description: 'Company website', optional: true },
-} as const satisfies Record<string, OutputProperty>
 
 // Email Validation
 

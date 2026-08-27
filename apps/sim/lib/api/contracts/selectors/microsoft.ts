@@ -68,7 +68,14 @@ export const onedriveFolderQuerySchema = z.object({
 })
 
 export const onedriveFilesQuerySchema = credentialIdQueryWithSearchSchema
-export const onedriveFoldersQuerySchema = credentialIdQueryWithSearchSchema
+/**
+ * Folder listing is drive-scoped like the file listing above: without `driveId`
+ * the picker would always show the signed-in user's OneDrive, even for a block
+ * pointed at a SharePoint document library.
+ */
+export const onedriveFoldersQuerySchema = credentialIdQueryWithSearchSchema.extend({
+  driveId: z.string().optional(),
+})
 export const outlookFoldersQuerySchema = credentialIdQuerySchema
 
 export const outlookFoldersSelectorContract = defineGetSelector(

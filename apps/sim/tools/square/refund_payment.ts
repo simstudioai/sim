@@ -1,5 +1,9 @@
-import { generateId } from '@sim/utils/id'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  defineSquareKeyedSite,
+  type SquareDeliveryContextParams,
+  withSquareIdempotencyKey,
+} from '@/tools/square/idempotency'
 import type { RefundPaymentParams, RefundResponse } from '@/tools/square/types'
 import {
   REFUND_METADATA_OUTPUT_PROPERTIES,
@@ -9,7 +13,15 @@ import {
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const squareRefundPaymentTool: ToolConfig<RefundPaymentParams, RefundResponse> = {
+const DELIVERY = defineSquareKeyedSite(
+  'square_refund_payment',
+  'the seller would pay the refund twice for one disputed charge'
+)
+
+export const squareRefundPaymentTool: ToolConfig<
+  RefundPaymentParams & SquareDeliveryContextParams,
+  RefundResponse
+> = {
   id: 'square_refund_payment',
   name: 'Square Refund Payment',
   description: 'Refund all or part of a completed payment',
@@ -61,12 +73,11 @@ export const squareRefundPaymentTool: ToolConfig<RefundPaymentParams, RefundResp
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
-        idempotency_key: params.idempotencyKey || generateId(),
         payment_id: params.paymentId,
         amount_money: { amount: params.amount, currency: params.currency },
       }
       if (params.reason) body.reason = params.reason
-      return body
+      return withSquareIdempotencyKey(DELIVERY, params, body)
     },
   },
 

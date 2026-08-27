@@ -27,6 +27,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -274,7 +275,7 @@ export function EditConnectorModal({
       size='md'
       dismissDisabled={isSaving}
     >
-      <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={Icon ? withBrandIcon(Icon) : null} onClose={() => onOpenChange(false)}>
         Edit {displayName}
       </ChipModalHeader>
 

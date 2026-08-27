@@ -110,6 +110,7 @@ describe('resolveBillingAttribution', () => {
       billingEntity: { id: 'org-b', type: 'organization' },
       billingPeriod: {
         end: '2026-08-01T00:00:00.000Z',
+        source: 'stripe',
         start: '2026-07-01T00:00:00.000Z',
       },
       organizationId: 'org-b',
@@ -371,6 +372,7 @@ describe('resolveBillingAttribution', () => {
       billingEntity: { type: 'organization', id: 'org-b' },
       billingPeriod: {
         end: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'stripe',
         start: new Date('2026-07-01T00:00:00.000Z'),
       },
     })
@@ -385,6 +387,7 @@ describe('serialized attribution boundaries', () => {
     billingPeriod: {
       start: '2026-07-01T00:00:00.000Z',
       end: '2026-08-01T00:00:00.000Z',
+      source: 'stripe',
     },
     organizationId: 'org-b',
     payerSubscription: {
@@ -464,6 +467,7 @@ describe('serialized attribution boundaries', () => {
         billingPeriod: {
           start: '2026-06-30T20:00:00.000-04:00',
           end: '2026-07-31T20:00:00.000-04:00',
+          source: 'stripe',
         },
       })
     ).toBe(true)
@@ -674,6 +678,19 @@ describe('checkAttributedUsageLimits', () => {
       start: new Date('2026-07-01T00:00:00.000Z'),
     })
   })
+
+  it('preserves a custom reporting-period source for the per-member cap', async () => {
+    await checkAttributedUsageLimits({
+      ...attribution,
+      billingPeriod: { ...attribution.billingPeriod, source: 'reporting' },
+    })
+
+    expect(mockCheckOrganizationMemberUsageLimit).toHaveBeenCalledWith('external-a', 'org-b', {
+      end: new Date('2026-08-01T00:00:00.000Z'),
+      source: 'reporting',
+      start: new Date('2026-07-01T00:00:00.000Z'),
+    })
+  })
 })
 
 describe('modern billing envelopes', () => {
@@ -711,6 +728,7 @@ describe('modern billing envelopes', () => {
       billingPeriod: {
         start: '2026-07-01T00:00:00.000Z',
         end: '2026-08-01T00:00:00.000Z',
+        source: 'reporting' as const,
       },
     }
     const serialized = serializeAccountBillingDecisionHeader(decision)

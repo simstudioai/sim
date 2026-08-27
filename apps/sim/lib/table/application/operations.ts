@@ -46,6 +46,15 @@ function toolWriteOperation<const Id extends string>(id: Id) {
   })
 }
 
+function toolReadOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
+  })
+}
+
 function internalExecutorReadOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -80,8 +89,17 @@ export const tableOperations = {
   create: writeOperation('tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),
+  restore: writeOperation('tables.restore'),
+  bulkMove: writeOperation('tables.bulk_move'),
+  bulkDelete: writeOperation('tables.bulk_delete'),
   renameByVfsPath: defineWorkspaceOperation({
     id: 'tables.vfs.rename',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  moveByVfsPath: defineWorkspaceOperation({
+    id: 'tables.vfs.move',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...COPILOT_PRINCIPAL_POLICY,
@@ -96,20 +114,21 @@ export const tableOperations = {
   createFolder: writeOperation('tables.folders.create'),
   updateFolder: writeOperation('tables.folders.update'),
   deleteFolder: writeOperation('tables.folders.delete'),
+  restoreFolder: writeOperation('tables.folders.restore'),
   addColumn: writeOperation('tables.columns.add'),
   updateColumn: writeOperation('tables.columns.update'),
   deleteColumn: writeOperation('tables.columns.delete'),
   listRows: readOperation('tables.rows.list'),
   queryRows: readOperation('tables.rows.query'),
-  findRows: readOperation('tables.rows.find'),
-  readRow: readOperation('tables.rows.read'),
+  searchRows: readOperation('tables.rows.search'),
+  readRow: toolReadOperation('tables.rows.read'),
   createRows: writeOperation('tables.rows.create'),
   replaceRows: writeOperation('tables.rows.replace'),
-  updateRow: writeOperation('tables.rows.update'),
+  updateRow: toolWriteOperation('tables.rows.update'),
   updateRows: writeOperation('tables.rows.update_many'),
-  deleteRow: writeOperation('tables.rows.delete'),
+  deleteRow: toolWriteOperation('tables.rows.delete'),
   deleteRows: writeOperation('tables.rows.delete_many'),
-  upsertRow: writeOperation('tables.rows.upsert'),
+  upsertRow: toolWriteOperation('tables.rows.upsert'),
   listViews: readOperation('tables.views.list'),
   readView: readOperation('tables.views.read'),
   createView: writeOperation('tables.views.create'),
@@ -120,6 +139,8 @@ export const tableOperations = {
   updateGroup: toolWriteOperation('tables.groups.update'),
   deleteGroup: toolWriteOperation('tables.groups.delete'),
   startRun: writeOperation('tables.runs.start'),
+  /** Reading the state of a run — including one you started — is a read. */
+  readRun: readOperation('tables.runs.read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
   createImport: internalExecutorWriteOperation('tables.imports.create'),
   createFromWorkspaceFile: delegatedWriteOperation('tables.imports.create_from_workspace_file'),

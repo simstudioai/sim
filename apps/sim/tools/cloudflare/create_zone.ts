@@ -29,7 +29,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Zone type: "full" (Cloudflare manages DNS), "partial" (CNAME setup), or "secondary" (secondary DNS)',
+          'Zone type: "full" (Cloudflare manages DNS), "partial" (CNAME setup), or "secondary" (secondary DNS). Cloudflare also defines "internal", which is not creatable through this tool',
       },
       apiKey: {
         type: 'string',
@@ -47,7 +47,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         'Content-Type': 'application/json',
       }),
       body: (params) => {
-        const body: Record<string, any> = {
+        const body: Record<string, unknown> = {
           name: params.name,
           account: { id: params.accountId },
         }
@@ -157,7 +157,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         description: 'Zone status (initializing, pending, active, moved)',
       },
       paused: { type: 'boolean', description: 'Whether the zone is paused' },
-      type: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
+      type: { type: 'string', description: 'Zone type (full, partial, secondary, or internal)' },
       name_servers: {
         type: 'array',
         description: 'Assigned Cloudflare name servers',

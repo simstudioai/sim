@@ -66,6 +66,8 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
  * transfer is published on `transfer.url` in `contracts/v2/uploads.ts`.
  */
 const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
+  'POST /api/v2/chat':
+    'Conversational surface behind `sim chat`. The contract describes the JSON answer, but the CLI consumes the same endpoint as an NDJSON progress stream negotiated by Accept header — a protocol `checkV2Conventions` cannot describe as a published operation. Deliberately unpublished while the surface is CLI-only; document it when the JSON shape is committed to as public API.',
   'PUT /api/v2/uploads/{uploadId}':
     'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key, so it carries neither the v2 API-key security scheme nor the rate-limit and feature-gate responses `checkV2Conventions` requires of a published operation. On a cloud deployment the same field points at object storage instead, so the endpoint is described by `transfer.url` — which publishes its method, headers, success status, and error codes — rather than by an operation of its own.',
   'PUT /api/v2/uploads/{uploadId}/parts/{partNumber}':
@@ -79,15 +81,15 @@ const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
  * capability.
  */
 const LEGACY_CORE_REPLACEMENTS = {
-  executeWorkflow: 'POST /api/v2/workflows/{id}/execute',
-  getWorkflowExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  cancelExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/cancel',
-  getJobStatus: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  listPausedExecutions: 'GET /api/v2/workflows/{id}/runs',
-  getPausedExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  getPauseContext: 'GET /api/v2/workflows/{id}/runs/{runId}',
-  resumeExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/resume',
+  executeWorkflow: 'POST /api/v2/workflows/{workflowId}/execute',
+  getWorkflowExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  cancelExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+  getJobStatus: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  listPausedExecutions: 'GET /api/v2/workflows/{workflowId}/runs',
+  getPausedExecution: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  getPauseContext: 'GET /api/v2/workflows/{workflowId}/runs/{runId}',
+  resumeExecution: 'POST /api/v2/workflows/{workflowId}/runs/{runId}/resume',
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 
@@ -107,6 +109,8 @@ const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/custom-tools',
   '(generated)/credentials',
   '(generated)/secrets',
+  '(generated)/catalog',
+  '(generated)/meta',
 ] as const
 const REMOVED_API_REFERENCE_GROUPS = [
   '(generated)/execution',

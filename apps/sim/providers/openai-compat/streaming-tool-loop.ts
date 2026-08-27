@@ -426,7 +426,8 @@ export function createOpenAICompatStreamingToolLoopStream(
                 const { toolParams, executionParams } = prepareToolExecution(
                   tool,
                   toolArgs,
-                  request
+                  request,
+                  tc.id
                 )
                 const { rawResponse, modelResponse } = await executeProviderTool(
                   toolName,

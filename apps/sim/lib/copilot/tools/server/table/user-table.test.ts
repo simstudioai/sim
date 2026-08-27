@@ -14,6 +14,8 @@ const {
   mockDownloadWorkspaceFile,
   mockGetTableById,
   mockBatchInsertRows,
+  mockInsertRow,
+  mockUpdateRow,
   mockReplaceTableRows,
   mockAddWorkflowGroup,
   mockCreateTable,
@@ -42,6 +44,8 @@ const {
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
+  mockInsertRow: vi.fn(),
+  mockUpdateRow: vi.fn(),
   mockReplaceTableRows: vi.fn(),
   mockAddWorkflowGroup: vi.fn(),
   mockCreateTable: vi.fn(),
@@ -165,6 +169,7 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
     index: { idByPath: new Map(), pathById: new Map() },
   }),
   tableFolderPathForId: () => '/',
+  archivableTableFolderPath: () => '/',
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -208,10 +213,10 @@ vi.mock('@/lib/table/rows/service', () => ({
   deleteRowsByFilter: mockDeleteRowsByFilter,
   deleteRowsByIds: vi.fn(),
   getRowById: vi.fn(),
-  insertRow: vi.fn(),
+  insertRow: mockInsertRow,
   queryRows: mockQueryRows,
   replaceTableRows: mockReplaceTableRows,
-  updateRow: vi.fn(),
+  updateRow: mockUpdateRow,
   updateRowsByFilter: mockUpdateRowsByFilter,
 }))
 
@@ -604,7 +609,7 @@ describe('userTableServerTool.import_file', () => {
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
 
-  it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
+  it('points a chat-upload path at save_upload instead of globbing files/', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
 
     const result = await userTableServerTool.execute(
@@ -616,7 +621,7 @@ describe('userTableServerTool.import_file', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.message).toMatch(/materialize_file/)
+    expect(result.message).toMatch(/save_upload/)
     expect(result.message).not.toMatch(/glob\("files/)
   })
 
@@ -633,6 +638,57 @@ describe('userTableServerTool.import_file', () => {
 
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/File not found: "files\/typo\.csv"/)
+  })
+
+  /**
+   * A malformed CSV silently loses records; the tool used to report the survivors
+   * as a clean import, so the model had no signal that the file did not land whole.
+   */
+  it('surfaces rejected records in the message and payload of an append import', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.message).toMatch(/CSV_QUOTE_NOT_CLOSED/)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+    expect(result.data?.rejections.rejectedSamples[0]).toMatchObject({
+      code: 'CSV_QUOTE_NOT_CLOSED',
+    })
+  })
+
+  it('surfaces rejected records in the message and payload of a replace import', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+    mockReplaceTableRows.mockResolvedValueOnce({ deletedCount: 3, insertedCount: 1 })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'replace' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+  })
+
+  it("leaves a clean import's message and payload untouched", async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.message).toBe(
+      'Imported 2 rows into "People" from "people.csv" (2 columns matched)'
+    )
+    expect(result.data).not.toHaveProperty('rejections')
   })
 
   it('rejects a background import while another job holds the table slot', async () => {
@@ -755,6 +811,34 @@ describe('userTableServerTool.create_from_file', () => {
       fileKey: 'workspace/workspace-1/big.csv',
       deleteSourceFile: false,
     })
+  })
+
+  it('surfaces rejected records alongside the created table', async () => {
+    mockDownloadWorkspaceFile.mockResolvedValueOnce(
+      Buffer.from('name,age\nAlice,30\nBroken,"unterminated\nBob,40\n')
+    )
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toMatch(/dropped at least 1 unreadable row/i)
+    expect(result.message).toMatch(/CSV_QUOTE_NOT_CLOSED/)
+    expect(result.data?.rejections).toMatchObject({ rowsRejected: 1 })
+  })
+
+  it('leaves a clean create_from_file message and payload untouched', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      buildToolContext()
+    )
+
+    expect(result.message).toBe(
+      'Created table "people" with 2 columns and 2 rows from "people.csv"'
+    )
+    expect(result.data).not.toHaveProperty('rejections')
   })
 
   it('rejects unknown workspace-file provenance before creating a table', async () => {
@@ -1667,5 +1751,75 @@ describe('userTableServerTool.delete bounds', () => {
       message: 'Cannot delete more than 100 tables at once',
     })
     expect(mockGetTableById).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Copilot is the one row-write surface whose column keys come from a model rather
+ * than from the schema, so `dataKeying: 'names'` is what stands between an
+ * LLM-authored key and the storage column it means.
+ *
+ * These pin the translated outcome rather than the literal: the shared `buildTable`
+ * fixture uses legacy columns with no `id`, where name-to-id mapping is the identity
+ * and flipping the keying is unobservable. Columns whose `id` differs from `name` are
+ * what make the wrong keying fail — under `'ids'` the lax write path stores the
+ * model's key verbatim and reports success, corrupting the row silently.
+ */
+describe('userTableServerTool row writes key model-supplied columns by name', () => {
+  const KEYED_TABLE = buildTable({
+    schema: {
+      columns: [
+        { id: 'col_name', name: 'name', type: 'string', required: true },
+        { id: 'col_age', name: 'age', type: 'number' },
+      ],
+    },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(KEYED_TABLE)
+  })
+
+  it('translates an inserted row to storage column ids', async () => {
+    mockInsertRow.mockResolvedValue({
+      id: 'row-1',
+      data: { col_name: 'Ada', col_age: 36 },
+      position: 0,
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-01'),
+    })
+
+    await userTableServerTool.execute(
+      {
+        operation: 'insert_row',
+        args: { tableId: 'tbl_1', data: { name: 'Ada', age: 36 } },
+      },
+      buildToolContext()
+    )
+
+    expect(mockInsertRow).toHaveBeenCalledTimes(1)
+    expect(mockInsertRow.mock.calls[0][0].data).toEqual({ col_name: 'Ada', col_age: 36 })
+  })
+
+  it('translates an updated row to storage column ids', async () => {
+    mockUpdateRow.mockResolvedValue({
+      id: 'row-1',
+      data: { col_name: 'Grace' },
+      position: 0,
+      executions: {},
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-01'),
+    })
+
+    await userTableServerTool.execute(
+      {
+        operation: 'update_row',
+        args: { tableId: 'tbl_1', rowId: 'row-1', data: { name: 'Grace' } },
+      },
+      buildToolContext()
+    )
+
+    expect(mockUpdateRow).toHaveBeenCalledTimes(1)
+    expect(mockUpdateRow.mock.calls[0][0].data).toEqual({ col_name: 'Grace' })
   })
 })

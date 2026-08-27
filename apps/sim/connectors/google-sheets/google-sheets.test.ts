@@ -73,10 +73,22 @@ const SPREADSHEET_METADATA = {
   ],
 }
 
+/** Adds a chart tab and returns the tabs out of index order. */
+const SPREADSHEET_METADATA_WITH_OBJECT_SHEET = {
+  spreadsheetId: SPREADSHEET_ID,
+  properties: { title: 'Quarterly Plan' },
+  sheets: [
+    { properties: { sheetId: 7, title: 'Costs', index: 1, sheetType: 'GRID' } },
+    { properties: { sheetId: 9, title: 'Chart', index: 2, sheetType: 'OBJECT' } },
+    { properties: { sheetId: 0, title: "Ann's Revenue", index: 0, sheetType: 'GRID' } },
+  ],
+}
+
 /** Drive response bodies keyed by the scenario each test exercises. */
 interface FetchStubResponses {
   drive: { status: number; body: unknown }
   values?: unknown
+  spreadsheet?: unknown
 }
 
 /**
@@ -97,7 +109,9 @@ function stubFetch(responses: FetchStubResponses) {
       return new Response(JSON.stringify(responses.values ?? {}), { status: 200 })
     }
     if (url.startsWith('https://sheets.googleapis.com/v4/spreadsheets/')) {
-      return new Response(JSON.stringify(SPREADSHEET_METADATA), { status: 200 })
+      return new Response(JSON.stringify(responses.spreadsheet ?? SPREADSHEET_METADATA), {
+        status: 200,
+      })
     }
     throw new Error(`Unexpected fetch to ${url}`)
   })
@@ -212,6 +226,132 @@ describe('googleSheetsConnector trashed handling', () => {
       )
 
       expect(doc?.externalId).toBe(`${SPREADSHEET_ID}__sheet__0`)
+    })
+  })
+
+  describe('listDocuments sheet selection', () => {
+    it('drops object (chart) tabs and orders the rest by tab index', async () => {
+      stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        spreadsheet: SPREADSHEET_METADATA_WITH_OBJECT_SHEET,
+      })
+
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+
+      expect(result.documents.map((d) => d.externalId)).toEqual([
+        `${SPREADSHEET_ID}__sheet__0`,
+        `${SPREADSHEET_ID}__sheet__7`,
+      ])
+    })
+
+    it('selects the leftmost grid tab for the first-sheet filter', async () => {
+      stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        spreadsheet: SPREADSHEET_METADATA_WITH_OBJECT_SHEET,
+      })
+
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, {
+        ...SOURCE_CONFIG,
+        sheetFilter: 'first',
+      })
+
+      expect(result.documents.map((d) => d.externalId)).toEqual([`${SPREADSHEET_ID}__sheet__0`])
+    })
+
+    it('tolerates a metadata response without a sheets array', async () => {
+      stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        spreadsheet: { spreadsheetId: SPREADSHEET_ID, properties: { title: 'Empty' } },
+      })
+
+      const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+
+      expect(result).toEqual({ documents: [], hasMore: false })
+    })
+  })
+
+  describe('content extraction', () => {
+    it('keeps the stub contentHash identical between listing and hydration', async () => {
+      stubFetch({
+        drive: { status: 200, body: { modifiedTime: '2026-07-01T00:00:00.000Z' } },
+        values: { values: [['Region'], ['West']] },
+      })
+
+      const listed = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+      const hydrated = await googleSheetsConnector.getDocument(
+        ACCESS_TOKEN,
+        SOURCE_CONFIG,
+        `${SPREADSHEET_ID}__sheet__0`
+      )
+
+      expect(hydrated?.contentHash).toBe(listed.documents[0].contentHash)
+    })
+
+    it('keeps columns whose header cell is blank, sizing by the widest row', async () => {
+      stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        values: { values: [['Region'], ['West', '10', '20']] },
+      })
+
+      const doc = await googleSheetsConnector.getDocument(
+        ACCESS_TOKEN,
+        SOURCE_CONFIG,
+        `${SPREADSHEET_ID}__sheet__0`
+      )
+
+      expect(doc?.content).toContain('Region: West')
+      expect(doc?.content).toContain('Column 2: 10')
+      expect(doc?.content).toContain('Column 3: 20')
+      expect(doc?.metadata?.columnCount).toBe(3)
+    })
+
+    it('requests every column via a row-only A1 range with the tab name quote-escaped', async () => {
+      const fetchMock = stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        spreadsheet: SPREADSHEET_METADATA_WITH_OBJECT_SHEET,
+        values: { values: [['Region'], ['West']] },
+      })
+
+      await googleSheetsConnector.getDocument(
+        ACCESS_TOKEN,
+        SOURCE_CONFIG,
+        `${SPREADSHEET_ID}__sheet__0`
+      )
+
+      const valuesUrl = fetchMock.mock.calls
+        .map(([input]) => String(input))
+        .find((url) => url.includes('/values/'))
+
+      expect(valuesUrl).toContain(encodeURIComponent("'Ann''s Revenue'!1:10000"))
+      expect(valuesUrl).not.toContain('ZZ')
+    })
+
+    it('reuses the cached spreadsheet context instead of re-reading it per tab', async () => {
+      const fetchMock = stubFetch({
+        drive: { status: 200, body: { trashed: false } },
+        values: { values: [['Region'], ['West']] },
+      })
+      const syncContext: Record<string, unknown> = {}
+
+      await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG, undefined, syncContext)
+      await googleSheetsConnector.getDocument(
+        ACCESS_TOKEN,
+        SOURCE_CONFIG,
+        `${SPREADSHEET_ID}__sheet__0`,
+        syncContext
+      )
+      await googleSheetsConnector.getDocument(
+        ACCESS_TOKEN,
+        SOURCE_CONFIG,
+        `${SPREADSHEET_ID}__sheet__7`,
+        syncContext
+      )
+
+      const urls = fetchMock.mock.calls.map(([input]) => String(input))
+      expect(
+        urls.filter((url) => url.startsWith('https://www.googleapis.com/drive/'))
+      ).toHaveLength(1)
+      expect(urls.filter((url) => url.includes('/values/'))).toHaveLength(2)
     })
   })
 

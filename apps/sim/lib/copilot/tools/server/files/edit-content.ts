@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import {
   messageForCopilotFileError,
@@ -12,9 +13,16 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import {
+  collectSimPageDiagnostics,
+  HAND_WRITTEN_PAGE_MESSAGE,
+  isHandWrittenCompiledPage,
+  isSimPageSource,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { consumeLatestFileIntent } from './file-intent-store'
+import { waitForLatestFileIntent } from './file-intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
@@ -30,10 +38,10 @@ type EditContentResult = {
 }
 
 export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentResult> = {
-  name: 'edit_content',
+  name: 'apply_file_edit',
   async execute(params: EditContentArgs, context?: ServerToolContext): Promise<EditContentResult> {
     if (!context?.userId) {
-      logger.error('Unauthorized attempt to use edit_content')
+      logger.error('Unauthorized attempt to use apply_file_edit')
       throw new Error('Authentication required')
     }
 
@@ -52,15 +60,16 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           : undefined
 
     if (content === undefined) {
-      return { success: false, message: 'content is required for edit_content' }
+      return { success: false, message: 'content is required for apply_file_edit' }
     }
 
     // Consume the intent from THIS file subagent's channel (its outer tool_use
     // id), not just the latest in the message — otherwise two file agents
-    // writing concurrently would each grab whichever workspace_file landed last
+    // writing concurrently would each grab whichever prepare_file_edit landed last
     // and write their content into the wrong file. Falls back to latest-in-
     // message when no channel id is present (main-agent / legacy calls).
-    const intent = await consumeLatestFileIntent(workspaceId, {
+    // Waits briefly: a prepare batched into the same round may still be running.
+    const intent = await waitForLatestFileIntent(workspaceId, {
       chatId: context.chatId,
       messageId: context.messageId,
       channelId: context.parentToolCallId,
@@ -69,7 +78,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return {
         success: false,
         message:
-          'No workspace_file context found. Call workspace_file first, wait for it to succeed, then call edit_content in the next step. Do not emit edit_content in parallel or in the same batch as workspace_file.',
+          'No prepare_file_edit context found. Call prepare_file_edit first, wait for it to succeed, then call apply_file_edit in the next step. Do not emit apply_file_edit in parallel or in the same batch as prepare_file_edit.',
       }
     }
 
@@ -77,11 +86,33 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       const { operation, fileRecord } = intent
       const docInfo = getDocumentFormatInfo(fileRecord.name)
       const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileRecord.name) : null
+      // Agent-authored pages are stored as SOURCE (frontmatter + markdown +
+      // sim: fences) and compiled to the docs-styled document at render time
+      // — the pdf model: the file holds the source, the preview/share/
+      // download surfaces serve the rendered version. Bespoke raw HTML
+      // passes through, but a hand-written copy of compiled output defeats
+      // the source format, so it is rejected with the steer back to source.
+      // Patches are exempt: small in-place fixes on a legacy stored-compiled
+      // page legitimately contain compiled fragments.
+      // Sim pages store an extensionless name; the record type marks them.
+      const isHtmlTarget =
+        fileRecord.name.toLowerCase().endsWith('.html') || fileRecord.type === SIM_PAGE_CONTENT_TYPE
+      if (
+        isHtmlTarget &&
+        (operation === 'append' || operation === 'update') &&
+        isHandWrittenCompiledPage(content)
+      ) {
+        return { success: false, message: HAND_WRITTEN_PAGE_MESSAGE }
+      }
 
       let finalContent: string
       switch (operation) {
         case 'append': {
           const existing = intent.existingContent ?? ''
+          if (isHtmlTarget) {
+            finalContent = existing ? `${existing}\n${content}` : content
+            break
+          }
           // The JS engines (isolated-vm and E2B-node pptx/docx) use the `{ ... }`
           // block-append convention — block statements scope cleanly inside the
           // compile wrapper. Python docs (pdf/xlsx) are a single cohesive script,
@@ -114,7 +145,19 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             if (firstIdx === -1) {
               return {
                 success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}"`,
+                message: `Patch failed: search string not found in file "${fileRecord.name}": ${JSON.stringify(truncate(search, 120))}`,
+              }
+            }
+            // The tool doc promises "must match exactly once unless
+            // replaceAll" — enforce it, or an ambiguous search silently
+            // rewrites the first occurrence with a success receipt.
+            if (!intent.edit.replaceAll) {
+              const occurrences = existing.split(search).length - 1
+              if (occurrences > 1) {
+                return {
+                  success: false,
+                  message: `Patch failed: search string matches ${occurrences} places in "${fileRecord.name}". Add surrounding context to make it unique, or pass replaceAll: true to change every occurrence.`,
+                }
               }
             }
             finalContent = intent.edit.replaceAll
@@ -238,6 +281,14 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         return { success: false, message: compiled.message }
       }
 
+      // The internal page type: the record advertises what the .html holds so
+      // surfaces can force the rendered view before content loads. The file
+      // itself stays .html (serve/download emit text/html).
+      // create_empty_file stamps copilot .html as a page by default; the
+      // first real content confirms or corrects that from what was written.
+      const storedContentType =
+        isHtmlTarget && isSimPageSource(finalContent) ? SIM_PAGE_CONTENT_TYPE : compiled.sourceMime
+
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
       // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
@@ -251,7 +302,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           assertedWorkspaceId: workspaceId,
           content: finalContent,
           encoding: 'utf-8',
-          contentType: compiled.sourceMime,
+          contentType: storedContentType,
           provenanceMode: operation === 'update' ? 'replace_empty' : 'preserve',
         },
         { fileId: intent.fileId }
@@ -259,7 +310,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       const verb =
         operation === 'append' ? 'appended to' : operation === 'update' ? 'updated' : 'patched'
-      logger.info(`Workspace file ${verb} via copilot (edit_content)`, {
+      logger.info(`Workspace file ${verb} via copilot (apply_file_edit)`, {
         fileId: intent.fileId,
         name: fileRecord.name,
         operation,
@@ -271,20 +322,31 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // (non-workspace or missing), so it can self-correct on the next step.
       const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
 
+      // Page-source lint: a malformed sim: block renders as NOTHING for the
+      // reader — the only place the failure surfaces is right here, so the
+      // agent can fix the fence instead of shipping a silent hole.
+      let pageLint = ''
+      if (storedContentType === SIM_PAGE_CONTENT_TYPE) {
+        const diagnostics = collectSimPageDiagnostics(finalContent)
+        if (diagnostics.length > 0) {
+          pageLint = ` WARNING — ${diagnostics.length} block(s) failed to compile and are OMITTED from the rendered page; fix them: ${diagnostics.join('; ')}`
+        }
+      }
+
       return {
         success: true,
-        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)${embedWarning}`,
+        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)${embedWarning}${pageLint}`,
         data: {
           id: intent.fileId,
           name: fileRecord.name,
           size: fileBuffer.length,
-          contentType: compiled.sourceMime,
+          contentType: storedContentType,
         },
       }
     } catch (error) {
       const safeMessage = messageForCopilotFileError(error, 'Failed to edit file content')
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
-      logger.error('Error in edit_content tool', {
+      logger.error('Error in apply_file_edit tool', {
         operation: intent.operation,
         fileId: intent.fileId,
         error: errorMessage,

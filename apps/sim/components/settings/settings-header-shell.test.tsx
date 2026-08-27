@@ -7,12 +7,16 @@
  * clicking Delete would invoke Save. These tests pin the pairing at the render
  * level, which the pure-function tests cannot reach.
  */
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import {
+  SettingsHeaderProvider,
+  SettingsHeaderShell,
+  useSettingsHeader,
+} from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -37,7 +41,7 @@ function renderHeader(actions: SettingsAction[]) {
     root.render(
       <SettingsHeaderProvider>
         <SettingsHeaderShell>
-          <SettingsPanel title='Thing' actions={actions}>
+          <SettingsPanel back={{ text: 'Back', onSelect: vi.fn() }} title='Thing' actions={actions}>
             <div />
           </SettingsPanel>
         </SettingsHeaderShell>
@@ -112,5 +116,94 @@ describe('SettingsHeaderShell action routing', () => {
 
     expect(onDelete).toHaveBeenCalledTimes(1)
     expect(onSave).not.toHaveBeenCalled()
+  })
+})
+
+const EMPTY_HEADER = {}
+
+describe('SettingsHeaderShell static meta', () => {
+  const META = { title: 'Secrets', description: 'Workspace credentials.' }
+
+  function heading(): string | null {
+    return container.querySelector('h1')?.textContent?.trim() ?? null
+  }
+
+  /** The header's own description, not any paragraph a body happens to render. */
+  function paragraph(): string | null {
+    return container.querySelector('h1 + p')?.textContent?.trim() ?? null
+  }
+
+  function renderWithMeta(body: ReactNode) {
+    act(() => {
+      root.render(
+        <SettingsHeaderProvider>
+          <SettingsHeaderShell meta={META}>{body}</SettingsHeaderShell>
+        </SettingsHeaderProvider>
+      )
+    })
+  }
+
+  it('renders the routed section title before any body has registered one', () => {
+    renderWithMeta(<div />)
+
+    expect(heading()).toBe('Secrets')
+    expect(paragraph()).toBe('Workspace credentials.')
+  })
+
+  it('yields to a body that registers its own header', () => {
+    renderWithMeta(
+      <SettingsPanel
+        back={{ text: 'Secrets', onSelect: vi.fn() }}
+        title='Add secret'
+        description='One value.'
+      >
+        <div />
+      </SettingsPanel>
+    )
+
+    expect(heading()).toBe('Add secret')
+    expect(paragraph()).toBe('One value.')
+  })
+
+  it('keeps the meta description out of a body that registered a title without one', () => {
+    // Registers through the raw hook, not SettingsPanel: SettingsPanel always emits a
+    // `description` key (explicitly undefined), which would let a field-merge implementation
+    // pass this test by overwriting the meta description with undefined.
+    function TitleOnlyBody() {
+      useSettingsHeader({ title: 'Add secret' })
+      return <div />
+    }
+
+    renderWithMeta(<TitleOnlyBody />)
+
+    expect(heading()).toBe('Add secret')
+    expect(paragraph()).toBeNull()
+  })
+
+  it('lets a body claim the header with nothing in it, suppressing the meta entirely', () => {
+    // How SettingsUnavailable opts out: it renders its own centred heading, so the routed
+    // section's catalog title must not caption it.
+    function OwnHeadingBody() {
+      useSettingsHeader(EMPTY_HEADER)
+      return <div />
+    }
+
+    renderWithMeta(<OwnHeadingBody />)
+
+    expect(heading()).toBeNull()
+    expect(paragraph()).toBeNull()
+  })
+
+  it('falls back to the meta title when the body unmounts mid-navigation', () => {
+    renderWithMeta(
+      <SettingsPanel back={{ text: 'Secrets', onSelect: vi.fn() }} title='Add secret'>
+        <div />
+      </SettingsPanel>
+    )
+    expect(heading()).toBe('Add secret')
+
+    renderWithMeta(<div />)
+
+    expect(heading()).toBe('Secrets')
   })
 })

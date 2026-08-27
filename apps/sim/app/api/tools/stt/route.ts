@@ -117,7 +117,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 400 }
         )
       }
-      audioBuffer = await downloadFileFromStorage(file, requestId, logger)
+      audioBuffer = await downloadFileFromStorage(file, requestId, logger, {
+        maxBytes: MAX_FILE_SIZE,
+      })
       audioFileName = file.name
       // file.type may be missing if the file came from a block that doesn't preserve it
       // Infer from filename extension as fallback
@@ -143,7 +145,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 400 }
         )
       }
-      audioBuffer = await downloadFileFromStorage(file, requestId, logger)
+      audioBuffer = await downloadFileFromStorage(file, requestId, logger, {
+        maxBytes: MAX_FILE_SIZE,
+      })
       audioFileName = file.name
 
       const ext = file.name.split('.').pop()?.toLowerCase() || ''

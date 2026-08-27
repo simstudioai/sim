@@ -9,8 +9,7 @@ import { updateOrganizationMemberRoleContract } from '@/lib/api/contracts/organi
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
-import { getUserUsageData } from '@/lib/billing/core/usage'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
@@ -90,7 +89,6 @@ export const GET = withRouteHandler(
       if (includeUsage && hasAdminAccess) {
         const usageData = await db
           .select({
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
             lastPeriodCost: userStats.lastPeriodCost,
@@ -99,31 +97,22 @@ export const GET = withRouteHandler(
           .where(eq(userStats.userId, memberId))
           .limit(1)
 
-        const computed = await getUserUsageData(memberId, dbReplica)
-
         if (usageData.length > 0) {
-          // currentPeriodCost is only a baseline; add this member's attributed
-          // usage_log for the period. (getUserUsageData returns the org POOL for
-          // org-scoped members, so it can't supply the per-member figure.)
-          const memberLedger =
-            (
-              await getOrgMemberLedgerByUser(
-                organizationId,
-                computed.billingPeriodStart && computed.billingPeriodEnd
-                  ? { start: computed.billingPeriodStart, end: computed.billingPeriodEnd }
-                  : null,
-                dbReplica
-              )
-            ).get(memberId) ?? 0
+          const { billingPeriod, usageByUser } = await getOrganizationMemberUsageSnapshot(
+            organizationId,
+            {
+              executor: dbReplica,
+              userIds: [memberId],
+            }
+          )
+          const memberLedger = usageByUser.get(memberId) ?? 0
           memberData = {
             ...memberData,
             usage: {
               ...usageData[0],
-              currentPeriodCost: (
-                Number(usageData[0].currentPeriodCost ?? 0) + memberLedger
-              ).toString(),
-              billingPeriodStart: computed.billingPeriodStart,
-              billingPeriodEnd: computed.billingPeriodEnd,
+              currentPeriodCost: memberLedger.toString(),
+              billingPeriodStart: billingPeriod?.start ?? null,
+              billingPeriodEnd: billingPeriod?.end ?? null,
             },
           } as typeof memberData & {
             usage: (typeof usageData)[0] & {

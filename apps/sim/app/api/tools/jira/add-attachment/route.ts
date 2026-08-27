@@ -5,6 +5,7 @@ import { jiraAddAttachmentContract } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
@@ -44,6 +45,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       (await getJiraCloudId(validatedData.domain, validatedData.accessToken))
 
     const formData = new FormData()
+    // Every attachment lands in the same multipart body, so the ceiling covers the
+    // set rather than each file on its own.
+    let remainingBytes = MAX_BUFFERED_TRANSFER_BYTES
 
     for (const file of userFiles) {
       const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
@@ -51,7 +55,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       let buffer: Buffer
       let downloadedContentType = ''
       try {
-        const result = await downloadServableFileFromStorage(file, requestId, logger)
+        const result = await downloadServableFileFromStorage(file, requestId, logger, {
+          maxBytes: remainingBytes,
+        })
         buffer = result.buffer
         downloadedContentType = result.contentType
       } catch (error) {
@@ -59,6 +65,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (notReady) return notReady
         throw error
       }
+      remainingBytes -= buffer.length
       const blob = new Blob([new Uint8Array(buffer)], {
         type: downloadedContentType || file.type || 'application/octet-stream',
       })

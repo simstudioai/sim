@@ -9,6 +9,12 @@ export const logOperations = {
     workspaceApiKey: 'allow',
     principalKinds: PUBLIC_API_PRINCIPAL_KINDS,
   }),
+  readStats: defineWorkspaceOperation({
+    id: 'logs.read_stats',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    principalKinds: PUBLIC_API_PRINCIPAL_KINDS,
+  }),
   readDetail: defineWorkspaceOperation({
     id: 'logs.read_detail',
     minimumRole: 'read',

@@ -53,6 +53,30 @@ describe('panel chat scope', () => {
     panel = freshPanel()
   })
 
+  it('returns keyboard focus to the renderer when attaching a view steals it mid-typing', () => {
+    const win = new BrowserWindow()
+    const view = new WebContentsView()
+    const active = { id: 'tab-1', scopeId: 'chat-test', view, pinned: false }
+    vi.mocked(win.webContents.isFocused).mockReturnValue(true)
+    panel.initPanel({
+      getMainWindow: () => win,
+      activeTab: () => active,
+      backgroundColor: () => '#0c0c0c',
+      ensureInitialTab: () => {},
+      onViewDetached: () => {},
+    })
+    panel.activatePanelScope('chat-test')
+    panel.setPanelBounds(PANEL_RECT, win)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(view)
+    expect(win.webContents.focus).toHaveBeenCalled()
+  })
+
+  it('leaves focus untouched when the renderer was not focused at attach time', () => {
+    const { win, view } = showPanel(panel)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(view)
+    expect(win.webContents.focus).not.toHaveBeenCalled()
+  })
+
   it('requires fresh bounds for the newly active chat and ignores stale reports', () => {
     const { win, view } = showPanel(panel)
     const previousScope = panel.getActivePanelScopeId()
@@ -100,6 +124,141 @@ describe('panel chat scope', () => {
     expect(view.setVisible).toHaveBeenLastCalledWith(true)
     expect(view.webContents.invalidate).toHaveBeenCalledOnce()
     expect(view.setBounds).not.toHaveBeenCalled()
+  })
+
+  it('recovers when capturePage throws before returning a promise', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    const image = await view.webContents.capturePage()
+    vi.mocked(view.webContents.capturePage).mockImplementationOnce(() => {
+      throw new Error('WebContents was destroyed')
+    })
+
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toBeNull()
+
+    vi.mocked(view.webContents.capturePage).mockResolvedValue(image)
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toMatchObject({
+      dataUrl: 'data:image/png;base64,c2lt',
+    })
+  })
+
+  it('shares one native capture across concurrent requests for the same frame', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    let resolveCapture:
+      | ((image: Awaited<ReturnType<typeof view.webContents.capturePage>>) => void)
+      | undefined
+    const image = await view.webContents.capturePage()
+    vi.mocked(view.webContents.capturePage).mockClear()
+    vi.mocked(view.webContents.capturePage).mockReturnValue(
+      new Promise((resolve) => {
+        resolveCapture = resolve
+      })
+    )
+
+    const first = panel.capturePanelSnapshot(win, scopeId)
+    const second = panel.capturePanelSnapshot(win, scopeId)
+    expect(view.webContents.capturePage).toHaveBeenCalledOnce()
+    resolveCapture?.(image)
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(view.webContents.capturePage).toHaveBeenCalledOnce()
+  })
+
+  it('does not dedupe a queued capture across panel owner windows', async () => {
+    const { win, view } = showPanel(panel)
+    const other = new BrowserWindow()
+    const scopeId = panel.getActivePanelScopeId()
+    const image = await view.webContents.capturePage()
+    const pendingCaptures: Array<(value: typeof image) => void> = []
+    vi.mocked(view.webContents.capturePage).mockClear()
+    vi.mocked(view.webContents.capturePage).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pendingCaptures.push(resolve)
+        })
+    )
+
+    const first = panel.capturePanelSnapshot(win, scopeId)
+    panel.setPanelBounds(PANEL_RECT, other)
+    const second = panel.capturePanelSnapshot(other, scopeId)
+
+    expect(view.webContents.capturePage).toHaveBeenCalledOnce()
+    pendingCaptures[0]?.(image)
+    await expect(first).resolves.toBeNull()
+    await vi.waitFor(() => expect(view.webContents.capturePage).toHaveBeenCalledTimes(2))
+
+    pendingCaptures[1]?.(image)
+    await expect(second).resolves.toMatchObject({ dataUrl: 'data:image/png;base64,c2lt' })
+  })
+
+  it('serializes native captures and coalesces queued navigation requests to the latest page', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    const image = await view.webContents.capturePage()
+    const pendingCaptures: Array<(value: typeof image) => void> = []
+    vi.mocked(view.webContents.capturePage).mockClear()
+    vi.mocked(view.webContents.capturePage).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pendingCaptures.push(resolve)
+        })
+    )
+
+    vi.mocked(view.webContents.getURL).mockReturnValue('https://one.example')
+    const first = panel.capturePanelSnapshot(win, scopeId)
+    vi.mocked(view.webContents.getURL).mockReturnValue('https://two.example')
+    const superseded = panel.capturePanelSnapshot(win, scopeId)
+    vi.mocked(view.webContents.getURL).mockReturnValue('https://three.example')
+    const latest = panel.capturePanelSnapshot(win, scopeId)
+
+    expect(view.webContents.capturePage).toHaveBeenCalledOnce()
+    await expect(superseded).resolves.toBeNull()
+    pendingCaptures[0]?.(image)
+    await expect(first).resolves.toBeNull()
+    await vi.waitFor(() => expect(view.webContents.capturePage).toHaveBeenCalledTimes(2))
+
+    pendingCaptures[1]?.(image)
+    await expect(latest).resolves.toMatchObject({ dataUrl: 'data:image/png;base64,c2lt' })
+    expect(view.webContents.capturePage).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not dedupe content zoom changes that round to the same displayed percentage', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    const image = await view.webContents.capturePage()
+    const pendingCaptures: Array<(value: typeof image) => void> = []
+    vi.mocked(view.webContents.capturePage).mockClear()
+    vi.mocked(view.webContents.capturePage).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pendingCaptures.push(resolve)
+        })
+    )
+
+    vi.mocked(view.webContents.getZoomFactor).mockReturnValue(1.101)
+    const first = panel.capturePanelSnapshot(win, scopeId)
+    vi.mocked(view.webContents.getZoomFactor).mockReturnValue(1.104)
+    const second = panel.capturePanelSnapshot(win, scopeId)
+
+    expect(view.webContents.capturePage).toHaveBeenCalledOnce()
+    pendingCaptures[0]?.(image)
+    await expect(first).resolves.toBeNull()
+    await vi.waitFor(() => expect(view.webContents.capturePage).toHaveBeenCalledTimes(2))
+
+    pendingCaptures[1]?.(image)
+    await expect(second).resolves.toMatchObject({ zoomPercent: 121 })
+  })
+
+  it('refuses a panel capture whose pixel budget is unsafe', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    vi.mocked(win.getContentSize).mockReturnValue([10_000, 10_000])
+    panel.setPanelBounds({ x: 0, y: 0, width: 5_000, height: 5_000 }, win)
+    vi.mocked(view.webContents.capturePage).mockClear()
+
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toBeNull()
+    expect(view.webContents.capturePage).not.toHaveBeenCalled()
   })
 
   it('requests a fresh compositor frame when a browser view is attached or revealed', () => {

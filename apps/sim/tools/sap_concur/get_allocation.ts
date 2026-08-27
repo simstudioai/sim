@@ -114,6 +114,7 @@ export const getAllocationTool: ToolConfig<GetAllocationParams, SapConcurProxyRe
         percentage: { type: 'number', description: 'Allocation percentage' },
         allocationAmount: {
           type: 'json',
+          optional: true,
           description: 'Allocation amount (value, currencyCode)',
           properties: {
             value: { type: 'number', description: 'Amount value' },
@@ -122,6 +123,7 @@ export const getAllocationTool: ToolConfig<GetAllocationParams, SapConcurProxyRe
         },
         approvedAmount: {
           type: 'json',
+          optional: true,
           description: 'Pro-rated approved amount (value, currencyCode)',
           properties: {
             value: { type: 'number', description: 'Amount value' },
@@ -130,6 +132,7 @@ export const getAllocationTool: ToolConfig<GetAllocationParams, SapConcurProxyRe
         },
         claimedAmount: {
           type: 'json',
+          optional: true,
           description: 'Requested reimbursement amount (value, currencyCode)',
           properties: {
             value: { type: 'number', description: 'Amount value' },

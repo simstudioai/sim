@@ -57,9 +57,12 @@ describe('CommandFadedList', () => {
     })
 
     const list = container.querySelector('[cmdk-list]')
+    const input = container.querySelector<HTMLInputElement>('[cmdk-input]')
     const search = container.querySelector('[cmdk-input]')?.parentElement
     expect(list?.className).toContain('transparent_36px,black_58px,black_calc(100%_-_13px)')
     expect(list?.className).not.toContain('scrollbar-track')
+    expect(input?.className).toContain('-ml-1')
+    expect(input?.className).toContain('indent-1')
     expect(search?.className).toContain('var(--bg)')
   })
 

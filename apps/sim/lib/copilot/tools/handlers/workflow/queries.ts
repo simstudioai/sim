@@ -1,5 +1,3 @@
-import { createLogger } from '@sim/logger'
-import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
 import { executeCopilotCustomToolUseCase } from '@/lib/copilot/application/execute-custom-tool-use-case'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
@@ -18,7 +16,6 @@ import {
 } from '@/lib/workflows/application/read-workflow-copilot-metadata'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
-import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import type {
   GetBlockOutputsParams,
@@ -27,24 +24,6 @@ import type {
   GetWorkflowDataParams,
   GetWorkflowRunOptionsParams,
 } from '../param-types'
-
-const logger = createLogger('WorkflowQueries')
-
-export async function executeListUserWorkspaces(
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  try {
-    const workspaces = await listUserWorkspaces(context.userId)
-
-    return { success: true, output: { workspaces } }
-  } catch (error) {
-    logger.error('Failed to list user workspaces for Copilot', { error })
-    return {
-      success: false,
-      error: messageForCopilotApplicationError(error, 'Failed to list workspaces'),
-    }
-  }
-}
 
 export async function executeGetWorkflowRunOptions(
   params: GetWorkflowRunOptionsParams,

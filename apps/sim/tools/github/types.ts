@@ -170,15 +170,6 @@ export const COMMIT_FILE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete commit file output definition
- */
-export const COMMIT_FILE_OUTPUT = {
-  type: 'object',
-  description: 'Changed file (diff entry)',
-  properties: COMMIT_FILE_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
-
-/**
  * Output definition for parent commit references
  */
 export const COMMIT_PARENT_OUTPUT_PROPERTIES = {
@@ -186,15 +177,6 @@ export const COMMIT_PARENT_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Parent API URL' },
   html_url: { type: 'string', description: 'Parent web URL' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete parent commit output definition
- */
-export const COMMIT_PARENT_OUTPUT = {
-  type: 'object',
-  description: 'Parent commit reference',
-  properties: COMMIT_PARENT_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
 
 /**
  * Output definition for commit summary properties (common across list/search responses)
@@ -219,15 +201,6 @@ export const SEARCH_REPO_OUTPUT_PROPERTIES = {
   html_url: { type: 'string', description: 'GitHub web URL' },
   description: { type: 'string', description: 'Repository description', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete search repository output definition
- */
-export const SEARCH_REPO_OUTPUT = {
-  type: 'object',
-  description: 'Repository containing the commit',
-  properties: SEARCH_REPO_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
 
 /**
  * Extended repository output properties for V2 tools (full API response)
@@ -374,15 +347,6 @@ export const BRANCH_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete branch output definition
- */
-export const BRANCH_OUTPUT = {
-  type: 'object',
-  description: 'Branch object',
-  properties: BRANCH_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
-
-/**
  * Output definition for git reference objects (created branches)
  */
 export const GIT_REF_OUTPUT_PROPERTIES = {
@@ -391,15 +355,6 @@ export const GIT_REF_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'API URL for the reference' },
   object: { type: 'json', description: 'Git object with type and sha' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete git reference output definition
- */
-export const GIT_REF_OUTPUT = {
-  type: 'object',
-  description: 'Git reference object',
-  properties: GIT_REF_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
 
 /**
  * Output definition for branch protection settings
@@ -433,15 +388,6 @@ export const BRANCH_PROTECTION_OUTPUT_PROPERTIES = {
   },
   required_signatures: { type: 'json', description: 'Signature requirements', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete branch protection output definition
- */
-export const BRANCH_PROTECTION_OUTPUT = {
-  type: 'object',
-  description: 'Branch protection configuration',
-  properties: BRANCH_PROTECTION_OUTPUT_PROPERTIES,
-} as const satisfies OutputProperty
 
 /**
  * Output definition for delete branch response
@@ -507,16 +453,6 @@ export const PROJECT_V2_OUTPUT_PROPERTIES = {
   closed: { type: 'boolean', description: 'Whether project is closed' },
   public: { type: 'boolean', description: 'Whether project is public' },
   shortDescription: { type: 'string', description: 'Short description', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Extended output definition for V2 project objects (full API response)
- */
-export const PROJECT_V2_FULL_OUTPUT_PROPERTIES = {
-  ...PROJECT_V2_OUTPUT_PROPERTIES,
-  readme: { type: 'string', description: 'Project readme', optional: true },
-  createdAt: { type: 'string', description: 'Creation timestamp' },
-  updatedAt: { type: 'string', description: 'Last update timestamp' },
 } as const satisfies Record<string, OutputProperty>
 
 /**

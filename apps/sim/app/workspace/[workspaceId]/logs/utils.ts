@@ -15,8 +15,6 @@ export const LOG_COLUMNS = {
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
 
-export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
-
 /**
  * Resolves the workflow a log row points at, or null when there is nowhere to
  * navigate. Sim agent jobs have no workflow of their own, and a deleted

@@ -14,14 +14,41 @@ const PAGE_SIZE = 50
 /** Cap on timeline events appended to a document to keep content bounded. */
 const MAX_TIMELINE_EVENTS = 200
 /**
- * JSON:API relationships to embed inline within each incident's `attributes`.
- * Rootly omits these unless requested via `include`, so both the list (stub) and
- * detail requests pass them to ensure tag metadata is identical on either path.
- * Scoped to exactly the relationships this connector reads — `environments`,
- * `services`, and `groups` (Rootly's API token for teams) — to avoid fetching
- * unused relationship payloads on every incident.
+ * Relationship names passed as `include` on incident requests — `environments`,
+ * `services`, and `groups` (Rootly's API token for teams), the only ones this
+ * connector reads. Rootly's incident schema embeds them inside `attributes`, so
+ * the include only affects the sideloaded `included[]`; it is sent on both the
+ * list and detail requests so neither path can serialize the relationship
+ * attributes differently and make the stub's tags drift from the hydrated
+ * document's.
  */
 const INCIDENT_INCLUDE = 'environments,services,groups'
+
+/**
+ * Detail-only include. `incident_post_mortem` sideloads the incident's
+ * retrospective so `getDocument` can append its body to the indexed content
+ * without a second round trip.
+ */
+const INCIDENT_DETAIL_INCLUDE = `${INCIDENT_INCLUDE},incident_post_mortem`
+
+/** JSON:API resource `type` of a Rootly retrospective in `included[]`. */
+const POST_MORTEM_TYPE = 'incident_post_mortems'
+
+/**
+ * Deterministic sort keys. Rootly paginates with `page[number]`, so an unsorted
+ * listing can reorder between page requests and silently drop incidents — and a
+ * full-sync listing that drops a document makes the sync engine hard-delete it.
+ *
+ * Full syncs sort by `created_at`, which never changes, so page boundaries are
+ * fixed for the whole walk. Incremental syncs have no immutable key available —
+ * they are filtered on `updated_at`, the very column that moves — so they sort
+ * `updated_at` ascending, which pushes a record touched mid-sync ahead of the
+ * cursor rather than behind it. Its own update is therefore still seen; the
+ * residual risk is the one-position shift that displacement causes further down
+ * the listing, which page-number paging cannot fully avoid either way.
+ */
+const FULL_SYNC_SORT = 'created_at'
+const INCREMENTAL_SORT = 'updated_at'
 
 /**
  * JSON:API named-resource entry as embedded directly inside incident
@@ -103,6 +130,13 @@ interface RootlyEventResource {
   attributes?: RootlyEventAttributes
 }
 
+/** A sideloaded JSON:API resource from the top-level `included[]` array. */
+interface RootlyIncludedResource {
+  id?: string
+  type?: string
+  attributes?: Record<string, unknown>
+}
+
 /** JSON:API list envelope shared by incidents and events list endpoints. */
 interface RootlyListResponse<T> {
   data?: T[]
@@ -110,12 +144,16 @@ interface RootlyListResponse<T> {
     next?: string | null
   }
   meta?: {
+    next_page?: number | null
+    total_pages?: number | null
+    current_page?: number | null
     total_count?: number
   }
 }
 
 interface RootlyResourceResponse<T> {
   data?: T
+  included?: RootlyIncludedResource[]
 }
 
 /**
@@ -213,6 +251,22 @@ function buildSourceUrl(attrs: RootlyIncidentAttributes): string | undefined {
 }
 
 /**
+ * Determines whether another page exists.
+ *
+ * `meta.next_page` is the documented per-page indicator — nullable, and null on
+ * the last page — so it decides whenever it is present. `links.next` (also
+ * documented nullable) is only consulted when the envelope carries no
+ * `meta.next_page` at all.
+ */
+function hasNextPage(body: RootlyListResponse<unknown>, pageItemCount: number): boolean {
+  if (pageItemCount === 0) return false
+  const nextPage = body.meta?.next_page
+  if (nextPage != null) return Number(nextPage) > 0
+  if (body.meta && 'next_page' in body.meta) return false
+  return Boolean(body.links?.next)
+}
+
+/**
  * Fetches the incident timeline events, following JSON:API pagination until
  * exhausted or the event cap is reached. Returns an empty array on any failure
  * so timeline enrichment never blocks document creation.
@@ -246,7 +300,7 @@ async function fetchTimelineEvents(
         if (event.attributes) events.push(event.attributes)
       }
 
-      if (!body.links?.next || pageEvents.length === 0) break
+      if (!hasNextPage(body, pageEvents.length)) break
       pageNumber += 1
     }
   } catch (error) {
@@ -256,7 +310,35 @@ async function fetchTimelineEvents(
     })
   }
 
+  if (events.length > MAX_TIMELINE_EVENTS) {
+    logger.warn('Truncating Rootly incident timeline', {
+      incidentId,
+      fetched: events.length,
+      kept: MAX_TIMELINE_EVENTS,
+    })
+  }
+
   return events.slice(0, MAX_TIMELINE_EVENTS)
+}
+
+/**
+ * Extracts the retrospective body sideloaded via `include=incident_post_mortem`.
+ * Both `title` and `content` are optional in the sideloaded resource, so a
+ * retrospective that carries only one of them still contributes it, and an
+ * incident without one contributes nothing.
+ */
+function extractPostMortem(
+  included: RootlyIncludedResource[] | undefined
+): { title?: string; content?: string } | null {
+  if (!Array.isArray(included)) return null
+  for (const resource of included) {
+    if (resource.type !== POST_MORTEM_TYPE) continue
+    const attrs = resource.attributes ?? {}
+    const title = typeof attrs.title === 'string' ? attrs.title.trim() : undefined
+    const content = typeof attrs.content === 'string' ? attrs.content.trim() : undefined
+    if (title || content) return { title, content }
+  }
+  return null
 }
 
 /**
@@ -266,7 +348,8 @@ async function fetchTimelineEvents(
  */
 function formatIncidentContent(
   attrs: RootlyIncidentAttributes,
-  events: RootlyEventAttributes[]
+  events: RootlyEventAttributes[],
+  postMortem: { title?: string; content?: string } | null
 ): string {
   const parts: string[] = []
 
@@ -289,37 +372,55 @@ function formatIncidentContent(
   if (attrs.started_at) parts.push(`Started: ${attrs.started_at}`)
   if (attrs.resolved_at) parts.push(`Resolved: ${attrs.resolved_at}`)
 
-  if (attrs.summary?.trim()) {
+  const summary = attrs.summary?.trim()
+  if (summary) {
     parts.push('')
     parts.push('--- Summary ---')
-    parts.push(attrs.summary.trim())
+    parts.push(summary)
   }
 
-  if (attrs.mitigation_message?.trim()) {
+  const mitigation = attrs.mitigation_message?.trim()
+  if (mitigation) {
     parts.push('')
     parts.push('--- Mitigation ---')
-    parts.push(attrs.mitigation_message.trim())
+    parts.push(mitigation)
   }
 
-  if (attrs.resolution_message?.trim()) {
+  const resolution = attrs.resolution_message?.trim()
+  if (resolution) {
     parts.push('')
     parts.push('--- Resolution ---')
-    parts.push(attrs.resolution_message.trim())
+    parts.push(resolution)
   }
 
-  if (attrs.cancellation_message?.trim()) {
+  const cancellation = attrs.cancellation_message?.trim()
+  if (cancellation) {
     parts.push('')
     parts.push('--- Cancellation ---')
-    parts.push(attrs.cancellation_message.trim())
+    parts.push(cancellation)
+  }
+
+  const postMortemTitle = postMortem?.title
+  const postMortemContent = postMortem?.content
+  if (postMortemTitle || postMortemContent) {
+    parts.push('')
+    parts.push('--- Retrospective ---')
+    if (postMortemTitle) parts.push(postMortemTitle)
+    if (postMortemContent) parts.push(postMortemContent)
   }
 
   if (events.length > 0) {
-    parts.push('')
-    parts.push('--- Timeline ---')
+    const timeline: string[] = []
     for (const event of events) {
-      if (!event.event?.trim()) continue
+      const text = event.event?.trim()
+      if (!text) continue
       const when = event.occurred_at || event.created_at
-      parts.push(when ? `${when}: ${event.event.trim()}` : event.event.trim())
+      timeline.push(when ? `${when}: ${text}` : text)
+    }
+    if (timeline.length > 0) {
+      parts.push('')
+      parts.push('--- Timeline ---')
+      parts.push(...timeline)
     }
   }
 
@@ -390,7 +491,9 @@ export const rootlyConnector: ConnectorConfig = {
 
     if (lastSyncAt) {
       queryParams.set('filter[updated_at][gt]', lastSyncAt.toISOString())
-      queryParams.set('sort', '-updated_at')
+      queryParams.set('sort', INCREMENTAL_SORT)
+    } else {
+      queryParams.set('sort', FULL_SYNC_SORT)
     }
 
     const url = `${ROOTLY_API_BASE}/incidents?${queryParams.toString()}`
@@ -420,27 +523,56 @@ export const rootlyConnector: ConnectorConfig = {
     const incidents = body.data ?? []
 
     const allDocuments: ExternalDocument[] = []
+    let droppedFromPage = 0
     for (const incident of incidents) {
       const stub = incidentToStub(incident)
-      if (stub) allDocuments.push(stub)
+      if (stub) {
+        allDocuments.push(stub)
+      } else {
+        droppedFromPage += 1
+      }
+    }
+
+    /**
+     * An incident that arrived without an id or attributes is absent from this
+     * listing even though it still exists in Rootly, so deletion reconciliation
+     * must not run against a listing that dropped one.
+     */
+    if (droppedFromPage > 0) {
+      logger.warn('Dropped malformed Rootly incidents from listing', {
+        pageNumber: startPage,
+        dropped: droppedFromPage,
+      })
+      if (syncContext) syncContext.listingCapped = true
     }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allDocuments
+    let truncatedByCap = false
     if (maxIncidents > 0) {
       const remaining = Math.max(0, maxIncidents - prevFetched)
       if (allDocuments.length > remaining) {
         documents = allDocuments.slice(0, remaining)
+        truncatedByCap = true
       }
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxIncidents > 0 && totalFetched >= maxIncidents
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
-    const hasNextLink = Boolean(body.links?.next)
-    const hasMore = !hitLimit && hasNextLink && incidents.length > 0
+    const morePagesAvailable = hasNextPage(body, incidents.length)
+    const hitLimit = maxIncidents > 0 && totalFetched >= maxIncidents
+
+    /**
+     * Only a cap that actually hid incidents truncates the listing. When the cap
+     * lands exactly on the final page with nothing left behind, the source is
+     * genuinely exhausted and deletions must still reconcile.
+     */
+    if (hitLimit && (truncatedByCap || morePagesAvailable) && syncContext) {
+      syncContext.listingCapped = true
+    }
+
+    const hasMore = !hitLimit && morePagesAvailable
 
     return {
       documents,
@@ -454,50 +586,47 @@ export const rootlyConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const url = `${ROOTLY_API_BASE}/incidents/${encodeURIComponent(externalId)}?include=${encodeURIComponent(INCIDENT_INCLUDE)}`
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: buildHeaders(accessToken),
-      })
+    const url = `${ROOTLY_API_BASE}/incidents/${encodeURIComponent(externalId)}?include=${encodeURIComponent(INCIDENT_DETAIL_INCLUDE)}`
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: buildHeaders(accessToken),
+    })
 
-      if (!response.ok) {
-        if (response.status === 404 || response.status === 410) return null
-        throw new Error(`Failed to fetch Rootly incident: ${response.status}`)
-      }
+    /**
+     * Only a deleted incident (404/410) resolves to `null`. Every other failure
+     * throws so the sync engine records a visible failed document instead of
+     * dropping the incident from the run with no counter and no error log.
+     */
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 410) return null
+      throw new Error(`Failed to fetch Rootly incident: ${response.status}`)
+    }
 
-      const body = (await response.json()) as RootlyResourceResponse<RootlyIncidentResource>
-      const resource = body.data
-      const attrs = resource?.attributes
-      const id = resource?.id
-      if (!id || !attrs) return null
+    const body = (await response.json()) as RootlyResourceResponse<RootlyIncidentResource>
+    const resource = body.data
+    const attrs = resource?.attributes
+    const id = resource?.id
+    if (!id || !attrs) return null
 
-      const events = await fetchTimelineEvents(accessToken, id)
-      const content = formatIncidentContent(attrs, events)
-      if (!content.trim()) {
-        logger.info('Skipping Rootly incident with no indexable content', { externalId: id })
-        return null
-      }
-      const metadata = buildMetadata(attrs)
-
-      return {
-        externalId: id,
-        title: attrs.title?.trim() || `Incident ${id}`,
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: buildSourceUrl(attrs),
-        contentHash: buildContentHash(id, attrs.updated_at),
-        metadata: { ...metadata },
-      }
-    } catch (error) {
-      logger.warn('Failed to get Rootly incident', {
-        externalId,
-        error: toError(error).message,
-      })
+    const events = await fetchTimelineEvents(accessToken, id)
+    const content = formatIncidentContent(attrs, events, extractPostMortem(body.included))
+    if (!content.trim()) {
+      logger.info('Skipping Rootly incident with no indexable content', { externalId: id })
       return null
+    }
+    const metadata = buildMetadata(attrs)
+
+    return {
+      externalId: id,
+      title: attrs.title?.trim() || `Incident ${id}`,
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: buildSourceUrl(attrs),
+      contentHash: buildContentHash(id, attrs.updated_at),
+      metadata: { ...metadata },
     }
   },
 

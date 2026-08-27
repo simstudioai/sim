@@ -2,6 +2,7 @@ import { Buffer, isUtf8 } from 'buffer'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
@@ -33,6 +34,7 @@ import {
   type DecompressResult,
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_BYTES,
+  statusForArchiveError,
 } from '@/lib/uploads/archive'
 import type { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -300,7 +302,11 @@ async function getFileContentProvenance(
       continue
     }
     const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, source.identity)
-    if (provenance.status === 'unknown') {
+    /**
+     * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
+     * workspace file surface's policy, so it latches exactly as it did before.
+     */
+    if (provenance.status !== 'exact') {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
@@ -480,7 +486,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const { fileId, fileInput } = body
         const selectedFileId =
           fileId ||
-          (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)
+          (isRecordLike(fileInput)
             ? (() => {
                 const obj = fileInput as Record<string, unknown>
                 return typeof obj.id === 'string'
@@ -1182,7 +1188,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           if (archiveError instanceof ArchiveError) {
             // The error message is single-sourced in ArchiveError (caps included);
             // only the HTTP status is mapped here.
-            const status = archiveError.reason === 'invalid' ? 400 : 413
+            const status = statusForArchiveError(archiveError)
             return NextResponse.json(
               { success: false, error: `"${archive.name}": ${archiveError.message}` },
               { status }

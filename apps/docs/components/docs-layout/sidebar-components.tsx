@@ -193,7 +193,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
  */
 export function SidebarSeparator({ item }: { item: Separator }) {
   return (
-    <div data-separator className='mt-4 mb-1.5 px-2'>
+    <div data-separator className='mt-4 mb-1.5 px-2 first:mt-0'>
       <p className='text-[var(--text-muted)] text-caption'>{item.name}</p>
     </div>
   )

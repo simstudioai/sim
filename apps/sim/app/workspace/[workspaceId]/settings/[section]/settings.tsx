@@ -84,6 +84,9 @@ const AccessControl = dynamic(() =>
 const CustomBlocks = dynamic(() =>
   import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
 )
+const CredentialGroups = dynamic(() =>
+  import('@/ee/credential-groups/components').then((m) => m.CredentialGroupsSettings)
+)
 const AuditLogs = dynamic(() =>
   import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
@@ -112,12 +115,10 @@ const Terminal = dynamic(() =>
     (m) => m.Terminal
   )
 )
-const WhitelabelingSettings = dynamic(
-  () =>
-    import('@/ee/whitelabeling/components/whitelabeling-settings').then(
-      (m) => m.WhitelabelingSettings
-    ),
-  { ssr: false }
+const WhitelabelingSettings = dynamic(() =>
+  import('@/ee/whitelabeling/components/whitelabeling-settings').then(
+    (m) => m.WhitelabelingSettings
+  )
 )
 
 interface SettingsPageProps {
@@ -158,6 +159,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'browser' && <Browser />}
       {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
+      {effectiveSection === 'credential-groups' && (
+        <CredentialGroups workspaceId={hostContext.workspace.id} />
+      )}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl
           organizationId={organizationId}
@@ -173,7 +177,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <Billing
           scope={organizationId ? 'organization' : 'account'}
           organizationId={organizationId ?? undefined}
-          governingWorkspaceName={hostContext.workspace.name}
           creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
         />
       )}

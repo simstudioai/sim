@@ -8,6 +8,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getExtensionFromMimeType,
@@ -23,6 +24,20 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OneDriveUploadAPI')
 
 const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+
+/** Microsoft Graph's ceiling for a simple (non-chunked) drive-item upload. */
+const MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
+
+function fileTooLargeError(observedBytes: number): NextResponse {
+  const sizeMB = (observedBytes / (1024 * 1024)).toFixed(2)
+  return NextResponse.json(
+    {
+      success: false,
+      error: `File size (${sizeMB}MB) exceeds OneDrive's limit of 250MB for simple uploads. Use chunked upload for larger files.`,
+    },
+    { status: 400 }
+  )
+}
 
 /** Microsoft Graph DriveItem response */
 interface OneDriveFileData {
@@ -115,12 +130,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
 
       try {
-        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_SIMPLE_UPLOAD_BYTES,
+        })
         fileBuffer = result.buffer
         mimeType = result.contentType || userFile.type || 'application/octet-stream'
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
+        if (isPayloadSizeLimitError(error)) {
+          return fileTooLargeError(error.observedBytes ?? userFile.size)
+        }
         logger.error(`[${requestId}] Failed to download file from storage:`, error)
         return NextResponse.json(
           {
@@ -132,17 +152,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    const maxSize = 250 * 1024 * 1024
-    if (fileBuffer.length > maxSize) {
-      const sizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(2)
-      logger.warn(`[${requestId}] File too large: ${sizeMB}MB`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: `File size (${sizeMB}MB) exceeds OneDrive's limit of 250MB for simple uploads. Use chunked upload for larger files.`,
-        },
-        { status: 400 }
+    if (fileBuffer.length > MAX_SIMPLE_UPLOAD_BYTES) {
+      logger.warn(
+        `[${requestId}] File too large: ${(fileBuffer.length / (1024 * 1024)).toFixed(2)}MB`
       )
+      return fileTooLargeError(fileBuffer.length)
     }
 
     let fileName = validatedData.fileName

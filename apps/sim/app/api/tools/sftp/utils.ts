@@ -1,7 +1,12 @@
+import { createHash } from 'node:crypto'
+import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { toError } from '@sim/utils/errors'
 import { type Attributes, Client, type ConnectConfig, type SFTPWrapper } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { readNodeStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
+
+const logger = createLogger('SftpUtils')
 
 const S_IFMT = 0o170000
 const S_IFDIR = 0o040000
@@ -15,9 +20,44 @@ export interface SftpConnectionConfig {
   password?: string | null
   privateKey?: string | null
   passphrase?: string | null
+  /**
+   * Idle socket timeout in ms, forwarded to ssh2's `sock.setTimeout`. Left
+   * unset the socket has no idle timeout at all (ssh2 defaults it to `0`).
+   */
   timeout?: number
   keepaliveInterval?: number
   readyTimeout?: number
+  /**
+   * Expected SHA-256 host key fingerprint in the format `ssh-keyscan` and
+   * OpenSSH print (`SHA256:<base64>`). The `SHA256:` prefix and any base64
+   * padding are optional. When set, a server presenting a different host key is
+   * rejected before authentication runs. When omitted, the host is not
+   * verified — ssh2's default behavior.
+   */
+  hostFingerprint?: string | null
+}
+
+/**
+ * Normalizes a user-supplied SHA-256 fingerprint for comparison: trims, drops
+ * an optional `SHA256:` prefix, and strips base64 `=` padding, which OpenSSH
+ * omits but copy/paste sources sometimes include.
+ */
+function normalizeSha256Fingerprint(value: string): string {
+  return value
+    .trim()
+    .replace(/^sha256:/i, '')
+    .replace(/=+$/, '')
+    .trim()
+}
+
+/**
+ * Computes the OpenSSH SHA-256 fingerprint of a host key. ssh2 hands the
+ * verifier the raw SSH wire-format public key blob — the same bytes OpenSSH
+ * base64-encodes into `known_hosts` — so hashing it directly reproduces the
+ * unpadded base64 digest that `ssh-keyscan | ssh-keygen -lf -` prints.
+ */
+function computeHostKeyFingerprint(hostKey: Buffer): string {
+  return createHash('sha256').update(hostKey).digest('base64').replace(/=+$/, '')
 }
 
 /**
@@ -93,6 +133,11 @@ function formatSftpError(err: Error, config: { host: string; port: number }): Er
 /**
  * Creates an SSH connection for SFTP using the provided configuration.
  * Uses ssh2 library defaults which align with OpenSSH standards.
+ *
+ * When `hostFingerprint` is supplied the server's host key is pinned to it and
+ * a mismatch aborts the handshake before any credential is sent. Without it
+ * ssh2 accepts whatever host key answers, which is the pre-existing behavior
+ * kept for backward compatibility.
  */
 export async function createSftpConnection(config: SftpConnectionConfig): Promise<Client> {
   const host = config.host
@@ -132,6 +177,50 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
     if (config.keepaliveInterval !== undefined) {
       connectConfig.keepaliveInterval = config.keepaliveInterval
     }
+    if (config.timeout !== undefined) {
+      connectConfig.timeout = config.timeout
+    }
+
+    const suppliedFingerprint = config.hostFingerprint?.trim()
+    const expectedFingerprint = suppliedFingerprint
+      ? normalizeSha256Fingerprint(suppliedFingerprint)
+      : undefined
+
+    /**
+     * Fail closed rather than silently skipping verification. A value that is
+     * non-blank but normalizes away (`SHA256:`, `=`) would otherwise leave no
+     * `hostVerifier` installed, trusting whatever host answers — the opposite
+     * of what supplying a fingerprint asks for.
+     */
+    if (suppliedFingerprint && !expectedFingerprint) {
+      throw new Error(
+        'Host key fingerprint is not a valid SHA-256 fingerprint. Expected the base64 form printed by `ssh-keyscan <host> | ssh-keygen -lf -`.'
+      )
+    }
+
+    /**
+     * Set when the pinned fingerprint does not match. ssh2 reports the
+     * rejection through a generic `'error'` event, so the precise cause is
+     * carried out of the verifier rather than re-derived from that message.
+     */
+    let hostKeyRejection: Error | undefined
+
+    if (expectedFingerprint) {
+      connectConfig.hostVerifier = (hostKey: Buffer): boolean => {
+        const actualFingerprint = computeHostKeyFingerprint(hostKey)
+        if (safeCompare(actualFingerprint, expectedFingerprint)) {
+          return true
+        }
+        hostKeyRejection = new Error(
+          `Host key verification failed for ${host}:${port}. ` +
+            `Expected SHA256:${expectedFingerprint} but the server presented SHA256:${actualFingerprint}. ` +
+            `Either the server's host key changed, or the connection was intercepted. ` +
+            `Re-run "ssh-keyscan -t rsa,ecdsa,ed25519 ${host}" to confirm the current key before updating the fingerprint.`
+        )
+        logger.warn('SFTP host key fingerprint mismatch', { host, port })
+        return false
+      }
+    }
 
     if (hasPrivateKey) {
       connectConfig.privateKey = config.privateKey!
@@ -147,7 +236,21 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
     })
 
     client.on('error', (err) => {
-      reject(formatSftpError(err, { host, port }))
+      reject(hostKeyRejection ?? formatSftpError(err, { host, port }))
+    })
+
+    /**
+     * ssh2 only re-emits the socket's `'timeout'` event; it never destroys the
+     * socket, so without this the connection would sit open forever after the
+     * idle timeout elapsed.
+     */
+    client.on('timeout', () => {
+      client.destroy()
+      reject(
+        new Error(
+          `Connection to ${host}:${port} timed out after ${config.timeout}ms of inactivity.`
+        )
+      )
     })
 
     try {

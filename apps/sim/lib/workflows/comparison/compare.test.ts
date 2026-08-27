@@ -7,11 +7,8 @@ import {
 } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  formatDiffSummaryForDescription,
-  generateWorkflowDiffSummary,
-  hasWorkflowChanged,
-} from './compare'
+import { generateWorkflowDiffSummary, hasWorkflowChanged } from './compare'
+import { formatDiffSummaryForDescription } from './describe'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -385,6 +382,39 @@ describe('hasWorkflowChanged', () => {
       const unset = createWorkflowState({ blocks: { block1: createBlock('block1') } })
       expect(hasWorkflowChanged(unset, withErrorFlag(false))).toBe(false)
       expect(hasWorkflowChanged(unset, withErrorFlag(true))).toBe(true)
+    })
+
+    /**
+     * `setBlockErrorEnabled` leaves existing error edges in place, so a block can
+     * hold `errorEnabled: false` with a connected error edge. Only the deployed
+     * side is backfilled (`materializeDeploymentState`), so reading the flag alone
+     * makes that block differ from itself, and redeploying cannot clear it — the
+     * snapshot stores the live `false` that the next read backfills to `true`.
+     */
+    const withErrorEdge = (errorEnabled: boolean) =>
+      createWorkflowState({
+        blocks: {
+          block1: { ...createBlock('block1'), errorEnabled },
+          block2: createBlock('block2'),
+        },
+        edges: [
+          { id: 'e1', source: 'block1', sourceHandle: 'error', target: 'block2' },
+        ] as WorkflowState['edges'],
+      })
+
+    it.concurrent('treats a live error edge as the flag being on', () => {
+      expect(hasWorkflowChanged(withErrorEdge(false), withErrorEdge(true))).toBe(false)
+      expect(hasWorkflowChanged(withErrorEdge(true), withErrorEdge(false))).toBe(false)
+    })
+
+    it.concurrent('reports no modified block when only the backfilled flag differs', () => {
+      const summary = generateWorkflowDiffSummary(withErrorEdge(false), withErrorEdge(true))
+      expect(summary.hasChanges).toBe(false)
+      expect(summary.modifiedBlocks).toEqual([])
+    })
+
+    it.concurrent('still detects the flag turning on when no error edge exists', () => {
+      expect(hasWorkflowChanged(withErrorFlag(true), withErrorFlag(false))).toBe(true)
     })
   })
 

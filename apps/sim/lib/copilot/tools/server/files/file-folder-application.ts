@@ -3,21 +3,6 @@ import type { CopilotFileDelegationContext } from '@/lib/copilot/auth/file-deleg
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 
-/**
- * Returns the execution workspace only. Model-provided workspace ids may assert the same value,
- * but can never select a different workspace or trigger a default-workspace fallback.
- */
-export function requireCopilotWorkspace(
-  context: CopilotFileDelegationContext,
-  assertedWorkspaceId?: string
-): string {
-  if (!context.workspaceId) throw new Error('Copilot execution workspace is required')
-  if (assertedWorkspaceId && assertedWorkspaceId !== context.workspaceId) {
-    throw new Error('Workspace ID does not match the Copilot execution workspace')
-  }
-  return context.workspaceId
-}
-
 /** Creates missing parent folders through the shared folder application operation. */
 export async function ensureCopilotFileFolderPath(
   context: CopilotFileDelegationContext,

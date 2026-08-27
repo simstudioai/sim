@@ -6,9 +6,11 @@ import { createDashboardTool } from '@/tools/grafana/create_dashboard'
 import { createFolderTool } from '@/tools/grafana/create_folder'
 import { deleteAlertRuleTool } from '@/tools/grafana/delete_alert_rule'
 import { deleteAnnotationTool } from '@/tools/grafana/delete_annotation'
+import { deleteContactPointTool } from '@/tools/grafana/delete_contact_point'
 import { deleteDashboardTool } from '@/tools/grafana/delete_dashboard'
 import { deleteFolderTool } from '@/tools/grafana/delete_folder'
 import { getAlertRuleTool } from '@/tools/grafana/get_alert_rule'
+import { getAlertRuleGroupTool } from '@/tools/grafana/get_alert_rule_group'
 import { getDashboardTool } from '@/tools/grafana/get_dashboard'
 import { getDataSourceTool } from '@/tools/grafana/get_data_source'
 import { getFolderTool } from '@/tools/grafana/get_folder'
@@ -19,8 +21,11 @@ import { listContactPointsTool } from '@/tools/grafana/list_contact_points'
 import { listDashboardsTool } from '@/tools/grafana/list_dashboards'
 import { listDataSourcesTool } from '@/tools/grafana/list_data_sources'
 import { listFoldersTool } from '@/tools/grafana/list_folders'
+import { moveFolderTool } from '@/tools/grafana/move_folder'
+import { queryDataSourceTool } from '@/tools/grafana/query_data_source'
 import { updateAlertRuleTool } from '@/tools/grafana/update_alert_rule'
 import { updateAnnotationTool } from '@/tools/grafana/update_annotation'
+import { updateContactPointTool } from '@/tools/grafana/update_contact_point'
 import { updateDashboardTool } from '@/tools/grafana/update_dashboard'
 import { updateFolderTool } from '@/tools/grafana/update_folder'
 
@@ -37,6 +42,11 @@ export const grafanaUpdateAlertRuleTool = updateAlertRuleTool
 export const grafanaDeleteAlertRuleTool = deleteAlertRuleTool
 export const grafanaListContactPointsTool = listContactPointsTool
 export const grafanaCreateContactPointTool = createContactPointTool
+export const grafanaUpdateContactPointTool = updateContactPointTool
+export const grafanaDeleteContactPointTool = deleteContactPointTool
+export const grafanaMoveFolderTool = moveFolderTool
+export const grafanaQueryDataSourceTool = queryDataSourceTool
+export const grafanaGetAlertRuleGroupTool = getAlertRuleGroupTool
 
 export const grafanaCreateAnnotationTool = createAnnotationTool
 export const grafanaListAnnotationsTool = listAnnotationsTool

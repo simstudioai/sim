@@ -17,7 +17,10 @@ import {
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
-import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
+import {
+  collectErrorSourceBlockIds,
+  normalizeWorkflowEdgeHandles,
+} from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
@@ -142,15 +145,50 @@ export function invalidateDeployedStateCache(deploymentVersionId?: string): void
   deployedStateCache.clear()
 }
 
+/**
+ * Deliberately module-private: it queries the global pool, so calling it inside
+ * a transaction callback is the nested checkout `packages/db/tx-tripwire.ts`
+ * throws on. Keeping it unexported is what stops a future caller reaching for it
+ * from somewhere that already holds a connection — the same reasoning that made
+ * `materializeDeploymentState` take a `workspaceId` instead of resolving one.
+ */
+async function resolveWorkspaceId(workflowId: string, provided?: string): Promise<string> {
+  if (provided) return provided
+  const workflowContext = await getActiveWorkflowContext(workflowId)
+  if (!workflowContext?.workspaceId) {
+    throw new Error(`Workflow ${workflowId} has no workspace`)
+  }
+  return workflowContext.workspaceId
+}
+
 interface DeploymentStateRow {
   id: string
   state: unknown
 }
 
-async function materializeDeploymentState(
+/**
+ * Projects a deployment version's frozen jsonb into the shape change detection
+ * compares against.
+ *
+ * Exported because both sides of "needs redeploy" must be materialized the same
+ * way. The client asks through `/api/workflows/[id]/deployed`; the server asks
+ * through `checkNeedsRedeployment`. When only one of them ran the migrations,
+ * the handle canonicalization and the `errorEnabled` backfill below, the two
+ * surfaces answered the same question differently for the same workflow.
+ */
+/**
+ * `workspaceId` is required rather than resolved here on purpose. Resolving it
+ * means `getActiveWorkflowContext`, which queries the global pool, and
+ * `checkNeedsRedeployment` calls this from inside a REPEATABLE READ transaction
+ * that already holds a pooled connection — the nested checkout
+ * `packages/db/tx-tripwire.ts` exists to catch. Taking the id as an argument
+ * makes the violation unrepresentable rather than merely avoided.
+ */
+export async function materializeDeploymentState(
   workflowId: string,
   version: DeploymentStateRow,
-  providedWorkspaceId?: string
+  workspaceId: string,
+  executor?: DbOrTx
 ): Promise<DeployedWorkflowData> {
   const cached = deployedStateCache.get(version.id)
   if (cached) {
@@ -158,19 +196,11 @@ async function materializeDeploymentState(
   }
 
   const state = version.state as WorkflowState & { variables?: Record<string, unknown> }
-  let resolvedWorkspaceId = providedWorkspaceId
-  if (!resolvedWorkspaceId) {
-    const workflowContext = await getActiveWorkflowContext(workflowId)
-    resolvedWorkspaceId = workflowContext?.workspaceId
-  }
-
-  if (!resolvedWorkspaceId) {
-    throw new Error(`Workflow ${workflowId} has no workspace`)
-  }
 
   const { blocks: migratedBlocks } = await applyBlockMigrations(
     state.blocks || {},
-    resolvedWorkspaceId
+    workspaceId,
+    executor
   )
   /*
    * Read straight out of the version's jsonb blob, so unlike every path that
@@ -181,18 +211,18 @@ async function materializeDeploymentState(
    */
   const edges = normalizeWorkflowEdgeHandles(state.edges)
 
-  /*
+  /**
    * An error edge means the error output is on. Every version before the toggle
    * drew that port unconditionally, so a snapshot with such an edge was taken
    * from a block that had the output — and the migration backfilling the flag
    * only reaches the live tables, never a version's frozen jsonb. Without this
    * the deployed side reads `false` against a live `true` and every workflow
-   * deployed before the toggle asks to be redeployed once. Same rule as
-   * `workflow-block.tsx` applies at render time; neither may read the flag alone.
+   * deployed before the toggle asks to be redeployed once. This backfills only
+   * the deployed side, so change detection must apply `resolveEffectiveErrorEnabled`
+   * to the live side too — reading the raw flag there compares a block against
+   * itself forever. Same rule the block renderers apply; none may read the flag alone.
    */
-  const errorSourceBlockIds = new Set(
-    edges.filter((edge) => edge.sourceHandle === 'error').map((edge) => edge.source)
-  )
+  const errorSourceBlockIds = collectErrorSourceBlockIds(edges)
   const blocks: DeployedWorkflowData['blocks'] = {}
   for (const [blockId, block] of Object.entries(migratedBlocks)) {
     blocks[blockId] =
@@ -240,7 +270,11 @@ export async function loadDeployedWorkflowState(
       throw new NoActiveDeploymentError(workflowId)
     }
 
-    return materializeDeploymentState(workflowId, active, providedWorkspaceId)
+    return materializeDeploymentState(
+      workflowId,
+      active,
+      await resolveWorkspaceId(workflowId, providedWorkspaceId)
+    )
   } catch (error) {
     logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
     throw error
@@ -273,7 +307,11 @@ export async function loadWorkflowDeploymentVersionState(
     throw new Error(`Deployment ${deploymentVersionId} was not found for workflow ${workflowId}`)
   }
 
-  return materializeDeploymentState(workflowId, version, providedWorkspaceId)
+  return materializeDeploymentState(
+    workflowId,
+    version,
+    await resolveWorkspaceId(workflowId, providedWorkspaceId)
+  )
 }
 
 interface MigrationContext {
@@ -504,8 +542,8 @@ async function migrateCredentialIds(
  * Load workflow from normalized tables and apply all block migrations
  * (credential ID rewrites, agent message migration, subblock ID migrations,
  * WhatsApp interactive-type backfill, canonical-mode backfill, tool
- * sanitization). Returns null if the workflow has not been migrated to
- * normalized tables yet.
+ * sanitization). An existing blockless workflow returns an explicit empty
+ * graph; null is reserved for a missing workflow or a failed load.
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,

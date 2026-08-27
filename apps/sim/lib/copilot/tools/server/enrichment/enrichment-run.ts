@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { EnrichmentRun } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunEnrichment } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getEnrichment } from '@/enrichments/registry'
 import { runEnrichment } from '@/enrichments/run'
@@ -25,7 +25,7 @@ interface EnrichmentRunResult {
  * bill (see image/generate-image.ts).
  */
 export const enrichmentRunServerTool: BaseServerTool<EnrichmentRunParams, EnrichmentRunResult> = {
-  name: EnrichmentRun.id,
+  name: RunEnrichment.id,
   async execute(params: EnrichmentRunParams, context): Promise<EnrichmentRunResult> {
     const logger = createLogger('EnrichmentRunServerTool')
     const { enrichmentId, inputs } = params

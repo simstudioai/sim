@@ -32,7 +32,6 @@ import {
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
 import {
   type FocusedResourceShortcut,
@@ -83,6 +82,9 @@ const CWD_POLL_MS = 1_000
 /** Cmd-Shift-T history; independent of how many terminals may be open. */
 const MAX_RECENTLY_CLOSED_TERMINALS = 10
 
+/** A single chat cannot monopolize the process with native PTYs. */
+export const MAX_TERMINALS_PER_SCOPE = 16
+
 /** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
 const TMUX_KEY_GAP_MS = 150
 
@@ -131,7 +133,7 @@ function requestedKeys(args: TerminalToolArgs): TerminalControlKey[] {
 
 const EMPTY_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
 
-class TerminalError extends Error {
+export class TerminalError extends Error {
   constructor(
     readonly code: TerminalErrorCode,
     message: string
@@ -156,6 +158,7 @@ export interface TerminalServiceOptions {
    * to the home directory.
    */
   loadCwd?(): string | undefined
+  canSpawn?(): boolean
 }
 
 export class TerminalService {
@@ -499,7 +502,8 @@ export class TerminalService {
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
     confirmCloseRunning?: (running: string) => boolean
   ): boolean {
-    if (shortcut === 'focus-omnibox') return false
+    // Hard reload has no terminal meaning — leave it to the Browser or shell.
+    if (shortcut === 'focus-omnibox' || shortcut === 'hard-reload') return false
     const visibleTabShortcut =
       shortcut === 'new-tab' || shortcut === 'reopen-closed-tab' || shortcut === 'close-tab'
     const ownsVisibleTabs =
@@ -610,6 +614,36 @@ export class TerminalService {
       owner.removeListener('destroyed', release)
       owner.removeListener('did-start-navigation', onNavigate)
     }
+  }
+
+  /** Captures live renderer claims before the registry replaces this service. */
+  getPanelOwners(): { focused: WebContents | null; visible: WebContents | null } {
+    return {
+      focused: this.focusOwner && !this.focusOwner.isDestroyed() ? this.focusOwner : null,
+      visible: this.visibleOwner && !this.visibleOwner.isDestroyed() ? this.visibleOwner : null,
+    }
+  }
+
+  /**
+   * Whether this renderer owns the visible active terminal.
+   *
+   * IPC validates recent trusted input separately. Keeping ownership checks
+   * beside terminal state prevents a stale renderer from targeting a hidden
+   * tab or a terminal displayed by another window.
+   */
+  acceptsUserInput(owner: WebContents, terminalId: string): boolean {
+    return (
+      !owner.isDestroyed() &&
+      this.focusOwner === owner &&
+      this.visibleOwner === owner &&
+      this.activeId === terminalId &&
+      this.sessions.has(terminalId)
+    )
+  }
+
+  /** Whether one renderer may close a tab in the terminal panel it displays. */
+  acceptsUserClose(owner: WebContents, terminalId: string): boolean {
+    return !owner.isDestroyed() && this.visibleOwner === owner && this.sessions.has(terminalId)
   }
 
   /** Drops the claim and unsubscribes from the owner's lifecycle. */
@@ -1092,6 +1126,18 @@ export class TerminalService {
     rows: number,
     options: { activateVisible: boolean; activateAgent: boolean }
   ): TerminalSession {
+    if (this.sessions.size >= MAX_TERMINALS_PER_SCOPE) {
+      throw new TerminalError(
+        'RESOURCE_LIMIT',
+        `A task can have at most ${MAX_TERMINALS_PER_SCOPE} live terminals.`
+      )
+    }
+    if (this.options.canSpawn && !this.options.canSpawn()) {
+      throw new TerminalError(
+        'RESOURCE_LIMIT',
+        'Sim can have at most 48 live terminals. Close a terminal before opening another.'
+      )
+    }
     const terminalId = String(this.nextId++)
     try {
       const session = TerminalSession.create({
@@ -1200,9 +1246,4 @@ export class TerminalService {
 
 function unknownTerminal(terminalId: string): string {
   return `No terminal with id ${terminalId}. Call terminal_list for the open ones.`
-}
-
-/** Narrows an IPC payload to the tool-call shape without trusting the sender. */
-export function parseToolParams(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
 }

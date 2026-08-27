@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 /**
@@ -85,7 +86,7 @@ function filterValidDocumentTags(tags: unknown[]): DocumentTagEntry[] {
 export function parseDocumentTags(value: unknown): DocumentTagEntry[] {
   if (!value) return []
 
-  if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+  if (isRecordLike(value)) {
     return Object.entries(value)
       .filter(([tagName, tagValue]) => {
         if (!tagName || tagName.trim() === '') return false

@@ -53,6 +53,12 @@ export const dataverseDeleteRecordTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})`
     },
     method: 'DELETE',
+    /**
+     * Dataverse endpoints redirect (file downloads issue a signed storage URL,
+     * and environment hosts redirect between regional origins), so drop the
+     * bearer token rather than forward it to whatever origin answers.
+     */
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'OData-MaxVersion': '4.0',

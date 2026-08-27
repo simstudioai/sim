@@ -84,6 +84,8 @@ import {
   ModelNotAllowedError,
   ProviderNotAllowedError,
   PublicFileSharingNotAllowedError,
+  resolveUserAccessControlContext,
+  resolveVerifiedUserAccessControlContext,
   SkillsNotAllowedError,
   ToolNotAllowedError,
   validateBlockType,
@@ -229,6 +231,126 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
   })
 })
 
+describe('resolveUserAccessControlContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+  })
+
+  it('describes a personal workspace without changing the config-only result', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
+
+    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+      organizationId: null,
+      entitled: false,
+      permissionGroup: null,
+      config: null,
+    })
+    await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toBeNull()
+  })
+
+  it('returns the explicit governing group and its effective config', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      {
+        id: 'group-explicit',
+        name: 'Engineering',
+        config: { disableMcpTools: true },
+        isMember: true,
+        hasMembers: true,
+      },
+    ])
+
+    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+      organizationId: 'org-1',
+      entitled: true,
+      permissionGroup: {
+        id: 'group-explicit',
+        name: 'Engineering',
+        resolution: 'explicit-member',
+      },
+      config: expect.objectContaining({ disableMcpTools: true }),
+    })
+  })
+
+  it('identifies an all-members governing group', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      {
+        id: 'group-all-members',
+        name: 'All workspace members',
+        config: { disableCustomTools: true },
+        isMember: false,
+        hasMembers: false,
+      },
+    ])
+
+    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+
+    expect(context.permissionGroup).toEqual({
+      id: 'group-all-members',
+      name: 'All workspace members',
+      resolution: 'all-members',
+    })
+  })
+
+  it('uses a verified workspace organization without loading the workspace again', async () => {
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+    queueGroupResolution([
+      {
+        id: 'group-verified',
+        name: 'Verified group',
+        config: { disableSkills: true },
+        isMember: true,
+        hasMembers: true,
+      },
+    ])
+
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-verified'
+    )
+
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified')
+    expect(context).toMatchObject({
+      organizationId: 'org-verified',
+      entitled: true,
+      permissionGroup: {
+        id: 'group-verified',
+        resolution: 'explicit-member',
+      },
+      config: { disableSkills: true },
+    })
+  })
+
+  it('identifies the default group and preserves the environment allowlist', async () => {
+    setEnterpriseOrgWorkspace()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
+    queueGroupResolution(
+      [],
+      [
+        {
+          id: 'group-default',
+          name: 'Organization default',
+          config: { allowedIntegrations: ['slack', 'github'] },
+        },
+      ]
+    )
+
+    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+
+    expect(context.permissionGroup).toEqual({
+      id: 'group-default',
+      name: 'Organization default',
+      resolution: 'default',
+    })
+    expect(context.config?.allowedIntegrations).toEqual(['slack'])
+  })
+})
+
 describe('getUserPermissionConfig (workspace-group precedence)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -323,6 +445,22 @@ describe('validateBlockType', () => {
 
     it('always allows start_trigger', async () => {
       await validateBlockType(undefined, undefined, 'start_trigger')
+    })
+
+    it('case-folds a stored allowlist so a mixed-case entry still matches', async () => {
+      setEnterpriseOrgWorkspace()
+      queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])
+
+      await validateBlockType('user-123', 'workspace-1', 'slack')
+    })
+
+    it('still rejects a block absent from a mixed-case stored allowlist', async () => {
+      setEnterpriseOrgWorkspace()
+      queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])
+
+      await expect(validateBlockType('user-123', 'workspace-1', 'discord')).rejects.toThrow(
+        IntegrationNotAllowedError
+      )
     })
   })
 

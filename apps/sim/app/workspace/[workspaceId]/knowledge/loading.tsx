@@ -1,7 +1,6 @@
 'use client'
 
-import { Plus } from '@sim/emcn'
-import { Database, FolderPlus } from '@sim/emcn/icons'
+import { Database, FolderPlus, Plus } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,

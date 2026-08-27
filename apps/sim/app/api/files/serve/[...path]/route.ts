@@ -18,9 +18,12 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
@@ -75,11 +78,38 @@ async function resolveServableBytes(params: {
   options: ServeOptions
   ownerKey: string | undefined
   filePrincipal?: Principal
+  /** The stored record's content type, where the caller has the record. */
+  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<{ buffer: Buffer; contentType: string }> {
-  const { buffer, filename, storageKey, workspaceId, options, ownerKey, filePrincipal, signal } =
-    params
+  const {
+    buffer,
+    filename,
+    storageKey,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal,
+    fileType,
+    signal,
+  } = params
   if (options.raw) return { buffer, contentType: getContentType(filename) }
+
+  // The pdf model for pages: a page file stores its SOURCE (frontmatter +
+  // markdown + sim: fences) and serving compiles it to the rendered document,
+  // the same way a .pdf key stores its script and serves the binary. Raw
+  // requests above still return the source; bespoke/legacy HTML falls through
+  // untouched. Sim pages store an EXTENSIONLESS name — the record type marks
+  // them; legacy pages still carry .html.
+  if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
+    const text = buffer.toString('utf8')
+    if (isSimPageSource(text)) {
+      return {
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
+        contentType: 'text/html',
+      }
+    }
+  }
 
   if (options.preview) {
     // Images resolve independently of the document path: a HEIF has no compiled-source
@@ -165,7 +195,12 @@ export const GET = withRouteHandler(
         return await handleLocalFilePublic(fullPath)
       }
 
-      const storageContext = inferContextFromKey(cloudKey)
+      // Which module owns the object decides which branch below may serve it, and that
+      // is the row's answer, not the prefix's — a `workspace/` key carries both Files
+      // module files and mothership chat attachments. Reading the prefix alone here is
+      // what sent every attachment into the workspace-file use case, which matches on
+      // `context = 'workspace'` and answered 404 for a file that was present.
+      const storageContext = await resolveStoredFileContext(cloudKey)
       const workspacePrincipal =
         storageContext === 'workspace'
           ? await internalWorkspaceFileServeAuth.authenticate(request, { path })
@@ -201,10 +236,10 @@ export const GET = withRouteHandler(
       if (!userId) throw new Error('Authenticated file serve request is missing a user ID')
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, options, request.signal)
+        return await handleCloudProxy(cloudKey, userId, options, request.signal, storageContext)
       }
 
-      return await handleLocalFile(cloudKey, userId, options, request.signal)
+      return await handleLocalFile(cloudKey, userId, options, request.signal, storageContext)
     } catch (error) {
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
@@ -265,6 +300,7 @@ async function handleWorkspaceFile(
     options,
     ownerKey,
     filePrincipal: principal,
+    fileType: file.type,
     signal: request.signal,
   })
 
@@ -285,19 +321,16 @@ async function handleLocalFile(
   filename: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
-      | StorageContext
-      | undefined
-
     const hasAccess = await verifyFileAccess(
       filename,
       userId,
       undefined, // customConfig
-      contextParam, // context
+      context,
       true // isLocal
     )
 
@@ -332,7 +365,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, contextParam),
+      cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
     logServeFailure('Error reading local file:', error)
@@ -344,12 +377,12 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const context = inferContextFromKey(cloudKey)
-    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
+    logger.info(`Resolved context: ${context} for key: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,

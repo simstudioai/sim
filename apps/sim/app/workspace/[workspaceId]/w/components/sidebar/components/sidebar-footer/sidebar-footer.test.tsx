@@ -59,6 +59,7 @@ async function renderFooter(initialState: Record<string, unknown>) {
         workspaceId='workspace-1'
         isCollapsed={false}
         showCollapsedTooltips={false}
+        getSettingsHref={(section) => `/workspace/workspace-1/settings/${section}`}
         onOpenSettings={() => {}}
         onOpenDocs={() => {}}
         onJoinSlack={() => {}}
@@ -72,6 +73,20 @@ function helpTrigger(): HTMLButtonElement {
   const trigger = container.querySelector<HTMLButtonElement>('[data-item-id="help"]')
   if (!trigger) throw new Error('Help trigger was not rendered')
   return trigger
+}
+
+function profileTrigger(): HTMLButtonElement {
+  const trigger = container.querySelector<HTMLButtonElement>('[data-item-id="profile"]')
+  if (!trigger) throw new Error('Profile trigger was not rendered')
+  return trigger
+}
+
+function openProfileMenu() {
+  act(() => {
+    profileTrigger().dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false })
+    )
+  })
 }
 
 function openHelpMenu() {
@@ -109,6 +124,18 @@ afterEach(() => {
 })
 
 describe('SidebarFooter desktop update affordance', () => {
+  it('renders profile settings destinations with native link semantics', async () => {
+    await renderFooter({ status: 'idle' })
+
+    openProfileMenu()
+
+    expect(menuItem('Settings')).toHaveAttribute('href', '/workspace/workspace-1/settings/general')
+    expect(menuItem('Subscription')).toHaveAttribute(
+      'href',
+      '/workspace/workspace-1/settings/billing'
+    )
+  })
+
   it('keeps the ordinary help treatment when no update is available', async () => {
     await renderFooter({ status: 'idle' })
 

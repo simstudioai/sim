@@ -9,6 +9,7 @@
  * both the legacy `$` grammar and the v2 predicate tree.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { buildIdByName, getColumnId, predicateNamesToIds } from '@/lib/table/column-keys'
 import { resolveSelectOptionId } from '@/lib/table/select-options'
 import type {
@@ -74,7 +75,7 @@ export function resolveFilterSelectValues(filter: Filter, columns: ColumnDefinit
         continue
       }
       const options = column.options
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      if (isRecordLike(value)) {
         const ops = value as ConditionOperators
         const next: ConditionOperators = { ...ops }
         if (ops.$eq !== undefined)

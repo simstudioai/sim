@@ -291,7 +291,7 @@ export const createMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     if (idState && !idState.deleted) {
       throw new OrchestrationError(
         'conflict',
-        'An MCP server with this URL already exists in this workspace. Update it with PATCH /api/v2/mcp-servers/{id}.'
+        `An MCP server with this URL already exists in this workspace: ${serverId}. Update that server instead of creating a new one.`
       )
     }
     let result: PerformMcpServerResult & { server: McpServerRow }

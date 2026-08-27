@@ -36,7 +36,7 @@ export const deleteDnsRecordTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_records/${params.recordId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records/${params.recordId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -47,7 +47,16 @@ export const deleteDnsRecordTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!data.success) {
+    /**
+     * This endpoint is the one Cloudflare v4 response that does NOT carry the
+     * shared envelope: its documented body is `{ "result": { "id": ... } }` with
+     * no `success`, `errors`, or `messages`. Branching on `!data.success` would
+     * therefore report every successful delete as a failure, so the check must
+     * be an explicit `=== false` — which still fails a real `success: false`
+     * body if Cloudflare ever starts sending the full envelope here.
+     * https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/delete/
+     */
+    if (data.success === false) {
       return {
         success: false,
         output: { id: '' },

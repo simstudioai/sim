@@ -5,7 +5,20 @@
 import { memorySecretProvenance } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+  mockIsEnforced: vi.fn(() => false),
+  mockReport: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
+  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
+  isDurableSecretProvenanceEnforced: mockIsEnforced,
+  reportUnrecordedDurableProvenance: mockReport,
+}))
+
+import { memoryListQuerySchema } from '@/lib/api/contracts/memory'
 import { AuthType } from '@/lib/auth/hybrid'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -47,6 +60,8 @@ function privateMemoryWrite(
 describe('memory write secret provenance', () => {
   beforeEach(() => {
     resetDbChainMock()
+    mockReport.mockClear()
+    mockIsEnforced.mockReturnValue(false)
   })
   it('classifies a headerless external write as exact-empty', () => {
     const request = new NextRequest('http://localhost/api/memory', { method: 'POST' })
@@ -200,7 +215,12 @@ describe('memory write secret provenance', () => {
     if (!result.success) expect(result.response.status).toBe(400)
   })
 
-  it('bounds only requested private response provenance without querying sidecars', async () => {
+  /**
+   * A read of this width used to be refused outright on the record count alone. How many memories
+   * crossed said nothing about whether their provenance could be established, so the read now
+   * vouches for them and the page size is what keeps the statement count bounded.
+   */
+  it('vouches for a very wide crossing instead of refusing on the record count', async () => {
     const request = new NextRequest('http://localhost/api/memory', {
       headers: {
         [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -220,12 +240,18 @@ describe('memory write secret provenance', () => {
     })
 
     await expect(response.json()).resolves.toMatchObject({
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: false, entries: [] },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
     })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    /** Eleven pages of a thousand, not one statement per handful of memories. */
+    expect(dbChainMockFns.select.mock.calls.length).toBeLessThanOrEqual(11)
   })
 
-  it('marks oversized aggregate sidecar provenance incomplete before importing it', async () => {
+  /**
+   * A sidecar too large to carry reads as unrecorded, not as a reason to fail the read. The run
+   * keeps its other provenance and proceeds without this memory's — best effort, with the risk
+   * recorded — rather than refusing every projection for the rest of the run.
+   */
+  it('treats a sidecar too large to carry as unrecorded rather than failing the read', async () => {
     queueTableRows(memorySecretProvenance, [
       {
         memoryId: 'memory-1',
@@ -253,7 +279,74 @@ describe('memory write secret provenance', () => {
     })
 
     await expect(response.json()).resolves.toMatchObject({
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: false, entries: [] },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
     })
+  })
+  /**
+   * One entry for the read, not one per record: the per-record import knows no workspace, so its
+   * report can only ever be a log line, and passing the workspace down instead would write
+   * thousands of audit rows for a single event.
+   */
+  it('reports one aggregated entry for a read that proceeded unvouched', async () => {
+    const request = new NextRequest('http://localhost/api/memory', {
+      headers: {
+        [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+      },
+    })
+
+    await createMemoryResponse({
+      request,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      body: { success: true },
+      memories: [
+        { id: 'memory-1', data: 'value', secretProvenanceVersion: 1 },
+        { id: 'memory-2', data: 'value', secretProvenanceVersion: 1 },
+      ],
+    })
+
+    expect(mockReport).toHaveBeenCalledTimes(1)
+    expect(mockReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'memory',
+        cause: 'durable-provenance-unknown',
+        affectedCount: 2,
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
+
+  /**
+   * Under enforcement the import fails the registry closed rather than proceeding, so there is no
+   * fail-open read to record. Counting those records anyway would audit something that never
+   * happened, in the one trail whose whole purpose is to say a read went ahead unvouched.
+   */
+  it('records nothing when the surface is enforced and the read fails closed', async () => {
+    mockIsEnforced.mockReturnValue(true)
+    const request = new NextRequest('http://localhost/api/memory', {
+      headers: {
+        [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+      },
+    })
+
+    await createMemoryResponse({
+      request,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      body: { success: true },
+      memories: [{ id: 'memory-1', data: 'value', secretProvenanceVersion: 1 }],
+    })
+
+    expect(mockReport).not.toHaveBeenCalled()
+  })
+})
+
+describe('memory list query contract', () => {
+  it('rejects a limit past the page ceiling and keeps the default below it', () => {
+    expect(memoryListQuerySchema.safeParse({ limit: '2000' }).success).toBe(false)
+    expect(memoryListQuerySchema.parse({})).toMatchObject({ limit: 50 })
+    expect(memoryListQuerySchema.parse({ limit: '1000' })).toMatchObject({ limit: 1000 })
   })
 })

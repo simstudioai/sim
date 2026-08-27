@@ -64,11 +64,19 @@ export const updateTravelRequestTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Travel request UUID to update',
     },
+    userId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The unique identifier of the user performing the update. Optional. Will be taken into account only if calling with a Company token. If not provided the update will be performed as "Concur System".',
+    },
     body: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Fields to update on the travel request',
+      description:
+        'Fields to update on the travel request. Partial update is supported. Only these fields are updatable: comment, startDate, startTime, endDate, endTime, expensePolicy, name, businessPurpose, mainDestination, travelAgency, and the custom1-custom20 fields — any other field is silently ignored. Pass an unquoted null to clear a field.',
     },
   },
   request: {
@@ -77,11 +85,15 @@ export const updateTravelRequestTool: ToolConfig<
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
+      const query: Record<string, string> = {}
+      const userId = params.userId?.trim()
+      if (userId) query.userId = userId
       return {
         ...baseProxyBody(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}`,
         method: 'PUT',
         body: params.body,
+        query: Object.keys(query).length > 0 ? query : undefined,
       }
     },
   },

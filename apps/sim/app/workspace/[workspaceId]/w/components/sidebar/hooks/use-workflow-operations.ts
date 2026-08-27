@@ -38,6 +38,7 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
       workspaceId,
       name,
       id,
+      deduplicate: true,
     })
 
     useWorkflowRegistry.getState().markWorkflowCreating(id)

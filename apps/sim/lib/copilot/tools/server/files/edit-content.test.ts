@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   buildEmbeddedImageRefWarningMock,
   compileDocForWriteMock,
-  consumeLatestFileIntentMock,
+  waitForLatestFileIntentMock,
   executeCopilotFileUseCaseMock,
   getDocumentFormatInfoMock,
   inferContentTypeMock,
@@ -14,7 +14,7 @@ const {
 } = vi.hoisted(() => ({
   buildEmbeddedImageRefWarningMock: vi.fn(),
   compileDocForWriteMock: vi.fn(),
-  consumeLatestFileIntentMock: vi.fn(),
+  waitForLatestFileIntentMock: vi.fn(),
   executeCopilotFileUseCaseMock: vi.fn(),
   getDocumentFormatInfoMock: vi.fn(),
   inferContentTypeMock: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock('@/lib/copilot/tools/server/files/embedded-image-refs', () => ({
   buildEmbeddedImageRefWarning: buildEmbeddedImageRefWarningMock,
 }))
 vi.mock('@/lib/copilot/tools/server/files/file-intent-store', () => ({
-  consumeLatestFileIntent: consumeLatestFileIntentMock,
+  waitForLatestFileIntent: waitForLatestFileIntentMock,
 }))
 vi.mock('@/lib/copilot/tools/server/files/workspace-file', () => ({
   compileDocForWrite: compileDocForWriteMock,
@@ -82,7 +82,7 @@ describe('edit_content', () => {
     compileDocForWriteMock.mockResolvedValue({ ok: true, sourceMime: 'text/x-python-pdf' })
     executeCopilotFileUseCaseMock.mockResolvedValue({})
     buildEmbeddedImageRefWarningMock.mockResolvedValue('')
-    consumeLatestFileIntentMock.mockResolvedValue({
+    waitForLatestFileIntentMock.mockResolvedValue({
       operation: 'update',
       fileId: 'pdf-1',
       workspaceId: 'workspace-1',

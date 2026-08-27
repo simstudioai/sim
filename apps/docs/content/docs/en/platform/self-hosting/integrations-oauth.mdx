@@ -100,7 +100,7 @@ One OAuth client in [Google Cloud Console](https://console.cloud.google.com/apis
 
 | Environment variables | Provider IDs |
 |---|---|
-| `GOOGLE_CLIENT_ID`<br />`GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
+| `GOOGLE_CLIENT_ID`<br />`GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-chat`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
 
 The same variables also power "Sign in with Google". See [Authentication](/platform/self-hosting/authentication).
 
@@ -127,6 +127,7 @@ The same variables also power "Sign in with Microsoft".
 | ClickUp | `CLICKUP_CLIENT_ID` / `CLICKUP_CLIENT_SECRET` | `clickup` |
 | Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
 | Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
+| Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
 | HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
 | Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
 | Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
@@ -145,6 +146,14 @@ The same variables also power "Sign in with Microsoft".
 | Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
 | Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
 | TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+
+For Bitbucket, create an OAuth consumer and register
+`https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
+permissions on the consumer instead of narrowing them per authorization request. Enable exactly
+Account read, Repositories read/write, Pull requests read/write, Pipelines read/write, and Webhooks
+read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`,
+`pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
+trigger subscription management.
 
 ### Services with a different flow
 
@@ -185,7 +194,7 @@ Webhook triggers receive callbacks from the provider and must be able to verify 
 | Variable | Needed for |
 |---|---|
 | `SLACK_SIGNING_SECRET` | Verifying Slack event and slash-command signatures |
-| `SLACK_EXTENDED_SCOPES` / `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` | Requesting the broader Slack scope set |
+| `SLACK_EXTENDED_SCOPES` / `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` | Enabling the native Sim-app trigger and its broader Slack scope set; set both to the same value |
 
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 

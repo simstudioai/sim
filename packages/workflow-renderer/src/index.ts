@@ -6,6 +6,7 @@ export {
   EDGE_Z_MAX,
   getBlockZIndex,
   getEdgeZIndex,
+  getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
@@ -26,12 +27,25 @@ export {
 } from './note/note-colors'
 export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
+  countNoteSearchOccurrencesBefore,
+  forEachNoteSourceOccurrence,
+  type NoteSearchHighlight,
+  type NoteSearchRange,
+} from './note/note-search-highlight'
+export {
   type SubflowNodeData,
   SubflowNodeView,
   type SubflowNodeViewProps,
   SubflowStartView,
 } from './subflow/subflow-node-view'
-export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
+export type {
+  BlockRunStatus,
+  CodePreview,
+  CodePreviewLanguage,
+  DiffStatus,
+  EdgeDiffStatus,
+  EdgeRunStatus,
+} from './types'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,

@@ -44,6 +44,8 @@ describe('ChipInput', () => {
     )
 
     expect(input).toBe(container?.querySelector('input'))
+    expect(input?.className).toContain('-ml-1')
+    expect(input?.className).toContain('indent-1')
     expect(container?.querySelector('svg')).not.toBeNull()
     expect(container?.querySelector('[data-testid="adornment"]')?.textContent).toBe('⌘K')
   })

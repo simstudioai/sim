@@ -8,7 +8,6 @@ import { NextResponse } from 'next/server'
 import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,7 +15,10 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
@@ -102,7 +104,7 @@ export const GET = withRouteHandler(
         metadata: {
           fileId: record.id,
           fileName: record.originalName,
-          bytes: record.size,
+          bytes: getWorkspaceFileSize(record),
           format,
           assetCount,
         },
@@ -149,33 +151,21 @@ export const GET = withRouteHandler(
     }
     let mdContent = mdBuffer.toString('utf-8')
 
-    const imageIds = extractEmbeddedImageIds(mdContent)
+    // Ids only: a serve-URL embed names a storage key, which the bundler has no id to rewrite the
+    // markdown against, so those images stay pointed at their original URL.
+    const { ids: imageIds } = extractEmbeddedFileRefs(mdContent)
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
-
-    if (imageIds.length === 0) {
-      const mdName = safeFilename(record.originalName)
-      const mdBytes = Buffer.from(mdContent, 'utf-8')
-      auditExport('markdown', 0)
-      return new NextResponse(new Uint8Array(mdBytes), {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/markdown; charset=utf-8',
-          'Content-Disposition': `attachment; ${encodeFilenameForHeader(mdName)}`,
-          'Content-Length': String(mdBytes.length),
-        },
-      })
-    }
 
     // Metadata first: declared sizes bound the download before a byte is read, and the
     // authorization check costs nothing to run here.
     const assetTargets = (
       await mapWithConcurrency(imageIds, MATERIALIZE_CONCURRENCY, async (imageId) => {
         try {
-          const imgRecord = await getFileMetadataById(imageId)
+          const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
           if (!(await verifyFileAccess(imgRecord.key, userId))) return null
-          return { imageId, record: imgRecord }
+          return { imageId, record: imgRecord, size: getWorkspaceFileSize(imgRecord) }
         } catch (error) {
           logger.warn('Failed to resolve asset for export', {
             imageId,
@@ -188,8 +178,7 @@ export const GET = withRouteHandler(
 
     // The body counts against the same budget as its assets — the zip holds both, so a
     // limit that measured only the attachments would not describe the archive produced.
-    const bundleBytes =
-      mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.record.size, 0)
+    const bundleBytes = mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.size, 0)
     if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
       return NextResponse.json(
         {
@@ -232,6 +221,21 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
       assetMap.set(imageId, { filename, buffer })
+    }
+
+    // Format follows what was bundled, not what was referenced: an embed can point at a file that is
+    // missing, unreadable, or oversized, and an empty `assets/` zip is a worse answer than the
+    // document itself. `mdContent` is still unrewritten here, so `mdBuffer` holds exactly its bytes.
+    if (assetMap.size === 0) {
+      auditExport('markdown', 0)
+      return new NextResponse(new Uint8Array(mdBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(safeFilename(record.originalName))}`,
+          'Content-Length': String(mdBuffer.length),
+        },
+      })
     }
 
     for (const [imageId, asset] of assetMap) {

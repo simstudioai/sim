@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.3.14",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -33,6 +33,10 @@
     "./hostnames": {
       "types": "./src/hostnames.ts",
       "default": "./src/hostnames.ts"
+    },
+    "./ip": {
+      "types": "./src/ip.ts",
+      "default": "./src/ip.ts"
     },
     "./ssrf": {
       "types": "./src/ssrf.ts",

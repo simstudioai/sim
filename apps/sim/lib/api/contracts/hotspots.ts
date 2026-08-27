@@ -156,10 +156,8 @@ const functionOutputFileSchema = z
   })
   .strict()
 
-export const functionExecuteContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/function/execute',
-  body: z.object({
+export const functionExecuteBodySchema = z
+  .object({
     code: z.string().min(1, 'Code is required'),
     sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
@@ -207,6 +205,12 @@ export const functionExecuteContract = defineRouteContract({
     secretScope: z.enum(['all', 'selected']).optional(),
     /** Secret names this execution may read when secretScope is `selected`. */
     mountedSecrets: z.array(z.string()).optional(),
+    /**
+     * Secret names the caller's registry certifies as redaction-exempt (collision-free).
+     * Exported files containing only these values are not provenance-locked. Trusted the
+     * same way envVars is: the internal caller already holds the plaintexts.
+     */
+    unredactedSecretNames: z.array(z.string()).optional(),
     [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     _sandboxFiles: z
       .array(
@@ -226,7 +230,25 @@ export const functionExecuteContract = defineRouteContract({
         ])
       )
       .optional(),
-  }),
+  })
+  .superRefine((body, context) => {
+    if (body.outputSandboxPath && !body.outputPath?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['outputPath'],
+        message:
+          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+      })
+    }
+  })
+
+export type FunctionExecuteBody = z.input<typeof functionExecuteBodySchema>
+export type ParsedFunctionExecuteBody = z.output<typeof functionExecuteBodySchema>
+
+export const functionExecuteContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/function/execute',
+  body: functionExecuteBodySchema,
   response: {
     mode: 'json',
     schema: unknownRecordSchema,

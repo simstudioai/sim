@@ -1,6 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { folder } from '@sim/db/schema'
-import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  OrchestrationError,
+  type OrchestrationErrorCode,
+  throwOrchestrationFailure,
+} from '@/lib/core/orchestration/types'
 import {
   createFolderAtPath,
   deleteFolderByPath,
@@ -49,10 +53,7 @@ export interface DeleteKnowledgeFolderInput {
 }
 
 function throwFolderFailure(result: { error?: string; errorCode?: OrchestrationErrorCode }): never {
-  throw new OrchestrationError(
-    result.errorCode ?? 'internal',
-    result.error ?? 'Folder operation failed'
-  )
+  throwOrchestrationFailure(result, 'Folder operation failed')
 }
 
 export const listKnowledgeFolders = defineAuthorizedKnowledgeUseCase({

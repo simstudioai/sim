@@ -65,7 +65,8 @@ export const issueCashAdvanceTool: ToolConfig<IssueCashAdvanceParams, SapConcurP
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional request body',
+      description:
+        'Optional request body. All documented fields are optional: accountCode, comment, and exchangeRate.',
     },
   },
   request: {

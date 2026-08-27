@@ -14,8 +14,18 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # The diff-based audits below need a base commit to read, and the default
+      # depth of 1 clones a single commit with no parent. They normally fetch
+      # their base by SHA (see "Resolve base ref"), so this depth only covers the
+      # `HEAD~1` fallback — but without it that fallback resolves to nothing.
+      #
+      # Worth stating because the failure was invisible for so long: the migration
+      # audit read the resulting `git diff` failure as "no migrations changed" and
+      # exited 0, so it had never actually run on a push build.
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 2
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -104,15 +114,40 @@ jobs:
 
           echo "✅ All env flags are properly configured"
 
-      - name: Check block registry invariants
+      # One fetch for both base-ref audits, and no `|| true`: a swallowed fetch leaves
+      # the base ref absent, which neither audit can tell apart from a branch that
+      # changed nothing. The block-registry check at least degrades to a visible
+      # `⚠ … skipping` line; the migration audit printed `✓ No new migrations to
+      # check` and exited 0, clearing the only guard on production DDL.
+      #
+      # Depth stays at 1 — without a merge-base the migration audit diffs the two
+      # tips, which under `--diff-filter=AM` is exactly the migrations new here.
+      # Resolved once for both diff-based audits, and never with `|| true`: a
+      # swallowed fetch leaves the base absent, which neither audit can tell apart
+      # from a branch that changed nothing.
+      #
+      # On push the base is `github.event.before`, the tip the branch had before
+      # this push — not `HEAD~1`, which names only the last commit and would let a
+      # multi-commit push slip every earlier commit's migrations past the audit.
+      # It is fetched by SHA at depth 1; the audits diff two tips and need no
+      # common ancestry. An all-zero `before` means the branch is new and has no
+      # predecessor to diff, so `HEAD~1` remains the fallback there.
+      - name: Resolve base ref for diff-based audits
+        id: audit_base
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_REF="origin/${{ github.base_ref }}"
-            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+            git fetch --depth=1 origin "${{ github.base_ref }}"
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] &&
+               [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            git fetch --depth=1 origin "${{ github.event.before }}"
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
           else
-            BASE_REF="HEAD~1"
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
           fi
-          bun run apps/sim/scripts/check-block-registry.ts "$BASE_REF"
+
+      - name: Check block registry invariants
+        run: bun run apps/sim/scripts/check-block-registry.ts "${{ steps.audit_base.outputs.ref }}"
 
       - name: Lint code
         run: bun run lint:check
@@ -123,15 +158,11 @@ jobs:
       - name: Repo audits
         run: bun run check:audits
 
+      - name: Verify docs manifest is in sync
+        run: bun run docs-manifest:check
+
       - name: Migration safety (zero-downtime) audit
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_REF="origin/${{ github.base_ref }}"
-            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
-          else
-            BASE_REF="HEAD~1"
-          fi
-          bun run check:migrations "$BASE_REF"
+        run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
@@ -264,4 +295,4 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-        run: bunx turbo run build --filter=sim
+        run: bunx turbo run build --filter=@sim/app

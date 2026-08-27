@@ -27,9 +27,7 @@
 ### Self-hosted
 
 ```bash
-git clone https://github.com/simstudioai/sim.git && cd sim
-bun install
-bun run setup
+npx sim-setup
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
@@ -72,56 +70,53 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Self-hosting
 
-**Requirements:** [Bun](https://bun.sh/) and [Docker](https://www.docker.com/).
+**Requirements:** [Node.js 20+](https://nodejs.org/) and [Docker](https://www.docker.com/).
 
-`bun run setup` is an interactive wizard: it provisions the database, generates secrets, writes your `.env` files, connects a Chat API key, and starts Sim the way you choose:
-
-- **Local dev** — run from source to contribute or hack on Sim
-- **Docker Compose** — a self-contained instance for testing self-hosting
-- **Kubernetes (Helm)** — deploy to a local cluster
+`npx sim-setup` is an interactive wizard that creates a small `sim/` deployment directory, provisions the database, generates secrets, writes `.env`, connects a Chat API key, and starts the published Sim images with Docker Compose. It does not clone the repository.
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
+
+Inside a cloned Sim repository, run `bun run sim-setup` to unlock the source-only local development and Kubernetes modes.
 
 Reconfigure an optional capability without rerunning the full wizard:
 
 ```bash
-bun run setup status
-bun run setup email
-bun run setup storage
-bun run setup sandbox
-bun run setup jobs
-bun run setup cache
-bun run setup knowledge
-bun run setup llm
-bun run setup integration slack
+npx sim-setup config
+npx sim-setup add email
+npx sim-setup add storage
+npx sim-setup add sandbox
+npx sim-setup add jobs
+npx sim-setup add cache
+npx sim-setup add knowledge
+npx sim-setup add chat
+npx sim-setup add llm
+npx sim-setup add integration slack
 ```
 
-`bun run setup status` detects the effective local-dev, Docker Compose, or current-context
+`npx sim-setup config` detects the effective local-dev, Docker Compose, or current-context
 Helm configuration and reports configured, missing, or invalid capabilities and OAuth
-integrations without printing credential values. This is separate from `bun run sim status`,
+integrations without printing credential values. This is separate from `npx sim-setup status`,
 which reports whether installed services are running and healthy.
 
-Manage your install with `bun run sim`:
+Manage your install from its directory:
 
 ```bash
-bun run sim start | stop | restart   # bring your install up / down / cycle
-bun run sim update                   # pull/rebuild and apply Compose images
-bun run sim status                    # what's installed and healthy
-bun run sim logs                      # follow logs
-bun run sim doctor                    # diagnose configuration problems
-bun run sim down                      # remove containers (data kept)
-bun run sim reset                     # archive .env and wipe managed data
+npx sim-setup start | stop | restart   # bring your install up / down / cycle
+npx sim-setup update                   # pull and apply Compose images
+npx sim-setup status                   # what's installed and healthy
+npx sim-setup logs                     # follow logs
+npx sim-setup doctor                   # diagnose configuration problems
+npx sim-setup down                     # remove containers (data kept)
+npx sim-setup reset                    # archive .env and wipe managed data
 ```
 
-`sim` detects how you're running (Docker Compose, local dev, or Kubernetes) and acts accordingly.
-
-Prefer a bare `sim`? Run `bun link` once — but note `sim` lands in `~/.bun/bin`, which Homebrew's bun doesn't add to your PATH, so you may need `export PATH="$HOME/.bun/bin:$PATH"` in your shell profile.
+The setup package detects how you're running and acts accordingly. Use `--dir <path>` to create or manage a deployment somewhere other than `./sim`.
 
 Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
 ## Chat API Keys
 
-Chat is a Sim-managed service. `bun run setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
+Chat is a Sim-managed service. `npx sim-setup` connects a Chat API key for you — sign in when it opens your browser and the key is stored automatically. To view, create, or revoke keys later, go to [sim.ai/selfhost/settings/chat-keys](https://sim.ai/selfhost/settings/chat-keys).
 
 ## Environment Variables
 

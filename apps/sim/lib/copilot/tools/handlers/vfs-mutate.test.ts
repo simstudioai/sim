@@ -11,7 +11,6 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 const mocks = vi.hoisted(() => ({
   ensureWorkspaceAccess: vi.fn(),
   ensureWorkflowAccess: vi.fn(),
-  getDefaultWorkspaceId: vi.fn(),
   getWorkspaceFileByName: vi.fn(),
   resolveWorkspaceFileReference: vi.fn(),
   findWorkspaceFileFolderIdByPath: vi.fn(),
@@ -21,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   updateWorkspaceFileFolder: vi.fn(),
   deleteWorkspaceFile: vi.fn(),
   renameWorkspaceFile: vi.fn(),
-  performMoveRenameWorkspaceFile: vi.fn(),
   performUpdateWorkspaceFileFolder: vi.fn(),
   performCreateFolder: vi.fn(),
   performUpdateFolder: vi.fn(),
@@ -42,8 +40,14 @@ const mocks = vi.hoisted(() => ({
   deleteFileVfsItems: vi.fn(),
   renameTableVfs: vi.fn(),
   deleteTableVfs: vi.fn(),
+  transferTableVfs: vi.fn(),
+  createTableFolders: vi.fn(),
+  deleteTableFolders: vi.fn(),
   renameKnowledgeVfs: vi.fn(),
   deleteKnowledgeVfs: vi.fn(),
+  transferKnowledgeVfs: vi.fn(),
+  createKnowledgeFolders: vi.fn(),
+  deleteKnowledgeFolders: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -51,7 +55,6 @@ vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkspaceAccess: mocks.ensureWorkspaceAccess,
   ensureWorkflowAccess: mocks.ensureWorkflowAccess,
-  getDefaultWorkspaceId: mocks.getDefaultWorkspaceId,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -80,6 +83,9 @@ vi.mock('@/lib/copilot/tools/server/files/file-folder-application', () => ({
     ...(fileId ? { resourceScope: { fileId } } : {}),
   })),
   ensureCopilotFileFolderPath: mocks.ensureCopilotFileFolderPath,
+}))
+
+vi.mock('@/lib/copilot/tools/server/workspace-scope', () => ({
   requireCopilotWorkspace: vi.fn((context) => context.workspaceId),
 }))
 
@@ -163,6 +169,18 @@ vi.mock('@/lib/table/application/table-vfs', () => ({
     operation: tableOperations.deleteByVfsPath,
     execute: mocks.deleteTableVfs,
   },
+  transferTableVfsItems: {
+    operation: tableOperations.moveByVfsPath,
+    execute: mocks.transferTableVfs,
+  },
+  createTableVfsFolders: {
+    operation: tableOperations.createFolder,
+    execute: mocks.createTableFolders,
+  },
+  deleteTableVfsFolders: {
+    operation: tableOperations.deleteFolder,
+    execute: mocks.deleteTableFolders,
+  },
 }))
 
 vi.mock('@/lib/knowledge/application/knowledge-vfs', () => ({
@@ -173,6 +191,18 @@ vi.mock('@/lib/knowledge/application/knowledge-vfs', () => ({
   deleteKnowledgeBaseByVfsPath: {
     operation: knowledgeOperations.deleteByVfsPath,
     execute: mocks.deleteKnowledgeVfs,
+  },
+  transferKnowledgeVfsItems: {
+    operation: knowledgeOperations.moveByVfsPath,
+    execute: mocks.transferKnowledgeVfs,
+  },
+  createKnowledgeVfsFolders: {
+    operation: knowledgeOperations.manageVfsFolders,
+    execute: mocks.createKnowledgeFolders,
+  },
+  deleteKnowledgeVfsFolders: {
+    operation: knowledgeOperations.manageVfsFolders,
+    execute: mocks.deleteKnowledgeFolders,
   },
 }))
 
@@ -291,13 +321,13 @@ describe('vfs mv/cp', () => {
       expect(result.error).toContain('across categories')
     })
 
-    it('rejects uploads with a materialize_file pointer', async () => {
+    it('rejects uploads with a save_upload pointer', async () => {
       const result = await executeVfsMv(
         { sources: ['uploads/data.csv'], destination: 'files/data.csv' },
         context
       )
       expect(result.success).toBe(false)
-      expect(result.error).toContain('materialize_file')
+      expect(result.error).toContain('save_upload')
     })
 
     it('rejects read-only categories', async () => {
@@ -776,13 +806,39 @@ describe('vfs mv/cp', () => {
       })
     })
 
-    it('rejects flat namespaces', async () => {
+    it('creates table folders through the table application operation', async () => {
+      mocks.createTableFolders.mockResolvedValue({
+        outcomes: [
+          { source: 'tables/CRM', kind: 'folder', resourceId: 'fld-1', targetSegments: ['CRM'] },
+        ],
+      })
+
       const result = await executeVfsMkdir({ paths: ['tables/CRM'] }, context)
-      expect(result.success).toBe(false)
+
+      expect(mocks.createTableFolders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            workspaceId: 'ws-1',
+            paths: [{ source: 'tables/CRM', segments: ['CRM'] }],
+          },
+        })
+      )
+      expect(result.success).toBe(true)
       expect(result.output).toMatchObject({
-        results: [{ from: 'tables/CRM', error: expect.stringContaining('flat namespace') }],
+        results: [{ from: 'tables/CRM', to: 'tables/CRM', kind: 'table_folder', id: 'fld-1' }],
       })
       expect(mocks.ensureCopilotFileFolderPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects the reserved knowledgebases/connectors folder path', async () => {
+      const result = await executeVfsMkdir({ paths: ['knowledgebases/connectors/sub'] }, context)
+      expect(result.success).toBe(false)
+      expect(result.output).toMatchObject({
+        results: [
+          { from: 'knowledgebases/connectors/sub', error: expect.stringContaining('reserved') },
+        ],
+      })
+      expect(mocks.createKnowledgeFolders).not.toHaveBeenCalled()
     })
 
     it('rejects creation inside a locked workflow folder', async () => {
@@ -804,30 +860,65 @@ describe('vfs mv/cp', () => {
     })
   })
 
-  describe('tables and knowledge bases (flat namespaces)', () => {
-    it('renames a table', async () => {
+  describe('tables and knowledge bases (foldered)', () => {
+    it('renames a table through the transfer application operation', async () => {
+      mocks.transferTableVfs.mockResolvedValue({
+        outcomes: [
+          {
+            source: 'tables/Leads',
+            kind: 'resource',
+            resourceId: 'tbl-1',
+            targetSegments: ['Customers'],
+          },
+        ],
+      })
+
       const result = await executeVfsMv(
         { sources: ['tables/Leads'], destination: 'tables/Customers' },
         context
       )
 
-      expect(mocks.renameTableVfs).toHaveBeenCalledWith(
+      expect(mocks.transferTableVfs).toHaveBeenCalledWith(
         expect.objectContaining({
-          input: { workspaceId: 'ws-1', sourceName: 'Leads', newName: 'Customers' },
+          input: {
+            workspaceId: 'ws-1',
+            sources: [{ source: 'tables/Leads', segments: ['Leads'] }],
+            destination: { segments: ['Customers'], trailingSlash: false },
+          },
         })
       )
       expect(result.success).toBe(true)
       expect(result.output).toMatchObject({ results: [{ to: 'tables/Customers', kind: 'table' }] })
     })
 
-    it('rejects nested table destinations as flat-namespace violations', async () => {
+    it('moves a table into a folder, folders auto-created server-side', async () => {
+      mocks.transferTableVfs.mockResolvedValue({
+        outcomes: [
+          {
+            source: 'tables/Leads',
+            kind: 'resource',
+            resourceId: 'tbl-1',
+            targetSegments: ['CRM', 'Leads'],
+          },
+        ],
+      })
+
       const result = await executeVfsMv(
-        { sources: ['tables/Leads'], destination: 'tables/CRM/Leads' },
+        { sources: ['tables/Leads'], destination: 'tables/CRM/' },
         context
       )
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('flat namespace')
-      expect(mocks.renameTable).not.toHaveBeenCalled()
+
+      expect(mocks.transferTableVfs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            destination: { segments: ['CRM'], trailingSlash: true },
+          }),
+        })
+      )
+      expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({
+        results: [{ to: 'tables/CRM/Leads', kind: 'table' }],
+      })
     })
 
     it('rejects copying tables', async () => {
@@ -840,12 +931,23 @@ describe('vfs mv/cp', () => {
     })
 
     it('renames a knowledge base through trusted application operations', async () => {
+      mocks.transferKnowledgeVfs.mockResolvedValue({
+        outcomes: [
+          {
+            source: 'knowledgebases/Docs',
+            kind: 'resource',
+            resourceId: 'kb-1',
+            targetSegments: ['Product Docs'],
+          },
+        ],
+      })
+
       const result = await executeVfsMv(
         { sources: ['knowledgebases/Docs'], destination: 'knowledgebases/Product Docs' },
         context
       )
 
-      expect(mocks.renameKnowledgeVfs).toHaveBeenCalledWith(
+      expect(mocks.transferKnowledgeVfs).toHaveBeenCalledWith(
         expect.objectContaining({
           principal: expect.objectContaining({
             kind: 'delegated',
@@ -855,8 +957,8 @@ describe('vfs mv/cp', () => {
           }),
           input: {
             workspaceId: 'ws-1',
-            sourceName: 'Docs',
-            newName: 'Product Docs',
+            sources: [{ source: 'knowledgebases/Docs', segments: ['Docs'] }],
+            destination: { segments: ['Product Docs'], trailingSlash: false },
           },
         })
       )
@@ -864,7 +966,7 @@ describe('vfs mv/cp', () => {
     })
 
     it('propagates knowledge application infrastructure failures', async () => {
-      mocks.renameKnowledgeVfs.mockRejectedValueOnce(new Error('knowledge database unavailable'))
+      mocks.transferKnowledgeVfs.mockRejectedValueOnce(new Error('knowledge database unavailable'))
 
       await expect(
         executeVfsMv(
@@ -875,7 +977,7 @@ describe('vfs mv/cp', () => {
     })
 
     it('preserves an actionable knowledge rename conflict', async () => {
-      mocks.renameKnowledgeVfs.mockRejectedValue(
+      mocks.transferKnowledgeVfs.mockRejectedValue(
         new OrchestrationError('conflict', 'A knowledge base named Product Docs already exists')
       )
 
@@ -912,9 +1014,69 @@ describe('vfs mv/cp', () => {
           input: {
             workspaceId: 'ws-1',
             sourceName: 'Docs',
+            sourceSegments: ['Docs'],
           },
         })
       )
+    })
+
+    it('moves a whole table folder through the transfer operation', async () => {
+      mocks.transferTableVfs.mockResolvedValue({
+        outcomes: [
+          {
+            source: 'tables/CRM',
+            kind: 'folder',
+            resourceId: 'fld-1',
+            targetSegments: ['Archive', 'CRM'],
+          },
+        ],
+      })
+
+      const result = await executeVfsMv(
+        { sources: ['tables/CRM'], destination: 'tables/Archive/' },
+        context
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({
+        results: [{ to: 'tables/Archive/CRM', kind: 'table_folder' }],
+      })
+    })
+
+    it('rm retargets to the folder cascade when the path is a folder', async () => {
+      mocks.deleteTableVfs.mockRejectedValue(
+        new OrchestrationError('invalid', 'tables/CRM is a folder; this operation takes a table.')
+      )
+      mocks.deleteTableFolders.mockResolvedValue({
+        outcomes: [{ source: 'tables/CRM', kind: 'folder', resourceId: 'fld-1' }],
+      })
+
+      const result = await executeVfsRm({ paths: ['tables/CRM'] }, context)
+
+      expect(mocks.deleteTableFolders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: { workspaceId: 'ws-1', paths: [{ source: 'tables/CRM', segments: ['CRM'] }] },
+        })
+      )
+      expect(result.success).toBe(true)
+      expect(result.output).toMatchObject({
+        results: [{ from: 'tables/CRM', kind: 'table_folder', id: 'fld-1' }],
+      })
+    })
+
+    it('deletes a nested knowledge base by its folder path', async () => {
+      const result = await executeVfsRm({ paths: ['knowledgebases/Legal/Contracts'] }, context)
+
+      expect(mocks.deleteKnowledgeVfs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            workspaceId: 'ws-1',
+            sourceName: 'Contracts',
+            sourceSegments: ['Legal', 'Contracts'],
+          },
+        })
+      )
+      expect(result.success).toBe(true)
     })
 
     it('preserves an actionable knowledge delete failure', async () => {

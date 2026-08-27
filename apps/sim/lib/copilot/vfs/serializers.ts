@@ -12,7 +12,10 @@ import {
   SANDBOX_SELECTABLE_CLI_TOOL_IDS,
 } from '@/lib/execution/remote-sandbox/cli-tools'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { type IsToolAllowed, OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
@@ -23,7 +26,10 @@ import {
   PROVIDER_DEFINITIONS,
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
+import { buildSlackManifest, SLACK_CAPABILITIES } from '@/triggers/slack/capabilities'
+import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 /** The service-account alternative to OAuth for a service, when it offers one. */
 export interface VfsServiceAccountAuth {
@@ -41,7 +47,7 @@ export type VfsToolAuth =
        * credential (connect AS AN APPLICATION, not as the user). The agent emits
        * a `service_account` credential tag with this entry's OAuth `provider` to
        * open the in-chat setup form. Omitted when the service has no
-       * service-account flow, or its flow is gated by a preview block.
+       * service-account flow or its owning block is hidden.
        */
       serviceAccount?: VfsServiceAccountAuth
     }
@@ -58,10 +64,8 @@ export type VfsToolAuth =
  * noun for the secret it collects. The single composition point behind both the
  * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
  * roll-up, so the two never disagree. Returns `undefined` when the service has
- * no service-account flow, or its flow is gated by a preview block (a custom
- * Slack bot needs slack_v2) that is not the visible owner being serialized.
- * This keeps the default projection GA-only while allowing a revealed preview
- * block's own schema to describe the credential flow it enables.
+ * no service-account flow, or its owning block is hidden and is not the owner
+ * currently being serialized.
  */
 export function describeServiceAccountForOAuthProvider(
   oauthProvider: string,
@@ -72,11 +76,6 @@ export function describeServiceAccountForOAuthProvider(
   const gatingBlockType = getServiceAccountGatingBlockType(serviceAccountProviderId)
   if (gatingBlockType) {
     const gatingBlock = getBlock(gatingBlockType)
-    // Omit when the gating block is missing (fail-closed) or hidden by the
-    // canonical predicate. Passing `null` vis reduces `isHiddenUnder` to the
-    // static preview check — so once the block GAs and drops `preview`, it is
-    // no longer hidden and discovery includes it again, matching the renderer.
-    // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
     if (!gatingBlock || (ownerBlockType !== gatingBlockType && isHiddenUnder(null, gatingBlock))) {
       return undefined
     }
@@ -98,6 +97,18 @@ export interface ComponentSerializationOptions {
       reason: string
     }
   >
+  /**
+   * The viewer's permission-group tool gate. Denied tool ids are dropped from
+   * `tools` and `toolAuth` so the agent is never handed an id it may not call.
+   */
+  isToolAllowed?: IsToolAllowed
+  /**
+   * Operation ids the viewer's permission group denies, removed from the
+   * operation selector's options. Paired with `isToolAllowed` rather than
+   * derived here so the caller — which also decides whether a wholly denied
+   * block is worth publishing at all — resolves them exactly once.
+   */
+  deniedOperationIds?: ReadonlySet<string>
 }
 
 /**
@@ -221,6 +232,8 @@ export function serializeRecentExecutions(
  * but never filters anything.
  */
 export interface KbTagDefinitionSummary {
+  /** The tagDefinitionId that update_tag / delete_tag / update_document.tagValues require. */
+  id: string
   tagName: string
   tagSlot: string
   fieldType: string
@@ -310,7 +323,11 @@ export function serializeDocuments(
 
 /**
  * Serialize KB connectors for VFS knowledgebases/{name}/connectors.json.
- * Shows connector type, sync status, and schedule — NOT credentials or source config.
+ * Shows connector type, sync status, schedule, the credential REFERENCE
+ * (an opaque id — never key material; API keys stay encrypted and are never
+ * serialized), and the source config (repo/branch/channels). The last two are
+ * what make a connector cloneable: without them, recreating a working
+ * connector on a new KB meant guessing both the credential and the channels.
  */
 export function serializeConnectors(
   connectors: Array<{
@@ -319,6 +336,8 @@ export function serializeConnectors(
     status: string
     syncMode: string
     syncIntervalMinutes: number
+    credentialId?: string | null
+    sourceConfig?: unknown
     lastSyncAt: Date | null
     lastSyncError: string | null
     lastSyncDocCount: number | null
@@ -334,6 +353,8 @@ export function serializeConnectors(
       status: c.status,
       syncMode: c.syncMode,
       syncIntervalMinutes: c.syncIntervalMinutes,
+      credentialId: c.credentialId ?? undefined,
+      sourceConfig: c.sourceConfig ?? undefined,
       lastSyncAt: c.lastSyncAt?.toISOString(),
       lastSyncError: c.lastSyncError || undefined,
       lastSyncDocCount: c.lastSyncDocCount ?? undefined,
@@ -579,11 +600,16 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
   if (sb.mode) result.mode = sb.mode
   if (sb.canonicalParamId) result.canonicalParamId = sb.canonicalParamId
   if (sb.condition && typeof sb.condition !== 'function') result.condition = sb.condition
-  if (sb.dependsOn) result.dependsOn = sb.dependsOn
+  // Copied, not aliased: these are the registry's own arrays, shared by every
+  // request in the process, so publishing one puts mutable registry state a
+  // single careless consumer away from corruption. The catalog projection this
+  // serializer parallels copies every array it publishes for the same reason.
+  if (sb.dependsOn)
+    result.dependsOn = Array.isArray(sb.dependsOn) ? [...sb.dependsOn] : sb.dependsOn
 
   // Include static options arrays for dropdowns
   if (Array.isArray(sb.options)) {
-    result.options = sb.options
+    result.options = [...sb.options]
   }
 
   return result
@@ -622,8 +648,18 @@ export function serializeBlockSchema(
       .filter((id) => !visibleIds.has(id))
   )
 
+  const deniedOperationIds = options?.deniedOperationIds
   const subBlocks = visibleSubBlocks.map((sb) => {
     const serialized = serializeSubBlock(sb)
+    if (
+      sb.id === OPERATION_SUBBLOCK_ID &&
+      deniedOperationIds?.size &&
+      Array.isArray(serialized.options)
+    ) {
+      serialized.options = (serialized.options as Array<{ id: string }>).filter(
+        (option) => !deniedOperationIds.has(option.id)
+      )
+    }
     const restriction = options?.restrictedInputs?.get(sb.id)
     if (restriction) {
       serialized.readOnly = true
@@ -639,8 +675,13 @@ export function serializeBlockSchema(
     return serialized
   })
 
+  const isToolAllowed = options?.isToolAllowed
+  const accessibleTools = isToolAllowed
+    ? block.tools.access.filter((toolId) => isToolAllowed(toolId))
+    : block.tools.access
+
   const toolAuth: Record<string, VfsToolAuth> = {}
-  for (const toolId of block.tools.access) {
+  for (const toolId of accessibleTools) {
     const tool = options?.toolConfigs?.get(toolId)
     if (!tool) continue
     const auth = serializeToolAuth(tool, hosted, block.type)
@@ -679,6 +720,15 @@ export function serializeBlockSchema(
       longDescription: block.longDescription || undefined,
       bestPractices: block.bestPractices || undefined,
       triggerAllowed: block.triggerAllowed || undefined,
+      // Retry is block STATE (like `enabled`), not a subBlock input — set it via
+      // edit_workflow's `retry` param, never through `inputs`. Emitted only when
+      // eligible so the agent never proposes a policy the executor would ignore.
+      retryAllowed:
+        isRetryEligibleBlock({
+          blockType: block.type,
+          category: block.category,
+          triggerMode: undefined,
+        }) || undefined,
       singleInstance: block.singleInstance || undefined,
       authMode: block.authMode || undefined,
       // Custom (deploy-as-block) blocks execute via a baked `workflow_executor`
@@ -686,7 +736,7 @@ export function serializeBlockSchema(
       // configures. Hiding it keeps the block self-contained (fields in, outputs
       // out) so the agent doesn't treat it like the generic workflow block and
       // ask for a workflowId/inputMapping.
-      tools: isCustomBlockType(block.type) ? [] : block.tools.access,
+      tools: isCustomBlockType(block.type) ? [] : accessibleTools,
       toolAuth: Object.keys(toolAuth).length > 0 ? toolAuth : undefined,
       subBlocks,
       inputs,
@@ -715,6 +765,8 @@ export function serializeCredentials(
     id?: string
     providerId: string
     displayName?: string | null
+    /** What a workspace secret is for, when one has been recorded. */
+    description?: string | null
     role?: string | null
     scope: string | null
     /** 'service_account' for a shared app credential; omitted/undefined for a personal OAuth connection. */
@@ -727,12 +779,22 @@ export function serializeCredentials(
       id: a.id || undefined,
       provider: a.providerId,
       displayName: a.displayName || undefined,
+      description: a.description || undefined,
       role: a.role || undefined,
       scope: a.scope || undefined,
       // 'oauth' (personal connection) vs 'service_account' (shared app
       // credential) — they reconnect differently, so the agent must branch on
       // this. Env-var credentials carry no type.
       type: a.credentialType,
+      // Derived, not stored: the public Request URL a Slack custom-bot app
+      // posts events to. One per credential; every workflow trigger that
+      // selects this credential shares it. This is what the setup wizard shows
+      // in Slack's Event Subscriptions step.
+      ...(a.credentialType === 'service_account' &&
+      a.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID &&
+      a.id
+        ? { requestUrl: buildSlackCustomBotRequestUrl(a.id) }
+        : {}),
       connectedAt: a.createdAt.toISOString(),
     })),
     null,
@@ -818,16 +880,20 @@ export function serializeApiKeyIntegrations(
 
 /**
  * Serialize environment variables for VFS environment/variables.json.
- * Shows variable NAMES only — NOT values.
+ * Shows variable NAMES only — NOT values. `unredactedWorkspace` names the workspace
+ * secrets whose values appear in plaintext in run output instead of `{{NAME}}`; the
+ * values themselves are still never written into the VFS.
  */
 export function serializeEnvironmentVariables(
   personalVarNames: string[],
-  workspaceVarNames: string[]
+  workspaceVarNames: string[],
+  unredactedWorkspaceVarNames: string[] = []
 ): string {
   return JSON.stringify(
     {
       personal: personalVarNames,
       workspace: workspaceVarNames,
+      unredactedWorkspace: unredactedWorkspaceVarNames,
     },
     null,
     2
@@ -852,12 +918,17 @@ export interface DeploymentData {
     authType: string
     customizations: unknown
     isActive: boolean
+    allowedEmails?: unknown
+    outputConfigs?: unknown
+    includeThinking?: boolean | null
+    includeToolCalls?: boolean | null
   } | null
   mcp: Array<{
     serverId: string
     serverName: string
     toolId: string
     toolName: string
+    parameterDescriptionOverrides?: unknown
     toolDescription?: string | null
   }>
   versions?: Array<{
@@ -891,6 +962,9 @@ export function serializeDeployments(data: DeploymentData): string {
     : { isDeployed: false }
 
   if (data.chat) {
+    // allowedEmails/outputConfigs/includeThinking/includeToolCalls are the
+    // fields deploy_as_chat accepts on redeploy; exposing the current values is
+    // what lets a caller change one setting without blanking the others.
     result.chat = {
       id: data.chat.id,
       identifier: data.chat.identifier,
@@ -900,6 +974,10 @@ export function serializeDeployments(data: DeploymentData): string {
       authType: data.chat.authType,
       customizations: data.chat.customizations,
       isActive: data.chat.isActive,
+      allowedEmails: data.chat.allowedEmails ?? undefined,
+      outputConfigs: data.chat.outputConfigs ?? undefined,
+      includeThinking: data.chat.includeThinking ?? undefined,
+      includeToolCalls: data.chat.includeToolCalls ?? undefined,
     }
   }
 
@@ -910,6 +988,9 @@ export function serializeDeployments(data: DeploymentData): string {
       toolId: m.toolId,
       toolName: m.toolName,
       toolDescription: m.toolDescription || undefined,
+      // What deploy_as_mcp accepts as `parameters` on redeploy; omitting it
+      // there resets the overrides, so expose the current value.
+      parameterDescriptionOverrides: m.parameterDescriptionOverrides ?? undefined,
     }))
   }
 
@@ -1092,7 +1173,10 @@ export function serializeIntegrationSchema(
       // field and load it" matches the callable tool and the block's tools.access.
       id: tool.id,
       name: tool.name,
-      description: getCopilotToolDescription(tool, { isHosted: hosted }),
+      description: getCopilotToolDescription(tool, {
+        isHosted: hosted,
+        hostedApiKey: deriveHostedApiKeySupport(tool.hosting),
+      }),
       version: tool.version,
       auth,
       oauth:
@@ -1138,6 +1222,38 @@ export function serializeIntegrationSchema(
 }
 
 /**
+ * Derived setup reference for `slack_oauth` — the same material the custom-bot
+ * setup wizard shows, surfaced so the copilot can walk a user (or the browser
+ * agent) through Slack app creation without guessing. None of this is a block
+ * field: the manifest is a template for api.slack.com, and the Request URL is a
+ * per-credential property (`requestUrl` in environment/credentials.json).
+ */
+function slackOAuthSetupReference(): Record<string, unknown> {
+  const defaults = SLACK_CAPABILITIES.filter((c) => c.defaultChecked).map((c) => c.id)
+  return {
+    note:
+      'Setup reference (derived; NOT block fields). A custom bot is a reusable workspace credential: ' +
+      'one Slack app, one Request URL, shared by every trigger that selects it. To create or rotate one, ' +
+      'emit a service_account credential card for provider "slack" — the wizard collects the signing secret ' +
+      'and bot token without them entering the chat. Existing custom bots appear as service_account ' +
+      'credentials in environment/credentials.json, each with its requestUrl.',
+    requestUrlPattern: '{baseUrl}/api/webhooks/slack/custom/{credentialId}',
+    capabilities: SLACK_CAPABILITIES.map((c) => ({
+      id: c.id,
+      label: c.label,
+      group: c.group,
+      defaultChecked: c.defaultChecked,
+      scopes: c.scopes,
+      events: c.events,
+    })),
+    defaultManifest: buildSlackManifest(new Set(defaults), {
+      appName: 'Sim Bot',
+      webhookUrl: '<the credential requestUrl>',
+    }),
+  }
+}
+
+/**
  * Serialize a trigger schema for VFS components/triggers/{provider}/{id}.json
  */
 export function serializeTriggerSchema(trigger: {
@@ -1160,6 +1276,7 @@ export function serializeTriggerSchema(trigger: {
       webhook: trigger.webhook || undefined,
       subBlocks: trigger.subBlocks.map(serializeSubBlock),
       outputs: trigger.outputs,
+      ...(trigger.id === 'slack_oauth' ? { setup: slackOAuthSetupReference() } : {}),
     },
     null,
     2
@@ -1220,4 +1337,555 @@ export function serializeTriggerOverview(
 
   lines.push('')
   return lines.join('\n')
+}
+
+/**
+ * tables/{name}/views.json — the table's saved views in the column-NAME
+ * domain agents speak (stored configs are id-keyed; the caller translates).
+ * Layout-only fields (order, widths, pinned) are omitted: they are UI
+ * concerns and never change which rows a view selects.
+ */
+export function serializeTableViews(
+  views: Array<{
+    id: string
+    name: string
+    isDefault: boolean
+    filter?: unknown
+    sort?: unknown
+    hiddenColumns?: string[]
+    updatedAt: Date | string
+  }>
+): string {
+  return JSON.stringify(
+    {
+      views: views.map((view) => ({
+        id: view.id,
+        name: view.name,
+        isDefault: view.isDefault,
+        filter: view.filter ?? null,
+        sort: view.sort ?? null,
+        hiddenColumns: view.hiddenColumns?.length ? view.hiddenColumns : undefined,
+        updatedAt: view.updatedAt instanceof Date ? view.updatedAt.toISOString() : view.updatedAt,
+      })),
+      note: 'Query a view via query_user_table {operation: "query_rows", args: {tableId, view: "<view id>"}} — the saved filter ANDs with any extra filter you pass. Manage views via the table agent (table_views).',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/workspace.json` — the current workspace as this viewer sees it:
+ * identity, the viewer's effective permission, org linkage, and fork parentage.
+ *
+ * Owns the current-workspace record. Org detail lives in
+ * `organization/organization.json` and fork topology in
+ * `organization/forks.json`; both are referenced here by id-and-name stub only,
+ * so a fact can never disagree with the file that owns it.
+ */
+export function serializeAccountWorkspace(input: {
+  workspace: { id: string; name: string; workspaceMode?: string | null }
+  viewer: { permission: string | null; organizationRole?: string | null }
+  organization: { id: string; name?: string | null } | null
+  forkedFrom: { id: string; name: string } | null
+  entitlements: string[]
+}): string {
+  return JSON.stringify(
+    {
+      id: input.workspace.id,
+      name: input.workspace.name,
+      ...(input.workspace.workspaceMode ? { mode: input.workspace.workspaceMode } : {}),
+      yourPermission: input.viewer.permission,
+      organization: input.organization
+        ? {
+            id: input.organization.id,
+            ...(input.organization.name ? { name: input.organization.name } : {}),
+            ...(input.viewer.organizationRole ? { yourRole: input.viewer.organizationRole } : {}),
+            detail: 'organization/organization.json',
+          }
+        : null,
+      forkedFrom: input.forkedFrom
+        ? {
+            id: input.forkedFrom.id,
+            name: input.forkedFrom.name,
+            detail: 'organization/forks.json',
+          }
+        : null,
+      entitlements: input.entitlements,
+      note: 'Read-only. Your accessible workspaces are in account/workspaces.json; members in account/members.json; plan and usage in account/billing.json.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/workspaces.json` — every workspace the viewer can reach, as stubs.
+ *
+ * Deliberately a roster, not a set of records: id, name, the viewer's role, and
+ * org/fork parentage by id. Anything richer about the *current* workspace is in
+ * `account/workspace.json`; other workspaces are not readable from here at all.
+ */
+export function serializeAccountWorkspaces(
+  workspaces: Array<{
+    id: string
+    name: string
+    role: string
+    organizationId?: string | null
+    forkedFromWorkspaceId?: string | null
+    isCurrent: boolean
+  }>
+): string {
+  return JSON.stringify(
+    {
+      workspaces: workspaces.map((workspace) => ({
+        id: workspace.id,
+        name: workspace.name,
+        yourRole: workspace.role,
+        ...(workspace.organizationId ? { organizationId: workspace.organizationId } : {}),
+        ...(workspace.forkedFromWorkspaceId
+          ? { forkedFromWorkspaceId: workspace.forkedFromWorkspaceId }
+          : {}),
+        ...(workspace.isCurrent ? { isCurrent: true } : {}),
+      })),
+      note: 'Only the current workspace (isCurrent) is mounted in this VFS — the others are listed so you can name them, not read them. Switching workspaces is the user’s action, not yours.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/members.json` — who is in the current workspace, with roles.
+ *
+ * `includeContactDetails` is the viewer's own admin bit: emails and pending
+ * invitations are the same privilege as the members settings page, so a
+ * non-admin viewer gets names and roles without contact details.
+ */
+export function serializeAccountMembers(
+  members: Array<{
+    userId: string
+    name: string | null
+    email: string | null
+    permissionType: string
+    isExternal?: boolean
+    roleSource?: string
+  }>,
+  options: { includeContactDetails: boolean }
+): string {
+  return JSON.stringify(
+    {
+      members: members.map((member) => ({
+        userId: member.userId,
+        name: member.name ?? null,
+        ...(options.includeContactDetails && member.email ? { email: member.email } : {}),
+        role: member.permissionType,
+        ...(member.isExternal ? { isExternal: true } : {}),
+        ...(member.roleSource && member.roleSource !== 'explicit'
+          ? { roleSource: member.roleSource }
+          : {}),
+      })),
+      total: members.length,
+      ...(options.includeContactDetails
+        ? {}
+        : { note: 'Email addresses are shown to workspace admins only.' }),
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/billing.json` — the acting user's live plan, usage, and credits.
+ *
+ * The only file that carries money and usage numbers; `organization.json` links
+ * here rather than repeating them. Read at request time, so the numbers are
+ * current rather than as-of-materialization.
+ */
+export function serializeAccountBilling(snapshot: {
+  plan: string
+  billingScope: 'user' | 'organization'
+  organizationId: string | null
+  usage: {
+    currentPeriodCost: number
+    limit: number
+    remaining: number
+    percentUsed: number
+    isExceeded: boolean
+    billingPeriodEnd: Date | string | null
+  }
+  credits: { balance: number; scope: 'user' | 'organization' }
+}): string {
+  const periodEnd = snapshot.usage.billingPeriodEnd
+  return JSON.stringify(
+    {
+      plan: snapshot.plan,
+      billedTo: snapshot.billingScope,
+      ...(snapshot.organizationId ? { organizationId: snapshot.organizationId } : {}),
+      usage: {
+        currentPeriodCost: snapshot.usage.currentPeriodCost,
+        limit: snapshot.usage.limit,
+        remaining: snapshot.usage.remaining,
+        percentUsed: snapshot.usage.percentUsed,
+        isExceeded: snapshot.usage.isExceeded,
+        billingPeriodEnd: periodEnd instanceof Date ? periodEnd.toISOString() : periodEnd,
+      },
+      credits: { balance: snapshot.credits.balance, scope: snapshot.credits.scope },
+      note: 'Live values for the acting user, read at access time. What the plan tiers and credits mean is a documentation question, not a value in this file.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/organization.json` — the org that hosts this workspace and the
+ * viewer's standing in it. Owns the organization record; plan economics stay in
+ * `account/billing.json`.
+ */
+export function serializeOrganization(input: {
+  organization: { id: string; relationship: string; role: string | null }
+  capabilities: { canManageOrganization: boolean; canManageBilling: boolean }
+  plan: string | null
+  isEnterprise: boolean
+}): string {
+  return JSON.stringify(
+    {
+      id: input.organization.id,
+      yourRelationship: input.organization.relationship,
+      yourRole: input.organization.role,
+      canManageOrganization: input.capabilities.canManageOrganization,
+      canManageBilling: input.capabilities.canManageBilling,
+      ...(input.plan ? { plan: input.plan } : {}),
+      isEnterprise: input.isEnterprise,
+      note: 'Plan usage and credits are in account/billing.json. Your effective restrictions are in organization/access-control.json.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/access-control.json` — who can see and do what, from the
+ * viewer's vantage: the permission group governing them and the restrictions it
+ * actually imposes.
+ *
+ * Scoped to the viewer on purpose. The full group roster is an org-admin
+ * settings surface, not workspace context.
+ */
+export function serializeAccessControl(input: {
+  entitled: boolean
+  permissionGroup: { id: string; name: string; resolution: string } | null
+  restrictions: Array<{ key: string; description: string }>
+}): string {
+  return JSON.stringify(
+    {
+      entitled: input.entitled,
+      governingPermissionGroup: input.permissionGroup
+        ? {
+            id: input.permissionGroup.id,
+            name: input.permissionGroup.name,
+            appliedBecause: input.permissionGroup.resolution,
+          }
+        : null,
+      activeRestrictions: input.restrictions.map((restriction) => ({
+        key: restriction.key,
+        description: restriction.description,
+      })),
+      note: 'These restrictions are enforced server-side on every action, so a blocked request fails no matter how it is phrased. They describe THIS user; other members may be governed by different groups.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/custom-blocks.json` — names-only index of org-published
+ * blocks, mirroring the root pattern: the index lists, the per-item file
+ * carries depth. Everything beyond name/enabled lives in
+ * `organization/custom-blocks/{type}.json`.
+ */
+export function serializeOrganizationCustomBlocks(
+  blocks: Array<{
+    type: string
+    name: string
+    description?: string | null
+    enabled: boolean
+    workflowId: string
+    workflowName?: string | null
+    workspaceId: string | null
+    workspaceName?: string | null
+  }>
+): string {
+  return JSON.stringify(
+    {
+      customBlocks: blocks.map((block) => ({
+        type: block.type,
+        name: block.name,
+        enabled: block.enabled,
+        detail: `organization/custom-blocks/${block.type}.json`,
+      })),
+      note: 'Names only — provenance and the deployed workflow graph are in each detail file. Start at organization/README.md.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/custom-blocks/{type}.json` — one published block in depth:
+ * provenance, the callable-schema pointer, and a READ-ONLY view of the
+ * deployed workflow graph backing it (blocks/edges as deployed, not the
+ * publishing workspace's live editor state). Publishing a block org-wide is
+ * the act of sharing it, which is what justifies this cross-workspace read.
+ */
+export function serializeOrgCustomBlockDetail(
+  block: {
+    type: string
+    name: string
+    description?: string | null
+    enabled: boolean
+    workflowId: string
+    workflowName?: string | null
+    workspaceId: string | null
+    workspaceName?: string | null
+  },
+  deployedState: unknown
+): string {
+  return JSON.stringify(
+    {
+      type: block.type,
+      name: block.name,
+      ...(block.description ? { description: block.description } : {}),
+      enabled: block.enabled,
+      publishedFrom: {
+        workflowId: block.workflowId,
+        ...(block.workflowName ? { workflowName: block.workflowName } : {}),
+        ...(block.workspaceId ? { workspaceId: block.workspaceId } : {}),
+        ...(block.workspaceName ? { workspaceName: block.workspaceName } : {}),
+      },
+      ...(block.enabled ? { schema: `components/blocks/${block.type}.json` } : {}),
+      deployedWorkflowState: deployedState,
+      note: 'Read-only: this is the DEPLOYED graph the block executes, not live editor state, and it cannot be edited from here. Credential ids and {{ENV_VAR}} references inside it belong to the publishing workspace and resolve only there. To wire the block into a workflow, use its schema under components/blocks/.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/README.md` — the namespace guide, playing the role
+ * WORKSPACE.md plays at the root: what each file is for and how to use it,
+ * plus the in-depth custom-block inventory the names-only index defers.
+ */
+export function buildOrganizationReadme(input: {
+  organizationId: string
+  isEnterprise: boolean
+  customBlocks: Array<{
+    type: string
+    name: string
+    enabled: boolean
+    workflowName?: string | null
+    workspaceName?: string | null
+  }>
+  forksMounted: boolean
+  permissionGroupsMounted: boolean
+  credentialGroupsMounted: boolean
+}): string {
+  const lines: string[] = [
+    '# Organization',
+    '',
+    `Read-only truth about organization \`${input.organizationId}\` as the acting user sees it. Nothing here is writable — org membership, permission groups, block publishing, and forking are all managed in the Sim UI.`,
+    '',
+    '## Files',
+    '',
+    '- `organization.json` — org identity, your relationship (internal/external) and role, who can manage it. Plan usage and credits live in `account/billing.json`, not here.',
+    '- `access-control.json` — the permission group governing YOU and the restrictions it enforces. Restrictions are enforced server-side on every action, so consult this before promising an action is possible. It describes this user only.',
+    '- `custom-blocks.json` — names-only index of org-published blocks.',
+    '- `custom-blocks/{type}.json` — one block in depth: provenance and a read-only view of the DEPLOYED workflow graph backing it (org members only). To add the block to a workflow, use its callable schema at `components/blocks/{type}.json`; the deployed graph is for understanding what the block does, not for editing.',
+    '- `workspaces.json` — every workspace in the organization with your access flag and fork parentage (org members only).',
+  ]
+  if (input.permissionGroupsMounted) {
+    lines.push(
+      '- `permission-groups.json` — the admin roster: every group with member count, targeted workspaces, and active restrictions.'
+    )
+  }
+  if (input.credentialGroupsMounted) {
+    lines.push(
+      '- `credential-groups.json` — managed credential groups: per-provider configuration readiness and enrollment progress. Consumed in workflows via the credential_group block.'
+    )
+  }
+  if (input.forksMounted) {
+    lines.push(
+      "- `forks.json` — this workspace's place in the fork tree and what was mapped from the parent. Forking, promoting, and rolling back are admin actions in the UI."
+    )
+  }
+  lines.push('', '## Published custom blocks', '')
+  if (input.customBlocks.length === 0) {
+    lines.push('None published yet.')
+  } else {
+    for (const block of input.customBlocks) {
+      const from = [block.workflowName, block.workspaceName].filter(Boolean).join(' in ')
+      lines.push(
+        `- **${block.name}** (\`${block.type}\`)${block.enabled ? '' : ' — disabled'}${from ? ` — published from ${from}` : ''}`
+      )
+    }
+  }
+  lines.push('')
+  return lines.join('\n')
+}
+
+/**
+ * `organization/workspaces.json` — the org's workspace map: every workspace in
+ * the organization, with whether the viewer can open it and its fork
+ * parentage. Broader than `account/workspaces.json`, which lists only what the
+ * viewer can reach.
+ */
+export function serializeOrganizationWorkspaces(
+  workspaces: Array<{
+    id: string
+    name: string
+    hasAccess: boolean
+    forkedFromWorkspaceId?: string | null
+  }>
+): string {
+  return JSON.stringify(
+    {
+      workspaces: workspaces.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        hasAccess: entry.hasAccess,
+        ...(entry.forkedFromWorkspaceId
+          ? { forkedFromWorkspaceId: entry.forkedFromWorkspaceId }
+          : {}),
+      })),
+      note: 'Every workspace in the organization. hasAccess is YOUR access; workspaces without it are nameable, not readable, and only the current workspace is mounted in this VFS.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/permission-groups.json` — the org-admin roster: every group
+ * with member count, targeted workspaces, and the restrictions its config
+ * activates. `access-control.json` stays the per-viewer view; this is the
+ * management matrix.
+ */
+export function serializePermissionGroupRoster(
+  groups: Array<{
+    id: string
+    name: string
+    description: string | null
+    isDefault: boolean
+    memberCount: number
+    workspaces: Array<{ id: string; name: string }>
+    activeRestrictions: Array<{ key: string; description: string }>
+  }>
+): string {
+  return JSON.stringify(
+    {
+      permissionGroups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        ...(group.description ? { description: group.description } : {}),
+        isDefault: group.isDefault,
+        memberCount: group.memberCount,
+        workspaces: group.workspaces,
+        activeRestrictions: group.activeRestrictions,
+      })),
+      note: 'Management view (org admins). The group governing THIS user, with resolution reason, is in access-control.json. Group membership and scopes are edited in the Sim UI.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/credential-groups.json` — managed credential groups with the
+ * two facts that decide whether a workflow using them will actually run:
+ * per-option configuration readiness and enrollment progress. Enrollee emails
+ * are the same privilege as the settings page, so they appear for workspace
+ * admins only.
+ */
+export function serializeCredentialGroups(
+  groups: Array<{
+    id: string
+    name: string
+    description: string | null
+    status: 'active' | 'disabled'
+    options: Array<{
+      provider: string
+      label?: string | null
+      required?: boolean
+      configurationStatus: string
+    }>
+    enrollmentCounts: Record<string, number>
+    enrollmentsTruncated: boolean
+    people?: Array<{ email: string; status: string }>
+  }>,
+  options: { includeEmails: boolean }
+): string {
+  return JSON.stringify(
+    {
+      credentialGroups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        ...(group.description ? { description: group.description } : {}),
+        status: group.status,
+        options: group.options.map((option) => ({
+          provider: option.provider,
+          ...(option.label ? { label: option.label } : {}),
+          ...(option.required !== undefined ? { required: option.required } : {}),
+          configurationStatus: option.configurationStatus,
+        })),
+        enrollments: {
+          ...group.enrollmentCounts,
+          ...(group.enrollmentsTruncated ? { countsFromFirstPageOnly: true } : {}),
+        },
+        ...(options.includeEmails && group.people ? { people: group.people } : {}),
+      })),
+      note: 'A workflow consumes a group through a credential_group block (operation list_credentials -> ForEach over the returned credentialId page). list_credentials returns only ACTIVE credentials of in_progress/completed people — an active group with zero completed enrollments yields an empty loop, not an error. An option at not_configured makes the whole group unusable. Enrollment is admin-driven from the settings UI; invite links cannot be created or read from here.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/forks.json` — this workspace's place in the fork tree plus the
+ * parent/child resource and block mappings.
+ *
+ * Owns fork topology; rosters elsewhere carry only `forkedFromWorkspaceId`.
+ * Mapping counts are summarized per resource type — the raw id pairs are an
+ * implementation detail of promote/rollback, not workspace context.
+ */
+export function serializeWorkspaceForks(input: {
+  parent: { id: string; name: string } | null
+  children: Array<{ id: string; name: string; createdAt: Date | string }>
+  resourceMappingCounts: Record<string, number>
+  blockMappingCount: number
+}): string {
+  return JSON.stringify(
+    {
+      parent: input.parent,
+      children: input.children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        createdAt:
+          child.createdAt instanceof Date ? child.createdAt.toISOString() : child.createdAt,
+      })),
+      ...(input.parent
+        ? {
+            mappedFromParent: {
+              resources: input.resourceMappingCounts,
+              blocks: input.blockMappingCount,
+            },
+          }
+        : {}),
+      note: 'A forked workspace keeps a mapping back to the resources it was copied from, which is what promote and rollback follow. Forking, promoting, and rolling back are workspace-admin actions in the UI — you cannot perform them.',
+    },
+    null,
+    2
+  )
 }

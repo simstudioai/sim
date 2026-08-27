@@ -10,6 +10,10 @@ files:
   - dist/**
   - static/**
   - package.json
+  - from: ../sim/public/brand/fonts
+    to: static
+    filter:
+      - SeasonSansUprightsVF.woff2
 
 asar: true
 
@@ -32,6 +36,8 @@ electronFuses:
   enableNodeCliInspectArguments: false
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
 
 mac:
   category: public.app-category.developer-tools
@@ -58,7 +64,9 @@ mac:
   # macOS refuses to show the microphone prompt at all — it kills the process —
   # unless the bundle declares why it wants the device.
   extendInfo:
-    NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat.
+    NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat and for meetings you join in the built-in browser.
+    NSCameraUsageDescription: Sim uses your camera for meetings you join in the built-in browser, such as Google Meet.
+    NSBluetoothAlwaysUsageDescription: Sim uses Bluetooth to complete passkey sign-ins with a nearby phone in the built-in browser.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true

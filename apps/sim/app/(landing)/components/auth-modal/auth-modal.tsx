@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  cn,
   Loader,
   Modal,
   ModalClose,
@@ -22,6 +23,7 @@ import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('AuthModal')
@@ -47,6 +49,13 @@ const FALLBACK_STATUS: ProviderStatus = {
 
 const SOCIAL_BTN =
   'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--border-1)] text-[13.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50'
+
+/** Auth providers are peer choices, so opening the dialog must not arm one or dismissal. */
+function focusAuthDialog(event: Event): void {
+  event.preventDefault()
+  const content = event.currentTarget as HTMLElement | null
+  content?.focus()
+}
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
@@ -155,7 +164,11 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalTrigger asChild>{children}</ModalTrigger>
-      <ModalContent size='sm' className='dark bg-[var(--bg)] text-[var(--text-primary)]'>
+      <ModalContent
+        size='sm'
+        className='dark bg-[var(--bg)] text-[var(--text-primary)]'
+        onOpenAutoFocus={focusAuthDialog}
+      >
         <ModalTitle className='sr-only'>
           {effectiveView === 'login' ? 'Log in' : 'Create account'}
         </ModalTitle>
@@ -185,7 +198,12 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   className='h-[22px] w-auto shrink-0 object-contain'
                 />
                 <div className='flex flex-col gap-1 text-left'>
-                  <p className='text-[22px] text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
+                  <p
+                    className={cn(
+                      'text-[22px] leading-[125%] tracking-[0.02em]',
+                      colorMixFallbacks.mutedText60
+                    )}
+                  >
                     Start building.
                   </p>
                   <h2 className='text-[22px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>

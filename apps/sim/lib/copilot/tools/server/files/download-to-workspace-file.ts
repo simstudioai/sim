@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
-import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { DownloadFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -137,7 +137,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
   DownloadToWorkspaceFileArgs,
   DownloadToWorkspaceFileResult
 > = {
-  name: DownloadToWorkspaceFile.id,
+  name: DownloadFile.id,
   inputSchema: DownloadToWorkspaceFileArgsSchema,
   outputSchema: DownloadToWorkspaceFileResultSchema,
 
@@ -145,9 +145,6 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     params: DownloadToWorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<DownloadToWorkspaceFileResult> {
-    const withMessageId = (message: string) =>
-      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
-
     if (!context?.userId) {
       throw new Error('Authentication required')
     }
@@ -166,9 +163,17 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       })
 
       if (!response.ok) {
+        const hint =
+          response.status === 401 || response.status === 403
+            ? ' — the URL requires authentication this tool cannot supply; ask for a public or pre-signed link instead'
+            : response.status === 404
+              ? ' — the URL does not exist; verify it before retrying'
+              : response.status === 429
+                ? ' — the host is rate-limiting; do not retry immediately'
+                : ' — the host rejected the request; retrying the same URL will fail again'
         return {
           success: false,
-          message: `Download failed with status ${response.status} ${response.statusText}`,
+          message: `Download failed with status ${response.status} ${response.statusText}${hint}`,
         }
       }
 

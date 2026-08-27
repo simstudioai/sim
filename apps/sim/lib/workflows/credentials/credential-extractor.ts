@@ -2,36 +2,10 @@ import { isPlainRecord } from '@sim/utils/object'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
-import {
-  buildCanonicalIndex,
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-  hasAdvancedValues,
-  isSubBlockFeatureEnabled,
-  isSubBlockVisibleForMode,
-  type SubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
 import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-// Credential types based on actual patterns in the codebase
-enum CredentialType {
-  OAUTH = 'oauth',
-  SECRET = 'secret', // password: true (covers API keys, bot tokens, passwords, etc.)
-}
-
-// Type for credential requirement
-export interface CredentialRequirement {
-  type: CredentialType
-  serviceId?: string // For OAuth (e.g., 'google-drive', 'slack')
-  label: string // Human-readable label
-  blockType: string // The block type that requires this
-  subBlockId: string // The subblock ID for reference
-  required: boolean
-}
 
 /**
  * Resource-selector types NOT cleared by the workspace rule below. Everything else the resource
@@ -97,121 +71,6 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
  * that governs both this set and the tool-input branch.
  */
 const OPAQUE_CREDENTIAL_BEARING_TYPES: ReadonlySet<string> = new Set(['table'])
-
-/**
- * Extract required credentials from a workflow state
- * This analyzes all blocks and their subblocks to identify credential requirements
- */
-export function extractRequiredCredentials(
-  state: Partial<WorkflowState> | null | undefined
-): CredentialRequirement[] {
-  const credentials: CredentialRequirement[] = []
-  const seen = new Set<string>()
-
-  if (!state?.blocks) {
-    return credentials
-  }
-
-  // Process each block
-  Object.values(state.blocks).forEach((block: BlockState) => {
-    if (!block?.type) return
-
-    const blockConfig = getBlock(block.type)
-    if (!blockConfig) return
-
-    // Add OAuth credential if block has OAuth auth mode
-    if (blockConfig.authMode === AuthMode.OAuth) {
-      const blockName = blockConfig.name || block.type
-      const key = `oauth-${block.type}`
-
-      if (!seen.has(key)) {
-        seen.add(key)
-        credentials.push({
-          type: CredentialType.OAUTH,
-          serviceId: block.type,
-          label: `Credential for ${blockName}`,
-          blockType: block.type,
-          subBlockId: 'oauth',
-          required: true,
-        })
-      }
-    }
-
-    // Process password fields (API keys, tokens, etc)
-    blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      if (!isSubBlockVisible(block, subBlockConfig)) return
-      if (!subBlockConfig.password) return
-
-      const blockName = blockConfig.name || block.type
-      const suffix = block?.triggerMode ? ' Trigger' : ''
-      const fieldLabel = subBlockConfig.title || formatFieldName(subBlockConfig.id)
-      const key = `secret-${block.type}-${subBlockConfig.id}-${block?.triggerMode ? 'trigger' : 'default'}`
-
-      if (!seen.has(key)) {
-        seen.add(key)
-        credentials.push({
-          type: CredentialType.SECRET,
-          label: `${fieldLabel} for ${blockName}${suffix}`,
-          blockType: block.type,
-          subBlockId: subBlockConfig.id,
-          required: subBlockConfig.required !== false,
-        })
-      }
-    })
-  })
-
-  /** Helper to check visibility, respecting mode and conditions */
-  function isSubBlockVisible(block: BlockState, subBlockConfig: SubBlockConfig): boolean {
-    if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
-
-    const values = buildSubBlockValues(block?.subBlocks || {})
-    const blockConfig = getBlock(block.type)
-    const blockSubBlocks = blockConfig?.subBlocks || []
-    const canonicalIndex = buildCanonicalIndex(blockSubBlocks)
-    const effectiveAdvanced =
-      (block?.advancedMode ?? false) || hasAdvancedValues(blockSubBlocks, values, canonicalIndex)
-    const canonicalModeOverrides = block.data?.canonicalModes
-
-    if (subBlockConfig.mode === 'trigger' && !block?.triggerMode) return false
-    if (block?.triggerMode && subBlockConfig.mode && subBlockConfig.mode !== 'trigger') return false
-
-    if (
-      !isSubBlockVisibleForMode(
-        subBlockConfig,
-        effectiveAdvanced,
-        canonicalIndex,
-        values,
-        canonicalModeOverrides
-      )
-    ) {
-      return false
-    }
-
-    return evaluateSubBlockCondition(subBlockConfig.condition as SubBlockCondition, values)
-  }
-
-  // Sort: OAuth first, then secrets, alphabetically within each type
-  credentials.sort((a, b) => {
-    if (a.type !== b.type) {
-      return a.type === CredentialType.OAUTH ? -1 : 1
-    }
-    return a.label.localeCompare(b.label)
-  })
-
-  return credentials
-}
-
-/**
- * Format field name to be human-readable
- */
-function formatFieldName(fieldName: string): string {
-  return fieldName
-    .replace(/[_-]/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ')
-}
 
 interface MutableSubBlockState extends Omit<SubBlockState, 'value'> {
   value: unknown
@@ -451,14 +310,4 @@ export function sanitizeWorkflowForSharing(
   })
 
   return sanitized
-}
-
-/**
- * Sanitize workflow state for templates (removes credentials and workspace data)
- * Wrapper for backward compatibility
- */
-export function sanitizeCredentials(
-  state: Partial<WorkflowState> | null | undefined
-): SanitizedWorkflowState {
-  return sanitizeWorkflowForSharing(state, { preserveEnvVars: false })
 }

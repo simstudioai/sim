@@ -118,4 +118,20 @@ describe('selectForkSyncBlockingRefs / toForkSyncBlockers', () => {
       },
     ])
   })
+
+  it('classifies an unmapped custom block separately from the copyable kinds', () => {
+    // A custom block is neither copyable nor clearable: its reference IS the block's type,
+    // so an unmapped one keeps invoking the SOURCE environment's block. Blocking on it is
+    // the only thing that makes that visible, and it needs its own reason so the resolution
+    // copy does not tell the user to "select it for copy".
+    expect(forkSyncBlockerReasonFor(referenceRef('custom-block', 'custom_block_abc'))).toBe(
+      'unmapped-custom-block'
+    )
+  })
+
+  it('still reports a deleted custom block as source-deleted', () => {
+    expect(forkSyncBlockerReasonFor(referenceRef('custom-block', 'custom_block_abc', true))).toBe(
+      'source-deleted'
+    )
+  })
 })

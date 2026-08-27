@@ -25,6 +25,7 @@ vi.mock('ioredis', () => ({
 }))
 
 import {
+  acquireLock,
   closeRedisConnection,
   extendLock,
   getRedisClient,
@@ -205,6 +206,72 @@ describe('redis config', () => {
       const extended = await extendLock(lockKey, value, ttlSeconds)
 
       expect(extended).toBe(true)
+    })
+  })
+
+  describe('acquireLock', () => {
+    const lockKey = 'outlook-polling-lock'
+    const value = 'req-abc'
+    const ttlSeconds = 180
+
+    it('returns true when SET NX takes the lock', async () => {
+      mockRedisInstance.set.mockResolvedValueOnce('OK')
+
+      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
+      expect(mockRedisInstance.set).toHaveBeenCalledWith(lockKey, value, 'EX', ttlSeconds, 'NX')
+      expect(mockRedisInstance.eval).not.toHaveBeenCalled()
+    })
+
+    it('returns false without cleanup when the lock is already held', async () => {
+      mockRedisInstance.set.mockResolvedValueOnce(null)
+
+      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(false)
+      expect(mockRedisInstance.eval).not.toHaveBeenCalled()
+    })
+
+    it('reclaims the lock it may have taken when SET times out and reclaim is on', async () => {
+      // ioredis gives up client-side on `commandTimeout` while the command can
+      // still land, so the lock would otherwise be held by a caller that never
+      // learned it won and never releases it.
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+      mockRedisInstance.eval.mockResolvedValueOnce(1)
+
+      await expect(
+        acquireLock(lockKey, value, ttlSeconds, { reclaimOnFailure: true })
+      ).rejects.toThrow('Command timed out')
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining('del'),
+        1,
+        lockKey,
+        value
+      )
+    })
+
+    it('leaves the lock alone by default so a fall-open caller keeps holding it', async () => {
+      // `withLeaderLock` and the MCP OAuth mutex run their work anyway when
+      // acquisition throws. Freeing the lock under them would let a second
+      // runner in alongside, so reclaiming has to stay opt-in.
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
+      expect(mockRedisInstance.eval).not.toHaveBeenCalled()
+    })
+
+    it('surfaces the original failure when the cleanup also fails', async () => {
+      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
+      mockRedisInstance.eval.mockRejectedValueOnce(new Error('Connection is closed'))
+
+      // The TTL stays the backstop; the caller must still see why acquiring failed.
+      await expect(
+        acquireLock(lockKey, value, ttlSeconds, { reclaimOnFailure: true })
+      ).rejects.toThrow('Command timed out')
+    })
+
+    it('returns true as a no-op when the cache capability selects the database', async () => {
+      mockEnv.REDIS_URL = undefined
+
+      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
+      expect(mockRedisInstance.set).not.toHaveBeenCalled()
     })
   })
 

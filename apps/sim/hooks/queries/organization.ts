@@ -1,11 +1,6 @@
 import { createLogger } from '@sim/logger'
-import {
-  keepPreviousData,
-  type UseQueryResult,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { isRecordLike } from '@sim/utils/object'
+import { type UseQueryResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -19,8 +14,6 @@ import {
   getMemberRemovalImpactContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
-  listOrganizationMembersContract,
-  type OrganizationMembersResponse,
   type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
   type RemovalImpactCredential,
@@ -29,7 +22,6 @@ import {
   type RosterWorkspaceAccess,
   removeOrganizationMemberContract,
   transferOwnershipContract,
-  updateOrganizationContract,
   updateOrganizationMemberRoleContract,
   updateOrganizationMemberUsageLimitContract,
   updateOrganizationUsageLimitContract,
@@ -39,8 +31,6 @@ import {
   type OrganizationBillingApiResponse,
 } from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
-import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
@@ -62,40 +52,7 @@ export const ORGANIZATION_MEMBER_USAGE_LIMIT_STALE_TIME = 30 * 1000
  */
 export const ORGANIZATION_REMOVAL_IMPACT_STALE_TIME = 0
 
-type OrganizationSubscriptionCandidate = {
-  id: string
-  referenceId: string
-  status: string
-  plan: string
-  cancelAtPeriodEnd?: boolean
-  periodEnd?: number | Date
-  trialEnd?: number | Date
-}
-
 type OrganizationBillingQueryResult = UseQueryResult<OrganizationBillingApiResponse | null, Error>
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isOrganizationSubscriptionCandidate(
-  value: unknown
-): value is OrganizationSubscriptionCandidate {
-  if (!isRecord(value)) return false
-  return (
-    typeof value.id === 'string' &&
-    typeof value.referenceId === 'string' &&
-    typeof value.status === 'string' &&
-    typeof value.plan === 'string' &&
-    (value.cancelAtPeriodEnd === undefined || typeof value.cancelAtPeriodEnd === 'boolean') &&
-    (value.periodEnd === undefined ||
-      typeof value.periodEnd === 'number' ||
-      value.periodEnd instanceof Date) &&
-    (value.trialEnd === undefined ||
-      typeof value.trialEnd === 'number' ||
-      value.trialEnd instanceof Date)
-  )
-}
 
 function readNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return value
@@ -189,40 +146,6 @@ export function useMemberRemovalImpact(
 }
 
 /**
- * Fetches the current viewer's account-scoped organizations.
- *
- * `activeOrganization` reflects the viewer session's selected organization. It
- * must not be used as the organization context for a routed workspace; those
- * surfaces use the workspace host context instead. Billing data is fetched
- * separately, and the Better Auth client does not accept an AbortSignal.
- */
-async function fetchOrganizations(_signal?: AbortSignal) {
-  const [orgsResponse, activeOrgResponse] = await Promise.all([
-    client.organization.list(),
-    client.organization.getFullOrganization(),
-  ])
-
-  return {
-    organizations: orgsResponse.data || [],
-    activeOrganization: activeOrgResponse.data,
-  }
-}
-
-/**
- * Reads the viewer's account organizations and account-scoped active organization.
- *
- * Workspace-bound consumers must use the routed workspace host context instead
- * of `activeOrganization`.
- */
-export function useOrganizations() {
-  return useQuery({
-    queryKey: organizationKeys.lists(),
-    queryFn: ({ signal }) => fetchOrganizations(signal),
-    staleTime: ORGANIZATION_LIST_STALE_TIME,
-  })
-}
-
-/**
  * Fetch a specific organization by ID.
  *
  * `getFullOrganization` defaults to the active organization when no
@@ -231,9 +154,10 @@ export function useOrganizations() {
  * (no cross-org cache collision). The active-org caller passes the active org's
  * id, so its behavior is unchanged.
  */
-async function fetchOrganization(orgId: string, _signal?: AbortSignal) {
+async function fetchOrganization(orgId: string, signal?: AbortSignal) {
   const response = await client.organization.getFullOrganization({
     query: { organizationId: orgId },
+    fetchOptions: { signal },
   })
   return response.data
 }
@@ -247,53 +171,6 @@ export function useOrganization(orgId: string) {
     queryFn: ({ signal }) => fetchOrganization(orgId, signal),
     enabled: !!orgId,
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
-  })
-}
-
-/**
- * Fetch organization subscription data
- */
-async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSignal) {
-  if (!orgId) {
-    return null
-  }
-
-  const response = await client.subscription.list({
-    query: { referenceId: orgId },
-  })
-
-  if (response.error) {
-    logger.error('Error fetching organization subscription', { error: response.error })
-    return null
-  }
-
-  // Any paid subscription attached to the org counts as its active sub.
-  // Priority: Enterprise > Team > Pro (matches `getHighestPrioritySubscription`).
-  // This intentionally includes `pro_*` plans that have been transferred
-  // to the org — they are pooled org-scoped subscriptions.
-  const rawSubscriptions: unknown = response.data
-  const entitled = (Array.isArray(rawSubscriptions) ? rawSubscriptions : [])
-    .filter(isOrganizationSubscriptionCandidate)
-    .filter((sub) => hasPaidSubscriptionStatus(sub.status) && isPaid(sub.plan))
-  const enterpriseSubscription = entitled.find((sub) => isEnterprise(sub.plan))
-  const teamSubscription = entitled.find((sub) => isTeam(sub.plan))
-  const proSubscription = entitled.find((sub) => !isEnterprise(sub.plan) && !isTeam(sub.plan))
-  const activeSubscription = enterpriseSubscription || teamSubscription || proSubscription
-
-  return activeSubscription || null
-}
-
-/**
- * Hook to fetch organization subscription
- */
-export function useOrganizationSubscription(orgId: string) {
-  return useQuery({
-    queryKey: organizationKeys.subscription(orgId),
-    queryFn: ({ signal }) => fetchOrganizationSubscription(orgId, signal),
-    enabled: !!orgId,
-    retry: false,
-    staleTime: ORGANIZATION_SUBSCRIPTION_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -334,46 +211,6 @@ export function useOrganizationBilling(
 }
 
 /**
- * Fetch organization member usage data
- */
-async function fetchOrganizationMembers(
-  orgId: string,
-  signal?: AbortSignal
-): Promise<OrganizationMembersResponse> {
-  try {
-    return await requestJson(listOrganizationMembersContract, {
-      params: { id: orgId },
-      query: { include: 'usage' },
-      signal,
-    })
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return {
-        success: true,
-        data: [],
-        total: 0,
-        userRole: 'member',
-        hasAdminAccess: false,
-      }
-    }
-    throw error
-  }
-}
-
-/**
- * Hook to fetch organization members with usage data
- */
-export function useOrganizationMembers(orgId: string) {
-  return useQuery({
-    queryKey: organizationKeys.memberUsage(orgId),
-    queryFn: ({ signal }) => fetchOrganizationMembers(orgId, signal),
-    enabled: !!orgId,
-    staleTime: ORGANIZATION_MEMBERS_STALE_TIME,
-    placeholderData: keepPreviousData,
-  })
-}
-
-/**
  * Update organization usage limit mutation with optimistic updates
  */
 type UpdateOrganizationUsageLimitParams = Pick<
@@ -402,8 +239,8 @@ export function useUpdateOrganizationUsageLimit() {
       queryClient.setQueryData<unknown>(
         organizationKeys.billing(organizationId),
         (old: unknown) => {
-          if (!isRecord(old) || !isRecord(old.data)) return old
-          const usage = isRecord(old.data.usage) ? old.data.usage : {}
+          if (!isRecordLike(old) || !isRecordLike(old.data)) return old
+          const usage = isRecordLike(old.data.usage) ? old.data.usage : {}
           const currentUsage =
             readNumber(old.data.currentUsage) ??
             readNumber(usage.current) ??
@@ -659,30 +496,6 @@ export function useResendInvitation() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-    },
-  })
-}
-
-/**
- * Update organization settings mutation
- */
-type UpdateOrganizationParams = {
-  orgId: string
-} & ContractBodyInput<typeof updateOrganizationContract>
-
-export function useUpdateOrganization() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ orgId, ...updates }: UpdateOrganizationParams) => {
-      return requestJson(updateOrganizationContract, {
-        params: { id: orgId },
-        body: updates,
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
   })
 }

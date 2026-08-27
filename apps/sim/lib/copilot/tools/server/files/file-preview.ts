@@ -135,9 +135,9 @@ function buildAppendPreview(existingContent: string, incomingContent: string): s
 /**
  * Reads the current UTF-8 text of a workspace file for streaming previews.
  *
- * Preview runs in the SSE loop on `workspace_file` **call** events, which are
+ * Preview runs in the SSE loop on `prepare_file_edit` **call** events, which are
  * processed **before** the async tool executor persists {@link storeFileIntent}.
- * Loading the base here avoids a race where `edit_content` `args_delta` arrives
+ * Loading the base here avoids a race where `apply_file_edit` `args_delta` arrives
  * before Redis holds `existingContent`, which would make append previews look like
  * full-file replacement until the intent landed.
  */
@@ -193,7 +193,7 @@ export function buildFilePreviewText({
     // Fail closed (like `patch`/`update` below) when the base file content has not loaded yet: a base-less
     // `append` preview is just the streamed fragment, and a collaborative editor applying it as the full
     // body would reconcile the seeded doc down to that fragment (a wipe). Skipping the preview until the
-    // base is available costs only a brief render delay; the final durable `edit_content` write is
+    // base is available costs only a brief render delay; the final durable `apply_file_edit` write is
     // authoritative. An empty file has `existingContent === ''` (defined), so it is unaffected.
     if (existingContent === undefined) {
       return undefined

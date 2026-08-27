@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import {
+  credential,
+  credentialMember,
+  permissions,
+  workspace,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -11,7 +17,7 @@ import {
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 
-const PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
+const ENV_CREDENTIAL_WRITE_CHUNK_SIZE = 500
 
 export interface WorkspaceMembership {
   ownerId: string | null
@@ -170,6 +176,32 @@ export async function getPersonalEnvKeyRawAccess(params: {
 }
 
 /**
+ * Whether the workspace holds a value under this env key, read from the authoritative
+ * `workspace_environment.variables` map.
+ *
+ * Deliberately NOT {@link getWorkspaceEnvKeyAdminAccess}'s `knownKeys`, which answers the
+ * narrower "does an `env_workspace` credential row exist". A legacy value written before the
+ * credential ACL existed has no such row yet still wins at run time, so a gate that reads
+ * `knownKeys` as "there is no workspace secret here" would let a non-admin through on exactly
+ * the keys that predate the ACL. Callers deciding whether a NAME belongs to the workspace must
+ * ask this; callers deciding who may administer an ACL keep asking `knownKeys`.
+ */
+export async function hasWorkspaceEnvValue(params: {
+  workspaceId: string
+  envKey: string
+}): Promise<boolean> {
+  const [row] = await db
+    .select({ variables: workspaceEnvironment.variables })
+    .from(workspaceEnvironment)
+    .where(eq(workspaceEnvironment.workspaceId, params.workspaceId))
+    .limit(1)
+
+  const variables = row?.variables
+  if (!variables || typeof variables !== 'object') return false
+  return Object.hasOwn(variables as Record<string, unknown>, params.envKey)
+}
+
+/**
  * For a set of workspace env keys, resolves which the caller may administer
  * (active `credential_member` with role `admin`) and which already have an
  * `env_workspace` credential at all. Keys absent from `knownKeys` have no ACL
@@ -217,6 +249,10 @@ interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
+  /** Always null on `env_personal`: a mirror row cannot own a user-global secret's note. */
+  description: string | null
+  /** Always false on `env_personal`: only workspace secrets can opt out of redaction. */
+  unredacted: boolean
   updatedAt: Date
 }
 
@@ -401,27 +437,35 @@ export async function createWorkspaceEnvCredentials(params: {
 
   const now = params.updatedAt ?? new Date()
 
-  const inserted = await executor
-    .insert(credential)
-    .values(
-      keys.map((envKey) => ({
-        id: generateId(),
-        workspaceId,
-        type: 'env_workspace' as const,
-        displayName: envKey,
-        envKey,
-        createdBy: actingUserId,
-        createdAt: now,
-        updatedAt: now,
-      }))
-    )
-    .onConflictDoNothing()
-    .returning({ id: credential.id })
-  const createdIds = inserted.map((row) => row.id)
+  const credentialValues = keys.map((envKey) => ({
+    id: generateId(),
+    workspaceId,
+    type: 'env_workspace' as const,
+    displayName: envKey,
+    envKey,
+    createdBy: actingUserId,
+    createdAt: now,
+    updatedAt: now,
+  }))
+  const createdIds: string[] = []
+  for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    const inserted = await executor
+      .insert(credential)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: credential.id })
+    createdIds.push(...inserted.map((row) => row.id))
+  }
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 
-  // Bulk-insert memberships for all new credentials × all workspace members in one query
+  /**
+   * Chunked because the row count is keys × members and neither side is
+   * bounded: a wide enough save exceeds Postgres's 65535 bind parameters and
+   * throws. Unchunked that was a partial success — the value was already
+   * committed — but this now runs inside the value's transaction, so it would
+   * roll the save back, deterministically, on every retry.
+   */
   const membershipValues = createdIds.flatMap((credentialId) =>
     memberUserIds.map((memberUserId) => ({
       id: generateId(),
@@ -436,7 +480,9 @@ export async function createWorkspaceEnvCredentials(params: {
     }))
   )
 
-  await executor.insert(credentialMember).values(membershipValues).onConflictDoNothing()
+  for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    await executor.insert(credentialMember).values(values).onConflictDoNothing()
+  }
 }
 
 /**
@@ -493,7 +539,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx.insert(credential).values(values).onConflictDoNothing()
     }
 
@@ -534,7 +580,7 @@ export async function upsertPersonalEnvCredentialForUser(params: {
       createdAt: updatedAt,
       updatedAt,
     }))
-    for (const values of chunkArray(membershipValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+    for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
       await tx
         .insert(credentialMember)
         .values(values)
@@ -660,7 +706,7 @@ export async function syncPersonalEnvCredentialsForUser(params: {
           updatedAt: now,
         }))
       )
-      for (const values of chunkArray(credentialValues, PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+      for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
         await tx.insert(credential).values(values).onConflictDoNothing()
       }
 
@@ -688,10 +734,7 @@ export async function syncPersonalEnvCredentialsForUser(params: {
           createdAt: now,
           updatedAt: now,
         }))
-        for (const values of chunkArray(
-          membershipValues,
-          PERSONAL_ENV_CREDENTIAL_WRITE_CHUNK_SIZE
-        )) {
+        for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
           await tx
             .insert(credentialMember)
             .values(values)
@@ -740,6 +783,8 @@ export async function getAccessibleEnvCredentials(
       type: credential.type,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      description: credential.description,
+      unredacted: credential.unredacted,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -772,6 +817,8 @@ export async function getAccessibleEnvCredentials(
       type: row.type,
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
+      description: row.type === 'env_workspace' ? row.description : null,
+      unredacted: row.type === 'env_workspace' ? row.unredacted : false,
       updatedAt: row.updatedAt,
     }))
 }

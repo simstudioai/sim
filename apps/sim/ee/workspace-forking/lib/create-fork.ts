@@ -228,14 +228,15 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     // feeds the post-commit content-ref rewrite (`sim:folder/<id>` mentions in skill/file bodies).
     // Scoped to the folders that will actually receive a copied workflow (plus ancestors): a
     // fork copies only DEPLOYED workflows, so folders holding none would be created empty in
-    // the child and are pruned instead. Copied files don't extend this set - they use the
-    // separate workspace-file-folder entity and land at the child's root.
-    const folderIdMap = await resolveForkFolderMapping({
+    // the child and are pruned instead. The file/table/knowledge-base trees are mirrored
+    // separately by their own copies and merged in below.
+    const workflowFolderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId: source.id,
       targetWorkspaceId: childWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: deployedWorkflows
         .filter((wf) => workflowIdMap.has(wf.id))
         .map((wf) => wf.folderId),
@@ -264,6 +265,17 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     })
     forkedResourceNames = resourceResult.names
 
+    /**
+     * Every mirrored folder tree in one map. The four families own disjoint trees and folder ids
+     * are globally unique, so the union is unambiguous: a `sim:folder/<id>` ref in copied content
+     * resolves regardless of which family's folder it names.
+     */
+    const folderIdMap = new Map<string, string>([
+      ...workflowFolderIdMap,
+      ...fileResult.folderIdMap,
+      ...resourceResult.folderIdMap,
+    ])
+
     const resolveCopied = (kind: ForkRemapKind, sourceId: string): string | null => {
       if (kind === 'file') return fileResult.keyMap.get(sourceId) ?? null
       const resourceType = FORK_KIND_TO_RESOURCE_TYPE[kind]
@@ -271,6 +283,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       return resourceResult.idMap.get(resourceType)?.get(sourceId) ?? null
     }
     const transform = createForkBootstrapTransform(resolveCopied)
+    // No block-type transform here: custom blocks are never copied into a fork and a fresh
+    // fork has no mappings yet, so a placed custom block necessarily keeps the parent's type.
+    // It surfaces as an unmapped reference in the sync view (via `scanWorkflowReferences`) and
+    // blocks the first promote until the environment's own block is mapped to it.
 
     // The child is brand new, so this loads an empty registry; name collisions can only
     // arise among the copied workflows themselves, which the in-loop claims resolve.

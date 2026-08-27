@@ -1,13 +1,12 @@
 import { useCallback, useMemo } from 'react'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForTriggerMode,
   isSubBlockVisibleInEditor,
   isToolInputOnlySubBlock,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -46,7 +45,8 @@ export function useEditorSubblockLayout(
     config?.subBlocks || [],
     blockId,
     activeWorkflowId,
-    blockDataFromStore?.canonicalModes
+    blockDataFromStore?.canonicalModes,
+    displayTriggerMode
   )
 
   return useMemo(() => {
@@ -100,10 +100,7 @@ export function useEditorSubblockLayout(
       {}
     )
 
-    const subBlocksForCanonical = displayTriggerMode
-      ? (config.subBlocks || []).filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-      : config.subBlocks || []
-    const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
+    const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks || [], displayTriggerMode)
     const canonicalModeOverrides = blockData?.canonicalModes
 
     // Expose canonical mode overrides to condition functions so they can

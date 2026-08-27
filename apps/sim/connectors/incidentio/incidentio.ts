@@ -368,42 +368,85 @@ function incidentToStub(incident: IncidentioIncident): ExternalDocument {
 /**
  * Fetches all status updates for an incident, following the `after` cursor and capping
  * the total to keep getDocument bounded for very long-running incidents.
+ *
+ * `complete` is false when the update listing was cut short by an API failure rather
+ * than by exhaustion or the deliberate {@link MAX_UPDATES_PER_INCIDENT} cap. Callers use
+ * it to avoid caching a partially-hydrated document under its final content hash.
  */
 async function fetchIncidentUpdates(
   accessToken: string,
   incidentId: string
-): Promise<IncidentioUpdate[]> {
+): Promise<{ updates: IncidentioUpdate[]; complete: boolean }> {
   const updates: IncidentioUpdate[] = []
   let after: string | undefined
+  let complete = true
+  let sourceHasMore = false
 
   while (updates.length < MAX_UPDATES_PER_INCIDENT) {
     const url = new URL(`${INCIDENTIO_API_BASE}/v2/incident_updates`)
     url.searchParams.set('incident_id', incidentId)
-    url.searchParams.set('page_size', String(PAGE_SIZE))
+    url.searchParams.set(
+      'page_size',
+      String(Math.min(PAGE_SIZE, MAX_UPDATES_PER_INCIDENT - updates.length))
+    )
     if (after) url.searchParams.set('after', after)
 
-    const response = await fetchWithRetry(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
+    let page: IncidentioUpdate[]
+    try {
+      const response = await fetchWithRetry(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      })
 
-    if (!response.ok) {
-      logger.warn('Failed to fetch incident updates', { incidentId, status: response.status })
+      if (!response.ok) {
+        logger.warn('Failed to fetch incident updates', { incidentId, status: response.status })
+        /**
+         * 403 and 404 are settled answers, not transient faults: an API key without
+         * `incident_updates` read permission returns 403 for every incident on every
+         * sync, and 404 means there is nothing to fetch. Marking those incomplete
+         * would append `:partial` to a hash that then never matches the listing stub,
+         * so the incident would re-hydrate on every sync forever without converging.
+         * Only a genuinely transient failure may mark the content incomplete.
+         */
+        if (response.status !== 403 && response.status !== 404) {
+          complete = false
+        }
+        break
+      }
+
+      const data = (await response.json()) as IncidentioUpdatesListResponse
+      page = data.incident_updates ?? []
+      after = data.pagination_meta?.after?.trim() || undefined
+    } catch (error) {
+      logger.warn('Failed to fetch incident updates', {
+        incidentId,
+        error: toError(error).message,
+      })
+      complete = false
       break
     }
 
-    const data = (await response.json()) as IncidentioUpdatesListResponse
-    const page = data.incident_updates ?? []
     updates.push(...page)
 
-    after = data.pagination_meta?.after?.trim() || undefined
+    /**
+     * `after` is only a usable cursor when the page returned records — the docs do
+     * not promise it is omitted on the final page, so an empty page must terminate.
+     */
     if (!after || page.length === 0) break
+    sourceHasMore = true
   }
 
-  return updates.slice(0, MAX_UPDATES_PER_INCIDENT)
+  if (sourceHasMore && updates.length >= MAX_UPDATES_PER_INCIDENT) {
+    logger.warn('Truncated incident updates at the per-incident cap', {
+      incidentId,
+      cap: MAX_UPDATES_PER_INCIDENT,
+    })
+  }
+
+  return { updates, complete }
 }
 
 export const incidentioConnector: ConnectorConfig = {
@@ -422,8 +465,14 @@ export const incidentioConnector: ConnectorConfig = {
       typeof sourceConfig.statusCategory === 'string' ? sourceConfig.statusCategory.trim() : ''
     const mode = typeof sourceConfig.mode === 'string' ? sourceConfig.mode.trim() : ''
 
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining = maxIncidents > 0 ? Math.max(0, maxIncidents - prevFetched) : 0
+
     const url = new URL(`${INCIDENTIO_API_BASE}/v2/incidents`)
-    url.searchParams.set('page_size', String(PAGE_SIZE))
+    url.searchParams.set(
+      'page_size',
+      String(remaining > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE)
+    )
     url.searchParams.set('sort_by', 'created_at_oldest_first')
     if (cursor) url.searchParams.set('after', cursor)
     if (lastSyncAt) url.searchParams.set('updated_at[gte]', lastSyncAt.toISOString())
@@ -458,22 +507,33 @@ export const incidentioConnector: ConnectorConfig = {
     const data = (await response.json()) as IncidentioIncidentsListResponse
     const incidents = (data.incidents ?? []).filter((incident) => Boolean(incident.id))
 
-    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = incidents.map(incidentToStub)
-    if (maxIncidents > 0) {
-      const remaining = Math.max(0, maxIncidents - prevFetched)
-      if (documents.length > remaining) {
-        documents = documents.slice(0, remaining)
-      }
+    if (maxIncidents > 0 && documents.length > remaining) {
+      documents = documents.slice(0, remaining)
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxIncidents > 0 && totalFetched >= maxIncidents
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
+    /**
+     * `after` is only a usable next-page cursor when this page actually returned
+     * incidents. incident.io does not document that it is omitted on the final page,
+     * so trusting it alone risks re-requesting the same tail until the sync engine
+     * truncates pagination — which permanently disables deletion reconciliation.
+     */
     const after = data.pagination_meta?.after?.trim() || undefined
-    const hasMore = !hitLimit && Boolean(after)
+    const sourceHasMore = Boolean(after) && incidents.length > 0
+
+    const hitLimit = maxIncidents > 0 && totalFetched >= maxIncidents
+    /**
+     * Only a cap that actually hides still-listed incidents may suppress deletion
+     * reconciliation. A cap landing exactly on an exhausted source produced a complete
+     * listing, and flagging it would strand deleted incidents in the KB forever.
+     */
+    const truncatedByCap = hitLimit && (documents.length < incidents.length || sourceHasMore)
+    if (truncatedByCap && syncContext) syncContext.listingCapped = true
+
+    const hasMore = !hitLimit && sourceHasMore
 
     return {
       documents,
@@ -509,9 +569,19 @@ export const incidentioConnector: ConnectorConfig = {
       const incident = data.incident
       if (!incident?.id) return null
 
-      const updates = await fetchIncidentUpdates(accessToken, incident.id)
+      const { updates, complete } = await fetchIncidentUpdates(accessToken, incident.id)
       const content = formatIncidentContent(incident, updates)
       if (!content.trim()) return null
+
+      /**
+       * A failed updates fetch yields usable but incomplete content. Storing it under the
+       * canonical hash would freeze the gap in place until the incident itself changes, so
+       * a partial marker is appended instead: it never matches the list stub's hash, so the
+       * next sync re-hydrates and self-heals once incident.io responds.
+       */
+      const contentHash = complete
+        ? buildContentHash(incident)
+        : `${buildContentHash(incident)}:partial`
 
       return {
         externalId: incident.id,
@@ -520,15 +590,20 @@ export const incidentioConnector: ConnectorConfig = {
         contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: buildSourceUrl(incident),
-        contentHash: buildContentHash(incident),
+        contentHash,
         metadata: buildMetadata(incident),
       }
     } catch (error) {
+      /**
+       * Only the 404/410 above means the incident is genuinely gone. Everything else —
+       * 429, 5xx, network faults — is rethrown so the sync engine records a failed row
+       * and keeps the already-indexed incident out of deletion reconciliation.
+       */
       logger.warn('Failed to get incident.io incident', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

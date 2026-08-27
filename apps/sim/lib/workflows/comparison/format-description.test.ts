@@ -49,11 +49,11 @@ vi.mock('@/hooks/selectors/resolution', () => ({
 
 import { WorkflowBuilder } from '@sim/testing'
 import type { WorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
+import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import {
   formatDiffSummaryForDescription,
   formatDiffSummaryForDescriptionAsync,
-  generateWorkflowDiffSummary,
-} from '@/lib/workflows/comparison/compare'
+} from '@/lib/workflows/comparison/describe'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 
 function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {

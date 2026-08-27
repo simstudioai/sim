@@ -60,6 +60,7 @@ export const agiloftRunActionButtonTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/run_action_button',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

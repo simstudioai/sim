@@ -7,7 +7,6 @@ import type { ExecutionContext } from '@/lib/copilot/request/types'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     apiKey: vi.fn(),
-    defaultWorkspace: vi.fn(),
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
   },
@@ -21,10 +20,6 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
 
 vi.mock('@/lib/copilot/application/execute-api-key-use-case', () => ({
   executeCopilotApiKeyUseCase: mocks.apiKey,
-}))
-
-vi.mock('@/lib/copilot/tools/handlers/access', () => ({
-  getDefaultWorkspaceId: mocks.defaultWorkspace,
 }))
 
 vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
@@ -61,7 +56,6 @@ const context = {
 describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.defaultWorkspace.mockResolvedValue('workspace-1')
     mocks.hasExecutionResult.mockReturnValue(false)
   })
 
@@ -91,6 +85,16 @@ describe('workflow mutation Copilot adapters', () => {
         folderPath: '/Launch%20Plans',
       }
     )
+  })
+
+  it('rejects a create-workflow workspaceId that names a different workspace', async () => {
+    const result = await executeCreateWorkflow(
+      { name: 'New Workflow', workspaceId: 'workspace-other' },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it('calls the compound variable command once', async () => {

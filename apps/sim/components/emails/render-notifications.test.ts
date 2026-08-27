@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   renderScheduleDisabledEmail,
+  renderSubprocessorChangeEmail,
   renderUsageLimitReachedEmail,
 } from '@/components/emails/render'
 
@@ -91,5 +92,65 @@ describe('renderUsageLimitReachedEmail', () => {
 
     expect(html).toContain('credits used')
     expect(html).not.toContain('$20')
+  })
+})
+
+describe('renderSubprocessorChangeEmail', () => {
+  const notice = {
+    changes: [
+      {
+        name: 'Example Analytics Inc.',
+        purpose: 'Product usage analytics',
+        dataCategories: 'Account identifiers, usage events',
+        location: 'United States',
+        changeType: 'added' as const,
+      },
+    ],
+    effectiveDate: new Date('2026-10-01T00:00:00Z'),
+    objectionDeadline: new Date('2026-09-24T00:00:00Z'),
+    objectionEmail: 'privacy@example.com',
+    subprocessorListUrl: 'https://example.com/subprocessors',
+  }
+
+  it('renders the change details, the objection window, and the list link', async () => {
+    const html = await renderSubprocessorChangeEmail({ recipientName: 'John', ...notice })
+
+    expect(html).toContain('Example Analytics Inc.')
+    expect(html).toContain('New sub-processor')
+    expect(html).toContain('Account identifiers, usage events')
+    expect(html).toContain('October 1, 2026')
+    expect(html).toContain('September 24, 2026')
+    expect(html).toContain('mailto:privacy@example.com')
+    expect(html).toContain('https://example.com/subprocessors')
+  })
+
+  it('renders every change in a multi-sub-processor notice', async () => {
+    const html = await renderSubprocessorChangeEmail({
+      ...notice,
+      changes: [
+        ...notice.changes,
+        {
+          name: 'Legacy Mail Co.',
+          purpose: 'Transactional email delivery',
+          dataCategories: 'Email addresses',
+          location: 'Ireland',
+          changeType: 'removed' as const,
+        },
+      ],
+    })
+
+    expect(html).toContain('Legacy Mail Co.')
+    expect(html).toContain('Sub-processor being removed')
+  })
+
+  it('mentions the subscription setting only when one is given', async () => {
+    const withSetting = await renderSubprocessorChangeEmail({
+      ...notice,
+      subscriptionUrl: 'https://example.com/preferences',
+    })
+    const withoutSetting = await renderSubprocessorChangeEmail(notice)
+
+    expect(withSetting).toContain('href="https://example.com/preferences"')
+    expect(withoutSetting).not.toContain('Manage whether you receive them')
   })
 })

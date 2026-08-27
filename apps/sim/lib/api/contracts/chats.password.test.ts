@@ -28,8 +28,18 @@ describe('chat deployment password contract', () => {
     expect(result.error?.issues[0].message).toBe('Password cannot contain only whitespace')
   })
 
+  it('requires at least 15 characters for a new password', () => {
+    const result = chatDeploymentPasswordSchema.safeParse('short-password')
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0].message).toBe('Password must be at least 15 characters')
+  })
+
+  it('continues accepting legacy short passwords at the deployed login gate', () => {
+    expect(deployedChatAuthBodySchema.safeParse({ password: 'legacy' }).success).toBe(true)
+  })
+
   it('preserves surrounding whitespace, which login compares byte-exact', () => {
-    expect(chatDeploymentPasswordSchema.parse('  hunter2  ')).toBe('  hunter2  ')
+    expect(chatDeploymentPasswordSchema.parse('  hunter2hunter2  ')).toBe('  hunter2hunter2  ')
   })
 
   /**
@@ -54,7 +64,9 @@ describe('chat deployment password contract', () => {
 
     expect(createChatBodySchema.safeParse({ ...createBody, password: '   ' }).success).toBe(false)
     expect(createChatBodySchema.safeParse({ ...createBody, password: tooLong }).success).toBe(false)
-    expect(createChatBodySchema.safeParse({ ...createBody, password: 'ok' }).success).toBe(true)
+    expect(
+      createChatBodySchema.safeParse({ ...createBody, password: 'correct-password' }).success
+    ).toBe(true)
 
     expect(updateChatBodySchema.safeParse({ password: '   ' }).success).toBe(false)
     expect(updateChatBodySchema.safeParse({ password: tooLong }).success).toBe(false)

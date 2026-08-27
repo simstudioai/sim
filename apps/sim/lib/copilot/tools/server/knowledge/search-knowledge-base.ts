@@ -16,7 +16,7 @@ type SearchKnowledgeBaseResult = {
 const READ_OPERATIONS = new Set(['get', 'query', 'list_tags'])
 
 /**
- * Read-only variant of knowledge_base for info-gathering agents. Copilot
+ * Read-only variant of manage_knowledge_base for info-gathering agents. Copilot
  * access control is a per-agent tool allowlist, so read-only access gets its
  * own tool name with its own operation contract — enforced here (where
  * execution happens) on top of the fail-fast guard in the Go executor.
@@ -31,7 +31,7 @@ export const searchKnowledgeBaseServerTool: BaseServerTool<
     if (!READ_OPERATIONS.has(operation)) {
       return {
         success: false,
-        message: `search_knowledge_base is read-only: operation '${operation}' is not available (allowed: get, list_tags, query); mutations go through the knowledge agent's knowledge_base tool`,
+        message: `search_knowledge_base is read-only: operation '${operation}' is not available (allowed: get, list_tags, query); mutations go through the knowledge agent's manage_knowledge_base tool`,
       }
     }
     return knowledgeBaseServerTool.execute(params, context)

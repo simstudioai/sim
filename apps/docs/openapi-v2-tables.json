@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. `scope=archived` lists tables a `DELETE` archived, which `POST /api/v2/tables/{tableId}/restore` can bring back. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -47,7 +47,20 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose tables should be listed."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           },
           {
@@ -223,6 +236,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -316,7 +332,7 @@
       "delete": {
         "operationId": "deleteTable",
         "summary": "Delete Table",
-        "description": "Delete a table and return an explicit deletion acknowledgement.",
+        "description": "Archive a table and return an explicit deletion acknowledgement. The table is soft-deleted, not erased: its rows are retained and `POST /api/v2/tables/{tableId}/restore` brings it back.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -393,7 +409,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries `details.applied` naming the fields that landed — retry with only the ones missing from it.\n\nA workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. When at least one field landed before the failure the error body carries `details.applied` naming those fields — retry with only the ones missing from it. Its absence means nothing was applied.\n\nA workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -458,6 +474,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -537,6 +556,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -618,6 +640,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -698,6 +723,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -717,7 +745,7 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List Rows",
-        "description": "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting.",
+        "description": "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting. Set `includeRunState=true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -739,6 +767,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the table."
             }
           },
@@ -764,6 +793,16 @@
               "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
+            }
+          },
+          {
+            "name": "includeRunState",
+            "in": "query",
+            "required": false,
+            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
+            "schema": {
+              "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.",
+              "type": "boolean"
             }
           }
         ],
@@ -878,6 +917,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -957,6 +999,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1038,6 +1083,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1057,7 +1105,7 @@
       "get": {
         "operationId": "getTableRow",
         "summary": "Get Row",
-        "description": "Retrieve one row by identifier.",
+        "description": "Retrieve one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1091,6 +1139,16 @@
               "type": "string",
               "minLength": 1,
               "description": "Workspace that owns the table."
+            }
+          },
+          {
+            "name": "includeRunState",
+            "in": "query",
+            "required": false,
+            "description": "Include per-workflow-group run state on the returned row. Off by default.",
+            "schema": {
+              "description": "Include per-workflow-group run state on the returned row. Off by default.",
+              "type": "boolean"
             }
           }
         ],
@@ -1215,6 +1273,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1386,6 +1447,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1405,7 +1469,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1422,7 +1486,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope, optional predicate and sort, and cursor pagination controls.",
+          "description": "Workspace scope, optional predicate and sort, and cursor pagination controls. The predicate may be one condition or an `all`/`any` group; omitting it matches every row.",
           "content": {
             "application/json": {
               "schema": {
@@ -1468,6 +1532,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1484,7 +1551,7 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Count the rows matching a typed predicate across the entire table. A predicate may be one condition or an `all`/`any` group. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1501,7 +1568,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace scope and the optional predicate whose matches are counted.",
+          "description": "Workspace scope and the optional condition or `all`/`any` predicate group whose matches are counted.",
           "content": {
             "application/json": {
               "schema": {
@@ -1546,6 +1613,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1699,6 +1769,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1874,6 +1947,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2113,6 +2189,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2196,6 +2275,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2276,6 +2358,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2291,11 +2376,11 @@
         }
       }
     },
-    "/api/v2/tables/{tableId}/columns/run": {
+    "/api/v2/tables/{tableId}/dispatches": {
       "post": {
-        "operationId": "runTableColumns",
-        "summary": "Run Column Groups",
-        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset.",
+        "operationId": "createTableDispatch",
+        "summary": "Create Run Dispatch",
+        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `canceled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2316,14 +2401,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RunTableColumnsRequest"
+                "$ref": "#/components/schemas/CreateTableDispatchRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The accepted table-column dispatch.",
+            "description": "The accepted run dispatch.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2338,7 +2423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2RunTableColumnsResponse"
+                  "$ref": "#/components/schemas/V2CreateTableDispatchResponse"
                 }
               }
             }
@@ -2358,6 +2443,83 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listTableDispatches",
+        "summary": "List Active Run Dispatches",
+        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the table.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the table."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The table's active run dispatches.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2TableRunDispatchListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2374,7 +2536,7 @@
       "post": {
         "operationId": "runRowEnrichment",
         "summary": "Run Enrichment For One Row",
-        "description": "Asynchronously run one workflow or enrichment group for one table row.",
+        "description": "Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2459,6 +2621,105 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getRowEnrichment",
+        "summary": "Get Enrichment Run Detail",
+        "description": "Retrieve the provider cascade behind one enrichment cell: every configured provider in cascade order, each one's status, hosted-key cost, and duration, plus which provider produced the match. `null` means the cell has never run, or ran before cascade detail was recorded — distinct from a `404`, which means the table, row, or group does not exist.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
+            "name": "rowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table row identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table row identifier."
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "description": "Workflow or enrichment group to run.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workflow or enrichment group to run."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the table.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the table."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The enrichment run detail, or null when none was recorded.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RowEnrichmentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2471,11 +2732,11 @@
         }
       }
     },
-    "/api/v2/tables/{tableId}/rows/find": {
+    "/api/v2/tables/{tableId}/rows/search": {
       "post": {
-        "operationId": "findTableRows",
-        "summary": "Find Rows",
-        "description": "Search every cell case-insensitively, optionally within a predicate-filtered and sorted view.",
+        "operationId": "searchTableRows",
+        "summary": "Search Rows",
+        "description": "Text-search every cell case-insensitively for the substring `q`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: `POST /api/v2/tables/{tableId}/query` is that one, and on this surface `query` always means a structured predicate while `search` always means text.\n\nIt returns cell COORDINATES — `{ ordinal, rowId, column }` — and never row data. `ordinal` is the row's zero-based index in the same filtered, sorted view `POST /query` pages, so read the rows themselves through that. The result is uncursored and capped: at most 1000 matches come back and `truncated` is `true` when more matched than were returned. There is no cursor to page with — narrow `q` or the predicate instead.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2496,7 +2757,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FindTableRowsRequest"
+                "$ref": "#/components/schemas/SearchTableRowsRequest"
               }
             }
           }
@@ -2518,7 +2779,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2FindTableRowsResponse"
+                  "$ref": "#/components/schemas/V2SearchTableRowsResponse"
                 }
               }
             }
@@ -2537,6 +2798,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2607,6 +2871,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2648,6 +2915,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2733,6 +3001,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2823,6 +3092,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2889,6 +3159,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2927,6 +3200,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -3064,6 +3338,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3076,13 +3353,24 @@
         }
       }
     },
-    "/api/v2/tables/exports/{exportId}": {
+    "/api/v2/tables/{tableId}/exports/{exportId}": {
       "get": {
         "operationId": "getTableExport",
         "summary": "Get Table Export",
         "description": "Read progress and terminal state for a durable table export.",
         "tags": ["Tables"],
         "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
           {
             "name": "exportId",
             "in": "path",
@@ -3102,6 +3390,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3158,6 +3447,17 @@
         "tags": ["Tables"],
         "parameters": [
           {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
             "name": "exportId",
             "in": "path",
             "required": true,
@@ -3176,6 +3476,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3229,13 +3530,24 @@
         }
       }
     },
-    "/api/v2/tables/exports/{exportId}/download": {
+    "/api/v2/tables/{tableId}/exports/{exportId}/download": {
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
         "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.",
         "tags": ["Tables"],
         "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
           {
             "name": "exportId",
             "in": "path",
@@ -3255,6 +3567,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3375,6 +3688,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3402,6 +3718,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -3556,6 +3873,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3623,6 +3943,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3648,6 +3971,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -3741,6 +4065,563 @@
           }
         }
       }
+    },
+    "/api/v2/tables/folders/restore": {
+      "post": {
+        "operationId": "restoreTablesFolder",
+        "summary": "Restore Folder",
+        "description": "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. A path that is not archived answers `404`. `DELETE /api/v2/tables/folders` returns the path it archived, which is the value to keep and send here; unlike the files surface, `GET /api/v2/tables/folders` does not yet list archived folders, so a caller that discards that path cannot recover it over the API.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the canonical path the archived folder held.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreTableFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored table folder and what it brought back.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreTableFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/restore": {
+      "post": {
+        "operationId": "restoreTable",
+        "summary": "Restore Table",
+        "description": "Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Idempotent: a table that is already active is returned unchanged with no audit entry recorded, so a retry after a dropped response cannot look like a failure. A name collision is resolved by renaming, so the restored table may come back under a different `name`.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the archived table.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreTableRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The restored table.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreTableResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/rows/bulk-update": {
+      "post": {
+        "operationId": "bulkUpdateTableRows",
+        "summary": "Bulk Update Rows",
+        "description": "Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole request with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and one merge patch per row.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateTableRowsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The bulk update result.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkUpdateTableRowsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/{tableId}/dispatches/{dispatchId}": {
+      "get": {
+        "operationId": "getTableDispatch",
+        "summary": "Get Run Dispatch",
+        "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `canceled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
+            "name": "dispatchId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table run-dispatch identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table run-dispatch identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the transfer resource.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the transfer resource."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested run dispatch.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2TableRunDispatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "cancelTableDispatch",
+        "summary": "Cancel Run Dispatch",
+        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT canceled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `canceled` is returned unchanged.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          },
+          {
+            "name": "dispatchId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table run-dispatch identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table run-dispatch identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the transfer resource.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the transfer resource."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dispatch in its post-cancellation state.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CancelTableDispatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/move": {
+      "post": {
+        "operationId": "moveTables",
+        "summary": "Move Tables and Folders",
+        "description": "Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope, the tables and folder paths to move, and the destination folder path.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkMoveTablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-item outcome of the bulk move.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2MoveTablesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tables/bulk-delete": {
+      "post": {
+        "operationId": "bulkDeleteTables",
+        "summary": "Bulk Delete Tables and Folders",
+        "description": "Archive up to 100 tables and delete table folders in a single authorized request. Folders are named by canonical path and each cascades to everything inside it; `deletedItems` reports the totals across every cascade. Archived tables stay recoverable through `POST /api/v2/tables/{tableId}/restore`. Best-effort per item, with the same `skipped` / `notFound` / `failed` dispositions as the bulk move.",
+        "tags": ["Tables"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope, and the tables and folder paths to delete.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteTablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-item outcome of the bulk delete.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkDeleteTablesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3810,6 +4691,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
             }
           }
         }
@@ -3820,16 +4707,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UsageLimitExceeded": {
-        "description": "The workspace has exceeded its usage or billing limits.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
             }
           }
         }
@@ -3840,6 +4723,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
             }
           }
         }
@@ -3850,6 +4742,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
             }
           }
         }
@@ -3860,21 +4758,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "RunIdConflict": {
-        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
-        "headers": {
-          "X-Run-Id": {
-            "$ref": "#/components/headers/X-Run-Id"
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "A table named \"Orders\" already exists in this workspace"
+              }
             }
           }
         }
@@ -3885,6 +4774,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Request body is too large"
+              }
             }
           }
         }
@@ -3895,6 +4790,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNSUPPORTED_MEDIA_TYPE",
+                "message": "Request body must be sent as application/json"
+              }
             }
           }
         }
@@ -3905,6 +4806,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "LOCKED",
+                "message": "This table is insert-locked: new rows cannot be added.",
+                "details": {
+                  "lock": "insert"
+                }
+              }
             }
           }
         }
@@ -3920,16 +4830,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
             }
           }
         }
@@ -3940,6 +4849,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
             }
           }
         }
@@ -3955,6 +4870,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
             }
           }
         }
@@ -3976,7 +4897,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
               }
             },
             "required": ["code", "message"],
@@ -4009,6 +4930,11 @@
           "id": {
             "type": "string",
             "description": "Unique table identifier."
+          },
+          "webUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical absolute URL for opening this resource in the Sim web application."
           },
           "name": {
             "type": "string",
@@ -4178,6 +5104,7 @@
         },
         "required": [
           "id",
+          "webUrl",
           "name",
           "description",
           "ownerEmail",
@@ -4304,6 +5231,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "schema": {
@@ -4455,6 +5383,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "name": {
@@ -4588,6 +5517,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the table."
           },
           "column": {
@@ -4680,6 +5610,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the table."
           },
           "columnName": {
@@ -4768,6 +5699,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "columnName": {
@@ -4799,6 +5731,16 @@
           "data": {
             "description": "Row cells keyed by column name.",
             "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "runState": {
+            "description": "Per-workflow-group run state keyed by group identifier. Present only when the read requested `includeRunState`.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/V2TableRowRunState"
+            }
           },
           "createdAt": {
             "type": "string",
@@ -4835,6 +5777,83 @@
             "age": 30
           }
         ]
+      },
+      "V2TableRowRunState": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Lifecycle state of the most recent run for this cell: `pending`, `queued`, `running`, `completed`, `error`, or `canceled`."
+          },
+          "executionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow execution identifier, or null before a worker claimed the cell."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow the group runs for this cell."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Failure reason, or null when the run did not fail."
+          },
+          "runningBlockIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block identifiers currently mid-execution."
+          },
+          "blockErrors": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Per-block failure messages keyed by block identifier."
+          },
+          "canceledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the cell was canceled, or null."
+          }
+        },
+        "required": [
+          "status",
+          "executionId",
+          "workflowId",
+          "error",
+          "runningBlockIds",
+          "blockErrors",
+          "canceledAt"
+        ],
+        "additionalProperties": false,
+        "title": "Table row run state",
+        "description": "Run outcome for one workflow group on one row."
       },
       "V2TableRowListResponse": {
         "type": "object",
@@ -4929,6 +5948,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Unique workspace identifier."
               },
               "rows": {
@@ -4950,6 +5970,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Unique workspace identifier."
               },
               "data": {
@@ -5161,6 +6182,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "filter": {
@@ -5232,6 +6254,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "filter": {
@@ -5284,6 +6307,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "data": {
@@ -5372,10 +6396,11 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "data": {
-            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.",
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.",
             "$ref": "#/components/schemas/V2TableRowData"
           },
           "conflictTarget": {
@@ -5426,16 +6451,199 @@
         "title": "Query table rows response",
         "description": "A cursor-paginated page of matching table rows."
       },
+      "TablePredicateInput": {
+        "title": "Table predicate input",
+        "description": "A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "title": "Predicate condition",
+            "description": "One column comparison.",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "in",
+                  "nin",
+                  "contains",
+                  "ncontains",
+                  "startsWith",
+                  "endsWith",
+                  "like",
+                  "ilike",
+                  "nlike",
+                  "nilike",
+                  "isEmpty",
+                  "isNotEmpty",
+                  "isNull",
+                  "isNotNull"
+                ],
+                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+              },
+              "value": {
+                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+              }
+            },
+            "required": ["field", "op"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "QueryTableRowsRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -5470,33 +6678,17 @@
             "description": "Opaque cursor returned by the previous query page.",
             "type": "string",
             "minLength": 1
+          },
+          "includeRunState": {
+            "default": false,
+            "description": "Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.",
+            "type": "boolean"
           }
         },
         "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Query table rows request",
-        "description": "Workspace scope, optional predicate and sort, and cursor pagination controls.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            },
-            "sort": [
-              {
-                "field": "createdAt",
-                "direction": "desc"
-              }
-            ],
-            "limit": 100
-          }
-        ]
+        "description": "Workspace scope, optional predicate and sort, and cursor pagination controls. The predicate may be one condition or an `all`/`any` group; omitting it matches every row."
       },
       "V2QueryRowsCountData": {
         "type": "object",
@@ -5532,30 +6724,17 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           }
         },
         "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Count table rows request",
-        "description": "Workspace scope and the optional predicate whose matches are counted.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            }
-          }
-        ]
+        "description": "Workspace scope and the optional condition or `all`/`any` predicate group whose matches are counted."
       },
       "V2ApiTableView": {
         "type": "object",
@@ -5740,188 +6919,6 @@
         "additionalProperties": false,
         "title": "Create table view response",
         "description": "The created saved view."
-      },
-      "TablePredicateInput": {
-        "title": "Table predicate input",
-        "description": "A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.",
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Matches a row when every member matches.",
-            "properties": {
-              "all": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["all"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "description": "Matches a row when at least one member matches.",
-            "properties": {
-              "any": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["any"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "title": "Predicate condition",
-            "description": "One column comparison.",
-            "properties": {
-              "field": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-              },
-              "op": {
-                "type": "string",
-                "enum": [
-                  "eq",
-                  "ne",
-                  "gt",
-                  "gte",
-                  "lt",
-                  "lte",
-                  "in",
-                  "nin",
-                  "contains",
-                  "ncontains",
-                  "startsWith",
-                  "endsWith",
-                  "like",
-                  "ilike",
-                  "nlike",
-                  "nilike",
-                  "isEmpty",
-                  "isNotEmpty",
-                  "isNull",
-                  "isNotNull"
-                ],
-                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-              },
-              "value": {
-                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-              }
-            },
-            "required": ["field", "op"],
-            "additionalProperties": false
-          }
-        ]
       },
       "CreateTableViewRequest": {
         "type": "object",
@@ -6481,6 +7478,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "group": {
@@ -6630,7 +7628,7 @@
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "group": {
-              "workflowId": "wf_1b3d5f7a9c2e4680b4d6f8a0c2e4b619",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "name": "Enrich company",
               "outputs": [
                 {
@@ -6668,6 +7666,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupId": {
@@ -6938,6 +7937,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupId": {
@@ -6977,7 +7977,7 @@
         "title": "Run column data",
         "description": "Acknowledgement for a table column run."
       },
-      "V2RunTableColumnsResponse": {
+      "V2CreateTableDispatchResponse": {
         "type": "object",
         "properties": {
           "data": {
@@ -6987,15 +7987,16 @@
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Run table columns response",
+        "title": "Create table dispatch response",
         "description": "Accepted background dispatch identifier."
       },
-      "RunTableColumnsRequest": {
+      "CreateTableDispatchRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupIds": {
@@ -7056,7 +8057,7 @@
         },
         "required": ["workspaceId", "groupIds"],
         "additionalProperties": false,
-        "title": "Run table columns request",
+        "title": "Create table dispatch request",
         "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
         "examples": [
           {
@@ -7084,6 +8085,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           }
         },
@@ -7118,7 +8120,7 @@
         "title": "Table row match",
         "description": "One matching cell returned by a table row search."
       },
-      "V2FindRowsData": {
+      "V2SearchRowsData": {
         "type": "object",
         "properties": {
           "matches": {
@@ -7136,28 +8138,29 @@
         },
         "required": ["matches", "truncated"],
         "additionalProperties": false,
-        "title": "Find rows data",
+        "title": "Search rows data",
         "description": "Matching table cells and truncation state."
       },
-      "V2FindTableRowsResponse": {
+      "V2SearchTableRowsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2FindRowsData"
+            "$ref": "#/components/schemas/V2SearchRowsData"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Find table rows response",
+        "title": "Search table rows response",
         "description": "Matching table cells and truncation state."
       },
-      "FindTableRowsRequest": {
+      "SearchTableRowsRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "q": {
@@ -7195,7 +8198,7 @@
         },
         "required": ["workspaceId", "q"],
         "additionalProperties": false,
-        "title": "Find table rows request",
+        "title": "Search table rows request",
         "description": "Workspace scope, substring query, and optional predicate and sort.",
         "examples": [
           {
@@ -7244,6 +8247,36 @@
         "additionalProperties": false,
         "title": "Upload table import source",
         "description": "CSV file uploaded through signed transfer instructions."
+      },
+      "V2TableImportRejectedSample": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "CSV parser error code, e.g. CSV_QUOTE_NOT_CLOSED."
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based source line the parser had reached when it gave up, or null."
+          },
+          "message": {
+            "type": "string",
+            "description": "Parser message for the dropped record."
+          }
+        },
+        "required": ["code", "line", "message"],
+        "additionalProperties": false,
+        "title": "Rejected import record",
+        "description": "One source record a table import could not read."
       },
       "V2UploadBackedTableImport": {
         "type": "object",
@@ -7331,6 +8364,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -7376,6 +8428,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -7396,7 +8451,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
           },
           "headers": {
             "type": "object",
@@ -7551,6 +8606,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -7596,6 +8670,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -7676,6 +8753,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "source": {
@@ -7872,6 +8950,25 @@
             "maximum": 9007199254740991,
             "description": "Rows processed so far."
           },
+          "rowsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+          },
+          "cellsRejected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Non-empty cell values the target column type could not represent. Their rows were imported with the cell left blank."
+          },
+          "rejectedSamples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableImportRejectedSample"
+            },
+            "description": "Bounded sample of the dropped records, for locating them in the source file."
+          },
           "error": {
             "anyOf": [
               {
@@ -7917,6 +9014,9 @@
           "target",
           "tableId",
           "rowsProcessed",
+          "rowsRejected",
+          "cellsRejected",
+          "rejectedSamples",
           "error",
           "createdAt",
           "updatedAt",
@@ -7964,7 +9064,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
           },
           "headers": {
             "type": "object",
@@ -8159,6 +9259,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "format": {
@@ -8274,6 +9375,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "scope": {
@@ -8398,6 +9500,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
@@ -8429,6 +9532,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {
@@ -8497,6 +9601,856 @@
         "additionalProperties": false,
         "title": "Delete table folder response",
         "description": "Folder deletion acknowledgement and deleted resource counts."
+      },
+      "V2TableFolderRestore": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "The restored folder, at the path it actually landed on — which is not always the path requested.",
+            "$ref": "#/components/schemas/V2Folder"
+          },
+          "restoredItems": {
+            "type": "object",
+            "properties": {
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Folders restored, including the one addressed."
+              },
+              "tables": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Tables restored inside the folder tree."
+              }
+            },
+            "required": ["folders", "tables"],
+            "additionalProperties": false,
+            "description": "What the restore brought back."
+          }
+        },
+        "required": ["folder", "restoredItems"],
+        "additionalProperties": false,
+        "title": "Table folder restore result",
+        "description": "The restored folder and the counts of items it brought back."
+      },
+      "V2RestoreTableFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2TableFolderRestore"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Restore table folder response",
+        "description": "The restored table folder and the counts of items it brought back."
+      },
+      "RestoreTableFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the archived folder."
+          },
+          "path": {
+            "description": "Path the folder held when a folder delete archived it.",
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Restore table folder request",
+        "description": "Workspace scope and the canonical path the archived folder held."
+      },
+      "V2RestoreTableResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2ApiTable"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Restore table response",
+        "description": "The restored table."
+      },
+      "RestoreTableRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Restore table request",
+        "description": "Workspace scope for the archived table.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          }
+        ]
+      },
+      "V2BulkUpdateRowsData": {
+        "type": "object",
+        "properties": {
+          "updatedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of rows the batch updated."
+          },
+          "updatedRowIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the rows the batch updated."
+          }
+        },
+        "required": ["updatedCount", "updatedRowIds"],
+        "additionalProperties": false,
+        "title": "Bulk update rows data",
+        "description": "Rows affected by a heterogeneous bulk update."
+      },
+      "V2BulkUpdateTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkUpdateRowsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk update table rows response",
+        "description": "Updated row count and identifiers."
+      },
+      "BulkUpdateTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the table."
+          },
+          "updates": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rowId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Identifier of the row this patch applies to."
+                },
+                "data": {
+                  "description": "Cells to merge into this row, keyed by column name.",
+                  "$ref": "#/components/schemas/V2TableRowData"
+                }
+              },
+              "required": ["rowId", "data"],
+              "additionalProperties": false
+            },
+            "description": "One merge patch per row. Each row identifier may appear at most once."
+          }
+        },
+        "required": ["workspaceId", "updates"],
+        "additionalProperties": false,
+        "title": "Bulk update table rows request",
+        "description": "Workspace scope and one merge patch per row.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "updates": [
+              {
+                "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93",
+                "data": {
+                  "status": "active"
+                }
+              },
+              {
+                "rowId": "row_2b4d6f8a0c1e3759b8d0f2a4c6e80193",
+                "data": {
+                  "status": "churned"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "V2EnrichmentRunDetail": {
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the cascade started, or null when not recorded."
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the cascade finished, or null when not recorded."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Wall-clock milliseconds across the whole cascade; zero when not recorded."
+          },
+          "totalCost": {
+            "type": "number",
+            "description": "Sum of per-provider hosted-key cost in USD; zero when not recorded."
+          },
+          "matchedProvider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider that produced the match, or null when none did."
+          },
+          "aborted": {
+            "type": "boolean",
+            "description": "True when the run was canceled before it settled."
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2EnrichmentProviderOutcome"
+            },
+            "description": "Every configured provider, in cascade order, including those that never ran."
+          }
+        },
+        "required": [
+          "startedAt",
+          "completedAt",
+          "durationMs",
+          "totalCost",
+          "matchedProvider",
+          "aborted",
+          "providers"
+        ],
+        "additionalProperties": false,
+        "title": "Enrichment run detail",
+        "description": "Provider cascade, cost, and timing for one enrichment cell."
+      },
+      "V2EnrichmentProviderOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Provider identifier, e.g. `hunter`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable provider name."
+          },
+          "toolId": {
+            "type": "string",
+            "description": "Sim tool identifier the provider ran."
+          },
+          "status": {
+            "type": "string",
+            "description": "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
+          },
+          "cost": {
+            "type": "number",
+            "description": "Hosted-key cost in USD this provider incurred; zero when Sim did not bill it."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "Wall-clock milliseconds this provider took; zero if skipped."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Failure reason when `status` is `error`, else null."
+          }
+        },
+        "required": ["id", "label", "toolId", "status", "cost", "durationMs", "error"],
+        "additionalProperties": false,
+        "title": "Enrichment provider outcome",
+        "description": "One provider's result within an enrichment cascade."
+      },
+      "V2RowEnrichmentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2EnrichmentRunDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Row enrichment response",
+        "description": "Provider cascade, cost, and timing for one enrichment cell."
+      },
+      "V2TableRunDispatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique dispatch identifier."
+          },
+          "tableId": {
+            "type": "string",
+            "description": "Table the dispatch runs against."
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace that owns the dispatch."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "dispatching", "complete", "canceled"],
+            "description": "Current dispatch lifecycle state."
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["all", "incomplete", "new"],
+            "description": "Which cells the dispatch targets: `all` re-runs settled cells, `incomplete` skips them, `new` covers only cells that have never run."
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "groupIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Workflow groups the dispatch runs."
+              },
+              "rowIds": {
+                "description": "Explicit rows the dispatch targets. Absent means it was given no row list and walks every eligible row, narrowed by `filtered` and `excludeRowIds` when either is present.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "filtered": {
+                "description": "Present and true when a stored filter narrows which rows run. The filter itself is not published: it is held compiled, in a different grammar from the predicate the request was written in. Absent means no filter narrows the dispatch — which, with no `rowIds` and no `excludeRowIds`, is what means every eligible row.",
+                "type": "boolean"
+              },
+              "excludeRowIds": {
+                "description": "Rows the walk skips. Independent of `filtered`: a dispatch may exclude rows from a filtered set or from every eligible row. Never present alongside `rowIds`, which the run rejects and the walk would ignore.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["groupIds"],
+            "additionalProperties": false,
+            "description": "What the dispatch was asked to run."
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "rows",
+                    "description": "Unit the cap counts."
+                  },
+                  "max": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Hard ceiling in units of `type`."
+                  }
+                },
+                "required": ["type", "max"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cap on how much work the dispatch does, or null when unbounded."
+          },
+          "processedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Units of `limit.type` consumed so far."
+          },
+          "isManualRun": {
+            "type": "boolean",
+            "description": "True when a caller started the run, false for an automatic re-fire."
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the dispatch was created."
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the dispatch completed, or null."
+          },
+          "canceledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the dispatch was canceled, or null."
+          }
+        },
+        "required": [
+          "id",
+          "tableId",
+          "workspaceId",
+          "status",
+          "mode",
+          "scope",
+          "limit",
+          "processedCount",
+          "isManualRun",
+          "requestedAt",
+          "completedAt",
+          "canceledAt"
+        ],
+        "additionalProperties": false,
+        "title": "Table run dispatch",
+        "description": "Lifecycle state of one table workflow-column run dispatch."
+      },
+      "V2TableRunDispatchResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2TableRunDispatch"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Table run dispatch response",
+        "description": "A single table run dispatch."
+      },
+      "V2CancelTableDispatchResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2TableRunDispatch"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Cancel table dispatch response",
+        "description": "The dispatch in its post-cancellation state."
+      },
+      "V2TableRunDispatchListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2TableRunDispatch"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Table run dispatch list response",
+        "description": "The table's active run dispatches."
+      },
+      "V2MoveTablesData": {
+        "type": "object",
+        "properties": {
+          "moved": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id", "name"],
+              "additionalProperties": false
+            },
+            "description": "Items the batch moved."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id", "name"],
+              "additionalProperties": false
+            },
+            "description": "Items dropped because a selected folder already carries them."
+          },
+          "notFound": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "description": "Entries nothing active resolved to."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why this item could not be acted on."
+                }
+              },
+              "required": ["kind", "id", "name", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Items the batch could not move."
+          }
+        },
+        "required": ["moved", "skipped", "notFound", "failed"],
+        "additionalProperties": false,
+        "title": "Bulk move tables data",
+        "description": "Per-item outcome of a bulk table and folder move."
+      },
+      "V2MoveTablesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2MoveTablesData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk move tables response",
+        "description": "Per-item outcome of a bulk table and folder move."
+      },
+      "BulkMoveTablesRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns every selected item."
+          },
+          "tableIds": {
+            "default": [],
+            "description": "Tables to move, by identifier.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "folderPaths": {
+            "description": "Table folders to re-parent, by canonical path.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderPathInput"
+            }
+          },
+          "targetFolderPath": {
+            "description": "Destination folder path. Omit to move the selection to the workspace root.",
+            "$ref": "#/components/schemas/FolderPathInput"
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Bulk move tables request",
+        "description": "Workspace scope, the tables and folder paths to move, and the destination folder path."
+      },
+      "V2BulkDeleteTablesData": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id", "name"],
+              "additionalProperties": false
+            },
+            "description": "Items the batch archived or deleted."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id", "name"],
+              "additionalProperties": false
+            },
+            "description": "Items dropped because a selected folder already carries them."
+          },
+          "notFound": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                }
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "description": "Entries nothing active resolved to."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": ["table", "folder"],
+                  "description": "Which kind of item this entry names."
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Table identifier, or the folder path for a folder."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Table name, or the folder path for a folder."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why this item could not be acted on."
+                }
+              },
+              "required": ["kind", "id", "name", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Items the batch could not delete."
+          },
+          "deletedItems": {
+            "type": "object",
+            "properties": {
+              "tables": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Tables archived, including folder cascades."
+              },
+              "folders": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Folders deleted, including nested folders."
+              }
+            },
+            "required": ["tables", "folders"],
+            "additionalProperties": false,
+            "description": "Totals across the explicit archives and every folder cascade they triggered."
+          }
+        },
+        "required": ["deleted", "skipped", "notFound", "failed", "deletedItems"],
+        "additionalProperties": false,
+        "title": "Bulk delete tables data",
+        "description": "Per-item outcome of a bulk table and folder delete."
+      },
+      "V2BulkDeleteTablesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkDeleteTablesData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk delete tables response",
+        "description": "Per-item outcome of a bulk table and folder delete."
+      },
+      "BulkDeleteTablesRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns every selected item."
+          },
+          "tableIds": {
+            "default": [],
+            "description": "Tables to archive, by identifier.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "folderPaths": {
+            "description": "Table folders to delete, by canonical path. Each cascades to everything inside it.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FolderPathInput"
+            }
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Bulk delete tables request",
+        "description": "Workspace scope, and the tables and folder paths to delete."
       }
     }
   },

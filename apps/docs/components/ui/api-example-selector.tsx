@@ -2,7 +2,14 @@
 
 import type { ComponentProps } from 'react'
 import { useId } from 'react'
-import { ChevronDown } from '@sim/emcn/icons'
+import {
+  ChipChevronDown,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+} from '@sim/emcn'
 import type { APIPageClientOptions } from 'fumadocs-openapi/ui/client'
 
 type FumadocsAPIExampleSelector = NonNullable<
@@ -29,7 +36,17 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
           id={id}
           value={selectedValue}
           onChange={(event) => onValueChange(event.target.value)}
-          className='w-full appearance-none rounded-md border bg-fd-secondary py-2 ps-3 pe-9 text-start font-medium text-fd-secondary-foreground text-sm outline-none transition-colors hover:bg-fd-accent focus-visible:ring-2 focus-visible:ring-fd-ring'
+          /**
+           * Dressed as an emcn chip trigger, but kept a native `select` for the keyboard and
+           * screen-reader behavior a custom listbox would have to rebuild.
+           */
+          className={cn(
+            chipGeometryClass,
+            chipFieldSurfaceClass,
+            chipFieldTextClass,
+            chipHoverSurfaceClass,
+            'w-full appearance-none pe-8'
+          )}
         >
           {items.map((item) => (
             <option key={item.id} value={item.id}>
@@ -37,10 +54,10 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
             </option>
           ))}
         </select>
-        <ChevronDown className='-translate-y-1/2 pointer-events-none absolute end-3 top-1/2 size-[14px] text-fd-muted-foreground' />
+        <ChipChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2' />
       </div>
       {selectedItem?.description && (
-        <p className='text-fd-muted-foreground text-xs'>{selectedItem.description}</p>
+        <p className='text-[var(--text-muted)] text-caption'>{selectedItem.description}</p>
       )}
     </div>
   )

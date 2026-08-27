@@ -328,6 +328,13 @@ export interface WorkspaceMemberWithRole {
    */
   roleSource: MemberRoleSource
   /**
+   * Admin of the workspace's organization, and so a workspace admin everywhere
+   * in it. Reported separately from `roleSource` because that field ranks
+   * `owner` first, which would otherwise hide the org-admin standing on a
+   * workspace owner — and removal is refused for the org admin, not the owner.
+   */
+  isOrgAdmin: boolean
+  /**
    * The account the workspace bills to. Its role is pinned to `admin` by the
    * workspace-permissions route, so the member UI must not offer to change it.
    */
@@ -369,6 +376,7 @@ export async function getUsersWithPermissions(
       isExternal: !isOwner && row.userOrganizationId !== ws.organizationId,
       joinedAt: row.joinedAt.toISOString(),
       roleSource: isOwner ? 'owner' : 'explicit',
+      isOrgAdmin: false,
       isBilledAccount: row.userId === ws.billedAccountUserId,
     })
   }
@@ -397,6 +405,7 @@ export async function getUsersWithPermissions(
       if (existing) {
         existing.permissionType = 'admin'
         existing.isExternal = false
+        existing.isOrgAdmin = true
         if (existing.roleSource !== 'owner') {
           existing.roleSource = isOwner ? 'owner' : 'org-admin'
         }
@@ -410,6 +419,7 @@ export async function getUsersWithPermissions(
           isExternal: false,
           joinedAt: row.joinedAt.toISOString(),
           roleSource: isOwner ? 'owner' : 'org-admin',
+          isOrgAdmin: true,
           isBilledAccount: row.userId === ws.billedAccountUserId,
         })
       }

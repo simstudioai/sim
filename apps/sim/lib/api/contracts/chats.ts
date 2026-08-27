@@ -10,6 +10,7 @@ export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
  * would lock every visitor out of the deployment permanently.
  */
 const MAX_CHAT_PASSWORD_CHARS = 1024
+const MIN_CHAT_PASSWORD_CHARS = 15
 
 /**
  * Password accepted when setting or changing a chat deployment's password. The
@@ -23,6 +24,10 @@ export const chatDeploymentPasswordSchema = z
   .refine(
     (password) => password.length === 0 || password.trim().length > 0,
     'Password cannot contain only whitespace'
+  )
+  .refine(
+    (password) => password.length === 0 || password.length >= MIN_CHAT_PASSWORD_CHARS,
+    `Password must be at least ${MIN_CHAT_PASSWORD_CHARS} characters`
   )
 
 export const chatIdParamsSchema = z.object({

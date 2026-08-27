@@ -1,4 +1,5 @@
 import {
+  listsSubfolders,
   type V2File,
   v2CreateFileContract,
   v2ListFilesContract,
@@ -23,12 +24,19 @@ function fileCursorFilters(query: {
   scope?: string
   folderPath?: string
   search?: string
+  recursive?: boolean
 }) {
   return cursorScopeKey(cursorRoute(v2ListFilesContract), {
     workspaceId: query.workspaceId,
     scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
+    /**
+     * Keyed on the resolved value, not the raw parameter: omitting `recursive` beside a
+     * search asks for the same page as sending `recursive=true`, so keying on the parameter
+     * would reject a cursor between two requests that select identical rows.
+     */
+    recursive: String(listsSubfolders(query)),
   })
 }
 
@@ -44,6 +52,7 @@ export const GET = defineV2JsonRoute({
     scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
+    recursive: listsSubfolders(query),
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,

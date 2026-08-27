@@ -5,10 +5,28 @@ description: Query data and manage warehouses and tasks in Snowflake
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="snowflake"
   color="#FFFFFF"
 />
+
+{/* MANUAL-CONTENT-START:intro */}
+[Snowflake](https://www.snowflake.com/) is a cloud data platform that separates storage from compute: data lives in databases and schemas, while virtual warehouses supply the compute that runs each query. Sim connects to it over the Snowflake SQL API using a programmatic access token.
+
+With the Snowflake integration in Sim, you can:
+
+- **Run SQL**: Execute a parameterized statement, poll a statement's status, and cancel one that is still running
+- **Synchronize rows**: Insert, update, upsert, and delete rows in a table
+- **Move staged data**: Load data from a stage into a table, and unload a table back out to a stage (materialize a query as a view or `CREATE TABLE AS SELECT` first to export its results)
+- **Browse the account**: List databases, schemas, and tables, and introspect a table's schema
+- **Control warehouses**: List and get warehouses, resume or suspend them, and alter their size and settings
+- **Run and schedule tasks**: List and get tasks, run, resume, or suspend them, list task runs, and read a run's output or cancel its query
+- **Review history**: List query history and copy (load) history
+- **Call procedures**: Invoke a stored procedure with arguments
+
+In Sim, the Snowflake integration allows your agents to work directly against your warehouse. Agents can query for facts that inform a decision, write results back as rows, kick off or unblock a scheduled task, resize a warehouse for a heavy job and suspend it afterward, and read query and load history when something needs investigating.
+{/* MANUAL-CONTENT-END */}
+
 
 ## Usage Instructions
 
@@ -26,6 +44,8 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -72,6 +92,8 @@ Check a running or completed statement and retrieve exactly one result partition
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
 | `partition` | number | No | Zero-based result partition to retrieve; defaults to 0 |
 | `partitionCount` | number | No | Total number of result partitions, taken from the partitionCount of the first partition. Snowflake omits metadata from every later partition response, so supply this when fetching partition 1 or higher to keep truncated and nextPartition accurate |
@@ -112,6 +134,8 @@ Cancel a running Snowflake SQL API statement.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
 
 #### Output
@@ -150,6 +174,8 @@ Insert structured JSON rows using bound values.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -194,6 +220,8 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -239,6 +267,8 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -284,6 +314,8 @@ Delete rows matching a required set of bound column filters.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -328,6 +360,8 @@ Load files from an existing Snowflake stage with COPY INTO.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -379,6 +413,8 @@ Export a Snowflake table to files in a stage with COPY INTO.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -429,6 +465,8 @@ List the databases the credential can access.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `nameLike` | string | No | Optional SQL LIKE pattern for object names |
@@ -470,6 +508,8 @@ List the schemas in a Snowflake database.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -512,6 +552,8 @@ List the tables in a Snowflake schema.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -555,6 +597,8 @@ List warehouses visible to the active Snowflake role.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
@@ -596,6 +640,8 @@ Get the full details for a Snowflake virtual warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -636,6 +682,8 @@ Resume a Snowflake virtual warehouse if it is suspended.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -676,6 +724,8 @@ Suspend a Snowflake virtual warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -716,6 +766,8 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -759,6 +811,8 @@ List tasks in a Snowflake schema.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -802,6 +856,8 @@ Describe a Snowflake task.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -844,6 +900,8 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -887,6 +945,8 @@ Resume a suspended Snowflake task so its schedule runs again.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -929,6 +989,8 @@ Suspend a Snowflake task so its schedule stops triggering runs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -971,6 +1033,8 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1016,6 +1080,8 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1060,6 +1126,8 @@ Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs al
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1101,6 +1169,8 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1143,6 +1213,8 @@ List queries that completed in the last seven days, optionally filtered.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1189,6 +1261,8 @@ List staged-file load results for a table over the last fourteen days.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1235,6 +1309,8 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1280,6 +1356,8 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Snowflake credential \(account host and programmatic access token\) |
+| `domain` | string | No | Snowflake account host injected by the executor from the selected credential |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -1316,3 +1394,5 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+

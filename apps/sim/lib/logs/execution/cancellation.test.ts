@@ -11,7 +11,9 @@ vi.unmock('@sim/db/schema')
 process.env.DATABASE_URL ??= 'postgresql://user:pass@localhost:5432/test'
 
 const { PgDialect } = await import('drizzle-orm/pg-core')
-const { cancelledExecutionLogFields } = await import('@/lib/logs/execution/cancellation')
+const { cancelledExecutionLogFields, terminalExecutionLogFields } = await import(
+  '@/lib/logs/execution/cancellation'
+)
 
 describe('cancelledExecutionLogFields', () => {
   /**
@@ -45,5 +47,42 @@ describe('cancelledExecutionLogFields', () => {
     )
 
     expect(params).toContain(endedAt.toISOString())
+  })
+})
+
+describe('terminalExecutionLogFields', () => {
+  /**
+   * The force-fail boundaries — `LoggingSession.markExecutionAsFailed` and
+   * `PauseResumeManager.markResumeFailed` — leave the same row behind as a
+   * cancellation, only under a different status. Only the status may differ.
+   */
+  it('writes the cancellation field set under the failed status', () => {
+    const endedAt = new Date('2026-08-13T12:00:05.000Z')
+
+    const failed = terminalExecutionLogFields('failed', endedAt)
+
+    expect(Object.keys(failed).sort()).toEqual(
+      Object.keys(cancelledExecutionLogFields(endedAt)).sort()
+    )
+    expect(failed.status).toBe('failed')
+    expect(failed.endedAt).toBe(endedAt)
+    expect(failed.executionDeadlineAt).toBeNull()
+
+    const { params } = new PgDialect().sqlToQuery(failed.totalDurationMs)
+    expect(params).toContain(endedAt.toISOString())
+  })
+
+  /** The cancellation call sites must keep emitting exactly what they did. */
+  it('is what the cancellation binding emits', () => {
+    const endedAt = new Date('2026-08-13T12:00:05.000Z')
+    const dialect = new PgDialect()
+
+    const bound = cancelledExecutionLogFields(endedAt)
+    const direct = terminalExecutionLogFields('cancelled', endedAt)
+
+    expect({ ...bound, totalDurationMs: dialect.sqlToQuery(bound.totalDurationMs) }).toEqual({
+      ...direct,
+      totalDurationMs: dialect.sqlToQuery(direct.totalDurationMs),
+    })
   })
 })

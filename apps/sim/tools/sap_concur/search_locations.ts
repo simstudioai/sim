@@ -6,6 +6,9 @@ import {
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Localities v5 requires at least one of these selectors per request. */
+const SELECTOR_PARAMS = ['searchText', 'locCode', 'locationNameId', 'locationNameKey'] as const
+
 export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurProxyResponse> = {
   id: 'sap_concur_search_locations',
   name: 'SAP Concur Search Locations',
@@ -58,43 +61,48 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Free-text query (city, airport, landmark, etc.)',
+      description:
+        'Free-text for location search. Conditional — required if none of locationNameKey, locationNameId, or locCode is present.',
     },
     locCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'IATA / location code',
+      description:
+        'Location code. Conditional — required if none of locationNameKey, locationNameId, or searchText is present.',
     },
     locationNameId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Concur internal location name ID (UUID)',
+      description:
+        'UUID identifier of the location name. Conditional — required if none of locationNameKey, locCode, or searchText is present.',
     },
     locationNameKey: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Concur internal numeric location name key',
+      description:
+        'Unique key for the location name. Conditional — required if none of locationNameId, locCode, or searchText is present.',
     },
     countryCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: '2-letter ISO 3166-1 country code',
+      description: '2-letter ISO 3166-1 country code. Only valid together with searchText.',
     },
     subdivisionCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ISO 3166-2:2007 country subdivision (e.g. US-WA)',
+      description:
+        'ISO 3166-2:2007 country subdivision (e.g. US-WA). Only valid together with searchText.',
     },
     adminRegionId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Administrative region ID',
+      description: 'Administrative region ID. Only valid together with searchText.',
     },
   },
   request: {
@@ -103,19 +111,26 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const query: Record<string, string | number> = {}
-      if (params.searchText) query.searchText = params.searchText
+      const searchText = params.searchText?.trim()
+      if (searchText) query.searchText = searchText
       if (params.locCode) query.locCode = params.locCode
       if (params.locationNameId) query.locationNameId = params.locationNameId
       if (params.locationNameKey !== undefined && params.locationNameKey !== null)
         query.locationNameKey = params.locationNameKey
-      if (
-        query.searchText === undefined &&
-        query.locCode === undefined &&
-        query.locationNameId === undefined &&
-        query.locationNameKey === undefined
-      ) {
+
+      const selectors = SELECTOR_PARAMS.filter((key) => query[key] !== undefined)
+      if (selectors.length === 0) {
         throw new Error(
           'search_locations requires at least one of: searchText, locCode, locationNameId, locationNameKey'
+        )
+      }
+      const filters: string[] = []
+      if (params.countryCode) filters.push('countryCode')
+      if (params.subdivisionCode) filters.push('subdivisionCode')
+      if (params.adminRegionId) filters.push('adminRegionId')
+      if (filters.length > 0 && query.searchText === undefined) {
+        throw new Error(
+          `search_locations only accepts ${filters.join(', ')} together with searchText`
         )
       }
       if (params.countryCode) query.countryCode = params.countryCode
@@ -151,8 +166,8 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
                 optional: true,
               },
               timeZoneOffset: {
-                type: 'string',
-                description: 'IANA timezone or UTC offset',
+                type: 'number',
+                description: 'Time zone offset of the location, in minutes (e.g. 60)',
                 optional: true,
               },
               active: {
@@ -177,9 +192,18 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
                   type: 'json',
                   properties: {
                     id: { type: 'string', description: 'Name ID', optional: true },
-                    key: { type: 'number', description: 'Numeric name key', optional: true },
-                    locale: { type: 'string', description: 'Locale tag', optional: true },
+                    legacyKey: {
+                      type: 'number',
+                      description: 'Legacy numeric name key',
+                      optional: true,
+                    },
+                    langCode: { type: 'string', description: 'Language code', optional: true },
                     name: { type: 'string', description: 'Display name', optional: true },
+                    active: {
+                      type: 'boolean',
+                      description: 'Whether the name is active',
+                      optional: true,
+                    },
                   },
                 },
               },
@@ -188,28 +212,73 @@ export const searchLocationsTool: ToolConfig<SearchLocationsParams, SapConcurPro
                 description: 'Administrative region (e.g., metro area)',
                 optional: true,
                 properties: {
-                  id: { type: 'string', description: 'Region ID', optional: true },
-                  name: { type: 'string', description: 'Region name', optional: true },
+                  id: {
+                    type: 'string',
+                    description: 'Unique identifier of the admin region',
+                    optional: true,
+                  },
+                  names: {
+                    type: 'array',
+                    description: 'Localized region names',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
+                  countryCode: {
+                    type: 'string',
+                    description: 'ISO 3166-1 country code of the region',
+                    optional: true,
+                  },
+                  subDivCode: {
+                    type: 'string',
+                    description: 'ISO 3166-2 subdivision code of the region',
+                    optional: true,
+                  },
+                  links: {
+                    type: 'array',
+                    description: 'HATEOAS links',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
                 },
               },
               country: {
                 type: 'json',
-                description: 'Country reference',
+                description: 'Country reference (Code schema)',
                 optional: true,
                 properties: {
-                  id: { type: 'string', description: 'Country ID', optional: true },
                   code: { type: 'string', description: 'ISO country code', optional: true },
-                  name: { type: 'string', description: 'Country name', optional: true },
+                  names: {
+                    type: 'array',
+                    description: 'Localized country names',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
+                  links: {
+                    type: 'array',
+                    description: 'HATEOAS links',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
                 },
               },
               subDivision: {
                 type: 'json',
-                description: 'Country subdivision (state/province)',
+                description: 'Country subdivision (state/province, Code schema)',
                 optional: true,
                 properties: {
-                  id: { type: 'string', description: 'Subdivision ID', optional: true },
                   code: { type: 'string', description: 'ISO subdivision code', optional: true },
-                  name: { type: 'string', description: 'Subdivision name', optional: true },
+                  names: {
+                    type: 'array',
+                    description: 'Localized subdivision names',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
+                  links: {
+                    type: 'array',
+                    description: 'HATEOAS links',
+                    optional: true,
+                    items: { type: 'json' },
+                  },
                 },
               },
               links: {

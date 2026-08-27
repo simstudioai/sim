@@ -10,6 +10,7 @@ import * as workflowListQueryModule from '@/hooks/queries/utils/workflow-list-qu
 import { getSelectorDefinition } from '@/hooks/selectors/registry'
 
 const mockEnsureQueryData = vi.fn().mockResolvedValue(undefined)
+const mockFetchQuery = vi.fn().mockResolvedValue(undefined)
 
 /**
  * Spy on the real module namespaces instead of vi.mock: under `isolate: false`
@@ -17,9 +18,13 @@ const mockEnsureQueryData = vi.fn().mockResolvedValue(undefined)
  * cache/query modules, so patching the shared namespaces is the only wiring
  * that always applies.
  */
-const getQueryClientSpy = vi
-  .spyOn(getQueryClientModule, 'getQueryClient')
-  .mockImplementation(() => ({ ensureQueryData: mockEnsureQueryData }) as unknown as QueryClient)
+const getQueryClientSpy = vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(
+  () =>
+    ({
+      ensureQueryData: mockEnsureQueryData,
+      fetchQuery: mockFetchQuery,
+    }) as unknown as QueryClient
+)
 const mockGetWorkflows = vi.spyOn(workflowCacheModule, 'getWorkflows')
 const getWorkflowByIdSpy = vi
   .spyOn(workflowCacheModule, 'getWorkflowById')
@@ -49,7 +54,11 @@ describe('sim.workflows selector', () => {
     vi.clearAllMocks()
     mockEnsureQueryData.mockResolvedValue(undefined)
     getQueryClientSpy.mockImplementation(
-      () => ({ ensureQueryData: mockEnsureQueryData }) as unknown as QueryClient
+      () =>
+        ({
+          ensureQueryData: mockEnsureQueryData,
+          fetchQuery: mockFetchQuery,
+        }) as unknown as QueryClient
     )
     getWorkflowByIdSpy.mockImplementation((workspaceId: string, workflowId: string) =>
       mockGetWorkflows(workspaceId).find((workflow: { id: string }) => workflow.id === workflowId)
@@ -168,5 +177,63 @@ describe('sim.workflows selector', () => {
     })
 
     expect(option).toEqual({ id: 'wf-1', label: 'Pipeline (Alpha)' })
+  })
+})
+
+describe('table column selectors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFetchQuery.mockResolvedValue({
+      schema: {
+        columns: [
+          { id: 'col_email', name: 'Email', type: 'string', unique: true },
+          { id: 'col_name', name: 'Name', type: 'string' },
+        ],
+      },
+    })
+  })
+
+  it('stores stable column ids while displaying column names', async () => {
+    const definition = getSelectorDefinition('table.outputColumns')
+
+    const options = await definition.fetchList!({
+      key: 'table.outputColumns',
+      context: { workspaceId: 'ws-1', tableId: 'tbl-1' },
+    })
+
+    expect(options).toEqual([
+      { id: 'col_email', label: 'Email' },
+      { id: 'col_name', label: 'Name' },
+    ])
+  })
+
+  it('resolves a saved column id to its current name', async () => {
+    const definition = getSelectorDefinition('table.outputColumns')
+    const context = { workspaceId: 'ws-1', tableId: 'tbl-1' }
+
+    const existing = await definition.fetchById!({
+      key: 'table.outputColumns',
+      context,
+      detailId: 'col_email',
+    })
+    const missing = await definition.fetchById!({
+      key: 'table.outputColumns',
+      context,
+      detailId: 'Missing',
+    })
+
+    expect(existing).toEqual({ id: 'col_email', label: 'Email' })
+    expect(missing).toBeNull()
+  })
+
+  it('keeps the existing conflict-column selector limited to unique columns', async () => {
+    const definition = getSelectorDefinition('table.columns')
+
+    const options = await definition.fetchList!({
+      key: 'table.columns',
+      context: { workspaceId: 'ws-1', tableId: 'tbl-1' },
+    })
+
+    expect(options).toEqual([{ id: 'col_email', label: 'Email' }])
   })
 })

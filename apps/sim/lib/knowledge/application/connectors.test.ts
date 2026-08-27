@@ -117,6 +117,8 @@ const delegatedPrincipal = {
   resourceScope: {},
 }
 
+const BILLING = { actorUserId: 'shared-user', workspaceId: 'workspace-a' } as never
+
 describe('knowledge connector application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -138,6 +140,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
     mocks.refreshToken.mockResolvedValue('access-token')
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
+    mocks.resolveBilling.mockResolvedValue(BILLING)
   })
 
   afterAll(resetDbChainMock)
@@ -281,11 +284,13 @@ describe('knowledge connector application use cases', () => {
         connectorId: 'connector-b',
         assertedWorkspaceId: 'workspace-a',
         updates: { sourceConfig: { space: 'ENG' } },
+        resolveBillingAttribution: mocks.resolveBilling,
         source: 'agent',
       },
     })
 
     const orchestrationInput = mocks.updateConnector.mock.calls[0]?.[0] as {
+      resolveBillingAttribution?: () => Promise<unknown>
       validateSourceConfig?: (
         connector: {
           connectorType: string
@@ -298,6 +303,10 @@ describe('knowledge connector application use cases', () => {
     if (!orchestrationInput.validateSourceConfig) {
       throw new Error('Application command did not provide source-config validation')
     }
+    if (!orchestrationInput.resolveBillingAttribution) {
+      throw new Error('Application command did not provide sync billing attribution')
+    }
+    await expect(orchestrationInput.resolveBillingAttribution()).resolves.toBe(BILLING)
     await expect(
       orchestrationInput.validateSourceConfig(
         {
@@ -319,6 +328,7 @@ describe('knowledge connector application use cases', () => {
       expect.any(String)
     )
     expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
+    expect(mocks.resolveBilling).toHaveBeenCalledWith('workspace-a')
   })
 
   it('rejects connector creation when the writer cannot use the workspace credential', async () => {
@@ -534,8 +544,11 @@ describe('knowledge connector application use cases', () => {
         { id: 'document-4', filename: 'd.txt', userExcluded: true },
       ],
       counts: { active: 5, excluded: 2 },
+      hasMore: false,
+      offset: 2,
+      limit: 2,
     })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     expect(dbChainMockFns.offset).toHaveBeenCalledWith(2)
   })
 
@@ -606,4 +619,46 @@ describe('knowledge connector application use cases', () => {
       })
     )
   })
+
+  it.each([
+    { operation: 'exclude' as const, matchesUserExcluded: false, setsUserExcluded: true },
+    { operation: 'restore' as const, matchesUserExcluded: true, setsUserExcluded: false },
+  ])(
+    'targets rows in the opposite state for $operation',
+    async ({ operation, matchesUserExcluded, setsUserExcluded }) => {
+      const sameWorkspaceContext = {
+        ...connectorContext,
+        workspaceId: 'workspace-a',
+        knowledgeBaseId: 'knowledge-a',
+        knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+      }
+      mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
+
+      await updateKnowledgeConnectorDocuments.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-a',
+          connectorId: 'connector-b',
+          assertedWorkspaceId: 'workspace-a',
+          operation,
+          documentIds: ['document-1'],
+        },
+      })
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        userExcluded: setsUserExcluded,
+        enabled: !setsUserExcluded,
+      })
+      const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+      expect(where).toEqual(
+        expect.objectContaining({
+          conditions: expect.arrayContaining([
+            { type: 'eq', left: document.userExcluded, right: matchesUserExcluded },
+          ]),
+        })
+      )
+    }
+  )
 })

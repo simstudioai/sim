@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { grafanaUpdateFolderContract } from '@/lib/api/contracts/tools/grafana'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -15,6 +16,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GrafanaUpdateFolderAPI')
+
+/** Grafana is reached over two sequential hops, so each one needs its own bound. */
+const OUTBOUND_FETCH_TIMEOUT_MS = 30_000
+/** Upstream error bodies can be a full HTML page; only a prefix is useful. */
+const MAX_ERROR_MESSAGE_LENGTH = 2000
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -61,7 +67,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const folderUrl = `${baseUrl}/api/folders/${params.folderUid.trim()}`
+    const folderUrl = `${baseUrl}/api/folders/${encodeURIComponent(params.folderUid.trim())}`
     const urlValidation = await validateUrlWithDNS(folderUrl, 'baseUrl')
     if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return NextResponse.json({
@@ -75,10 +81,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       method: 'GET',
       headers,
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!getResponse.ok) {
-      const errorText = await getResponse.text()
+      const errorText = truncate(await getResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},
@@ -86,7 +94,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const existingFolder = (await getResponse.json()) as any
+    const existingFolder = (await getResponse.json()) as Record<string, unknown>
 
     if (!existingFolder || !existingFolder.uid) {
       return NextResponse.json({
@@ -96,10 +104,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * Grafana treats `version` and `overwrite` as alternatives: `version` is
+     * "not needed if overwrite=true". Sending both made the version we just
+     * fetched decorative and silently clobbered a concurrent rename, so only
+     * the version is sent and a conflicting edit surfaces as Grafana's 412
+     * instead of being lost.
+     */
     const body: Record<string, unknown> = {
-      title: params.title ?? existingFolder.title,
+      title: params.title,
       version: existingFolder.version,
-      overwrite: true,
     }
 
     const updateResponse = await secureFetchWithPinnedIP(folderUrl, urlValidation.resolvedIP, {
@@ -107,10 +121,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
       body: JSON.stringify(body),
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
+      const errorText = truncate(await updateResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},

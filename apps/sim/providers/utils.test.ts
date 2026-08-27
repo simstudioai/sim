@@ -11,11 +11,14 @@ vi.mock('@/executor/utils/http', () => ({
   buildExecutorDelegationHeaders: workflowMetadataMocks.buildExecutorDelegationHeaders,
 }))
 
+import { assignProviderToolIdentities } from '@/providers/tool-identity'
+import type { ProviderToolConfig } from '@/providers/types'
 import {
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
   filterBlacklistedModels,
+  findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
   getAllModelProviders,
@@ -948,6 +951,15 @@ describe('Provider Management', () => {
       expect(getProviderFromModel('unknown-model')).toBe('ollama')
     })
 
+    it('should resolve gateway models that getBaseModelProviders deliberately omits', () => {
+      // getBaseModelProviders() filters these providers out entirely, so a model
+      // block that looked models up there rejected valid ids like these.
+      expect(getProviderFromModel('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
+      expect(getProviderFromModel('together/some-model')).toBe('together')
+      expect(getProviderFromModel('fireworks/some-model')).toBe('fireworks')
+      expect(getBaseModelProviders()['openrouter/meta-llama/llama-4-maverick']).toBeUndefined()
+    })
+
     it('should be case insensitive', () => {
       expect(getProviderFromModel('GPT-4O')).toBe('openai')
       expect(getProviderFromModel('CLAUDE-SONNET-4-0')).toBe('anthropic')
@@ -1253,6 +1265,38 @@ describe('Tool Management', () => {
       const result = prepareToolsWithUsageControl(tools, providerTools, mockLogger)
 
       expect(result.toolChoice).toBe('auto')
+    })
+
+    it('keeps usage control independent for duplicate configured tools', () => {
+      const providerTools: ProviderToolConfig[] = [
+        {
+          id: 'gmail_send',
+          name: 'Gmail Send',
+          description: 'Send an email',
+          params: { oauthCredential: 'credential-a' },
+          parameters: { type: 'object', properties: {}, required: [] },
+          usageControl: 'none',
+        },
+        {
+          id: 'gmail_send',
+          name: 'Gmail Send',
+          description: 'Send an email',
+          params: { oauthCredential: 'credential-b' },
+          parameters: { type: 'object', properties: {}, required: [] },
+          usageControl: 'force',
+        },
+      ]
+      assignProviderToolIdentities(providerTools)
+      const tools = providerTools.map((tool) => ({ function: { name: tool.id } }))
+
+      const result = prepareToolsWithUsageControl(tools, providerTools, mockLogger)
+
+      expect(result.tools).toEqual([{ function: { name: 'gmail_send__sim_2' } }])
+      expect(result.forcedTools).toEqual(['gmail_send__sim_2'])
+      expect(result.toolChoice).toEqual({
+        type: 'function',
+        function: { name: 'gmail_send__sim_2' },
+      })
     })
   })
 })
@@ -1605,7 +1649,7 @@ describe('Provider/Model Blacklist', () => {
   })
 })
 
-describe('transformBlockTool multi-instance unique IDs', () => {
+describe('transformBlockTool table identities', () => {
   const tableBlockDef = {
     type: 'table',
     inputs: {},
@@ -1643,9 +1687,9 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       { selectedOperation: 'query_rows', getAllBlocks, getTool, canonicalModes, toolIndex }
     )
 
-  it('appends the table id when stored under the basic selector subblock key', async () => {
+  it('keeps the canonical id when the table is stored under the basic selector key', async () => {
     const result = await transformTable({ tableSelector: 'tbl_abc' })
-    expect(result?.id).toBe('table_query_rows_tbl_abc')
+    expect(result?.id).toBe('table_query_rows')
   })
 
   it('resolves the active table selector before enriching the LLM tool schema', async () => {
@@ -1709,7 +1753,7 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       }
     )
     expect(result).toMatchObject({
-      id: 'table_query_rows_tbl_active',
+      id: 'table_query_rows',
       description: 'Query rows from tbl_active',
       params: { tableId: 'tbl_stale', tableSelector: 'tbl_active' },
       parameters: {
@@ -1721,25 +1765,25 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_active' })
   })
 
-  it('appends the table id resolved from the advanced manual input', async () => {
+  it('keeps the canonical id for a table resolved from the advanced manual input', async () => {
     const result = await transformTable(
       { manualTableId: 'tbl_xyz' },
       { '0:tableId': 'advanced' },
       0
     )
-    expect(result?.id).toBe('table_query_rows_tbl_xyz')
+    expect(result?.id).toBe('table_query_rows')
   })
 
   it('resolves an advanced-only manual id via the heuristic when basic is empty and no mode is set', async () => {
     // No canonicalModes entry: routing through resolveCanonicalMode picks advanced (empty basic),
     // where the old `?? 'basic'` fallback dropped the advanced-only value.
     const result = await transformTable({ manualTableId: 'tbl_only' })
-    expect(result?.id).toBe('table_query_rows_tbl_only')
+    expect(result?.id).toBe('table_query_rows')
   })
 
-  it('appends the canonical table id when already present in params', async () => {
+  it('keeps the canonical tool id when the table id is already present in params', async () => {
     const result = await transformTable({ tableId: 'tbl_direct' })
-    expect(result?.id).toBe('table_query_rows_tbl_direct')
+    expect(result?.id).toBe('table_query_rows')
   })
 
   it('preserves the canonical table id when advanced mode is active', async () => {
@@ -1748,7 +1792,7 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       { '0:tableId': 'advanced' },
       0
     )
-    expect(result?.id).toBe('table_query_rows_tbl_advanced')
+    expect(result?.id).toBe('table_query_rows')
     expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_advanced' })
   })
 
@@ -1768,12 +1812,12 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     const first = await transformTable(sharedParams, canonicalModes, 0)
     const second = await transformTable(sharedParams, canonicalModes, 1)
 
-    expect(first?.id).toBe('table_query_rows_tbl_advanced')
-    expect(second?.id).toBe('table_query_rows_tbl_basic')
+    expect(first?.id).toBe('table_query_rows')
+    expect(second?.id).toBe('table_query_rows')
   })
 })
 
-describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
+describe('transformBlockTool knowledge-base identities', () => {
   const knowledgeBlockDef = {
     type: 'knowledge',
     inputs: {},
@@ -1816,23 +1860,23 @@ describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
       { selectedOperation: 'search', getAllBlocks, getTool, canonicalModes, toolIndex }
     )
 
-  it('appends the knowledge base id when stored under the basic selector subblock key', async () => {
+  it('keeps the canonical id for the basic knowledge base selector', async () => {
     const result = await transformKb({ knowledgeBaseSelector: 'kb_abc' })
-    expect(result?.id).toBe('knowledge_search_kb_abc')
+    expect(result?.id).toBe('knowledge_search')
   })
 
-  it('appends the knowledge base id resolved from the advanced manual input', async () => {
+  it('keeps the canonical id for an advanced knowledge base input', async () => {
     const result = await transformKb(
       { manualKnowledgeBaseId: 'kb_xyz' },
       { '0:knowledgeBaseId': 'advanced' },
       0
     )
-    expect(result?.id).toBe('knowledge_search_kb_xyz')
+    expect(result?.id).toBe('knowledge_search')
   })
 
-  it('appends the canonical knowledge base id when already present in params', async () => {
+  it('keeps the canonical tool id when the knowledge base id is already present', async () => {
     const result = await transformKb({ knowledgeBaseId: 'kb_direct' })
-    expect(result?.id).toBe('knowledge_search_kb_direct')
+    expect(result?.id).toBe('knowledge_search')
   })
 
   it('falls back to the base tool id when no knowledge base is selected', async () => {
@@ -1948,8 +1992,7 @@ describe('workflow executor metadata delegation', () => {
       },
     })
     expect(result).toMatchObject({
-      id: 'workflow_executor_child-workflow',
-      name: 'Child Workflow',
+      id: 'workflow_executor',
       description: 'Child description',
     })
   })
@@ -2001,8 +2044,7 @@ describe('workflow executor metadata delegation', () => {
     expect(workflowMetadataMocks.buildExecutorDelegationHeaders).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result).toMatchObject({
-      id: 'workflow_executor_child-workflow',
-      name: 'Workflow Executor',
+      id: 'workflow_executor',
       description: 'Execute another workflow',
     })
   })
@@ -2034,5 +2076,29 @@ describe('describeModelLevel', () => {
   it('reports an absent level without throwing', () => {
     expect(describeModelLevel(undefined)).toBe('(unset)')
     expect(describeModelLevel('')).toBe('(unset)')
+  })
+})
+
+describe('findProviderFromModel', () => {
+  it('resolves a chat model to its declaring provider', () => {
+    expect(findProviderFromModel('claude-sonnet-5')).toBe('anthropic')
+    expect(findProviderFromModel('gpt-5.2')).toBe('openai')
+  })
+
+  it('is case-insensitive, like getProviderFromModel', () => {
+    expect(findProviderFromModel('Claude-Sonnet-5')).toBe('anthropic')
+  })
+
+  it('returns null for ids the registry does not declare, instead of guessing ollama', () => {
+    /* The registry holds chat models only. Speech, image, video and embedding
+       ids reach `model` subblocks too, and a permission gate must not read them
+       as Ollama models — see isModelUsable. */
+    for (const id of ['whisper-1', 'dall-e-3', 'veo-3.1', 'embed-v4.0', 'tts-1']) {
+      expect(findProviderFromModel(id)).toBeNull()
+    }
+  })
+
+  it('still lets getProviderFromModel fall back to ollama for those ids', () => {
+    expect(getProviderFromModel('whisper-1')).toBe('ollama')
   })
 })

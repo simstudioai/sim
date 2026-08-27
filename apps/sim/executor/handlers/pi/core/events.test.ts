@@ -133,6 +133,7 @@ describe('normalizePiEvent', () => {
     expect(normalizePiEvent({ type: 'queue_update' })).toEqual({ type: 'other' })
     expect(normalizePiEvent('nope')).toBeNull()
     expect(normalizePiEvent(null)).toBeNull()
+    expect(normalizePiEvent([])).toBeNull()
   })
 })
 

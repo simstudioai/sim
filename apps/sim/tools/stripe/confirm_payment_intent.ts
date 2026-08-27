@@ -1,3 +1,8 @@
+import {
+  defineStripeKeyedSite,
+  type StripeDeliveryContextParams,
+  stripeIdempotencyHeader,
+} from '@/tools/stripe/idempotency'
 import type { ConfirmPaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import {
   PAYMENT_INTENT_METADATA_OUTPUT_PROPERTIES,
@@ -5,8 +10,13 @@ import {
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineStripeKeyedSite(
+  'stripe_confirm_payment_intent',
+  'the payment would be put through a second time and the cardholder would see a duplicate charge'
+)
+
 export const stripeConfirmPaymentIntentTool: ToolConfig<
-  ConfirmPaymentIntentParams,
+  ConfirmPaymentIntentParams & StripeDeliveryContextParams,
   PaymentIntentResponse
 > = {
   id: 'stripe_confirm_payment_intent',
@@ -38,9 +48,18 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
   request: {
     url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/confirm`,
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction rather than fresh per attempt — it is what lets Stripe
+     * recognize a resend and replay its first answer instead of acting again. A
+     * value minted at request-build time is the inverse of the header's purpose:
+     * it is stable only inside the transport loop, and every retry layer above
+     * that re-enters tool preparation and looks to Stripe like a new write.
+     */
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...stripeIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const formData = new URLSearchParams()

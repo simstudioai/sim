@@ -7,6 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getPersonalEnvCredentialMetadata,
   getWorkspaceEnvKeyAdminAccess,
+  hasWorkspaceEnvValue,
 } from '@/lib/credentials/environment'
 import {
   listVisibleWorkspaceCredentials,
@@ -15,10 +16,14 @@ import {
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
+  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
+  updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
 import { secretOperations } from '@/lib/secrets/application/operations'
+import { scanSecretReferences } from '@/lib/secrets/references/scan'
+import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -190,6 +195,7 @@ async function getPersonalSecretMetadata(params: {
     type: 'env_personal',
     displayName: params.name,
     description: null,
+    unredacted: false,
     providerId: null,
     accountId: null,
     envKey: params.name,
@@ -235,8 +241,22 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
       workspaceId: context.workspaceId,
       userId,
     })
+    /**
+     * The one place a secret value rides a read response: rows the workspace marked
+     * visible (unredacted) — whose values already print into every run log this
+     * caller can open — so external agents don't have to scrape logs for them.
+     * Bounded by the page, and read from one environment row.
+     */
+    const visibleNames = page.data.flatMap((row) =>
+      row.type === 'env_workspace' && row.unredacted && row.envKey ? [row.envKey] : []
+    )
+    const values = await readWorkspaceSecretValues({
+      workspaceId: context.workspaceId,
+      names: visibleNames,
+    })
     return {
       secrets: page.data,
+      values,
       nextCursorKeys: page.nextCursorKeys,
       userId,
       sortBy: input.sortBy,
@@ -249,7 +269,20 @@ export interface SetSecretInput {
   workspaceId: string
   name: string
   scope: SecretScope
-  value: string
+  /**
+   * Omitted for a workspace-scope metadata-only write, which updates `description`
+   * and `unredacted` alone and never re-encrypts or replaces the stored value.
+   * Required for personal scope, which has no other writable field.
+   */
+  value?: string
+  /**
+   * Workspace scope only, and rejected at the contract for personal scope: an
+   * `env_personal` row is a per-workspace mirror of one user-global secret, so a
+   * description written here would exist in this workspace alone.
+   */
+  description?: string | null
+  /** Redaction opt-out; workspace scope only, for the same mirror-row reason as description. */
+  unredacted?: boolean
 }
 
 export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
@@ -259,6 +292,18 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
+    if (input.scope === 'personal' && input.description !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'description is only supported for a workspace secret'
+      )
+    }
+    if (input.scope === 'personal' && input.unredacted !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'unredacted is only supported for a workspace secret'
+      )
+    }
     if (input.scope === 'workspace') {
       await requireWorkspaceSecretMutationAccess({
         workspaceId: context.workspaceId,
@@ -268,11 +313,57 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     if (input.scope === 'workspace') {
+      /**
+       * A value-less workspace write takes the update-only manager: no encryption,
+       * no variables rewrite, and no credential insert, so it cannot create a
+       * secret and cannot cost the caller a re-transmission of the plaintext. A
+       * miss is a 404, and `created: false` keeps the route answering 200 for
+       * something it did not create.
+       */
+      if (input.value === undefined) {
+        /**
+         * A write that names none of the three writable fields would still issue
+         * the UPDATE, stamping `updatedAt` and dropping the workspace's env cache
+         * entry for nothing. The contract rejects it; this repeats the guard for
+         * every other surface that reaches the use case directly.
+         */
+        if (input.description === undefined && input.unredacted === undefined) {
+          throw new OrchestrationError(
+            'validation',
+            'value, description, or unredacted is required'
+          )
+        }
+
+        const metadata = await updateWorkspaceSecretMetadata({
+          workspaceId: context.workspaceId,
+          name: input.name,
+          description: input.description,
+          unredacted: input.unredacted,
+        })
+        if (!metadata) throw new OrchestrationError('not_found', 'Secret not found')
+        /**
+         * The response read is a second statement, so a delete committed between
+         * the two leaves nothing to report back. That is the same disappearance
+         * the miss above answers, so it answers the same way rather than raising
+         * the unclassified fault a "must exist" read would.
+         */
+        const updated = await findSecretMetadata({
+          workspaceId: context.workspaceId,
+          userId,
+          scope: 'workspace',
+          name: input.name,
+        })
+        if (!updated) throw new OrchestrationError('not_found', 'Secret not found')
+        return { secret: updated, userId, created: false }
+      }
+
       const mutation = await setWorkspaceSecret({
         workspaceId: context.workspaceId,
         name: input.name,
         value: input.value,
         userId,
+        description: input.description,
+        unredacted: input.unredacted,
       })
       const secret = await getWorkspaceSecretMetadata({
         workspaceId: context.workspaceId,
@@ -280,6 +371,15 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
         name: input.name,
       })
       return { secret, userId, created: mutation.created }
+    }
+
+    /**
+     * Personal scope has no metadata field, so a value-less write here could only be
+     * a silent no-op. The contract rejects it; this repeats the guard for every
+     * other surface that reaches the use case directly.
+     */
+    if (input.value === undefined) {
+      throw new OrchestrationError('validation', 'value is required for a personal secret')
     }
 
     const mutation = await setPersonalSecret({ userId, name: input.name, value: input.value })
@@ -296,8 +396,17 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     resourceType: AuditResourceType.ENVIRONMENT,
     resourceId: `${input.scope}:${input.name}`,
     resourceName: input.name,
-    description: `Set ${input.scope} secret "${input.name}"`,
-    metadata: { scope: input.scope, name: input.name },
+    description:
+      input.value === undefined
+        ? `Updated ${input.scope} secret "${input.name}" metadata`
+        : `Set ${input.scope} secret "${input.name}"`,
+    metadata: {
+      scope: input.scope,
+      name: input.name,
+      ...(input.description !== undefined ? { descriptionUpdated: true } : {}),
+      /** The value, not just a marker: enabling visibility is the security-relevant event. */
+      ...(input.unredacted !== undefined ? { unredacted: input.unredacted } : {}),
+    },
   }),
 })
 
@@ -337,4 +446,200 @@ export const deleteSecretUseCase = defineAuthorizedWorkspaceUseCase({
     description: `Deleted ${input.scope} secret "${input.name}"`,
     metadata: { scope: input.scope, name: input.name },
   }),
+})
+
+export interface ListSecretUsageInput {
+  workspaceId: string
+  name: string
+  scope: SecretScope
+  limit: number
+}
+
+/**
+ * Gates the usage trail behind the same permission that reveals the value.
+ *
+ * The trail names workflows, people, and run ids. Someone who may use a secret but not read
+ * it has no claim on that, and letting a Member enumerate who else uses a key would hand back
+ * a slice of exactly what the value masking withholds. Workspace secrets therefore require
+ * workspace-admin or credential-admin on that key — the same predicate
+ * `maskWorkspaceEnvForViewer` applies — while a personal secret is only ever the caller's own.
+ */
+async function requireSecretUsageReadAccess(params: {
+  workspaceId: string
+  name: string
+  scope: SecretScope
+  userId: string
+}): Promise<void> {
+  /**
+   * Safe to trust the asserted scope here, and only here: the read below is NARROWED by it to
+   * `secretOwnerUserId`, so asserting `personal` for a workspace key returns the caller's own
+   * (empty) trail rather than the workspace one. A read that is not scope-narrowed must not
+   * reuse this — see {@link requireSecretReferencesReadAccess}.
+   */
+  if (params.scope === 'personal') return
+
+  const [workspaceAccess, keyAccess] = await Promise.all([
+    checkWorkspaceAccess(params.workspaceId, params.userId),
+    getWorkspaceEnvKeyAdminAccess({
+      workspaceId: params.workspaceId,
+      envKeys: [params.name],
+      userId: params.userId,
+    }),
+  ])
+
+  if (!workspaceAccess.canAdmin && !keyAccess.adminKeys.has(params.name)) {
+    throw new ForbiddenOperationError(
+      'SECRET_ADMIN_ACCESS_REQUIRED',
+      'Credential admin permission required to view this secret usage'
+    )
+  }
+}
+
+export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: secretOperations.usage,
+  resolveContext: ({ input }: { input: ListSecretUsageInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const userId = principalUserId(principal)
+    await requireSecretUsageReadAccess({
+      workspaceId: context.workspaceId,
+      name: input.name,
+      scope: input.scope,
+      userId,
+    })
+
+    return getSecretUsage({
+      workspaceId: context.workspaceId,
+      secretName: input.name,
+      secretScope: input.scope,
+      /**
+       * A personal trail is only ever the caller's own. Scoping the read to their id is what
+       * enforces that — two people can hold a personal `OPENAI_KEY`, and a name-and-scope
+       * filter alone would hand each of them the other's workflows, actors, and run links.
+       * A workspace secret has no owner, so it reads under the storage sentinel.
+       */
+      secretOwnerUserId: input.scope === 'personal' ? userId : '',
+      limit: input.limit,
+    })
+  },
+})
+
+/**
+ * Deliberately carries no `scope`. A reference is found by name, so a scope here could only be
+ * an assertion the caller controls and the read never narrows by — exactly the shape that made
+ * the first cut of this operation bypassable. The name alone decides both access and result.
+ */
+export interface ListSecretReferencesInput {
+  workspaceId: string
+  name: string
+}
+
+/**
+ * Gates the reference scan on what the NAME resolves to, never on the scope the caller asserts.
+ *
+ * The usage trail can trust `scope` because it narrows the read by it — a personal request is
+ * filtered to `secretOwnerUserId`, so asserting `personal` for a workspace key returns nothing.
+ * A reference scan cannot: `{{KEY}}` names a key and not a scope, so the scan is name-based and
+ * workspace-wide by construction. Reusing the trail's gate therefore made `scope=personal` a
+ * bypass — it returns before any check, and a member could read the admin-gated map for any
+ * workspace secret by naming it under personal scope.
+ *
+ * So the asserted scope is discarded here and the canonical name decides:
+ *  - a workspace secret exists under this name → only its admins (or a workspace admin) may look,
+ *    which is the same predicate that reveals its value;
+ *  - no workspace secret exists → the caller must actually hold a personal secret of that name,
+ *    which stops a member enumerating arbitrary names for a map they have no claim to.
+ */
+/**
+ * Which branch authorized the read. `personal` depends on no workspace value existing under the
+ * name — a condition another request can change — so only that branch needs re-checking after
+ * the scan. An `admin` caller stays authorized however the name resolves, and pays nothing.
+ */
+type SecretReferencesGrant = 'admin' | 'personal'
+
+async function requireSecretReferencesReadAccess(params: {
+  workspaceId: string
+  name: string
+  userId: string
+}): Promise<SecretReferencesGrant> {
+  const [workspaceAccess, keyAccess] = await Promise.all([
+    checkWorkspaceAccess(params.workspaceId, params.userId),
+    getWorkspaceEnvKeyAdminAccess({
+      workspaceId: params.workspaceId,
+      envKeys: [params.name],
+      userId: params.userId,
+    }),
+  ])
+  if (workspaceAccess.canAdmin || keyAccess.adminKeys.has(params.name)) return 'admin'
+
+  const forbidden = new ForbiddenOperationError(
+    'SECRET_ADMIN_ACCESS_REQUIRED',
+    'Credential admin permission required to view this secret usage'
+  )
+
+  /**
+   * A workspace value under this name is admin-gated outright — a personal secret the caller
+   * happens to hold under the same name does not unlock the workspace one's reference map,
+   * and at run time the workspace value is the one that wins anyway.
+   *
+   * Read from the authoritative variables map rather than `keyAccess.knownKeys`: that set only
+   * covers names with an `env_workspace` credential row, so a legacy value written before the
+   * ACL existed would look like "no workspace secret here" and fall through to the personal
+   * branch — handing a non-admin the map for exactly the oldest keys.
+   */
+  if (await hasWorkspaceEnvValue({ workspaceId: params.workspaceId, envKey: params.name })) {
+    throw forbidden
+  }
+
+  const owned = await getPersonalEnvCredentialMetadata({
+    userId: params.userId,
+    envKey: params.name,
+  })
+  if (!owned) throw forbidden
+  return 'personal'
+}
+
+export const listSecretReferencesUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: secretOperations.references,
+  resolveContext: ({ input }: { input: ListSecretReferencesInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const userId = principalUserId(principal)
+    const grant = await requireSecretReferencesReadAccess({
+      workspaceId: context.workspaceId,
+      name: input.name,
+      userId,
+    })
+
+    /**
+     * Name-based, not scope-narrowed: the same reference sites answer for a workspace secret and
+     * for the personal one it shadows. Narrowing by scope would report a personal secret as
+     * unreferenced the moment a workspace variable of the same name existed.
+     */
+    const scan = await scanSecretReferences({
+      workspaceId: context.workspaceId,
+      name: input.name,
+    })
+
+    /**
+     * Re-check the one input that can change under us. A `personal` grant rests on no workspace
+     * value existing under this name; a workspace secret created between the check and the scan
+     * would make the very map now in hand admin-gated. The read is cheap and skipped entirely
+     * for an `admin` grant, and failing closed here costs a non-admin nothing they were entitled
+     * to keep — the request is simply refused the way it would have been a moment later.
+     */
+    if (
+      grant === 'personal' &&
+      (await hasWorkspaceEnvValue({ workspaceId: context.workspaceId, envKey: input.name }))
+    ) {
+      throw new ForbiddenOperationError(
+        'SECRET_ADMIN_ACCESS_REQUIRED',
+        'Credential admin permission required to view this secret usage'
+      )
+    }
+
+    return scan
+  },
 })

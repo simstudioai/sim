@@ -12,6 +12,8 @@ import {
   CELL,
   CELL_CHECKBOX,
   CELL_CONTENT,
+  CELL_OVERLAY_INSET,
+  FIND_MATCH_TINT_BG,
   SELECTION_OVERLAY,
   SELECTION_TINT_BG,
 } from './constants'
@@ -67,6 +69,13 @@ export interface DataRowProps {
   pinnedOffsets?: Map<string, number>
   /** Key of the rightmost pinned column, used to render a separator shadow. */
   lastPinnedColKey?: string | null
+  /**
+   * Column keys in this row matching the active find query, tinted so every hit
+   * is visible at once rather than only the one being navigated to. Absent when
+   * the row has no match, which is the common case and keeps this row's memo
+   * from re-running for a search elsewhere in the table.
+   */
+  findMatchColumns?: ReadonlySet<string>
 }
 
 function cellRangeRowChanged(
@@ -128,7 +137,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.workflowGroups !== next.workflowGroups ||
     prev.activeDispatches !== next.activeDispatches ||
     prev.pinnedOffsets !== next.pinnedOffsets ||
-    prev.lastPinnedColKey !== next.lastPinnedColKey
+    prev.lastPinnedColKey !== next.lastPinnedColKey ||
+    prev.findMatchColumns !== next.findMatchColumns
   ) {
     return false
   }
@@ -177,6 +187,7 @@ export const DataRow = React.memo(function DataRow({
   activeDispatches,
   pinnedOffsets,
   lastPinnedColKey,
+  findMatchColumns,
 }: DataRowProps) {
   const sel = normalizedSelection
   /**
@@ -299,6 +310,7 @@ export const DataRow = React.memo(function DataRow({
         const isAnchor = sel !== null && rowIndex === sel.anchorRow && colIndex === sel.anchorCol
         const isEditing = editingColumnName === column.key
         const isHighlighted = inRange || isRowChecked
+        const isFindMatch = findMatchColumns?.has(column.key)
 
         const isTopEdge = inRange ? rowIndex === sel!.startRow : isRowChecked
         const isBottomEdge = inRange ? rowIndex === sel!.endRow : isRowChecked
@@ -323,7 +335,7 @@ export const DataRow = React.memo(function DataRow({
             data-pinned={isPinnedCell ? '' : undefined}
             className={cn(
               CELL,
-              (isHighlighted || isAnchor || isEditing) && 'relative',
+              (isHighlighted || isAnchor || isEditing || isFindMatch) && 'relative',
               isPinnedCell && 'z-[6] bg-[var(--bg)]',
               isPinnedSeparator && '[box-shadow:2px_0_0_0_var(--border)]'
             )}
@@ -342,10 +354,26 @@ export const DataRow = React.memo(function DataRow({
             }
             onDoubleClick={() => onDoubleClick(row.id, column.key, column.key)}
           >
+            {/* No z-index on purpose: with `auto` it paints in DOM order, so it
+                sits above the cell background but BELOW the cell text, the
+                selection tint (z-4) and the anchor outline (z-5). The active
+                match therefore still reads as the selected cell, and the wash
+                never dims the value it is pointing at. */}
+            {isFindMatch && (
+              <div
+                className={cn(
+                  CELL_OVERLAY_INSET,
+                  colIndex === 0 ? 'left-0' : '-left-px',
+                  isFirstRow && 'top-0',
+                  FIND_MATCH_TINT_BG
+                )}
+              />
+            )}
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
-                  '-top-px -right-px -bottom-px pointer-events-none absolute z-[4]',
+                  CELL_OVERLAY_INSET,
+                  'z-[4]',
                   colIndex === 0 ? 'left-0' : '-left-px',
                   SELECTION_TINT_BG,
                   isFirstRow && isTopEdge && 'top-0',

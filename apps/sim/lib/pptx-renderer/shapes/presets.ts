@@ -26,24 +26,6 @@ function adj(
   return raw / 100000
 }
 
-/** Helper: generate a regular polygon path (inscribed in bounding box). */
-function _regularPolygon(w: number, h: number, sides: number): string {
-  const cx = w / 2
-  const cy = h / 2
-  const rx = w / 2
-  const ry = h / 2
-  const parts: string[] = []
-  for (let i = 0; i < sides; i++) {
-    // Start from top center (-90 degrees)
-    const angle = (2 * Math.PI * i) / sides - Math.PI / 2
-    const x = cx + rx * Math.cos(angle)
-    const y = cy + ry * Math.sin(angle)
-    parts.push(i === 0 ? `M${x},${y}` : `L${x},${y}`)
-  }
-  parts.push('Z')
-  return parts.join(' ')
-}
-
 /** Raw adj helper: get adjustment value without dividing by 100000. */
 function adjRaw(
   adjustments: Map<string, number> | undefined,
@@ -4419,21 +4401,6 @@ presetOverlays.set('can', (w, h) => {
     },
   ]
 })
-
-/**
- * Get overlay paths for a preset shape (3D top faces, etc.).
- * Returns empty array if the shape has no overlays.
- */
-export function getPresetOverlays(
-  shapeType: string,
-  w: number,
-  h: number,
-  adjustments?: Map<string, number>
-): PresetOverlay[] {
-  const key = shapeType.toLowerCase()
-  const gen = presetOverlays.get(key) ?? presetOverlays.get(shapeType)
-  return gen ? gen(w, h, adjustments) : []
-}
 
 // Multi-path preset shapes — complex shapes with multiple SVG paths
 // Each path has its own fill modifier and stroke behavior, matching OOXML spec.

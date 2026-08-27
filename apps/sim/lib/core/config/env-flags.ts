@@ -1,6 +1,6 @@
 /**
  * Loaded by `next.config.ts` before the `@/` alias is available, so
- * config-boundary dependencies in this module must use relative imports.
+ * config-boundary dependencies use workspace packages or relative imports.
  */
 
 import {
@@ -55,20 +55,6 @@ const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
 export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
- * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
- * consumer has rolled out. Disabled is the Sim-first compatibility stage.
- */
-export const isCopilotBillingAttributionV1Enabled = isTruthy(
-  env.COPILOT_BILLING_ATTRIBUTION_V1_ENABLED
-)
-
-/**
- * Rejects markerless old-Go billing traffic after an operator explicitly
- * confirms the compatibility window has closed. Off by default.
- */
-export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
-
-/**
  * Are the Chat module's surfaces shown. On by default, so a deployment that
  * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
  * wizard writes the opt-out when you skip the key.
@@ -84,6 +70,13 @@ export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PRO
  * `useState`/`useEffect` would render chat surfaces before removing them.
  */
 export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
+
+/**
+ * Forces the sidebar service-status notice into its critical preview state.
+ * This is an explicit testing override; when unset, hosted deployments read
+ * the live status page and other deployments do not mount the notice.
+ */
+export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_NOTICE_PREVIEW'))
 
 /**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
@@ -354,6 +347,12 @@ export const isAuditLogsEnabled = enterpriseFeatureEnabled(
   'NEXT_PUBLIC_AUDIT_LOGS_ENABLED'
 )
 
+export const isCustomBlocksEnabled = enterpriseFeatureEnabled(
+  'customBlocks',
+  env.CUSTOM_BLOCKS_ENABLED,
+  'NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'
+)
+
 /**
  * Is retention *deletion* enabled.
  *
@@ -411,7 +410,7 @@ const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
  *
  * The browser cannot inspect provider credentials, so
  * `NEXT_PUBLIC_SANDBOXES_ENABLED` is its readiness projection. Set the public
- * value only after this server-side check succeeds; `bun run setup --doctor`
+ * value only after this server-side check succeeds; `npx sim-setup doctor`
  * reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =

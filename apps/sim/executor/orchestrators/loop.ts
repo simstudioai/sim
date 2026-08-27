@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
@@ -273,14 +272,11 @@ export class LoopOrchestrator {
       }
     }
 
-    const useRedis = isRedisCancellationEnabled() && !!ctx.executionId
-    let isCancelled = false
-    if (useRedis) {
-      isCancelled = await isExecutionCancelled(ctx.executionId!)
-    } else {
-      isCancelled = ctx.abortSignal?.aborted ?? false
-    }
-    if (isCancelled) {
+    // Exiting normally is safe only because the engine aborts this signal exclusively via
+    // `signalCancelled`, so the run is already flagged cancelled. Never read the durable
+    // cancellation flag here instead — the engine would not have seen it, and this clean exit
+    // would then complete the run successfully.
+    if (ctx.abortSignal?.aborted) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return await this.createExitResult(ctx, loopId, scope)
     }

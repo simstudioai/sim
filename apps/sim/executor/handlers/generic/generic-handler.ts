@@ -4,7 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
 import { readStatusCode } from '@/executor/utils/errors'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -47,11 +47,25 @@ function selectBlockBoundaryPaths(
         if (path[0]) requiredProjectionRoots.add(path[0])
       }
     }
+    /**
+     * Tracked, but never required to project.
+     *
+     * A `secretProvenance` selection is the opposite mechanism to a projected model input: the
+     * value travels to an internal API unchanged, with its provenance alongside it in the private
+     * bundle, precisely so nothing has to be substituted. `table_insert_row` posts row data to the
+     * table API and declares no `modelInput` at all — there is no model egress on that path.
+     *
+     * Requiring those roots anyway made a projection failure fatal for tools that have no way to
+     * project: `createStructuredModelProjection` rescues only a `mode: 'project'` tool with an
+     * `applyProjected`, so for the twenty-odd `secretProvenance`-only tools it returns undefined on
+     * its first check. The Table block's `params` runs `parseJSON` on the projected `data` string,
+     * which throws once a placeholder stands where the JSON was, and the whole run's registry
+     * latched — costing provenance for every later boundary, including the table write itself.
+     *
+     * A root is required to project when a model will see it, which is what `modelInput` declares.
+     */
     for (const selection of tool.request.secretProvenance?.request?.(params) ?? []) {
       paths.push(...selection.inputPaths)
-      for (const path of selection.inputPaths) {
-        if (path[0]) requiredProjectionRoots.add(path[0])
-      }
     }
 
     const uniquePaths = new Map<string, ResolvedSecretInputPath>()
@@ -152,7 +166,8 @@ export class GenericBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<any> {
     const isMcp = block.config.tool ? isMcpTool(block.config.tool) : false
     let tool = null
@@ -185,8 +200,16 @@ export class GenericBlockHandler implements BlockHandler {
               try {
                 finalInputs[key] = JSON.parse(value.trim())
               } catch (error) {
+                /**
+                 * The failure class, not the thrown message. This parses a resolved input, so the
+                 * string may be a secret, and V8 quotes the text it rejected back into the
+                 * message — `Unexpected token 's', "sk-live-EX"... is not valid JSON`. That
+                 * prefix is enough to leak. The field name and its declared type are already in
+                 * the message above, and `SyntaxError` is the only class `JSON.parse` throws, so
+                 * nothing diagnostic is lost.
+                 */
                 logger.warn(`Failed to parse ${inputType} field "${key}":`, {
-                  error: toError(error).message,
+                  error: toError(error).name,
                 })
               }
             }
@@ -199,8 +222,11 @@ export class GenericBlockHandler implements BlockHandler {
         boundary && boundary.paths.length > 0 && registry?.hasResolvedInputProjections()
           ? registry.projectResolvedInputSelections(inputs)
           : undefined
-      if (projectedInputs?.complete === false)
-        registry?.markIncomplete('structural-input-projection-incomplete')
+      if (projectedInputs?.complete === false) {
+        registry?.markIncomplete('structural-input-projection-incomplete', {
+          detail: { blockType, ...(tool ? { tool: tool.id } : {}) },
+        })
+      }
 
       if (projectedInputs?.complete && boundary && tool && registry) {
         for (const projection of projectedInputs.values) {
@@ -220,7 +246,7 @@ export class GenericBlockHandler implements BlockHandler {
                 ...blockConfig.tools.config.params(projectedFinalInputs),
               }
             }
-          } catch {
+          } catch (error) {
             const structuredProjection = createStructuredModelProjection(
               tool,
               finalInputs,
@@ -234,7 +260,21 @@ export class GenericBlockHandler implements BlockHandler {
               continue
             }
             if (boundary.requiredProjectionRoots.has(projection.path[0])) {
-              registry.markIncomplete('structural-input-root-unprojected')
+              /**
+               * `config.params` threw on the projected inputs — the copy where a secret has been
+               * replaced by its placeholder — and no structured projection could recover it. The
+               * reason alone said only that this happened somewhere, which is not enough to find
+               * the block. The failure class rather than the thrown message, because a coercion
+               * that rejects a value tends to quote it, and this input may hold a secret.
+               */
+              registry.markIncomplete('structural-input-root-unprojected', {
+                detail: {
+                  blockType,
+                  tool: tool.id,
+                  inputPath: projection.path.join('.'),
+                  failure: toError(error).name,
+                },
+              })
             }
             continue
           }
@@ -276,6 +316,19 @@ export class GenericBlockHandler implements BlockHandler {
             userId: ctx.userId,
             isDeployedContext: ctx.isDeployedContext,
             enforceCredentialAccess: ctx.enforceCredentialAccess,
+            blockId: block.id,
+            /*
+             * The identity a `keyed` tool derives its provider idempotency token
+             * from. `executionOrder` is assigned before the block executor's
+             * retry wrapper, so it is identical across the transport loop, the
+             * hosted-key loop and a block-level retry — and it differs per loop
+             * iteration and per parallel branch, so five iterations paying five
+             * invoices derive five distinct tokens rather than collapsing into
+             * one the provider would dedupe down to a single payment.
+             */
+            ...(nodeMetadata?.executionOrder !== undefined
+              ? { invocationId: String(nodeMetadata.executionOrder) }
+              : {}),
           },
         },
         { executionContext: ctx }

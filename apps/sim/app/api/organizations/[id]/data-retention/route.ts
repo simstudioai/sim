@@ -13,12 +13,8 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import {
-  getForeignWorkspaceTargetsReason,
-  getPiiRedactionDenialReason,
-} from '@/lib/billing/retention'
+import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { coercePiiLanguage } from '@/lib/guardrails/pii-entities'
 
@@ -107,10 +103,6 @@ export const GET = withRouteHandler(
     }
 
     const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
-    const [piiRedactionEnabled, piiGranularRedactionEnabled] = await Promise.all([
-      isFeatureEnabled('pii-redaction'),
-      isFeatureEnabled('pii-granular-redaction'),
-    ])
     const configured = normalizeConfigured(org.dataRetentionSettings)
     const defaults = enterpriseDefaults()
 
@@ -121,8 +113,6 @@ export const GET = withRouteHandler(
         defaults,
         configured,
         effective: isEnterprise ? configured : defaults,
-        piiRedactionEnabled,
-        piiGranularRedactionEnabled,
       },
     })
   }
@@ -191,11 +181,6 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const [piiRedactionEnabled, piiGranularRedactionEnabled] = await Promise.all([
-      isFeatureEnabled('pii-redaction'),
-      isFeatureEnabled('pii-granular-redaction'),
-    ])
-
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
     const merged: DataRetentionSettings = { ...current }
     if (body.logRetentionHours !== undefined) {
@@ -208,15 +193,6 @@ export const PUT = withRouteHandler(
       merged.taskCleanupHours = body.taskCleanupHours
     }
     if (body.piiRedaction !== undefined) {
-      const denialReason = getPiiRedactionDenialReason({
-        current: current.piiRedaction,
-        incoming: body.piiRedaction,
-        piiRedactionEnabled,
-        piiGranularRedactionEnabled,
-      })
-      if (denialReason) {
-        return NextResponse.json({ error: denialReason }, { status: 403 })
-      }
       merged.piiRedaction = body.piiRedaction
     }
     if (body.retentionOverrides !== undefined) {
@@ -266,8 +242,6 @@ export const PUT = withRouteHandler(
         defaults,
         configured,
         effective: configured,
-        piiRedactionEnabled,
-        piiGranularRedactionEnabled,
       },
     })
   }

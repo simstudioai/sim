@@ -1,0 +1,147 @@
+---
+title: Overview
+description: Global options, and every sim command group
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every `sim` command follows the same shape:
+
+```bash
+sim <resource> [sub-resource] <verb> [arguments] [options]
+```
+
+Resource groups are plural, and each one also accepts its singular spelling —
+`sim workflow get` and `sim workflows get` are the same command. `knowledge`
+additionally answers to `kb`.
+
+## Global options
+
+These apply to every command, and may be written before or after it.
+
+| Option | Description |
+| --- | --- |
+| `-P, --profile <name>` | Profile to use (env: SIM_PROFILE). |
+| `--endpoint <url>` | Sim deployment to talk to (env: SIM_ENDPOINT). |
+| `-w, --workspace <id>` | Workspace to target (env: SIM_WORKSPACE). |
+| `--output <format>` | Output format for this command. Accepted values: `table`, `json`, `yaml`, `text`. |
+
+## Command groups
+
+| Group | Description |
+| --- | --- |
+| [`sim profiles`](/cli/profiles) | List profiles or add a workspace profile that shares a stored login |
+| [`sim audit-logs`](/cli/audit-logs) | Manage audit logs |
+| [`sim billing`](/cli/billing) | Manage billing |
+| [`sim blocks`](/cli/blocks) | Manage blocks |
+| [`sim chat-deployments`](/cli/chat-deployments) | Manage chat deployments |
+| [`sim connector-types`](/cli/connector-types) | Manage connector types |
+| [`sim credentials`](/cli/credentials) | Manage credentials |
+| [`sim custom-tools`](/cli/custom-tools) | Manage custom tools |
+| [`sim files`](/cli/files) | Manage files |
+| [`sim knowledge`](/cli/knowledge) | Manage knowledge |
+| [`sim logs`](/cli/logs) | Manage logs |
+| [`sim mcp-servers`](/cli/mcp-servers) | Manage mcp servers |
+| [`sim meta`](/cli/meta) | Manage meta |
+| [`sim secrets`](/cli/secrets) | Manage secrets |
+| [`sim skills`](/cli/skills) | Manage skills |
+| [`sim tables`](/cli/tables) | Manage tables |
+| [`sim tools`](/cli/tools) | Manage tools |
+| [`sim workflow-mcp-servers`](/cli/workflow-mcp-servers) | Manage workflow mcp servers |
+| [`sim workflows`](/cli/workflows) | Manage workflows |
+| [`sim workspaces`](/cli/workspaces) | Manage workspaces |
+
+## Authorize this terminal and store an API key for the profile
+
+```bash
+sim login [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <scope>` | No | Key space to mint from: platform or copilot. Defaults to `platform`. |
+| `--no-browser` | No | Print the URL instead of opening a browser. |
+| `-y, --yes` | No | Overwrite an existing profile without prompting. |
+
+</CommandTable>
+
+## Remove the profile's stored API key
+
+```bash
+sim logout [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--all` | No | Remove the profile entirely, including its settings. |
+
+</CommandTable>
+
+## Show the resolved profile, where each setting came from, and whether it works
+
+```bash
+sim whoami [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--no-verify` | No | Skip the API check and only print the resolved settings. |
+
+</CommandTable>
+
+## Set a profile's endpoint, default workspace, or output format
+
+```bash
+sim configure [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--set-endpoint <url>` | No | Sim deployment to talk to. |
+| `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
+| `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
+| `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## Ask Sim and print the reply
+
+```bash
+sim chat <message> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `message` | Yes | What to ask Sim |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-c, --conversation <id>` | No | Continue the conversation with this ID. |
+
+</CommandTable>

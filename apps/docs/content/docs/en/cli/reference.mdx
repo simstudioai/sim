@@ -1,0 +1,5691 @@
+---
+title: Complete reference
+description: Every sim command, argument, and flag on a single page
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command on one page, generated from the CLI itself. Start at the
+[overview](/cli/commands) to browse; this page is for searching and for tools.
+
+Append `.mdx` to any page for its raw Markdown —
+[`/cli/reference.mdx`](/cli/reference.mdx) is this page as plain text. The docs
+are also published as [`/llms.txt`](/llms.txt) and
+[`/llms-full.txt`](/llms-full.txt).
+
+## Global options
+
+These apply to every command, and may be written before or after it.
+
+| Option | Description |
+| --- | --- |
+| `-P, --profile <name>` | Profile to use (env: SIM_PROFILE). |
+| `--endpoint <url>` | Sim deployment to talk to (env: SIM_ENDPOINT). |
+| `-w, --workspace <id>` | Workspace to target (env: SIM_WORKSPACE). |
+| `--output <format>` | Output format for this command. Accepted values: `table`, `json`, `yaml`, `text`. |
+
+## sim login
+
+Authorize this terminal and store an API key for the profile
+
+```bash
+sim login [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <scope>` | No | Key space to mint from: platform or copilot. Defaults to `platform`. |
+| `--no-browser` | No | Print the URL instead of opening a browser. |
+| `-y, --yes` | No | Overwrite an existing profile without prompting. |
+
+</CommandTable>
+
+## sim logout
+
+Remove the profile's stored API key
+
+```bash
+sim logout [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--all` | No | Remove the profile entirely, including its settings. |
+
+</CommandTable>
+
+## sim whoami
+
+Show the resolved profile, where each setting came from, and whether it works
+
+```bash
+sim whoami [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--no-verify` | No | Skip the API check and only print the resolved settings. |
+
+</CommandTable>
+
+## sim configure
+
+Set a profile's endpoint, default workspace, or output format
+
+```bash
+sim configure [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--set-endpoint <url>` | No | Sim deployment to talk to. |
+| `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
+| `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
+| `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## sim chat
+
+Ask Sim and print the reply
+
+```bash
+sim chat <message> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `message` | Yes | What to ask Sim |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-c, --conversation <id>` | No | Continue the conversation with this ID. |
+
+</CommandTable>
+
+## sim profiles
+
+Also spelled `sim profile`.
+
+### sim profiles list
+
+List configured profiles
+
+```bash
+sim profiles list
+```
+
+### sim profiles add
+
+Add a workspace profile that shares the active stored login
+
+```bash
+sim profiles add <name> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `name` | Yes | Name for the new profile |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-w, --workspace <id>` | No | Existing workspace to use; omit for an interactive picker. |
+
+</CommandTable>
+
+## sim audit-logs
+
+Also spelled `sim audit-log`.
+
+### sim audit-logs get
+
+Get Audit Log (personal API key required)
+
+```bash
+sim audit-logs get <auditLogId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `auditLogId` | Yes | Audit-log entry identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+
+</CommandTable>
+
+### sim audit-logs list
+
+List Audit Logs (personal API key required)
+
+```bash
+sim audit-logs list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--action <value>` | No | Filter by exact action name. |
+| `--resource-type <value>` | No | Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor. |
+| `--resource-id <value>` | No | Filter by exact resource identifier. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--include-departed` | No | Include actions by users who have left the organization. |
+| `--no-include-departed` | No | Send --include-departed as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--organization <value>` | No | Organization ID; defaults to your only organization, and is required when your account belongs to more than one (personal API key required). |
+| `--actor-email <value>` | No | Filter by actor email address. |
+| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+
+</CommandTable>
+
+## sim billing
+
+### sim billing status
+
+Show billing status and current-period credit usage (credits and storage require a personal API key)
+
+```bash
+sim billing status [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+
+</CommandTable>
+
+### sim billing logs
+
+List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)
+
+```bash
+sim billing logs [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source <value>` | No | Filter by usage source; sim-chat combines Copilot and workspace chat. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`. |
+| `--period <value>` | No | Billing period. Accepted values: `1d`, `7d`, `30d`, `all`, `custom`. |
+| `--start-date <value>` | No | Custom period start (ISO 8601). |
+| `--end-date <value>` | No | Custom period end (ISO 8601). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+
+</CommandTable>
+
+## sim blocks
+
+### sim blocks get
+
+Get Block
+
+```bash
+sim blocks get <blockId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+### sim blocks list
+
+List Blocks
+
+```bash
+sim blocks list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the block id, name, and description. |
+| `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
+| `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
+| `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## sim chat-deployments
+
+### sim chat-deployments list
+
+List Chat Deployments
+
+```bash
+sim chat-deployments list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Restrict to deployments of one workflow. |
+| `--is-active` | No | Restrict to active or inactive deployments. |
+| `--no-is-active` | No | Send --is-active as false. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `identifier`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## sim connector-types
+
+### sim connector-types list
+
+List Connector Types
+
+```bash
+sim connector-types list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the connector name. |
+
+</CommandTable>
+
+## sim credentials
+
+Also spelled `sim credential`.
+
+### sim credentials delete
+
+Disconnect Credential (personal API key required)
+
+```bash
+sim credentials delete <credentialId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `credentialId` | Yes | Credential to disconnect. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim credentials providers list
+
+List Credential Providers
+
+```bash
+sim credentials providers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the credential provider name. |
+
+</CommandTable>
+
+### sim credentials list
+
+List Credentials
+
+```bash
+sim credentials list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--type <value>` | No | Restrict results to this credential type. Accepted values: `oauth`, `service_account`. |
+| `--provider-id <value>` | No | Restrict results to credentials for this integration provider. |
+| `--search <value>` | No | Case-insensitive substring match against the credential display name. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `displayName`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim credentials update
+
+Update Credential (personal API key required)
+
+```bash
+sim credentials update <credentialId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `credentialId` | Yes | Credential to update. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | No | New name shown for the credential in Sim. |
+| `--description <value>` | No | New credential description. Send null to clear the stored one. (--description null sends the word, not JSON null). |
+| `--service-account-json <value>` | No | Write-only Google service-account JSON key. |
+| `--api-token <value>` | No | Write-only provider API token. |
+| `--domain <value>` | No | Provider account domain. |
+| `--signing-secret <value>` | No | Write-only webhook signing secret. |
+| `--bot-token <value>` | No | Write-only bot token. |
+| `--client-id <value>` | No | OAuth client identifier. |
+| `--client-secret <value>` | No | Write-only OAuth client secret. |
+| `--certificate-id <value>` | No | Provider certificate mapping identifier. |
+| `--org-id <value>` | No | Provider organization ID. |
+| `--data-center <value>` | No | Provider data center. |
+| `--auth-method <value>` | No | Provider authentication method. |
+| `--private-key <value>` | No | Write-only PEM private key. |
+| `--username <value>` | No | Provider run-as username. |
+| `--name <displayName>` | No | Alias for --display-name. |
+
+</CommandTable>
+
+### sim credentials create
+
+Create a service-account credential using its discovered provider schema (personal API key required)
+
+```bash
+sim credentials create <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | Service-account provider to create a credential for |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <displayName>` | Yes | Name shown for the credential in Sim. |
+| `--credentials <json\|@file>` | Yes | Provider credentials as JSON (or @path / @- to read a file or stdin). |
+| `--description <description>` | No | Optional credential description. |
+| `--id <credentialId>` | No | Client-generated credential ID when provider discovery requires it. |
+
+</CommandTable>
+
+### sim credentials connect
+
+Create a short-lived link for connecting an OAuth provider (personal API key required)
+
+```bash
+sim credentials connect <providerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `providerId` | Yes | OAuth provider to connect |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <displayName>` | Yes | Name shown for the new credential in Sim. |
+
+</CommandTable>
+
+### sim credentials reconnect
+
+Create a short-lived link for reconnecting an OAuth credential (personal API key required)
+
+```bash
+sim credentials reconnect <credentialId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `credentialId` | Yes | Existing OAuth credential to re-authorize |
+
+</CommandTable>
+
+## sim custom-tools
+
+Also spelled `sim custom-tool`.
+
+### sim custom-tools create
+
+Create Custom Tool
+
+```bash
+sim custom-tools create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--title <value>` | Yes | Display title, unique within the workspace. |
+| `--schema <json\|@file>` | Yes | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--code <value>` | Yes | Tool implementation executed in the sandboxed function runtime. |
+
+</CommandTable>
+
+### sim custom-tools delete
+
+Delete Custom Tool
+
+```bash
+sim custom-tools delete <customToolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim custom-tools get
+
+Get Custom Tool
+
+```bash
+sim custom-tools get <customToolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+### sim custom-tools list
+
+List Custom Tools
+
+```bash
+sim custom-tools list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the tool title. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `title`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim custom-tools update
+
+Update Custom Tool
+
+```bash
+sim custom-tools update <customToolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `customToolId` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--title <value>` | No | New display title for the tool. |
+| `--schema <json\|@file>` | No | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--code <value>` | No | Replacement tool implementation. |
+
+</CommandTable>
+
+## sim files
+
+Also spelled `sim file`.
+
+### sim files batch-delete
+
+Delete several files at once
+
+```bash
+sim files batch-delete [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files create
+
+Create File
+
+```bash
+sim files create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
+| `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
+| `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
+
+</CommandTable>
+
+### sim files folders create
+
+Create a file folder at a path
+
+```bash
+sim files folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim files folders delete
+
+Delete Folder
+
+```bash
+sim files folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files folders list
+
+List folders
+
+```bash
+sim files folders list [options]
+```
+
+Also available as `sim files folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
+
+</CommandTable>
+
+### sim files folders move
+
+Rename or move a file folder
+
+```bash
+sim files folders move <path> <destination>
+```
+
+Also available as `sim files folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim files folders restore
+
+Restore an archived file folder
+
+```bash
+sim files folders restore <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim files delete
+
+Delete File
+
+```bash
+sim files delete <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files describe
+
+Show file metadata and sharing status
+
+```bash
+sim files describe <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a delete soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before the file is restored. Authorization is identical for both. Accepted values: `active`, `archived`. |
+
+</CommandTable>
+
+### sim files share get
+
+Show a file’s share settings
+
+```bash
+sim files share get <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+### sim files share set
+
+Enable or disable sharing for a file (personal API key required)
+
+```bash
+sim files share set <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
+| `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
+| `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim files list
+
+List Files
+
+```bash
+sim files list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--recursive` | No | Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. |
+| `--no-recursive` | No | Send --recursive as false. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--search <value>` | No | Case-insensitive substring match against the file name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim files move
+
+Move files into another folder
+
+```bash
+sim files move [options]
+```
+
+Also available as `sim files mv`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+### sim files read
+
+Read a file’s text content
+
+```bash
+sim files read <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+
+</CommandTable>
+
+### sim files rename
+
+Rename a file
+
+```bash
+sim files rename <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | New file name, including its extension. |
+
+</CommandTable>
+
+### sim files restore
+
+Restore an archived file
+
+```bash
+sim files restore <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+### sim files unzip
+
+Unzip an archive into a new folder beside it
+
+```bash
+sim files unzip <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files set-content
+
+Replace a file’s contents
+
+```bash
+sim files set-content <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
+| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+
+</CommandTable>
+
+### sim files upload
+
+Upload a file to the workspace
+
+```bash
+sim files upload <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
+| `--name <name>` | No | Store it under a different name. |
+
+</CommandTable>
+
+### sim files get
+
+Get a file’s content
+
+```bash
+sim files get <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File whose content to read |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+### sim files ls
+
+List file resources and child folders together
+
+```bash
+sim files ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim files mkdir
+
+Create a file directory at a path
+
+```bash
+sim files mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>
+
+## sim knowledge
+
+Also spelled `sim kb`.
+
+### sim knowledge from-workspace-files create
+
+Index files the workspace already stores (personal API key required)
+
+```bash
+sim knowledge from-workspace-files create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim knowledge tags save
+
+Declare the tag definitions a knowledge base needs (personal API key required)
+
+```bash
+sim knowledge tags save <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--definitions <json\|@file>` | Yes | Tag definitions: [&#123;"tagSlot":"tag1","displayName":"category","fieldType":"text"&#125;] (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim knowledge tags create
+
+Create Tag (personal API key required)
+
+```bash
+sim knowledge tags create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | Yes | Name tag filters and document reads use for this tag. |
+| `--field-type <value>` | No | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Defaults to text, so a number, date, or boolean slot must name its type here. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+| `--tag-slot <value>` | No | Slot to store the tag in. Omit to take the next free slot for the field type; a slot that does not belong to the field type, or one already in use, is rejected. Accepted values: `tag1`, `tag2`, `tag3`, `tag4`, `tag5`, `tag6`, `tag7`, `number1`, `number2`, `number3`, `number4`, `number5`, `date1`, `date2`, `boolean1`, `boolean2`, `boolean3`. |
+
+</CommandTable>
+
+### sim knowledge tags delete
+
+Delete Tag (personal API key required)
+
+```bash
+sim knowledge tags delete <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge tags cleanup
+
+Remove tag definitions no document still uses (personal API key required)
+
+```bash
+sim knowledge tags cleanup <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--unused` | No | Whether to remove only the tag definitions no document in the knowledge base still carries a value for. Defaults to true. Pass --no-unused to delete every definition on the knowledge base, which also clears its slot on every document and chunk and is not recoverable. |
+| `--no-unused` | No | Send --unused as false. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge tags next-slot
+
+Show which tag slot a create would take for a field type (personal API key required)
+
+```bash
+sim knowledge tags next-slot <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--field-type <value>` | Yes | Value type stored in the slot; it decides which slots are usable and which filter operators apply. Slot capacity per type: text 7, number 5, date 2, boolean 3. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+### sim knowledge tags list
+
+List Tags
+
+```bash
+sim knowledge tags list <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge tags usage
+
+Show how many documents and chunks carry each tag (personal API key required)
+
+```bash
+sim knowledge tags usage <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge tags update
+
+Update Tag (personal API key required)
+
+```bash
+sim knowledge tags update <knowledgeBaseId> <tagId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `tagId` | Yes | Unique tag definition identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--display-name <value>` | No | New tag display name. |
+| `--field-type <value>` | No | New value type for the tag. Accepted values: `text`, `number`, `date`, `boolean`. |
+
+</CommandTable>
+
+### sim knowledge chunks batch-update
+
+Enable, disable, or delete many chunks at once (personal API key required)
+
+```bash
+sim knowledge chunks batch-update <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | What to do with the selected chunks. Accepted values: `enable`, `disable`, `delete`. |
+| `--chunk <value...>` | Yes | Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge chunks create
+
+Create Chunk (personal API key required)
+
+```bash
+sim knowledge chunks create <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Text to embed. It is embedded on write, so the chunk is searchable immediately. |
+| `--enabled` | No | Whether the new chunk participates in search. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+### sim knowledge chunks delete
+
+Delete Chunk (personal API key required)
+
+```bash
+sim knowledge chunks delete <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge chunks get
+
+Get Chunk (personal API key required)
+
+```bash
+sim knowledge chunks get <knowledgeBaseId> <documentId> <chunkId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+### sim knowledge chunks list
+
+List Chunks (personal API key required)
+
+```bash
+sim knowledge chunks list <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against chunk content. |
+| `--enabled <value>` | No | Restrict to enabled or disabled chunks. `all` returns both. Accepted values: `true`, `false`, `all`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `chunkIndex`, `tokenCount`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge chunks update
+
+Update Chunk (personal API key required)
+
+```bash
+sim knowledge chunks update <knowledgeBaseId> <documentId> <chunkId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+| `chunkId` | Yes | Unique chunk identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | No | Replacement text. Changing it re-embeds the chunk and re-derives its token and character counts. |
+| `--enabled` | No | Whether the chunk participates in search. Disabling keeps it indexed. |
+| `--no-enabled` | No | Send --enabled as false. |
+
+</CommandTable>
+
+### sim knowledge documents batch-update
+
+Enable or disable every matching document (personal API key required)
+
+```bash
+sim knowledge documents batch-update <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Whether the selected documents become enabled or disabled for search. Accepted values: `enable`, `disable`. |
+| `--document <value...>` | No | Documents to update, by identifier. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-all` | No | Apply to every document in the knowledge base. |
+| `--enabled-filter <value>` | No | With `selectAll`, restrict the update to documents in this state. Accepted values: `all`, `enabled`, `disabled`. |
+
+</CommandTable>
+
+### sim knowledge documents delete
+
+Delete Document
+
+```bash
+sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge documents get
+
+Get Document
+
+```bash
+sim knowledge documents get <knowledgeBaseId> <documentId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+### sim knowledge documents list
+
+List Documents
+
+```bash
+sim knowledge documents list <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--search <value>` | No | Case-insensitive substring match against the document filename. |
+| `--enabled-filter <value>` | No | Filter by whether documents are enabled for search. Accepted values: `all`, `enabled`, `disabled`. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--tag-filters <value>` | No | A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[&#123;"tagName":"category","operator":"eq","value":"billing"&#125;]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored. |
+
+</CommandTable>
+
+### sim knowledge documents update
+
+Update Document (personal API key required)
+
+```bash
+sim knowledge documents update <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `documentId` | Yes | Unique knowledge document identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filename <value>` | No | New filename for the document. |
+| `--enabled` | No | Whether the document participates in search. Disabling keeps it indexed. |
+| `--no-enabled` | No | Send --enabled as false. |
+| `--tag1 <value>` | No | New value for tag slot 1. |
+| `--tag2 <value>` | No | New value for tag slot 2. |
+| `--tag3 <value>` | No | New value for tag slot 3. |
+| `--tag4 <value>` | No | New value for tag slot 4. |
+| `--tag5 <value>` | No | New value for tag slot 5. |
+| `--tag6 <value>` | No | New value for tag slot 6. |
+| `--tag7 <value>` | No | New value for tag slot 7. |
+| `--number1 <value>` | No | New value for number tag slot 1. |
+| `--number2 <value>` | No | New value for number tag slot 2. |
+| `--number3 <value>` | No | New value for number tag slot 3. |
+| `--number4 <value>` | No | New value for number tag slot 4. |
+| `--number5 <value>` | No | New value for number tag slot 5. |
+| `--date1 <value>` | No | New value for date tag slot 1, formatted YYYY-MM-DD. |
+| `--date2 <value>` | No | New value for date tag slot 2, formatted YYYY-MM-DD. |
+| `--boolean1` | No | New value for boolean tag slot 1. |
+| `--no-boolean1` | No | Send --boolean1 as false. |
+| `--boolean2` | No | New value for boolean tag slot 2. |
+| `--no-boolean2` | No | Send --boolean2 as false. |
+| `--boolean3` | No | New value for boolean tag slot 3. |
+| `--no-boolean3` | No | Send --boolean3 as false. |
+| `--retry-processing` | No | Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document. |
+
+</CommandTable>
+
+### sim knowledge documents upload
+
+Upload a document to a knowledge base
+
+```bash
+sim knowledge documents upload <knowledgeBaseId> <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base to upload into |
+| `path` | Yes | Local file to upload |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Store it under a different name. |
+| `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
+| `--recipe <name>` | No | Document processing recipe. Accepted values: `default`, `plain`, `markdown`, `code`. |
+| `--lang <code>` | No | Document language tag: hyphen-separated letter and digit subtags, for example en or en-US. |
+
+</CommandTable>
+
+### sim knowledge create
+
+Create Knowledge Base
+
+```bash
+sim knowledge create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Human-readable knowledge base name. |
+| `--description <value>` | No | Optional knowledge base description. |
+| `--chunking-config <json\|@file>` | No | Chunking configuration; defaults are applied when omitted. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim knowledge connectors create
+
+Create Knowledge Connector (personal API key required)
+
+```bash
+sim knowledge connectors create <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--connector-type <value>` | Yes | Registered connector type. |
+| `--credential-id <value>` | No | OAuth credential identifier for connectors that require OAuth. |
+| `--api-key <value>` | No | Write-only API key for connectors that use API-key authentication. |
+| `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
+
+</CommandTable>
+
+### sim knowledge connectors delete
+
+Delete Knowledge Connector (personal API key required)
+
+```bash
+sim knowledge connectors delete <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--delete-documents` | No | Also permanently delete documents produced by this connector. |
+| `--no-delete-documents` | No | Send --delete-documents as false. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge connectors get
+
+Get Knowledge Connector (personal API key required)
+
+```bash
+sim knowledge connectors get <knowledgeBaseId> <connectorId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+### sim knowledge connectors documents list
+
+List Knowledge Connector Documents (personal API key required)
+
+```bash
+sim knowledge connectors documents list <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-excluded` | No | Include documents explicitly excluded by a user. |
+| `--no-include-excluded` | No | Send --include-excluded as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge connectors documents update
+
+Update Knowledge Connector Documents (personal API key required)
+
+```bash
+sim knowledge connectors documents update <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Whether to restore or exclude the selected documents. Accepted values: `restore`, `exclude`. |
+| `--document <value...>` | Yes | Connector document identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim knowledge connectors list
+
+List Knowledge Connectors (personal API key required)
+
+```bash
+sim knowledge connectors list <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `connectorType`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge connectors sync
+
+Queue a knowledge connector synchronization (personal API key required)
+
+```bash
+sim knowledge connectors sync <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--rehydrate` | No | Re-fetch and re-index every existing connector document. |
+| `--no-rehydrate` | No | Send --rehydrate as false. |
+
+</CommandTable>
+
+### sim knowledge connectors update
+
+Update Knowledge Connector (personal API key required)
+
+```bash
+sim knowledge connectors update <knowledgeBaseId> <connectorId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base that owns the connector. |
+| `connectorId` | Yes | Connector selected for the operation. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-config <json\|@file>` | No | Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused. (JSON, or @path / @- to read a file or stdin). |
+| `--sync-interval-minutes <value>` | No | New scheduled synchronization interval in minutes. |
+| `--status <value>` | No | New connector state. Accepted values: `active`, `paused`. |
+
+</CommandTable>
+
+### sim knowledge folders create
+
+Create a knowledge folder at a path
+
+```bash
+sim knowledge folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim knowledge folders delete
+
+Delete Folder
+
+```bash
+sim knowledge folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge folders list
+
+List knowledge folders
+
+```bash
+sim knowledge folders list [options]
+```
+
+Also available as `sim knowledge folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim knowledge folders move
+
+Rename or move a knowledge folder
+
+```bash
+sim knowledge folders move <path> <destination>
+```
+
+Also available as `sim knowledge folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim knowledge delete
+
+Delete Knowledge Base
+
+```bash
+sim knowledge delete <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim knowledge get
+
+Get Knowledge Base
+
+```bash
+sim knowledge get <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge list
+
+List Knowledge Bases
+
+```bash
+sim knowledge list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/&#123;knowledgeBaseId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge restore
+
+Restore an archived knowledge base
+
+```bash
+sim knowledge restore <knowledgeBaseId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+### sim knowledge search
+
+Search Knowledge
+
+```bash
+sim knowledge search [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--query <value>` | No | Text to search for. |
+| `--top-k <value>` | No | Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search. |
+| `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `--search-mode <value>` | No | Search algorithm. Accepted values: `vector`, `hybrid`. |
+| `--reranker-enabled` | No | Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response. |
+| `--no-reranker-enabled` | No | Send --reranker-enabled as false. |
+| `--reranker-model <value>` | No | Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
+| `--reranker-input-count <value>` | No | How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from. |
+
+</CommandTable>
+
+### sim knowledge update
+
+Update Knowledge Base
+
+```bash
+sim knowledge update <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New knowledge base name. |
+| `--description <value>` | No | New knowledge base description. |
+| `--chunking-config <json\|@file>` | No | New document chunking configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim knowledge mv
+
+Move a knowledge base to a folder
+
+```bash
+sim knowledge mv <knowledgeBaseId> <folder>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim knowledge ls
+
+List knowledge resources and child folders together
+
+```bash
+sim knowledge ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim knowledge mkdir
+
+Create a knowledge directory at a path
+
+```bash
+sim knowledge mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>
+
+## sim logs
+
+Also spelled `sim log`.
+
+### sim logs get
+
+Show run diagnostics
+
+```bash
+sim logs get <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
+
+</CommandTable>
+
+### sim logs stats
+
+Summarize run counts, failures and latency over a window
+
+```bash
+sim logs stats [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. At most 200 entries. An empty entry is rejected. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--segment-count <value>` | No | Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty. |
+
+</CommandTable>
+
+### sim logs list
+
+List Logs
+
+```bash
+sim logs list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | No | Comma-separated workflow identifiers to include. An empty entry is rejected. At most 200 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`. At most 100 entries. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--min-duration-ms <value>` | No | Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected. |
+| `--max-duration-ms <value>` | No | Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected. |
+| `--min-cost <value>` | No | Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
+| `--max-cost <value>` | No | Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
+| `--model <value>` | No | AI model used during execution. |
+| `--details <value>` | No | Response detail level; full is requested by default to name each run’s workflow. Accepted values: `basic`, `full`. |
+| `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
+| `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
+| `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
+| `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
+| `--no-include-job-runs` | No | Send --include-job-runs as false. |
+| `--run-id <value>` | No | Exact run identifier to match. |
+| `--sort-by <value>` | No | Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included. Accepted values: `startedAt`, `durationMs`, `cost`, `status`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim logs follow
+
+Watch runs as they arrive, printing each new run once
+
+```bash
+sim logs follow [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <id>` | No | Only follow runs of this workflow (repeatable). |
+| `--folder <path>` | No | Only follow runs of workflows in this folder (repeatable). |
+| `--trigger <type>` | No | Only follow runs with this trigger type (repeatable). |
+| `--level <level>` | No | Only follow runs at this severity. Accepted values: `info`, `error`. |
+| `--details <level>` | No | Response detail level; full names each run’s workflow. Accepted values: `basic`, `full`. Defaults to `full`. |
+| `-n, --lines <count>` | No | Recent runs to print before watching. Defaults to `10`. |
+| `--interval <seconds>` | No | Seconds between polls. Defaults to `3`. |
+
+</CommandTable>
+
+## sim mcp-servers
+
+Also spelled `sim mcp-server`.
+
+### sim mcp-servers create
+
+Create MCP Server
+
+```bash
+sim mcp-servers create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Server display name. |
+| `--description <value>` | No | Optional server description. |
+| `--transport <value>` | No | Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create. Accepted values: `streamable-http`. |
+| `--url <value>` | Yes | Absolute HTTP or HTTPS endpoint URL without `&#123;&#123;ENV_VAR&#125;&#125;` references. It determines server identity and is immutable: delete and recreate the server to change endpoints. |
+| `--auth-type <value>` | No | Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method. Accepted values: `none`, `headers`, `oauth`. |
+| `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
+| `--timeout <value>` | No | Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create. |
+| `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
+| `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
+| `--no-enabled` | No | Send --enabled as false. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
+
+</CommandTable>
+
+### sim mcp-servers delete
+
+Delete MCP Server
+
+```bash
+sim mcp-servers delete <mcpServerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim mcp-servers get
+
+Get MCP Server
+
+```bash
+sim mcp-servers get <mcpServerId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
+
+</CommandTable>
+
+### sim mcp-servers list
+
+List MCP Servers
+
+```bash
+sim mcp-servers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the server name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim mcp-servers tools list
+
+List MCP Server Tools (personal API key required)
+
+```bash
+sim mcp-servers tools list <mcpServerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--refresh` | No | Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip. |
+| `--no-refresh` | No | Send --refresh as false. |
+
+</CommandTable>
+
+### sim mcp-servers update
+
+Update MCP Server
+
+```bash
+sim mcp-servers update <mcpServerId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `mcpServerId` | Yes | Unique MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Server display name. |
+| `--description <value>` | No | Optional server description. |
+| `--transport <value>` | No | Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create. Accepted values: `streamable-http`. |
+| `--url <value>` | No | Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints. |
+| `--auth-type <value>` | No | Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method. Accepted values: `none`, `headers`, `oauth`. |
+| `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
+| `--timeout <value>` | No | Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create. |
+| `--retries <value>` | No | Number of retries per request. Applied server-side as 3 when omitted on create. |
+| `--enabled` | No | Whether the server tools are available to workflows. Applied server-side as true when omitted on create. |
+| `--no-enabled` | No | Send --enabled as false. |
+| `--oauth-client-id <value>` | No | Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization. |
+| `--oauth-client-secret <value>` | No | Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication. (--oauth-client-secret null sends the word, not JSON null). |
+
+</CommandTable>
+
+## sim meta
+
+### sim meta status
+
+Show what this API supports and which limits apply
+
+```bash
+sim meta status
+```
+
+## sim secrets
+
+Also spelled `sim secret`.
+
+### sim secrets delete
+
+Delete Secret (personal API key required)
+
+```bash
+sim secrets delete <name> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `name` | Yes | Secret to delete. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | Yes | Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace. Accepted values: `workspace`, `personal`. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim secrets list
+
+List Secrets (personal API key required)
+
+```bash
+sim secrets list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Restrict results to one ownership scope. Accepted values: `workspace`, `personal`. |
+| `--search <value>` | No | Case-insensitive substring match against the secret name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim secrets set
+
+Create or replace a named secret (personal API key required)
+
+```bash
+sim secrets set <name> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `name` | Yes | Secret name, as referenced in workflows |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <scope>` | Yes | Secret ownership scope. Accepted values: `workspace`, `personal`. |
+| `--value <value\|@file>` | No | Secret value. Passing it inline exposes it to shell history and process listings; @path reads it from a file and @- from stdin, verbatim — a trailing newline is part of the value, so write the file with printf rather than echo. Prefix a literal leading @ with a second one. |
+| `--description <description>` | No | What the secret is for, shown to teammates; workspace scope only. Omit to leave an existing description unchanged. |
+| `--unredacted` | No | Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched. Pass --no-unredacted to restore redaction. |
+| `--no-unredacted` | No | Send --unredacted as false. |
+
+</CommandTable>
+
+## sim skills
+
+Also spelled `sim skill`.
+
+### sim skills create
+
+Create Skill (personal API key required)
+
+```bash
+sim skills create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Kebab-case name, unique within the workspace and not reserved by a built-in skill. |
+| `--description <value>` | Yes | One-line summary of when the skill applies. |
+| `--content <value>` | Yes | Skill body containing the instructions given to the agent. |
+
+</CommandTable>
+
+### sim skills delete
+
+Delete Skill (personal API key required)
+
+```bash
+sim skills delete <skillId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim skills get
+
+Get Skill
+
+```bash
+sim skills get <skillId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+### sim skills editors create
+
+Grant Skill Editor (personal API key required)
+
+```bash
+sim skills editors create <skillId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--email <value>` | Yes | Email address of a current workspace member. |
+
+</CommandTable>
+
+### sim skills editors list
+
+List Skill Editors
+
+```bash
+sim skills editors list <skillId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `email`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim skills editors delete
+
+Revoke Skill Editor (personal API key required)
+
+```bash
+sim skills editors delete <skillId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--email <value>` | Yes | Email address of a current workspace member. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim skills list
+
+List Skills
+
+```bash
+sim skills list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the skill name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim skills update
+
+Update Skill (personal API key required)
+
+```bash
+sim skills update <skillId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `skillId` | Yes | Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New kebab-case skill name. |
+| `--description <value>` | No | New one-line summary of when the skill applies. |
+| `--content <value>` | No | Replacement skill body. |
+
+</CommandTable>
+
+## sim tables
+
+Also spelled `sim table`.
+
+### sim tables columns create
+
+Add Column
+
+```bash
+sim tables columns create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column <json\|@file>` | Yes | Column definition to add. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables columns delete
+
+Delete Column
+
+```bash
+sim tables columns delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column-name <value>` | Yes | Name of the column to delete. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables columns update
+
+Update Column
+
+```bash
+sim tables columns update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--column-name <value>` | Yes | Current name of the column to update. |
+| `--updates <json\|@file>` | Yes | Mutable column fields. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables groups create
+
+Add Workflow Group
+
+```bash
+sim tables groups create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--auto-run` | No | Whether to schedule existing rows after group creation. |
+| `--no-auto-run` | No | Send --auto-run as false. |
+
+</CommandTable>
+
+### sim tables groups delete
+
+Delete Workflow Group
+
+```bash
+sim tables groups delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-id <value>` | Yes | Workflow group to delete. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables groups list
+
+List Workflow Groups
+
+```bash
+sim tables groups list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+### sim tables groups update
+
+Update Workflow Group
+
+```bash
+sim tables groups update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-id <value>` | Yes | Workflow group to update. |
+| `--workflow-id <value>` | No | Replacement backing workflow identifier. |
+| `--name <value>` | No | Replacement workflow-group display name. |
+| `--dependencies <json\|@file>` | No | Replacement input dependencies. (JSON, or @path / @- to read a file or stdin). |
+| `--outputs <json\|@file>` | No | Replacement producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--new-output-columns <json\|@file>` | No | Columns to add for new outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--mapping-updates <json\|@file>` | No | Existing output-column mapping changes. (JSON, or @path / @- to read a file or stdin). |
+| `--input-mappings <json\|@file>` | No | Replacement workflow input mappings. (JSON, or @path / @- to read a file or stdin). |
+| `--deployment-mode <value>` | No | Replacement workflow execution mode. Accepted values: `live`, `deployed`. |
+| `--type <value>` | No | Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation. Accepted values: `manual`, `enrichment`. |
+| `--auto-run` | No | Replacement automatic-run setting. |
+| `--no-auto-run` | No | Send --auto-run as false. |
+
+</CommandTable>
+
+### sim tables batch-delete
+
+Bulk Delete Tables and Folders
+
+```bash
+sim tables batch-delete [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables rows update-each
+
+Apply a distinct patch to each listed row
+
+```bash
+sim tables rows update-each <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--updates <json\|@file>` | Yes | One merge patch per row. Each row identifier may appear at most once. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables rows create
+
+Create Rows
+
+```bash
+sim tables rows create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | No | One row keyed by column name (JSON, or @path / @-; choose exactly one body flag). |
+| `--rows <json\|@file>` | No | Several rows keyed by column name (JSON, or @path / @-; choose exactly one body flag). |
+
+</CommandTable>
+
+### sim tables rows delete
+
+Delete Row
+
+```bash
+sim tables rows delete <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables rows batch-delete
+
+Delete rows matching a filter, or an explicit list of ids
+
+```bash
+sim tables rows batch-delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--limit <value>` | No | Maximum matching rows to delete. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables rows get
+
+Get Row
+
+```bash
+sim tables rows get <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-run-state` | No | Include per-workflow-group run state on the returned row. Off by default. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+### sim tables rows list
+
+List Rows
+
+```bash
+sim tables rows list <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+### sim tables rows query
+
+Query Rows
+
+```bash
+sim tables rows query <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
+
+</CommandTable>
+
+### sim tables rows count
+
+Count rows matching a filter
+
+```bash
+sim tables rows count <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Condition: &#123;"field":"status","op":"eq","value":"active"&#125;. Groups: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125; or &#123;"any":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; group entries may also be nested groups. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables rows enrich
+
+Run one row’s enrichment group
+
+```bash
+sim tables rows enrich <tableId> <rowId> <groupId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+| `groupId` | Yes | Workflow or enrichment group to run. |
+
+</CommandTable>
+
+### sim tables rows search
+
+Search cells for a value and return their coordinates
+
+```bash
+sim tables rows search <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Value to search for. |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables rows batch-update
+
+Update every row matching a filter
+
+```bash
+sim tables rows batch-update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
+| `--limit <value>` | No | Maximum matching rows to update. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables rows update
+
+Update Row
+
+```bash
+sim tables rows update <tableId> <rowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | Yes | Partial row-data patch keyed by column name. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables dispatches cancel
+
+Cancel a running dispatch
+
+```bash
+sim tables dispatches cancel <tableId> <dispatchId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `dispatchId` | Yes | Unique table run-dispatch identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables dispatches create
+
+Start a column or enrichment run
+
+```bash
+sim tables dispatches create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--group-ids <value...>` | Yes | Workflow or enrichment groups to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--run-mode <value>` | No | Whether to run all or only incomplete cells. Accepted values: `all`, `incomplete`. |
+| `--row-ids <value...>` | No | Explicit row subset to run. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from a select-all run scope. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--max-rows <n>` | No | Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run. |
+
+</CommandTable>
+
+### sim tables dispatches get
+
+Get Run Dispatch
+
+```bash
+sim tables dispatches get <tableId> <dispatchId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `dispatchId` | Yes | Unique table run-dispatch identifier. |
+
+</CommandTable>
+
+### sim tables dispatches list
+
+List Active Run Dispatches
+
+```bash
+sim tables dispatches list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+### sim tables exports cancel
+
+Stop a running export
+
+```bash
+sim tables exports cancel <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+### sim tables exports create
+
+Create Table Export
+
+```bash
+sim tables exports create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--format <value>` | No | Export file format. Accepted values: `csv`, `json`. |
+
+</CommandTable>
+
+### sim tables exports get
+
+Get Table Export
+
+```bash
+sim tables exports get <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+### sim tables exports download
+
+Get the download URL for a finished export
+
+```bash
+sim tables exports download <tableId> <exportId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `exportId` | Yes | Unique table-export identifier. |
+
+</CommandTable>
+
+### sim tables imports cancel
+
+Stop a running import
+
+```bash
+sim tables imports cancel <importId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables imports get
+
+Get Table Import
+
+```bash
+sim tables imports get <importId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `importId` | Yes | Unique table-import identifier. |
+
+</CommandTable>
+
+### sim tables cancel-runs
+
+Stop every running column job
+
+```bash
+sim tables cancel-runs <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | Yes | Whether to cancel across the table or one row. Accepted values: `all`, `row`. |
+| `--row-id <value>` | No | Row whose runs should be canceled for row scope. |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+| `--exclude-row-ids <value...>` | No | Rows excluded from an all-scope cancellation. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables create
+
+Create Table
+
+```bash
+sim tables create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Identifier: letters, numbers, and underscores; cannot start with a number. |
+| `--description <value>` | No | Optional table description. |
+| `--schema <json\|@file>` | Yes | Table schema: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim tables folders create
+
+Create a table folder at a path
+
+```bash
+sim tables folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim tables folders delete
+
+Delete Folder
+
+```bash
+sim tables folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables folders list
+
+List table folders
+
+```bash
+sim tables folders list [options]
+```
+
+Also available as `sim tables folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim tables folders move
+
+Rename or move a table folder
+
+```bash
+sim tables folders move <path> <destination>
+```
+
+Also available as `sim tables folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim tables folders restore
+
+Restore an archived table folder
+
+```bash
+sim tables folders restore <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim tables views create
+
+Create View
+
+```bash
+sim tables views create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Saved-view display name. |
+| `--config <json\|@file>` | Yes | Saved filter, sort, and column-layout configuration. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim tables views delete
+
+Delete View
+
+```bash
+sim tables views delete <tableId> <viewId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables views get
+
+Get View
+
+```bash
+sim tables views get <tableId> <viewId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+### sim tables views list
+
+List Views
+
+```bash
+sim tables views list <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+### sim tables views update
+
+Update View
+
+```bash
+sim tables views update <tableId> <viewId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `viewId` | Yes | Unique saved-view identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Replacement saved-view display name. |
+| `--config <json\|@file>` | No | Complete replacement saved-view configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--config-patch <json\|@file>` | No | Saved-view configuration fields to shallow-merge. (JSON, or @path / @- to read a file or stdin). |
+| `--is-default` | No | Whether to promote this view to the table default. |
+| `--no-is-default` | No | Send --is-default as false. |
+
+</CommandTable>
+
+### sim tables delete
+
+Delete Table
+
+```bash
+sim tables delete <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim tables enrichment get
+
+Get Enrichment Run Detail
+
+```bash
+sim tables enrichment get <tableId> <rowId> <groupId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+| `groupId` | Yes | Workflow or enrichment group to run. |
+
+</CommandTable>
+
+### sim tables get
+
+Get Table
+
+```bash
+sim tables get <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+### sim tables list
+
+List Tables
+
+```bash
+sim tables list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a delete archived and a table restore can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim tables move
+
+Move Tables and Folders
+
+```bash
+sim tables move [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value...>` | No | Table folders to move, by path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+### sim tables restore
+
+Restore an archived table
+
+```bash
+sim tables restore <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+### sim tables update
+
+Update Table
+
+```bash
+sim tables update <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
+| `--description <value>` | No | Replacement table description, or null to clear it. (--description null sends the word, not JSON null). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim tables mv
+
+Move a table to a folder
+
+```bash
+sim tables mv <tableId> <folder>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim tables upsert
+
+Insert a row, or update the one that conflicts on a unique column
+
+```bash
+sim tables upsert <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--data <json\|@file>` | Yes | Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges. (JSON, or @path / @- to read a file or stdin). |
+| `--on <value>` | No | Unique column to resolve the conflict against. |
+
+</CommandTable>
+
+### sim tables import
+
+Import a CSV, into a new table by default
+
+```bash
+sim tables import [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Local CSV file to import; omit when using --file-id |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Identifier for the new table: letters, numbers, and underscores; defaults to the sanitized file name. |
+| `--table-id <id>` | No | Import into this existing table instead of creating one. |
+| `--mode <append\|replace>` | No | How to write into --table-id (default: append). Accepted values: `append`, `replace`. |
+| `--folder <path>` | No | Folder path for the new table, as shown in the app. |
+| `--file-id <id>` | No | Import a file already in the workspace instead of a local path. |
+| `--mapping <json\|@file>` | No | Column mapping (--table-id only). |
+| `--create-columns <json\|@file>` | No | Columns to create (--table-id only). |
+| `--timezone <iana>` | No | Timezone for date parsing, e.g. America/New_York. |
+| `-y, --yes` | No | Confirm this destructive operation (required with --mode replace). |
+| `--no-wait` | No | Return once the import is queued instead of watching it. |
+
+</CommandTable>
+
+### sim tables ls
+
+List table resources and child folders together
+
+```bash
+sim tables ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim tables mkdir
+
+Create a table directory at a path
+
+```bash
+sim tables mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>
+
+## sim tools
+
+### sim tools get
+
+Get Tool
+
+```bash
+sim tools get <toolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+### sim tools list
+
+List Tools
+
+```bash
+sim tools list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the tool id, name, and description. |
+| `--hosted-api-key <value>` | No | Restrict to tools by how their API key is supplied. Accepted values: `always`, `conditional`, `none`. |
+| `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## sim workflow-mcp-servers
+
+### sim workflow-mcp-servers create
+
+Create Workflow MCP Server (personal API key required)
+
+```bash
+sim workflow-mcp-servers create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | Optional server description. |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL. |
+| `--no-is-public` | No | Send --is-public as false. |
+| `--workflow <value...>` | No | Deployed workflows to publish as tools on the new server. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers delete
+
+Delete Workflow MCP Server (personal API key required)
+
+```bash
+sim workflow-mcp-servers delete <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools create
+
+Publish Workflow As MCP Tool (personal API key required)
+
+```bash
+sim workflow-mcp-servers tools create <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | Yes | Deployed workflow to publish. The workflow must already be deployed. |
+| `--tool-name <value>` | No | Name MCP clients call. Normalized to the MCP tool-name grammar, and derived from the workflow name when omitted. |
+| `--tool-description <value>` | No | Description shown to MCP clients. Derived from the workflow name when omitted. |
+| `--parameter-descriptions <json\|@file>` | No | Per-field description overrides applied to the schema generated from the deployed workflow inputs, as [&#123;"name":"email","description":"Customer email address"&#125;]. A name matching no input field is ignored (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools list
+
+List Workflow MCP Tools (personal API key required)
+
+```bash
+sim workflow-mcp-servers tools list <serverId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers tools delete
+
+Unpublish Workflow MCP Tool (personal API key required)
+
+```bash
+sim workflow-mcp-servers tools delete <serverId> <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+| `workflowId` | Yes | Workflow published as a tool on this server. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers get
+
+Get Workflow MCP Server (personal API key required)
+
+```bash
+sim workflow-mcp-servers get <serverId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers list
+
+List Workflow MCP Servers (personal API key required)
+
+```bash
+sim workflow-mcp-servers list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workflow-mcp-servers update
+
+Update Workflow MCP Server (personal API key required)
+
+```bash
+sim workflow-mcp-servers update <serverId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `serverId` | Yes | Unique workflow-MCP server identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Server display name, shown to connecting MCP clients. |
+| `--description <value>` | No | New server description, or null to clear it. (--description null sends the word, not JSON null). |
+| `--is-public` | No | Whether the server answers MCP clients without a Sim API key. |
+| `--no-is-public` | No | Send --is-public as false. |
+
+</CommandTable>
+
+## sim workflows
+
+Also spelled `sim workflow`.
+
+### sim workflows activate create
+
+Activate Workflow Version (personal API key required)
+
+```bash
+sim workflows activate create <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+### sim workflows operations apply
+
+Apply Workflow Operations (personal API key required)
+
+```bash
+sim workflows operations apply <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
+| `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
+| `--no-atomic` | No | Send --atomic as false. |
+| `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
+| `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
+
+</CommandTable>
+
+### sim workflows variables update
+
+Update Workflow Variables
+
+```bash
+sim workflows variables update <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows runs cancel
+
+Cancel a running workflow run
+
+```bash
+sim workflows runs cancel <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+
+</CommandTable>
+
+### sim workflows runs get
+
+Show run status (requested outputs are included in JSON or YAML output)
+
+```bash
+sim workflows runs get <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--include-output` | No | Include the final output in JSON or YAML output. |
+| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
+| `--no-include-file-base64` | No | Send --include-file-base64 as false. |
+| `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
+
+</CommandTable>
+
+### sim workflows runs list
+
+List runs for a workflow
+
+```bash
+sim workflows runs list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--status <value>` | No | Filter by run status. Accepted values: `pending`, `running`, `completed`, `failed`, `cancelled`, `paused`. |
+| `--trigger <value>` | No | Filter by trigger type. |
+| `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--order <value>` | No | Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim workflows runs resume
+
+Resume a paused run (output is included in JSON or YAML output)
+
+```bash
+sim workflows runs resume <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--context <value>` | Yes | Pause context ID returned by run status. |
+| `--input <json\|@file>` | No | Resume input as JSON (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workflows runs wait
+
+Wait for a run to reach a terminal state, then show it
+
+```bash
+sim workflows runs wait <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--wait-timeout <seconds>` | No | Give up after this many seconds, or 0 to wait indefinitely (default: 3600). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request. |
+
+</CommandTable>
+
+### sim workflows create
+
+Create Workflow
+
+```bash
+sim workflows create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Workflow name. |
+| `--description <value>` | No | Optional workflow description. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim workflows folders create
+
+Create a workflow folder at a path
+
+```bash
+sim workflows folders create <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim workflows folders delete
+
+Delete Workflow Folder
+
+```bash
+sim workflows folders delete <path> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows folders list
+
+List workflow folders
+
+```bash
+sim workflows folders list [options]
+```
+
+Also available as `sim workflows folders ls`.
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Case-insensitive substring match against the folder name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim workflows folders move
+
+Rename or move a workflow folder
+
+```bash
+sim workflows folders move <path> <destination>
+```
+
+Also available as `sim workflows folders mv`.
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim workflows delete
+
+Delete Workflow
+
+```bash
+sim workflows delete <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows chat unpublish
+
+Take a workflow’s chat deployment offline (personal API key required)
+
+```bash
+sim workflows chat unpublish <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows chat status
+
+Show a workflow’s chat deployment (personal API key required)
+
+```bash
+sim workflows chat status <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows chat publish
+
+Publish or replace a workflow’s chat deployment (personal API key required)
+
+```bash
+sim workflows chat publish <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--identifier <value>` | Yes | URL slug the deployed chat answers on. Must be free across live deployments. |
+| `--title <value>` | Yes | Title shown to visitors. |
+| `--description <value>` | No | Description shown to visitors. Omitted clears it. |
+| `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
+| `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
+| `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
+| `--include-thinking` | No | Allow visitors to receive provider thinking events. |
+| `--no-include-thinking` | No | Send --include-thinking as false. |
+| `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
+| `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows deploy
+
+Deploy Workflow (personal API key required)
+
+```bash
+sim workflows deploy <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Optional label for the deployment version. |
+| `--description <value>` | No | Optional release note for the deployment version. |
+
+</CommandTable>
+
+### sim workflows duplicate create
+
+Duplicate Workflow
+
+```bash
+sim workflows duplicate create <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Name for the copy. Defaults to the source name, deduplicated within the folder. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim workflows run
+
+Run a deployed workflow or execute saved state manually
+
+```bash
+sim workflows run <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
+| `--async` | No | Queue the run and return immediately. |
+| `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
+| `--select-output <value...>` | No | Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
+| `--no-include-file-base64` | No | Send --include-file-base64 as false. |
+| `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
+| `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
+| `--manual` | No | Run the current saved workflow state instead of the active deployment. |
+| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--from-block <blockId>` | No | Run manually from this saved workflow block. |
+| `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
+| `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
+| `--include-thinking` | No | Show model reasoning while following (requires --follow). |
+| `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
+
+</CommandTable>
+
+### sim workflows export
+
+Print a workflow as a portable JSON document
+
+```bash
+sim workflows export <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows get
+
+Get Workflow
+
+```bash
+sim workflows get <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows deployment status
+
+Show a workflow’s current deployment
+
+```bash
+sim workflows deployment status <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows deployment update
+
+Update Workflow Public API Access (personal API key required)
+
+```bash
+sim workflows deployment update <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-public-api <true\|false>` | Yes | Whether the deployed workflow should accept unauthenticated public API execution. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+### sim workflows state get
+
+Get Workflow State
+
+```bash
+sim workflows state get <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows state replace
+
+Replace Workflow State (personal API key required)
+
+```bash
+sim workflows state replace <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--no-dry-run` | No | Send --dry-run as false. |
+| `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
+| `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
+| `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
+| `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
+
+</CommandTable>
+
+### sim workflows versions get
+
+Get Workflow Version
+
+```bash
+sim workflows versions get <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+### sim workflows versions list
+
+List Workflow Versions
+
+```bash
+sim workflows versions list <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workflows versions update
+
+Update Workflow Version
+
+```bash
+sim workflows versions update <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
+
+</CommandTable>
+
+### sim workflows import
+
+Import Workflow
+
+```bash
+sim workflows import [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <json\|@file>` | Yes | Workflow export object, bare workflow state, or JSON string containing either form. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--name <value>` | No | Override for the imported workflow name. |
+| `--description <value>` | No | Override for the imported workflow description. |
+
+</CommandTable>
+
+### sim workflows list
+
+List Workflows
+
+```bash
+sim workflows list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--deployed-only` | No | Return only workflows with an active deployment when true. |
+| `--no-deployed-only` | No | Send --deployed-only as false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--search <value>` | No | Case-insensitive substring match against the resource name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim workflows move
+
+Move Workflows
+
+```bash
+sim workflows move [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
+
+</CommandTable>
+
+### sim workflows restore
+
+Restore an archived workflow
+
+```bash
+sim workflows restore <workflowId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+### sim workflows revert create
+
+Revert Workflow To Version (personal API key required)
+
+```bash
+sim workflows revert create <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version, or `active` for the currently live version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows rollback
+
+Rollback Workflow (personal API key required)
+
+```bash
+sim workflows rollback <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows undeploy
+
+Take a workflow out of deployment (personal API key required)
+
+```bash
+sim workflows undeploy <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workflows update
+
+Update Workflow
+
+```bash
+sim workflows update <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Replacement workflow name. |
+| `--description <value>` | No | Replacement workflow description; null clears it. (--description null sends the word, not JSON null). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+
+</CommandTable>
+
+### sim workflows mv
+
+Move a workflow to a folder
+
+```bash
+sim workflows mv <workflowId> <folder>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
+
+</CommandTable>
+
+### sim workflows ls
+
+List workflow resources and child folders together
+
+```bash
+sim workflows ls [path] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | No | Folder path to list; defaults to the root folder |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workflows mkdir
+
+Create a workflow directory at a path
+
+```bash
+sim workflows mkdir <path>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `path` | Yes | Folder path to create; the leading / is optional |
+
+</CommandTable>
+
+## sim workspaces
+
+Also spelled `sim workspace`.
+
+### sim workspaces get
+
+Get Workspace
+
+```bash
+sim workspaces get
+```
+
+### sim workspaces members
+
+List workspace members
+
+```bash
+sim workspaces members [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim workspaces list
+
+List Workspaces
+
+```bash
+sim workspaces list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>

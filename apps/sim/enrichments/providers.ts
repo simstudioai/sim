@@ -1,7 +1,10 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   EnrichmentInputField,
   EnrichmentOutputField,
   EnrichmentProvider,
+  EnrichmentProviderFailure,
+  EnrichmentProviderFailureProjection,
 } from '@/enrichments/types'
 
 /**
@@ -56,6 +59,20 @@ export function splitName(fullName: unknown): { firstName: string; lastName: str
   return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
 }
 
+/** Projects the standard provider failure contract into a cascade outcome. */
+export function projectEnrichmentProviderFailure(
+  failure: EnrichmentProviderFailure
+): EnrichmentProviderFailureProjection {
+  if (isRecordLike(failure.output) && failure.output.status === 404) {
+    return { status: 'no_match' }
+  }
+  return { status: 'error', error: failure.error }
+}
+
+type EnrichmentProviderDefinition = Omit<EnrichmentProvider, 'projectFailure'> & {
+  projectFailure?: EnrichmentProvider['projectFailure']
+}
+
 /**
  * Declares a tool-backed enrichment provider as plain data. Keeping this free of
  * any `@/tools` reference (the cascade runner does the `executeTool` call) means
@@ -63,6 +80,9 @@ export function splitName(fullName: unknown): { firstName: string; lastName: str
  * metadata. Workspace scope and BYOK / hosted-key injection are handled by the
  * runner when it executes `toolId`.
  */
-export function toolProvider(provider: EnrichmentProvider): EnrichmentProvider {
-  return provider
+export function toolProvider(provider: EnrichmentProviderDefinition): EnrichmentProvider {
+  return {
+    ...provider,
+    projectFailure: provider.projectFailure ?? projectEnrichmentProviderFailure,
+  }
 }

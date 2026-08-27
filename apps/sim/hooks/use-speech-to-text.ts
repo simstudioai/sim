@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -55,8 +55,33 @@ interface UseSpeechToTextProps {
 interface UseSpeechToTextReturn {
   isListening: boolean
   isSupported: boolean
+  audioLevelsRef: RefObject<Float32Array>
   toggleListening: () => void
   resetTranscript: () => void
+}
+
+const AUDIO_LEVEL_COUNT = 5
+const AUDIO_LEVEL_GAIN = 8
+const AUDIO_LEVEL_SMOOTHING = 0.55
+
+function updateAudioLevels(input: Float32Array, levels: Float32Array): void {
+  const samplesPerLevel = Math.floor(input.length / levels.length)
+
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const start = levelIndex * samplesPerLevel
+    const end = levelIndex === levels.length - 1 ? input.length : start + samplesPerLevel
+    let sumOfSquares = 0
+
+    for (let sampleIndex = start; sampleIndex < end; sampleIndex++) {
+      const sample = input[sampleIndex]
+      sumOfSquares += sample * sample
+    }
+
+    const rms = Math.sqrt(sumOfSquares / Math.max(1, end - start))
+    const normalizedLevel = Math.min(1, rms * AUDIO_LEVEL_GAIN)
+    levels[levelIndex] =
+      levels[levelIndex] * AUDIO_LEVEL_SMOOTHING + normalizedLevel * (1 - AUDIO_LEVEL_SMOOTHING)
+  }
 }
 
 export function useSpeechToText({
@@ -90,6 +115,7 @@ export function useSpeechToText({
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const audioLevelsRef = useRef(new Float32Array(AUDIO_LEVEL_COUNT))
 
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -175,6 +201,7 @@ export function useSpeechToText({
     }
 
     pcmBufferRef.current = []
+    audioLevelsRef.current.fill(0)
     isFirstChunkRef.current = true
   }, [])
 
@@ -292,6 +319,7 @@ export function useSpeechToText({
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0)
+        updateAudioLevels(input, audioLevelsRef.current)
         pcmBufferRef.current.push(new Float32Array(input))
       }
 
@@ -360,6 +388,8 @@ export function useSpeechToText({
       streamRef.current = null
     }
 
+    audioLevelsRef.current.fill(0)
+
     const wsToClose = wsRef.current
     wsRef.current = null
     if (wsToClose) {
@@ -402,6 +432,7 @@ export function useSpeechToText({
   return {
     isListening,
     isSupported,
+    audioLevelsRef,
     toggleListening,
     resetTranscript,
   }

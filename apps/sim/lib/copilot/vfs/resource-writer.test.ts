@@ -223,4 +223,58 @@ describe('resource writer', () => {
       vfsPath: 'files/Reports/2026/summary.csv',
     })
   })
+
+  it('upserts: an overwrite of a missing target falls through to create', async () => {
+    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+    mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
+      id: 'file-new',
+      name: 'chart.png',
+      size: 3,
+      contentType: 'image/png',
+      downloadUrl: 'url',
+      vfsPath: 'files/chart.png',
+    })
+
+    const written = await writeWorkspaceFileByPath({
+      workspaceId: 'workspace-1',
+      principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+      target: { path: 'files/chart.png', mode: 'overwrite' },
+      buffer: Buffer.from('png'),
+      inferredMimeType: 'image/png',
+    })
+
+    expect(mocks.updateWorkspaceFileContentBufferByPath.execute).not.toHaveBeenCalled()
+    expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ path: 'files/chart.png', mode: 'create' }),
+      })
+    )
+    expect(written).toMatchObject({ id: 'file-new', mode: 'create' })
+  })
+
+  it('keeps a genuine overwrite on the update path', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({ id: 'file-1', name: 'chart.png' })
+    mocks.updateWorkspaceFileContentBufferByPath.execute.mockResolvedValue({
+      id: 'file-1',
+      name: 'chart.png',
+      size: 3,
+      contentType: 'image/png',
+      downloadUrl: 'url',
+      vfsPath: 'files/chart.png',
+    })
+
+    const written = await writeWorkspaceFileByPath({
+      workspaceId: 'workspace-1',
+      principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+      target: { path: 'files/chart.png', mode: 'overwrite' },
+      buffer: Buffer.from('png'),
+      inferredMimeType: 'image/png',
+    })
+
+    expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+    expect(written).toMatchObject({ id: 'file-1', mode: 'overwrite' })
+  })
 })

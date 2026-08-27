@@ -30,18 +30,17 @@ import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
@@ -49,6 +48,7 @@ import { normalizeName } from '@/executor/constants'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -1055,9 +1055,10 @@ function PreviewEditorContent({
     }, {})
   }, [subBlockValues])
 
+  const effectiveTrigger = block.triggerMode === true
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndexForSurface(blockConfig?.subBlocks || [], effectiveTrigger),
+    [blockConfig?.subBlocks, effectiveTrigger]
   )
 
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
@@ -1118,7 +1119,6 @@ function PreviewEditorContent({
     hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
 
   const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
-  const effectiveTrigger = block.triggerMode === true
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false

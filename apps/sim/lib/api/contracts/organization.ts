@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  organizationRoleSchema,
   type PiiRedactionSettings,
   piiRedactionSettingsSchema,
   retentionOverridesSchema,
@@ -15,9 +16,6 @@ const numericResponseSchema = z.preprocess((value) => {
   return Number.isFinite(parsed) ? parsed : value
 }, z.number())
 
-export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
-  error: 'Invalid role',
-})
 export const organizationParamsSchema = z.object({
   id: z.string().min(1),
 })
@@ -29,7 +27,9 @@ export const organizationMemberParamsSchema = z.object({
 
 export const organizationMemberQuerySchema = z
   .object({
-    include: z.string().optional(),
+    include: z.enum(['usage']).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
   })
   .passthrough()
 
@@ -95,8 +95,6 @@ const organizationDataRetentionDataSchema = z.object({
   defaults: organizationRetentionValuesSchema,
   configured: organizationRetentionValuesSchema,
   effective: organizationRetentionValuesSchema,
-  piiRedactionEnabled: z.boolean(),
-  piiGranularRedactionEnabled: z.boolean(),
 })
 
 export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>
@@ -320,6 +318,12 @@ export const listOrganizationMembersResponseSchema = z
     success: z.boolean(),
     data: z.array(organizationMemberUsageSchema),
     total: z.number(),
+    pagination: z.object({
+      total: z.number().int().min(0),
+      limit: z.number().int().min(1).max(100),
+      offset: z.number().int().min(0),
+      hasMore: z.boolean(),
+    }),
     userRole: organizationRoleSchema,
     hasAdminAccess: z.boolean(),
   })

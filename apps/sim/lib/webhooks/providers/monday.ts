@@ -16,10 +16,9 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 const logger = createLogger('WebhookProvider:Monday')
-
-const MONDAY_API_URL = 'https://api.monday.com/v2'
 
 /**
  * Resolves an OAuth access token from the webhook's credential configuration.
@@ -109,11 +108,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'API-Version': '2024-10',
-          Authorization: accessToken,
-        },
+        headers: mondayHeaders(accessToken),
         body: JSON.stringify({
           query: `mutation { create_webhook(board_id: ${boardIdValidation.sanitized}, url: ${JSON.stringify(notificationUrl)}, event: ${eventType}) { id board_id } }`,
         }),
@@ -226,11 +221,7 @@ export const mondayHandler: WebhookProviderHandler = {
     try {
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'API-Version': '2024-10',
-          Authorization: accessToken,
-        },
+        headers: mondayHeaders(accessToken),
         body: JSON.stringify({
           query: `mutation { delete_webhook(id: ${externalIdValidation.sanitized}) { id board_id } }`,
         }),

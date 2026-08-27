@@ -417,7 +417,7 @@ describe('trackChatUpload', () => {
 
     /**
      * The ownership lookup and the write are separate statements, so a
-     * concurrent `materialize_file` can flip the row to context='workspace'
+     * concurrent `save_upload` can flip the row to context='workspace'
      * in between. The UPDATE must re-assert every ownership predicate rather
      * than matching on the captured row id alone, or it would drag a saved
      * workspace file back into chat scope.
@@ -433,16 +433,16 @@ describe('trackChatUpload', () => {
       expect(dbChainMockFns.where.mock.calls.at(-1)?.[0]).toEqual({
         type: 'and',
         conditions: [
-          { type: 'eq', left: 'id', right: 'wf_mine' },
-          { type: 'eq', left: 'userId', right: USER_ID },
-          { type: 'eq', left: 'workspaceId', right: WORKSPACE_ID },
-          { type: 'eq', left: 'context', right: 'mothership' },
-          { type: 'isNull', column: 'deletedAt' },
+          { type: 'eq', left: 'workspaceFiles.id', right: 'wf_mine' },
+          { type: 'eq', left: 'workspaceFiles.userId', right: USER_ID },
+          { type: 'eq', left: 'workspaceFiles.workspaceId', right: WORKSPACE_ID },
+          { type: 'eq', left: 'workspaceFiles.context', right: 'mothership' },
+          { type: 'isNull', column: 'workspaceFiles.deletedAt' },
           {
             type: 'or',
             conditions: [
-              { type: 'isNull', column: 'chatId' },
-              { type: 'eq', left: 'chatId', right: CHAT_ID },
+              { type: 'isNull', column: 'workspaceFiles.chatId' },
+              { type: 'eq', left: 'workspaceFiles.chatId', right: CHAT_ID },
             ],
           },
         ],

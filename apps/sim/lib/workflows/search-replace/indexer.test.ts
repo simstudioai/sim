@@ -12,6 +12,7 @@ import {
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import { NoteBlock } from '@/blocks/blocks/note'
 
 /**
  * Uses the real tool registry. Nothing here imports it directly — the dependency
@@ -114,6 +115,46 @@ describe('indexWorkflowSearchMatches', () => {
     expect(blockNameMatches[0]?.fieldTitle).toBe('Block name')
   })
 
+  it('matches a block name containing a non-breaking space against a typed space', () => {
+    const workflow = {
+      blocks: {
+        'nbsp-1': {
+          id: 'nbsp-1',
+          type: 'function',
+          name: 'Load\u00a0Prompt',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+        },
+      },
+    } as ReturnType<typeof createSearchReplaceWorkflowFixture>
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'load prompt',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    const blockNameMatches = matches.filter((match) => match.target.kind === 'block-name')
+    // The raw value keeps the original characters so replacements stay exact.
+    expect(blockNameMatches.map((match) => match.rawValue)).toEqual(['Load\u00a0Prompt'])
+  })
+
+  it('ignores accidental leading/trailing whitespace in the query', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: ' agent ',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches.some((match) => match.target.kind === 'block-name')).toBe(true)
+  })
+
   it('does not include block-name matches in resource-only mode', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
@@ -125,6 +166,199 @@ describe('indexWorkflowSearchMatches', () => {
     })
 
     expect(matches.some((match) => match.target.kind === 'block-name')).toBe(false)
+  })
+
+  describe('the Note body declares the markdown format the card assumes', () => {
+    /*
+     * The canvas card projects markdown escapes unconditionally — it renders from a package that
+     * cannot read the block registry. The indexer projects only when the field says so. Dropping
+     * the declaration would leave the two disagreeing about what an occurrence is, and the failure
+     * is silent: the panel counts a hit the card marks somewhere else.
+     */
+    it('keeps searchTextFormat on the Note content field', () => {
+      const content = NoteBlock.subBlocks.find((subBlock) => subBlock.id === 'content')
+      expect(content?.searchTextFormat).toBe('markdown')
+    })
+  })
+
+  describe('a markdown field is searched as it renders', () => {
+    /*
+     * The rich-text editor backslash-escapes every markdown-significant character in prose, so a
+     * Note the reader sees as `{{TE_SERET}}` is stored as `{{TE\_SERET}}`. Searching what is on
+     * screen has to see through that, and the range has to keep spanning the escaped source so
+     * replace rewrites the whole `\_` instead of stranding the backslash.
+     */
+    const NOTE_CONFIGS = {
+      note: { subBlocks: [{ id: 'content', type: 'long-input', searchTextFormat: 'markdown' }] },
+      function: { subBlocks: [{ id: 'code', type: 'code' }] },
+    } as unknown as typeof SEARCH_REPLACE_BLOCK_CONFIGS
+
+    function workflowWith(noteContent: string, code: string) {
+      return {
+        blocks: {
+          'note-1': {
+            id: 'note-1',
+            type: 'note',
+            name: 'Note',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { content: { id: 'content', type: 'long-input', value: noteContent } },
+            outputs: {},
+          },
+          'fn-1': {
+            id: 'fn-1',
+            type: 'function',
+            name: 'Fn',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            horizontalHandles: true,
+            subBlocks: { code: { id: 'code', type: 'code', value: code } },
+            outputs: {},
+          },
+        },
+      } as unknown as Parameters<typeof indexWorkflowSearchMatches>[0]['workflow']
+    }
+
+    it('finds an escaped underscore by what the reader sees', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: workflowWith('{{TE\\_SERET}}', ''),
+        query: '{{TE_',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(matches.map((match) => match.blockId)).toContain('note-1')
+    })
+
+    it('keeps the range over the escape, so replace cannot strand a backslash', () => {
+      const content = 'uses SB\\_ACTION here'
+      const [match] = indexWorkflowSearchMatches({
+        workflow: workflowWith(content, ''),
+        query: 'SB_ACTION',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(content.slice(match.range!.start, match.range!.end)).toBe('SB\\_ACTION')
+      expect(match.rawValue).toBe('SB\\_ACTION')
+    })
+
+    /* A code field stores what the author typed: a backslash there is theirs, not an escape. */
+    it('leaves a field that is not markdown searched as stored', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: workflowWith('', 'const s = "a\\_b"'),
+        query: 'a_b',
+        mode: 'text',
+        blockConfigs: NOTE_CONFIGS,
+      })
+      expect(matches.map((match) => match.blockId)).not.toContain('fn-1')
+    })
+  })
+
+  describe('block references search under the name the canvas shows', () => {
+    /**
+     * The panel's own pipeline: index everything, then keep what the query
+     * matches. Block references resolve no label of their own, so they reach the
+     * filter with `displayLabel` fallen back to the raw token, as the hydration
+     * hook leaves them.
+     */
+    function findReferenceMatches(query: string) {
+      const workflow = createSearchReplaceWorkflowFixture()
+      workflow.blocks['agent-1'].subBlocks.systemPrompt.value =
+        'Summarize <api1.output> and <deletedblock.output>, then loop <loop.index>.'
+
+      return indexWorkflowSearchMatches({
+        workflow,
+        query,
+        mode: 'all',
+        includeResourceMatchesWithoutQuery: true,
+        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+      })
+        .filter((match) => match.kind === 'workflow-reference')
+        .filter((match) =>
+          workflowSearchMatchMatchesQuery({ ...match, displayLabel: match.rawValue }, query)
+        )
+    }
+
+    it('matches a reference by the spaced block name', () => {
+      expect(findReferenceMatches('API 1').map((match) => match.rawValue)).toEqual([
+        '<api1.output>',
+      ])
+    })
+
+    it('still matches a reference by the token as stored', () => {
+      expect(findReferenceMatches('api1').map((match) => match.rawValue)).toEqual(['<api1.output>'])
+    })
+
+    it('reads the resolved name back as the block is titled', () => {
+      const [match] = findReferenceMatches('API 1')
+
+      expect(match.searchText).toBe('API 1.output')
+      expect(match.rawValue).toBe('<api1.output>')
+      expect(match.range).toEqual({ start: 10, end: 23 })
+    })
+
+    it('leaves a prefix that names no block as written', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: (() => {
+          const workflow = createSearchReplaceWorkflowFixture()
+          workflow.blocks['agent-1'].subBlocks.systemPrompt.value =
+            'Summarize <api1.output> and <deletedblock.output>, then loop <loop.index>.'
+          return workflow
+        })(),
+        mode: 'all',
+        includeResourceMatchesWithoutQuery: true,
+        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+      })
+
+      expect(
+        matches
+          .filter((match) => match.kind === 'workflow-reference')
+          .map((match) => match.searchText)
+      ).toEqual(['API 1.output', 'deletedblock.output', 'loop.index'])
+    })
+
+    it('leaves an environment reference keyed by its variable name', () => {
+      const matches = indexWorkflowSearchMatches({
+        workflow: createSearchReplaceWorkflowFixture(),
+        mode: 'all',
+        includeResourceMatchesWithoutQuery: true,
+        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+      })
+
+      expect(
+        matches.filter((match) => match.kind === 'environment').map((match) => match.searchText)
+      ).toEqual(['OLD_SECRET', 'OLD_SECRET'])
+    })
+
+    /**
+     * Legacy workflows can hold two names that collide only now that
+     * `normalizeName` strips dots. `BlockResolver` gives the key to the dot-free
+     * name whichever order the blocks arrive in, so search has to name the same
+     * block or it would label the reference with a title that block does not own
+     * at execution time.
+     */
+    it.each([
+      ['dotted first', ['Hunter.io 1', 'Hunterio 1']],
+      ['dot-free first', ['Hunterio 1', 'Hunter.io 1']],
+    ])('names a legacy dot collision after the dot-free block (%s)', (_order, names) => {
+      const workflow = createSearchReplaceWorkflowFixture()
+      workflow.blocks['knowledge-1'].name = names[0]
+      workflow.blocks['api-1'].name = names[1]
+      workflow.blocks['agent-1'].subBlocks.systemPrompt.value = 'Read <hunterio1.email>.'
+
+      const matches = indexWorkflowSearchMatches({
+        workflow,
+        mode: 'all',
+        includeResourceMatchesWithoutQuery: true,
+        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+      })
+
+      expect(
+        matches
+          .filter((match) => match.kind === 'workflow-reference')
+          .map((match) => match.searchText)
+      ).toEqual(['Hunterio 1.email'])
+    })
   })
 
   it('does not index internal row metadata in structured subblock values', () => {

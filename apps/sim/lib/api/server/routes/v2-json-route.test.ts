@@ -5,7 +5,6 @@ import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -28,7 +27,6 @@ class TestLockedError extends HttpError {
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import {
@@ -48,10 +46,10 @@ const principal: PersonalApiKeyPrincipal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
+  keyExpiresAt: null,
 } satisfies V2ApiKeyAuthContext
 const resetAt = new Date('2026-08-08T20:00:00.000Z')
 const allowedRate = { allowed: true, remaining: 99, resetAt }
@@ -150,7 +148,6 @@ describe('defineV2JsonRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -164,10 +161,6 @@ describe('defineV2JsonRoute', () => {
     v2RouteMocks.authenticate.mockImplementation(async () => {
       events.push('authenticate')
       return { ...auth, rateLimitSubjectIds: ['api-key:key-1'] as const }
-    })
-    v2RouteMocks.gate.mockImplementation(async () => {
-      events.push('rollout')
-      return null
     })
     v2RouteMocks.operationRate.mockImplementation(async () => {
       events.push('operation-limit')
@@ -201,7 +194,6 @@ describe('defineV2JsonRoute', () => {
     expect(events).toEqual([
       'ip-limit',
       'authenticate',
-      'rollout',
       'operation-limit',
       'before-parse',
       'parse-and-map',
@@ -229,7 +221,6 @@ describe('defineV2JsonRoute', () => {
       { failClosed: true }
     )
     expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
-    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })
 
@@ -244,23 +235,7 @@ describe('defineV2JsonRoute', () => {
     await expect(response.json()).resolves.toEqual({
       error: { code: 'UNAUTHORIZED', message: 'API key required' },
     })
-    expect(v2RouteMocks.gate).not.toHaveBeenCalled()
     expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-  })
-
-  it('short-circuits parsing and operation rate limiting when rollout denies admission', async () => {
-    const mapInput = vi.fn<(input: ParsedRequest<typeof contract>) => Input>()
-    const execute = vi.fn<Execute>()
-    v2RouteMocks.gate.mockResolvedValueOnce(
-      NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 })
-    )
-
-    const response = await createHandler({ mapInput, execute })(request())
-
-    expect(response.status).toBe(404)
-    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
-    expect(mapInput).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -268,10 +243,6 @@ describe('defineV2JsonRoute', () => {
       stage: 'authentication',
       fail: () =>
         v2RouteMocks.authenticate.mockRejectedValueOnce(new Error('auth store unavailable')),
-    },
-    {
-      stage: 'rollout gate',
-      fail: () => v2RouteMocks.gate.mockRejectedValueOnce(new Error('gate store unavailable')),
     },
     {
       stage: 'operation rate limit',
@@ -351,7 +322,7 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
   })
 
-  it('authenticates, gates, and rate-limits before parse rejection, then stops', async () => {
+  it('authenticates and rate-limits before parse rejection, then stops', async () => {
     const execute = vi.fn<Execute>()
     const present = vi.fn<(result: Result) => { data: { value: string } }>()
     const onSuccess = vi.fn()
@@ -360,7 +331,6 @@ describe('defineV2JsonRoute', () => {
 
     expect(response.status).toBe(400)
     expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.gate).toHaveBeenCalledOnce()
     expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mapInput).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
@@ -496,6 +466,122 @@ describe('defineV2JsonRoute', () => {
 })
 
 /**
+ * A body that cannot be read as JSON has two very different causes, and the
+ * single `400 "Request body must be valid JSON"` describes only one of them: a
+ * caller who sent a form-encoded body is told to go hunting for a syntax error
+ * in a body that has none.
+ *
+ * These pin the split to the *classification* of an already-failing read. The
+ * final two are the regression guard that keeps it from becoming a media-type
+ * gate: a body that parses as JSON still succeeds no matter what the caller
+ * declared, which is what keeps `curl -d '{…}'` (form-urlencoded by default)
+ * and a headerless browser `fetch` (`text/plain`) working.
+ */
+describe('defineV2JsonRoute unreadable body classification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  /**
+   * A `string` body makes undici *derive* `content-type: text/plain;charset=UTF-8`,
+   * so omitting the header from `headers` is not enough to produce the
+   * absent-media-type request — the `null` case has to send pre-encoded bytes.
+   * The assertion is the guard that keeps that from silently drifting back:
+   * without it the two `contentType === null` cases secretly re-test `text/plain`
+   * and the `if (!header) return false` branch never runs.
+   */
+  function bodyRequest(contentType: string | null, body: string): NextRequest {
+    const request = new NextRequest('http://localhost/api/v2/widgets', {
+      method: 'POST',
+      headers: {
+        'x-api-key': 'secret',
+        ...(contentType === null ? {} : { 'content-type': contentType }),
+      },
+      body: contentType === null ? new TextEncoder().encode(body) : body,
+    })
+    if (contentType === null) expect(request.headers.get('content-type')).toBeNull()
+    return request
+  }
+
+  it('answers 415 when an unreadable body declared a non-JSON media type', async () => {
+    const response = await createHandler()(
+      bodyRequest('application/x-www-form-urlencoded', 'value=ok')
+    )
+
+    expect(response.status).toBe(415)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+        message: 'Request body must be sent as application/json',
+      },
+    })
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
+  it('keeps 400 for a truncated JSON body, whose media type was right', async () => {
+    const response = await createHandler()(bodyRequest('application/json', '{"value":'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+    })
+  })
+
+  it('keeps 400 when the media type is absent rather than wrong', async () => {
+    const response = await createHandler()(bodyRequest(null, '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('keeps 400 for text/plain, the default of a headerless browser fetch', async () => {
+    const response = await createHandler()(bodyRequest('text/plain;charset=UTF-8', '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('accepts a JSON body sent under a non-JSON media type, as it does today', async () => {
+    const response = await createHandler()(
+      bodyRequest('application/x-www-form-urlencoded', JSON.stringify({ value: 'ok' }))
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({ data: { value: 'ok' } })
+  })
+
+  it('accepts a JSON body sent with no media type at all', async () => {
+    const response = await createHandler()(bodyRequest(null, JSON.stringify({ value: 'ok' })))
+
+    expect(response.status).toBe(201)
+  })
+
+  it('keeps 400 for a structured JSON suffix media type', async () => {
+    const response = await createHandler()(bodyRequest('application/merge-patch+json', '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('lets a route override the classification entirely', async () => {
+    const response = await createHandler({
+      parseOptions: {
+        invalidJsonResponse: () =>
+          NextResponse.json(
+            { error: { code: 'BAD_REQUEST', message: 'Import archive is not JSON' } },
+            { status: 400 }
+          ),
+      },
+    })(bodyRequest('application/x-www-form-urlencoded', 'value=ok'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'BAD_REQUEST', message: 'Import archive is not JSON' },
+    })
+  })
+})
+
+/**
  * A `HEAD` on a route whose `GET` is not safe must answer the question the `GET`
  * would answer, minus the effect — not merely the question admission can answer.
  *
@@ -552,7 +638,6 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
@@ -667,7 +752,6 @@ describe('defineV2JsonRoute presentation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })

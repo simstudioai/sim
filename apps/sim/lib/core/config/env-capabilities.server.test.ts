@@ -31,13 +31,13 @@ describe('server environment capabilities', () => {
     expect(inspectConfiguredOAuthClient('slack')).toEqual({
       state: 'partial',
       missingFields: ['SLACK_CLIENT_SECRET'],
-      setupCommand: 'bun run setup integration slack',
+      setupCommand: 'npx sim-setup add integration slack',
     })
   })
 
   it('fails fast when an OAuth client is absent', () => {
     expect(() => requireConfiguredOAuthClient('shopify')).toThrow(
-      'OAuth client shopify is not configured. Run bun run setup integration shopify.'
+      'OAuth client shopify is not configured. Run npx sim-setup add integration shopify.'
     )
   })
 
@@ -45,7 +45,7 @@ describe('server environment capabilities', () => {
     setEnv({ SLACK_CLIENT_ID: 'slack-client' })
 
     expect(() => requireConfiguredOAuthClient('slack')).toThrow(
-      'OAuth client slack is partially configured — missing SLACK_CLIENT_SECRET. Run bun run setup integration slack.'
+      'OAuth client slack is partially configured — missing SLACK_CLIENT_SECRET. Run npx sim-setup add integration slack.'
     )
   })
 

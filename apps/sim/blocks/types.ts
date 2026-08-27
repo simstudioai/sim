@@ -269,6 +269,19 @@ export interface SubBlockConfig {
   type: SubBlockType
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
+  /**
+   * Declares that the stored value is markdown, so workflow search matches it
+   * against the text it RENDERS as rather than its source.
+   *
+   * The rich-text editor backslash-escapes every markdown-significant character
+   * in prose, so a Note body the reader sees as `SB_ACTION` is stored as
+   * `SB\_ACTION` and would otherwise be unfindable by what is on screen. Ranges
+   * stay in source coordinates, so replace still rewrites the escaped span.
+   *
+   * Omit for every ordinary field: a code or plain-text value is searched as
+   * stored, where a backslash is the author's own character.
+   */
+  searchTextFormat?: 'markdown'
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**
@@ -329,7 +342,15 @@ export interface SubBlockConfig {
         defaultChecked?: boolean
         description?: string
       }[]
-    | (() => {
+    /**
+     * Options DERIVED from the block's own values — no I/O. Receives the block's current
+     * sub-block values so a list can narrow to a sibling's selection (the reasoning efforts a
+     * chosen model actually supports). A remote list is never expressed here: it belongs to a
+     * registered selector via `selectorKey`, which works off-canvas too.
+     *
+     * Existing zero-argument option functions keep working unchanged.
+     */
+    | ((params?: { values: Record<string, unknown> }) => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
@@ -342,6 +363,14 @@ export interface SubBlockConfig {
   max?: number
   columns?: string[]
   placeholder?: string
+  /**
+   * Conceals the stored value in the editor until the field is focused.
+   *
+   * Honoured only by the `short-input`, `long-input`, `code`, and `table`
+   * renderers (`PASSWORD_MASKED_SUBBLOCK_TYPES`). On any other type it is a
+   * silent no-op that leaves the secret in plaintext, so a new usage must teach
+   * that renderer to mask. `blocks/password-masking.test.ts` enforces this.
+   */
   password?: boolean
   readOnly?: boolean
   showCopyButton?: boolean
@@ -431,6 +460,14 @@ export interface SubBlockConfig {
   allowServiceAccounts?: boolean
   // Selector properties — declarative mapping to a SelectorKey
   selectorKey?: SelectorKey
+  /**
+   * Drop the workflow this block lives in from a `sim.workflows` list.
+   *
+   * A declared flag rather than a blanket rule, because "can this reference itself" differs by
+   * field: the Sim trigger never receives events about its own workflow, while the Logs block
+   * legitimately reads the logs of the workflow it runs in.
+   */
+  selectorExcludeSelf?: boolean
   selectorAllowSearch?: boolean
   // File selector specific properties
   mimeType?: string
@@ -482,15 +519,6 @@ export interface SubBlockConfig {
   dependsOn?: string[] | { all?: string[]; any?: string[] }
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
-  // Dropdown/Combobox: Function to fetch options dynamically
-  // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  // Dropdown/Combobox: Function to fetch a single option's label by ID (for hydration)
-  // Called when component mounts with a stored value to display the correct label before options load
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
   /**
    * tool-input only: tool categories the consuming block cannot execute. They
    * stay visible in the picker but are greyed out with a tooltip rather than
@@ -629,6 +657,13 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    * (placing it would recurse).
    */
   sourceWorkflowId?: string
+  /**
+   * For published custom blocks only: the name of the workspace the bound source
+   * workflow lives in. Display-only, and the sole way to tell two blocks apart when
+   * an org runs the same block per environment — prod/uat/sandbox copies share a
+   * name and differ only by an opaque `custom_block_<slug>` type.
+   */
+  sourceWorkspaceName?: string
   /**
    * Marks an unreleased block. Preview blocks are hidden from every discovery
    * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —

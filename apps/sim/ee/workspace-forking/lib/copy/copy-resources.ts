@@ -10,6 +10,7 @@ import {
   permissions,
   skill,
   skillMember,
+  tableViews,
   userTableDefinitions,
   userTableRowSecretProvenance,
   userTableRows,
@@ -20,7 +21,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import {
   and,
   asc,
@@ -54,6 +55,7 @@ import {
   rebindKnowledgeDocumentSecretProvenance,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
+import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -71,7 +73,7 @@ import {
   recordKnowledgeBaseFileOwnership,
 } from '@/lib/uploads/server/metadata'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import {
   deleteCopiedResourceMappingsByTargets,
   type ForkMappingUpsert,
@@ -334,6 +336,11 @@ export interface CopyResourcesResult {
   contentPlan: ForkContentPlan
   /** Names of the copied resources, by kind, for the fork report breakdown. */
   names: ForkCopiedResourceNames
+  /**
+   * source folder id -> target folder id for every family mirrored here (tables, knowledge
+   * bases). Merged by the caller with the workflow and file maps for content-ref rewriting.
+   */
+  folderIdMap: Map<string, string>
 }
 
 function setId(idMap: Map<ForkResourceType, Map<string, string>>, type: ForkResourceType) {
@@ -363,6 +370,11 @@ type SkillSkeletonInsert = Omit<typeof skill.$inferInsert, 'content'> & { conten
  * {@link copyForkResourceContent} to copy best-effort after commit. Secrets are
  * never copied: MCP OAuth tokens are omitted (re-auth required) and KB connectors
  * are not copied (the child is a content snapshot without live sync).
+ *
+ * Because the child gets no connector, connector-MANAGED documents are not copied
+ * either - only hand-uploaded ones. A detached copy is unreachable by the sync engine
+ * (which keys off `connector_id`), so re-attaching a connector in the child would layer
+ * a fresh generation on top of it instead of updating it. See {@link copyForkResourceContent}.
  */
 export async function copyForkResourceContainers(
   params: CopyResourcesParams
@@ -372,6 +384,12 @@ export async function copyForkResourceContainers(
   const resolveEnvName = params.resolveEnvName
   const idMap = new Map<ForkResourceType, Map<string, string>>()
   const mappingEntries: ForkMappingUpsert[] = []
+  /**
+   * Mirrored folder ids across every family copied here. Table and knowledge-base folders live
+   * in disjoint trees, and folder ids are globally unique, so merging them into one map is
+   * unambiguous and lets callers rewrite `sim:folder/<id>` refs in a single pass.
+   */
+  const folderIdMap = new Map<string, string>()
   const contentPlan: ForkContentPlan = {
     sourceWorkspaceId,
     childWorkspaceId,
@@ -538,7 +556,7 @@ export async function copyForkResourceContainers(
     const inserts: (typeof mcpServers.$inferInsert)[] = []
     for (const row of rows) {
       const childId = generateId()
-      const headers = isRecord(row.headers)
+      const headers = isRecordLike(row.headers)
         ? Object.fromEntries(
             Object.entries(row.headers).map(([key, value]) => [
               key,
@@ -619,7 +637,40 @@ export async function copyForkResourceContainers(
           isNull(userTableDefinitions.archivedAt)
         )
       )
+    const sourceViews =
+      definitions.length > 0
+        ? await tx
+            .select()
+            .from(tableViews)
+            .where(
+              and(
+                inArray(
+                  tableViews.tableId,
+                  definitions.map((definition) => definition.id)
+                ),
+                eq(tableViews.workspaceId, sourceWorkspaceId)
+              )
+            )
+        : []
+    const sourceViewsByTable = new Map<string, typeof sourceViews>()
+    for (const view of sourceViews) {
+      const views = sourceViewsByTable.get(view.tableId) ?? []
+      views.push(view)
+      sourceViewsByTable.set(view.tableId, views)
+    }
+    const tableFolderIdMap = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId,
+      targetWorkspaceId: childWorkspaceId,
+      userId,
+      now,
+      resourceType: 'table',
+      contentFolderIds: definitions.map((definition) => definition.folderId),
+    })
+    for (const [source, target] of tableFolderIdMap) folderIdMap.set(source, target)
+
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
+    const viewInserts: (typeof tableViews.$inferInsert)[] = []
     for (const definition of definitions) {
       const childTableId = generateId()
       const remappedSchema = remapForkTableWorkflowGroups(
@@ -632,13 +683,13 @@ export async function copyForkResourceContainers(
         id: childTableId,
         workspaceId: childWorkspaceId,
         /**
-         * Folders never transit a fork edge. `folder_id` is a global id with no workspace in
-         * it, so the spread above would leave the child's table pointing at a folder owned by
-         * the SOURCE workspace — invisible in the fork, and mutated from under it if the
-         * source later deletes that folder (`ON DELETE SET NULL`). Forked tables land at the
-         * root, like forked files already do.
+         * `folder_id` is a global id with no workspace in it, so the spread above would leave
+         * the child's table pointing at a folder owned by the SOURCE workspace — invisible in
+         * the fork, and mutated from under it if the source later deletes that folder
+         * (`ON DELETE SET NULL`). Remap it onto the mirrored target subtree instead; an
+         * unmapped folder re-roots the table.
          */
-        folderId: null,
+        folderId: definition.folderId ? (tableFolderIdMap.get(definition.folderId) ?? null) : null,
         schema: remappedSchema,
         createdBy: userId,
         rowsVersion: 0,
@@ -657,11 +708,37 @@ export async function copyForkResourceContainers(
         createdAt: now,
         updatedAt: now,
       })
+      const views = sourceViewsByTable.get(definition.id) ?? []
+      for (const view of views) {
+        viewInserts.push({
+          ...view,
+          id: generateId(),
+          tableId: childTableId,
+          workspaceId: childWorkspaceId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      if (!views.some((view) => view.isDefault)) {
+        viewInserts.push({
+          id: generateId(),
+          tableId: childTableId,
+          workspaceId: childWorkspaceId,
+          name: DEFAULT_TABLE_VIEW_NAME,
+          config: definition.metadata ?? {},
+          isDefault: true,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
       record('table', definition.id, childTableId)
       contentPlan.tables.push({ sourceId: definition.id, childId: childTableId })
       names.tables.push(definition.name)
     }
     if (inserts.length > 0) await tx.insert(userTableDefinitions).values(inserts)
+    if (viewInserts.length > 0) await tx.insert(tableViews).values(viewInserts)
   }
 
   if (selection.knowledgeBases.length > 0) {
@@ -675,6 +752,17 @@ export async function copyForkResourceContainers(
           isNull(knowledgeBase.deletedAt)
         )
       )
+    const kbFolderIdMap = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId,
+      targetWorkspaceId: childWorkspaceId,
+      userId,
+      now,
+      resourceType: 'knowledge_base',
+      contentFolderIds: bases.map((base) => base.folderId),
+    })
+    for (const [source, target] of kbFolderIdMap) folderIdMap.set(source, target)
+
     const inserts: (typeof knowledgeBase.$inferInsert)[] = []
     const kbEntryBySourceId = new Map<string, ForkContentKbEntry>()
     for (const base of bases) {
@@ -683,8 +771,8 @@ export async function copyForkResourceContainers(
         ...base,
         id: childKbId,
         workspaceId: childWorkspaceId,
-        /** Same reasoning as the table copy above: folders do not transit a fork edge. */
-        folderId: null,
+        /** Same reasoning as the table copy above: remapped, never carried across verbatim. */
+        folderId: base.folderId ? (kbFolderIdMap.get(base.folderId) ?? null) : null,
         userId,
         deletedAt: null,
         createdAt: now,
@@ -742,7 +830,7 @@ export async function copyForkResourceContainers(
     })
   }
 
-  return { idMap, mappingEntries, contentPlan, names }
+  return { idMap, mappingEntries, contentPlan, names, folderIdMap }
 }
 
 /**
@@ -751,6 +839,12 @@ export async function copyForkResourceContainers(
  * Each deterministic placeholder is archived with no storage key and zero bytes, so it is
  * non-billable until {@link copyForkResourceContent} activates it atomically with accounting.
  * Documents whose parent KB is not copied are skipped, leaving their references to be cleared.
+ *
+ * Connector-managed documents are skipped for the same reason {@link copyForkResourceContent}
+ * excludes them from the bulk copy - a detached snapshot the child's connector would duplicate.
+ * Skipping them HERE too is what keeps the two sides consistent: a placeholder with no content
+ * phase behind it would stay archived forever while its persisted `knowledge_document` mapping
+ * pointed at it. Their references clear like any other uncopied document's.
  */
 async function createForkDocumentPlaceholders(params: {
   tx: DbOrTx
@@ -770,6 +864,7 @@ async function createForkDocumentPlaceholders(params: {
       and(
         inArray(document.id, referencedDocumentIds),
         inArray(document.knowledgeBaseId, Array.from(kbIdMap.keys())),
+        isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
@@ -812,7 +907,9 @@ async function createForkDocumentPlaceholders(params: {
  * Documents whose parent KB is being copied THIS sync are handled by
  * {@link createForkDocumentPlaceholders} under that copied KB and are excluded here via
  * `alreadyCopiedSourceDocIds`. A referenced document whose parent KB is not mapped at all is left
- * untouched, so its reference is cleared as before.
+ * untouched, so its reference is cleared as before. Connector-managed documents are excluded for
+ * the reason given on {@link copyForkResourceContent} - and the exclusion matters MORE here, since
+ * the target KB is an existing one that may already run its own connector over the same source.
  */
 export async function planForkMappedKbDocumentCopies(params: {
   tx: DbOrTx
@@ -844,6 +941,7 @@ export async function planForkMappedKbDocumentCopies(params: {
     .where(
       and(
         inArray(document.id, candidateIds),
+        isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
@@ -942,7 +1040,7 @@ function remapTableRowResourceUrls(value: unknown, maps: ForkContentRefMaps): un
     })
     return changed ? next : value
   }
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value)) {
@@ -982,6 +1080,114 @@ export async function copyForkResourceContent(params: {
   const getBillingContext = async (): Promise<StorageBillingContext> => {
     billingContext ??= await resolveStorageBillingContext(childWorkspaceId)
     return billingContext
+  }
+  /**
+   * Drop the persisted `knowledge_document` identity for a copied document that will not exist,
+   * so a later sync resolves the reference afresh instead of to a row the cleanup removes.
+   * Isolated like the rest of the post-commit phase: a mapping-cleanup failure is logged, never
+   * rethrown, since the caller is already reporting the document as failed.
+   */
+  const dropCopiedDocumentMapping = async (childDocumentId: string): Promise<void> => {
+    const mappingContext = contentPlan.documentMappingContext
+    if (!mappingContext) return
+    try {
+      await deleteCopiedResourceMappingsByTargets({
+        executor: db,
+        edgeChildWorkspaceId: mappingContext.edgeChildWorkspaceId,
+        sourceIsParent: mappingContext.sourceIsParent,
+        targets: [{ resourceType: 'knowledge_document', resourceId: childDocumentId }],
+      })
+    } catch (mappingCleanupError) {
+      logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
+        childDocumentId,
+        error: getErrorMessage(mappingCleanupError),
+      })
+    }
+  }
+  /**
+   * Find the placeholders a worker from before this exclusion (a rolling deploy) planned for
+   * connector-managed documents, drop their persisted identities, and return the child ids to
+   * report as failed documents - the page query no longer returns their sources, so nothing
+   * would ever fill them, leaving archived empty rows that a mapping and a remapped
+   * `document-selector` still resolve to.
+   *
+   * Keyed on the SOURCE being connector-managed, which is deterministic: such a document can
+   * never become copyable, so this cannot race a concurrent attempt sitting between
+   * {@link ensureKbDocumentPlaceholder} and {@link finalizeKbDocument} (a "planned but unfilled"
+   * sweep would).
+   *
+   * Best-effort, like the count above: this probe runs on EVERY copied KB that has referenced
+   * documents, while the state it repairs exists only inside a rollout window. Letting a
+   * transient failure reach the KB's catch would delete an otherwise-complete copy and clear
+   * every reference to it - far worse, and far more likely, than the dangling placeholder it
+   * guards against. A failure is logged loudly and leaves that pre-existing state in place.
+   */
+  const reconcileStalePlannedDocuments = async (kb: ForkContentKbEntry): Promise<string[]> => {
+    const plannedSourceIds = Object.keys(kb.documentIdMap)
+    if (plannedSourceIds.length === 0) return []
+    try {
+      const stalePlanned = await db
+        .select({ id: document.id })
+        .from(document)
+        .where(and(inArray(document.id, plannedSourceIds), isNotNull(document.connectorId)))
+      const staleChildIds: string[] = []
+      for (const { id } of stalePlanned) {
+        const childDocumentId = kb.documentIdMap[id]
+        if (!childDocumentId) continue
+        // Left in `documentIdMap` deliberately: if the KB itself later fails, its failure lists
+        // the same child id again, and the cleanup keys failed ids by kind in a Set.
+        await dropCopiedDocumentMapping(childDocumentId)
+        staleChildIds.push(childDocumentId)
+        logger.warn(
+          `[${requestId}] Dropping a fork placeholder planned for a connector-managed document`,
+          { sourceDocumentId: id, childDocumentId, childKnowledgeBaseId: kb.childId }
+        )
+      }
+      return staleChildIds
+    } catch (error) {
+      logger.error(
+        `[${requestId}] Failed to reconcile fork placeholders planned for connector-managed documents`,
+        {
+          sourceKnowledgeBaseId: kb.sourceId,
+          childKnowledgeBaseId: kb.childId,
+          error: getErrorMessage(error),
+        }
+      )
+      return []
+    }
+  }
+  /**
+   * Report the connector-managed documents a copied KB leaves behind, since a fully
+   * connector-synced base lands in the child with no documents at all. Strictly observability,
+   * so it swallows its own failure: counting is not copying, and a transient error here must not
+   * take down the KB the way a failed document does.
+   */
+  const logSkippedConnectorDocuments = async (kb: ForkContentKbEntry): Promise<void> => {
+    try {
+      const [row] = await db
+        .select({ total: sql<number>`count(*)` })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, kb.sourceId),
+            isNotNull(document.connectorId),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt)
+          )
+        )
+      const skipped = Number(row?.total ?? 0)
+      if (skipped === 0) return
+      logger.info(`[${requestId}] Skipped connector-managed documents in a copied knowledge base`, {
+        sourceKnowledgeBaseId: kb.sourceId,
+        childKnowledgeBaseId: kb.childId,
+        skipped,
+      })
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to count the documents a copied knowledge base skipped`, {
+        sourceKnowledgeBaseId: kb.sourceId,
+        error: getErrorMessage(error),
+      })
+    }
   }
 
   for (const table of contentPlan.tables) {
@@ -1091,13 +1297,29 @@ export async function copyForkResourceContent(params: {
 
   for (const kb of contentPlan.knowledgeBases) {
     try {
+      await logSkippedConnectorDocuments(kb)
+      for (const childDocumentId of await reconcileStalePlannedDocuments(kb)) {
+        failedResources += 1
+        failures.push({ kind: 'knowledge-document', childId: childDocumentId })
+      }
       let afterDocId: string | null = null
       for (;;) {
         // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
         // how the rest of the KB system treats them as gone (chunks/tags/search filter
         // both). A fork must not resurrect documents removed from the source base.
+        //
+        // Connector-managed documents are excluded too, because a copy could only ever be a
+        // DETACHED snapshot: the child gets no connector (see `copyForkResourceContainers`), and
+        // the sync engine keys every existing/tombstone/exclusion lookup off `connector_id`, so
+        // the copy is invisible to it - never updated, reconciled, or purged. Attaching a
+        // connector in the child then re-ingests every page as a NEW row on top of the snapshot,
+        // stacking one dead generation per fork hop. Skipping them leaves the child's own
+        // connector as the single owner of that content. A source document whose connector was
+        // DELETED already has a null `connector_id` (the FK is ON DELETE SET NULL) and is static
+        // content in the source too, so it still copies.
         const liveDocs = and(
           eq(document.knowledgeBaseId, kb.sourceId),
+          isNull(document.connectorId),
           isNull(document.deletedAt),
           isNull(document.archivedAt)
         )
@@ -1240,6 +1462,15 @@ export async function copyForkResourceContent(params: {
       if (!source) {
         throw new Error(`Source document ${docEntry.sourceDocId} is missing`)
       }
+      if (source.connectorId) {
+        // Only reachable from a payload planned before connector-managed documents were excluded
+        // (a rolling deploy). Fail the entry instead of filling it: the per-document cleanup
+        // below drops the archived placeholder and clears its references, which is the outcome
+        // the planner would now produce anyway.
+        throw new Error(
+          `Source document ${docEntry.sourceDocId} is connector-managed and is not copied across a fork edge`
+        )
+      }
       const resolvedBillingContext = await getBillingContext()
       await copyKbDocument({
         source,
@@ -1251,21 +1482,7 @@ export async function copyForkResourceContent(params: {
       })
       copiedResources += 1
     } catch (error) {
-      if (contentPlan.documentMappingContext) {
-        try {
-          await deleteCopiedResourceMappingsByTargets({
-            executor: db,
-            edgeChildWorkspaceId: contentPlan.documentMappingContext.edgeChildWorkspaceId,
-            sourceIsParent: contentPlan.documentMappingContext.sourceIsParent,
-            targets: [{ resourceType: 'knowledge_document', resourceId: docEntry.childDocId }],
-          })
-        } catch (mappingCleanupError) {
-          logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
-            childDocumentId: docEntry.childDocId,
-            error: getErrorMessage(mappingCleanupError),
-          })
-        }
-      }
+      await dropCopiedDocumentMapping(docEntry.childDocId)
       failedResources += 1
       failures.push({ kind: 'knowledge-document', childId: docEntry.childDocId })
       logger.warn(`[${requestId}] Failed to copy document into mapped KB during sync`, {

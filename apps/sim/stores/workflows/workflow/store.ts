@@ -580,15 +580,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const activeWorkflowId = get().currentWorkflowId
         const mergedBlock = mergeSubblockState(get().blocks, activeWorkflowId || undefined, id)[id]
 
-        const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
-          (acc, [subId, subBlock]) => ({
-            ...acc,
-            [subId]: {
-              ...subBlock,
-              value: structuredClone(subBlock.value),
-            },
-          }),
-          {}
+        const newSubBlocks = Object.fromEntries(
+          Object.entries(mergedBlock.subBlocks).map(([subId, subBlock]) => [
+            subId,
+            { ...subBlock, value: structuredClone(subBlock.value) },
+          ])
         )
 
         // Remap condition/router IDs in the duplicated subBlocks
@@ -990,6 +986,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
             logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
             return state
           }
+          if (
+            block.height === dimensions.height &&
+            block.layout?.measuredWidth === dimensions.width &&
+            block.layout?.measuredHeight === dimensions.height
+          ) {
+            return state
+          }
 
           return {
             blocks: {
@@ -1004,12 +1007,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 },
               },
             },
-            edges: [...state.edges],
-            loops: { ...state.loops },
           }
         })
-        get().updateLastSaved()
-        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>

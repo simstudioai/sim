@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { toolResultForModel } from '@/lib/copilot/chat/sim-key-redaction'
 import {
   MothershipStreamV1ToolOutcome,
@@ -88,7 +89,7 @@ function getToolCallTerminalDataRaw(
       typeof toolCall.error === 'string' && toolCall.error.length > 0
         ? toolCall.error
         : 'Tool failed without an error message'
-    if (output && typeof output === 'object' && !Array.isArray(output)) {
+    if (isRecordLike(output)) {
       return 'error' in output ? output : { ...output, error }
     }
     return { output, error }

@@ -76,10 +76,11 @@ vi.mock('@/lib/copilot/block-visibility', () => ({
 vi.mock('@/lib/copilot/integration-tools', () => ({
   filterExposedIntegrationTools: vi.fn(
     (
-      tools: Array<{ blockType: string; service: string }>,
+      tools: Array<{ toolId: string; blockType: string; service: string }>,
       _vis: unknown,
-      isOwnerAllowed: (owner: { blockType: string; service: string }) => boolean
-    ) => tools.filter((tool) => isOwnerAllowed(tool))
+      isOwnerAllowed: (owner: { blockType: string; service: string }) => boolean,
+      isToolAllowed: (toolId: string) => boolean = () => true
+    ) => tools.filter((tool) => isToolAllowed(tool.toolId) && isOwnerAllowed(tool))
   ),
   getExposedIntegrationTools: vi.fn(() => [
     {
@@ -298,6 +299,34 @@ describe('buildIntegrationToolSchemas', () => {
     expect(second[0].input_schema).not.toHaveProperty('mutated')
     expect(second[0].outputs).not.toHaveProperty('mutated')
   })
+
+  it('rebuilds instead of serving a cache entry from the previous policy', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+    mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null, deniedTools: [] })
+
+    const before = await buildIntegrationToolSchemas(
+      'user-policy',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-policy'
+    )
+    expect(before.map((tool) => tool.name)).toContain('gmail_send')
+
+    // An admin denies the tool. The viewer and surface are unchanged, so only
+    // the policy component of the key can force a rebuild.
+    mockGetUserPermissionConfig.mockResolvedValue({
+      allowedIntegrations: null,
+      deniedTools: ['gmail_send'],
+    })
+
+    const after = await buildIntegrationToolSchemas(
+      'user-policy',
+      undefined,
+      { schemaSurface: 'copilot' },
+      'workspace-policy'
+    )
+    expect(after.map((tool) => tool.name)).not.toContain('gmail_send')
+  })
 })
 
 describe('buildCopilotRequestPayload', () => {
@@ -368,7 +397,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "payroll.xlsx" (application/octet-stream, 1 bytes) uploaded.',
             'Read with: read("uploads/payroll.xlsx")',
-            'To save permanently: materialize_file(fileName: "payroll.xlsx")',
+            'To save permanently: save_upload(fileName: "payroll.xlsx")',
           ].join('\n'),
         },
       ])
@@ -410,7 +439,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "photo.png" (image/png, 10 bytes) uploaded.',
             'Read with: read("uploads/photo.png")',
-            'To save permanently: materialize_file(fileName: "photo.png")',
+            'To save permanently: save_upload(fileName: "photo.png")',
           ].join('\n'),
         },
       ])

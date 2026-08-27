@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const byokProviderIdSchema = z.enum([
@@ -40,7 +41,9 @@ export const byokProviderIdSchema = z.enum([
   'enrow',
 ])
 
-/** Maximum number of keys a workspace may store per provider. */
+export type BYOKProviderId = z.output<typeof byokProviderIdSchema>
+
+/** Maximum number of BYOK keys a single workspace or organization may store per provider. */
 export const MAX_BYOK_KEYS_PER_PROVIDER = 10
 
 export const byokKeySchema = z.object({
@@ -66,6 +69,10 @@ export const byokKeyMutationSchema = z.object({
 
 export const byokWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
+})
+
+export const byokOrganizationParamsSchema = z.object({
+  id: organizationIdSchema,
 })
 
 export const upsertByokKeyBodySchema = z.object({
@@ -122,4 +129,62 @@ export const deleteByokKeyContract = defineRouteContract({
   },
 })
 
+export const listOrganizationByokKeysContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/byok-keys',
+  params: byokOrganizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      keys: z.array(byokKeySchema),
+      entitled: z.boolean(),
+    }),
+  },
+})
+
+export const upsertOrganizationByokKeyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/byok-keys',
+  params: byokOrganizationParamsSchema,
+  body: upsertByokKeyBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      key: byokKeyMutationSchema,
+    }),
+  },
+})
+
+export const deleteOrganizationByokKeyContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/organizations/[id]/byok-keys',
+  params: byokOrganizationParamsSchema,
+  body: deleteByokKeyBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
+
+export const getInheritedByokStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/byok-keys/inherited-status',
+  params: byokWorkspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      inheritedProviderIds: z.array(byokProviderIdSchema).max(byokProviderIdSchema.options.length),
+    }),
+  },
+})
+
 export type BYOKKeysResponse = ContractJsonResponse<typeof listByokKeysContract>
+export type OrganizationBYOKKeysResponse = ContractJsonResponse<
+  typeof listOrganizationByokKeysContract
+>
+export type InheritedBYOKStatusResponse = ContractJsonResponse<
+  typeof getInheritedByokStatusContract
+>

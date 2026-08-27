@@ -76,6 +76,27 @@ describe('phone-number enrichment cascade', () => {
       expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
       expect(p.mapOutput({ person: { mobile: { mobile: '+1555' } } })).toEqual({ phone: '+1555' })
     })
+
+    it('recognizes only Prospeo NO_MATCH as a clean miss', () => {
+      expect(
+        p.projectFailure({
+          error: 'NO_MATCH',
+          output: { status: 400, data: { error: true, error_code: 'NO_MATCH' } },
+        })
+      ).toEqual({ status: 'no_match' })
+      expect(
+        p.projectFailure({
+          error: 'INVALID_API_KEY',
+          output: { status: 400, data: { error: true, error_code: 'INVALID_API_KEY' } },
+        })
+      ).toEqual({ status: 'error', error: 'INVALID_API_KEY' })
+      expect(
+        p.projectFailure({
+          error: 'Bad Request',
+          output: { status: 400, data: { error: true } },
+        })
+      ).toEqual({ status: 'error', error: 'Bad Request' })
+    })
   })
 
   describe('leadmagic', () => {

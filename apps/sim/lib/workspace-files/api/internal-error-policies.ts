@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/server/routes'
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { ArchiveError, statusForArchiveError } from '@/lib/uploads/archive'
 import {
   CompiledCheckTooLargeError,
   CompiledCheckUnsupportedError,
@@ -81,6 +82,16 @@ const inline: InternalErrorPolicy = {
 
 const FILE_NOT_FOUND_MESSAGE = 'File not found'
 
+const concealResourceAuthorization = createInternalResourceConcealmentPolicy({
+  base: internalOrchestrationErrorPolicy,
+  notFoundMessage: FILE_NOT_FOUND_MESSAGE,
+})
+
+const extractArchive = extendInternalErrorPolicy(concealResourceAuthorization, (error) => {
+  if (!(error instanceof ArchiveError)) return null
+  return internalErrorResponse(statusForArchiveError(error), { error: error.message })
+})
+
 export const internalFileErrorPolicies = {
   default: internalOrchestrationErrorPolicy,
   content,
@@ -88,10 +99,7 @@ export const internalFileErrorPolicies = {
    * Single-file internal routes reach the same use cases as the concealing v2
    * file routes, so they withhold the same cross-tenant existence signal.
    */
-  concealResourceAuthorization: createInternalResourceConcealmentPolicy({
-    base: internalOrchestrationErrorPolicy,
-    notFoundMessage: FILE_NOT_FOUND_MESSAGE,
-  }),
+  concealResourceAuthorization,
   concealContentAuthorization: createInternalResourceConcealmentPolicy({
     base: content,
     notFoundMessage: FILE_NOT_FOUND_MESSAGE,
@@ -100,5 +108,6 @@ export const internalFileErrorPolicies = {
   compiledCheck,
   downloadUrl,
   downloadArchive,
+  extractArchive,
   inline,
 } as const

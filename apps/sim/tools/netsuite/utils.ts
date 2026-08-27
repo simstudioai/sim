@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -136,7 +137,7 @@ export function normalizeBatchItems(items: NetSuiteJsonObject[]): NetSuiteJsonOb
   if (!Array.isArray(items) || items.length < 1 || items.length > MAX_BATCH_RECORDS) {
     throw new Error(`Batch items must contain between 1 and ${MAX_BATCH_RECORDS} records`)
   }
-  if (items.some((item) => !isJsonObject(item))) {
+  if (items.some((item) => !isRecordLike(item))) {
     throw new Error('Every batch item must be a JSON object')
   }
   return items
@@ -252,7 +253,7 @@ export async function executeNetSuiteRequest(
   let suiteTalkTimeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     const request = buildRequest()
-    if (request.body !== undefined && !isJsonObject(request.body)) {
+    if (request.body !== undefined && !isRecordLike(request.body)) {
       throw new Error('NetSuite request body must be a JSON object')
     }
     const serializedBody = serializeRequestBody(request.body)
@@ -450,6 +451,7 @@ async function readSuiteTalkBody(
     maxBytes: response.ok ? MAX_INLINE_MATERIALIZATION_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
     label: response.ok ? 'NetSuite response' : 'NetSuite error response',
     signal,
+    allowNoBodyFallback: response.status === 202,
   })
   if (!text.trim()) return null
   try {
@@ -562,7 +564,7 @@ function assertJsonBodyWithinLimit(body: unknown): void {
       state.ancestors.add(value)
       addJsonBytes(state, 1)
       frames.push({ kind: 'array', value, index: 0, depth })
-    } else if (isJsonObject(value)) {
+    } else if (isRecordLike(value)) {
       const prototype = Object.getPrototypeOf(value)
       if (prototype !== Object.prototype && prototype !== null) throwNonPlainJsonError()
       rejectCustomJsonSerialization(value)
@@ -666,13 +668,13 @@ function validateSuccessBody(
   if (successCase.body === 'none' && data !== null) {
     return `NetSuite HTTP ${successCase.status} response unexpectedly included a body`
   }
-  if (successCase.body === 'object' && !isJsonObject(data)) {
+  if (successCase.body === 'object' && !isRecordLike(data)) {
     return `NetSuite HTTP ${successCase.status} response did not include the documented JSON object`
   }
-  if (successCase.body === 'optional-object' && data !== null && !isJsonObject(data)) {
+  if (successCase.body === 'optional-object' && data !== null && !isRecordLike(data)) {
     return `NetSuite HTTP ${successCase.status} response was neither empty nor a JSON object`
   }
-  if (!successCase.validator || !isJsonObject(data)) return null
+  if (!successCase.validator || !isRecordLike(data)) return null
 
   switch (successCase.validator) {
     case 'collection-page':
@@ -741,7 +743,7 @@ function validateMetadataCatalog(data: Record<string, unknown>): string | null {
     return 'NetSuite metadata catalog response included invalid links'
   }
   for (const item of data.items) {
-    if (!isJsonObject(item) || !isNonEmptyString(item.name)) {
+    if (!isRecordLike(item) || !isNonEmptyString(item.name)) {
       return 'NetSuite metadata catalog response included an invalid record type'
     }
     if (item.links !== undefined && !Array.isArray(item.links)) {
@@ -800,7 +802,7 @@ function validateRequiredProperties(
       type === 'array'
         ? Array.isArray(value)
         : type === 'object'
-          ? isJsonObject(value)
+          ? isRecordLike(value)
           : type === 'number'
             ? typeof value === 'number' && Number.isFinite(value)
             : typeof value === type
@@ -814,7 +816,7 @@ function expectsAsyncJob(request: NetSuiteRequest): boolean {
 }
 
 function normalizeAuthParams(auth: NetSuiteAuthParams): NetSuiteAuthParams {
-  if (!isJsonObject(auth)) throw new Error('NetSuite credentials are required')
+  if (!isRecordLike(auth)) throw new Error('NetSuite credentials are required')
   return {
     oauthCredential: requiredTrim(auth.oauthCredential, 'NetSuite credential'),
     accessToken: requiredTrim(auth.accessToken ?? '', 'NetSuite access token'),
@@ -859,23 +861,23 @@ function isIdempotentJobReplay(request: NetSuiteRequest, status: number, data: u
   const hasIdempotencyKey = Object.entries(request.headers ?? {}).some(
     ([name, value]) => name.toLowerCase() === 'x-netsuite-idempotency-key' && Boolean(value.trim())
   )
-  if (!hasIdempotencyKey || !isJsonObject(data)) return false
+  if (!hasIdempotencyKey || !isRecordLike(data)) return false
 
   const errorDetails = data['o:errorDetails']
   return (
     Array.isArray(errorDetails) &&
     errorDetails.some(
-      (detail) => isJsonObject(detail) && detail['o:errorCode'] === 'IDEMPOTENCY_ERROR'
+      (detail) => isRecordLike(detail) && detail['o:errorCode'] === 'IDEMPOTENCY_ERROR'
     )
   )
 }
 
 function extractNetSuiteError(data: unknown, status: number, auth: NetSuiteAuthParams): string {
-  if (isJsonObject(data)) {
+  if (isRecordLike(data)) {
     const errorDetails = data['o:errorDetails']
     if (Array.isArray(errorDetails)) {
       const summaries = errorDetails.flatMap((detail) => {
-        if (!isJsonObject(detail)) return []
+        if (!isRecordLike(detail)) return []
         const message = typeof detail.detail === 'string' ? detail.detail.trim() : ''
         const context = [
           ['code', detail['o:errorCode']],
@@ -919,8 +921,4 @@ function sanitizeErrorText(value: string, auth?: NetSuiteAuthParams): string {
     if (secret.length >= 3) sanitized = sanitized.split(secret).join('[REDACTED]')
   }
   return truncate(sanitized.replace(/\s+/g, ' ').trim(), 900) || 'Unknown error'
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

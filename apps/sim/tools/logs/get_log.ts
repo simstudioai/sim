@@ -17,6 +17,7 @@ export const logsGetTool: ToolConfig<LogsGetParams, LogsGetResponse> = {
   },
 
   request: {
+    internal: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

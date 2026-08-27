@@ -4,6 +4,10 @@ import type {
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
 
+function usesInternalChatRoute(params: MicrosoftTeamsToolParams): boolean {
+  return Boolean(params.files?.length || /<at>[^<]+<\/at>/i.test(params.content || ''))
+}
+
 export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_chat',
   name: 'Write to Microsoft Teams Chat',
@@ -54,6 +58,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   },
 
   request: {
+    internal: usesInternalChatRoute,
     url: (params) => {
       // Ensure chatId is valid
       const chatId = params.chatId?.trim()
@@ -67,8 +72,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       }
 
       // If content contains mentions, use custom API route for mention resolution
-      const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
-      if (hasMentions) {
+      if (usesInternalChatRoute(params)) {
         return '/api/tools/microsoft_teams/write_chat'
       }
 

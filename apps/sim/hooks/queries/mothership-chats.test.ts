@@ -19,6 +19,8 @@ const { queryClient, suspendBrowserScope, suspendTerminalScope } = vi.hoisted(()
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: {},
+  queryOptions: (options: unknown) => options,
+  skipToken: Symbol('skipToken'),
   useQuery: vi.fn(),
   useQueryClient: vi.fn(() => queryClient),
   useMutation: vi.fn((options) => options),
@@ -38,6 +40,7 @@ import {
   useAddChatResource,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
+  useMarkMothershipChatRead,
 } from '@/hooks/queries/mothership-chats'
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -169,6 +172,32 @@ describe('tasks query boundary parsing', () => {
 
     await expect(fetchMothershipChatHistory('chat-1')).rejects.toThrow(
       'Invalid chat response: chat.resources[0].type is invalid'
+    )
+  })
+
+  it('does not call the legacy alias when the primary history request fails outside 404', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ success: false, error: 'Unavailable' }, { status: 503 })
+    )
+
+    await expect(fetchMothershipChatHistory('chat-1')).rejects.toMatchObject({ status: 503 })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the conditional read endpoint when marking a chat as seen', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ success: true }))
+    const mutation = useMarkMothershipChatRead('ws-1') as unknown as {
+      mutationFn: (chatId: string) => Promise<void>
+    }
+
+    await mutation.mutationFn('chat-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/mothership/chats/read',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ chatId: 'chat-1' }),
+      })
     )
   })
 

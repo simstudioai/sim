@@ -71,8 +71,9 @@ export const getPurchaseRequestTool: ToolConfig<GetPurchaseRequestParams, SapCon
         const purchaseRequestId = trimRequired(params.purchaseRequestId, 'purchaseRequestId')
         return {
           ...baseProxyBody(params),
-          path: `/purchaserequest/v4/purchaserequests/${encodeURIComponent(purchaseRequestId)}?mode=COMPACT`,
+          path: `/purchaserequest/v4/purchaserequests/${encodeURIComponent(purchaseRequestId)}`,
           method: 'GET',
+          query: { mode: 'COMPACT' },
         }
       },
     },

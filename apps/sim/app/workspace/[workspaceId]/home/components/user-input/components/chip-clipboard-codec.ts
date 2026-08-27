@@ -43,14 +43,24 @@ const PORTABLE_KIND_TO_ID_FIELD = {
  */
 export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
 
+/** Serializes a portable chip link, escaping Markdown delimiters in its label. */
+export function serializePortableChipLink(kind: PortableKind, id: string, label: string): string {
+  const escapedLabel = label.replace(/[\\[\]]/g, '\\$&')
+  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id})`
+}
+
+function parsePortableChipLabel(label: string): string {
+  return label.replace(/\\([\\[\]])/g, '$1')
+}
+
 /**
  * Matches a portable chip markdown link: `[label](sim:kind/id)`.
- * - group 1: label (any non-`]` chars)
+ * - group 1: label (plain or backslash-escaped characters)
  * - group 2: kind (lowercase letters / underscores, e.g. `past_chat`)
  * - group 3: id (any non-`)` / non-whitespace chars)
  */
 const CHIP_LINK_PATTERN = new RegExp(
-  `\\[([^\\]]+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
+  `\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(${CHIP_LINK_SCHEME}:([a-z_]+)\\/([^)\\s]+)\\)`,
   'g'
 )
 
@@ -96,7 +106,7 @@ function serializeChipContext(context: ChatContext): string | null {
   if (!isPortableKind(context.kind)) return null
   const id = getPortableId(context)
   if (!id) return null
-  return `[${context.label}](${CHIP_LINK_SCHEME}:${context.kind}/${id})`
+  return serializePortableChipLink(context.kind, id, context.label)
 }
 
 /**
@@ -205,7 +215,7 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
     links.push({
       kind,
       id,
-      label,
+      label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
     })

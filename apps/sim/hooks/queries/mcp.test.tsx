@@ -17,14 +17,18 @@ vi.mock('@/lib/api/client/request', () => ({
 
 import {
   discoverMcpToolsContract,
+  getAllowedMcpDomainsContract,
   listMcpServersContract,
+  listStoredMcpToolsContract,
   type McpServer,
 } from '@/lib/api/contracts/mcp'
 import {
   mcpKeys,
+  useAllowedMcpDomains,
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsQuery,
+  useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -142,6 +146,25 @@ describe('useMcpToolsQuery', () => {
       listMcpServersContract,
       expect.objectContaining({ query: { workspaceId: WORKSPACE_ID } })
     )
+
+    unmount()
+  })
+
+  it('defers detail and form metadata queries while their surfaces are closed', async () => {
+    mockRequestJson.mockImplementation(async (contract) => {
+      if (contract === listStoredMcpToolsContract || contract === getAllowedMcpDomainsContract) {
+        throw new Error('Deferred MCP metadata should not be requested')
+      }
+      throw new Error('Unexpected MCP request')
+    })
+
+    const { unmount } = renderHookWithClient(() => ({
+      storedTools: useStoredMcpTools(WORKSPACE_ID, { enabled: false }),
+      allowedDomains: useAllowedMcpDomains({ enabled: false }),
+    }))
+    await flush()
+
+    expect(mockRequestJson).not.toHaveBeenCalled()
 
     unmount()
   })

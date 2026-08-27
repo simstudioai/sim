@@ -5,7 +5,16 @@ import { asyncJobs, tableJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { createMockRequest, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_JOB_DURATION_SECONDS, MIN_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs'
+import {
+  JOB_RETENTION_HOURS,
+  MAX_JOB_DURATION_SECONDS,
+  MIN_JOB_DURATION_SECONDS,
+} from '@/lib/core/async-jobs'
+import {
+  SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY,
+  SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS,
+  SCHEDULE_CARRIER_RECONCILED_METADATA_KEY,
+} from '@/lib/workflows/schedules/carrier-metadata'
 
 const { mockDeleteFile, mockVerifyCronAuth } = vi.hoisted(() => ({
   mockDeleteFile: vi.fn().mockResolvedValue(undefined),
@@ -27,6 +36,7 @@ interface MockCondition {
   conditions?: unknown[]
   left?: unknown
   right?: unknown
+  column?: unknown
   values?: unknown
   toSQL?: () => { sql: string; params: unknown[] }
 }
@@ -59,6 +69,33 @@ function createRequest() {
     {},
     'http://localhost:3000/api/cron/cleanup-stale-executions'
   )
+}
+
+/** Recursively renders a mocked drizzle fragment, expanding nested fragments. */
+function renderSql(fragment: unknown): string {
+  if (fragment === null || fragment === undefined) return ''
+  if (typeof fragment !== 'object') return String(fragment)
+  const candidate = fragment as { rawSql?: string; strings?: string[]; values?: unknown[] }
+  if (typeof candidate.rawSql === 'string') return candidate.rawSql
+  if (!candidate.strings) return ''
+  return candidate.strings
+    .map((part, index) =>
+      index < (candidate.values?.length ?? 0)
+        ? `${part}${renderSql(candidate.values?.[index])}`
+        : part
+    )
+    .join('')
+}
+
+/** Recursively collects the non-fragment bind values of a mocked fragment. */
+function collectSqlParams(fragment: unknown): unknown[] {
+  if (!fragment || typeof fragment !== 'object') return []
+  const candidate = fragment as { values?: unknown[] }
+  if (!candidate.values) return []
+  return candidate.values.flatMap((value) => {
+    const nested = collectSqlParams(value)
+    return nested.length > 0 ? nested : [value]
+  })
 }
 
 describe('stale execution cleanup deadline grace', () => {
@@ -103,25 +140,18 @@ describe('stale execution cleanup deadline grace', () => {
         totalDurationMs: { toSQL: () => { sql: string; params: unknown[] } }
         executionData: { toSQL: () => { sql: string; params: unknown[] } }
       }
-      const errorExpression = update.executionData.toSQL()
-      const staleDurationExpression = errorExpression.params.find(
-        (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
-          typeof value === 'object' &&
-          value !== null &&
-          'toSQL' in value &&
-          value.toSQL().sql.includes('EXTRACT(EPOCH')
-      )
       const totalDurationLeaves = flattenSqlParams(update.totalDurationMs.toSQL())
+      const renderedError = renderSql(update.executionData)
+      const errorLeaves = collectSqlParams(update.executionData)
 
-      expect(errorExpression.sql).toContain('CASE')
-      expect(errorExpression.sql).toContain('IS NOT NULL')
-      expect(errorExpression.params).toContain(workflowExecutionLogs.executionDeadlineAt)
-      expect(errorExpression.params).toContain('Execution timed out')
-      expect(errorExpression.params).toContain(
-        'Execution terminated: worker timeout or crash after '
-      )
-      expect(staleDurationExpression?.toSQL().sql).toContain('ROUND')
-      expect(staleDurationExpression?.toSQL().params).toContain(workflowExecutionLogs.startedAt)
+      expect(renderedError).toContain('CASE')
+      expect(renderedError).toContain('IS NOT NULL')
+      expect(renderedError).toContain('ROUND')
+      expect(renderedError).toContain('EXTRACT(EPOCH')
+      expect(errorLeaves).toContain(workflowExecutionLogs.executionDeadlineAt)
+      expect(errorLeaves).toContain('Execution timed out')
+      expect(errorLeaves).toContain('Execution terminated: worker timeout or crash after ')
+      expect(errorLeaves).toContain(workflowExecutionLogs.startedAt)
       expect(totalDurationLeaves).toContain(2_147_483_647)
       expect(totalDurationLeaves).toContain(workflowExecutionLogs.startedAt)
       expect(totalDurationLeaves).toContainEqual(new Date('2026-08-03T12:10:00.000Z'))
@@ -129,6 +159,50 @@ describe('stale execution cleanup deadline grace', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('sweeps redacting logs on the generic window, never the execution deadline', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const redactingPredicates = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenConditions(condition))
+      .filter((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === workflowExecutionLogs.status &&
+            condition.right === 'redacting'
+        )
+      )
+
+    expect(redactingPredicates.length).toBeGreaterThan(0)
+    for (const conditions of redactingPredicates) {
+      expect(
+        conditions.some((condition) => condition.left === workflowExecutionLogs.executionDeadlineAt)
+      ).toBe(false)
+      expect(
+        conditions.some(
+          (condition) =>
+            condition.type === 'lt' && condition.left === workflowExecutionLogs.startedAt
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('terminalizes stale running and redacting execution logs', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const statusPredicates = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .filter(
+        (condition) => condition.type === 'eq' && condition.left === workflowExecutionLogs.status
+      )
+
+    expect(statusPredicates.map(({ right }) => right)).toEqual(
+      expect.arrayContaining(['running', 'redacting'])
+    )
   })
 
   it('reports a worker cleanup deadline while preserving the generic stale fallback', async () => {
@@ -172,6 +246,108 @@ describe('stale execution cleanup deadline grace', () => {
     expect(errorExpression.sql).not.toContain('configured maximum duration')
     expect(errorExpression.params).toContainEqual(
       expect.stringMatching(/^Job terminated: stuck in processing for more than \d+ minutes$/)
+    )
+  })
+
+  it('leaves pending and processing schedule jobs to schedule recovery', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const activeAsyncPredicates = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenConditions(condition))
+      .filter((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'ne' &&
+            condition.left === asyncJobs.type &&
+            condition.right === 'schedule-execution'
+        )
+      )
+
+    expect(
+      activeAsyncPredicates.some((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === asyncJobs.status &&
+            condition.right === 'processing'
+        )
+      )
+    ).toBe(true)
+    expect(
+      activeAsyncPredicates.some((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === asyncJobs.status &&
+            condition.right === 'pending'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('retains terminal schedule carriers until reconciliation is recorded', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const retentionConditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenConditions(condition)
+    )
+    const reconciliationMarker = retentionConditions.find((condition) =>
+      renderSql(condition).includes(SCHEDULE_CARRIER_RECONCILED_METADATA_KEY)
+    )
+
+    expect(collectSqlParams(reconciliationMarker)).toContain(asyncJobs.metadata)
+    expect(
+      retentionConditions.some(
+        (condition) =>
+          condition.type === 'ne' &&
+          condition.left === asyncJobs.type &&
+          condition.right === 'schedule-execution'
+      )
+    ).toBe(true)
+  })
+
+  it('spells carrier metadata keys as SQL literals so the partial index matches', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const reconciliationMarker = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .find((condition) => renderSql(condition).includes(SCHEDULE_CARRIER_RECONCILED_METADATA_KEY))
+
+    expect(renderSql(reconciliationMarker)).toContain(
+      `'${SCHEDULE_CARRIER_RECONCILED_METADATA_KEY}'`
+    )
+    expect(collectSqlParams(reconciliationMarker)).not.toContain(
+      SCHEDULE_CARRIER_RECONCILED_METADATA_KEY
+    )
+  })
+
+  it('deletes irrecoverable schedule carrier tombstones once their longer window lapses', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const retentionConditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenConditions(condition)
+    )
+    const irrecoverableExclusion = retentionConditions.find((condition) =>
+      renderSql(condition).includes(SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY)
+    )
+
+    expect(renderSql(irrecoverableExclusion)).toContain("<> 'true'")
+    expect(collectSqlParams(irrecoverableExclusion)).toContain(asyncJobs.metadata)
+
+    const tombstoneWindow = retentionConditions.filter(
+      (condition) =>
+        condition.type === 'lt' &&
+        condition.left === asyncJobs.completedAt &&
+        condition.right instanceof Date
+    )
+    const oldest = Math.min(...tombstoneWindow.map(({ right }) => (right as Date).getTime()))
+    const newest = Math.max(...tombstoneWindow.map(({ right }) => (right as Date).getTime()))
+    expect(newest - oldest).toBe(
+      (SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS - JOB_RETENTION_HOURS) * 60 * 60 * 1000
     )
   })
 
@@ -220,8 +396,9 @@ describe('stale execution cleanup deadline grace', () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(7)
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(7)
+    // Nine batched arms: the connector sync-log retention pass is the newest.
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(9)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(9)
     for (const [strength, options] of dbChainMockFns.for.mock.calls) {
       expect(strength).toBe('update')
       expect(options).toEqual({ skipLocked: true })
@@ -293,7 +470,7 @@ describe('stale execution cleanup deadline grace', () => {
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
     expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
-    expect(limits.filter((limit) => limit === 2000)).toHaveLength(11)
+    expect(limits.filter((limit) => limit === 2000)).toHaveLength(12)
 
     const workflowUpdates = dbChainMockFns.update.mock.calls.filter(
       ([table]) => table === workflowExecutionLogs

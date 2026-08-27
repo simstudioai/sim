@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ArchiveError } from '@/lib/uploads/archive'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api/internal-error-policies'
 import {
   CompiledCheckTooLargeError,
@@ -42,6 +43,27 @@ describe('internal file error policies', () => {
     ).toEqual({
       status: 402,
       body: { error: 'Storage limit exceeded' },
+      headers: undefined,
+    })
+  })
+
+  it('maps archive extraction failures onto caller-safe statuses', () => {
+    expect(
+      internalFileErrorPolicies.extractArchive.project(
+        new ArchiveError('invalid', 'Not a valid .zip archive.')
+      )
+    ).toEqual({
+      status: 400,
+      body: { error: 'Not a valid .zip archive.' },
+      headers: undefined,
+    })
+    expect(
+      internalFileErrorPolicies.extractArchive.project(
+        new ArchiveError('too_many_entries', 'Archive has 1001 files; the maximum is 1000.')
+      )
+    ).toEqual({
+      status: 413,
+      body: { error: 'Archive has 1001 files; the maximum is 1000.' },
       headers: undefined,
     })
   })

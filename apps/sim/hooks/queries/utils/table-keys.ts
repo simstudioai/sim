@@ -34,6 +34,9 @@ export const tableKeys = {
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.infiniteRowsRoot(tableId), paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  /** Bounded single-page row read for chart files (`.chart` previews). */
+  sample: (tableId: string, paramsKey: string) =>
+    [...tableKeys.rowsRoot(tableId), 'sample', paramsKey] as const,
   find: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
   /** Deliberately NOT under `detail` — the non-exact `invalidateQueries` on that

@@ -8,7 +8,7 @@ import { forgetPasswordContract } from '@/lib/api/contracts'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
 import {
-  enforceIpRateLimit,
+  enforceIpRateLimitWithIndependentBackstop,
   enforceRecipientRateLimit,
   type TokenBucketConfig,
 } from '@/lib/core/rate-limiter'
@@ -27,7 +27,10 @@ const RESET_EMAIL_RATE_LIMIT: TokenBucketConfig = {
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const ipRateLimited = await enforceIpRateLimit('forget-password', request)
+    const ipRateLimited = await enforceIpRateLimitWithIndependentBackstop(
+      'forget-password',
+      request
+    )
     if (ipRateLimited) return ipRateLimited
 
     const parsed = await parseRequest(
@@ -94,6 +97,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         message:
+          // utils-lint-allow: returned to an unauthenticated caller, so a non-Error throw
+          // must surface the fixed copy rather than its own text — getErrorMessage would
+          // pass a thrown string straight through.
           error instanceof Error
             ? error.message
             : 'Failed to send password reset email. Please try again later.',

@@ -52,7 +52,8 @@ export type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
  * Multipart parts are re-signed on demand by the per-surface `.../parts`
  * endpoints, so a long-lived multipart session always outlives its part URLs
  * and recovers by asking for new ones. A whole-object PUT has no such endpoint
- * and needs none: it is size-capped by `UPLOAD_SESSION_PUT_MAX_BYTES`, is
+ * and needs none: it is size-capped by the provider's single-PUT ceiling
+ * (`UPLOAD_SESSION_PUT_MAX_BYTES`, or `UPLOAD_SESSION_LOCAL_PUT_MAX_BYTES` for `local`), is
  * issued and used within one client call, and is not resumable — an expired PUT
  * URL and an interrupted PUT have the identical recovery of starting a new
  * session. Nothing durable is written in either case, because the transfer is

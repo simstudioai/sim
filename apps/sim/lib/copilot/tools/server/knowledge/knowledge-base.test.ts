@@ -81,7 +81,13 @@ const {
 })
 
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
-  KnowledgeBase: { id: 'knowledge_base' },
+  ManageKnowledgeBase: { id: 'manage_knowledge_base' },
+}))
+const { mockGetEffectiveDecryptedEnv } = vi.hoisted(() => ({
+  mockGetEffectiveDecryptedEnv: vi.fn(),
+}))
+vi.mock('@/lib/environment/utils', () => ({
+  getEffectiveDecryptedEnv: mockGetEffectiveDecryptedEnv,
 }))
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
@@ -224,7 +230,7 @@ function expectDelegatedPrincipal(call: unknown): void {
   })
 }
 
-describe('knowledge_base trusted application delegation', () => {
+describe('manage_knowledge_base trusted application delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockReadKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
@@ -565,6 +571,48 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
+  it('delegates per-document typed tag values by tag definition ID', async () => {
+    mockUpdateKnowledgeDocument.mockResolvedValueOnce({
+      document: {},
+      updatedFields: ['tag1', 'number1'],
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          documentId: 'document-1',
+          tagValues: [
+            { tagDefinitionId: 'category-tag', value: 'support' },
+            { tagDefinitionId: 'priority-tag', value: 2 },
+          ],
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        documentId: 'document-1',
+        tagDefinitionIds: ['category-tag', 'priority-tag'],
+      },
+    })
+    const call = mockUpdateKnowledgeDocument.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toEqual({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      documentId: 'document-1',
+      assertedWorkspaceId: 'workspace-paid',
+      tagValues: [
+        { tagDefinitionId: 'category-tag', value: 'support' },
+        { tagDefinitionId: 'priority-tag', value: 2 },
+      ],
+      source: 'agent',
+    })
+  })
+
   it('does not expose connector infrastructure errors to the model', async () => {
     mockUpdateKnowledgeConnector.mockRejectedValueOnce(new Error('sql host=private-db'))
 
@@ -581,6 +629,41 @@ describe('knowledge_base trusted application delegation', () => {
       message: 'Failed to update connector',
     })
     expect(result.message).not.toContain('private-db')
+  })
+
+  it('passes trusted billing attribution for a source-change sync', async () => {
+    mockUpdateKnowledgeConnector.mockResolvedValueOnce({
+      connector: {
+        id: 'connector-1',
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        sourceConfig: { pageIds: ['page-2'] },
+        status: 'active',
+      },
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_connector',
+        args: { connectorId: 'connector-1', sourceConfig: { pageIds: ['page-2'] } },
+      },
+      BILLED_CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      message: 'Connector updated successfully. Synchronization was queued for the source change.',
+    })
+    const call = mockUpdateKnowledgeConnector.mock.calls[0]?.[0] as {
+      input?: { resolveBillingAttribution?: (workspaceId: string) => Promise<unknown> }
+    }
+    expectDelegatedPrincipal(call)
+    if (!call.input?.resolveBillingAttribution) {
+      throw new Error('Copilot connector update did not provide billing attribution')
+    }
+    await expect(call.input.resolveBillingAttribution('workspace-paid')).resolves.toEqual(
+      BILLED_CONTEXT.billingAttribution
+    )
   })
 
   it.each([
@@ -658,6 +741,70 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
+  it.each(['{{SIM_GITHUB_PAT}}', '$SIM_GITHUB_PAT', 'SIM_GITHUB_PAT'])(
+    'resolves the %s environment reference into the connector API key',
+    async (ref) => {
+      mockGetEffectiveDecryptedEnv.mockResolvedValue({ SIM_GITHUB_PAT: 'ghp_realtoken' })
+
+      const result = await knowledgeBaseServerTool.execute(
+        {
+          operation: 'add_connector',
+          args: { knowledgeBaseId: KNOWLEDGE_BASE.id, connectorType: 'github', apiKey: ref },
+        },
+        BILLED_CONTEXT
+      )
+
+      expect(result.success).toBe(true)
+      const call = mockCreateKnowledgeConnector.mock.calls.at(-1)?.[0] as {
+        input: { apiKey?: string }
+      }
+      expect(call.input.apiKey).toBe('ghp_realtoken')
+    }
+  )
+
+  it('names the missing variable instead of sending a placeholder upstream', async () => {
+    mockGetEffectiveDecryptedEnv.mockResolvedValue({})
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_connector',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          connectorType: 'github',
+          apiKey: '{{SIM_GITHUB_PAT}}',
+        },
+      },
+      BILLED_CONTEXT
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('SIM_GITHUB_PAT')
+    expect(result.message).toContain('not set')
+    expect(mockCreateKnowledgeConnector).not.toHaveBeenCalled()
+  })
+
+  it('passes a raw API key through untouched', async () => {
+    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SIM_GITHUB_PAT: 'ghp_realtoken' })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_connector',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          connectorType: 'github',
+          apiKey: 'ghp_literal_key',
+        },
+      },
+      BILLED_CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockCreateKnowledgeConnector.mock.calls.at(-1)?.[0] as {
+      input: { apiKey?: string }
+    }
+    expect(call.input.apiKey).toBe('ghp_literal_key')
+  })
+
   it('preserves caller-actionable tag provenance conflicts', async () => {
     mockDeleteKnowledgeTag.mockRejectedValueOnce(
       new OrchestrationError(
@@ -712,7 +859,7 @@ describe('knowledge_base trusted application delegation', () => {
   )
 })
 
-describe('knowledge_base add_file delegation', () => {
+describe('manage_knowledge_base add_file delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAddWorkspaceFiles.mockResolvedValue({

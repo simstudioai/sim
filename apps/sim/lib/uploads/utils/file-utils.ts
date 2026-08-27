@@ -134,14 +134,6 @@ export function isVideoFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio or video type
- */
-export function isMediaFileType(mimeType: string): boolean {
-  const contentType = getContentType(mimeType)
-  return contentType === 'audio' || contentType === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {
@@ -254,6 +246,16 @@ export function isGeneratedDocumentSourceType(contentType: string | undefined | 
  * orders of magnitude smaller than the document it produces, so the declared size is no
  * bound at all and the rendered bytes need a cap of their own.
  */
+/**
+ * Ceiling on the source bytes fed to a text-extraction parser.
+ *
+ * The parsers have a documented denial-of-service history, so a text read is
+ * bounded on its *input* before extraction rather than on its output after.
+ * The individual parsers keep their own guards; those must not be relaxed to
+ * make a larger ceiling usable.
+ */
+export const MAX_TEXT_EXTRACTION_BYTES = 25 * 1024 * 1024
+
 export const MAX_RENDERED_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 /** True when `fileName` may be backed by a generation source rather than final bytes. */
@@ -294,7 +296,7 @@ export function isArchiveFileName(filename: string): boolean {
  * `files/`, so this points at the explicit one-time extract step.
  */
 export function buildArchiveExtractGuidance(name: string): string {
-  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with materialize_file(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
+  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with save_upload(fileNames: ["${name}"], operation: "extract"), then read the unpacked files under files/ (e.g. glob("files/<archive>/**") then read("files/<archive>/<path>/content")).`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {
@@ -744,6 +746,15 @@ export function isInternalFileUrl(fileUrl: string): boolean {
  * prefixes: `kb/` (server-side uploads) or `knowledge-base/` (direct/presigned
  * uploads, whose default key is `${context}/...`). Both map to the same
  * `knowledge-base` context.
+ *
+ * What this answers is *where the bytes live* — which bucket and which tenant —
+ * and for that the prefix is authoritative. It does NOT answer which product
+ * module owns the object: `workspace/` covers both a Files-module workspace file
+ * and a mothership chat attachment, which share a bucket and a workspace scope
+ * and differ only by `workspace_files.context`. Module ownership is also mutable
+ * (`materialize_file` promotes an attachment to a workspace file), so it cannot
+ * live in an immutable key. A caller that needs the owning module must read the
+ * row — see `resolveStoredFileContext` — never this prefix.
  */
 export function inferContextFromKey(key: string): StorageContext {
   if (!key) {
@@ -786,6 +797,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
  * authoritative and the caller-supplied `context` is ignored — this prevents a
  * private `workspace/…` key from being relabeled with a world-readable context
  * to bypass authorization and read the shared bucket.
+ *
+ * "Authoritative" is scoped to bucket and tenancy, which is all this defends.
+ * It is not a claim about which module owns the object; that is the row's job
+ * (`resolveStoredFileContext`), and reading it costs nothing here because the
+ * row is server-authored too — the value being refused above is the *caller's*.
  *
  * Legacy keys predating context-prefixed keys cannot be inferred; for those the
  * persisted `context` is honored so existing files stay resolvable — except a
@@ -1118,6 +1134,31 @@ export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
   }
 
   return null
+}
+
+/**
+ * The workspace a storage key demonstrably belongs to, or `null` when the key's
+ * layout does not name one.
+ *
+ * Only two key layouts encode their tenant: `workspace/{workspaceId}/…` and
+ * `execution/{workspaceId}/{workflowId}/{executionId}/…`. Every other prefix
+ * (`kb/`, `chat/`, `copilot/`, the world-readable ones) carries no workspace
+ * segment, so no ownership can be proven from the key alone and this returns
+ * `null` rather than guessing.
+ *
+ * This is the only safe way to compare a key against an expected workspace when
+ * the key came from a caller: it reads the tenant out of the key's own layout
+ * instead of trusting an adjacent `context`, `workspaceId`, or URL field.
+ */
+export function extractWorkspaceIdFromStorageKey(key: string): string | null {
+  const segments = key.split('/')
+
+  if (segments[0] === 'workspace' && segments.length >= 3) {
+    const workspaceId = segments[1]
+    return workspaceId && isUuid(workspaceId) ? workspaceId : null
+  }
+
+  return extractWorkspaceIdFromExecutionKey(key)
 }
 
 /**

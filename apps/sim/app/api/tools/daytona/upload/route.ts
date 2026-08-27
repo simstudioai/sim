@@ -5,12 +5,13 @@ import { daytonaUploadFileContract } from '@/lib/api/contracts/tools/daytona'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { DAYTONA_TOOLBOX_BASE_URL, extractDaytonaError } from '@/tools/daytona/utils'
+import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,11 +63,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Downloading file: ${userFile.name} (${userFile.size} bytes)`)
       try {
-        const servable = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_UPLOAD_SIZE_BYTES,
+        })
         fileBuffer = servable.buffer
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
+        if (isPayloadSizeLimitError(error)) {
+          return NextResponse.json(
+            { success: false, error: 'File exceeds upload limit of 100MB' },
+            { status: 400 }
+          )
+        }
         logger.error(`[${requestId}] Failed to download file from storage:`, error)
         return NextResponse.json(
           { success: false, error: getErrorMessage(error, 'Failed to download file') },
@@ -120,7 +129,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName
     )
 
-    const uploadUrl = `${DAYTONA_TOOLBOX_BASE_URL}/${encodeURIComponent(params.sandboxId.trim())}/files/upload?path=${encodeURIComponent(destinationPath)}`
+    const uploadUrl = daytonaToolboxUrl(
+      params.sandboxId,
+      `/files/upload-v2?path=${encodeURIComponent(destinationPath)}`
+    )
     const response = await fetch(uploadUrl, {
       method: 'POST',
       headers: {

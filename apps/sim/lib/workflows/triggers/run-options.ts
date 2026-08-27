@@ -58,7 +58,7 @@ export interface TriggerInputValidationResult {
 
 function readSubBlockValue(block: TriggerBlockLike, key: string): unknown {
   const raw = (block.subBlocks as Record<string, unknown> | undefined)?.[key]
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+  if (isRecordLike(raw)) {
     return (raw as { value?: unknown }).value
   }
   return undefined
@@ -104,7 +104,7 @@ function outputFieldToSchema(field: unknown): Record<string, unknown> {
     return { type: mapOutputType(typed.type) }
   }
 
-  if (field && typeof field === 'object' && !Array.isArray(field)) {
+  if (isRecordLike(field)) {
     const properties: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(field)) {
       properties[key] = outputFieldToSchema(value)

@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { gongConnectorMeta } from '@/connectors/gong/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GongConnector')
 
@@ -212,21 +212,88 @@ function buildMetadata(
 }
 
 /**
+ * Everything about a call that is derivable from the listing response alone.
+ * Cached in `syncContext` by `listDocuments` so the deferred-content fetch in
+ * `getDocument` does not have to re-request `/v2/calls/extensive` for metadata
+ * it already had — halving the request volume against Gong's 3 req/s quota.
+ */
+interface GongCallHeader {
+  id: string
+  title: string
+  sourceUrl?: string
+  contentHash: string
+  started?: string
+  duration?: number
+  participants: string[]
+  speakerMap: Record<string, string>
+  metadata: Record<string, unknown>
+}
+
+/**
+ * Upper bound on cached call headers. A sync lists every call before hydrating
+ * any of them, so an uncapped cache would hold the whole workspace in memory.
+ * Headers past the cap simply miss and fall back to a per-call API request.
+ */
+const CALL_HEADER_CACHE_LIMIT = 5000
+
+function buildCallHeader(call: GongExtensiveCall): GongCallHeader | null {
+  const metaData = call.metaData
+  const callId = metaData?.id
+  if (!callId) return null
+  const participants = buildParticipantNames(call.parties)
+  return {
+    id: callId,
+    title: buildCallTitle(metaData),
+    sourceUrl: metaData?.url || undefined,
+    contentHash: buildContentHash(callId, metaData?.started),
+    started: metaData?.started,
+    duration: metaData?.duration,
+    participants,
+    speakerMap: buildSpeakerMap(call.parties),
+    metadata: buildMetadata(metaData, participants),
+  }
+}
+
+/**
+ * Reads the cached header for a call out of the shared sync context.
+ */
+function readCachedHeader(
+  syncContext: Record<string, unknown> | undefined,
+  callId: string
+): GongCallHeader | undefined {
+  const cache = syncContext?.gongCallHeaders as Map<string, GongCallHeader> | undefined
+  return cache?.get(callId)
+}
+
+/**
+ * Stores the header for a call in the shared sync context, up to the cache cap.
+ */
+function cacheHeader(
+  syncContext: Record<string, unknown> | undefined,
+  header: GongCallHeader
+): void {
+  if (!syncContext) return
+  let cache = syncContext.gongCallHeaders as Map<string, GongCallHeader> | undefined
+  if (!cache) {
+    cache = new Map()
+    syncContext.gongCallHeaders = cache
+  }
+  if (cache.size >= CALL_HEADER_CACHE_LIMIT && !cache.has(header.id)) return
+  cache.set(header.id, header)
+}
+
+/**
  * Formats a call's transcript into speaker-attributed plain text with a header
  * describing the call (title, date, duration, participants).
  */
-function formatTranscriptContent(
-  metaData: GongCallMetaData | undefined,
-  participants: string[],
-  speakerMap: Record<string, string>,
-  monologues: GongMonologue[]
-): string {
+function formatTranscriptContent(header: GongCallHeader, monologues: GongMonologue[]): string {
   const parts: string[] = []
+  const { participants, speakerMap } = header
 
-  parts.push(`Call: ${buildCallTitle(metaData)}`)
-  if (metaData?.started) parts.push(`Date: ${metaData.started}`)
-  if (metaData?.duration != null) {
-    const minutes = Math.round(metaData.duration / 60)
+  parts.push(`Call: ${header.title}`)
+  if (header.started) parts.push(`Date: ${header.started}`)
+  if (header.duration != null) {
+    const minutes = Math.round(header.duration / 60)
     parts.push(`Duration: ${minutes} minutes`)
   }
   if (participants.length > 0) parts.push(`Participants: ${participants.join(', ')}`)
@@ -295,6 +362,14 @@ async function fetchExtensiveCalls(
     retryOptions
   )
 
+  /**
+   * Gong answers a filter that matches no calls with `404 No calls found for the
+   * specified period` rather than an empty list — the documented 404 for
+   * `/v2/calls/extensive`. That is an ordinary outcome for a narrow incremental
+   * window, so it maps to an empty page instead of failing the sync.
+   */
+  if (response.status === 404) return { calls: [] }
+
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
     throw new Error(
@@ -348,18 +423,18 @@ export const gongConnector: ConnectorConfig = {
 
     const allDocuments: ExternalDocument[] = []
     for (const call of calls) {
-      const callId = call.metaData?.id
-      if (!callId) continue
-      const participants = buildParticipantNames(call.parties)
+      const header = buildCallHeader(call)
+      if (!header) continue
+      cacheHeader(syncContext, header)
       allDocuments.push({
-        externalId: callId,
-        title: buildCallTitle(call.metaData),
+        externalId: header.id,
+        title: header.title,
         content: '',
         contentDeferred: true,
         mimeType: 'text/plain',
-        sourceUrl: call.metaData?.url || undefined,
-        contentHash: buildContentHash(callId, call.metaData?.started),
-        metadata: buildMetadata(call.metaData, participants),
+        sourceUrl: header.sourceUrl,
+        contentHash: header.contentHash,
+        metadata: header.metadata,
       })
     }
 
@@ -398,73 +473,76 @@ export const gongConnector: ConnectorConfig = {
     }
   },
 
+  /**
+   * Hydrates a listing stub with its transcript.
+   *
+   * Returns `null` only when the call genuinely has nothing to index yet (call
+   * gone, transcript still processing). Transport, rate-limit, and server errors
+   * propagate so the sync engine records them as failed documents instead of
+   * reporting a clean sync that silently dropped calls.
+   */
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
+    let header = readCachedHeader(syncContext, externalId)
+    if (!header) {
       const workspaceId = (sourceConfig.workspaceId as string | undefined)?.trim()
       const filter: Record<string, unknown> = { callIds: [externalId] }
       if (workspaceId) filter.workspaceId = workspaceId
 
       const callData = await fetchExtensiveCalls(accessToken, filter, undefined)
       const call = callData.calls?.[0]
-      if (!call?.metaData?.id) {
+      const fetchedHeader = call ? buildCallHeader(call) : null
+      if (!fetchedHeader) {
         logger.warn('Gong call not found', { externalId })
         return null
       }
+      header = fetchedHeader
+      cacheHeader(syncContext, header)
+    }
 
-      const metaData = call.metaData
-      const participants = buildParticipantNames(call.parties)
-      const speakerMap = buildSpeakerMap(call.parties)
+    const transcriptResponse = await fetchWithRetry(`${GONG_API_BASE}/calls/transcript`, {
+      method: 'POST',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify({ filter: { callIds: [externalId] } }),
+    })
 
-      const transcriptResponse = await fetchWithRetry(`${GONG_API_BASE}/calls/transcript`, {
-        method: 'POST',
-        headers: buildHeaders(accessToken),
-        body: JSON.stringify({ filter: { callIds: [externalId] } }),
-      })
-
-      if (!transcriptResponse.ok) {
-        if (transcriptResponse.status === 404) return null
-        throw new Error(`Failed to fetch Gong transcript: ${transcriptResponse.status}`)
-      }
-
-      const transcriptData = (await transcriptResponse.json()) as GongTranscriptResponse
-      const callTranscript = transcriptData.callTranscripts?.find(
-        (entry) => entry.callId === externalId
+    if (!transcriptResponse.ok) {
+      if (transcriptResponse.status === 404) return null
+      const errorText = await transcriptResponse.text().catch(() => '')
+      throw new Error(
+        `Failed to fetch Gong transcript: ${transcriptResponse.status}${errorText ? ` — ${errorText.slice(0, 200)}` : ''}`
       )
-      const monologues = callTranscript?.transcript ?? []
-      if (monologues.length === 0) {
-        logger.info('Transcript not available for Gong call', { externalId })
-        return null
-      }
+    }
 
-      const hasSpokenText = monologues.some((monologue) =>
-        (monologue.sentences ?? []).some((sentence) => Boolean(sentence.text?.trim()))
-      )
-      if (!hasSpokenText) return null
+    const transcriptData = (await transcriptResponse.json()) as GongTranscriptResponse
+    const callTranscript = transcriptData.callTranscripts?.find(
+      (entry) => entry.callId === externalId
+    )
+    const monologues = callTranscript?.transcript ?? []
 
-      const content = formatTranscriptContent(metaData, participants, speakerMap, monologues)
-
-      return {
-        externalId: metaData.id ?? externalId,
-        title: buildCallTitle(metaData),
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: metaData.url || undefined,
-        contentHash: buildContentHash(metaData.id ?? externalId, metaData.started),
-        metadata: buildMetadata(metaData, participants),
-      }
-    } catch (error) {
-      logger.warn('Failed to get Gong call transcript', {
-        externalId,
-        error: toError(error).message,
-      })
+    const hasSpokenText = monologues.some((monologue) =>
+      (monologue.sentences ?? []).some((sentence) => Boolean(sentence.text?.trim()))
+    )
+    if (!hasSpokenText) {
+      logger.info('Transcript not available for Gong call', { externalId })
       return null
+    }
+
+    return {
+      externalId,
+      title: header.title,
+      content: formatTranscriptContent(header, monologues),
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: header.sourceUrl,
+      contentHash: header.contentHash,
+      metadata: header.metadata,
     }
   },
 
@@ -478,14 +556,37 @@ export const gongConnector: ConnectorConfig = {
     }
 
     try {
+      /**
+       * Probes the calls listing — the exact resource the sync reads — over a
+       * one-hour window so the check stays cheap. Probing `/v2/users` instead
+       * would pass for a key that lacks call-read access and only fail later,
+       * mid-sync.
+       */
+      const toDateTime = new Date()
+      const fromDateTime = new Date(toDateTime.getTime() - 60 * 60 * 1000)
+      const query = new URLSearchParams({
+        fromDateTime: fromDateTime.toISOString(),
+        toDateTime: toDateTime.toISOString(),
+      })
+      const workspaceId = (sourceConfig.workspaceId as string | undefined)?.trim()
+      if (workspaceId) query.set('workspaceId', workspaceId)
+
       const response = await fetchWithRetry(
-        `${GONG_API_BASE}/users`,
+        `${GONG_API_BASE}/calls?${query.toString()}`,
         {
           method: 'GET',
           headers: buildHeaders(accessToken),
         },
         VALIDATE_RETRY_OPTIONS
       )
+
+      /**
+       * `GET /v2/calls` documents `404 No calls found for the specified period`
+       * for a range that matches nothing. Most workspaces record nothing in any
+       * given hour, so a 404 here proves the credential authenticated and was
+       * allowed to query calls — a missing scope returns 401/403 instead.
+       */
+      if (response.status === 404) return { valid: true }
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '')
@@ -509,12 +610,8 @@ export const gongConnector: ConnectorConfig = {
       result.callTitle = metadata.callTitle
     }
 
-    const participants = Array.isArray(metadata.participants)
-      ? (metadata.participants as string[])
-      : []
-    if (participants.length > 0) {
-      result.participants = participants.join(', ')
-    }
+    const participants = joinTagArray(metadata.participants)
+    if (participants) result.participants = participants
 
     if (metadata.duration != null) {
       const num = Number(metadata.duration)

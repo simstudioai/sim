@@ -43,9 +43,9 @@ export function isAshbyEventMatch(triggerId: string, action: string): boolean {
  */
 export function ashbySetupInstructions(eventType: string): string {
   const instructions = [
-    'Enter your Ashby API Key above. You can find your API key in Ashby at <strong>Settings &gt; API Keys</strong>.',
-    `The webhook for <strong>${eventType}</strong> events will be automatically created in Ashby when you save the trigger.`,
-    'The webhook will be automatically deleted if you remove this trigger.',
+    'Enter your Ashby API Key above. You can find your API key in Ashby at <strong>Settings &gt; API Keys</strong>. It needs the <strong>apiKeysWrite</strong> permission.',
+    `The webhook for <strong>${eventType}</strong> events is created in Ashby when you deploy the workflow, not when you save the trigger.`,
+    'The webhook is deleted from Ashby when you remove this trigger and redeploy.',
   ]
 
   return instructions
@@ -275,7 +275,7 @@ export function buildJobCreateOutputs(): Record<string, TriggerOutput> {
       status: { type: 'string', description: 'Job status (Open, Closed, Draft, Archived)' },
       employmentType: {
         type: 'string',
-        description: 'Employment type (FullTime, PartTime, Intern, Contract)',
+        description: 'Employment type (FullTime, PartTime, Intern, Contract, Temporary)',
       },
     },
   } as Record<string, TriggerOutput>

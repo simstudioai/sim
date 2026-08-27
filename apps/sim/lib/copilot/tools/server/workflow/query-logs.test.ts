@@ -4,21 +4,31 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listLogsMock, fetchLogDetailMock, toOverviewMock, toFullMock, grepSpansMock } = vi.hoisted(
-  () => ({
-    listLogsMock: vi.fn(),
-    fetchLogDetailMock: vi.fn(),
-    toOverviewMock: vi.fn(),
-    toFullMock: vi.fn(),
-    grepSpansMock: vi.fn(),
-  })
-)
+const {
+  listLogsMock,
+  statsLogsMock,
+  fetchLogDetailMock,
+  toOverviewMock,
+  toFullMock,
+  toTraceMock,
+  grepSpansMock,
+} = vi.hoisted(() => ({
+  listLogsMock: vi.fn(),
+  statsLogsMock: vi.fn(),
+  fetchLogDetailMock: vi.fn(),
+  toOverviewMock: vi.fn(),
+  toFullMock: vi.fn(),
+  toTraceMock: vi.fn(),
+  grepSpansMock: vi.fn(),
+}))
 
 vi.mock('@/lib/logs/list-logs', () => ({ listLogs: listLogsMock }))
+vi.mock('@/lib/logs/stats-logs', () => ({ statsLogs: statsLogsMock }))
 vi.mock('@/lib/logs/fetch-log-detail', () => ({ fetchLogDetail: fetchLogDetailMock }))
 vi.mock('@/lib/logs/log-views', () => ({
   toOverview: toOverviewMock,
   toFull: toFullMock,
+  toTrace: toTraceMock,
   grepSpans: grepSpansMock,
 }))
 vi.mock('@/lib/execution/payloads/large-execution-value', () => ({
@@ -26,9 +36,17 @@ vi.mock('@/lib/execution/payloads/large-execution-value', () => ({
   collectLargeValueKeys: vi.fn(() => []),
 }))
 
+import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { queryLogsServerTool } from './query-logs'
 
-const ctx = { userId: 'user-1', workspaceId: 'ws-1' }
+const ctx: ServerToolContext = { userId: 'user-1', workspaceId: 'ws-1' }
+
+type QueryLogsArgs = Parameters<typeof queryLogsServerTool.execute>[0]
+
+/** Fully-typed list-view args with the schema's defaulted fields spelled out. */
+function listArgs(overrides: Partial<Extract<QueryLogsArgs, { view: 'list' }>>): QueryLogsArgs {
+  return { view: 'list', limit: 100, sortBy: 'date', sortOrder: 'desc', ...overrides }
+}
 
 function detail(overrides: Record<string, unknown> = {}) {
   return {
@@ -47,8 +65,8 @@ beforeEach(() => {
 })
 
 describe('queryLogsServerTool', () => {
-  it('list view delegates to listLogs with workspaceId and no view field', async () => {
-    listLogsMock.mockResolvedValue({ data: [{ id: 'log-1' }], nextCursor: null })
+  it('list view delegates to listLogs and leads with total and cursor', async () => {
+    listLogsMock.mockResolvedValue({ data: [{ id: 'log-1' }], nextCursor: null, total: 42 })
 
     const result = await queryLogsServerTool.execute(
       { view: 'list', sortBy: 'date', sortOrder: 'desc', limit: 100 } as any,
@@ -59,8 +77,68 @@ describe('queryLogsServerTool', () => {
     const [params, userId] = listLogsMock.mock.calls[0]
     expect(userId).toBe('user-1')
     expect(params.workspaceId).toBe('ws-1')
+    expect(params.includeTotal).toBe(true)
     expect(params).not.toHaveProperty('view')
-    expect(result).toEqual({ data: [{ id: 'log-1' }], nextCursor: null })
+    expect(params).not.toHaveProperty('title')
+    expect(result).toEqual({ total: 42, nextCursor: null, data: [{ id: 'log-1' }] })
+    expect(Object.keys(result as object)).toEqual(['total', 'nextCursor', 'data'])
+  })
+
+  it('stats view delegates to statsLogs with the workspace scoped in', async () => {
+    statsLogsMock.mockResolvedValue({ totals: { executions: 7 } })
+
+    const result = await queryLogsServerTool.execute(
+      { view: 'stats', bucket: 'day', timezone: 'UTC', workflowIds: 'wf-1' } as any,
+      ctx
+    )
+
+    expect(statsLogsMock).toHaveBeenCalledTimes(1)
+    const [params, userId] = statsLogsMock.mock.calls[0]
+    expect(userId).toBe('user-1')
+    expect(params).toMatchObject({ workspaceId: 'ws-1', bucket: 'day', workflowIds: 'wf-1' })
+    expect(result).toEqual({ totals: { executions: 7 } })
+  })
+
+  it('defaults to the condensed trace digest when only an executionId is given', async () => {
+    fetchLogDetailMock.mockResolvedValue(detail())
+    toTraceMock.mockReturnValue([{ blockId: 'blk-1', name: 'Agent', executions: 3 }])
+
+    const result: any = await queryLogsServerTool.execute({ executionId: 'exec-1' } as any, ctx)
+
+    expect(toTraceMock).toHaveBeenCalledTimes(1)
+    expect(result.blocks).toEqual([{ blockId: 'blk-1', name: 'Agent', executions: 3 }])
+    expect(toOverviewMock).not.toHaveBeenCalled()
+    expect(toFullMock).not.toHaveBeenCalled()
+  })
+
+  it('defaults to list when no executionId is given', async () => {
+    listLogsMock.mockResolvedValue({ data: [], nextCursor: null, total: 0 })
+
+    await queryLogsServerTool.execute({} as any, ctx)
+
+    expect(listLogsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes blockIds and fields through to toFull', async () => {
+    fetchLogDetailMock.mockResolvedValue(detail())
+    toFullMock.mockResolvedValue([{ id: 's1' }])
+
+    await queryLogsServerTool.execute(
+      {
+        view: 'full',
+        executionId: 'exec-1',
+        blockIds: ['blk-1', 'blk-2'],
+        fields: ['output.rows'],
+      } as any,
+      ctx
+    )
+
+    expect(toFullMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { blockId: undefined, blockIds: ['blk-1', 'blk-2'], blockName: undefined },
+      ['output.rows']
+    )
   })
 
   it('overview view returns the projected span tree', async () => {
@@ -87,10 +165,16 @@ describe('queryLogsServerTool', () => {
       ctx
     )
 
-    expect(toFullMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
-      blockId: 'blk-1',
-      blockName: undefined,
-    })
+    expect(toFullMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        blockId: 'blk-1',
+        blockIds: undefined,
+        blockName: undefined,
+      },
+      undefined
+    )
     expect(result.spans).toEqual([{ id: 's1', input: { a: 1 } }])
     expect(result.truncated).toBe(false)
   })
@@ -137,6 +221,31 @@ describe('queryLogsServerTool', () => {
     )
     expect(result.ok).toBe(false)
     expect(result.error).toContain('missing')
+  })
+
+  it('accepts a workspaceId that re-asserts the execution workspace', async () => {
+    listLogsMock.mockResolvedValue({ data: [], nextCursor: null, total: 0 })
+
+    await queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-1' }), ctx)
+
+    expect(listLogsMock).toHaveBeenCalledTimes(1)
+    expect(listLogsMock.mock.calls[0][0].workspaceId).toBe('ws-1')
+  })
+
+  it('rejects a workspaceId that names a different workspace', async () => {
+    await expect(
+      queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-other' }), ctx)
+    ).rejects.toThrow('Workspace ID does not match the Copilot execution workspace')
+
+    expect(listLogsMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the context carries no workspace', async () => {
+    await expect(
+      queryLogsServerTool.execute(listArgs({ workspaceId: 'ws-1' }), { userId: 'user-1' })
+    ).rejects.toThrow('Copilot execution workspace is required')
+
+    expect(listLogsMock).not.toHaveBeenCalled()
   })
 
   it('throws when unauthenticated', async () => {

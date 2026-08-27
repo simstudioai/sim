@@ -1,0 +1,45 @@
+---
+title: Tools
+description: Manage tools — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Get tool
+
+```bash
+sim tools get <toolId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+## List tools
+
+```bash
+sim tools list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the tool id, name, and description. |
+| `--hosted-api-key <value>` | No | Restrict to tools by how their API key is supplied. Accepted values: `always`, `conditional`, `none`. |
+| `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>

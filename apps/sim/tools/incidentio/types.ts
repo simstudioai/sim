@@ -100,15 +100,6 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete incident output definition
- */
-export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io incident object',
-  properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for action objects.
  * @see https://api-docs.incident.io/#tag/Actions
  */
@@ -130,15 +121,6 @@ export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete action output definition
- */
-export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io action object',
-  properties: INCIDENTIO_ACTION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for follow-up objects.
  * @see https://api-docs.incident.io/#tag/Follow-ups
  */
@@ -158,15 +140,6 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
   incident_id: { type: 'string', description: 'Associated incident ID', optional: true },
   completed_at: { type: 'string', description: 'When the follow-up was completed', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete follow-up output definition
- */
-export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io follow-up object',
-  properties: INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for workflow objects.
@@ -203,15 +176,6 @@ export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete workflow output definition
- */
-export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io workflow object',
-  properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for custom field objects.
  * @see https://api-docs.incident.io/#tag/Custom-Fields
  */
@@ -228,15 +192,6 @@ export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete custom field output definition
- */
-export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io custom field object',
-  properties: INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for schedule objects.
  * @see https://api-docs.incident.io/#tag/Schedules
  */
@@ -247,15 +202,6 @@ export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
   created_at: { type: 'string', description: 'When the schedule was created', optional: true },
   updated_at: { type: 'string', description: 'When the schedule was last updated', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete schedule output definition
- */
-export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io schedule object',
-  properties: INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for incident role objects.
@@ -272,15 +218,6 @@ export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
   created_at: { type: 'string', description: 'When the role was created' },
   updated_at: { type: 'string', description: 'When the role was last updated' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete incident role output definition
- */
-export const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Incident.io incident role object',
-  properties: INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Pagination output properties

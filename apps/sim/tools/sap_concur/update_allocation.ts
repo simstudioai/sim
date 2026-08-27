@@ -84,7 +84,8 @@ export const updateAllocationTool: ToolConfig<UpdateAllocationParams, SapConcurP
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Fields to update on the allocation',
+      description:
+        'JSON Merge Patch (RFC 7386) payload. Must be the two-key envelope { "allocation": { "customData": [{ "id": "custom9", "value": "...", "isValid": true }] }, "expenseIds": ["29EE..."] }.',
     },
   },
   request: {
@@ -110,7 +111,6 @@ export const updateAllocationTool: ToolConfig<UpdateAllocationParams, SapConcurP
     data: {
       type: 'json',
       description: 'Empty body on success (Concur returns 204 No Content)',
-      properties: {},
     },
   },
 }

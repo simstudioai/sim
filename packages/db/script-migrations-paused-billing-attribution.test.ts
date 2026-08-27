@@ -441,6 +441,11 @@ describe('script migration registry', () => {
       '0002_backfill_paused_billing_attribution',
       '0003_backfill_workspace_storage_usage',
       '0004_backfill_fork_kb_file_ownership',
+      '0005_repair_unknown_table_row_provenance',
+      '0006_repair_unknown_table_row_provenance_second_pass',
+      '0007_repair_unknown_workspace_file_provenance',
+      '0008_backfill_workspace_file_size_bytes',
+      '0009_backfill_wel_residual_cost_total',
     ])
   })
 })

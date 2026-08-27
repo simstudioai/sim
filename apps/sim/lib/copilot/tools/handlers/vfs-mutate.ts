@@ -11,17 +11,24 @@ import {
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/files/file-folder-application'
-import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import type { ResourceVfsOutcome } from '@/lib/folders/application/resource-vfs'
 import {
+  createKnowledgeVfsFolders,
   deleteKnowledgeBaseByVfsPath,
-  renameKnowledgeBaseByVfsPath,
+  deleteKnowledgeVfsFolders,
+  transferKnowledgeVfsItems,
 } from '@/lib/knowledge/application/knowledge-vfs'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { deleteTableByVfsPath, renameTableByVfsPath } from '@/lib/table/application/table-vfs'
+import {
+  createTableVfsFolders,
+  deleteTableByVfsPath,
+  deleteTableVfsFolders,
+  transferTableVfsItems,
+} from '@/lib/table/application/table-vfs'
 import { VfsPathLimitError, validateVfsPathBatch } from '@/lib/vfs/limits'
 import {
   copyWorkflowVfsItems,
@@ -47,7 +54,7 @@ const MUTATE_CATEGORIES = new Set<string>(['files', 'workflows', 'tables', 'know
 
 const CATEGORY_REJECTIONS: Record<string, string> = {
   uploads:
-    'uploads/ files are chat-scoped and immutable. Use materialize_file to promote one into files/ first.',
+    'uploads/ files are chat-scoped and immutable. Use save_upload to promote one into files/ first.',
   'recently-deleted':
     'recently-deleted/ items cannot be moved or copied. Restore them with restore_resource first.',
 }
@@ -66,7 +73,15 @@ const RM_CATEGORY_REJECTIONS: Record<string, string> = {
 interface VfsMutateOutcome {
   from: string
   to?: string
-  kind: 'file' | 'file_folder' | 'workflow' | 'workflow_folder' | 'table' | 'knowledge_base'
+  kind:
+    | 'file'
+    | 'file_folder'
+    | 'workflow'
+    | 'workflow_folder'
+    | 'table'
+    | 'table_folder'
+    | 'knowledge_base'
+    | 'knowledge_base_folder'
   id?: string
   error?: string
 }
@@ -217,18 +232,76 @@ export async function executeVfsMkdir(
       }
     }
 
+    const folderedOutcomes = new Map<string, VfsMutateOutcome>()
+    for (const category of ['tables', 'knowledgebases'] as const) {
+      const categoryPaths = paths.filter((path) => topLevelSegment(path) === category)
+      if (categoryPaths.length === 0) continue
+      const folderKind = category === 'tables' ? 'table_folder' : 'knowledge_base_folder'
+      const reserved = categoryPaths.filter((path) =>
+        isReservedKnowledgePath(category, decodeVfsPathSegments(path).slice(1))
+      )
+      for (const path of reserved) {
+        folderedOutcomes.set(path, {
+          from: path,
+          kind: folderKind,
+          error: '"knowledgebases/connectors" is a reserved path.',
+        })
+      }
+      const eligible = categoryPaths.filter((path) => !folderedOutcomes.has(path))
+      if (eligible.length === 0) continue
+      const input = {
+        workspaceId,
+        paths: eligible.map((path) => ({
+          source: path,
+          segments: decodeVfsPathSegments(path).slice(1),
+        })),
+      }
+      try {
+        const result =
+          category === 'tables'
+            ? await executeCopilotTableUseCase(context, createTableVfsFolders, input, {})
+            : await executeCopilotKnowledgeUseCase(context, createKnowledgeVfsFolders, input)
+        for (const outcome of result.outcomes) {
+          folderedOutcomes.set(outcome.source, presentResourceVfsOutcome(category, outcome))
+        }
+      } catch (error) {
+        const message =
+          category === 'tables'
+            ? messageForExpectedTableVfsError(error)
+            : messageForKnowledgeVfsError(error, 'Write access required to create folders')
+        for (const path of eligible) {
+          folderedOutcomes.set(path, { from: path, kind: folderKind, error: message })
+        }
+      }
+    }
+
     const outcomes: VfsMutateOutcome[] = []
     for (const path of paths) {
       const top = topLevelSegment(path)
       const segments = decodeVfsPathSegments(path).slice(1)
-      const kind = top === 'workflows' ? 'workflow_folder' : 'file_folder'
+      const kind =
+        top === 'workflows'
+          ? 'workflow_folder'
+          : top === 'tables'
+            ? 'table_folder'
+            : top === 'knowledgebases'
+              ? 'knowledge_base_folder'
+              : 'file_folder'
 
+      if (top === 'tables' || top === 'knowledgebases') {
+        outcomes.push(
+          folderedOutcomes.get(path) ?? {
+            from: path,
+            kind,
+            error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
+          }
+        )
+        continue
+      }
       if (top !== 'files' && top !== 'workflows') {
         const rejection =
-          top === 'tables' || top === 'knowledgebases'
-            ? `${top}/ is a flat namespace with no folders.`
-            : (CATEGORY_REJECTIONS[top] ??
-              `"${path}" is not a folder target. mkdir supports files/ and workflows/ paths.`)
+          CATEGORY_REJECTIONS[top] ??
+          `"${path}" is not a folder target. mkdir supports files/, workflows/, tables/, and knowledgebases/ paths.`
         outcomes.push({ from: path, kind, error: rejection })
         continue
       }
@@ -243,7 +316,7 @@ export async function executeVfsMkdir(
             fileOutcomes.get(path) ?? {
               from: path,
               kind: 'file_folder',
-              error: 'File folder creation failed',
+              error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
             }
           )
         } else {
@@ -251,7 +324,7 @@ export async function executeVfsMkdir(
             workflowOutcomes.get(path) ?? {
               from: path,
               kind: 'workflow_folder',
-              error: 'Workflow folder creation failed',
+              error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
             }
           )
         }
@@ -319,7 +392,14 @@ async function executeVfsMutate(
       case 'workflows':
         return await mutateWorkflows(verb, sources, destination, context, workspaceId)
       default:
-        return await renameFlatResource(verb, category, sources, destination, context, workspaceId)
+        return await transferFolderedResource(
+          verb,
+          category,
+          sources,
+          destination,
+          context,
+          workspaceId
+        )
     }
   } catch (error) {
     if (error instanceof KnowledgeVfsInfrastructureError) {
@@ -331,6 +411,28 @@ async function executeVfsMutate(
     if (error instanceof VfsPathLimitError) return { success: false, error: error.message }
     throw error
   }
+}
+
+function presentResourceVfsOutcome(
+  category: 'tables' | 'knowledgebases',
+  outcome: ResourceVfsOutcome
+): VfsMutateOutcome {
+  const resourceKind = category === 'tables' ? 'table' : 'knowledge_base'
+  const folderKind = category === 'tables' ? 'table_folder' : 'knowledge_base_folder'
+  return {
+    from: outcome.source,
+    ...(outcome.targetSegments
+      ? { to: `${category}/${encodeVfsPathSegments(outcome.targetSegments)}` }
+      : {}),
+    kind: outcome.kind === 'folder' ? folderKind : resourceKind,
+    id: outcome.resourceId,
+    error: outcome.error,
+  }
+}
+
+/** knowledgebases/connectors is a virtual tree, not a knowledge base or folder. */
+function isReservedKnowledgePath(category: string, segments: readonly string[]): boolean {
+  return category === 'knowledgebases' && segments[0]?.toLowerCase() === 'connectors'
 }
 
 async function mutateWorkspaceFiles(
@@ -419,7 +521,7 @@ async function mutateWorkflows(
   }
 }
 
-async function renameFlatResource(
+async function transferFolderedResource(
   verb: MutateVerb,
   category: 'tables' | 'knowledgebases',
   sources: string[],
@@ -428,77 +530,49 @@ async function renameFlatResource(
   workspaceId: string
 ): Promise<ToolCallResult> {
   const label = category === 'tables' ? 'Tables' : 'Knowledge bases'
-  const kind = category === 'tables' ? 'table' : 'knowledge_base'
-
   if (verb === 'cp') {
     return { success: false, error: `${label} cannot be copied — duplication is not supported.` }
   }
-  if (sources.length > 1) {
-    return { success: false, error: `${label} are renamed one at a time.` }
-  }
 
-  const sourceSegments = decodeVfsPathSegments(sources[0]).slice(1)
-  const destSegments = decodeVfsPathSegments(destination).slice(1)
-  if (sourceSegments.length !== 1 || destSegments.length !== 1 || hasTrailingSlash(destination)) {
-    return {
-      success: false,
-      error: `${label} have a flat namespace with no folders — mv only renames them, e.g. mv({sources: ["${category}/Old Name"], destination: "${category}/New Name"}).`,
+  const sourceRefs = sources.map((source) => ({
+    source,
+    segments: decodeVfsPathSegments(source).slice(1),
+  }))
+  const destinationSegments = decodeVfsPathSegments(destination).slice(1)
+  for (const ref of sourceRefs) {
+    if (isReservedKnowledgePath(category, ref.segments)) {
+      return { success: false, error: '"knowledgebases/connectors" is a reserved path.' }
     }
   }
-
-  const sourceName = sourceSegments[0]
-  const newName = destSegments[0]
-
-  if (category === 'tables') {
-    try {
-      const renamed = await executeCopilotTableUseCase(
-        context,
-        renameTableByVfsPath,
-        { workspaceId, sourceName, newName },
-        {}
-      )
-      return buildResult(verb, [
-        {
-          from: sources[0],
-          to: `tables/${normalizeVfsSegment(renamed.name)}`,
-          kind,
-          id: renamed.id,
-        },
-      ])
-    } catch (error) {
-      return { success: false, error: messageForExpectedTableVfsError(error) }
-    }
-  }
-
-  if (newName.toLowerCase() === 'connectors') {
+  if (isReservedKnowledgePath(category, destinationSegments)) {
     return { success: false, error: '"knowledgebases/connectors" is a reserved path.' }
   }
+
+  const input = {
+    workspaceId,
+    sources: sourceRefs,
+    destination: {
+      segments: destinationSegments,
+      trailingSlash: hasTrailingSlash(destination),
+    },
+  }
+  assertMutationNotAborted(context)
   try {
-    const renamed = await executeCopilotKnowledgeUseCase(context, renameKnowledgeBaseByVfsPath, {
-      workspaceId,
-      sourceName,
-      newName,
-    })
-    logger.info('Renamed knowledge base via mv', {
-      knowledgeBaseId: renamed.id,
-      workspaceId,
-    })
-    return buildResult(verb, [
-      {
-        from: sources[0],
-        to: `knowledgebases/${normalizeVfsSegment(renamed.name)}`,
-        kind,
-        id: renamed.id,
-      },
-    ])
+    const result =
+      category === 'tables'
+        ? await executeCopilotTableUseCase(context, transferTableVfsItems, input, {})
+        : await executeCopilotKnowledgeUseCase(context, transferKnowledgeVfsItems, input)
+    return buildResult(
+      verb,
+      result.outcomes.map((outcome) => presentResourceVfsOutcome(category, outcome))
+    )
   } catch (error) {
-    return {
-      success: false,
-      error: messageForKnowledgeVfsError(
-        error,
-        `Write access required to rename knowledge base "${sourceName}"`
-      ),
-    }
+    if (context.abortSignal?.aborted) throw error
+    const message =
+      category === 'tables'
+        ? messageForExpectedTableVfsError(error)
+        : messageForKnowledgeVfsError(error, `Write access required to move ${label.toLowerCase()}`)
+    return { success: false, error: message }
   }
 }
 
@@ -576,12 +650,16 @@ export async function executeVfsRm(
             workflowOutcomes.get(path) ?? {
               from: path,
               kind: 'workflow',
-              error: 'Workflow deletion failed',
+              error: `No result came back for deleting "${path}" — it may not exist or may already be deleted. Run glob("workflows/*") to confirm before retrying.`,
             }
           )
         } else if (classified.category === 'files') {
           outcomes.push(
-            fileOutcomes.get(path) ?? { from: path, kind: 'file', error: 'File deletion failed' }
+            fileOutcomes.get(path) ?? {
+              from: path,
+              kind: 'file',
+              error: `No result came back for deleting "${path}" — it may not exist or may already be deleted. Run glob("files/**") to confirm before retrying.`,
+            }
           )
         } else {
           outcomes.push(await removeOne(classified.category, path, context, workspaceId))
@@ -641,31 +719,25 @@ function removeOne(
   }
 }
 
-/** Resolves a flat tables/{name} or knowledgebases/{name} path to its single segment. */
-function flatResourceName(path: string): string | null {
-  const segments = decodeVfsPathSegments(path).slice(1)
-  if (segments.length !== 1) return null
-  return segments[0]
-}
-
 async function removeTablePath(
   path: string,
   context: ExecutionContext,
   workspaceId: string
 ): Promise<VfsMutateOutcome> {
-  const sourceName = flatResourceName(path)
-  if (!sourceName) {
+  const segments = decodeVfsPathSegments(path).slice(1)
+  if (segments.length === 0) {
     return {
       from: path,
       kind: 'table',
-      error: 'tables/ is a flat namespace — rm takes a single name, e.g. rm(["tables/Leads"]).',
+      error: 'rm takes a table or folder path, e.g. rm(["tables/Leads"]) or rm(["tables/CRM"]).',
     }
   }
+  const sourceName = segments[segments.length - 1]
   try {
     const deleted = await executeCopilotTableUseCase(
       context,
       deleteTableByVfsPath,
-      { workspaceId, sourceName },
+      { workspaceId, sourceName, sourceSegments: segments },
       {}
     )
     captureServerEvent(
@@ -677,7 +749,51 @@ async function removeTablePath(
     logger.info('Archived table via rm', { tableId: deleted.id, workspaceId })
     return { from: path, kind: 'table', id: deleted.id }
   } catch (error) {
-    return { from: path, kind: 'table', error: messageForExpectedTableVfsError(error) }
+    const message = messageForExpectedTableVfsError(error)
+    const folderOutcome = await removeResourceFolderFallback(
+      'tables',
+      path,
+      segments,
+      message,
+      context,
+      workspaceId
+    )
+    if (folderOutcome) return folderOutcome
+    return { from: path, kind: 'table', error: message }
+  }
+}
+
+/**
+ * rm resolution is resource-first (matching mv); when the resource resolver
+ * reports the path IS a folder, the delete retargets to the folder cascade.
+ */
+async function removeResourceFolderFallback(
+  category: 'tables' | 'knowledgebases',
+  path: string,
+  segments: string[],
+  resourceError: string,
+  context: ExecutionContext,
+  workspaceId: string
+): Promise<VfsMutateOutcome | null> {
+  if (!resourceError.includes('is a folder')) return null
+  const input = { workspaceId, paths: [{ source: path, segments }] }
+  try {
+    const result =
+      category === 'tables'
+        ? await executeCopilotTableUseCase(context, deleteTableVfsFolders, input, {})
+        : await executeCopilotKnowledgeUseCase(context, deleteKnowledgeVfsFolders, input)
+    const outcome = result.outcomes[0]
+    return outcome ? presentResourceVfsOutcome(category, outcome) : null
+  } catch (error) {
+    const message =
+      category === 'tables'
+        ? messageForExpectedTableVfsError(error)
+        : messageForKnowledgeVfsError(error, 'Write access required to delete folders')
+    return {
+      from: path,
+      kind: category === 'tables' ? 'table_folder' : 'knowledge_base_folder',
+      error: message,
+    }
   }
 }
 
@@ -686,16 +802,16 @@ async function removeKnowledgeBasePath(
   context: ExecutionContext,
   workspaceId: string
 ): Promise<VfsMutateOutcome> {
-  const sourceName = flatResourceName(path)
-  if (!sourceName) {
+  const segments = decodeVfsPathSegments(path).slice(1)
+  if (segments.length === 0) {
     return {
       from: path,
       kind: 'knowledge_base',
-      error:
-        'knowledgebases/ is a flat namespace — rm takes a single name, e.g. rm(["knowledgebases/support-docs"]).',
+      error: 'rm takes a knowledge base or folder path, e.g. rm(["knowledgebases/support-docs"]).',
     }
   }
-  if (sourceName.toLowerCase() === 'connectors') {
+  const sourceName = segments[segments.length - 1]
+  if (isReservedKnowledgePath('knowledgebases', segments)) {
     return {
       from: path,
       kind: 'knowledge_base',
@@ -706,6 +822,7 @@ async function removeKnowledgeBasePath(
     const deleted = await executeCopilotKnowledgeUseCase(context, deleteKnowledgeBaseByVfsPath, {
       workspaceId,
       sourceName,
+      sourceSegments: segments,
     })
     PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: deleted.id })
     logger.info('Deleted knowledge base via rm', {
@@ -714,13 +831,19 @@ async function removeKnowledgeBasePath(
     })
     return { from: path, kind: 'knowledge_base', id: deleted.id }
   } catch (error) {
-    return {
-      from: path,
-      kind: 'knowledge_base',
-      error: messageForKnowledgeVfsError(
-        error,
-        `Write access required to delete knowledge base "${sourceName}"`
-      ),
-    }
+    const message = messageForKnowledgeVfsError(
+      error,
+      `Write access required to delete knowledge base "${sourceName}"`
+    )
+    const folderOutcome = await removeResourceFolderFallback(
+      'knowledgebases',
+      path,
+      segments,
+      message,
+      context,
+      workspaceId
+    )
+    if (folderOutcome) return folderOutcome
+    return { from: path, kind: 'knowledge_base', error: message }
   }
 }

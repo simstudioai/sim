@@ -8,7 +8,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  */
 import { BLOCK_REGISTRY } from '../apps/sim/blocks/registry-maps'
 import { AuthMode, type BlockConfig } from '../apps/sim/blocks/types'
-import integrationsJson from '../apps/sim/lib/integrations/integrations.json'
+import integrationsJson from '../packages/deployment-config/src/integrations.json'
 import { DOCS_ORIGIN, DOCS_OUTPUT_PATH, defaultIntegrationDocsUrl } from './generate-docs'
 
 type CatalogAuthType = 'oauth' | 'api-key' | 'none'

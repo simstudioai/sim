@@ -17,6 +17,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
@@ -42,6 +43,19 @@ import {
 const logger = createLogger('TableRunDispatcher')
 
 const ACTIVE_DISPATCH_STATUSES = ['pending', 'dispatching'] as const
+
+/** Concurrent terminal-event writes when the stale sweep reclaims a batch. */
+const STALE_DISPATCH_EVENT_CONCURRENCY = 10
+
+/**
+ * How long past its stale threshold a dispatch may be spared by cell activity
+ * before it is reclaimed anyway. Bounds the one masking case the probe cannot
+ * resolve — two table-wide dispatches sharing a group — which continuous
+ * activity would otherwise hide forever. Far beyond any single window: the
+ * Trigger.dev run ceiling is ninety minutes, and a live dispatch heartbeats
+ * between windows no matter what its cells are doing.
+ */
+const DISPATCH_ABSOLUTE_STALE_MS = 24 * 60 * 60 * 1000
 
 export type DispatchStatus = 'pending' | 'dispatching' | 'complete' | 'cancelled'
 export type DispatchMode = 'all' | 'incomplete' | 'new'
@@ -85,6 +99,10 @@ export interface DispatchRow {
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
   requestedAt: Date
+  /** Set when the dispatch reached `complete`; null while it is still active. */
+  completedAt: Date | null
+  /** Set when the dispatch was cancelled; null otherwise. */
+  cancelledAt: Date | null
 }
 
 async function deleteExecutionRows(trx: DbTransaction, filters: SQL[]): Promise<number> {
@@ -332,6 +350,8 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }))
 }
 
@@ -356,6 +376,8 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }
 }
 
@@ -389,14 +411,14 @@ export async function dispatcherStep(
   const table = await getTableById(dispatch.tableId)
   if (!table) {
     logger.warn(`[${dispatchId}] table ${dispatch.tableId} missing — completing dispatch`)
-    await markDispatchComplete(dispatchId)
+    await completeDispatchIfActive(dispatchId)
     return 'done'
   }
 
   const allGroups = table.schema.workflowGroups ?? []
   const targetGroups = allGroups.filter((g) => dispatch.scope.groupIds.includes(g.id))
   if (targetGroups.length === 0) {
-    await markDispatchComplete(dispatchId)
+    await completeDispatchIfActive(dispatchId)
     return 'done'
   }
 
@@ -405,10 +427,38 @@ export async function dispatcherStep(
   // user already saw the column flip to empty/Pending before any cell
   // started enqueueing.
   if (dispatch.status === 'pending') {
-    await db
+    const claimed = await db
       .update(tableRunDispatches)
-      .set({ status: 'dispatching' })
-      .where(eq(tableRunDispatches.id, dispatchId))
+      // Opens the heartbeat at the instant a holder takes the dispatch, so the
+      // cleanup sweep ages it from that rather than from `requested_at`, which
+      // was stamped when the run was merely requested.
+      .set({ status: 'dispatching', heartbeatAt: new Date() })
+      /**
+       * Re-asserts the status this step read two awaits ago. `dispatchId` alone
+       * would resurrect a dispatch cancelled in that window — a Stop-all, or now
+       * the stale-dispatch sweep — back to `dispatching`, and with a fresh
+       * heartbeat the sweep would then wait out another full window before
+       * reclaiming what it had already given up on.
+       */
+      .where(
+        and(
+          eq(tableRunDispatches.id, dispatchId),
+          inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+        )
+      )
+      .returning({ id: tableRunDispatches.id })
+
+    /**
+     * Losing that race ends the step. Guarding the write without reading its
+     * outcome is the worse half of a fix: the row correctly stays `cancelled`,
+     * while this step goes on to announce `dispatching`, stamp cells and enqueue
+     * a window for it — and an empty window would then call the unguarded
+     * completion path and overwrite `cancelled` with `complete`.
+     */
+    if (claimed.length === 0) {
+      logger.info(`[${dispatchId}] dispatch was cancelled before this step claimed it`)
+      return 'done'
+    }
     // Announce the dispatch the moment it starts — before the first window's
     // cells finish. Without this, auto-fired and capped dispatches (no client-
     // side optimistic seed) emit their first `dispatch` event only after window
@@ -489,17 +539,10 @@ export async function dispatcherStep(
     : await windowQuery(db)
 
   if (chunk.length === 0) {
-    await markDispatchComplete(dispatchId)
-    await appendTableEvent({
-      kind: 'dispatch',
-      tableId: dispatch.tableId,
-      dispatchId,
-      status: 'complete',
-      scope: dispatch.scope,
-      cursor: dispatch.cursor,
-      mode: dispatch.mode,
-      isManualRun: dispatch.isManualRun,
-    })
+    // Through the shared, guarded completion like the other two exits: this
+    // runs after the claim, so a cancel arriving during the window query would
+    // otherwise be overwritten with `complete`.
+    await completeDispatch(dispatch, dispatch.cursor)
     return 'done'
   }
 
@@ -579,6 +622,28 @@ export async function dispatcherStep(
   }
 
   if (windowRuns.length > 0) {
+    /**
+     * Re-read before committing a window, mirroring the check after one.
+     *
+     * Several round trips separate the claim from here — the window query, the
+     * executions prefetch, the tombstone filter — and a Stop-all or the stale
+     * sweep landing in that gap would otherwise have this stamp cells and run an
+     * entire window for a dispatch already recorded as cancelled.
+     *
+     * This narrows the gap to a single statement; it does not close it, and no
+     * check can. A cancel arriving after this read still races the enqueue. The
+     * cell-level `cancellationGuard` and the `isExecCancelledAfter` tombstone
+     * filter are what catch that remainder.
+     */
+    const beforeWindow = await readDispatch(dispatchId)
+    if (
+      !beforeWindow ||
+      beforeWindow.status === 'cancelled' ||
+      beforeWindow.status === 'complete'
+    ) {
+      return 'done'
+    }
+
     await stampQueuedForBatch(windowRuns, table)
 
     // Backend-agnostic batch dispatch: trigger.dev wraps `batchTriggerAndWait`
@@ -672,14 +737,25 @@ export async function dispatcherStep(
 async function incrementProcessedCount(dispatchId: string, delta: number): Promise<void> {
   await db
     .update(tableRunDispatches)
-    .set({ processedCount: sql`${tableRunDispatches.processedCount} + ${delta}` })
+    .set({
+      processedCount: sql`${tableRunDispatches.processedCount} + ${delta}`,
+      heartbeatAt: new Date(),
+    })
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
 /** Mark a dispatch complete and emit the terminal SSE so the client overlay
  *  clears. Shared by the row-cap exhaustion path. */
 async function completeDispatch(dispatch: DispatchRow, cursor: number): Promise<void> {
-  await markDispatchComplete(dispatch.id)
+  /**
+   * Guarded, because both callers run AFTER the window's wait. A Stop-all or the
+   * stale sweep landing during that wait leaves the row `cancelled`, and the
+   * unguarded write would overwrite it with `complete` and publish a completion
+   * event after the cancellation one. The claim guard at the top of the step
+   * cannot cover this — the cancel arrives long after the claim.
+   */
+  if (!(await completeDispatchIfActive(dispatch.id))) return
+
   await appendTableEvent({
     kind: 'dispatch',
     tableId: dispatch.tableId,
@@ -724,14 +800,7 @@ async function stampQueuedForBatch(
 async function advanceCursor(dispatchId: string, newCursor: number): Promise<void> {
   await db
     .update(tableRunDispatches)
-    .set({ cursor: newCursor })
-    .where(eq(tableRunDispatches.id, dispatchId))
-}
-
-export async function markDispatchComplete(dispatchId: string): Promise<void> {
-  await db
-    .update(tableRunDispatches)
-    .set({ status: 'complete', completedAt: new Date() })
+    .set({ cursor: newCursor, heartbeatAt: new Date() })
     .where(eq(tableRunDispatches.id, dispatchId))
 }
 
@@ -781,16 +850,210 @@ export async function completeDispatchIfActive(dispatchId: string): Promise<bool
   return transitioned.length > 0
 }
 
-export async function markDispatchCancelled(dispatchId: string): Promise<void> {
-  await db
+/**
+ * Whether any cell inside a dispatch's own scope has reported since `since`.
+ *
+ * Scoped to the dispatch's groups, and to its rows when it names any, because
+ * `table_row_executions` carries no dispatch column. Left table-wide, a live
+ * dispatch's cells read as evidence that an abandoned dispatch beside it was
+ * still working — and auto-fired and row-scoped runs do NOT cancel overlapping
+ * dispatches (`cancelPriorRuns` requires `isManualRun`, and the per-row path is
+ * a no-op for dispatch cancellation), so sharing a group is ordinary rather than
+ * exceptional.
+ *
+ * Two table-wide dispatches over the same groups can still vouch for each other,
+ * since nothing in the row execution says whose work it is. Closing that needs a
+ * `dispatch_id` on `table_row_executions`, threaded through every cell-write
+ * site. Until then the residue is a delay, not a permanent mask: the live
+ * dispatch's cells stop reporting when it finishes.
+ *
+ * The row bypass uses `IS DISTINCT FROM`, not `<>`: a table-wide dispatch has no
+ * `rowIds`, so the extraction is SQL NULL and `jsonb_typeof` returns NULL.
+ * `NULL <> 'array'` is UNKNOWN rather than TRUE, so the bypass never fired and no
+ * live cell could satisfy the probe — reclaiming exactly the long-running
+ * table-wide dispatches the row filter was added to protect.
+ *
+ * Rides the partial `(table_id, status)` index, which covers exactly these three
+ * statuses.
+ */
+function hasRecentCellActivity(since: Date): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM ${tableRowExecutions}
+    WHERE ${tableRowExecutions.tableId} = ${tableRunDispatches.tableId}
+      AND ${tableRowExecutions.groupId} IN (
+        SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'groupIds')
+      )
+      AND (
+        jsonb_typeof(${tableRunDispatches.scope} -> 'rowIds') IS DISTINCT FROM 'array'
+        OR ${tableRowExecutions.rowId} IN (
+          SELECT jsonb_array_elements_text(${tableRunDispatches.scope} -> 'rowIds')
+        )
+      )
+      AND ${tableRowExecutions.status} IN ('queued', 'running', 'pending')
+      AND ${tableRowExecutions.updatedAt} >= ${sql.param(since, tableRowExecutions.updatedAt)}
+  )`
+}
+
+/**
+ * Cancels dispatches whose holder died without reaching a terminal state.
+ *
+ * `table_run_dispatches` had no reaper: the only paths to a terminal status are
+ * user- or flow-initiated ({@link cancelDispatchById},
+ * {@link completeDispatchIfActive}, {@link markActiveDispatchesCancelled}), so a
+ * dispatcher killed mid-loop left its row `dispatching` forever — pinning the
+ * client's "X running" overlay and blocking re-runs of that table. Four rows
+ * were stranded this way by a single afternoon of OOM kills, and nothing in the
+ * product could clear them. The `table_run_dispatches_watchdog_idx` index has
+ * existed since the table was created for exactly this sweep, unused.
+ *
+ * Liveness comes from `heartbeatAt`, which the per-window `advanceCursor` and
+ * `incrementProcessedCount` writes stamp, so a slow-but-live dispatch is spared
+ * however long it runs. That matters because the in-process path
+ * (`isTriggerDevEnabled === false`) has no duration ceiling at all — ageing from
+ * `requestedAt` would reclaim live self-hosted work. `COALESCE` keeps rows
+ * written before the column existed reclaimable rather than NULL-false forever.
+ *
+ * Cancelled rather than completed: the dispatch did not finish its scope, and
+ * reporting it complete would tell the user work happened that did not. The
+ * cursor is left in place, so a re-run resumes rather than replays.
+ */
+export async function cancelStaleDispatches(
+  staleBefore: Date,
+  limit: number
+): Promise<DispatchRow[]> {
+  /**
+   * Dead means nothing about the dispatch has moved — neither the loop nor the
+   * work it is waiting on.
+   *
+   * The dispatch's own heartbeat is stamped between windows, not during them,
+   * and `batchTriggerAndWait` checkpoints the loop for the whole window, so a
+   * long window leaves the heartbeat untouched while the dispatch is plainly
+   * alive. A lease needs its heartbeat interval to sit well under its TTL; this
+   * one cannot promise that, because the window is bounded by the cells' own
+   * timeouts and the in-process path has no ceiling at all.
+   *
+   * Its cells carry the signal the checkpointed parent cannot: `updatedAt` on
+   * every in-flight row execution, written by the cell tasks themselves. Both
+   * must be stale before a dispatch is reclaimed, so a slow window is spared for
+   * as long as its cells keep reporting, and a genuinely dead run — nothing
+   * beating, nothing executing — is still collected. The subquery rides the
+   * partial `(table_id, status)` index that already covers exactly these three
+   * statuses.
+   *
+   * Narrowed to the dispatch's own scope — its groups, and its rows when it
+   * names any — because `table_row_executions` has no dispatch column. Left
+   * table-scoped, a live dispatch's cells read as evidence that an abandoned
+   * dispatch beside it was still working, and the abandoned one is never
+   * reclaimed: the stuck overlay this sweep exists to clear, made permanent.
+   *
+   * The row filter is what covers the auto-fired and row-scoped runs, which do
+   * NOT cancel overlapping dispatches — `cancelPriorRuns` in `workflow-columns`
+   * requires `isManualRun`, and the per-row path is a no-op for dispatch
+   * cancellation — so same-group coexistence is ordinary, not exceptional.
+   *
+   * What remains is two table-wide dispatches over the same groups, where
+   * nothing in the row execution distinguishes whose work it is. Closing that
+   * needs a `dispatch_id` on `table_row_executions`, threaded through six write
+   * sites including the shared cell-write path. Until then the residue is a
+   * delay rather than a permanent mask: the live dispatch's cells stop updating
+   * when it finishes, and the next sweep after a quiet window reclaims the
+   * abandoned row.
+   */
+  const abandonedBefore = new Date(staleBefore.getTime() - DISPATCH_ABSOLUTE_STALE_MS)
+  /** Last proof of life from the loop itself, or when it was requested. */
+  const lastBeat = sql`COALESCE(${tableRunDispatches.heartbeatAt}, ${tableRunDispatches.requestedAt})`
+  const notBeatingSince = (cutoff: Date) =>
+    sql`${lastBeat} < ${sql.param(cutoff, tableRunDispatches.heartbeatAt)}`
+
+  const isStale = () =>
+    and(
+      inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
+      notBeatingSince(staleBefore),
+      /**
+       * Cell activity spares a dispatch, but only up to a ceiling.
+       *
+       * The probe cannot tell whose cells it is looking at when two table-wide
+       * dispatches share a group — `table_row_executions` has no dispatch
+       * column — so an abandoned one is vouched for by its neighbour's work. On
+       * a quiet table that is a delay, since the neighbour eventually finishes;
+       * on a busy one, continuous auto-fired activity can keep it masked
+       * indefinitely.
+       *
+       * The ceiling bounds it a day past the stale threshold. A live dispatch stamps its heartbeat between
+       * windows regardless of what its cells are doing, so only a single window
+       * outliving the ceiling would be reclaimed wrongly — and no window lasts a
+       * day, on any path. The right fix is a `dispatch_id` on the executions
+       * row; this keeps the gap bounded until that lands.
+       */
+      sql`(NOT ${hasRecentCellActivity(staleBefore)} OR ${notBeatingSince(abandonedBefore)})`
+    )
+
+  // Claimed as explicit ids first, then updated by id, so the bound is evaluated
+  // exactly once — the pattern every other bulk cleanup in this codebase uses.
+  // The update re-asserts staleness, so a dispatch that finished in between is
+  // left alone rather than cancelled out from under its own terminal write.
+  const claimed = await db
+    .select({ id: tableRunDispatches.id })
+    .from(tableRunDispatches)
+    .where(isStale())
+    .limit(limit)
+  if (claimed.length === 0) return []
+
+  const cancelled = await db
     .update(tableRunDispatches)
     .set({ status: 'cancelled', cancelledAt: new Date() })
     .where(
       and(
-        eq(tableRunDispatches.id, dispatchId),
-        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+        isStale(),
+        inArray(
+          tableRunDispatches.id,
+          claimed.map(({ id }) => id)
+        )
       )
     )
+    .returning()
+
+  const dispatches = cancelled.map((row) => ({
+    id: row.id,
+    tableId: row.tableId,
+    workspaceId: row.workspaceId,
+    requestId: row.requestId,
+    mode: row.mode as DispatchMode,
+    scope: row.scope as DispatchScope,
+    status: 'cancelled' as DispatchStatus,
+    cursor: row.cursor,
+    limit: (row.limit as DispatchLimit | null) ?? null,
+    processedCount: row.processedCount,
+    isManualRun: row.isManualRun,
+    triggeredByUserId: row.triggeredByUserId,
+    requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
+  }))
+
+  /**
+   * Same terminal event every other cancel path emits — without it the row goes
+   * terminal in the database while the client overlay stays stuck, which is the
+   * symptom this function exists to clear.
+   *
+   * Bounded rather than a bare `Promise.all`: the sibling cancel paths fan out
+   * over one table's dispatches, while this sweep can carry a whole tick's worth
+   * across many tables, and each event is its own write.
+   */
+  await mapWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
+    appendTableEvent({
+      kind: 'dispatch',
+      tableId: d.tableId,
+      dispatchId: d.id,
+      status: 'cancelled',
+      scope: d.scope,
+      cursor: d.cursor,
+      mode: d.mode,
+      isManualRun: d.isManualRun,
+    })
+  )
+
+  return dispatches
 }
 
 /** Mark every active dispatch on this table as cancelled. Single atomic
@@ -847,6 +1110,8 @@ export async function markActiveDispatchesCancelled(
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }))
   await Promise.all(
     dispatches.map((d) =>

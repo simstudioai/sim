@@ -108,6 +108,7 @@ export const confluenceListBlogPostsInSpaceTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/confluence/space-blogposts',
     method: 'POST',
     headers: (params: ConfluenceListBlogPostsInSpaceParams) => ({

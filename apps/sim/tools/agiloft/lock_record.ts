@@ -59,6 +59,7 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
   },
 
   request: {
+    internal: true,
     url: () => '/api/tools/agiloft/lock_record',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),

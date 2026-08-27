@@ -50,6 +50,7 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
@@ -286,26 +287,34 @@ export function getAllModelProviders(): Record<string, ProviderId> {
   )
 }
 
+/**
+ * The provider that declares `model`, or `null` when none does.
+ *
+ * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
+ * on the answer needs "unknown" to stay distinct from "ollama": this registry
+ * holds chat models only, so every embedding, speech, image and video model id
+ * would otherwise read as an Ollama model and be judged against an allowlist
+ * that was never about it.
+ */
+export function findProviderFromModel(model: string): ProviderId | null {
+  const normalizedModel = model.toLowerCase()
+
+  const declared = getAllModelProviders()[normalizedModel]
+  if (declared) return declared
+
+  for (const [id, config] of Object.entries(providers)) {
+    for (const pattern of config.modelPatterns ?? []) {
+      if (pattern.test(normalizedModel)) return id as ProviderId
+    }
+  }
+
+  return null
+}
+
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
-  let providerId: ProviderId | null = null
-
-  if (normalizedModel in getAllModelProviders()) {
-    providerId = getAllModelProviders()[normalizedModel]
-  } else {
-    for (const [id, config] of Object.entries(providers)) {
-      if (config.modelPatterns) {
-        for (const pattern of config.modelPatterns) {
-          if (pattern.test(normalizedModel)) {
-            providerId = id as ProviderId
-            break
-          }
-        }
-      }
-      if (providerId) break
-    }
-  }
+  let providerId = findProviderFromModel(model)
 
   if (!providerId) {
     logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
@@ -506,7 +515,7 @@ export function extractAndParseJSON(content: string): any {
  *
  * Selector subblocks persist their value under the subblock id (e.g.
  * `tableSelector`), not the canonical id, so any lookup that keys off the
- * canonical id — like the unique-tool-id suffix below — must resolve it first.
+ * canonical id — like {@link collectToolResourceBindings} below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
  * with. When the active selector has no value, the original canonical value is
@@ -713,11 +722,9 @@ export async function transformBlockTool(
       return null
     }
     return {
-      // Unique per block so two custom-block tools never collide on the wire.
-      id: `deployed_block_executor_${block.type}`,
-      // Name/description come from the block itself — never the source workflow's
-      // metadata, which the consumer has no access to.
-      name: blockDef.name,
+      id: customToolConfig.id,
+      // The description comes from the block itself — never the source workflow's metadata,
+      // which the consumer has no access to.
       description: blockDef.description || customToolConfig.description,
       params: {
         blockType: block.type,
@@ -778,7 +785,9 @@ export async function transformBlockTool(
   const userProvidedParams = block.params || {}
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
+      // holds action-surface values — a tool is never invoked in trigger mode.
+      Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
     : []
 
   const resolvedResourceParams = resolveCanonicalResourceParams(
@@ -793,19 +802,16 @@ export async function transformBlockTool(
     modelBlockedParams,
   } = await createLLMToolSchema(toolConfig, resolvedResourceParams, enrichmentContext)
 
-  let uniqueToolId = toolConfig.id
-  let toolName = toolConfig.name
   let toolDescription = enrichedDescription || toolConfig.description
+  let workflowLabel: string | undefined
 
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
-
     const workflowMetadata = await fetchWorkflowMetadata(
       resolvedResourceParams.workflowId,
       enrichmentContext
     )
     if (workflowMetadata) {
-      toolName = workflowMetadata.name || toolConfig.name
+      workflowLabel = workflowMetadata.name
       if (
         workflowMetadata.description &&
         !isDefaultWorkflowDescription(workflowMetadata.description, workflowMetadata.name)
@@ -823,10 +829,6 @@ export async function transformBlockTool(
     toolDescription = mounted.length
       ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
       : `${toolDescription}\n\nThis code has no access to workspace secrets.`
-  } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
-  } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
-    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.tableId}`
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as
@@ -882,15 +884,35 @@ export async function transformBlockTool(
       }
     : undefined
 
-  return {
-    id: uniqueToolId,
-    name: toolName,
+  const providerTool: ProviderToolConfig = {
+    id: toolConfig.id,
     description: toolDescription,
     params: userProvidedParams,
     parameters: llmSchema,
     modelBlockedParams,
     paramsTransform,
   }
+
+  // A tool that rewrote its own description from a bound param already names that resource, so the
+  // duplicate labeller must not state it twice. Keyed off the declaration rather than the rendered
+  // text; the inequality catches an enricher that returned the description unchanged.
+  const selfDescribedParamId =
+    enrichedDescription && enrichedDescription !== toolConfig.description
+      ? toolConfig.toolEnrichment?.dependsOn
+      : undefined
+
+  registerProviderToolBindings(
+    providerTool,
+    collectToolResourceBindings({
+      subBlocks: blockDef?.subBlocks,
+      userProvidedParams,
+      resolvedResourceParams,
+      selfDescribedParamId,
+      workflowLabel,
+    })
+  )
+
+  return providerTool
 }
 
 /**
@@ -1551,7 +1573,28 @@ export function prepareToolExecution(
     billingAttribution?: BillingAttributionSnapshot
     /** Invoking run's execution id — see `ProviderRequest.executionId`. */
     executionId?: string
-  }
+    /** Invoking agent block's id — see `ProviderRequest.blockId`. */
+    blockId?: string
+    /**
+     * The model's own id for this tool call. It is what makes a keyed tool's
+     * idempotency token distinguishing on the agent path: one agent block can
+     * issue the same tool several times inside one execution, and `executionId`
+     * plus `blockId` alone would collapse them into a single token the provider
+     * would dedupe down to one delivery. Stable across retries because it is read
+     * from the model's response rather than minted per attempt.
+     */
+    invocationId?: string
+  },
+  /**
+   * The model's own id for this tool call, read from the provider's response.
+   *
+   * Required rather than optional — `string | undefined` — so the argument
+   * cannot be forgotten. A provider with no model-supplied id must pass
+   * `undefined` explicitly and take the loud fallback; omitting it entirely
+   * would silently leave `invocationId` unset, which is the unstable-token path
+   * this parameter exists to close.
+   */
+  toolCallId: string | undefined
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
@@ -1619,6 +1662,10 @@ export function prepareToolExecution(
               : {}),
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
+            ...(request.blockId ? { blockId: request.blockId } : {}),
+            ...((toolCallId ?? request.invocationId)
+              ? { invocationId: toolCallId ?? request.invocationId }
+              : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),

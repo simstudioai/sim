@@ -30,10 +30,13 @@ import {
   forkVisibleCopyables,
   isForkRequiredComplete,
 } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { isForkSyncConfigurableField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import {
+  type DependentReconfigState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  isDependentInvalidated,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
   forkDyingTriggerUrls,
@@ -65,7 +68,8 @@ const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: numbe
   file: { label: 'Files', order: 4 },
   'mcp-server': { label: 'MCP servers', order: 5 },
   'custom-tool': { label: 'Custom tools', order: 6 },
-  skill: { label: 'Skills', order: 7 },
+  'custom-block': { label: 'Custom blocks', order: 7 },
+  skill: { label: 'Skills', order: 8 },
 }
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
@@ -102,8 +106,10 @@ export interface ForkSyncController {
   otherWorkspaceName: string
   /**
    * The workspace this sync WRITES, named for user-facing copy: the other workspace on push,
-   * "this workspace" on pull. Derived once here so every surface that names the target - the
-   * overwrite confirm, the Trigger URLs heading - says the same thing.
+   * this one on pull. Always a NAME rather than "the target" - the page header shows the OTHER
+   * workspace's name, so an unnamed target reads as that one even on pull. Falls back to
+   * "this workspace" only until the name loads. Derived once here so every surface that names
+   * it - the overwrite confirm, the Trigger URLs heading - says the same thing.
    */
   targetWorkspaceName: string
   isLoading: boolean
@@ -145,8 +151,8 @@ export interface ForkSyncController {
    */
   sourceWorkspaceId: string
   /** In-session dependent re-picks, keyed by `dependentKey`. */
-  reconfig: Record<string, string>
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+  reconfig: DependentReconfigState
+  setReconfig: Dispatch<SetStateAction<DependentReconfigState>>
   /** Keys the backend offers as copy candidates, for the entry rows' "Copy instead" affordance. */
   copyableKeys: ReadonlySet<string>
   /** Copyables actually selected for copy (visible + checked), keyed `${kind}:${sourceId}`. */
@@ -231,9 +237,21 @@ const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
  * the dependents). Pure over (entry, in-session targets) so the inline render, the Sync
  * gate, and the payload build share one predicate instead of drifting copies.
  */
-function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+export function shouldReconfigureEntry(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>
+): boolean {
   const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
   if (next === '') return false
+  // A custom block pointed at a DIFFERENT block needs its inputs configured for as long as
+  // that mapping stands, not only in the session where it was picked. Every other kind can
+  // fall through to the in-session test because an unchanged mapping leaves its stored
+  // dependent values valid — a Gmail label picked under the same credential still resolves.
+  // A custom block has no such continuity: its sub-blocks are keyed by the SOURCE block's
+  // Start field ids, so under a different target they describe fields that do not exist and
+  // nothing carries over. Treating it as settled once saved is what left the fields hidden
+  // behind "no changes required" on every sync after the first.
+  if (entry.kind === 'custom-block') return next !== entry.sourceId
   return entry.suggested || next !== (entry.targetId ?? '')
 }
 
@@ -270,12 +288,15 @@ function takenTargetOwners(
  */
 export function useForkSync(params: {
   workspaceId: string
+  /** This workspace's name, for copy that must say which side a pull overwrites. */
+  workspaceName?: string
   otherWorkspaceId?: string
   otherWorkspaceName: string
   direction: ForkDirection
   enabled: boolean
 }): ForkSyncController {
-  const { workspaceId, otherWorkspaceId, otherWorkspaceName, direction, enabled } = params
+  const { workspaceId, workspaceName, otherWorkspaceId, otherWorkspaceName, direction, enabled } =
+    params
 
   // User's IN-SESSION mapping overrides only - NOT the source of truth. The displayed/persisted
   // target falls back to each entry's stored `targetId` (see `targetFor`), so a reopened edge
@@ -286,7 +307,7 @@ export function useForkSync(params: {
   // `dependentKey`. Folded into the full effective set sent on save/sync, which the server
   // persists as the stored mapping - so the selection survives every future sync without
   // re-picking.
-  const [reconfig, setReconfig] = useState<Record<string, string>>({})
+  const [reconfig, setReconfig] = useState<DependentReconfigState>({})
   // Referenced-but-unmapped resources the user chose to copy into the target (keyed by
   // `${kind}:${sourceId}`); default-selected once the diff loads. Selected ones are copied on
   // sync so their references resolve to the copy instead of being cleared.
@@ -541,6 +562,9 @@ export function useForkSync(params: {
   // instead, so it's skipped here.
   const reconfigComplete = dependentReconfigs.every((field) => {
     if (!field.required) return true
+    // A field the modal renders no control for can never satisfy this gate — see
+    // `isForkSyncConfigurableField`.
+    if (!isForkSyncConfigurableField(field)) return true
     const parent = entryForDependent(field)
     if (!parent) return true
     const resolution = resolutionFor(parent)
@@ -554,6 +578,9 @@ export function useForkSync(params: {
   const reconfigPendingByKind = new Set<MappableMappingKind>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
+    // Mirrors the Sync gate above: a field it cannot block on must not make the kind's badge
+    // read "Needs setup" forever either.
+    if (!isForkSyncConfigurableField(field)) continue
     const parent = entryForDependent(field)
     if (!parent) continue
     const resolution = resolutionFor(parent)
@@ -685,8 +712,11 @@ export function useForkSync(params: {
   // effective value: re-pick, stored, or blank-after-change) or copy-selected (re-pick, stored,
   // or the source reference; promote translates a source document id to its copied counterpart
   // at write time). The server persists this verbatim as the stored mapping; fields whose
-  // parent is unresolved are omitted (they can't be configured). This is the whole "what's in
-  // the mapping goes in" contract, shared by Save and Sync so the two persist identically.
+  // parent is unresolved are omitted because they can't be configured. A field invalidated by
+  // an in-block provider re-pick is submitted as `''`: required fields gate Sync until re-picked,
+  // while optional/LLM-fillable fields must land empty rather than retain a source value scoped
+  // to the old provider. This is the whole "what's in the mapping goes in" contract, shared by
+  // Save and Sync so the two persist identically.
   const buildDependentValues = () =>
     dependentReconfigs.flatMap((field) => {
       const parent = entryForDependent(field)
@@ -723,9 +753,12 @@ export function useForkSync(params: {
 
   // A dependent re-pick that differs from its stored value also dirties the editor. A re-pick
   // under a changed parent is covered by `targetsDirty` (the parent override is the change).
+  // An automatically invalidated field is covered by the provider override that caused it; it
+  // must not independently dirty an editor after that provider has been restored to baseline.
   const reconfigDirty = useMemo(
     () =>
       dependentReconfigs.some((field) => {
+        if (isDependentInvalidated(field, reconfig)) return false
         const repicked = reconfig[dependentKey(field)]
         return repicked !== undefined && repicked !== field.currentValue
       }),
@@ -736,6 +769,8 @@ export function useForkSync(params: {
 
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     updateMapping.mutate(
       {
         workspaceId,
@@ -751,8 +786,8 @@ export function useForkSync(params: {
       },
       {
         onSuccess: () => {
-          setTargets({})
-          setReconfig({})
+          setTargets((current) => (current === submittedTargets ? {} : current))
+          setReconfig((current) => (current === submittedReconfig ? {} : current))
           toast.success('Mapping saved')
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to save mapping')),
@@ -828,6 +863,8 @@ export function useForkSync(params: {
   const sync = async () => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -922,6 +959,12 @@ export function useForkSync(params: {
         return
       }
 
+      // The run committed the in-session choices: the mapping entries and dependent values are
+      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
+      // flight were not committed by this run and must remain available for the next Save/Sync.
+      setTargets((current) => (current === submittedTargets ? {} : current))
+      setReconfig((current) => (current === submittedReconfig ? {} : current))
+
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
       // A sync only commits once every reference is mapped/copied and every required dependent
@@ -964,7 +1007,8 @@ export function useForkSync(params: {
   return {
     direction,
     otherWorkspaceName,
-    targetWorkspaceName: direction === 'push' ? otherWorkspaceName : 'this workspace',
+    targetWorkspaceName:
+      direction === 'push' ? otherWorkspaceName : workspaceName || 'this workspace',
     isLoading: enabled && mapping.isLoading,
     isError: mapping.isError,
     errorMessage: mapping.isError ? getErrorMessage(mapping.error, 'Failed to load mapping') : null,

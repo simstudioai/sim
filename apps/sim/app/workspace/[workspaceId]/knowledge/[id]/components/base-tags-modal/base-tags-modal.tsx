@@ -13,8 +13,8 @@ import {
   ChipModalHeader,
   type ComboboxOption,
   handleKeyboardActivation,
-  Trash,
 } from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
 import {
@@ -248,6 +248,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ChipModalBody>
           <ChipModalField
             type='custom'
+            submitOnEnter={false}
             title={
               <>
                 Tags:{' '}
@@ -389,11 +390,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
         <ChipModalFooter
           onCancel={() => handleClose(false)}
+          defaultAction='none'
           primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
         />
       </ChipModal>
 
-      {/* Delete Tag Confirmation Dialog */}
       <ChipConfirmModal
         open={deleteTagDialogOpen}
         onOpenChange={(openState) => {
@@ -432,7 +433,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         )}
       </ChipConfirmModal>
 
-      {/* View Documents Dialog */}
       <ChipModal
         open={viewDocumentsDialogOpen}
         onOpenChange={setViewDocumentsDialogOpen}

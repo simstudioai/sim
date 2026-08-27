@@ -9,12 +9,11 @@ import {
 } from '@/lib/api/contracts/custom-blocks'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   CustomBlockValidationError,
   type CustomBlockWithInputs,
+  isCustomBlocksEligibleForOrganization,
   listCustomBlocksWithInputs,
   publishCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
@@ -36,6 +35,7 @@ function toWire(block: CustomBlockWithInputs) {
     description: block.description,
     iconUrl: block.iconUrl,
     enabled: block.enabled,
+    traceChildRuns: block.traceChildRuns,
     inputFields: block.inputFields,
     exposedOutputs: block.exposedOutputs,
   }
@@ -63,11 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ enabled: false, customBlocks: [] })
   }
 
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: organizationId }))) {
-    return NextResponse.json({ enabled: false, customBlocks: [] })
-  }
-
-  const enabled = await isOrganizationOnEnterprisePlan(organizationId)
+  const enabled = await isCustomBlocksEligibleForOrganization(organizationId)
   const blocks = enabled ? await listCustomBlocksWithInputs(organizationId) : []
   return NextResponse.json({ enabled, customBlocks: blocks.map(toWire) })
 })
@@ -82,8 +78,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const userId = session.user.id
-  const { workspaceId, workflowId, name, description, iconUrl, inputs, exposedOutputs } =
-    parsed.data.body
+  const {
+    workspaceId,
+    workflowId,
+    name,
+    description,
+    iconUrl,
+    inputs,
+    exposedOutputs,
+    traceChildRuns,
+  } = parsed.data.body
 
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.canAdmin) {
@@ -98,13 +102,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  if (!(await isFeatureEnabled('deploy-as-block', { userId, orgId: organizationId }))) {
-    return NextResponse.json({ error: 'Deploy as block is not enabled' }, { status: 403 })
-  }
-
-  if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
+  if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
     return NextResponse.json(
-      { error: 'Deploy as block requires an enterprise plan' },
+      { error: 'Custom blocks are not enabled for this organization' },
       { status: 403 }
     )
   }
@@ -120,6 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       iconUrl,
       inputs,
       exposedOutputs,
+      traceChildRuns,
     })
     recordAudit({
       workspaceId,

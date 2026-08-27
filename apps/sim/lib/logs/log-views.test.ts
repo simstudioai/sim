@@ -34,7 +34,7 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 
 import { sleep } from '@sim/utils/helpers'
 import type { TraceSpan } from '@/lib/logs/types'
-import { grepSpans, type LogViewContext, toFull, toOverview } from './log-views'
+import { grepSpans, type LogViewContext, toFull, toOverview, toTrace } from './log-views'
 
 const ctx: LogViewContext = {
   workspaceId: 'ws-1',
@@ -284,5 +284,76 @@ describe('grepSpans', () => {
     const result = await grepSpans([], 'anything', ctx)
     expect(result.matches).toEqual([])
     expect(result.truncated).toBe(false)
+  })
+})
+
+describe('toTrace', () => {
+  it('collapses loop iterations into one per-block digest line with status counts', () => {
+    const spans: TraceSpan[] = [
+      span({
+        id: 'loop',
+        blockId: 'blk-loop',
+        name: 'Loop',
+        type: 'loop',
+        children: [
+          span({ id: 'i1', blockId: 'blk-agent', name: 'Agent', status: 'success', duration: 10 }),
+          span({ id: 'i2', blockId: 'blk-agent', name: 'Agent', status: 'success', duration: 20 }),
+          span({ id: 'i3', blockId: 'blk-agent', name: 'Agent', status: 'error', duration: 5 }),
+        ],
+      }),
+    ]
+
+    const digest = toTrace(spans)
+
+    expect(digest).toHaveLength(2)
+    expect(digest[1]).toMatchObject({
+      blockId: 'blk-agent',
+      name: 'Agent',
+      executions: 3,
+      statuses: { success: 2, error: 1 },
+      totalDurationMs: 35,
+    })
+  })
+
+  it('never materializes refs', () => {
+    toTrace([span({ output: ref('big') as unknown as Record<string, unknown> })])
+    expect(materializeLargeValueRefMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('toFull field projection', () => {
+  it('narrows spans to whole payload keys', async () => {
+    const out = await toFull(
+      [span({ input: { a: 1 }, output: { b: 2 }, errorMessage: 'boom' })],
+      ctx,
+      undefined,
+      ['output', 'error']
+    )
+    expect(out[0]).toMatchObject({ output: { b: 2 }, error: 'boom' })
+    expect(out[0]).not.toHaveProperty('input')
+  })
+
+  it('extracts dotted paths under selected', async () => {
+    const out = await toFull(
+      [span({ output: { result: { rows: [1, 2, 3], meta: 'big' } } })],
+      ctx,
+      undefined,
+      ['output.result.rows']
+    )
+    expect(out[0]).not.toHaveProperty('output')
+    expect((out[0] as { selected?: Record<string, unknown> }).selected).toEqual({
+      'output.result.rows': [1, 2, 3],
+    })
+  })
+
+  it('supports blockIds multi-select with field projection', async () => {
+    const spans: TraceSpan[] = [
+      span({ id: 's1', blockId: 'blk-a', name: 'A', output: { keep: 1 } }),
+      span({ id: 's2', blockId: 'blk-b', name: 'B', output: { keep: 2 } }),
+      span({ id: 's3', blockId: 'blk-c', name: 'C', output: { drop: true } }),
+    ]
+    const out = await toFull(spans, ctx, { blockIds: ['blk-a', 'blk-b'] }, ['output'])
+    expect(out.map((s) => s.blockId)).toEqual(['blk-a', 'blk-b'])
+    expect(out[0].output).toEqual({ keep: 1 })
   })
 })

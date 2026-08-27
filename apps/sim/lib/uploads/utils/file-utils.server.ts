@@ -9,10 +9,15 @@ import {
 import {
   assertKnownSizeWithinLimit,
   consumeOrCancelBody,
+  isPayloadSizeLimitError,
+  PayloadSizeLimitError,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
+// This file is lazily imported back by workspace-file-manager, so that edge
+// stays dynamic on their side; these statics do not close a load-time cycle.
+import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -30,6 +35,8 @@ import {
   type RawFileInput,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
@@ -330,29 +337,38 @@ export async function resolveInternalFileUrl(
 }
 
 /**
- * Downloads a file from storage (execution or regular)
+ * Downloads a file from storage (execution or regular) into a single resident buffer.
+ *
+ * `maxBytes` is required, not optional. Workspace files are admitted at 5 GB, so a
+ * caller that forgets a ceiling inherits "unbounded" and can allocate gigabytes inside
+ * the shared app process. Making the parameter mandatory means a new call site has to
+ * name its limit — see {@link MAX_BUFFERED_TRANSFER_BYTES} for the default, and prefer
+ * the destination's own documented limit whenever it is lower. The size is checked
+ * twice: against the declared size before any bytes move, and against the delivered
+ * buffer, because the declared size comes from the caller and may be a lie.
+ *
  * @param userFile - UserFile object
  * @param requestId - Request ID for logging
  * @param logger - Logger instance
+ * @param options.maxBytes - Hard ceiling; throws `PayloadSizeLimitError` when exceeded
  * @returns Buffer containing file data
  */
 export async function downloadFileFromStorage(
   userFile: UserFile,
   requestId: string,
   logger: Logger,
-  options: { maxBytes?: number } = {}
+  options: { maxBytes: number }
 ): Promise<Buffer> {
+  const { maxBytes } = options
   let buffer: Buffer
-  if (options.maxBytes !== undefined && userFile.size > options.maxBytes) {
-    assertKnownSizeWithinLimit(userFile.size, options.maxBytes, 'storage file download')
-  }
+  assertKnownSizeWithinLimit(userFile.size, maxBytes, 'storage file download')
 
   if (isExecutionFile(userFile)) {
     logger.info(`[${requestId}] Downloading from execution storage: ${userFile.key}`)
     const { downloadExecutionFile } = await import(
       '@/lib/uploads/contexts/execution/execution-file-manager'
     )
-    buffer = await downloadExecutionFile(userFile, { maxBytes: options.maxBytes })
+    buffer = await downloadExecutionFile(userFile, { maxBytes })
   } else if (userFile.key) {
     const context = resolveTrustedFileContext(userFile.key, userFile.context)
     logger.info(`[${requestId}] Downloading from ${context} storage: ${userFile.key}`)
@@ -361,15 +377,13 @@ export async function downloadFileFromStorage(
     buffer = await downloadFile({
       key: userFile.key,
       context,
-      maxBytes: options.maxBytes,
+      maxBytes,
     })
   } else {
     throw new Error('File has no key - cannot download')
   }
 
-  if (options.maxBytes !== undefined) {
-    assertKnownSizeWithinLimit(buffer.length, options.maxBytes, 'storage file download')
-  }
+  assertKnownSizeWithinLimit(buffer.length, maxBytes, 'storage file download')
 
   return buffer
 }
@@ -399,21 +413,46 @@ export interface ServableFile {
  *
  * Throws `DocCompileUserError` when a generated doc's artifact is not ready (still
  * compiling) — callers should surface a retryable error rather than attach source.
+ *
+ * `maxBytes` is required for the reason given on {@link downloadFileFromStorage}: it
+ * bounds the source read. A compiled artifact is re-checked against the same ceiling
+ * below, since rendering can grow a small source into a large document.
  */
 export async function downloadServableFileFromStorage(
   userFile: UserFile,
   requestId: string,
   logger: Logger,
   options: {
-    maxBytes?: number
+    maxBytes: number
     signal?: AbortSignal
     ownerKey?: string
     filePrincipal?: Principal
-  } = {}
+  }
 ): Promise<ServableFile> {
   const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
     maxBytes: options.maxBytes,
   })
+
+  // The pdf model for pages: a page file stores its source and downloads
+  // resolve to the fully styled compiled document, like a .pdf key resolving
+  // to its binary. Sim pages store an extensionless name (the record type
+  // marks them); legacy pages still carry .html.
+  if (userFile.name.toLowerCase().endsWith('.html') || userFile.type === SIM_PAGE_CONTENT_TYPE) {
+    const text = buffer.toString('utf8')
+    if (isSimPageSource(text)) {
+      const workspaceId = userFile.key
+        ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
+        : undefined
+      const rendered = Buffer.from(
+        await renderSimPageDocumentWithAssets(text, { workspaceId }),
+        'utf8'
+      )
+      // Rendering inlines referenced assets, so a source well under the ceiling can
+      // resolve to a document well over it.
+      assertKnownSizeWithinLimit(rendered.length, options.maxBytes, 'servable page render')
+      return { buffer: rendered, contentType: 'text/html' }
+    }
+  }
 
   // Cheap pre-filter so only generated-doc candidates pay for the heavier resolver
   // import below.
@@ -422,9 +461,6 @@ export async function downloadServableFileFromStorage(
     return { buffer, contentType: userFile.type || getMimeTypeFromExtension(ext) }
   }
 
-  const { parseWorkspaceFileKey } = await import(
-    '@/lib/uploads/contexts/workspace/workspace-file-manager'
-  )
   const workspaceId = userFile.key
     ? (parseWorkspaceFileKey(userFile.key) ??
       extractWorkspaceIdFromExecutionKey(userFile.key) ??
@@ -443,8 +479,58 @@ export async function downloadServableFileFromStorage(
 
   // Re-check: the raw download enforced maxBytes on the source, but a generated doc
   // resolves to a larger artifact.
-  if (options.maxBytes !== undefined && resolved.buffer.length > options.maxBytes) {
-    assertKnownSizeWithinLimit(resolved.buffer.length, options.maxBytes, 'servable file download')
+  assertKnownSizeWithinLimit(resolved.buffer.length, options.maxBytes, 'servable file download')
+
+  return resolved
+}
+
+/**
+ * Resolve every file of a multi-attachment request while bounding their COMBINED
+ * resident size.
+ *
+ * A per-file ceiling is not enough when a request carries an array: N attachments
+ * each just under the limit still cost N times the limit, and downloading them with
+ * `Promise.all` makes that the peak. Routes that pre-checked `sum(file.size)` were
+ * not protected either — the declared sizes come from the caller, which is why the
+ * downloader re-checks the delivered bytes.
+ *
+ * So this walks the list in order against a shrinking budget: each file may only use
+ * what the previous ones left. Sequential is the point — it is what keeps the peak at
+ * `totalMaxBytes` instead of the sum, and attachment lists are short enough that the
+ * lost parallelism does not register next to the provider round trip that follows.
+ *
+ * The overrun surfaces as a `PayloadSizeLimitError` restated in the caller's terms:
+ * the per-file failure underneath reports one file against whatever budget was left,
+ * which would read as a nonsense limit in a "total attachment size" message. `label`
+ * and `totalMaxBytes` are the caller's, and `observedBytes` is what the set needed.
+ */
+export async function downloadServableFilesWithinBudget(
+  userFiles: readonly UserFile[],
+  requestId: string,
+  logger: Logger,
+  options: { totalMaxBytes: number; label: string; signal?: AbortSignal }
+): Promise<ServableFile[]> {
+  const resolved: ServableFile[] = []
+  let spent = 0
+
+  for (const userFile of userFiles) {
+    logger.info(`[${requestId}] Downloading ${userFile.name} (${userFile.size} bytes)`)
+    let servable: ServableFile
+    try {
+      servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
+        maxBytes: options.totalMaxBytes - spent,
+        signal: options.signal,
+      })
+    } catch (error) {
+      if (!isPayloadSizeLimitError(error)) throw error
+      throw new PayloadSizeLimitError({
+        label: options.label,
+        maxBytes: options.totalMaxBytes,
+        observedBytes: spent + (error.observedBytes ?? userFile.size),
+      })
+    }
+    spent += servable.buffer.length
+    resolved.push(servable)
   }
 
   return resolved

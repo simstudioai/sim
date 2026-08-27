@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock, workflowAuthzMockFns } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -135,6 +135,54 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(result?.messages).toEqual([userMsg])
   })
 
+  it('scopes the chat lookup to the requesting user, not the chat id alone', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      type: string
+      conditions: unknown[]
+    }
+    expect(predicate.type).toBe('and')
+    // Three conditions exactly: dropping one silently widens the lookup, so the
+    // count is asserted alongside the membership checks.
+    expect(predicate.conditions).toHaveLength(3)
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.userId,
+      right: USER_ID,
+    })
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.id,
+      right: CHAT_ID,
+    })
+    expect(predicate.conditions).toContainEqual({
+      type: 'isNull',
+      column: schemaMock.copilotChats.deletedAt,
+    })
+  })
+
+  it('resolveOrCreateChat scopes its existing-chat lookup to the requesting user', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    await resolveOrCreateChat({ chatId: CHAT_ID, userId: USER_ID, model: 'm' })
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0] as {
+      type: string
+      conditions: unknown[]
+    }
+    expect(predicate.conditions).toHaveLength(3)
+    expect(predicate.conditions).toContainEqual({
+      type: 'eq',
+      left: schemaMock.copilotChats.userId,
+      right: USER_ID,
+    })
+  })
+
   it('resolveOrCreateChat returns conversationHistory from the table for an existing chat', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([chatRow])
     dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }, { content: asstMsg }])
@@ -143,6 +191,47 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
 
     expect(result.isNew).toBe(false)
     expect(result.conversationHistory).toEqual([userMsg, asstMsg])
+  })
+
+  it('resolveOrCreateChat refuses a resumed chat whose type is not the asserted one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, type: 'mothership' }])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      model: 'm',
+      type: 'copilot',
+    })
+
+    // Same shape an unknown id resolves to: the refusal carries no reason.
+    expect(result.chat).toBeNull()
+    expect(result.conversationHistory).toEqual([])
+    expect(result.isNew).toBe(false)
+  })
+
+  it('resolveOrCreateChat resumes a chat whose type matches the asserted one', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, type: 'mothership' }])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }])
+
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      model: 'm',
+      type: 'mothership',
+    })
+
+    expect(result.chat).not.toBeNull()
+    expect(result.conversationHistory).toEqual([userMsg])
+  })
+
+  it('resolveOrCreateChat stamps a supplied title on a newly created chat', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([chatRow])
+
+    await resolveOrCreateChat({ userId: USER_ID, model: 'm', title: 'First message' })
+
+    const insertValues = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(insertValues.title).toBe('First message')
   })
 
   it('resolveOrCreateChat creates a new chat with an empty transcript', async () => {

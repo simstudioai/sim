@@ -96,7 +96,6 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
-  resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
@@ -262,50 +261,5 @@ describe('invoice billing recovery', () => {
 
     expect(mockUnblockOrgMembers).toHaveBeenCalledWith('org-1', 'payment_failed')
     expect(mockBlockOrgMembers).not.toHaveBeenCalled()
-  })
-
-  it('locks member userStats before the organization row during usage reset', async () => {
-    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // owner member row
-    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] }) // owner userStats
-    queueSelectResponse({ whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }] }) // member ids
-    queueSelectResponse({ whereResult: [] }) // all-member userStats FOR UPDATE (pre-org lock)
-    queueSelectResponse({ limitResult: [{ id: 'org-1' }] }) // organization
-    queueSelectResponse({
-      whereResult: [
-        { userId: 'owner-1', current: '125', currentCopilot: '10' },
-        { userId: 'member-1', current: '75', currentCopilot: '5' },
-      ],
-    })
-    queueSelectResponse({ whereResult: [] })
-    queueSelectResponse({ whereResult: [] })
-
-    await resetUsageForSubscription({ plan: 'team', referenceId: 'org-1' })
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
-
-    const whereArgs = dbChainMockFns.where.mock.calls.map(
-      (call) => call[0] as { type?: string; column?: string; left?: string }
-    )
-    const allMemberStatsLockIndex = whereArgs.findIndex(
-      (arg) => arg?.type === 'inArray' && arg?.column === 'userId'
-    )
-    const orgLockIndex = whereArgs.findIndex((arg) => arg?.type === 'eq' && arg?.left === 'id')
-    expect(allMemberStatsLockIndex).toBeGreaterThanOrEqual(0)
-    expect(orgLockIndex).toBeGreaterThanOrEqual(0)
-    expect(allMemberStatsLockIndex).toBeLessThan(orgLockIndex)
-
-    const statsReset = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
-    expect(statsReset.currentPeriodCost).not.toBe('0')
-    expect(statsReset.currentPeriodCopilotCost).not.toBe('0')
-    expect(statsReset.lastPeriodCost).toMatchObject({
-      toSQL: expect.any(Function),
-    })
-    expect((statsReset.lastPeriodCost as { toSQL: () => { sql: string } }).toSQL().sql).toContain(
-      'CASE'
-    )
-    expect(
-      (statsReset.currentPeriodCost as { toSQL: () => { sql: string } }).toSQL().sql
-    ).toContain('GREATEST')
   })
 })

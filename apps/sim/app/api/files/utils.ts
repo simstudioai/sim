@@ -79,22 +79,6 @@ export const contentTypeMap: Record<string, string> = {
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
-export const binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'pdf',
-]
-
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
   return contentTypeMap[extension] || 'application/octet-stream'
@@ -253,11 +237,21 @@ export function encodeFilenameForHeader(storageKey: string): string {
 }
 
 export function createFileResponse(file: FileResponse): NextResponse {
-  const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
+  // Sim pages store an extensionless name and serve/download as compiled
+  // HTML — re-append the extension so the saved file opens in a browser.
+  // Decided from the CALLER's content type (getSecureFileHeaders downgrades
+  // text/html), and BEFORE the header decision, so the .html name gets the
+  // same forced-attachment treatment a legacy .html file gets.
+  const servedFilename =
+    file.contentType === 'text/html' && !/\.[A-Za-z0-9]{1,8}$/.test(file.filename)
+      ? `${file.filename}.html`
+      : file.filename
+
+  const { contentType, disposition } = getSecureFileHeaders(servedFilename, file.contentType)
 
   const headers: Record<string, string> = {
     'Content-Type': contentType,
-    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(servedFilename)}`,
     // Default to PRIVATE: this response is served only after access verification, so it must never be
     // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
     // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).

@@ -34,7 +34,13 @@ export const agentMemoryDataSchemaContract = agentMemoryDataSchema
 export const memoryListQuerySchema = z.object({
   workspaceId: z.string().optional(),
   query: z.string().nullable().optional(),
-  limit: z.coerce.number().int().min(1).optional().default(50),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000, 'Cannot list more than 1000 memories per request')
+    .optional()
+    .default(50),
 })
 
 export const memoryMessageSchema = z

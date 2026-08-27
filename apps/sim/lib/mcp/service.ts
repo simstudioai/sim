@@ -7,12 +7,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
-import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
 import { mcpConnectionPool } from '@/lib/mcp/connection-pool'
+import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'
 import {
   isMcpDomainAllowed,
   validateMcpDomain,
@@ -712,7 +713,7 @@ class McpService {
         .update(mcpServers)
         .set({
           connectionStatus: sql`CASE WHEN ${nextFailures} >= ${MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES} THEN 'error' ELSE 'disconnected' END`,
-          lastError: update.error || 'Unknown error',
+          lastError: truncate(update.error || 'Unknown error', MAX_MCP_LAST_ERROR_LENGTH),
           statusConfig: sql`jsonb_build_object('consecutiveFailures', ${nextFailures}, 'lastSuccessfulDiscovery', ${mcpServers.statusConfig} -> 'lastSuccessfulDiscovery')`,
         })
         .where(liveServerScope)
@@ -1226,24 +1227,3 @@ class McpService {
 }
 
 export const mcpService = new McpService()
-
-/**
- * Setup process signal handlers for graceful shutdown
- */
-export function setupMcpServiceCleanup() {
-  if (isTest) {
-    return
-  }
-
-  const cleanup = () => {
-    mcpService.dispose()
-  }
-
-  process.on('SIGTERM', cleanup)
-  process.on('SIGINT', cleanup)
-
-  return () => {
-    process.removeListener('SIGTERM', cleanup)
-    process.removeListener('SIGINT', cleanup)
-  }
-}

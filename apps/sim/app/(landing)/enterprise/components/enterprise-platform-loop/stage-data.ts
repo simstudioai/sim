@@ -1,4 +1,5 @@
-import { AgentIcon, ConditionalIcon, MailIcon, StartIcon, TableIcon } from '@/components/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
+import { AgentIcon, ConditionalIcon, MailIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
@@ -156,6 +157,8 @@ export type EnterpriseLoopPhase = 'idle' | 'typing' | 'typed' | 'dispatch' | 're
 export interface EnterpriseLoopContent {
   /** Workspace name shown in the sidebar header. */
   workspaceName: string
+  /** Viewer name shown in the sidebar profile footer. */
+  profileName: string
   /** The new-chat greeting, personalized like the real workspace Home. */
   greeting: string
   /** Composer placeholder shown before the prompt types out. */
@@ -181,6 +184,7 @@ export interface EnterpriseLoopContent {
 /** The enterprise hero's own loop content - the parametrized loop's default. */
 export const ENTERPRISE_LOOP_CONTENT: EnterpriseLoopContent = {
   workspaceName: 'Brightwave',
+  profileName: 'Morgan',
   greeting: ENTERPRISE_GREETING,
   placeholder: COMPOSER_PLACEHOLDER,
   prompt: ENTERPRISE_PROMPT,

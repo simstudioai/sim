@@ -7,7 +7,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -33,7 +32,6 @@ const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/table/application/rows', () => ({
   TableRowsValidationError: MockTableRowsValidationError,
   queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
@@ -57,7 +55,6 @@ const PRINCIPAL = {
 }
 const AUTH = {
   principal: PRINCIPAL,
-  rolloutUserId: 'owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -90,7 +87,6 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.queryRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
@@ -123,6 +119,41 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
         cursor: undefined,
         limit: 100,
         includeTotal: false,
+        includeRunState: false,
+      },
+      request: invocation.request,
+    })
+  })
+
+  it('normalizes a plain condition into a predicate group', async () => {
+    const condition = { field: 'phone', op: 'isEmpty' }
+    const invocation = call({ workspaceId: WORKSPACE_ID, predicate: condition })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ predicate: { all: [condition] } }),
+      })
+    )
+  })
+
+  it('queries every row when the predicate is omitted', async () => {
+    const invocation = call({ workspaceId: WORKSPACE_ID })
+    const response = await invocation.response
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        tableId: 'table-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        predicate: undefined,
+        sort: undefined,
+        cursor: undefined,
+        limit: 100,
+        includeTotal: false,
+        includeRunState: false,
       },
       request: invocation.request,
     })

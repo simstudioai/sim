@@ -15,15 +15,6 @@ export const DROPCONTACT_EMAIL_ITEM_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export const DROPCONTACT_EMAILS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'All email addresses found for the contact',
-  items: {
-    type: 'object',
-    properties: DROPCONTACT_EMAIL_ITEM_OUTPUT_PROPERTIES,
-  },
-}
-
 // Enrich Contact (single-contact async enrichment)
 
 export interface DropcontactEnrichContactParams extends DropcontactBaseParams {

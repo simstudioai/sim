@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { MAX_ID_LENGTH } from '../../apps/sim/lib/api/contracts/primitives'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
 import { knowledgeOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/knowledge'
@@ -14,6 +15,8 @@ import {
 } from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
+import { MAX_AGENT_TOOLS_PER_BLOCK } from '../../apps/sim/lib/api/contracts/v2/workflows'
+import { MAX_MCP_TOOL_NAME_BYTES } from '../../apps/sim/lib/mcp/constants'
 import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
 
 type JsonObject = Record<string, unknown>
@@ -31,13 +34,13 @@ const DOCUMENTS = [
 ] as const
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 22],
-  ['apps/docs/openapi-v2-logs.json', 2],
-  ['apps/docs/openapi-v2-files-audit.json', 22],
-  ['apps/docs/openapi-v2-tables.json', 44],
-  ['apps/docs/openapi-v2-knowledge.json', 21],
+  ['apps/docs/openapi-v2-workflows.json', 38],
+  ['apps/docs/openapi-v2-logs.json', 3],
+  ['apps/docs/openapi-v2-files-audit.json', 27],
+  ['apps/docs/openapi-v2-tables.json', 53],
+  ['apps/docs/openapi-v2-knowledge.json', 44],
   ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 22],
+  ['apps/docs/openapi-v2-resources.json', 45],
 ])
 
 function getOperation(spec: JsonObject, path: string, method: string): JsonObject {
@@ -169,12 +172,12 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(135)
+    expect(totalOperations).toBe(212)
   })
 
   it('documents mixed workflow execution and resume responses', () => {
     const spec = generateOpenApiDocument(workflowsOpenApiDocument)
-    const execute = getOperation(spec, '/api/v2/workflows/{id}/execute', 'post')
+    const execute = getOperation(spec, '/api/v2/workflows/{workflowId}/execute', 'post')
     const executeResponses = execute.responses as JsonObject
     const executeOk = executeResponses['200'] as JsonObject
     const executeQueued = executeResponses['202'] as JsonObject
@@ -190,7 +193,7 @@ describe('generated OpenAPI documents', () => {
     expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 
-    const resume = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/resume', 'post')
+    const resume = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}/resume', 'post')
     const resumeResponses = resume.responses as JsonObject
     const resumeOkContent = (resumeResponses['200'] as JsonObject).content as JsonObject
     const resumeQueuedContent = (resumeResponses['202'] as JsonObject).content as JsonObject
@@ -204,9 +207,13 @@ describe('generated OpenAPI documents', () => {
     expect(resumeOkSchema.$ref).toBe('#/components/schemas/ResumeWorkflowSyncResponse')
     expect(resumeQueuedSchema.$ref).toBe('#/components/schemas/ResumeWorkflowQueuedResponse')
 
-    const listRuns = getOperation(spec, '/api/v2/workflows/{id}/runs', 'get')
-    const getRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}', 'get')
-    const cancelRun = getOperation(spec, '/api/v2/workflows/{id}/runs/{runId}/cancel', 'post')
+    const listRuns = getOperation(spec, '/api/v2/workflows/{workflowId}/runs', 'get')
+    const getRun = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}', 'get')
+    const cancelRun = getOperation(
+      spec,
+      '/api/v2/workflows/{workflowId}/runs/{runId}/cancel',
+      'post'
+    )
     expect(listRuns.tags).toEqual(['Workflow Runs'])
     expect(getRun.tags).toEqual(['Workflow Runs'])
     expect(cancelRun.tags).toEqual(['Workflow Runs'])
@@ -214,7 +221,11 @@ describe('generated OpenAPI documents', () => {
 
   it('documents multipart uploads, dual-status secret sets, and nullable file shares', () => {
     const knowledgeSpec = generateOpenApiDocument(knowledgeOpenApiDocument)
-    const upload = getOperation(knowledgeSpec, '/api/v2/knowledge/{id}/documents', 'post')
+    const upload = getOperation(
+      knowledgeSpec,
+      '/api/v2/knowledge/{knowledgeBaseId}/documents',
+      'post'
+    )
     const uploadBody = upload.requestBody as JsonObject
     const uploadContent = uploadBody.content as JsonObject
     const uploadSchemaRef = (uploadContent['multipart/form-data'] as JsonObject)
@@ -282,6 +293,62 @@ describe('generated OpenAPI documents', () => {
         name: expect.objectContaining({ type: 'string' }),
         memberCount: expect.objectContaining({ type: 'integer' }),
       })
+    )
+  })
+
+  it('publishes Agent tools as named integration, custom, and MCP schemas', () => {
+    const workflowsSpec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const schemas = (workflowsSpec.components as JsonObject).schemas as JsonObject
+    const agentToolInput = schemas.AgentToolInput as JsonObject
+    const agentTool = schemas.AgentTool as JsonObject
+    const agentToolVariants = agentTool.oneOf as JsonObject[]
+    const integrationTool = schemas.AgentIntegrationTool as JsonObject
+    const integrationProperties = integrationTool.properties as JsonObject
+    const customTool = schemas.AgentCustomTool as JsonObject
+    const customToolVariants = customTool.anyOf as JsonObject[]
+    const inlineCustomToolProperties = customToolVariants[1].properties as JsonObject
+    const inlineCustomToolSchema = inlineCustomToolProperties.schema as JsonObject
+    const inlineCustomToolSchemaProperties = inlineCustomToolSchema.properties as JsonObject
+    const inlineFunction = inlineCustomToolSchemaProperties.function as JsonObject
+    const inlineFunctionProperties = inlineFunction.properties as JsonObject
+    const mcpTool = schemas.AgentMcpTool as JsonObject
+    const mcpProperties = mcpTool.properties as JsonObject
+    const mcpParams = mcpProperties.params as JsonObject
+    const mcpParamIdentity = (mcpParams.allOf as JsonObject[])[0]
+    const mcpParamProperties = mcpParamIdentity.properties as JsonObject
+
+    expect(agentToolVariants).toEqual([
+      { $ref: '#/components/schemas/AgentIntegrationTool' },
+      { $ref: '#/components/schemas/AgentCustomTool' },
+      { $ref: '#/components/schemas/AgentMcpTool' },
+    ])
+    expect(agentToolInput).toEqual(
+      expect.objectContaining({ type: 'array', maxItems: MAX_AGENT_TOOLS_PER_BLOCK })
+    )
+    expect(integrationProperties).toEqual(
+      expect.objectContaining({
+        type: expect.objectContaining({ type: 'string', pattern: expect.any(String) }),
+        operation: expect.objectContaining({ type: 'string' }),
+        usageControl: expect.objectContaining({ enum: ['auto', 'force', 'none'] }),
+        params: expect.objectContaining({ type: 'object' }),
+      })
+    )
+    expect(customTool).toHaveProperty('anyOf')
+    expect(inlineFunctionProperties.name).toEqual(
+      expect.objectContaining({ type: 'string', maxLength: 64 })
+    )
+    expect((mcpProperties.type as JsonObject).const).toBe('mcp')
+    expect(mcpParamProperties).toEqual(
+      expect.objectContaining({
+        serverId: expect.objectContaining({ type: 'string', maxLength: MAX_ID_LENGTH }),
+        toolName: expect.objectContaining({
+          type: 'string',
+          maxLength: MAX_MCP_TOOL_NAME_BYTES,
+        }),
+      })
+    )
+    expect(JSON.stringify(schemas.WorkflowEditOperation)).toContain(
+      '#/components/schemas/AgentToolInput'
     )
   })
 
@@ -386,7 +453,9 @@ describe('documented error sets', () => {
       Object.keys(getOperation(spec, '/api/v2/audit-logs', 'get').responses as JsonObject)
     ).not.toContain('404')
     expect(
-      Object.keys(getOperation(spec, '/api/v2/audit-logs/{id}', 'get').responses as JsonObject)
+      Object.keys(
+        getOperation(spec, '/api/v2/audit-logs/{auditLogId}', 'get').responses as JsonObject
+      )
     ).toContain('404')
   })
 
@@ -458,5 +527,41 @@ describe('run retention is published on both run reads', () => {
       ?.operation.description
 
     expect(description).toContain(RUN_RETENTION)
+  })
+})
+
+/**
+ * Every published tag needs a sidebar entry in every locale, or its operations
+ * are unbrowsable.
+ *
+ * The specs and the reference nav are generated from different places, so a new
+ * tag group ships complete — paths, schemas, examples — and simply never
+ * appears in the docs. `Catalog` and `Meta` did exactly that: six operations
+ * were published and unreachable, and nothing failed.
+ */
+describe('api-reference navigation coverage', () => {
+  it('lists every published tag group in every localized sidebar', () => {
+    const tags = new Set<string>()
+    for (const output of EXPECTED_OPERATION_COUNTS.keys()) {
+      const spec = JSON.parse(readFileSync(path.resolve(process.cwd(), output), 'utf8')) as {
+        tags?: Array<{ name: string }>
+      }
+      for (const tag of spec.tags ?? []) tags.add(tag.name)
+    }
+    expect(tags.size).toBeGreaterThan(0)
+
+    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
+      const meta = JSON.parse(
+        readFileSync(
+          path.resolve(process.cwd(), `apps/docs/content/docs/${locale}/api-reference/meta.json`),
+          'utf8'
+        )
+      ) as { pages: string[] }
+      const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
+      const missing = [...tags]
+        .filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
+        .sort()
+      expect(missing, `${locale} sidebar is missing a published tag group`).toEqual([])
+    }
   })
 })

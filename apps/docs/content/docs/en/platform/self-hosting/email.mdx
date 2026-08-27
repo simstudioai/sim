@@ -71,8 +71,12 @@ SMTP_USER=apikey       # omit for unauthenticated relays
 SMTP_PASS=...          # omit for unauthenticated relays
 # SMTP_SECURE=true     # only for implicit TLS. Leave unset on 587 — it is
                        # automatic on 465, and forcing it on a STARTTLS port fails to connect
+# SMTP_EHLO_NAME=mail.yourdomain.com   # only if the relay expects an identity other
+                       # than the domain Sim is served from
 FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
 ```
+
+Sim greets the relay with the domain it is served from, so `SMTP_EHLO_NAME` is rarely needed.
 
 For Google Workspace without a service account:
 
@@ -164,6 +168,8 @@ kubectl logs -n simstudio -l app.kubernetes.io/component=app --tail=100 | grep -
 
 **Mail lands in spam** — configure SPF, DKIM, and DMARC for your sending domain. This is on your DNS, not on Sim.
 
+**SMTP fails at the greeting with `421-4.7.0 Try again later, closing connection. (EHLO)`** — the relay rejected how the client identified itself, not your credentials or IP allowlist. Strict relays, Google Workspace's among them, refuse a greeting that is not a fully-qualified domain name. Sim greets with the domain it is served from, so this should not occur; if it does, set `SMTP_EHLO_NAME` to a dotted hostname the relay accepts. Older releases always greeted as `[127.0.0.1]` on Kubernetes — upgrade rather than working around it.
+
 **Nothing at all happens and no error appears** — no provider is configured. The logs will show one line naming the recipient and subject.
 
 <FAQ items={[
@@ -171,4 +177,5 @@ kubectl logs -n simstudio -l app.kubernetes.io/component=app --tail=100 | grep -
   { question: "Why does my Gmail-sent mail come from the wrong address?", answer: "Gmail rewrites From addresses it does not recognize. FROM_EMAIL_ADDRESS must match GMAIL_SENDER or one of that user's registered aliases."},
   { question: "Can I use SES without access keys?", answer: "Yes. Credentials resolve through the standard AWS provider chain, so an IRSA role on EKS or an instance profile on EC2 works — set only AWS_SES_REGION and grant ses:SendEmail and ses:SendRawEmail."},
   { question: "Is the Google Workspace SMTP relay easier than the Gmail API?", answer: "Usually yes — it needs no service account or domain-wide delegation, just SMTP_HOST=smtp-relay.gmail.com on port 587 and an allowlist entry for your egress IP in the Workspace admin console. Use the Gmail API path when you cannot allowlist a stable egress IP." },
+  { question: "What does Sim send as the SMTP EHLO name?", answer: "The domain the app is served from, derived from NEXT_PUBLIC_APP_URL. That matters on Kubernetes, where pod hostnames have no dot and the underlying mail library would otherwise fall back to the address literal [127.0.0.1] — a greeting strict relays reject outright. Set SMTP_EHLO_NAME to override it." },
 ]} />

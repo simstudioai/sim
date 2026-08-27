@@ -30,7 +30,11 @@ export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarPr
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1',
+        // Matches the resource tab strip stacked directly above it: a 40px
+        // content box over a 1px border. `py-1` around a 30px chip came to 39px,
+        // near enough to read as a mistake rather than as a different bar, and
+        // the chips themselves still sat taller than the 26px tabs.
+        'flex h-[41px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2',
         className
       )}
     >

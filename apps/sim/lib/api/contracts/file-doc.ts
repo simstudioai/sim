@@ -44,7 +44,7 @@ export const mergeFileDocBodySchema = z.object({
   /**
    * Base64-encoded `Y.encodeStateAsUpdate` of the live document as the relay currently holds it. The
    * bound is generous headroom over a max-size collab doc's Yjs state (base64-inflated), not a tuned
-   * limit — collab is gated to ≤256 KB documents client-side.
+   * limit — collaborative documents are gated to 5 MiB of markdown client-side.
    */
   docState: z
     .string()
@@ -89,7 +89,8 @@ export const persistFileDocBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
   /**
    * Base64-encoded `Y.encodeStateAsUpdate` of the live document as the relay currently holds it — the
-   * bound matches the merge contract (generous base64 headroom over a ≤256 KB collab doc's Yjs state).
+   * bound matches the merge contract (generous base64 headroom over a 5 MiB collab document's Yjs
+   * state).
    */
   docState: z
     .string()

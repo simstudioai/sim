@@ -74,6 +74,10 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Settings update error`, error)
-    return NextResponse.json({ success: true }, { status: 200 })
+    /* The client mutation is optimistic: it writes the new value into the cache in
+       `onMutate` and restores it in `onError`. Answering 200 here left that rollback
+       unreachable, so a failed write showed as applied until the next refetch —
+       including for consent-shaped settings the user believes they changed. */
+    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
   }
 })

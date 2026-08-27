@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { isPlainRecord } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
@@ -16,6 +17,9 @@ const PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE =
   'Private model input provenance is only supported for internal routes'
 const PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE =
   'Private secret provenance is only supported for internal routes'
+const EXTERNAL_REQUEST_URL_ERROR_MESSAGE = 'External tool requests require an absolute HTTP(S) URL'
+const INTERNAL_REQUEST_URL_ERROR_MESSAGE = 'Internal tool requests must target a Sim API route'
+const INTERNAL_REQUEST_BASE_URL = 'http://sim.internal'
 
 export interface PreparedToolRequest {
   url: string
@@ -25,6 +29,7 @@ export interface PreparedToolRequest {
   timeout?: number
   proxyUrl?: string
   stripAuthOnRedirect?: boolean
+  redirectPolicy?: HttpRedirectPolicy
   isInternalRoute: boolean
 }
 
@@ -126,8 +131,39 @@ export function projectToolModelInputParams(
   }
 }
 
-function formatToolRequest(tool: ToolConfig, params: Record<string, any>): PreparedToolRequest {
+function collectProvenanceSensitiveHeaders(
+  tool: ToolConfig,
+  params: Record<string, any>,
+  headers: Headers,
+  registry: ResolvedSecretTraceRegistry | undefined
+): string[] {
+  if (!registry) return []
+  const projections = registry.projectResolvedInputSelections(params)
+  if (!projections.complete) return []
+
+  const sensitiveHeaders = new Set<string>()
+  for (const projection of projections.values) {
+    let projectedHeaders: Headers
+    try {
+      projectedHeaders = new Headers(tool.request.headers(projection.value))
+    } catch {
+      continue
+    }
+    headers.forEach((value, name) => {
+      if (projectedHeaders.get(name) !== value) sensitiveHeaders.add(name)
+    })
+  }
+  return [...sensitiveHeaders]
+}
+
+function formatToolRequest(
+  tool: ToolConfig,
+  params: Record<string, any>,
+  registry: ResolvedSecretTraceRegistry | undefined,
+  isInternalRoute: boolean
+): PreparedToolRequest {
   const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+  assertRequestUrlMatchesTrust(url, isInternalRoute)
   const method =
     typeof tool.request.method === 'function'
       ? tool.request.method(params)
@@ -165,6 +201,17 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     typeof params.proxyUrl === 'string' && params.proxyUrl.trim()
       ? params.proxyUrl.trim()
       : undefined
+  const configuredRedirectPolicy = tool.request.redirectPolicy?.(params)
+  const redirectPolicy =
+    configuredRedirectPolicy && !configuredRedirectPolicy.sendCredentialsOnCrossOriginRedirect
+      ? {
+          ...configuredRedirectPolicy,
+          sensitiveHeaders: [
+            ...(configuredRedirectPolicy.sensitiveHeaders ?? []),
+            ...collectProvenanceSensitiveHeaders(tool, params, headers, registry),
+          ],
+        }
+      : configuredRedirectPolicy
 
   return {
     url,
@@ -174,7 +221,51 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     timeout: validTimeout,
     proxyUrl,
     stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
-    isInternalRoute: url.startsWith('/api/'),
+    redirectPolicy,
+    isInternalRoute,
+  }
+}
+
+function isInternalRequestDefinition(tool: ToolConfig, params: Record<string, any>): boolean {
+  if (typeof tool.request.internal === 'function') return tool.request.internal(params)
+  return (
+    tool.request.internal === true ||
+    (typeof tool.request.url === 'string' && tool.request.url.startsWith('/api/'))
+  )
+}
+
+function assertRequestUrlMatchesTrust(url: string, isInternalRoute: boolean): void {
+  if (isInternalRoute) {
+    const pathEnd = url.search(/[?#]/)
+    const rawPathname = pathEnd === -1 ? url : url.slice(0, pathEnd)
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(url, INTERNAL_REQUEST_BASE_URL)
+    } catch {
+      throw new Error(INTERNAL_REQUEST_URL_ERROR_MESSAGE)
+    }
+    const rawSearch = parsedUrl.search.startsWith('?') ? parsedUrl.search.slice(1) : ''
+    const canonicalSearch = new URLSearchParams(parsedUrl.search).toString()
+    if (
+      !url.startsWith('/api/') ||
+      parsedUrl.origin !== INTERNAL_REQUEST_BASE_URL ||
+      parsedUrl.pathname !== rawPathname ||
+      rawSearch !== canonicalSearch ||
+      parsedUrl.hash
+    ) {
+      throw new Error(INTERNAL_REQUEST_URL_ERROR_MESSAGE)
+    }
+    return
+  }
+
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    throw new Error(EXTERNAL_REQUEST_URL_ERROR_MESSAGE)
+  }
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    throw new Error(EXTERNAL_REQUEST_URL_ERROR_MESSAGE)
   }
 }
 
@@ -184,23 +275,23 @@ export function prepareToolRequest(
   params: Record<string, any>,
   registry?: ResolvedSecretTraceRegistry
 ): PreparedToolRequest {
-  const configuredUrl =
-    typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
   const modelInput = tool.request.modelInput
   const secretProvenance = tool.request.secretProvenance
+  const configuredAsInternal = isInternalRequestDefinition(tool, params)
   const hasPrivateModelInputProvenance =
     modelInput?.mode === 'private-provenance' ||
     (modelInput?.mode === 'project' && modelInput.privateInputPaths !== undefined)
 
-  if (hasPrivateModelInputProvenance && !configuredUrl.startsWith('/api/')) {
+  if (hasPrivateModelInputProvenance && !configuredAsInternal) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
   }
-  if (secretProvenance && !configuredUrl.startsWith('/api/')) {
+  if (secretProvenance && !configuredAsInternal) {
     throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
   }
 
   const requestInput = projectToolModelInputParams(tool, params, registry)
-  const request = formatToolRequest(tool, requestInput)
+  const isInternalRoute = isInternalRequestDefinition(tool, requestInput)
+  const request = formatToolRequest(tool, requestInput, registry, isInternalRoute)
   if (hasPrivateModelInputProvenance && !request.isInternalRoute) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
   }

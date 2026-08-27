@@ -9,8 +9,8 @@ import {
   toBillingUsageLogSource,
   toInternalUsageLogSources,
 } from '@/lib/billing/usage-sources'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
 
 const logger = createLogger('UsageLogsExportAPI')

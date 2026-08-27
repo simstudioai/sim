@@ -35,6 +35,14 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
         'Predicate condition, e.g. `{"field":"wins","op":"gte","value":10}`. Use `all` or `any` for multiple conditions; omit to match all rows.',
       visibility: 'user-or-llm',
     },
+    columns: {
+      type: 'array',
+      required: false,
+      items: { type: 'string' },
+      description:
+        'Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored.',
+      visibility: 'user-or-llm',
+    },
     order: {
       type: 'json',
       required: false,
@@ -57,8 +65,10 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
   },
 
   request: {
+    internal: true,
     secretProvenance: { response: { incomplete: 'propagate' } },
-    url: (params: TableRowQueryV2Params) => `/api/table/${params.tableId}/query`,
+    url: (params: TableRowQueryV2Params) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/query`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params: TableRowQueryV2Params) => {
@@ -70,6 +80,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       return {
         workspaceId,
         ...(params.filter ? { predicate: normalizeTablePredicate(params.filter) } : {}),
+        ...(params.columns?.length ? { columns: params.columns } : {}),
         ...(params.order ? { sort: params.order } : {}),
         ...(params.limit !== undefined ? { limit: params.limit } : {}),
         ...(params.cursor ? { cursor: params.cursor } : {}),

@@ -38,11 +38,14 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
   },
 
   request: {
+    internal: true,
+    internalAuth: 'executor_delegation',
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowUpdateParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
+    url: (params: TableRowUpdateParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}`,
     method: 'PATCH',
     headers: () => ({
       'Content-Type': 'application/json',

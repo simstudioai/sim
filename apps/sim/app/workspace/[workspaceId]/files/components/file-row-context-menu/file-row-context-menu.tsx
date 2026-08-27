@@ -15,15 +15,17 @@ import {
   FolderInput,
   Pencil,
 } from '@sim/emcn'
-import { Download, Link, Pin, Trash } from '@sim/emcn/icons'
+import { Download, Link, Pin, Send, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface FileRowContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onOpen: () => void
+  onCopyLink?: () => void
   onDownload?: () => void
   onRename: () => void
   onDelete: () => void
@@ -42,6 +44,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   position,
   onClose,
   onOpen,
+  onCopyLink,
   onDownload,
   onRename,
   onDelete,
@@ -54,6 +57,16 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   selectedCount,
 }: FileRowContextMenuProps) {
   const isMultiSelect = selectedCount > 1
+
+  /**
+   * Everything that can render above `Delete`: Open/Pin need a single selection,
+   * Download needs its handler, and the edit trio needs `canEdit` — so a multi-select
+   * with no download and only a move target leaves `Move to` alone above the rule.
+   *
+   * @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group.
+   */
+  const hasActionsAboveDestructive =
+    !isMultiSelect || !!onDownload || (!!onMove && !!moveOptions && moveOptions.length > 0)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -77,10 +90,16 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             Open
           </DropdownMenuItem>
         )}
+        {!isMultiSelect && onCopyLink && (
+          <DropdownMenuItem onSelect={onCopyLink}>
+            <Link />
+            Copy Link
+          </DropdownMenuItem>
+        )}
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
-            {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
+            {selectionActionLabel('Download', selectedCount)}
           </DropdownMenuItem>
         )}
         {!isMultiSelect && (
@@ -91,7 +110,6 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         )}
         {canEdit && (
           <>
-            <DropdownMenuSeparator />
             {!isMultiSelect && (
               <DropdownMenuItem onSelect={onRename}>
                 <Pencil />
@@ -100,7 +118,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             )}
             {!isMultiSelect && onShare && (
               <DropdownMenuItem onSelect={onShare}>
-                <Link />
+                <Send />
                 Share
               </DropdownMenuItem>
             )}
@@ -108,7 +126,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderInput />
-                  {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
+                  {selectionActionLabel('Move', selectedCount, 'Move to')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
@@ -120,9 +138,10 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+            {hasActionsAboveDestructive && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash />
-              {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
+              {selectionActionLabel('Delete', selectedCount)}
             </DropdownMenuItem>
           </>
         )}

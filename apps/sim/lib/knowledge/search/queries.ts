@@ -95,7 +95,6 @@ export interface SearchParams {
   distanceThreshold?: number
 }
 
-// Use shared embedding utility
 export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 /** All valid tag slot keys */
@@ -173,7 +172,6 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
   const column = embeddingTable[tagSlot]
   if (!column) return null
 
-  // Handle text operators
   if (fieldType === 'text') {
     const coerced = coerceTagFilterValue(value, 'text')
     if (!coerced.ok) return null
@@ -197,7 +195,6 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle number operators
   if (fieldType === 'number') {
     const coerced = coerceTagFilterValue(value, 'number')
     if (!coerced.ok) return null
@@ -228,7 +225,7 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle date operators - expects YYYY-MM-DD format from frontend
+  // Date values arrive as YYYY-MM-DD strings from the frontend.
   if (fieldType === 'date') {
     const coerced = coerceTagFilterValue(value, 'date')
     if (!coerced.ok) return null
@@ -262,7 +259,6 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle boolean operators
   if (fieldType === 'boolean') {
     const coerced = coerceTagFilterValue(value, 'boolean')
     if (!coerced.ok) return null
@@ -277,7 +273,6 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Fallback to equality
   return sql`${column} = ${value}`
 }
 
@@ -319,7 +314,7 @@ const FTS_CONFIG = 'english'
 
 /**
  * Reciprocal-rank-fusion damping constant. 60 is the value from the original RRF
- * paper and matches the docs Ask-AI retriever (`apps/docs/app/api/chat/route.ts`).
+ * paper and matches the docs search retriever (`apps/docs/app/api/search/route.ts`).
  */
 export const RRF_K = 60
 
@@ -438,7 +433,6 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
 
   if (strategy.useParallel) {
-    // Parallel approach for many KBs
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
@@ -496,7 +490,6 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   const distanceExpr = sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
 
   if (strategy.useParallel) {
-    // Parallel approach for many KBs
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
@@ -734,14 +727,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
     throw new Error('Query vector and distance threshold are required for tag and vector search')
   }
 
-  // Step 1: Filter by tags first
   const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, structuredFilters)
 
   if (tagFilteredIds.length === 0) {
     return []
   }
 
-  // Step 2: Perform vector search only on tag-filtered results
   return await executeVectorSearchOnIds(
     tagFilteredIds.map((r) => r.id),
     queryVector,

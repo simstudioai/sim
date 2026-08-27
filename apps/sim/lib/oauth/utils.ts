@@ -23,9 +23,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View email messages and settings',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage email messages',
   'https://www.googleapis.com/auth/drive.file': 'View and manage Google Drive files',
   'https://www.googleapis.com/auth/drive': 'Access all Google Drive files',
+  'https://www.googleapis.com/auth/calendar.readonly': 'View calendars and events',
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/contacts': 'View and manage Google Contacts',
   'https://www.googleapis.com/auth/tasks': 'Create, read, update, and delete Google Tasks',
@@ -36,6 +38,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/ediscovery.readonly':
+    'View Google Vault matters, holds, and saved queries',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
   'https://www.googleapis.com/auth/admin.directory.group': 'Manage Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member':
@@ -43,6 +47,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/chat.spaces.readonly':
+    'View Google Chat spaces you are a member of',
+  'https://www.googleapis.com/auth/chat.messages.readonly':
+    'View messages in Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/meetings.space.created':
     'Create and manage Google Meet meeting spaces',
   'https://www.googleapis.com/auth/meetings.space.readonly':
@@ -249,15 +257,26 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Calendars.ReadWrite': 'Read and manage Outlook calendar events',
   'Files.Read': 'Read OneDrive files',
   'Files.ReadWrite': 'Read and write OneDrive files',
+  'Files.Read.All': 'Read files shared with you, including SharePoint libraries',
+  'Files.ReadWrite.All': 'Read and write files you have access to, including SharePoint libraries',
   'Tasks.ReadWrite': 'Read and manage Planner tasks',
   'Sites.Read.All': 'Read Sharepoint sites',
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
-  'User.Read.All': 'Read all user profiles',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
+  'LicenseAssignment.Read.All': 'Read license assignments and subscribed SKUs',
+  'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
+  'UserAuthenticationMethod.ReadWrite.All':
+    'Read and reset authentication methods and passwords for all users',
+  'AuditLog.Read.All': 'Read sign-in and directory audit logs',
+  'Application.Read.All': 'Read all applications and service principals',
+  'AppRoleAssignment.ReadWrite.All': 'Grant and revoke application role assignments',
+  'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
+  'Device.Read.All': 'Read all devices',
+  'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
   identity: 'Access Reddit identity',
@@ -457,12 +476,41 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'me:read': 'Read your user profile',
 }
 
+/** Scope labels that cannot be keyed by scope alone because providers reuse names. */
+const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  /**
+   * Word documents are ordinary drive items, so the integration asks for the
+   * generic Files permissions. The shared labels name OneDrive specifically,
+   * which reads as the wrong product on the Word consent screen and omits the
+   * SharePoint libraries the same scopes cover.
+   */
+  'microsoft-word': {
+    'Files.Read': 'Read your Word documents in OneDrive',
+    'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive',
+    'Files.Read.All': 'Read Word documents shared with you, including SharePoint libraries',
+    'Files.ReadWrite.All':
+      'Read, create, and edit Word documents you have access to, including SharePoint libraries',
+  },
+  bitbucket: {
+    account: 'View your Bitbucket account and workspace memberships',
+    repository: 'View repositories and source code',
+    'repository:write': 'Create and modify repositories, branches, and source code',
+    pullrequest: 'View pull requests, comments, approvals, and statuses',
+    'pullrequest:write': 'Create, update, approve, decline, and merge pull requests',
+    pipeline: 'View pipelines, steps, and logs',
+    'pipeline:write': 'Run and stop pipelines',
+    webhook: 'Manage repository webhooks',
+  },
+}
+
 /**
  * Get a human-readable description for a scope.
  * Falls back to the raw scope string if no description is found.
  */
-export function getScopeDescription(scope: string): string {
-  return SCOPE_DESCRIPTIONS[scope] || scope
+export function getScopeDescription(scope: string, providerId?: string): string {
+  return (
+    PROVIDER_SCOPE_DESCRIPTIONS[providerId ?? '']?.[scope] || SCOPE_DESCRIPTIONS[scope] || scope
+  )
 }
 
 /**
@@ -686,10 +734,29 @@ export function getMissingRequiredScopes(
   for (const s of requiredScopes) {
     if (IGNORED_SCOPES.has(s)) continue
 
-    if (!granted.has(s)) missing.push(s)
+    if (!granted.has(s) && !isScopeSatisfiedBy(s, granted)) missing.push(s)
   }
 
   return missing
+}
+
+/**
+ * Whether a granted scope already covers `required` despite not matching it verbatim.
+ *
+ * A read-write scope subsumes its `.readonly` sibling — a credential holding
+ * `.../auth/ediscovery` is accepted by every method that documents
+ * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
+ * least-privileged scope would report every already-connected credential as
+ * missing it and prompt a re-consent that grants nothing new.
+ *
+ * This only derives a scope Sim actually requests. A consumer must never
+ * require a scope absent from its provider's `scopes` array — no credential can
+ * carry it, since that array is what the authorize request asks for.
+ */
+function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readonlySuffix = '.readonly'
+  if (!required.endsWith(readonlySuffix)) return false
+  return granted.has(required.slice(0, -readonlySuffix.length))
 }
 
 /**

@@ -412,6 +412,59 @@ describe('executeTool', () => {
     )
   })
 
+  it('publishes main-frame load failures and retries their uncommitted URL', async () => {
+    const onPageState = vi.fn()
+    const win = new BrowserWindow()
+    driver.initDriver(
+      {
+        onPageState,
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => win
+    )
+    driver.activateBrowserScope('chat-test')
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    const eventHandlers = (contents.on as unknown as ReturnType<typeof vi.fn>).mock.calls
+    const failLoad = eventHandlers.find(([eventName]) => eventName === 'did-fail-load')?.[1] as
+      | ((...args: unknown[]) => void)
+      | undefined
+    const failedUrl = 'http://localhost:3004/login'
+
+    onPageState.mockClear()
+    failLoad?.({}, -102, 'ERR_CONNECTION_REFUSED', failedUrl, false)
+    failLoad?.({}, -3, 'ERR_ABORTED', failedUrl, true)
+    expect(onPageState).not.toHaveBeenCalled()
+
+    failLoad?.({}, -102, 'ERR_CONNECTION_REFUSED', failedUrl, true)
+
+    expect(onPageState).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: failedUrl,
+        issue: {
+          kind: 'load-error',
+          code: -102,
+          description: 'ERR_CONNECTION_REFUSED',
+          url: failedUrl,
+        },
+      })
+    )
+
+    vi.mocked(contents.loadURL).mockClear()
+    await driver.handlePanelAction('chat-test', { action: 'reload' })
+    expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
+
+    vi.mocked(contents.loadURL).mockClear()
+    await driver.executeTool('chat-test', 'browser_go_back', {})
+    expect(session.pageIssueForContents(contents)).toBeUndefined()
+    expect(session.canGoForward(contents)).toBe(true)
+
+    await driver.executeTool('chat-test', 'browser_go_forward', {})
+    expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
+  })
+
   it('forces fill availability to replay on scope activation and tab switches', async () => {
     const refreshAvailability = vi
       .spyOn(fillCoordinator()!, 'refreshAvailability')
@@ -516,6 +569,23 @@ describe('executeTool', () => {
       'browser-settings',
       'chat-test'
     )
+  })
+
+  it('routes an exact renderer media decision through the scoped session boundary', async () => {
+    const respond = vi.spyOn(session, 'respondToMediaPermission').mockResolvedValue()
+
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-media-permission',
+      requestId: 'request-1',
+      allowed: true,
+    })
+    await driver.handlePanelAction('chat-test', {
+      action: 'respond-media-permission',
+      requestId: 'request-2',
+    })
+
+    expect(respond).toHaveBeenCalledOnce()
+    expect(respond).toHaveBeenCalledWith('request-1', true)
   })
 
   it('keeps tool queues and tab state isolated by chat scope', async () => {
@@ -1121,6 +1191,20 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it('still dispatches input after the user has interacted with the visible tab', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+    // User interaction claims the visible tab for panel-level ownership
+    // (popups, close protection) but must never block agent input.
+    session.claimActiveTabForUser()
+    expect(session.automationTabClaimedByUser()).toBe(true)
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
+
+    expect(result.ok).toBe(true)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
+  })
+
   it('sends the keystroke when nothing sensitive is focused', async () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
@@ -1646,7 +1730,90 @@ describe('credential protection', () => {
     expect(mainFrame.executeJavaScript).not.toHaveBeenCalled()
   })
 
-  it('reports navigation that remains obstructed by a DOM dialog', async () => {
+  // A dialog that was ALREADY open before the click is not obstructing the
+  // navigation it survived — reporting it made every SPA route change under a
+  // persistent role=dialog (cookie banner, side drawer, picker) read as a
+  // failed click. Only a dialog that arrives with the navigation obstructs it.
+  // targetChanged can only fire when pageActionState was given an elementId.
+  // Tools without one listed it in their effect formula for a long time, where
+  // it was silently always false — coverage that read as real. This pins the
+  // dependency so the next tool that adds the term has to earn it.
+  it('cannot observe a target change for a tool that passes no elementId', async () => {
+    const contents = await openPage()
+    let actionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        actionReads++
+        // No targetState in either sample: that is what a call without an
+        // elementId returns.
+        return Promise.resolve({
+          url: 'https://example.com/a',
+          title: 'A',
+          focus: 'body',
+          mutationRevision: actionReads === 1 ? 0 : 3,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
+
+    expect(result).toMatchObject({ ok: true })
+    const effect = (result as { result?: { effect?: Record<string, boolean> } }).result?.effect
+    expect(effect?.targetChanged).toBe(false)
+  })
+
+  // The click-that-navigates race from the field: "Begin Assessment" submits a
+  // form, the navigation tears the origin document down, and the CDP dispatch
+  // rejects mid-press. The press already reached the page — the navigation IS
+  // the success — so this must come back dispatched, not failed.
+  it('reports a click whose navigation destroyed the page as a success', async () => {
+    const contents = await openPage()
+    let currentUrl = 'https://example.com/tests/IPIP-BFFM/'
+    vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) {
+        return Promise.resolve({ found: true, element: 'Begin Assessment', cursor: 'pointer' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: currentUrl,
+          title: 'Test',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method: string) => {
+      if (method === 'Input.dispatchMouseEvent') {
+        currentUrl = 'https://example.com/tests/IPIP-BFFM/1.php'
+        throw new Error('Execution context was destroyed, most likely because of a navigation.')
+      }
+      return {}
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 100, y: 200 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        navigatedDuringDispatch: true,
+        effectObserved: true,
+      },
+    })
+  })
+
+  it('ignores a dialog that was already open before the click', async () => {
     const contents = await openPage()
     let actionReads = 0
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
@@ -1683,11 +1850,50 @@ describe('credential protection', () => {
 
     expect(result).toMatchObject({
       ok: true,
+      result: { effectObserved: true, obstructedAfterNavigation: false, dialogs: ['Search'] },
+    })
+  })
+
+  it('reports navigation obstructed by a dialog that opened with it', async () => {
+    const contents = await openPage()
+    let actionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'clickElement')) {
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Search result' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        actionReads++
+        return Promise.resolve(
+          actionReads === 1
+            ? {
+                url: 'https://example.com/search',
+                title: 'Search',
+                focus: 'body',
+                mutationRevision: 0,
+                dialogs: [],
+                scroll: [0],
+              }
+            : {
+                url: 'https://example.com/channel/eng-bugs',
+                title: 'eng-bugs',
+                focus: 'body',
+                mutationRevision: 1,
+                dialogs: ['Open in the Slack app?'],
+                scroll: [0],
+              }
+        )
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({
+      ok: true,
       result: {
-        effectObserved: true,
         obstructedAfterNavigation: true,
-        dialogs: ['Search'],
-        note: expect.stringContaining('dialog is still open'),
+        note: expect.stringContaining('Open in the Slack app?'),
       },
     })
   })
@@ -1731,5 +1937,356 @@ describe('credential protection', () => {
       error:
         'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.',
     })
+  })
+
+  /** Fires every instrumentation listener registered for a WebContents event. */
+  function emitContentsEvent(
+    contents: Awaited<ReturnType<typeof openPage>>,
+    event: string,
+    ...args: unknown[]
+  ): void {
+    for (const [name, listener] of vi.mocked(contents.on).mock.calls) {
+      if (name === event) (listener as (...listenerArgs: unknown[]) => void)({}, ...args)
+    }
+  }
+
+  it('keeps element ids across a same-document (SPA) navigation', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    emitContentsEvent(contents, 'did-navigate-in-page')
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+  })
+
+  it('still invalidates element ids on a cross-document navigation', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    emitContentsEvent(contents, 'did-navigate')
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.',
+    })
+  })
+
+  it('tolerates same-document URL churn during a keypress', async () => {
+    const contents = await openPage()
+    let urlReads = 0
+    vi.mocked(contents.getURL).mockImplementation(() =>
+      ++urlReads === 1 ? 'https://example.com/channel-a' : 'https://example.com/channel-b'
+    )
+    respondWith(contents, {
+      activeElementSecrecy: 'safe',
+      readActiveElementState: {},
+      readPageActionState: {
+        url: 'https://example.com/channel-a',
+        title: 'Example',
+        focus: 'body',
+        mutationRevision: 0,
+        dialogs: [],
+        scroll: [0],
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
+
+    expect(result.ok).toBe(true)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
+  })
+
+  it('aborts a keypress when a cross-document navigation lands mid-flight', async () => {
+    const contents = await openPage()
+    let navigated = false
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        if (!navigated) {
+          navigated = true
+          emitContentsEvent(contents, 'did-navigate')
+        }
+        return Promise.resolve({
+          url: 'https://example.com/login',
+          title: 'Example',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/active tab or page changed/)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('waits for a late-mounting editor before typing', async () => {
+    const contents = await openPage()
+    let focusReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping')) {
+        focusReads++
+        return Promise.resolve(
+          focusReads === 1
+            ? { error: 'not-editable' }
+            : { focused: true, kind: 'contenteditable', x: 24, y: 48 }
+        )
+      }
+      if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+      if (isPageCall(expression, 'readActiveElementState')) {
+        return Promise.resolve({ activeElement: 'div', valueLength: 5 })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hello',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(focusReads).toBeGreaterThan(1)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+  })
+
+  it('reprobes a transiently stale click target before giving up', async () => {
+    const contents = await openPage()
+    let clickReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'clickElement')) {
+        clickReads++
+        return Promise.resolve(
+          clickReads === 1
+            ? { error: 'stale' }
+            : { dispatched: false, x: 24, y: 48, element: 'Channel row' }
+        )
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) return Promise.resolve({})
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    expect(clickReads).toBeGreaterThan(1)
+  })
+
+  it('clicks a coordinate point with native input and reports the target', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: {
+        found: true,
+        element: 'button "Send"',
+        editable: false,
+        secret: false,
+        fileInput: false,
+        cursor: 'pointer',
+      },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 120, y: 240 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        trusted: true,
+        clickedAt: { x: 120, y: 240 },
+        target: 'button "Send"',
+      },
+    })
+    const presses = cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'mousePressed'
+    )
+    expect(presses).toHaveLength(1)
+  })
+
+  it('double-clicks a coordinate point as a rising clickCount sequence', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'canvas', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      clickCount: 2,
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { clickCount: 2 } })
+    const counts = cdpCalls(contents, 'Input.dispatchMouseEvent')
+      .filter(([, event]) => (event as { type?: string }).type === 'mousePressed')
+      .map(([, event]) => (event as { clickCount?: number }).clickCount)
+    expect(counts).toEqual([1, 2])
+  })
+
+  it('refuses a coordinate click on a file input', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'input', fileInput: true },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 5, y: 5 })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/file input/)
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it('rejects a coordinate click outside the viewport with mapping guidance', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { error: 'outside-viewport' },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 9999, y: 5 })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/divide image pixels by its scale/)
+  })
+
+  it('inserts text into the focused editable at the caret', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      activeElementSecrecy: 'safe',
+      describeFocusedEditable: { editable: true, kind: 'contenteditable' },
+      readActiveElementState: { activeElement: 'div', valueLength: 12 },
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_insert_text', {
+      text: 'hello world',
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { dispatched: true, trusted: true, kind: 'contenteditable', insertedChars: 11 },
+    })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+  })
+
+  it('refuses insertion when nothing editable holds focus', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      activeElementSecrecy: 'safe',
+      describeFocusedEditable: { editable: false, reason: 'none' },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'x' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/No element is focused/)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+  })
+
+  it('refuses insertion while a password field holds focus', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'secret' })
+
+    const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'x' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Refusing to act on a password field/)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+  })
+
+  it('drags between coordinate points through the trusted pointer pipeline', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'div "Card"' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_drag', {
+      fromX: 40,
+      fromY: 50,
+      toX: 200,
+      toY: 260,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { dispatched: true, trusted: true, from: { x: 40, y: 50 }, to: { x: 200, y: 260 } },
+    })
+    const events = cdpCalls(contents, 'Input.dispatchMouseEvent').map(
+      ([, event]) => (event as { type?: string }).type
+    )
+    expect(events[0]).toBe('mouseMoved')
+    expect(events).toContain('mousePressed')
+    expect(events[events.length - 1]).toBe('mouseReleased')
+    expect(cdpCalls(contents, 'Input.setInterceptDrags').length).toBeGreaterThan(0)
+  })
+
+  it('drags from a snapshot element to a coordinate target', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      clickElement: { dispatched: false, x: 24, y: 48, element: 'Card "Ship it"' },
+      describePointTarget: { found: true, element: 'section "Done"' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_drag', {
+      fromElementId: 0,
+      toX: 300,
+      toY: 60,
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { dispatched: true, from: { x: 24, y: 48, element: 'Card "Ship it"' } },
+    })
+  })
+
+  it('rejects a drag whose endpoints are the same point', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'div' },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_drag', {
+      fromX: 10,
+      fromY: 10,
+      toX: 10,
+      toY: 10,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/same point/)
+  })
+
+  it('returns the screenshot scale for coordinate mapping', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+        })
+      }
+      if (method === 'Page.captureScreenshot') {
+        return Promise.resolve({ data: 'c2lt' })
+      }
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, { getViewportInfo: { width: 2048, height: 1024 } })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result).toMatchObject({ ok: true, result: { scale: 0.5 } })
   })
 })

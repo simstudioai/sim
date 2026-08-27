@@ -134,3 +134,67 @@ export function rewriteManifestUrls(
     return `${prefix}${base}${encodeURIComponent(value)}`
   })
 }
+
+/**
+ * GitHub's maximum page size for the releases API. The stable channel reads a
+ * release list it shares with web-app releases, SDK releases, and legacy
+ * prereleases, so the window has to be wide enough that desktop releases are
+ * never pushed out of it.
+ */
+export const DESKTOP_RELEASES_PAGE_SIZE = 100
+
+/**
+ * How far back the resolver walks before giving up. A channel whose newest
+ * release is buried deeper than this is already unreachable to its clients,
+ * and an unbounded walk would let an unrelated tag family stall the feed.
+ */
+export const MAX_DESKTOP_RELEASE_PAGES = 5
+
+/** One page of the GitHub releases API, newest release first. */
+export function releasesApiUrl(repository: DesktopReleaseRepository, page: number): string {
+  return `https://api.github.com/repos/${repository}/releases?per_page=${DESKTOP_RELEASES_PAGE_SIZE}&page=${page}`
+}
+
+/**
+ * The newest release of a channel, walking pages until one yields a match.
+ *
+ * GitHub returns releases newest-first, so the first page containing any
+ * release of the channel also contains its newest one — every later page is
+ * strictly older. The walk exists only so unrelated releases stacked on top
+ * (other tag families, other channels) cannot push a channel's newest build
+ * out of the window and take the whole channel's updates down.
+ *
+ * `fetchPage` returns null when the page could not be read; the resolver
+ * surfaces that as a failure rather than silently serving an older release.
+ */
+export async function resolveLatestRelease(
+  channel: DesktopUpdateChannel,
+  fetchPage: (page: number) => Promise<DesktopReleaseCandidate[] | null>
+): Promise<{ release: DesktopReleaseCandidate | null } | { error: 'fetch-failed' }> {
+  for (let page = 1; page <= MAX_DESKTOP_RELEASE_PAGES; page++) {
+    const releases = await fetchPage(page)
+    if (releases === null) return { error: 'fetch-failed' }
+    const release = selectReleaseForChannel(releases, channel)
+    if (release) return { release }
+    // A short page is the end of the list; nothing older remains to walk.
+    if (releases.length < DESKTOP_RELEASES_PAGE_SIZE) break
+  }
+  return { release: null }
+}
+
+/**
+ * The human-installable artifact of a release, preferred over the zip the
+ * updater consumes. Selected per-release rather than through GitHub's
+ * repository-wide "latest release", which the stable repository shares with
+ * web-app and SDK tags that carry no desktop artifact at all.
+ */
+export function selectInstallerAsset(
+  release: DesktopReleaseCandidate
+): { name: string; browser_download_url: string } | null {
+  const assets = release.assets ?? []
+  return (
+    assets.find((asset) => asset.name.endsWith('.dmg')) ??
+    assets.find((asset) => asset.name.endsWith('.zip')) ??
+    null
+  )
+}

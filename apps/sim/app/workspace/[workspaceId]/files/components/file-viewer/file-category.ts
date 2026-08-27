@@ -8,6 +8,8 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'application/x-yaml',
   'text/csv',
   'text/html',
+  // Sim pages: internal record type; the file itself is .html.
+  'text/x-sim-page',
   'text/xml',
   'application/xml',
   'text/css',
@@ -20,6 +22,8 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'text/x-sql',
   'image/svg+xml',
   'text/x-mermaid',
+  // Chart documents: declarative ECharts specs rendered live (chart-preview.tsx).
+  'text/x-sim-chart',
 ])
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([

@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { folder } from '@sim/db/schema'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, throwOrchestrationFailure } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import {
@@ -18,8 +18,8 @@ import {
   resolveFolderPathFromIndex,
 } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 type WorkflowFolderRecord = typeof folder.$inferSelect
 type WorkflowFolderIndex = FolderPathIndex<WorkflowFolderRecord>
@@ -73,11 +73,7 @@ function throwFolderMutationFailure(result: {
   error?: string
   errorCode?: OrchestrationErrorCode
 }): never {
-  const code = result.errorCode ?? 'internal'
-  throw new OrchestrationError(
-    code,
-    code === 'internal' ? 'Internal server error' : (result.error ?? 'Folder mutation failed')
-  )
+  throwOrchestrationFailure(result, 'Internal server error')
 }
 
 export async function resolveWorkflowFolderPath(
@@ -105,6 +101,28 @@ export function workflowFolderPathForId(
   const path = index.pathById.get(folderId)
   if (!path) throw new Error('Workflow references an inactive or missing folder')
   return path
+}
+
+/**
+ * The same projection for a workflow that may itself be archived.
+ *
+ * Archiving a folder cascades onto the workflows inside it but leaves their
+ * `folderId` pointing at the now-inactive row — which is exactly why restore has
+ * to null a dangling `folderId` before it re-reads. So on any read that can
+ * surface an archived workflow, an unresolvable folder is the expected state
+ * rather than the inconsistency {@link workflowFolderPathForId} treats it as,
+ * and one such row would otherwise throw a bare `Error` and 500 the whole page
+ * with no cursor position able to skip past it.
+ *
+ * The root is the honest answer: it is where restore would put the workflow if
+ * the caller restored it now.
+ */
+export function archivableWorkflowFolderPath(
+  index: WorkflowFolderIndex,
+  folderId: string | null | undefined
+): string {
+  if (!folderId) return ROOT_FOLDER_PATH
+  return index.pathById.get(folderId) ?? ROOT_FOLDER_PATH
 }
 
 export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({

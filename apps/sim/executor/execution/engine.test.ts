@@ -6,30 +6,24 @@ import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
-const { mockCancellationSubscribers } = vi.hoisted(() => ({
+const { mockCancellationSubscribers, mockIsExecutionCancelled } = vi.hoisted(() => ({
   mockCancellationSubscribers: new Set<(event: { executionId: string }) => void>(),
+  mockIsExecutionCancelled: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
-  isExecutionCancelled: vi.fn(),
-  isRedisCancellationEnabled: vi.fn(),
-  getCancellationChannel: () => ({
-    publish: (event: { executionId: string }) => {
-      for (const handler of mockCancellationSubscribers) handler(event)
-    },
-    subscribe: (handler: (event: { executionId: string }) => void) => {
-      mockCancellationSubscribers.add(handler)
-      return () => {
-        mockCancellationSubscribers.delete(handler)
-      }
-    },
-    dispose: () => {
-      mockCancellationSubscribers.clear()
-    },
-  }),
+  subscribeToExecutionCancellation: async (executionId: string, onCancelled: () => void) => {
+    const handler = (event: { executionId: string }) => {
+      if (event.executionId === executionId) onCancelled()
+    }
+    mockCancellationSubscribers.add(handler)
+    if (await mockIsExecutionCancelled(executionId)) onCancelled()
+    return () => {
+      mockCancellationSubscribers.delete(handler)
+    }
+  },
 }))
 
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -150,8 +144,7 @@ describe('ExecutionEngine', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCancellationSubscribers.clear()
-    ;(isExecutionCancelled as Mock).mockResolvedValue(false)
-    ;(isRedisCancellationEnabled as Mock).mockReturnValue(false)
+    mockIsExecutionCancelled.mockResolvedValue(false)
   })
 
   afterEach(() => {
@@ -238,6 +231,81 @@ describe('ExecutionEngine', () => {
         { name: 'TOKEN', encryptedValue: 'ciphertext' },
       ])
       expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.entries).toEqual([])
+    })
+
+    /**
+     * A subflow sentinel stores its aggregate without provenance, and a loop that ran no
+     * iterations has none to merge. Treating that absence as a verdict marked the run
+     * unvouchable, which withheld the user's own final output from their execution log on every
+     * later view.
+     */
+    it('derives final output provenance when the last block state carries none', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value-1234')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      const provenance = result.executionState?.finalOutputResolvedSecretTraceProvenance
+      expect(provenance?.complete).toBe(true)
+      expect(provenance?.entries).toEqual([{ name: 'TOKEN', encryptedValue: 'ciphertext' }])
+    })
+
+    /** Deriving must not weaken the guarantee: a latched registry still exports incomplete. */
+    it('keeps the final output envelope incomplete when the registry latched', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.markIncomplete('unspecified')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.complete).toBe(false)
     })
 
     it('should not fall back to starter blocks for terminal resume snapshots', async () => {
@@ -608,8 +676,7 @@ describe('ExecutionEngine', () => {
 
   describe('Cancellation via Redis', () => {
     it('aborts the active execution signal without dropping its deadline', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(true)
       const timeoutController = createTimeoutAbortController(60_000)
       const startNode = createMockNode('start', 'starter')
       const context = createMockContext({
@@ -627,20 +694,15 @@ describe('ExecutionEngine', () => {
         expect(context.abortSignal).not.toBe(timeoutController.signal)
         expect(getRemainingExecutionMs(context.abortSignal)).toBeGreaterThan(0)
 
-        for (const handler of mockCancellationSubscribers) {
-          handler({ executionId: 'pubsub-signal-execution' })
-        }
-
-        expect(context.abortSignal?.aborted).toBe(true)
         await expect(engine.run('start')).resolves.toMatchObject({ status: 'cancelled' })
+        expect(context.abortSignal?.aborted).toBe(true)
       } finally {
         timeoutController.cleanup()
       }
     })
 
-    it('should check Redis for cancellation when enabled', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+    it('checks the durable cancellation state when subscribing', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -651,13 +713,11 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect(isExecutionCancelled as Mock).toHaveBeenCalled()
+      expect(mockIsExecutionCancelled).toHaveBeenCalled()
     })
 
     it('should stop execution when Redis reports cancellation', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const nodes = Array.from({ length: 5 }, (_, i) => createMockNode(`node${i}`, 'function'))
       for (let i = 0; i < nodes.length - 1; i++) {
@@ -681,8 +741,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('wakes from a slow in-flight node when a pub/sub cancellation arrives', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const slowNode = createMockNode('slow', 'function')
@@ -711,8 +770,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('ignores pub/sub events targeting other executions', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -732,26 +790,25 @@ describe('ExecutionEngine', () => {
     })
 
     it('unsubscribes from the cancellation channel after run completes', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
       const context = createMockContext({ executionId: 'cleanup-execution' })
       const edgeManager = createMockEdgeManager()
-      const nodeOrchestrator = createMockNodeOrchestrator()
+      const nodeOrchestrator = createMockNodeOrchestrator(20)
 
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
-      expect(mockCancellationSubscribers.size).toBe(1)
+      const runPromise = engine.run('start')
+      await vi.waitFor(() => expect(mockCancellationSubscribers.size).toBe(1))
 
-      await engine.run('start')
+      await runPromise
 
       expect(mockCancellationSubscribers.size).toBe(0)
     })
 
     it('honours the durable backstop when cancelled before subscribing', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -767,9 +824,8 @@ describe('ExecutionEngine', () => {
       expect(context.abortSignal?.aborted).toBe(true)
     })
 
-    it('calls isExecutionCancelled once as the startup backstop check', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+    it('reads the durable cancellation flag once when subscribing', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
 
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
@@ -780,7 +836,69 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBe(1)
+      expect(mockIsExecutionCancelled).toHaveBeenCalledOnce()
+    })
+
+    it('does not poll the durable flag while a node is running', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
+
+      let releaseNode = () => {}
+      const nodeReleased = new Promise<void>((resolve) => {
+        releaseNode = resolve
+      })
+
+      const startNode = createMockNode('start', 'starter')
+      const slowNode = createMockNode('slow', 'wait')
+      startNode.outgoingEdges.set('edge1', { target: 'slow' })
+
+      const dag = createMockDAG([startNode, slowNode])
+      const context = createMockContext({ executionId: 'redis-poll-execution' })
+      const edgeManager = createMockEdgeManager((node) => (node.id === 'start' ? ['slow'] : []))
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      ;(nodeOrchestrator.executeNode as Mock).mockImplementation(
+        async (_ctx: ExecutionContext, nodeId: string) => {
+          if (nodeId === 'slow') {
+            mockIsExecutionCancelled.mockResolvedValue(true)
+            await nodeReleased
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }
+      )
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const runPromise = engine.run('start')
+
+      await vi.waitFor(() => expect(mockCancellationSubscribers.size).toBe(1))
+      await sleep(25)
+      expect(context.abortSignal?.aborted).toBe(false)
+      expect(mockIsExecutionCancelled).toHaveBeenCalledOnce()
+      for (const handler of mockCancellationSubscribers) {
+        handler({ executionId: 'redis-poll-execution' })
+      }
+      releaseNode()
+
+      await expect(runPromise).resolves.toMatchObject({ success: false, status: 'cancelled' })
+    })
+
+    it('leaves no cancellation timer behind once the run settles', async () => {
+      mockIsExecutionCancelled.mockResolvedValue(false)
+      vi.useFakeTimers()
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({ executionId: 'poll-cleanup-execution' })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run('start')
+
+      const callsAtCompletion = mockIsExecutionCancelled.mock.calls.length
+      // Well past several poll intervals: a surviving timer would add calls here.
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(vi.getTimerCount()).toBe(0)
+      expect(mockIsExecutionCancelled.mock.calls.length).toBe(callsAtCompletion)
     })
   })
 
@@ -1751,8 +1869,7 @@ describe('ExecutionEngine', () => {
     })
 
     it('should cache Redis cancellation result', async () => {
-      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
-      ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+      mockIsExecutionCancelled.mockResolvedValue(true)
 
       const nodes = Array.from({ length: 5 }, (_, i) => createMockNode(`node${i}`, 'function'))
       const dag = createMockDAG(nodes)
@@ -1763,7 +1880,7 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('node0')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBeLessThanOrEqual(3)
+      expect(mockIsExecutionCancelled.mock.calls.length).toBeLessThanOrEqual(3)
     })
   })
 })

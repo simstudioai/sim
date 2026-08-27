@@ -16,7 +16,7 @@
  */
 
 import { db, dbReplica } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, organizationColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -103,10 +103,6 @@ export const GET = withRouteHandler(
         return notFoundResponse('Organization or subscription')
       }
 
-      const membersOverLimit = billingData.members.filter((m) => m.isOverLimit).length
-      const membersNearLimit = billingData.members.filter(
-        (m) => !m.isOverLimit && m.percentUsed >= 80
-      ).length
       const usagePercentage =
         billingData.totalUsageLimit > 0
           ? Math.round((billingData.totalCurrentUsage / billingData.totalUsageLimit) * 10000) / 100
@@ -127,8 +123,8 @@ export const GET = withRouteHandler(
         usagePercentage,
         billingPeriodStart: billingData.billingPeriodStart?.toISOString() ?? null,
         billingPeriodEnd: billingData.billingPeriodEnd?.toISOString() ?? null,
-        membersOverLimit,
-        membersNearLimit,
+        membersOverLimit: billingData.membersOverLimit,
+        membersNearLimit: billingData.membersNearLimit,
       }
 
       logger.info(`Admin API: Retrieved billing summary for organization ${organizationId}`)
@@ -159,7 +155,7 @@ export const PATCH = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const [orgData] = await db
-        .select()
+        .select(organizationColumns)
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)

@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   resolveRunContext: vi.fn(),
   resolveWorkflowContext: vi.fn(),
+  getRunFiles: vi.fn(),
+  describeFiles: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -33,6 +35,11 @@ vi.mock('@/lib/workflows/executor/execution-queries', () => ({
 
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
   getWorkflowExecutionStatus: mocks.getStatus,
+}))
+
+vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
+  getWorkflowRunFiles: mocks.getRunFiles,
+  describeWorkflowRunFiles: mocks.describeFiles,
 }))
 
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
@@ -78,6 +85,12 @@ describe('workflow run application use cases', () => {
       workflowId: 'workflow-1',
       status: 'completed',
     })
+    mocks.getRunFiles.mockResolvedValue({
+      terminal: true,
+      workspaceId: 'workspace-1',
+      filesById: new Map(),
+    })
+    mocks.describeFiles.mockResolvedValue([])
   })
 
   it.each(principals)(
@@ -104,7 +117,7 @@ describe('workflow run application use cases', () => {
         workflowId: 'workflow-1',
         runId: 'run-1',
         includeOutput: true,
-        selectedOutputs: ['block-1.value'],
+        selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
       },
     })
 
@@ -116,8 +129,156 @@ describe('workflow run application use cases', () => {
       workflowId: 'workflow-1',
       executionId: 'run-1',
       includeOutput: true,
-      selectedOutputs: ['block-1.value'],
+      selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
     })
+  })
+
+  it('refuses a selector that is not headed by a block id instead of answering an empty selection', async () => {
+    mocks.getStatus.mockResolvedValueOnce({
+      executionId: 'run-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      blockOutputs: {},
+    })
+
+    await expect(
+      readWorkflowRun.execute({
+        principal: principals[2],
+        input: {
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          includeOutput: true,
+          selectedOutputs: ['doubler.doubled'],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  /**
+   * A well-formed id that produced nothing is a legitimate empty answer — the
+   * block may simply not have run on this path.
+   */
+  it('allows a block id that produced no output on this run', async () => {
+    mocks.getStatus.mockResolvedValueOnce({
+      executionId: 'run-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      blockOutputs: {},
+    })
+
+    const result = await readWorkflowRun.execute({
+      principal: principals[2],
+      input: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        includeOutput: true,
+        selectedOutputs: ['4f1c2b3a-0000-4000-8000-000000000001.value'],
+      },
+    })
+
+    expect(result.blockOutputs).toEqual({})
+  })
+
+  /**
+   * File descriptors follow `output`'s gating: a caller that did not ask for
+   * output must not receive a file list it did not request.
+   */
+  it('reports files as null when output was not requested', async () => {
+    const result = await readWorkflowRun.execute({
+      principal: principals[2],
+      input: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        includeOutput: false,
+        selectedOutputs: [],
+      },
+    })
+
+    expect(result.files).toBeNull()
+    expect(mocks.getRunFiles).not.toHaveBeenCalled()
+  })
+
+  it('describes the run files when output was requested', async () => {
+    mocks.describeFiles.mockResolvedValueOnce([
+      {
+        id: 'file_1',
+        name: 'report.pdf',
+        size: 10,
+        type: 'application/pdf',
+        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
+        base64: null,
+      },
+    ])
+
+    const result = await readWorkflowRun.execute({
+      principal: principals[2],
+      input: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        includeOutput: true,
+        selectedOutputs: [],
+      },
+    })
+
+    expect(result.files).toHaveLength(1)
+    expect(mocks.describeFiles).toHaveBeenCalledWith(
+      expect.any(Map),
+      expect.objectContaining({ workflowId: 'workflow-1', runId: 'run-1', includeBase64: false })
+    )
+  })
+
+  it('forwards the inline request and ceiling to the descriptor projection', async () => {
+    await readWorkflowRun.execute({
+      principal: principals[2],
+      input: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        includeOutput: true,
+        selectedOutputs: [],
+        includeFileBase64: true,
+        base64MaxBytes: 4096,
+      },
+    })
+
+    expect(mocks.describeFiles).toHaveBeenCalledWith(
+      expect.any(Map),
+      expect.objectContaining({ includeBase64: true, base64MaxBytes: 4096 })
+    )
+  })
+
+  it('reports an empty file list for a run with no recording', async () => {
+    mocks.getRunFiles.mockResolvedValueOnce(null)
+
+    const result = await readWorkflowRun.execute({
+      principal: principals[2],
+      input: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        includeOutput: true,
+        selectedOutputs: [],
+      },
+    })
+
+    expect(result.files).toEqual([])
+  })
+
+  it('propagates an over-ceiling inline request as payload_too_large', async () => {
+    mocks.describeFiles.mockRejectedValueOnce(
+      Object.assign(new Error('exceeds the 16MB inline limit'), { code: 'payload_too_large' })
+    )
+
+    await expect(
+      readWorkflowRun.execute({
+        principal: principals[2],
+        input: {
+          workflowId: 'workflow-1',
+          runId: 'run-1',
+          includeOutput: true,
+          selectedOutputs: [],
+          includeFileBase64: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
   })
 
   it('stops before authorization and data access when canonical run scope disagrees', async () => {

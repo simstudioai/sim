@@ -7,8 +7,9 @@ import {
   type DesktopReleaseCandidate,
   MANIFEST_ASSET_NAME,
   releaseRepositoryForChannel,
+  releasesApiUrl,
+  resolveLatestRelease,
   rewriteManifestUrls,
-  selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
 
 const logger = createLogger('DesktopUpdateFeedAPI')
@@ -37,29 +38,34 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
    */
   const channel = channelForDeploymentEnvironment(env.APPCONFIG_ENVIRONMENT)
   const releaseRepository = releaseRepositoryForChannel(channel)
-  const releasesApiUrl = `https://api.github.com/repos/${releaseRepository}/releases?per_page=30`
 
   // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
   // Optional: the repo is public, so the feed works without one.
   const githubToken = process.env.GITHUB_TOKEN
-  const releasesResponse = await fetch(releasesApiUrl, {
-    headers: {
-      accept: 'application/vnd.github+json',
-      ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
-    },
-    next: { revalidate: REVALIDATE_SECONDS },
-  })
-  if (!releasesResponse.ok) {
-    logger.error('GitHub releases lookup failed', {
-      status: releasesResponse.status,
-      channel,
-      releaseRepository,
+  const resolved = await resolveLatestRelease(channel, async (page) => {
+    const response = await fetch(releasesApiUrl(releaseRepository, page), {
+      headers: {
+        accept: 'application/vnd.github+json',
+        ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+      },
+      next: { revalidate: REVALIDATE_SECONDS },
     })
+    if (!response.ok) {
+      logger.error('GitHub releases lookup failed', {
+        status: response.status,
+        page,
+        channel,
+        releaseRepository,
+      })
+      return null
+    }
+    return (await response.json()) as DesktopReleaseCandidate[]
+  })
+  if ('error' in resolved) {
     return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
   }
-  const releases = (await releasesResponse.json()) as DesktopReleaseCandidate[]
 
-  const release = selectReleaseForChannel(releases, channel)
+  const release = resolved.release
   if (!release) {
     return NextResponse.json(
       { error: `No desktop release for channel ${channel}` },

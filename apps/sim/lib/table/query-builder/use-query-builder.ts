@@ -9,7 +9,6 @@ import {
   type FilterRule,
   LOGICAL_OPERATORS,
   SORT_DIRECTION_OPTIONS,
-  type SortRule,
 } from '@/lib/table/query-builder/constants'
 import type { ColumnOption } from '@/lib/table/types'
 
@@ -77,51 +76,6 @@ export function useFilterBuilder({
   }
 }
 
-/** Manages sort rule state with add/remove/update operations. */
-export function useSortBuilder({
-  columns,
-  sortRule,
-  setSortRule,
-}: UseSortBuilderProps): UseSortBuilderReturn {
-  const addSort = useCallback(() => {
-    setSortRule({
-      id: generateShortId(),
-      column: columns[0]?.value || '',
-      direction: 'asc',
-    })
-  }, [columns, setSortRule])
-
-  const removeSort = useCallback(() => {
-    setSortRule(null)
-  }, [setSortRule])
-
-  const updateSortColumn = useCallback(
-    (column: string) => {
-      if (sortRule) {
-        setSortRule({ ...sortRule, column })
-      }
-    },
-    [sortRule, setSortRule]
-  )
-
-  const updateSortDirection = useCallback(
-    (direction: 'asc' | 'desc') => {
-      if (sortRule) {
-        setSortRule({ ...sortRule, direction })
-      }
-    },
-    [sortRule, setSortRule]
-  )
-
-  return {
-    sortDirectionOptions,
-    addSort,
-    removeSort,
-    updateSortColumn,
-    updateSortDirection,
-  }
-}
-
 export interface UseFilterBuilderProps {
   columns: ColumnOption[]
   rules: FilterRule[]
@@ -137,18 +91,4 @@ export interface UseFilterBuilderReturn {
   removeRule: (id: string) => void
   updateRule: (id: string, field: keyof FilterRule, value: string) => void
   createDefaultRule: () => FilterRule
-}
-
-interface UseSortBuilderProps {
-  columns: ColumnOption[]
-  sortRule: SortRule | null
-  setSortRule: (sort: SortRule | null) => void
-}
-
-interface UseSortBuilderReturn {
-  sortDirectionOptions: ColumnOption[]
-  addSort: () => void
-  removeSort: () => void
-  updateSortColumn: (column: string) => void
-  updateSortDirection: (direction: 'asc' | 'desc') => void
 }

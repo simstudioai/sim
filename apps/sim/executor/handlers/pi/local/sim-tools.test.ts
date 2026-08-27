@@ -71,6 +71,43 @@ describe('buildSimToolSpecs', () => {
     expect(specs[0].name).toMatch(/^[a-zA-Z0-9_-]{1,128}$/)
   })
 
+  it('aliases duplicate instances while executing each with its canonical id and bound params', async () => {
+    mockTransformBlockTool
+      .mockResolvedValueOnce({
+        id: 'gmail_send',
+        name: 'Gmail Send',
+        description: 'Send an email',
+        params: { oauthCredential: 'credential-a' },
+        parameters: { type: 'object', properties: {} },
+      })
+      .mockResolvedValueOnce({
+        id: 'gmail_send',
+        name: 'Gmail Send',
+        description: 'Send an email',
+        params: { oauthCredential: 'credential-b' },
+        parameters: { type: 'object', properties: {} },
+      })
+    mockExecuteTool.mockResolvedValue({ success: true, output: 'sent' })
+
+    const specs = await buildSimToolSpecs(executionContext(undefined), [
+      { type: 'gmail', operation: 'send', usageControl: 'auto' },
+      { type: 'gmail', operation: 'send', usageControl: 'auto' },
+    ])
+
+    expect(specs.map(({ name }) => name)).toEqual(['gmail_send', 'gmail_send__sim_2'])
+
+    await specs[1].execute({ subject: 'Hello' })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'gmail_send',
+      expect.objectContaining({
+        oauthCredential: 'credential-b',
+        subject: 'Hello',
+      }),
+      expect.any(Object)
+    )
+  })
+
   it('skips mcp, custom, and usage-none tools without adapting them', async () => {
     const specs = await buildSimToolSpecs(completeExecutionContext(), [
       { type: 'mcp', usageControl: 'auto' },

@@ -73,6 +73,45 @@ describe('CrowdStrike query route', () => {
     })
   })
 
+  it('surfaces a credential failure with the Falcon status, not a generic 500', async () => {
+    // getAccessToken runs before the operation dispatch, so a Falcon 401 used to
+    // fall through to the catch-all and reach the caller as a 500.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ errors: [{ code: 401, message: 'access denied, invalid bearer token' }] }, 401)
+    )
+
+    const response = await POST(
+      createMockRequest('POST', {
+        clientId: 'client-id',
+        clientSecret: 'wrong-secret',
+        cloud: 'us-1',
+        limit: 1,
+        operation: 'crowdstrike_query_sensors',
+      })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(data).toEqual({ success: false, error: 'access denied, invalid bearer token' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an unusable token response as a bad gateway rather than a 500', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ nothing: true }))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        clientId: 'client-id',
+        clientSecret: 'client-secret',
+        cloud: 'us-1',
+        limit: 1,
+        operation: 'crowdstrike_query_sensors',
+      })
+    )
+
+    expect(response.status).toBe(502)
+  })
+
   it('hydrates sensor details after querying sensor ids', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ access_token: 'token-123' }))
@@ -113,6 +152,7 @@ describe('CrowdStrike query route', () => {
     })
     expect(data.output).toEqual({
       count: 1,
+      errors: [],
       pagination: {
         limit: 1,
         offset: 0,
@@ -153,6 +193,7 @@ describe('CrowdStrike query route', () => {
     })
     expect(data.output).toEqual({
       count: 1,
+      errors: [],
       pagination: null,
       sensors: [normalizedSensor],
     })
@@ -266,6 +307,7 @@ describe('CrowdStrike query route', () => {
         },
       ],
       count: 1,
+      errors: [],
     })
   })
 })

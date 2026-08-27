@@ -1,5 +1,6 @@
 import { ChipTag, cn } from '@sim/emcn'
 import Image from 'next/image'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/access-control-graphic.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 
@@ -123,13 +124,10 @@ export function AccessControlGraphic() {
                 pathLength={1}
                 className={cn(
                   styles.edgeDraw,
-                  edge.emphasized ? styles.edgeDrawEmphasized : EDGE_DRAW_CLASSES[index]
+                  edge.emphasized ? styles.edgeDrawEmphasized : EDGE_DRAW_CLASSES[index],
+                  !edge.emphasized && colorMixFallbacks.mutedStroke35
                 )}
-                stroke={
-                  edge.emphasized
-                    ? 'var(--text-secondary)'
-                    : 'color-mix(in srgb, var(--text-muted) 35%, transparent)'
-                }
+                stroke={edge.emphasized ? 'var(--text-secondary)' : undefined}
                 strokeWidth='1'
               />
             ))}
@@ -155,9 +153,7 @@ export function AccessControlGraphic() {
               <span
                 className={cn(
                   'text-caption',
-                  index === 0
-                    ? 'font-medium text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
+                  index === 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {team.name}

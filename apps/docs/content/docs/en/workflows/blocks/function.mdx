@@ -58,6 +58,25 @@ const apiKey = {{API_KEY}};
 
 Existing quoted and embedded forms are also supported, including `"{{API_KEY}}"`, `"Bearer {{API_KEY}}"`, and placeholders in template literals. Function and Custom Tool code use the same compiler at the execution boundary. It binds the secret separately from the source instead of pasting plaintext into your code, so quotes, backslashes, newlines, and string values such as `"123"` and `"true"` retain their exact contents and do not become JavaScript or Python literals of another type.
 
+### Placeholders are always strings
+
+A placeholder is bound as a value, never parsed as source. That is what keeps a secret from running as code — but it also means `{{KEY}}` always evaluates to a **string**, whatever the value looks like. Convert it when your code needs another type:
+
+```javascript
+const retries = Number({{MAX_RETRIES}});
+const enabled = {{FEATURE_ON}} === 'true';
+const patterns = JSON.parse({{PATTERN_LIST}});
+```
+
+In Python, use `int()`, `== "true"`, and `json.loads()` the same way.
+
+Two cases are easy to miss:
+
+- **Booleans.** A bare `if ({{FEATURE_ON}})` is always true, because the string `"false"` is truthy. Compare against `'true'` instead.
+- **Lists and objects.** Store the value as JSON so you can parse it back. `["^[A-Z]{2}-\\d{4}$", "^\\d{7,15}$"]` becomes an array; a JavaScript array of regex literals does not. It arrives as one long string, and iterating it walks character by character.
+
+[Condition](/workflows/blocks/condition) blocks differ in one way: a number, boolean, or `null` value compares as a literal there, so `{{MAX_RETRIES}} === 3` is true. Every other value is a string, exactly as it is here.
+
 JavaScript regex literals can contain a placeholder:
 
 ```javascript
@@ -260,10 +279,13 @@ packages, and 10 managed CLI tools.
 
 When a Function block is used as an Agent tool, its code can read every workspace
 secret by default — both `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']`.
-Use `{{MY_SECRET}}` when the value may appear in execution logs: a successful
-double-brace substitution activates [execution-trace masking](/platform/credentials#execution-log-protection),
-while direct `environmentVariables['MY_SECRET']` access alone does not activate
-it by itself.
+Prefer `{{MY_SECRET}}` when the value may appear in execution logs. A successful
+double-brace substitution always activates
+[execution-trace masking](/platform/credentials#execution-log-protection). A direct
+`environmentVariables['MY_SECRET']` read activates it too, but only when Sim can
+recognize the read in the code beforehand — a name built at runtime, or a file that
+reassigns `environmentVariables` itself, is not recognized. See
+[the recognition limits](/platform/credentials#execution-log-protection).
 
 To narrow that, set **Secret access** to *Selected secrets* in the block's
 tool configuration and pick the names the code may read. Two things change:

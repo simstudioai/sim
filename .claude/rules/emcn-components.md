@@ -33,6 +33,16 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 - **`ChipTimePicker`** — minute-granular time sibling of `ChipDatePicker`, a `ChipInput` that leniently parses typed input (`9:47`, `947`, `2:05pm`, `14:30`), commits on Enter/blur, and re-renders the canonical `9:47 AM` label.
 - **`DropdownMenu`** — the canonical context/action menu (Radix-backed). Not a chip, but the standard menu for command/action lists; reach for it instead of a hand-rolled popover. Its surface intentionally diverges from the chip pill (`text-small`, `gap-2`) — keep them distinct. For a pill that opens a value picker, use `ChipDropdown`/`ChipSelect` instead.
 
+## Modal keyboard defaults
+
+Declare keyboard intent on the action-owning primitive; never add document-level or per-callsite Enter listeners.
+
+- `ChipModalFooter` defaults to `defaultAction='primary'`. A plain Enter in a canonical single-line field or a custom plain input invokes the enabled primary action. Use `'none'` when submission must require an explicit click, such as an irreversible destructive action or an editor whose nested control owns Enter. Use `'dismiss'` only when dismissal is genuinely the modal's default decision.
+- `ChipConfirmModal` fails safe with `defaultAction='dismiss'`. Opt into `'confirm'` only for an audited, low-impact reversible or non-destructive decision. Deleting an aggregate resource such as a workflow, table, knowledge base, or folder remains `'dismiss'` even when it can be restored, because the action takes a broad dependent graph offline. Use `'none'` for typed confirmations and severe account, ownership, or access changes. Button color never determines keyboard behavior.
+- Textareas, native forms, buttons, links, comboboxes, menus, listboxes, tag/email inputs, IME composition, modified Enter, and disabled or pending actions retain their native behavior. A native form remains the sole submission path so browser validation is not bypassed.
+- A custom field containing a search, token editor, or another input that owns Enter must set `submitOnEnter={false}` on `ChipModalField`. Do not attach a duplicate `onKeyDown` handler merely to call the footer action.
+- Initial focus goes to the first visible editable text control. With no text control, the declared real button receives focus; `'none'` focuses the dialog surface. A safe dismiss default never turns Enter in a text field into data loss—the field simply does not publish a submit action.
+
 ## Authoring principles
 
 - **One source of truth for shared chrome.** Compose from `chip-chrome.ts` / `chipVariants`; never duplicate the chrome string.

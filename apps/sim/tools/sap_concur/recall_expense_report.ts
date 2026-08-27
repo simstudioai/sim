@@ -14,7 +14,7 @@ export const recallExpenseReportTool: ToolConfig<
   id: 'sap_concur_recall_expense_report',
   name: 'SAP Concur Recall Expense Report',
   description:
-    'Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). No request body is required.',
+    'Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). Takes no request body. This operation supports user-level access tokens: set grantType to "password" with username and password, since the default client_credentials grant yields a company-level token.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -27,7 +27,8 @@ export const recallExpenseReportTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'OAuth grant type: client_credentials (default) or password',
+      description:
+        'OAuth grant type: client_credentials (default) or password. Recall requires a user-level access token, so set this to "password" and supply username/password — client_credentials produces a company-level token that Concur rejects for this operation.',
     },
     clientId: {
       type: 'string',
@@ -77,13 +78,6 @@ export const recallExpenseReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Expense report ID to recall',
     },
-    body: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        "Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain.",
-    },
   },
   request: {
     url: SAP_CONCUR_PROXY_URL,
@@ -97,7 +91,6 @@ export const recallExpenseReportTool: ToolConfig<
         ...baseProxyBody(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/recall`,
         method: 'PATCH',
-        body: params.body ?? {},
       }
     },
   },

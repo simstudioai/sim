@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
@@ -52,31 +52,6 @@ const MIN_QUEUE_RETRY_DELAY_MS = 50
  * the typical low-tens contention. Revisit if telemetry shows hot Redis under load.
  */
 const QUEUE_HEAD_POLL_MS = 200
-
-/**
- * Sleep for `ms`, resolving early if `signal` aborts. Cleans up its own timer and listener
- * so neither leaks. Callers don't need to distinguish an early (aborted) return from a normal
- * one — the surrounding wait loop re-checks its budget immediately after and bails when the
- * signal has fired. Falls back to a plain sleep when no signal is provided.
- */
-function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (!signal) return sleep(ms)
-  if (signal.aborted) return Promise.resolve()
-  return new Promise<void>((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timer)
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-    // Catch an abort that fired between the guard above and addEventListener.
-    if (signal.aborted) onAbort()
-  })
-}
 
 /**
  * Resolves env var names for a hosted-key prefix. Numbered pools use a

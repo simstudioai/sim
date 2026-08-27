@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -17,10 +17,16 @@ const POSTS_PER_PAGE = 100
  */
 const MIN_PAGE_SIZE = 5
 /**
- * `edit_history_tweet_ids` is requested explicitly (it is not a default field) so the
- * content hash can key on edit-history length and detect edits.
+ * Requestable post fields. Every value here must appear in the API's field enum —
+ * X rejects the whole request with a 400 for an unrecognized one.
+ *
+ * The edit-history array is deliberately absent: it is NOT an accepted field
+ * value (the enum carries `edit_controls`, never the history array), and it does
+ * not need to be requested because it is one of the three fields a post lookup
+ * returns by default alongside `id` and `text`. `tweetContentHash` therefore
+ * reads it straight off the response.
  */
-const TWEET_FIELDS = 'created_at,public_metrics,text,edit_history_tweet_ids'
+const TWEET_FIELDS = 'created_at,public_metrics,text'
 
 /**
  * Sync mode determines which timeline the connector reads.
@@ -54,7 +60,16 @@ interface XTweet {
   created_at?: string
   author_id?: string
   public_metrics?: XPublicMetrics
+  /**
+   * Default-returned edit-history chain, under two names X has not reconciled:
+   * the prose docs and data dictionary document `edit_history_tweet_ids`, while
+   * the current OpenAPI `Post` schema declares only `edit_history_post_ids`.
+   * Both are read because the two official sources disagree about which one the
+   * wire carries, and reading only one would silently degrade the content hash
+   * to its `created_at` fallback.
+   */
   edit_history_tweet_ids?: string[]
+  edit_history_post_ids?: string[]
 }
 
 interface XUser {
@@ -63,17 +78,31 @@ interface XUser {
   username?: string
 }
 
+/**
+ * A single entry of the X API `errors[]` array (a "Problem" object). X returns
+ * these alongside a 200 `data` payload for partial failures, so they must be
+ * inspected rather than assumed to mean the whole request failed.
+ */
+interface XProblem {
+  detail?: string
+  title?: string
+  type?: string
+  parameter?: string
+  value?: string
+  resource_type?: string
+}
+
 interface XListResponse {
   data?: XTweet[]
   includes?: { users?: XUser[] }
   meta?: { next_token?: string; result_count?: number }
-  errors?: Array<{ detail?: string; title?: string }>
+  errors?: XProblem[]
 }
 
 interface XSingleResponse {
   data?: XTweet
   includes?: { users?: XUser[] }
-  errors?: Array<{ detail?: string; title?: string }>
+  errors?: XProblem[]
 }
 
 /**
@@ -126,6 +155,23 @@ function readTrimmed(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
+ * Normalizes a user-entered timestamp to the second-precision UTC form the X API
+ * documents for `start_time` / `end_time` (`YYYY-MM-DDTHH:mm:ssZ`).
+ *
+ * Users routinely type a bare date (`2024-01-01`) or a local-offset timestamp,
+ * both of which `Date` parses but the X API rejects. Milliseconds are stripped
+ * because the documented format carries none. Returns undefined for blank or
+ * unparseable input so the parameter is simply omitted rather than sent invalid.
+ */
+function toXTimestamp(value: unknown): string | undefined {
+  const raw = readTrimmed(value)
+  if (!raw) return undefined
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return undefined
+  return `${parsed.toISOString().slice(0, 19)}Z`
 }
 
 /**
@@ -202,14 +248,18 @@ async function resolveUsernameId(
  * Builds a deterministic, metadata-based content hash for a tweet.
  *
  * Tweets are immutable outside the brief post-publish edit window; an edit
- * appends a new ID to `edit_history_tweet_ids`. We therefore key the hash on
- * the edit-history length when present (so edits are detected as changes), and
- * fall back to `created_at` when the field is absent.
+ * appends a new ID to the edit-history chain. We therefore key the hash on the
+ * edit-history length when present (so edits are detected as changes), and fall
+ * back to `created_at` when the field is absent. Both the legacy and current
+ * names for the chain are accepted so the hash does not shift if X switches the
+ * wire field name.
+ *
+ * Both `listDocuments` and `getDocument` route through this function and request
+ * the same fields, so a post's hash is identical whichever produced it.
  */
 function tweetContentHash(tweet: XTweet): string {
-  const historyLength = Array.isArray(tweet.edit_history_tweet_ids)
-    ? tweet.edit_history_tweet_ids.length
-    : undefined
+  const history = tweet.edit_history_tweet_ids ?? tweet.edit_history_post_ids
+  const historyLength = Array.isArray(history) ? history.length : undefined
   const changeIndicator = historyLength ?? tweet.created_at ?? ''
   return `x:${tweet.id}:${changeIndicator}`
 }
@@ -259,6 +309,35 @@ function tweetToDocument(tweet: XTweet, author?: XUser): ExternalDocument {
       quoteCount: metrics.quote_count ?? 0,
     },
   }
+}
+
+/**
+ * The one `resource_type` known NOT to cost us a post: a problem about the
+ * `user` resource means only that the `author_id` expansion could not be
+ * hydrated, and the post itself is still present in `data`.
+ */
+const AUTHOR_PROBLEM_RESOURCE_TYPE = 'user'
+
+/**
+ * Counts partial-failure entries that may describe a post X refused to return.
+ *
+ * X answers a listing with HTTP 200 and a populated `data` array while still
+ * reporting per-resource problems in `errors[]` (not-found, unavailable, or
+ * not-authorized resources). Everything that is not an author-expansion problem
+ * is counted, rather than matching one post-side `resource_type` literal: X's
+ * OpenAPI declared a closed enum for that field through spec 2.61 and had
+ * dropped it by 2.167, so the post-side spelling is no longer constrained by the
+ * contract and may follow the Tweet→Post rename at any time. Matching a literal
+ * would then silently start counting zero — the exact failure this guards.
+ *
+ * The asymmetry is deliberate: over-counting suppresses deletion reconciliation
+ * for one sync (and a forced full sync overrides it), while under-counting lets
+ * the engine hard-delete a document for a post that still exists and merely
+ * could not be served on this page.
+ */
+function omittedPostCount(errors: XProblem[] | undefined): number {
+  if (!errors?.length) return 0
+  return errors.filter((problem) => problem.resource_type !== AUTHOR_PROBLEM_RESOURCE_TYPE).length
 }
 
 /**
@@ -319,8 +398,8 @@ function buildListParams(
   }
 
   if (DATE_RANGE_CAPABLE_MODES.has(mode)) {
-    const startTime = readTrimmed(sourceConfig.startTime)
-    const endTime = readTrimmed(sourceConfig.endTime)
+    const startTime = toXTimestamp(sourceConfig.startTime)
+    const endTime = toXTimestamp(sourceConfig.endTime)
     if (startTime) params.start_time = startTime
     if (endTime) params.end_time = endTime
   }
@@ -358,9 +437,11 @@ export const xConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    // For the multi-username "user" mode, walk one username per cursor cycle. The
-    // cursor packs the username index and that user's pagination token; the shared
-    // cap is enforced across all users via syncContext.collected.
+    /**
+     * For the multi-username "user" mode, walk one username per cursor cycle.
+     * The cursor packs the username index and that user's pagination token; the
+     * shared cap is enforced across all users via `syncContext.collected`.
+     */
     const usernames = mode === 'user' ? parseUsernames(sourceConfig.username) : []
     if (mode === 'user' && usernames.length === 0) {
       throw new Error('Username is required when Sync Mode is "Another user"')
@@ -377,11 +458,23 @@ export const xConnector: ConnectorConfig = {
       }
     }
 
-    // Resolve the target user ID. For `user` mode it depends on the current index
-    // (resolved per page, cheap); for self-modes it is cached on syncContext.
+    /**
+     * Resolve the target user ID. Both branches cache on syncContext so a
+     * multi-page run performs at most one lookup per distinct account.
+     */
     let userId: string
     if (mode === 'user') {
-      userId = await resolveUsernameId(accessToken, usernames[userIndex])
+      /**
+       * Cache handle → id for the whole run. X's user-lookup endpoint has a far
+       * tighter rate limit than the timeline endpoints, and without this cache a
+       * multi-page sync spends one lookup per page on the same handle.
+       */
+      const handle = usernames[userIndex]
+      const idsByHandle = (syncContext?.userIdsByHandle as Record<string, string> | undefined) ?? {}
+      userId = idsByHandle[handle] ?? (await resolveUsernameId(accessToken, handle))
+      if (syncContext) {
+        syncContext.userIdsByHandle = { ...idsByHandle, [handle]: userId }
+      }
     } else {
       userId = (syncContext?.userId as string | undefined) ?? (await resolveMyUserId(accessToken))
       if (syncContext) syncContext.userId = userId
@@ -399,9 +492,28 @@ export const xConnector: ConnectorConfig = {
       throw new Error(response.errors[0]?.detail || response.errors[0]?.title || 'X API error')
     }
 
+    /**
+     * X reports per-resource failures in `errors[]` on an otherwise successful
+     * 200. A `tweet` problem means a still-existing post was withheld from this
+     * page, so the listing no longer represents the full source and deletion
+     * reconciliation would hard-delete a document that is merely unavailable
+     * right now.
+     */
+    const omittedPosts = omittedPostCount(response.errors)
+    if (response.errors?.length) {
+      logger.warn('X returned partial errors alongside listing data', {
+        mode,
+        userId,
+        omittedPosts,
+        errors: response.errors.map((problem) => problem.title ?? problem.detail ?? problem.type),
+      })
+    }
+    if (omittedPosts > 0 && syncContext) syncContext.listingCapped = true
+
     let documents = mapTweets(response)
 
-    if (maxPosts > 0 && collectedSoFar + documents.length > maxPosts) {
+    const slicedByCap = maxPosts > 0 && collectedSoFar + documents.length > maxPosts
+    if (slicedByCap) {
       documents = documents.slice(0, maxPosts - collectedSoFar)
     }
     const newCollected = collectedSoFar + documents.length
@@ -409,16 +521,23 @@ export const xConnector: ConnectorConfig = {
 
     const capReached = maxPosts > 0 && newCollected >= maxPosts
     const nextToken = response.meta?.next_token
+    const moreUsernames = mode === 'user' && userIndex + 1 < usernames.length
 
-    // Advance pagination: continue the current user's pages, else move to the next
-    // username (user mode), else stop.
+    /**
+     * Advance pagination: continue the current user's pages, else move to the
+     * next username (user mode), else stop.
+     */
     if (capReached) {
-      // We stopped before exhausting the source, so the listing is incomplete:
-      // older previously-synced posts may still exist beyond the `maxPosts` cap.
-      // Flag the sync as capped so the engine skips deletion reconciliation and
-      // does not soft-delete posts that simply fell outside this run's window.
-      // A forced full sync bypasses this guard and reconciles normally.
-      if (syncContext) syncContext.listingCapped = true
+      /**
+       * Only flag the run as capped when posts actually remain unlisted — a page
+       * trimmed by the cap, a further page token, or another configured account.
+       * When the cap merely coincides with source exhaustion the listing IS
+       * complete, and flagging it would permanently suppress deletion
+       * reconciliation so posts removed at the source were never cleaned up.
+       */
+      if (syncContext && (slicedByCap || nextToken || moreUsernames)) {
+        syncContext.listingCapped = true
+      }
       return { documents, hasMore: false }
     }
 
@@ -445,25 +564,23 @@ export const xConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      const response = (await xApiGet(`/tweets/${encodeURIComponent(externalId)}`, accessToken, {
-        'tweet.fields': TWEET_FIELDS,
-        expansions: 'author_id',
-        'user.fields': 'name,username',
-      })) as XSingleResponse
+    const response = (await xApiGet(`/tweets/${encodeURIComponent(externalId)}`, accessToken, {
+      'tweet.fields': TWEET_FIELDS,
+      expansions: 'author_id',
+      'user.fields': 'name,username',
+    })) as XSingleResponse
 
-      const tweet = response.data
-      if (!tweet) return null
+    /**
+     * X answers a deleted or newly-protected post with HTTP 200, an absent `data`,
+     * and an `errors` entry — that is the only absence. Transport, auth, and
+     * rate-limit failures throw out of `xApiGet` so the sync engine records a
+     * visible failed document instead of dropping the post with no counter.
+     */
+    const tweet = response.data
+    if (!tweet) return null
 
-      const author = response.includes?.users?.find((u) => u.id === tweet.author_id)
-      return tweetToDocument(tweet, author)
-    } catch (error) {
-      logger.warn('Failed to get X tweet document', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
-    }
+    const author = response.includes?.users?.find((u) => u.id === tweet.author_id)
+    return tweetToDocument(tweet, author)
   },
 
   validateConfig: async (

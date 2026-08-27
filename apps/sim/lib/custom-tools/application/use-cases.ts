@@ -11,7 +11,10 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { customToolDelegationPolicy } from '@/lib/custom-tools/application/authorization'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
-import { assertStorableCustomToolSchema } from '@/lib/custom-tools/schema'
+import {
+  assertStorableCustomToolSchema,
+  assertValidCustomToolDeclaration,
+} from '@/lib/custom-tools/schema'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import {
   type CustomToolSortBy,
@@ -271,6 +274,7 @@ export const updateWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase
      * write makes that error true.
      */
     assertStorableCustomToolSchema(schema)
+    if (input.schema !== undefined) assertValidCustomToolDeclaration(input.schema)
     try {
       const tool = await updateWorkspaceCustomTool({
         workspaceId: context.workspaceId,
@@ -319,7 +323,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
      * schema still succeeds, while a caller-supplied one is held to the shape
      * the public API has to publish.
      */
-    if (input.schema !== undefined) assertStorableCustomToolSchema(input.schema)
+    if (input.schema !== undefined) assertValidCustomToolDeclaration(input.schema)
     try {
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,

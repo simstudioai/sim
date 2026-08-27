@@ -278,34 +278,6 @@ function findDbDescendants(containerId: string, allBlocks: DbBlockRef[]): string
   return descendants
 }
 
-/**
- * Shared function to handle auto-connect edge insertion
- * @param tx - Database transaction
- * @param workflowId - The workflow ID
- * @param autoConnectEdge - The auto-connect edge data
- * @param logger - Logger instance
- */
-async function insertAutoConnectEdge(
-  tx: any,
-  workflowId: string,
-  autoConnectEdge: any,
-  logger: any
-) {
-  if (!autoConnectEdge) return
-
-  await tx.insert(workflowEdges).values({
-    id: autoConnectEdge.id,
-    workflowId,
-    sourceBlockId: autoConnectEdge.source,
-    targetBlockId: autoConnectEdge.target,
-    sourceHandle: normalizeWorkflowEdgeSourceHandle(autoConnectEdge.sourceHandle),
-    targetHandle: normalizeWorkflowEdgeTargetHandle(autoConnectEdge.targetHandle),
-  })
-  logger.debug(
-    `Added auto-connect edge ${autoConnectEdge.id}: ${autoConnectEdge.source} -> ${autoConnectEdge.target}`
-  )
-}
-
 enum SubflowType {
   LOOP = 'loop',
   PARALLEL = 'parallel',

@@ -238,13 +238,6 @@ export function getExecutionDeadlineAt(signal?: AbortSignal): Date | undefined {
   return deadline === undefined ? undefined : new Date(deadline)
 }
 
-/** Copies a known execution deadline onto a derived signal. */
-export function preserveExecutionDeadline(source: AbortSignal, target: AbortSignal): AbortSignal {
-  const deadline = signalDeadlines.get(source)
-  if (deadline !== undefined) signalDeadlines.set(target, deadline)
-  return target
-}
-
 /** Combines cancellation sources and carries their earliest known execution deadline. */
 export function combineExecutionAbortSignals(signals: readonly AbortSignal[]): AbortSignal {
   if (signals.length === 0) return new AbortController().signal

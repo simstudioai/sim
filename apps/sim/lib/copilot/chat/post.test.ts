@@ -384,7 +384,8 @@ describe('handleUnifiedChatPost', () => {
       'user-1',
       'Hello',
       'ws-1',
-      expect.anything()
+      expect.anything(),
+      expect.any(ResolvedSecretTraceRegistry)
     )
   })
 
@@ -448,7 +449,8 @@ describe('handleUnifiedChatPost', () => {
       'user-1',
       'Explain these selections',
       'ws-1',
-      'chat-1'
+      'chat-1',
+      expect.any(ResolvedSecretTraceRegistry)
     )
   })
 

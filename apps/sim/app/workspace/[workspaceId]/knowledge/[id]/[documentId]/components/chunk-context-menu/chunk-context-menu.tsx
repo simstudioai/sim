@@ -8,6 +8,10 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@sim/emcn/icons'
+import {
+  selectionActionLabel,
+  selectionToggleActionLabel,
+} from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -26,14 +30,14 @@ interface ChunkContextMenuProps {
   disableAddChunk?: boolean
   disableEdit?: boolean
   isConnectorDocument?: boolean
-  selectedCount?: number
+  selectedCount: number
   enabledCount?: number
   disabledCount?: number
 }
 
 /**
  * Context menu for chunks table.
- * Shows chunk actions when right-clicking a row, or "Create chunk" when right-clicking empty space.
+ * Shows chunk actions when right-clicking a row, or "New chunk" when right-clicking empty space.
  * Supports batch operations when multiple chunks are selected.
  */
 export function ChunkContextMenu({
@@ -53,24 +57,23 @@ export function ChunkContextMenu({
   disableAddChunk = false,
   disableEdit = false,
   isConnectorDocument = false,
-  selectedCount = 1,
+  selectedCount,
   enabledCount = 0,
   disabledCount = 0,
 }: ChunkContextMenuProps) {
   const isMultiSelect = selectedCount > 1
-
-  const getToggleLabel = () => {
-    if (isMultiSelect) {
-      if (disabledCount > 0) return 'Enable'
-      return 'Disable'
-    }
-    return isChunkEnabled ? 'Disable' : 'Enable'
-  }
+  const toggleLabel = selectionToggleActionLabel({
+    selectedCount,
+    enabledCount,
+    disabledCount,
+    isSelectedItemEnabled: isChunkEnabled,
+  })
 
   const hasNavigationSection = !isMultiSelect && !!onOpenInNewTab
   const hasEditSection = !isMultiSelect && (!!onEdit || !!onCopyContent)
   const hasStateSection = !!onToggleEnabled
   const hasDestructiveSection = !!onDelete
+  const hasActionsAboveDestructive = hasNavigationSection || hasEditSection || hasStateSection
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -102,11 +105,6 @@ export function ChunkContextMenu({
                 Open in new tab
               </DropdownMenuItem>
             )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
             {!isMultiSelect && onEdit && (
               <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
                 <Pencil />
@@ -119,22 +117,18 @@ export function ChunkContextMenu({
                 Copy content
               </DropdownMenuItem>
             )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
             {onToggleEnabled && (
               <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
                 <Eye />
-                {getToggleLabel()}
+                {toggleLabel}
               </DropdownMenuItem>
             )}
 
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
+            {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
             {onDelete && (
               <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
                 <Trash />
-                Delete
+                {selectionActionLabel('Delete', selectedCount)}
               </DropdownMenuItem>
             )}
           </>
@@ -142,7 +136,7 @@ export function ChunkContextMenu({
           onAddChunk && (
             <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
               <Plus />
-              Create chunk
+              New chunk
             </DropdownMenuItem>
           )
         )}

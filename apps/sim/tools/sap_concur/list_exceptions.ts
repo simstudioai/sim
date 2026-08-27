@@ -1,6 +1,7 @@
 import type { ListExceptionsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
 import {
   baseProxyBody,
+  buildListQuery,
   SAP_CONCUR_PROXY_URL,
   transformSapConcurProxyResponse,
   trimRequired,
@@ -74,6 +75,13 @@ export const listExceptionsTool: ToolConfig<ListExceptionsParams, SapConcurProxy
       visibility: 'user-or-llm',
       description: 'Expense report ID',
     },
+    excludeExpenses: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Return only exceptions for the report header, excluding expense-level and allocation-level exceptions (default false)',
+    },
   },
   request: {
     url: SAP_CONCUR_PROXY_URL,
@@ -87,6 +95,7 @@ export const listExceptionsTool: ToolConfig<ListExceptionsParams, SapConcurProxy
         ...baseProxyBody(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/context/${encodeURIComponent(contextType)}/reports/${encodeURIComponent(reportId)}/exceptions`,
         method: 'GET',
+        query: buildListQuery({ excludeExpenses: params.excludeExpenses }),
       }
     },
   },

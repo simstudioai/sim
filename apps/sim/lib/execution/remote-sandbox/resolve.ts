@@ -573,6 +573,7 @@ export async function provisionRuntimeDependencies(
       maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
       signal,
       rootUser: true,
+      atMostOnce: true,
       ...(commandOptions?.envs ? { envs: commandOptions.envs } : {}),
     })
     if (signal?.aborted) {

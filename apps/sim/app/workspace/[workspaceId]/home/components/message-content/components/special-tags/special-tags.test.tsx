@@ -14,9 +14,11 @@ const {
   mockSendBrowserPanelAction,
   mockUpsertWorkspaceEnvironment,
   mockUseUserPermissionsContext,
+  mockUpdateWorkspaceCredential,
   mockUseWorkspaceCredential,
   mockUseWorkspaceCredentials,
 } = vi.hoisted(() => ({
+  mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
   mockRefetchWorkspaceCredentials: vi.fn(async () => ({ data: [] })),
   mockIsBrowserAgentAvailable: vi.fn(() => false),
@@ -37,6 +39,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/hooks/queries/credentials', () => ({
+  useUpdateWorkspaceCredential: () => ({ mutateAsync: mockUpdateWorkspaceCredential }),
   useWorkspaceCredential: mockUseWorkspaceCredential,
   useWorkspaceCredentials: mockUseWorkspaceCredentials,
 }))
@@ -1144,6 +1147,86 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('attaches an agent-authored description after the secret value is saved', async () => {
+    mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+    mockRefetchWorkspaceCredentials.mockResolvedValueOnce({
+      data: [{ id: 'cred-1', envKey: 'WORKSPACE_KEY' }],
+    })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const data: CredentialItemData[] = [
+      {
+        type: 'secret_input',
+        name: 'WORKSPACE_KEY',
+        scope: 'workspace',
+        description: '  Stripe live key for billing  ',
+      },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} onOptionSelect={vi.fn()} />)
+    })
+
+    const input = container.querySelector('input')
+    act(() => {
+      if (!input) return
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      valueSetter?.call(input, 'sk-live-123')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submitButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    await act(async () => submitButton?.click())
+
+    expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      variables: { WORKSPACE_KEY: 'sk-live-123' },
+    })
+    // The description rides the credential row the value save just created, so
+    // the trimmed note lands without the user ever seeing the field.
+    expect(mockUpdateWorkspaceCredential).toHaveBeenCalledWith({
+      credentialId: 'cred-1',
+      description: 'Stripe live key for billing',
+    })
+    act(() => root.unmount())
+  })
+
+  it('leaves a personal secret undescribed', async () => {
+    mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal', description: 'my key' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} onOptionSelect={vi.fn()} />)
+    })
+
+    const input = container.querySelector('input')
+    act(() => {
+      if (!input) return
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      valueSetter?.call(input, 'personal-secret')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submitButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    await act(async () => submitButton?.click())
+
+    expect(mockSavePersonalEnvironment).toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCredential).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
   it('renders one status recap from a transcript submission', () => {
     const container = document.createElement('div')
     const root: Root = createRoot(container)
@@ -1225,7 +1308,7 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
-  it('leaves a sim_key-only card alone when the turn moves on', () => {
+  it('renders a sim_key as a standalone reveal, not a card, even when the turn moves on', () => {
     const container = document.createElement('div')
     const root: Root = createRoot(container)
     const data: CredentialItemData[] = [{ type: 'sim_key', name: 'Sim API key', value: 'sim-key' }]
@@ -1234,8 +1317,39 @@ describe('CredentialDisplay link tag', () => {
       root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
     })
 
-    expect(container.textContent).toContain('API key')
+    // The generated key is an output: the reveal chip shows the value with no
+    // question-style card chrome around it and no recap when abandoned.
+    expect(container.textContent).toContain('sim-key')
+    expect(container.textContent).not.toContain('API key')
     expect(container.textContent).not.toContain('Skipped')
+    act(() => root.unmount())
+  })
+
+  it('keeps the sim_key reveal outside a mixed card and out of its recap', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'sim_key', name: 'Sim API key', value: 'sim-key' },
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(
+        <SpecialTags
+          segment={{ type: 'credential', data }}
+          credentialSubmission={{
+            integrations: [],
+            secrets: [{ name: 'ABC_API_KEY', status: 'saved' }],
+          }}
+        />
+      )
+    })
+
+    // After Submit the input row collapses to the recap, but the generated key
+    // stays retrievable in its reveal chip and never reads as "Added".
+    expect(container.textContent).toContain('sim-key')
+    expect(container.textContent).toContain('ABC_API_KEYAdded')
+    expect(container.textContent).not.toContain('Sim API key')
     act(() => root.unmount())
   })
 
@@ -1327,6 +1441,51 @@ describe('parseSpecialTags sim_key placeholder', () => {
     if (credential?.type === 'credential') {
       expect(credential.data[0].type).toBe('sim_key')
       expect(credential.data[0].value).toBeUndefined()
+    }
+  })
+})
+
+describe('recoverTrailingBareOptions', () => {
+  const bareOptions =
+    '{"1": {"title": "Fix the tracker", "description": "debug"}, "2": {"title": "Inspect the miss", "description": "look"}}'
+
+  it('renders a trailing bare-JSON options payload as an options card', () => {
+    const { segments } = parseSpecialTags(`Here they are.\n${bareOptions}`, false)
+    const last = segments[segments.length - 1]
+    expect(last.type).toBe('options')
+    if (last.type === 'options') {
+      expect(last.data['1']?.title).toBe('Fix the tracker')
+    }
+    expect(segments[0]).toEqual({ type: 'text', content: 'Here they are.' })
+  })
+
+  it('never recovers mid-stream — a partial JSON tail must not flicker into a card', () => {
+    const { segments } = parseSpecialTags(`Here they are.\n${bareOptions}`, true)
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
+  it('leaves ordinary JSON prose alone', () => {
+    const { segments } = parseSpecialTags('The config is {"retries": 3, "mode": "fast"}', false)
+    expect(segments.every((segment) => segment.type === 'text')).toBe(true)
+  })
+
+  it('does not double-render when a real options tag already parsed', () => {
+    const { segments } = parseSpecialTags(`Pick one <options>${bareOptions}</options>`, false)
+    expect(segments.filter((segment) => segment.type === 'options')).toHaveLength(1)
+  })
+
+  it('recovers an options payload wrapped in the singular <option> near-miss tag', () => {
+    const body =
+      '{"1": {"title": "Demo wait — sleep until an agent finishes", "description": "wait_agents demo"}, "2": {"title": "Demo steer — redirect a running agent mid-task", "description": "steer_agent demo"}, "3": {"title": "Demo stop — interrupt a running agent", "description": "interrupt_agent demo"}}'
+    const { segments } = parseSpecialTags(
+      `Next up is usually **wait**, **steer**, or **stop**.\n\n<option>${body}</option>`,
+      false
+    )
+    const last = segments[segments.length - 1]
+    expect(last.type).toBe('options')
+    if (last.type === 'options') {
+      expect(Object.keys(last.data)).toEqual(['1', '2', '3'])
+      expect(last.data['1']?.title).toBe('Demo wait — sleep until an agent finishes')
     }
   })
 })

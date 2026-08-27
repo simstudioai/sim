@@ -68,7 +68,7 @@ export const listReportCommentsTool: ToolConfig<ListReportCommentsParams, SapCon
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Access context: TRAVELER or PROXY',
+        description: 'Access context: TRAVELER, MANAGER, or PROXY',
       },
       reportId: {
         type: 'string',
@@ -113,7 +113,11 @@ export const listReportCommentsTool: ToolConfig<ListReportCommentsParams, SapCon
               type: 'string',
               description: 'Comment creation timestamp (ISO 8601)',
             },
-            expenseId: { type: 'string', description: 'Related expense entry ID' },
+            expenseId: {
+              type: 'string',
+              description: 'Related expense entry ID (null for report header comments)',
+              optional: true,
+            },
             isAuditorComment: {
               type: 'boolean',
               description: 'Whether the comment was added by an auditor',

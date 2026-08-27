@@ -18,6 +18,7 @@ import {
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
@@ -64,9 +65,6 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     params: GenerateImageArgs,
     context?: ServerToolContext
   ): Promise<GenerateImageResult> {
-    const withMessageId = (message: string) =>
-      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
-
     if (!context?.userId) {
       throw new Error('Authentication required')
     }
@@ -188,6 +186,16 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
+      // Reference images were asserted opaque-egress-safe above, so the prompt
+      // is the only secret-bearing input this file can inherit. Recording its
+      // provenance is what keeps the written file readable by the model later:
+      // a write without a sidecar stamps the file "unknown" and every
+      // content-view read of it is refused.
+      const promptProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+        context.resolvedSecretTraceRegistry,
+        prompt,
+        { userId: context.userId, workspaceId }
+      )
       const written = await writeCopilotWorkspaceFileByPath(context, {
         workspaceId,
         target: {
@@ -197,6 +205,9 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         },
         buffer: imageBuffer,
         inferredMimeType: mimeType,
+        secretProvenance: promptProvenance.safe
+          ? promptProvenance.provenance
+          : { status: 'unknown' },
       })
 
       logger.info('Generated image saved', {

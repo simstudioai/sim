@@ -1,4 +1,4 @@
-import { GONG_JWT_PUBLIC_KEY_CONFIG_KEY } from '@/lib/webhooks/providers/gong'
+import { GONG_JWT_PUBLIC_KEY_CONFIG_KEY } from '@/lib/webhooks/providers/gong-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 

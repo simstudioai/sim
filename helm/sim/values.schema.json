@@ -212,6 +212,10 @@
               "type": "string",
               "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
             },
+            "SMTP_EHLO_NAME": {
+              "type": "string",
+              "description": "Hostname sent in the SMTP EHLO greeting. Defaults to the domain the app is served from; set only when the relay expects a different identity."
+            },
             "GMAIL_CREDENTIALS_JSON": {
               "type": "string",
               "description": "Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider."

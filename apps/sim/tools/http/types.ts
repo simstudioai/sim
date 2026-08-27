@@ -3,7 +3,7 @@ import type { HttpMethod, TableRow, ToolResponse } from '@/tools/types'
 export interface RequestParams {
   url: string
   method?: HttpMethod
-  headers?: TableRow[] | string
+  headers?: TableRow[] | Record<string, unknown> | string
   body?: unknown
   params?: TableRow[] | string
   pathParams?: Record<string, string>
@@ -14,6 +14,8 @@ export interface RequestParams {
   retryDelayMs?: number
   retryMaxDelayMs?: number
   retryNonIdempotent?: boolean
+  redirectPolicyVersion?: string
+  sendCredentialsOnCrossOriginRedirect?: boolean
 }
 
 export interface RequestResponse extends ToolResponse {

@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
@@ -80,6 +81,9 @@ async function uploadFilesToSlack(
   const userFiles = processFilesToUserFiles(files, requestId, logger)
   const uploadedFileIds: string[] = []
   const uploadedFiles: ToolFileData[] = []
+  // One share can carry several files, so the ceiling spans the set: each file may
+  // only use what its predecessors left.
+  let remainingBytes = MAX_BUFFERED_TRANSFER_BYTES
 
   for (const userFile of userFiles) {
     logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
@@ -92,8 +96,10 @@ async function uploadFilesToSlack(
     const { buffer, contentType } = await downloadServableFileFromStorage(
       userFile,
       requestId,
-      logger
+      logger,
+      { maxBytes: remainingBytes }
     )
+    remainingBytes -= buffer.length
 
     const getUrlResponse = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',

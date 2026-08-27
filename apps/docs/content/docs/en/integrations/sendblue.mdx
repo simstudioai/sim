@@ -50,6 +50,8 @@ Send an iMessage or SMS to a single recipient via Sendblue.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
+| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 | `number` | string | Yes | Recipient phone number in E.164 format \(e.g., +19998887777\) |
 | `from_number` | string | Yes | One of your registered Sendblue phone numbers to send from, in E.164 format \(e.g., +18887776666\) |
 | `content` | string | No | Message text content. Either content or media_url must be provided. |
@@ -86,6 +88,8 @@ Send an iMessage or SMS to a group of recipients via Sendblue.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
+| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 | `numbers` | array | No | Recipient phone numbers in E.164 format \(e.g., \["+19998887777", "+13334445555"\]\). Optional when sending to an existing group via group_id. |
 | `from_number` | string | Yes | One of your registered Sendblue phone numbers to send from, in E.164 format \(e.g., +18887776666\) |
 | `content` | string | No | Message text content. Either content or media_url must be provided. |
@@ -125,6 +129,8 @@ Check whether a phone number can receive iMessage or only SMS.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
+| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 | `number` | string | Yes | Phone number to evaluate, in E.164 format \(e.g., +19998887777\) |
 
 #### Output
@@ -142,6 +148,8 @@ Display a typing indicator to a recipient (not supported in group chats).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
+| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 | `number` | string | Yes | Recipient's phone number in E.164 format \(e.g., +19998887777\) |
 | `from_number` | string | No | Your Sendblue line number to send from, in E.164 format. |
 | `state` | string | No | "start" \(default\) shows the indicator; "stop" ends an active indicator before max_duration_ms expires. |
@@ -164,6 +172,8 @@ Retrieve a single message and its current status by message handle/ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKeyId` | string | Yes | Sendblue API Key ID \(sb-api-key-id\) |
+| `apiSecretKey` | string | Yes | Sendblue API Secret Key \(sb-api-secret-key\) |
 | `message_id` | string | Yes | The message handle/ID returned when the message was sent. |
 
 #### Output

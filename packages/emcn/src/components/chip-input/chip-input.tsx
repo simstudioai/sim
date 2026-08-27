@@ -92,7 +92,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         type={type}
         disabled={disabled}
         className={cn(
-          'h-full w-full bg-transparent disabled:cursor-not-allowed',
+          '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
           chipFieldTextClass,
           inputClassName
         )}

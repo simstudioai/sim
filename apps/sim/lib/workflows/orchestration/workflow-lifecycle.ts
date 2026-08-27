@@ -5,20 +5,21 @@ import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
 import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, min, ne } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
 
 /** Partial unique index on `(workspace_id, coalesce(folder_id, ''), name) WHERE archived_at IS NULL`. */
 const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique'
+const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
 export interface PerformCreateWorkflowParams {
   userId: string
@@ -126,51 +127,6 @@ export interface PerformRestoreWorkflowResult {
   workflow?: Awaited<ReturnType<typeof restoreWorkflow>>['workflow']
 }
 
-async function nextWorkflowSortOrder(
-  workspaceId: string,
-  folderId: string | null | undefined
-): Promise<number> {
-  const workflowParentCondition = folderId
-    ? eq(workflow.folderId, folderId)
-    : isNull(workflow.folderId)
-  const folderParentCondition = folderId
-    ? eq(folderTable.parentId, folderId)
-    : isNull(folderTable.parentId)
-
-  const [[workflowMinResult], [folderMinResult]] = await Promise.all([
-    db
-      .select({ minOrder: min(workflow.sortOrder) })
-      .from(workflow)
-      .where(
-        and(
-          eq(workflow.workspaceId, workspaceId),
-          workflowParentCondition,
-          isNull(workflow.archivedAt)
-        )
-      ),
-    db
-      .select({ minOrder: min(folderTable.sortOrder) })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, workspaceId),
-          eq(folderTable.resourceType, 'workflow'),
-          folderParentCondition
-        )
-      ),
-  ])
-
-  const minSortOrder = [workflowMinResult?.minOrder, folderMinResult?.minOrder].reduce<
-    number | null
-  >((currentMin, candidate) => {
-    if (candidate == null) return currentMin
-    if (currentMin == null) return candidate
-    return Math.min(currentMin, candidate)
-  }, null)
-
-  return minSortOrder != null ? minSortOrder - 1 : 0
-}
-
 async function workflowNameExistsInFolder(params: {
   workspaceId: string
   name: string
@@ -235,9 +191,7 @@ export async function performCreateWorkflowTransition(
     return { success: false, error: 'Target folder not found', errorCode: 'validation' }
   }
 
-  const name = params.deduplicate
-    ? await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
-    : params.name
+  let name = params.name
 
   if (!params.deduplicate) {
     const duplicate = await workflowNameExistsInFolder({
@@ -261,51 +215,61 @@ export async function performCreateWorkflowTransition(
   const now = new Date()
   const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(workflow).values({
-        id: workflowId,
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        folderId,
-        sortOrder,
-        name,
-        description: params.description,
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        runCount: 0,
-        variables: {},
-      })
-
-      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-    })
-  } catch (error) {
-    /**
-     * The name pre-check above is a `SELECT`, so two concurrent creates of the same
-     * name both pass it and the loser is rejected by
-     * {@link WORKFLOW_NAME_UNIQUE_INDEX} as a raw Postgres `23505`. Reported as the
-     * conflict the pre-check already raises, so a caller sees one answer whether it
-     * lost the race or simply arrived second.
-     *
-     * Matched on the constraint name, not on the code alone. This transaction also
-     * runs `saveWorkflowToNormalizedTables`, whose inserts can raise `23505` from
-     * `workflow_blocks_pkey` — a globally unique block id colliding across
-     * workflows, an integrity fault this repository has already hit in production.
-     * A code-only match reported that as a name conflict and hid it.
-     */
-    if (
-      getPostgresErrorCode(error) === '23505' &&
-      getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
-    ) {
-      return {
-        success: false,
-        error: `A workflow named "${name}" already exists in this folder`,
-        errorCode: 'conflict',
-      }
+  const maxAttempts = params.deduplicate ? WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS : 1
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (params.deduplicate) {
+      name = await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
     }
-    throw error
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx.insert(workflow).values({
+          id: workflowId,
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          folderId,
+          sortOrder,
+          name,
+          description: params.description,
+          lastSynced: now,
+          createdAt: now,
+          updatedAt: now,
+          isDeployed: false,
+          runCount: 0,
+          variables: {},
+        })
+
+        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      })
+      break
+    } catch (error) {
+      /**
+       * Name selection is a `SELECT`, so a concurrent create can claim the candidate
+       * before this transaction inserts it. Deduplicated creates retry against the
+       * newly committed names; exact-name creates keep returning the conflict the
+       * pre-check reports. Matching the constraint avoids relabeling a `23505` from
+       * normalized workflow tables as a name collision.
+       */
+      const isNameConflict =
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
+      if (!isNameConflict) {
+        throw error
+      }
+
+      if (!params.deduplicate || attempt === maxAttempts - 1) {
+        return {
+          success: false,
+          error: `A workflow named "${name}" already exists in this folder`,
+          errorCode: 'conflict',
+        }
+      }
+
+      logger.warn(`[${requestId}] Workflow name was claimed during creation; retrying`, {
+        name,
+        attempt: attempt + 1,
+      })
+    }
   }
 
   logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)
@@ -432,78 +396,6 @@ export async function updateWorkflowRecord(
   })
 
   return { success: true, workflow: updatedWorkflow }
-}
-
-export async function performUpdateWorkflow(
-  params: PerformUpdateWorkflowParams
-): Promise<PerformUpdateWorkflowResult> {
-  const requestId = params.requestId ?? generateRequestId()
-
-  try {
-    const result = await updateWorkflowRecord({ ...params, requestId })
-    const updatedWorkflow = result.workflow
-    if (!result.success || !updatedWorkflow) return result
-
-    if (params.locked !== undefined && params.locked !== (params.currentLocked ?? false)) {
-      const workspaceId = updatedWorkflow.workspaceId
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: params.userId,
-        action: params.locked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
-        resourceType: AuditResourceType.WORKFLOW,
-        resourceId: params.workflowId,
-        resourceName: updatedWorkflow.name,
-        description: `${params.locked ? 'Locked' : 'Unlocked'} workflow "${updatedWorkflow.name}"`,
-        metadata: { locked: params.locked },
-      })
-
-      captureServerEvent(
-        params.userId,
-        'workflow_lock_toggled',
-        {
-          workflow_id: params.workflowId,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          locked: params.locked,
-        },
-        workspaceId ? { groups: { workspace: workspaceId } } : undefined
-      )
-    }
-
-    if (
-      params.forkSyncExcluded !== undefined &&
-      params.forkSyncExcluded !== (params.currentForkSyncExcluded ?? false)
-    ) {
-      const workspaceId = updatedWorkflow.workspaceId
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: params.userId,
-        action: params.forkSyncExcluded
-          ? AuditAction.WORKFLOW_FORK_SYNC_EXCLUDED
-          : AuditAction.WORKFLOW_FORK_SYNC_INCLUDED,
-        resourceType: AuditResourceType.WORKFLOW,
-        resourceId: params.workflowId,
-        resourceName: updatedWorkflow.name,
-        description: `${params.forkSyncExcluded ? 'Excluded' : 'Included'} workflow "${updatedWorkflow.name}" ${params.forkSyncExcluded ? 'from' : 'in'} fork sync`,
-        metadata: { forkSyncExcluded: params.forkSyncExcluded },
-      })
-
-      captureServerEvent(
-        params.userId,
-        'workflow_fork_sync_exclusion_toggled',
-        {
-          workflow_id: params.workflowId,
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          fork_sync_excluded: params.forkSyncExcluded,
-        },
-        workspaceId ? { groups: { workspace: workspaceId } } : undefined
-      )
-    }
-
-    return result
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to update workflow ${params.workflowId}`, { error })
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
-  }
 }
 
 export async function deleteWorkflowRecord(

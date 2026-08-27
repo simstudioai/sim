@@ -1,7 +1,7 @@
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
-const EDIT_CONTENT_TOOL_ID = 'edit_content'
+const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
 const RUN_SUBAGENT_ID = 'run'
 
 export type {
@@ -114,6 +114,8 @@ export interface ContentBlock {
   type: ContentBlockType
   content?: string
   subagent?: string
+  /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
+  subagentName?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
   timestamp?: number
@@ -189,9 +191,13 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   custom_tool: 'Custom Tool Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
-  agent: 'Tools Agent',
+  // The extensions subagent's wire/scope AgentID stays `agent` (pre-rename);
+  // `extensions` is its current model-facing trigger tool name.
+  agent: 'Extensions Agent',
+  extensions: 'Extensions Agent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

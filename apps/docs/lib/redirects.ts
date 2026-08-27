@@ -81,6 +81,10 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/agents/custom-tools',
     permanent: true,
   },
+  // evernote integration page removed; without this the /tools/:slug rule below
+  // would permanently redirect /tools/evernote into a 404.
+  { source: '/tools/evernote', destination: '/integrations', permanent: true },
+  { source: '/integrations/evernote', destination: '/integrations', permanent: true },
   { source: '/tools', destination: '/integrations', permanent: true },
   { source: '/tools/:slug', destination: '/integrations/:slug', permanent: true },
   // Old blocks/triggers index pages were folded into the workflows overview.
@@ -185,6 +189,29 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
    * must resolve.
    */
   // Pure operationId renames — same path and method, v1 -> v2.
+  {
+    // `/rows/find` became `/rows/search`: same operation, renamed once the
+    // surface settled on `query` for a structured predicate and `search` for
+    // text.
+    source: '/api-reference/tables/findTableRows',
+    destination: '/api-reference/tables/searchTableRows',
+    permanent: true,
+  },
+  {
+    // `/columns/run` became `POST /tables/{tableId}/dispatches`: it always
+    // created a dispatch and was polled as one, and `GET .../dispatches`
+    // already sat at the path it now posts to.
+    //
+    // These two are the only operations that pass retired a *published* slug —
+    // confirmed by diffing operationIds in the committed specs, not by reading
+    // the diff, because a path can move while its operationId (and therefore
+    // its docs slug) stays put, and an operationId can change without the path
+    // moving. Everything else renamed alongside them was added and removed
+    // within the same unreleased branch.
+    source: '/api-reference/tables/runTableColumns',
+    destination: '/api-reference/tables/createTableDispatch',
+    permanent: true,
+  },
   {
     source: '/api-reference/audit-logs/getAuditLogDetails',
     destination: '/api-reference/audit-logs/getAuditLog',

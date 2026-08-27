@@ -1,4 +1,5 @@
 import { mcpServers, workflow } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import type {
   ForkClearedRef,
@@ -8,7 +9,6 @@ import type {
 import type { DbOrTx } from '@/lib/db/types'
 import {
   coerceObjectArray,
-  isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
@@ -33,6 +33,7 @@ import {
   type ForkReferenceResolver,
   type ForkRemapKind,
   REQUIRED_KINDS,
+  remapForkBlockType,
   remapForkSubBlocks,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -88,7 +89,8 @@ function baseSubBlockId(key: string): string {
 function collectForkWorkflowReferences(
   subBlocks: SubBlockRecord,
   config: ReturnType<typeof getBlock>,
-  canonicalModes: CanonicalModeOverrides | undefined
+  canonicalModes: CanonicalModeOverrides | undefined,
+  triggerMode: boolean
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
   // Collapse each canonical pair to its ACTIVE member and skip condition-hidden fields: only a
@@ -102,7 +104,8 @@ function collectForkWorkflowReferences(
   const gates = createCanonicalModeGates(
     config?.subBlocks,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode
   )
   const detectionSkipped = (key: string) =>
     gates.isDormantMember(key) || gates.isConditionHidden(key)
@@ -136,9 +139,9 @@ function collectForkWorkflowReferences(
       if (!array) continue
       for (const tool of array) {
         if (
-          isRecord(tool) &&
+          isRecordLike(tool) &&
           tool.type === 'workflow_input' &&
-          isRecord(tool.params) &&
+          isRecordLike(tool.params) &&
           typeof tool.params.workflowId === 'string' &&
           tool.params.workflowId
         ) {
@@ -198,6 +201,7 @@ export function collectForkClearedRefCandidates(
         blockName: blockLabel,
         blockType: block.type,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode === true,
       })
       for (const ref of scan.unmapped) {
         if (CLEARED_REF_EXCLUDED_KINDS.has(ref.kind)) continue
@@ -215,11 +219,37 @@ export function collectForkClearedRefCandidates(
         })
       }
 
+      // A custom block's reference is the block's own TYPE, so it is not part of the
+      // sub-block scan above. Unlike every other entry here it does not describe something
+      // that would CLEAR — an unmapped custom block keeps invoking the source environment's
+      // block — but it rides the same `reference` cause so it reaches the sync gate, which is
+      // the only thing that makes the silent cross-environment call visible. `sync-blockers`
+      // gives it its own `unmapped-custom-block` reason so the copy stays accurate.
+      const blockTypeRef = remapForkBlockType(block.type, resolver, {
+        blockId: targetBlockId,
+        blockName: blockLabel,
+      })
+      if (blockTypeRef.reference && !blockTypeRef.resolved) {
+        out.push({
+          targetWorkflowId: item.targetWorkflowId,
+          workflowName: item.sourceMeta.name,
+          blockId: targetBlockId,
+          blockLabel,
+          fieldLabel: 'Block',
+          kind: 'custom-block',
+          sourceId: blockTypeRef.reference.sourceId,
+          sourceLabel: labelFor('custom-block', blockTypeRef.reference.sourceId),
+          cause: 'reference',
+          sourceDeleted: false,
+        })
+      }
+
       // Cause `workflow`: refs to a workflow not carried into the target.
       for (const wfRef of collectForkWorkflowReferences(
         subBlocks,
         config,
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode === true
       )) {
         if (workflowIdMap.has(wfRef.workflowId)) continue
         out.push({
@@ -371,7 +401,8 @@ function hasForkSyncBlockerCandidates(
       const workflowRefs = collectForkWorkflowReferences(
         subBlocks,
         getBlock(block.type),
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode === true
       )
       if (workflowRefs.some((ref) => !workflowIdMap.has(ref.workflowId))) return true
     }

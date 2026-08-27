@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   createDocument: vi.fn(),
   createPartUrls: vi.fn(),
   createUpload: vi.fn(),
-  failUndispatched: vi.fn(),
   findBound: vi.fn(),
   getUpload: vi.fn(),
   processQueue: vi.fn(),
@@ -47,10 +47,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveContext,
-}))
-
-vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
-  failUndispatchedDocumentProcessing: mocks.failUndispatched,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -177,6 +173,7 @@ const REQUEST = { headers: new Headers() }
 describe('knowledge-document upload application lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.resolveContext.mockResolvedValue(CONTEXT)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveBilling.mockResolvedValue(BILLING)
@@ -200,7 +197,6 @@ describe('knowledge-document upload application lifecycle', () => {
     mocks.findBound.mockResolvedValue({ status: 'absent' })
     mocks.createDocument.mockResolvedValue(DOCUMENT)
     mocks.processQueue.mockResolvedValue(undefined)
-    mocks.failUndispatched.mockResolvedValue(true)
   })
 
   it('admits, binds, and records ownership before returning upload credentials', async () => {
@@ -366,6 +362,46 @@ describe('knowledge-document upload application lifecycle', () => {
     )
   })
 
+  it('completes a session whose persisted recipe and lang predate their validation', async () => {
+    mocks.getUpload.mockResolvedValue({
+      ...SESSION,
+      metadata: {
+        ...SESSION.metadata,
+        processingOptions: { recipe: 'super-chunker-9000', lang: 'en_US' },
+      },
+    })
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(result.value.created).toBe(true)
+  })
+
   it('returns an already-bound document without re-billing, re-registering, or auditing', async () => {
     mocks.findBound.mockResolvedValue({ status: 'bound', document: DOCUMENT })
     mocks.completeUpload.mockImplementation(
@@ -481,17 +517,21 @@ describe('knowledge-document upload application lifecycle', () => {
       request: REQUEST,
     })
 
-    expect(mocks.failUndispatched).toHaveBeenCalledWith({
-      documentId: DOCUMENT.id,
-      knowledgeBaseId: 'knowledge-1',
-      error: 'queue unavailable',
+    const failedWrite = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failedWrite).toBeDefined()
+    expect(failedWrite?.[0]).toMatchObject({
+      processingStatus: 'failed',
+      processingError: 'queue unavailable',
     })
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
   })
 
   /** Recording the failure is itself best-effort; it must not resurface as a 500. */
   it('still completes when the dispatch failure cannot be recorded', async () => {
     mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
-    mocks.failUndispatched.mockRejectedValue(new Error('database unavailable'))
+    dbChainMockFns.returning.mockRejectedValue(new Error('database unavailable'))
     mocks.completeUpload.mockImplementation(
       async (params: {
         session: UploadSessionRecord

@@ -188,7 +188,7 @@ export function remapViewConfigColumnRefs(
  * drop — a key that survives to here unrecognised is a cell the caller asked to
  * write and the table never stored. Callers on a surface that can answer the
  * client check {@link unknownColumnNames} first; see
- * `namedDataToStorage` in `application/rows.ts`.
+ * `rowDataToStorage` in `application/rows.ts`.
  */
 export function rowDataNameToId(data: RowData, idByName: Map<string, string>): RowData {
   const out: RowData = {}
@@ -207,8 +207,11 @@ export function rowDataNameToId(data: RowData, idByName: Map<string, string>): R
  * row, and letting it through would reinstate the silent drop for exactly the
  * callers most likely to believe they had written something.
  */
-export function unknownColumnNames(data: RowData, idByName: ReadonlyMap<string, string>): string[] {
-  return Object.keys(data).filter((name) => !idByName.has(name))
+export function unknownColumnNames(
+  data: RowData,
+  knownKeys: ReadonlyMap<string, unknown>
+): string[] {
+  return Object.keys(data).filter((key) => !knownKeys.has(key))
 }
 
 /**

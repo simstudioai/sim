@@ -4,6 +4,14 @@ import { resolveCopilotKnowledgePrincipal } from '@/lib/copilot/application/exec
 import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
+import {
+  couldMatchDocsScope,
+  DocsCorpusError,
+  globDocs,
+  grepDocs,
+  isDocsPath,
+  readDocsPage,
+} from '@/lib/copilot/docs/docs-corpus'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
@@ -118,6 +126,7 @@ async function canReturnWorkspaceFileValue(
         registry: context.resolvedSecretTraceRegistry,
         view: provenanceView,
         value,
+        actorUserId: context.userId,
       }))
     ) {
       return false
@@ -126,6 +135,42 @@ async function canReturnWorkspaceFileValue(
   return true
 }
 
+/**
+ * Trim an oversized docs page to a whole-line prefix that fits the
+ * inline budget, preserving the true `totalLines` so the model can page through
+ * the rest with offset/limit. Returns null when not even one line fits — a
+ * single line longer than the cap — so the caller can fail instead of returning
+ * an over-cap payload as success. The notice offers grep as an alternative to
+ * another read because either operation fetches the page once.
+ */
+function truncateDocsPageToInlineCap(page: { content: string; totalLines: number }): {
+  output: { content: string; totalLines: number }
+  returnedLines: number
+} | null {
+  const lines = page.content.split('\n')
+  const notice = (shown: number) =>
+    `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown} and limit: ${shown}; reduce the limit if that window is still too large. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
+
+  let kept = lines.length
+  while (kept > 0) {
+    const content = `${lines.slice(0, kept).join('\n')}${notice(kept)}`
+    if (
+      serializedResultSize({ content, totalLines: page.totalLines }) <= TOOL_RESULT_MAX_INLINE_CHARS
+    ) {
+      return { output: { content, totalLines: page.totalLines }, returnedLines: kept }
+    }
+    kept = Math.floor(kept / 2)
+  }
+  return null
+}
+
+/**
+ * Routes grep by content source. `docs/<page>` uses one network-backed docs
+ * page; `uploads/<file>` uses one chat-scoped upload; workspace file paths use
+ * one authorized file; all remaining paths use the materialized in-memory VFS.
+ * External and dynamic file contents are therefore opt-in and single-target,
+ * while an unscoped grep searches only static VFS resources and metadata.
+ */
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -152,16 +197,11 @@ export async function executeVfsGrep(
       context: (params.context as number) ?? 0,
     }
 
-    // Routing mirrors read/glob:
-    //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
-    //  - files/<file>    -> grep one workspace file's content (one file only)
-    //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
-    // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
-    // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
-    // path does, and only one upload at a time.
     let result: GrepMatch[] | string[] | GrepCountEntry[]
     let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
-    if (isChatUploadGrepPath(rawPath)) {
+    if (rawPath !== undefined && isDocsPath(rawPath)) {
+      result = await grepDocs(rawPath, pattern, grepOptions, context.abortSignal)
+    } else if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
@@ -223,8 +263,8 @@ export async function executeVfsGrep(
   } catch (err) {
     // Expected single-file scoping / no-text / too-large conditions: surface the
     // message verbatim instead of logging an internal failure.
-    if (err instanceof WorkspaceFileGrepError) {
-      logger.debug('vfs_grep workspace file rejected', {
+    if (err instanceof WorkspaceFileGrepError || err instanceof DocsCorpusError) {
+      logger.debug('vfs_grep single-file scope rejected', {
         pattern,
         path: rawPath,
         error: err.message,
@@ -255,6 +295,12 @@ export async function executeVfsGlob(
   }
 
   try {
+    if (couldMatchDocsScope(pattern)) {
+      const files = globDocs(pattern)
+      logger.debug('vfs_glob docs result', { pattern, fileCount: files.length })
+      return { success: true, output: { files } }
+    }
+
     const vfs = await getGatedVFS(context)
     let files = vfs.glob(pattern)
 
@@ -267,6 +313,25 @@ export async function executeVfsGlob(
     }
 
     logger.debug('vfs_glob result', { pattern, fileCount: files.length })
+    // A bare [] on a namespace that is legitimately absent reads as "my glob is
+    // wrong". Say why it's empty so the model doesn't retry pattern variants.
+    if (files.length === 0) {
+      if (pattern.startsWith('uploads')) {
+        return {
+          success: true,
+          output: { files, note: 'This chat has no uploads.' },
+        }
+      }
+      if (pattern.startsWith('user-local')) {
+        return {
+          success: true,
+          output: {
+            files,
+            note: 'No user-local folder is granted in this chat, so user-local/ is empty.',
+          },
+        }
+      }
+    }
     return { success: true, output: { files } }
   } catch (err) {
     logger.error('vfs_glob failed', {
@@ -323,6 +388,34 @@ export async function executeVfsRead(
       }
     }
 
+    if (isDocsPath(path)) {
+      const page = await readDocsPage(path, context.abortSignal)
+      const windowed = applyWindow(page)
+      if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
+        if (offset !== undefined || limit !== undefined) {
+          return {
+            success: false,
+            error: `${path} is still too large over the requested window. Narrow offset/limit, or grep this page for the section you need.`,
+          }
+        }
+        const truncated = truncateDocsPageToInlineCap(page)
+        if (!truncated) {
+          return {
+            success: false,
+            error: `${path} is too large to return inline even truncated. Grep this page for the section you need.`,
+          }
+        }
+        logger.debug('vfs_read truncated oversized docs page', {
+          path,
+          totalLines: page.totalLines,
+          returnedLines: truncated.returnedLines,
+        })
+        return { success: true, output: truncated.output }
+      }
+      logger.debug('vfs_read resolved docs page', { path, totalLines: page.totalLines })
+      return { success: true, output: windowed }
+    }
+
     // Handle chat-scoped uploads via the uploads/ virtual prefix.
     // Uploads are flat and have no metadata/content split like files/ — the upload
     // IS the first path segment after uploads/. Any trailing segment (e.g. a
@@ -336,28 +429,29 @@ export async function executeVfsRead(
       const uploadResult = uploadEnvelope?.value
       if (uploadResult) {
         const isAttachment = hasModelAttachment(uploadResult)
-        if (
-          !isAttachment &&
-          (isOversizedReadPlaceholder(uploadResult) ||
-            serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
-        ) {
+        if (!isAttachment && isOversizedReadPlaceholder(uploadResult)) {
+          // The loader refused to materialize the bytes at all; a window can't help.
+          return { success: false, error: uploadResult.content }
+        }
+        // Window BEFORE the inline-size gate, so offset/limit genuinely page a
+        // large upload instead of the gate rejecting the whole file first.
+        const windowedUpload = applyWindow(uploadResult)
+        if (!isAttachment && serializedResultSize(windowedUpload) > TOOL_RESULT_MAX_INLINE_CHARS) {
           logger.warn('Upload read result too large', {
             path,
             hasAttachment: isAttachment,
             contentLength: uploadResult.content.length,
-            serializedSize: serializedResultSize(uploadResult),
+            serializedSize: serializedResultSize(windowedUpload),
+            windowed: offset !== undefined || limit !== undefined,
           })
           return {
             success: false,
-            error: isOversizedReadPlaceholder(uploadResult)
-              ? uploadResult.content
-              : // Same as the workspace-file branch below: this size gate runs on
-                // the whole upload before any window, so "retry with offset/limit"
-                // would loop. Point at grep scoped to this path instead.
-                `Read result too large to return inline. Grep this single upload instead of reading it — grep({pattern: "...", path: "${path}"}) — because offset/limit do NOT shrink an upload read: the size check runs on the whole file before the window is applied.`,
+            error:
+              offset !== undefined || limit !== undefined
+                ? `The requested window is still too large to return inline. Reduce limit (fewer lines per page) — e.g. read({path: "${path}", offset: ${offset ?? 0}, limit: 200}).`
+                : `Read result too large to return inline. Page it — read({path: "${path}", offset: 0, limit: 500}) — or locate the relevant section first with grep({pattern: "...", path: "${path}"}).`,
           }
         }
-        const windowedUpload = applyWindow(uploadResult)
         const provenanceView =
           offset === undefined && limit === undefined
             ? (uploadEnvelope?.view ?? 'derived')
@@ -406,25 +500,33 @@ export async function executeVfsRead(
     const fileContent = fileEnvelope?.value
     if (fileContent) {
       const isAttachment = hasModelAttachment(fileContent)
+      if (!isAttachment && isOversizedReadPlaceholder(fileContent)) {
+        // The loader refused to materialize the bytes at all; a window can't help.
+        return { success: false, error: fileContent.content }
+      }
+      // Window BEFORE the inline-size gate, so offset/limit genuinely page a
+      // large file instead of the gate rejecting the whole file first — the
+      // paging advice in the error below has to actually work.
+      const windowedFileContent = applyWindow(fileContent)
       if (
         !isAttachment &&
-        (isOversizedReadPlaceholder(fileContent) ||
-          serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
+        serializedResultSize(windowedFileContent) > TOOL_RESULT_MAX_INLINE_CHARS
       ) {
         logger.warn('File read result too large', {
           path,
           hasAttachment: isAttachment,
           contentLength: fileContent.content.length,
-          serializedSize: serializedResultSize(fileContent),
+          serializedSize: serializedResultSize(windowedFileContent),
+          windowed: offset !== undefined || limit !== undefined,
         })
         return {
           success: false,
-          error: isOversizedReadPlaceholder(fileContent)
-            ? fileContent.content
-            : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
+          error:
+            offset !== undefined || limit !== undefined
+              ? `The requested window is still too large to return inline. Reduce limit (fewer lines per page) — e.g. read({path: "${path}", offset: ${offset ?? 0}, limit: 200}).`
+              : `Read result too large to return inline. Page it — read({path: "${path}", offset: 0, limit: 500}) — or locate the relevant section first with grep({pattern: "...", path: "${path}"}), then read({path: "${path}", offset: <line>, limit: <lines>}). Avoid catch-all greps or full-file reads because they waste context window.`,
         }
       }
-      const windowedFileContent = applyWindow(fileContent)
       const provenanceView =
         offset === undefined && limit === undefined ? (fileEnvelope?.view ?? 'derived') : 'derived'
       if (
@@ -454,11 +556,28 @@ export async function executeVfsRead(
       })
       return {
         success: true,
-        output: windowedFileContent,
+        output:
+          fileContent.content === '' && !isAttachment
+            ? // An empty string with no explanation reads as a failed read.
+              { ...windowedFileContent, note: 'File is empty (0 bytes).' }
+            : windowedFileContent,
       }
     }
 
-    const result = await vfs.read(path, offset, limit)
+    let result = await vfs.read(path, offset, limit)
+    if (!result) {
+      // Same name, wrong encoding (spaces instead of %20) is the most common
+      // path mistake and carries zero ambiguity — resolve it instead of
+      // bouncing the model through a not-found round-trip.
+      const decodedEquivalent = vfs.resolveDecodedEquivalent(path)
+      if (decodedEquivalent) {
+        logger.info('vfs_read resolved decoded-equivalent path', {
+          requested: path,
+          resolved: decodedEquivalent,
+        })
+        result = await vfs.read(decodedEquivalent, offset, limit)
+      }
+    }
     if (!result) {
       const suggestions = vfs.suggestSimilar(path)
       logger.warn('vfs_read file not found', { path, suggestions })
@@ -476,7 +595,9 @@ export async function executeVfsRead(
       return {
         success: false,
         error:
-          'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
+          offset !== undefined || limit !== undefined
+            ? `The requested window is still too large to return inline. Reduce limit (fewer lines per page) — e.g. read({path: "${path}", offset: ${offset ?? 0}, limit: 200}).`
+            : 'Read result too large to return inline. Page it with read({path, offset, limit}), or use grep with a more specific pattern to locate the relevant section first. Avoid catch-all greps or full-file reads because they waste context window.',
       }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines, offset, limit })
@@ -485,6 +606,10 @@ export async function executeVfsRead(
       output: result,
     }
   } catch (err) {
+    if (err instanceof DocsCorpusError) {
+      logger.debug('vfs_read docs page rejected', { path, error: err.message })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_read failed', {
       path,
       error: toError(err).message,

@@ -3,7 +3,10 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
+import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
+import { byResourceMenuOrder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
+  buildMentionPreview,
   resourceMentionMatches,
   withDesktopTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
@@ -104,5 +107,68 @@ describe('withDesktopTabMentions', () => {
     expect(resourceMentionMatches(tab, 'docs')).toBe(true)
     expect(resourceMentionMatches(tab, 'browser')).toBe(true)
     expect(resourceMentionMatches(tab, 'terminal')).toBe(false)
+  })
+})
+
+describe('buildMentionPreview', () => {
+  const item = (id: string): AvailableItem => ({ id, name: id })
+  const many = (n: number) => Array.from({ length: n }, (_, i) => item(`i${i}`))
+
+  it('caps each family so a large one cannot bury the families after it', () => {
+    const preview = buildMentionPreview(
+      [
+        { type: 'integration', items: many(300) },
+        { type: 'workflow', items: [item('thermal-field')] },
+      ],
+      () => 5
+    )
+
+    expect(preview.filter((c) => c.type === 'integration')).toHaveLength(5)
+    expect(preview.map((c) => c.item.id)).toContain('thermal-field')
+  })
+
+  it('lets a family raise its own cap', () => {
+    const preview = buildMentionPreview(
+      [
+        { type: 'integration', items: many(10) },
+        { type: 'workflow', items: many(10) },
+      ],
+      (type) => (type === 'workflow' ? 2 : 5)
+    )
+
+    expect(preview.filter((c) => c.type === 'integration')).toHaveLength(5)
+    expect(preview.filter((c) => c.type === 'workflow')).toHaveLength(2)
+  })
+
+  it('keeps families in the order they were given, so headings stay contiguous', () => {
+    const preview = buildMentionPreview(
+      [
+        { type: 'integration', items: many(3) },
+        { type: 'workflow', items: many(3) },
+      ],
+      () => 5
+    )
+
+    const boundaries = preview.filter((c, i) => i > 0 && preview[i - 1].type !== c.type)
+    expect(boundaries).toHaveLength(1)
+    expect(preview.at(-1)?.type).toBe('workflow')
+  })
+
+  it('keeps a family shorter than the cap intact', () => {
+    const preview = buildMentionPreview([{ type: 'workflow', items: many(2) }], () => 5)
+    expect(preview).toHaveLength(2)
+  })
+})
+
+describe('byResourceMenuOrder', () => {
+  it('places workflows before logs without changing the surrounding order', () => {
+    const ordered = [
+      { type: 'task', items: [{ id: 'chat-1', name: 'Glean migration' }] },
+      { type: 'log', items: [{ id: 'log-1', name: 'Glean' }] },
+      { type: 'workflow', items: [{ id: 'workflow-1', name: 'Glean' }] },
+      { type: 'browser', items: [{ id: 'browser', name: 'Browser' }] },
+    ].sort(byResourceMenuOrder)
+
+    expect(ordered.map((group) => group.type)).toEqual(['task', 'workflow', 'log', 'browser'])
   })
 })

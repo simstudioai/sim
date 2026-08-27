@@ -57,6 +57,43 @@ describe('getBaseUrl', () => {
   })
 
   /**
+   * Call sites build `${getBaseUrl()}/path`, so a trailing slash would give them
+   * a `//path` pathname that matches no route — and would break the
+   * `startsWith(`${base}/`)` prefix checks that decide whether a redirect target
+   * is our own, silently sending those redirects to their fallback instead.
+   */
+  it('strips trailing slashes so concatenated paths stay single-slashed', () => {
+    for (const configured of ['https://app.example.com/', 'https://app.example.com///']) {
+      mockGetEnv.mockImplementation((key) =>
+        key === 'NEXT_PUBLIC_APP_URL' ? configured : undefined
+      )
+      expect(getBaseUrl()).toBe('https://app.example.com')
+      expect(new URL(`${getBaseUrl()}/desktop/connect/complete`).pathname).toBe(
+        '/desktop/connect/complete'
+      )
+    }
+  })
+
+  /**
+   * Pins the trim's shape — it must not eat more than the trailing slashes.
+   * Not a claim that a path-prefixed deployment works: the app declares no Next
+   * `basePath`, so such a value could not address its routes either way.
+   */
+  it('trims only trailing slashes, never interior ones', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'https://example.com/a/b/' : undefined
+    )
+    expect(getBaseUrl()).toBe('https://example.com/a/b')
+  })
+
+  it('adds the protocol and strips the trailing slash together', () => {
+    mockGetEnv.mockImplementation((key) =>
+      key === 'NEXT_PUBLIC_APP_URL' ? 'app.example.com/' : undefined
+    )
+    expect(getBaseUrl()).toBe('http://app.example.com')
+  })
+
+  /**
    * Never guesses from `window.location.origin`: an opaque origin (a sandboxed
    * iframe) serializes to the truthy string `'null'`, which would silently
    * produce `null/api/...` rather than surfacing the misconfiguration.

@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { Extensions, JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
@@ -14,7 +15,7 @@ import {
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
+import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
@@ -40,12 +41,7 @@ import { useFileDocCollaboration } from './collaboration/use-file-doc-collaborat
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
 import { moveDraggedImageNode } from './image-drag-move'
-import {
-  extractImageFiles,
-  extractImgSrcs,
-  findHostedImageAttrs,
-  shouldSkipFileUpload,
-} from './image-paste'
+import { extractImageFiles, findHostedImageAttrs, shouldSkipFileUpload } from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -77,6 +73,12 @@ const STREAM_REPARSE_THROTTLE_MS = 120
 
 /** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
 const DERIVE_TITLE_DEBOUNCE_MS = 600
+
+function warnRichMarkdownPasteLimit() {
+  toast.warning('Paste is too large for rich-text editing', {
+    description: `Keep this document under ${formatPasteLimit(PASTE_LIMITS.RICH_MARKDOWN_BYTES)}, or import the content as a file and open it read-only.`,
+  })
+}
 
 /**
  * The editor's reading column — the centered, padded surface both the live editor and the read-only
@@ -524,8 +526,21 @@ export function LoadedRichMarkdownEditor({
             awareness: collaboration.awareness,
             user: collaboration.user,
           },
+          pasteAdmission: {
+            maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+            getCurrentText: () => lastSyncedBodyRef.current ?? '',
+            onRejected: warnRichMarkdownPasteLimit,
+          },
         })
-      : EXTENSIONS
+      : createMarkdownEditorExtensions({
+          placeholder: PLACEHOLDER,
+          embeds: true,
+          pasteAdmission: {
+            maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+            getCurrentText: () => lastSyncedBodyRef.current ?? '',
+            onRejected: warnRichMarkdownPasteLimit,
+          },
+        })
   )
 
   const editor = useEditor({
@@ -540,6 +555,9 @@ export function LoadedRichMarkdownEditor({
       attributes: {
         class: 'rich-markdown-nodes rich-markdown-prose',
         'data-owned-shortcuts': 'Mod+K',
+        'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': 'true',
       },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'

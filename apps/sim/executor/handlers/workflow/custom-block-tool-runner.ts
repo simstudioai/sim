@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
@@ -160,8 +160,7 @@ export async function runCustomBlockTool(
     })
     // Custom blocks never stream (no `onStream` on the synthetic ctx), so the
     // handler always returns the projected BlockOutput object.
-    const normalized: Record<string, any> =
-      output && typeof output === 'object' && !Array.isArray(output) ? output : { result: output }
+    const normalized: Record<string, any> = isRecordLike(output) ? output : { result: output }
     return { success: true, output: normalized }
   } catch (error) {
     // The handler throws a consumer-safe `ChildWorkflowError` on failure. The

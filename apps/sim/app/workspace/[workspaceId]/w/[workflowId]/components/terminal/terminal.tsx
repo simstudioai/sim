@@ -48,7 +48,7 @@ import {
   TERMINAL_CONFIG,
   type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {

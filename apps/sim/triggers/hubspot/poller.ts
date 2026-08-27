@@ -1,43 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { HubspotIcon } from '@/components/icons'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  hubspotListsSelectorContract,
-  hubspotOwnersSelectorContract,
-  hubspotPipelinesSelectorContract,
-  hubspotPropertiesSelectorContract,
-} from '@/lib/api/contracts/selectors/hubspot'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('HubSpotPollingTrigger')
-
-/**
- * Resolves the effective object type from the subblock store. `getValue` returns `null`
- * for fields the user hasn't interacted with yet, so we fall back to the dropdown's
- * default ('contact') — otherwise the cascading property selectors render empty on
- * first render even when the dropdown visibly shows "contact".
- */
-async function resolveSelectedObjectType(blockId: string): Promise<string | null> {
-  const objectType = (await readSubBlockValue(blockId, 'objectType')) as string | null
-  const customId = (await readSubBlockValue(blockId, 'customObjectTypeId')) as string | null
-  const selected = objectType ?? 'contact'
-  if (selected === 'custom') {
-    const trimmed = customId?.trim()
-    return trimmed ? trimmed : null
-  }
-  return selected
-}
-
-async function fetchHubSpotProperties(blockId: string, objectType: string) {
-  const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as string | null
-  if (!credentialId) throw new Error('No HubSpot credential selected')
-  const data = await requestJson(hubspotPropertiesSelectorContract, {
-    query: { credentialId, objectType },
-  })
-  return data.properties.map((p) => ({ id: p.id, label: p.name }))
-}
 
 export const hubspotPollingTrigger: TriggerConfig = {
   id: 'hubspot_poller',
@@ -54,6 +17,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'triggerCredentials',
       title: 'HubSpot Account',
       type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
       description: 'Connect a HubSpot account so Sim can poll your CRM on your behalf.',
       serviceId: 'hubspot',
       requiredScopes: getScopesForService('hubspot'),
@@ -65,6 +29,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'objectType',
       title: 'Object Type',
       type: 'dropdown',
+      canonicalParamId: 'objectType',
       description: 'What you want to watch.',
       options: [
         { label: 'Contact', id: 'contact' },
@@ -82,6 +47,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'customObjectTypeId',
       title: 'Custom Object Type ID',
       type: 'short-input',
+      canonicalParamId: 'customObjectTypeId',
       description:
         'HubSpot custom object type ID (e.g. "2-12345"). Find it in HubSpot Settings → Objects → Custom Objects.',
       placeholder: '2-12345',
@@ -93,24 +59,9 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'listId',
       title: 'List',
       type: 'dropdown',
+      selectorKey: 'hubspot.lists',
       description: 'The HubSpot list to watch for new members.',
       placeholder: 'Select a list',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) throw new Error('No HubSpot credential selected')
-        try {
-          const data = await requestJson(hubspotListsSelectorContract, {
-            query: { credentialId },
-          })
-          return data.lists.map((l) => ({ id: l.id, label: l.name }))
-        } catch (error) {
-          logger.error('Error fetching HubSpot lists:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials'],
       required: { field: 'objectType', value: 'list_membership' },
       mode: 'trigger',
@@ -137,19 +88,9 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'targetPropertyName',
       title: 'Property to Watch',
       type: 'dropdown',
+      selectorKey: 'hubspot.properties',
       description: 'Fires only when this specific property changes value on a record.',
       placeholder: 'Select a property',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const resolved = await resolveSelectedObjectType(blockId)
-        if (!resolved) throw new Error('Select an object type first')
-        try {
-          return await fetchHubSpotProperties(blockId, resolved)
-        } catch (error) {
-          logger.error('Error fetching HubSpot properties:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials', 'objectType', 'customObjectTypeId'],
       required: { field: 'eventType', value: 'property_changed' },
       mode: 'trigger',
@@ -163,21 +104,11 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'properties',
       title: 'Properties to Fetch',
       type: 'dropdown',
+      selectorKey: 'hubspot.properties',
       multiSelect: true,
       description:
         'Properties to include on each record. Leave empty to use sensible defaults. Sim always includes the timestamps it needs internally.',
       placeholder: 'Select properties (optional)',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const resolved = await resolveSelectedObjectType(blockId)
-        if (!resolved) return []
-        try {
-          return await fetchHubSpotProperties(blockId, resolved)
-        } catch (error) {
-          logger.error('Error fetching HubSpot properties:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials', 'objectType', 'customObjectTypeId'],
       required: false,
       mode: 'trigger',
@@ -187,25 +118,10 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'pipelineId',
       title: 'Pipeline (optional)',
       type: 'dropdown',
+      canonicalParamId: 'pipelineId',
+      selectorKey: 'hubspot.pipelines',
       description: 'Restrict to a single pipeline.',
       placeholder: 'All pipelines',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        const objectType = (await resolveSelectedObjectType(blockId)) ?? 'contact'
-        if (!credentialId) throw new Error('No HubSpot credential selected')
-        try {
-          const data = await requestJson(hubspotPipelinesSelectorContract, {
-            query: { credentialId, objectType },
-          })
-          return data.pipelines.map((p) => ({ id: p.id, label: p.name }))
-        } catch (error) {
-          logger.error('Error fetching HubSpot pipelines:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials', 'objectType'],
       required: false,
       mode: 'trigger',
@@ -215,28 +131,9 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'stageId',
       title: 'Stage (optional)',
       type: 'dropdown',
+      selectorKey: 'hubspot.pipelineStages',
       description: 'Restrict to a single stage within the selected pipeline.',
       placeholder: 'All stages',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        const objectType = (await resolveSelectedObjectType(blockId)) ?? 'contact'
-        const pipelineId = (await readSubBlockValue(blockId, 'pipelineId')) as string | null
-        if (!credentialId) throw new Error('No HubSpot credential selected')
-        if (!pipelineId) return []
-        try {
-          const data = await requestJson(hubspotPipelinesSelectorContract, {
-            query: { credentialId, objectType },
-          })
-          const pipeline = data.pipelines.find((p) => p.id === pipelineId)
-          return (pipeline?.stages ?? []).map((s) => ({ id: s.id, label: s.label }))
-        } catch (error) {
-          logger.error('Error fetching HubSpot stages:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials', 'objectType', 'pipelineId'],
       required: false,
       mode: 'trigger',
@@ -246,24 +143,9 @@ export const hubspotPollingTrigger: TriggerConfig = {
       id: 'ownerId',
       title: 'Owner (optional)',
       type: 'dropdown',
+      selectorKey: 'hubspot.owners',
       description: 'Restrict to records owned by a specific HubSpot user.',
       placeholder: 'Any owner',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
-          | string
-          | null
-        if (!credentialId) throw new Error('No HubSpot credential selected')
-        try {
-          const data = await requestJson(hubspotOwnersSelectorContract, {
-            query: { credentialId },
-          })
-          return data.owners.map((o) => ({ id: o.id, label: o.name }))
-        } catch (error) {
-          logger.error('Error fetching HubSpot owners:', error)
-          throw error
-        }
-      },
       dependsOn: ['triggerCredentials'],
       required: false,
       mode: 'trigger',

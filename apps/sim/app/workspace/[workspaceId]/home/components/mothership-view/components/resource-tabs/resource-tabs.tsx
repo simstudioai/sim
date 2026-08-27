@@ -1,16 +1,24 @@
 import {
   type ComponentProps,
-  type Dispatch,
-  memo,
+  type DragEvent as ReactDragEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  type SetStateAction,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { Button, cn, Tooltip, tabStripWheelPosition } from '@sim/emcn'
+import {
+  Button,
+  cn,
+  TabStrip,
+  type TabStripDragContext,
+  type TabStripItem,
+  type TabStripSelectionSource,
+  Tooltip,
+  tabStripItemSelector,
+} from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -22,7 +30,6 @@ import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/componen
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_HEADER_CLASSES,
-  RESOURCE_TAB_GAP_CLASS,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
@@ -40,9 +47,6 @@ import {
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-
-const EDGE_ZONE = 40
-const SCROLL_SPEED = 8
 
 /** Opens another inner tab when a singleton desktop resource already exists. */
 export function openExistingResourceTab(
@@ -96,10 +100,10 @@ function findNearestId(
  * snapshotted it.
  */
 function buildMultiDragImage(
-  scrollNode: HTMLElement | null,
+  tabList: Element | null,
   selected: MothershipResource[]
 ): HTMLElement | null {
-  if (!scrollNode || selected.length === 0) return null
+  if (!tabList || selected.length === 0) return null
   const container = document.createElement('div')
   Object.assign(container.style, {
     position: 'fixed',
@@ -113,9 +117,7 @@ function buildMultiDragImage(
   } satisfies Partial<CSSStyleDeclaration>)
   let appendedAny = false
   for (const r of selected) {
-    const original = scrollNode.querySelector<HTMLElement>(
-      `[data-resource-tab-id="${CSS.escape(r.id)}"]`
-    )
+    const original = tabList.querySelector<HTMLElement>(tabStripItemSelector(r.id))
     if (!original) continue
     const clone = original.cloneNode(true) as HTMLElement
     clone.style.opacity = '0.95'
@@ -140,10 +142,9 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
 }
 
 /**
- * Stable identity for the empty lookup across `enabled` toggles. Unlike
- * `NO_RESOURCE_GROUPS`, nothing downstream keys on this identity — tab rows
- * receive the derived `displayName` string — so it is cheap insurance rather
- * than a guard against busting a downstream memo.
+ * Stable identity for the empty lookup across `enabled` toggles. The tab list
+ * memo below takes this map as a dependency, so a fresh empty map each time
+ * `enabled` flips would rebuild every tab for no change in what they say.
  */
 const NO_RESOURCE_NAMES = new Map<string, string>()
 
@@ -172,118 +173,6 @@ function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<strin
   }, [enabled, workflows, tables, files, knowledgeBases, folders])
 }
 
-interface ResourceTabItemProps {
-  resource: MothershipResource
-  idx: number
-  isActive: boolean
-  isHovered: boolean
-  isDragging: boolean
-  isSelected: boolean
-  hasActivity: boolean
-  showGapBefore: boolean
-  showGapAfter: boolean
-  displayName: string
-  onDragStart: (e: React.DragEvent, idx: number) => void
-  onDragOver: (e: React.DragEvent, idx: number) => void
-  onDragLeave: () => void
-  onDragEnd: () => void
-  onTabClick: (e: React.MouseEvent, idx: number) => void
-  setHoveredTabId: Dispatch<SetStateAction<string | null>>
-  onRemove: (e: React.SyntheticEvent, resource: MothershipResource) => void
-}
-
-const ResourceTabItem = memo(function ResourceTabItem({
-  resource,
-  idx,
-  isActive,
-  isHovered,
-  isDragging,
-  isSelected,
-  hasActivity,
-  showGapBefore,
-  showGapAfter,
-  displayName,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDragEnd,
-  onTabClick,
-  setHoveredTabId,
-  onRemove,
-}: ResourceTabItemProps) {
-  const config = getResourceConfig(resource.type)
-  return (
-    <div className='relative flex shrink-0 items-center'>
-      {showGapBefore && (
-        <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
-      )}
-      <Button
-        variant='subtle'
-        draggable
-        data-resource-tab-id={resource.id}
-        onDragStart={(e) => onDragStart(e, idx)}
-        onDragOver={(e) => onDragOver(e, idx)}
-        onDragLeave={onDragLeave}
-        onDragEnd={onDragEnd}
-        onMouseDown={(e) => {
-          if (e.button === 1) {
-            e.preventDefault()
-            onRemove(e, resource)
-          }
-        }}
-        onClick={(e) => onTabClick(e, idx)}
-        onMouseEnter={() => setHoveredTabId(resource.id)}
-        onMouseLeave={() => setHoveredTabId(null)}
-        className={cn(
-          'group relative shrink-0 bg-transparent px-2 py-[3px] pr-[22px] text-caption transition-colors duration-150',
-          isActive && 'bg-[var(--surface-4)]',
-          isSelected && !isActive && 'bg-[var(--surface-3)]',
-          isDragging && 'opacity-30'
-        )}
-      >
-        {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
-        {displayName}
-        {hasActivity && !isActive && (
-          <span
-            className='ml-1 size-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]'
-            aria-label='Background activity'
-          />
-        )}
-        {/* Closable without a chat, matching the add control: a resource opened
-            while composing the first prompt has to be removable too, and
-            removal already skips the server delete when nothing is persisted. */}
-        {(isHovered || isActive) && (
-          <span
-            role='button'
-            tabIndex={-1}
-            onClick={(e) => onRemove(e, resource)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onRemove(e, resource)
-            }}
-            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
-            aria-label={`Close ${displayName}`}
-          >
-            <svg
-              className='size-[10px] text-[var(--text-icon)]'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='2.5'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <path d='M18 6 6 18M6 6l12 12' />
-            </svg>
-          </span>
-        )}
-      </Button>
-      {showGapAfter && (
-        <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
-      )}
-    </div>
-  )
-})
-
 interface ResourceTabsProps {
   workspaceId: string
   desktopScopeId: string
@@ -298,6 +187,15 @@ interface ResourceTabsProps {
   onAddResourceClose?: () => Promise<void>
 }
 
+/**
+ * The resource panel's tab strip: the shared {@link TabStrip} plus the three
+ * things only this surface has — a multi-tab selection that drags into the chat
+ * as context, an add control that is a resource picker rather than a plain
+ * button, and the active resource's own actions trailing the row. Everything
+ * else — fixed tab widths, clipped-title tooltips, the scroll-edge fades,
+ * keyboard navigation, drag reordering — comes from the strip, which is the same
+ * component the browser and terminal panels nested inside this one use.
+ */
 export function ResourceTabs({
   workspaceId,
   desktopScopeId,
@@ -319,59 +217,26 @@ export function ResourceTabs({
     removeResource: onRemoveResource,
     reorderResources: onReorderResources,
   } = useMothershipResources()
-  const scrollNodeRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const node = scrollNodeRef.current
-    if (!node) return
-    const handler = (e: WheelEvent) => {
-      const next = tabStripWheelPosition(
-        node.scrollLeft,
-        node.scrollWidth,
-        node.clientWidth,
-        e.deltaX,
-        e.deltaY
-      )
-      if (next === null) return
-      node.scrollLeft = next
-      e.preventDefault()
-    }
-    node.addEventListener('wheel', handler, { passive: false })
-    return () => node.removeEventListener('wheel', handler)
-  }, [])
-
-  useEffect(() => {
-    const node = scrollNodeRef.current
-    if (!node || !activeId) return
-    const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
-    if (!tab) return
-    // Use bounding rects because the tab's offsetParent is a `position: relative`
-    // wrapper, so `offsetLeft` is relative to that wrapper rather than `node`.
-    const tabRect = tab.getBoundingClientRect()
-    const nodeRect = node.getBoundingClientRect()
-    const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
-    const tabRight = tabLeft + tabRect.width
-    const viewLeft = node.scrollLeft
-    const viewRight = viewLeft + node.clientWidth
-    if (tabLeft < viewLeft) {
-      node.scrollTo({ left: tabLeft, behavior: 'smooth' })
-    } else if (tabRight > viewRight) {
-      node.scrollTo({ left: tabRight - node.clientWidth, behavior: 'smooth' })
-    }
-  }, [activeId])
 
   const addResource = useAddChatResource(chatId)
   const removeResource = useRemoveChatResource(chatId)
   const reorderResources = useReorderChatResources(chatId)
 
-  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
-  const [dropGapIdx, setDropGapIdx] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const dragStartIdx = useRef<number | null>(null)
-  const autoScrollRaf = useRef<number | null>(null)
   const anchorIdRef = useRef<string | null>(null)
   const prevChatIdRef = useRef(chatId)
+  // The drag image lives on `document.body` rather than in the React tree,
+  // because `setDragImage` snapshots a real, laid-out element. Holding it lets
+  // a drag whose source tab unmounts mid-gesture still be cleaned up.
+  const dragImageRef = useRef<HTMLElement | null>(null)
+
+  useEffect(
+    () => () => {
+      dragImageRef.current?.remove()
+      dragImageRef.current = null
+    },
+    []
+  )
 
   // Reset selection when switching chats — component instance persists across
   // chat switches so stale IDs would otherwise carry over.
@@ -381,7 +246,23 @@ export function ResourceTabs({
     anchorIdRef.current = null
   }
 
-  const existingKeys = new Set(resources.map((r) => `${r.type}:${r.id}`))
+  const existingKeys = useMemo(
+    () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
+    [resources]
+  )
+
+  const tabs = useMemo<TabStripItem[]>(
+    () =>
+      resources.map((resource) => ({
+        id: resource.id,
+        title: nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title,
+        icon: getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0'),
+        active: activeId === resource.id,
+        selected: selectedIds.size > 1 && selectedIds.has(resource.id),
+        attention: activityIds?.has(resource.id) ?? false,
+      })),
+    [resources, nameLookup, activeId, selectedIds, activityIds]
+  )
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
@@ -405,13 +286,14 @@ export function ResourceTabs({
     [desktopScopeId, selectResource]
   )
 
-  const handleTabClick = useCallback(
-    (e: React.MouseEvent, idx: number) => {
+  const handleSelect = useCallback(
+    (id: string, _source?: TabStripSelectionSource, e?: ReactMouseEvent<HTMLButtonElement>) => {
+      const idx = resources.findIndex((r) => r.id === id)
       const resource = resources[idx]
       if (!resource) return
 
       // Shift+click: contiguous range from anchor
-      if (e.shiftKey) {
+      if (e?.shiftKey) {
         // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
         const anchorId = anchorIdRef.current ?? activeId
         const anchorIdx = anchorId ? resources.findIndex((r) => r.id === anchorId) : -1
@@ -427,7 +309,7 @@ export function ResourceTabs({
       }
 
       // Cmd/Ctrl+click: toggle individual tab in/out of selection
-      if (e.metaKey || e.ctrlKey) {
+      if (e?.metaKey || e?.ctrlKey) {
         const wasSelected = selectedIds.has(resource.id)
         if (wasSelected) {
           const next = new Set(selectedIds)
@@ -455,9 +337,10 @@ export function ResourceTabs({
     [resources, selectResource, selectedIds, activeId]
   )
 
-  const handleRemove = useCallback(
-    (e: React.SyntheticEvent, resource: MothershipResource) => {
-      e.stopPropagation()
+  const handleClose = useCallback(
+    (id: string) => {
+      const resource = resources.find((r) => r.id === id)
+      if (!resource) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
       // Update parent state immediately for all targets
@@ -468,7 +351,7 @@ export function ResourceTabs({
       const removedIds = new Set(targets.map((r) => r.id))
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        for (const id of removedIds) next.delete(id)
+        for (const removedId of removedIds) next.delete(removedId)
         return next
       })
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
@@ -488,29 +371,34 @@ export function ResourceTabs({
     [chatId, onRemoveResource, resources, selectedIds]
   )
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent, idx: number) => {
-      const resource = resources[idx]
+  const handleTabDragStart = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>, id: string, drag: TabStripDragContext) => {
+      const resource = resources.find((r) => r.id === id)
       if (!resource) return
       const selected = resources.filter((r) => selectedIds.has(r.id))
       const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
-        const dragImage = buildMultiDragImage(scrollNodeRef.current, selected)
+        const dragImage = buildMultiDragImage(e.currentTarget.closest('[role="tablist"]'), selected)
         if (dragImage) {
           e.dataTransfer.setDragImage(dragImage, 16, 16)
-          setTimeout(() => dragImage.remove(), 0)
+          dragImageRef.current = dragImage
+          setTimeout(() => {
+            dragImage.remove()
+            if (dragImageRef.current === dragImage) dragImageRef.current = null
+          }, 0)
         }
-        // Skip dragStartIdx so internal reorder is disabled for multi-select drags
-        dragStartIdx.current = null
-        setDraggedIdx(null)
+        // This gesture carries the whole selection out to the chat, so it is not
+        // a reorder; the strip drops its drag tracking rather than showing a
+        // drop indicator for a move that will never happen.
+        drag.preventReorder()
         return
       }
-      dragStartIdx.current = idx
-      setDraggedIdx(idx)
+      // `copyMove` because the strip already set `move` for its own reordering,
+      // and a drop target asking for `copy` is refused outright unless copying
+      // is allowed too.
       e.dataTransfer.effectAllowed = 'copyMove'
-      e.dataTransfer.setData('text/plain', String(idx))
       e.dataTransfer.setData(
         SIM_RESOURCE_DRAG_TYPE,
         JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
@@ -519,78 +407,13 @@ export function ResourceTabs({
     [resources, selectedIds]
   )
 
-  const stopAutoScroll = useCallback(() => {
-    if (autoScrollRaf.current) {
-      cancelAnimationFrame(autoScrollRaf.current)
-      autoScrollRaf.current = null
-    }
-  }, [])
-
-  const startEdgeScroll = useCallback(
-    (clientX: number) => {
-      const container = scrollNodeRef.current
-      if (!container) return
-      const cRect = container.getBoundingClientRect()
-      if (autoScrollRaf.current) cancelAnimationFrame(autoScrollRaf.current)
-      if (clientX < cRect.left + EDGE_ZONE) {
-        const tick = () => {
-          container.scrollLeft -= SCROLL_SPEED
-          autoScrollRaf.current = requestAnimationFrame(tick)
-        }
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      } else if (clientX > cRect.right - EDGE_ZONE) {
-        const tick = () => {
-          container.scrollLeft += SCROLL_SPEED
-          autoScrollRaf.current = requestAnimationFrame(tick)
-        }
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      } else {
-        stopAutoScroll()
-      }
-    },
-    [stopAutoScroll]
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent, idx: number) => {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = e.currentTarget.getBoundingClientRect()
-      const midpoint = rect.left + rect.width / 2
-      const gap = e.clientX < midpoint ? idx : idx + 1
-      setDropGapIdx(gap)
-      startEdgeScroll(e.clientX)
-    },
-    [startEdgeScroll]
-  )
-
-  const handleDragLeave = useCallback(() => {
-    setDropGapIdx(null)
-    stopAutoScroll()
-  }, [stopAutoScroll])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      stopAutoScroll()
-      const fromIdx = dragStartIdx.current
-      const gapIdx = dropGapIdx
-      if (fromIdx === null || gapIdx === null) {
-        setDraggedIdx(null)
-        setDropGapIdx(null)
-        dragStartIdx.current = null
-        return
-      }
-      const insertAt = gapIdx > fromIdx ? gapIdx - 1 : gapIdx
-      if (insertAt === fromIdx) {
-        setDraggedIdx(null)
-        setDropGapIdx(null)
-        dragStartIdx.current = null
-        return
-      }
+  const handleReorder = useCallback(
+    (id: string, targetIndex: number) => {
+      const fromIndex = resources.findIndex((r) => r.id === id)
+      if (fromIndex < 0 || fromIndex === targetIndex) return
       const reordered = [...resources]
-      const [moved] = reordered.splice(fromIdx, 1)
-      reordered.splice(insertAt, 0, moved)
+      const [moved] = reordered.splice(fromIndex, 1)
+      reordered.splice(targetIndex, 0, moved)
       onReorderResources(reordered)
       if (chatId) {
         const persistable = reordered.filter((r) => !isEphemeralResource(r))
@@ -598,128 +421,65 @@ export function ResourceTabs({
           reorderResources.mutate({ chatId, resources: persistable })
         }
       }
-      setDraggedIdx(null)
-      setDropGapIdx(null)
-      dragStartIdx.current = null
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources, dropGapIdx, stopAutoScroll]
+    [chatId, resources, onReorderResources]
   )
 
-  const handleDragEnd = useCallback(() => {
-    stopAutoScroll()
-    setDraggedIdx(null)
-    setDropGapIdx(null)
-    dragStartIdx.current = null
-  }, [stopAutoScroll])
-
-  const addResourceDropdown = (
-    <AddResourceDropdown
-      workspaceId={workspaceId}
-      existingKeys={existingKeys}
-      onAdd={handleAdd}
-      onOpenExisting={handleOpenExisting}
-      excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-      onRequestOpen={onRequestAddResourceOpen}
-      onClose={onAddResourceClose}
-    />
-  )
+  const previewToggle =
+    previewMode && onCyclePreviewMode ? (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='subtle'
+            onClick={onCyclePreviewMode}
+            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+            aria-label='Cycle preview mode'
+          >
+            <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    ) : null
 
   return (
-    <div
-      className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b',
-        RESOURCE_HEADER_CLASSES.bar,
-        RESOURCE_HEADER_CLASSES.startPadding,
-        RESOURCE_HEADER_CLASSES.endPadding,
-        RESOURCE_TAB_GAP_CLASS
-      )}
-    >
-      <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
-        <div
-          ref={scrollNodeRef}
-          className={cn(
-            'flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            RESOURCE_TAB_GAP_CLASS
-          )}
-          onDragOver={(e) => {
-            e.preventDefault()
-            startEdgeScroll(e.clientX)
-          }}
-          onDrop={handleDrop}
-        >
-          {resources.map((resource, idx) => {
-            const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
-            const isActive = activeId === resource.id
-            const isHovered = hoveredTabId === resource.id
-            const isDragging = draggedIdx === idx
-            const isSelected = selectedIds.has(resource.id) && selectedIds.size > 1
-            const showGapBefore =
-              dropGapIdx === idx &&
-              draggedIdx !== null &&
-              draggedIdx !== idx &&
-              draggedIdx !== idx - 1
-            const showGapAfter =
-              idx === resources.length - 1 &&
-              dropGapIdx === resources.length &&
-              draggedIdx !== null &&
-              draggedIdx !== idx
-
-            return (
-              <ResourceTabItem
-                key={resource.id}
-                resource={resource}
-                idx={idx}
-                isActive={isActive}
-                isHovered={isHovered}
-                isDragging={isDragging}
-                isSelected={isSelected}
-                hasActivity={activityIds?.has(resource.id) ?? false}
-                showGapBefore={showGapBefore}
-                showGapAfter={showGapAfter}
-                displayName={displayName}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDragEnd={handleDragEnd}
-                onTabClick={handleTabClick}
-                setHoveredTabId={setHoveredTabId}
-                onRemove={handleRemove}
-              />
-            )
-          })}
+    <TabStrip
+      tabs={tabs}
+      onSelect={handleSelect}
+      onClose={handleClose}
+      onReorder={handleReorder}
+      onTabDragStart={handleTabDragStart}
+      variant='floating'
+      className={RESOURCE_HEADER_CLASSES.stripGeometry}
+      newTabControl={
+        // Offered before the chat exists too: a resource opened while composing
+        // the first prompt is context for that prompt, and gating on a chat id
+        // meant the panel could be opened but not filled.
+        <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
+          <AddResourceDropdown
+            workspaceId={workspaceId}
+            existingKeys={existingKeys}
+            onAdd={handleAdd}
+            onOpenExisting={handleOpenExisting}
+            excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+            onRequestOpen={onRequestAddResourceOpen}
+            onClose={onAddResourceClose}
+          />
         </div>
-        {/* Offered before the chat exists too: a resource opened while composing
-            the first prompt is context for that prompt, and gating on a chat id
-            meant the panel could be opened but not filled. */}
-        <div
-          className={cn('flex', resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
-        >
-          {addResourceDropdown}
-        </div>
-      </div>
-      {(actions || (previewMode && onCyclePreviewMode)) && (
-        <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>
-          {actions}
-          {previewMode && onCyclePreviewMode && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='subtle'
-                  onClick={onCyclePreviewMode}
-                  className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-                  aria-label='Cycle preview mode'
-                >
-                  <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
-      )}
-    </div>
+      }
+      // A bare fragment is always truthy, so the empty case has to be `null` or
+      // the strip renders an empty trailing cluster.
+      endActions={
+        actions || previewToggle ? (
+          <>
+            {actions}
+            {previewToggle}
+          </>
+        ) : null
+      }
+    />
   )
 }

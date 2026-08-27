@@ -10,6 +10,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Smartlead](https://www.smartlead.ai/) is a cold email outreach platform. Campaigns pair a multi-step email sequence with a pool of sending mailboxes and a schedule, and Smartlead handles delivery, follow-ups, reply detection, and per-campaign analytics.
+
+With the Smartlead integration in Sim, you can:
+
+- **Manage campaigns**: Create, get, list, duplicate, and delete campaigns, and update their status, schedule, and settings
+- **Build sequences**: Retrieve and save the multi-step email sequence attached to a campaign
+- **Import and manage leads**: Add leads to a campaign, list and export them, look leads up by ID or email, and update their fields
+- **Control lead state**: Change a lead's category, pause or resume it, mark it complete, unsubscribe it from a campaign or globally, and remove it from a campaign
+- **Organize lead lists**: Create, get, list, update, and delete lead lists, and list the available lead categories
+- **Manage sending mailboxes**: List email accounts, and add or remove them from a campaign
+- **Read analytics**: Pull campaign analytics overall or by date, plus campaign, lead, and mailbox statistics
+- **Follow conversations**: List inbox replies, lead activities, and a lead's full message history
+- **Register webhooks**: List, create or update, and delete campaign webhooks, and read the webhook summary
+
+In Sim, the Smartlead integration enables your agents to run outreach end to end. An agent can build a campaign and its sequence from a brief, enrich and import leads from another system, react to replies and engagement webhooks by recategorizing or pausing a lead, and roll campaign analytics into a report.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Smartlead into workflows. Create campaigns, write multi-step email sequences, import and categorize leads, pull campaign analytics, and register webhooks for engagement events.
@@ -26,6 +45,7 @@ Retrieves all Smartlead campaigns for the authenticated account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `clientId` | number | No | Only return campaigns for this client \(agency accounts\) |
 | `includeTags` | boolean | No | Include campaign tags in the response |
 
@@ -136,6 +156,8 @@ Retrieves a single Smartlead campaign by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -244,6 +266,7 @@ Creates a Smartlead campaign. The campaign starts in DRAFTED status; add sequenc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `name` | string | Yes | Campaign name |
 | `clientId` | number | No | Client to own the campaign \(agency accounts\) |
 
@@ -354,6 +377,8 @@ Starts, pauses, or stops a Smartlead campaign. START requires the campaign to al
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `status` | string | Yes | Target status: START, PAUSED, STOPPED |
 
 #### Output
@@ -463,6 +488,8 @@ Sets the sending window, timezone, and throughput limits for a Smartlead campaig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `timezone` | string | Yes | IANA timezone for the sending window, e.g. America/Los_Angeles |
 | `daysOfTheWeek` | array | Yes | Sending days as ISO weekday numbers, where 1 is Monday and 7 is Sunday |
 | `startHour` | string | Yes | Sending window start in 24-hour HH:MM format, e.g. 09:00 |
@@ -578,6 +605,8 @@ Updates tracking, stop-on-activity, and sending settings for a Smartlead campaig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `trackSettings` | array | No | Tracking to disable. Allowed values: DONT_TRACK_EMAIL_OPEN, DONT_TRACK_LINK_CLICK, DONT_TRACK_REPLY_TO_AN_EMAIL |
 | `stopLeadSettings` | string | No | Lead activity that stops the sequence: REPLY_TO_AN_EMAIL, CLICK_ON_A_LINK, OPEN_AN_EMAIL |
 | `sendAsPlainText` | boolean | No | Send campaign emails as plain text |
@@ -692,6 +721,8 @@ Retrieves lifetime performance totals for a Smartlead campaign — sends, opens,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -800,6 +831,8 @@ Retrieves Smartlead campaign performance totals for a date range. Smartlead reje
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `startDate` | string | Yes | Range start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | Range end date in YYYY-MM-DD format |
 
@@ -910,6 +943,8 @@ Retrieves the email sequence steps for a Smartlead campaign, including subjects,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -1018,6 +1053,8 @@ Replaces the email sequence for a Smartlead campaign. Send every step in one cal
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `sequences` | array | Yes | Ordered sequence steps. Each entry accepts seq_number, delay_in_days, subject, and email_body \(HTML\). Personalize with \{\{first_name\}\} or \{\{company_name\}\}. |
 
 #### Output
@@ -1127,6 +1164,8 @@ Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Rows to return \(default 100\) |
 | `emailSequenceNumber` | number | No | Only return rows for this sequence step |
@@ -1241,6 +1280,8 @@ Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason count
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `leads` | array | Yes | Leads to add \(max 400\). Each entry requires email and accepts first_name, last_name, phone_number, company_name, website, location, linkedin_profile, company_url, and custom_fields. |
 | `ignoreGlobalBlockList` | boolean | No | Add leads even if they are on the global block list |
 | `ignoreUnsubscribeList` | boolean | No | Add leads even if they previously unsubscribed |
@@ -1354,6 +1395,8 @@ Retrieves the leads in a Smartlead campaign with their per-campaign status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Leads to return per page \(default 100\) |
 
@@ -1464,6 +1507,7 @@ Looks up a Smartlead lead by email address and returns the lead record plus ever
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `email` | string | Yes | Lead email address to look up |
 
 #### Output
@@ -1573,6 +1617,9 @@ Updates a lead in a Smartlead campaign. Smartlead requires the email field even 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 | `email` | string | Yes | Lead email address — required by Smartlead even when unchanged |
 | `firstName` | string | No | Lead first name |
 | `lastName` | string | No | Lead last name |
@@ -1691,6 +1738,9 @@ Sets the category of a lead in a Smartlead campaign, such as Interested or Not I
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 | `categoryId` | number | Yes | Lead category ID to apply |
 | `pauseLead` | boolean | No | Also pause the lead sequence when applying the category |
 
@@ -1801,6 +1851,9 @@ Pauses a lead in a Smartlead campaign so it stops receiving sequence emails.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
 
@@ -1909,6 +1962,9 @@ Resumes a paused lead in a Smartlead campaign, optionally after a delay.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 | `resumeLeadWithDelayDays` | number | No | Days to wait before the next email; 0 resumes immediately |
 
 #### Output
@@ -2018,6 +2074,7 @@ Retrieves the lead categories configured on the Smartlead account, with the cate
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 
 #### Output
 
@@ -2126,6 +2183,9 @@ Retrieves the sent-and-received message history for a lead in a Smartlead campai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
 
@@ -2234,6 +2294,8 @@ Retrieves the webhooks registered on a Smartlead campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -2342,6 +2404,8 @@ Creates a webhook on a Smartlead campaign, or updates an existing one when a web
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `name` | string | Yes | Webhook name |
 | `webhookUrl` | string | Yes | HTTPS URL Smartlead should post events to |
 | `eventTypes` | array | Yes | Events to subscribe to. Allowed values: EMAIL_SENT, EMAIL_OPEN, EMAIL_LINK_CLICK, EMAIL_REPLY, EMAIL_BOUNCE, LEAD_UNSUBSCRIBED, LEAD_CATEGORY_UPDATED |
@@ -2455,6 +2519,8 @@ Deletes a webhook from a Smartlead campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `webhookId` | number | Yes | ID of the webhook to delete, from List Campaign Webhooks |
 
 #### Output
@@ -2564,6 +2630,8 @@ Retrieves webhook delivery counts for a Smartlead campaign over a time window, f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `fromTime` | string | Yes | Start of the window as an ISO 8601 timestamp |
 | `toTime` | string | Yes | End of the window as an ISO 8601 timestamp |
 
@@ -2674,6 +2742,8 @@ Copies a Smartlead campaign, including its sequences and settings. The copy is n
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -2782,6 +2852,8 @@ Permanently deletes a Smartlead campaign along with its sequences, leads, and we
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -2890,6 +2962,8 @@ Exports every lead in a Smartlead campaign as CSV, including engagement counts a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -2998,6 +3072,8 @@ Retrieves the sending email accounts attached to a Smartlead campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -3106,6 +3182,8 @@ Attaches sending email accounts to a Smartlead campaign. A campaign needs at lea
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `emailAccountIds` | array | Yes | IDs of the email accounts to attach, from List Email Accounts |
 
 #### Output
@@ -3215,6 +3293,8 @@ Detaches sending email accounts from a Smartlead campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `emailAccountIds` | array | Yes | IDs of the email accounts to detach |
 
 #### Output
@@ -3324,6 +3404,7 @@ Retrieves the sending email accounts on the Smartlead account, including their I
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Accounts to return per page \(default 100\) |
 | `clientId` | number | No | Only return accounts for this client \(agency accounts\) |
@@ -3435,6 +3516,8 @@ Retrieves per-lead engagement statistics for a Smartlead campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `limit` | number | No | Rows to return \(default 100\) |
 | `offset` | number | No | Rows to skip \(default 0\) |
 
@@ -3545,6 +3628,8 @@ Retrieves per-mailbox sending statistics for a Smartlead campaign, for spotting 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 
 #### Output
 
@@ -3653,6 +3738,8 @@ Retrieves top-level Smartlead campaign counts for a date range, including positi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `startDate` | string | Yes | Range start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | Range end date in YYYY-MM-DD format |
 
@@ -3763,6 +3850,7 @@ Retrieves recent lead activity across all Smartlead campaigns — opens, clicks,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Rows to return per page |
 
@@ -3873,6 +3961,7 @@ Looks up a Smartlead lead by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
@@ -3982,6 +4071,9 @@ Unsubscribes a lead from a single Smartlead campaign, leaving it active in other
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
 
@@ -4090,6 +4182,7 @@ Unsubscribes a lead across every Smartlead campaign and adds it to the account-w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
@@ -4199,6 +4292,8 @@ Marks a lead as completed in a Smartlead campaign so it stops receiving further 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
 | `campaignLeadMapId` | number | Yes | The campaign_lead_map_id from List Campaign Leads — this endpoint takes the map ID, NOT lead.id |
 
 #### Output
@@ -4308,6 +4403,9 @@ Removes a lead from a Smartlead campaign. The lead record itself remains on the 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
+| `campaignId` | number | Yes | Smartlead campaign ID |
+| `leadId` | number | Yes | Smartlead lead ID — the nested lead.id from List Campaign Leads, NOT campaign_lead_map_id |
 
 #### Output
 
@@ -4416,6 +4514,7 @@ Retrieves replies from the Smartlead master inbox across all campaigns, optional
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `unreadOnly` | boolean | No | Return only unread replies |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Replies to return per page |
@@ -4527,6 +4626,7 @@ Retrieves the lead lists on the Smartlead account with their lead counts.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `offset` | number | No | Pagination offset \(default 0\) |
 | `limit` | number | No | Lists to return per page |
 
@@ -4637,6 +4737,7 @@ Retrieves a single Smartlead lead list by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `leadListId` | number | Yes | Lead list ID |
 
 #### Output
@@ -4746,6 +4847,7 @@ Creates a lead list on the Smartlead account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `listName` | string | Yes | Name for the new lead list |
 
 #### Output
@@ -4855,6 +4957,7 @@ Renames a Smartlead lead list.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `leadListId` | number | Yes | Lead list ID to update |
 | `listName` | string | Yes | New name for the lead list |
 
@@ -4965,6 +5068,7 @@ Deletes a Smartlead lead list.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 | `leadListId` | number | Yes | Lead list ID to delete |
 
 #### Output
@@ -5074,6 +5178,7 @@ Retrieves the clients on a Smartlead agency account, including the client IDs us
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Smartlead API key |
 
 #### Output
 

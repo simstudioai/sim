@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
+import { projectEnrichmentProviderFailure, toolProvider } from '@/enrichments/providers'
 import { runEnrichment, skippedEnrichmentDetail } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -16,16 +17,18 @@ function prov(
   id: string,
   opts: {
     build?: (inputs: Record<string, unknown>) => Record<string, unknown> | null
+    projectFailure?: EnrichmentProvider['projectFailure']
     map?: (output: Record<string, unknown>) => Record<string, unknown> | null
   } = {}
 ): EnrichmentProvider {
-  return {
+  return toolProvider({
     id,
     label: id.toUpperCase(),
     toolId: `tool_${id}`,
     buildParams: opts.build ?? (() => ({ q: 'x' })),
+    projectFailure: opts.projectFailure,
     mapOutput: opts.map ?? ((o) => (o.email ? { email: o.email } : null)),
-  }
+  })
 }
 
 function config(providers: EnrichmentProvider[]): EnrichmentConfig {
@@ -136,6 +139,82 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.result).toEqual({})
     expect(outcome.error).toBeNull()
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['no_match'])
+  })
+
+  it('continues after a provider translates a documented error into a clean miss', async () => {
+    mockExecuteTool.mockImplementation((toolId: string) => {
+      if (toolId === 'tool_a') {
+        return {
+          success: false,
+          error: 'NO_MATCH',
+          output: { status: 400, data: { error: true, error_code: 'NO_MATCH' } },
+        }
+      }
+      return { success: true, output: { email: 'j@acme.com' } }
+    })
+
+    const outcome = await runEnrichment(
+      config([
+        prov('a', {
+          projectFailure: (failure) => {
+            if (
+              typeof failure.output === 'object' &&
+              failure.output !== null &&
+              'data' in failure.output &&
+              typeof failure.output.data === 'object' &&
+              failure.output.data !== null &&
+              'error_code' in failure.output.data &&
+              failure.output.data.error_code === 'NO_MATCH'
+            ) {
+              return { status: 'no_match' }
+            }
+            return projectEnrichmentProviderFailure(failure)
+          },
+        }),
+        prov('b'),
+      ]),
+      {},
+      ctx
+    )
+
+    expect(outcome.result).toEqual({ email: 'j@acme.com' })
+    expect(outcome.error).toBeNull()
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['no_match', 'matched'])
+    expect(mockExecuteTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps non-miss provider errors as errors', async () => {
+    mockExecuteTool.mockResolvedValue({
+      success: false,
+      error: 'INVALID_API_KEY',
+      output: { status: 400, data: { error: true, error_code: 'INVALID_API_KEY' } },
+    })
+
+    const outcome = await runEnrichment(
+      config([
+        prov('a', {
+          projectFailure: (failure) => {
+            if (
+              typeof failure.output === 'object' &&
+              failure.output !== null &&
+              'data' in failure.output &&
+              typeof failure.output.data === 'object' &&
+              failure.output.data !== null &&
+              'error_code' in failure.output.data &&
+              failure.output.data.error_code === 'NO_MATCH'
+            ) {
+              return { status: 'no_match' }
+            }
+            return projectEnrichmentProviderFailure(failure)
+          },
+        }),
+      ]),
+      {},
+      ctx
+    )
+
+    expect(outcome.error).toBe('INVALID_API_KEY')
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['error'])
   })
 
   it('skippedEnrichmentDetail marks every provider skipped without running', () => {

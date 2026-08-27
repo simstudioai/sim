@@ -1,38 +1,39 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { mondayConnectorMeta } from '@/connectors/monday/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseMultiValue, parseTagDate } from '@/connectors/utils'
+import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 const logger = createLogger('MondayConnector')
-
-/**
- * monday.com GraphQL endpoint. All requests are POSTed here.
- * @see https://developer.monday.com/api-reference/docs/basics
- */
-const MONDAY_API_URL = 'https://api.monday.com/v2'
-
-/**
- * Stable monday.com API version pinned via the `API-Version` header. monday.com
- * keeps at least three quarterly versions live; `2024-10` was deprecated on
- * 2026-02-15, so this is pinned to the current stable release.
- * @see https://developer.monday.com/api-reference/docs/api-versioning
- */
-const MONDAY_API_VERSION = '2026-04'
 
 /** Max items requested per `items_page` / `next_items_page` call (monday.com max is 500). */
 const ITEMS_PAGE_SIZE = 100
 
-/** Max boards requested per `boards` listing page (monday.com max is 500). */
+/** Boards requested per `boards` listing page (monday.com's default is 25, max 500). */
 const BOARDS_PAGE_SIZE = 100
 
-/** Max updates fetched per item for content extraction. */
+/**
+ * Bound on the offset-paginated `boards` drain. `boards` exposes no cursor and no
+ * total count, so an unbounded loop is only terminated by the API returning a
+ * short page — this caps the walk at 5,000 boards instead of spinning forever.
+ */
+const MAX_BOARD_PAGES = 50
+
+/** Max updates fetched per item for content extraction (monday.com's max is 100). */
 const UPDATES_LIMIT = 50
 
 interface MondayColumnValue {
   id: string
   text: string | null
+  /**
+   * Present only on the column types that dropped `text`. Selected via inline
+   * fragments in {@link ITEM_FIELDS}.
+   */
+  display_value?: string | null
   column: { id: string; title: string } | null
 }
 
@@ -96,22 +97,84 @@ function decodeCursor(cursor?: string): CursorState {
   }
 }
 
-/**
- * monday.com uses the raw access token in the `Authorization` header — it is NOT
- * prefixed with "Bearer". The `API-Version` header pins the schema version.
- * @see https://developer.monday.com/api-reference/docs/authentication
- */
-function mondayHeaders(accessToken: string): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: accessToken,
-    'API-Version': MONDAY_API_VERSION,
-  }
+interface MondayGraphQLError {
+  message?: string
+  extensions?: { code?: string; status_code?: number; retry_in_seconds?: number }
+  retry_in_seconds?: number
+}
+
+interface MondayGraphQLBody<T> {
+  data?: T | null
+  errors?: MondayGraphQLError[]
+  error_message?: string
+  error_code?: string
 }
 
 /**
- * Executes a GraphQL query against the monday.com API, surfacing GraphQL-level
- * errors (which return HTTP 200 with an `errors` array) as thrown errors.
+ * monday's throttling error codes, matched case-insensitively by substring.
+ *
+ * The errors page documents `Rate Limit Exceeded`, `COMPLEXITY_BUDGET_EXHAUSTED`
+ * and `maxConcurrencyExceeded` as HTTP 429 — which `fetchWithRetry` already
+ * retries off the `Retry-After` header — plus `API_TEMPORARILY_BLOCKED` on HTTP
+ * 200. The rate-limits page adds `ComplexityException`, `DAILY_LIMIT_EXCEEDED`,
+ * `IP_RATE_LIMIT_EXCEEDED`, `Concurrency limit exceeded` and `Minute limit rate
+ * exceeded`, none of which carry a documented status.
+ *
+ * The whole family is matched on an HTTP 200 body and retried here, since the
+ * codes without a documented 429 never reach `fetchWithRetry`'s retry path.
+ * @see https://developer.monday.com/api-reference/docs/errors
+ * @see https://developer.monday.com/api-reference/docs/rate-limits
+ */
+const MONDAY_THROTTLE_CODE =
+  /complexity|rate.?limit|maxconcurrency|concurrency.?limit|daily.?limit|minute.?limit|temporarily_blocked/i
+
+/** Ceiling on an honored `retry_in_seconds`, so a large reset cannot stall a sync. */
+const MAX_THROTTLE_WAIT_MS = 60_000
+
+/**
+ * Extracts the throttle back-off, in ms, if any GraphQL error in the body is a
+ * complexity/rate-limit failure. monday reports the wait as a `retry_in_seconds`
+ * body field rather than a `Retry-After` header, so `fetchWithRetry`'s
+ * header-driven pacing never sees it.
+ */
+function throttleRetryMs(errors: MondayGraphQLError[] | undefined): number | null {
+  if (!Array.isArray(errors)) return null
+  for (const error of errors) {
+    const code = error?.extensions?.code
+    const isThrottle =
+      (typeof code === 'string' && MONDAY_THROTTLE_CODE.test(code)) ||
+      error?.extensions?.status_code === 429
+    if (!isThrottle) continue
+    const seconds = error.retry_in_seconds ?? error.extensions?.retry_in_seconds
+    return Number.isFinite(seconds) && Number(seconds) > 0
+      ? Math.min(Number(seconds) * 1000, MAX_THROTTLE_WAIT_MS)
+      : 0
+  }
+  return null
+}
+
+/** Renders a GraphQL error array into a message that preserves `extensions.code`. */
+function formatGraphQLErrors(errors: MondayGraphQLError[]): string {
+  const parts = errors
+    .map((error) => {
+      const code = error?.extensions?.code
+      const message = error?.message
+      if (code && message) return `${code}: ${message}`
+      return code || message || ''
+    })
+    .filter(Boolean)
+  return parts.join('; ') || 'Unknown GraphQL error'
+}
+
+/**
+ * Executes a GraphQL query against the monday.com API.
+ *
+ * monday returns `200 – OK` for application-level errors, and those responses may
+ * carry a **partially populated** `data` object alongside `errors`. Throwing on any
+ * `errors` entry is deliberate: returning the partial payload would let
+ * `listDocuments` surface a short or empty item list, which the sync engine would
+ * read as "the board has no items" and hard-delete every stored document.
+ * @see https://developer.monday.com/api-reference/docs/errors
  */
 async function mondayGraphQL<T>(
   accessToken: string,
@@ -119,46 +182,74 @@ async function mondayGraphQL<T>(
   variables: Record<string, unknown> = {},
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<T> {
-  const response = await fetchWithRetry(
-    MONDAY_API_URL,
-    {
-      method: 'POST',
-      headers: mondayHeaders(accessToken),
-      body: JSON.stringify({ query, variables }),
-    },
-    retryOptions
-  )
+  const maxThrottleRetries = retryOptions?.maxRetries ?? 3
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
-    throw new Error(
-      `monday.com API HTTP error: ${response.status}${errorText ? ` — ${errorText.slice(0, 200)}` : ''}`
+  for (let attempt = 1; ; attempt++) {
+    const response = await fetchWithRetry(
+      MONDAY_API_URL,
+      {
+        method: 'POST',
+        headers: mondayHeaders(accessToken),
+        body: JSON.stringify({ query, variables }),
+      },
+      retryOptions
     )
-  }
 
-  const data = (await response.json()) as {
-    data?: T
-    errors?: { message?: string }[]
-    error_message?: string
-  }
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(
+        `monday.com API HTTP error: ${response.status}${errorText ? ` — ${errorText.slice(0, 200)}` : ''}`
+      )
+    }
 
-  if (data.errors && data.errors.length > 0) {
-    const message = data.errors
-      .map((e) => e.message)
-      .filter(Boolean)
-      .join('; ')
-    throw new Error(`monday.com API error: ${message || 'Unknown GraphQL error'}`)
-  }
-  if (data.error_message) {
-    throw new Error(`monday.com API error: ${data.error_message}`)
-  }
+    const body = (await response.json()) as MondayGraphQLBody<T>
 
-  return data.data as T
+    const throttleMs = throttleRetryMs(body.errors)
+    if (throttleMs !== null && attempt <= maxThrottleRetries) {
+      const delayMs = backoffWithJitter(attempt, throttleMs || null, {
+        maxMs: MAX_THROTTLE_WAIT_MS,
+      })
+      logger.warn('Monday.com throttled the request; backing off', { attempt, delayMs })
+      await sleep(delayMs)
+      continue
+    }
+
+    if (body.errors && body.errors.length > 0) {
+      throw new Error(`monday.com API error: ${formatGraphQLErrors(body.errors)}`)
+    }
+    if (body.error_message) {
+      const code = body.error_code ? `${body.error_code}: ` : ''
+      throw new Error(`monday.com API error: ${code}${body.error_message}`)
+    }
+
+    /**
+     * No errors but no payload either. Returning `undefined` would let callers
+     * read an empty item list off `data.boards`, which reconciles as a deletion
+     * of everything the board owns.
+     */
+    if (body.data === null || body.data === undefined) {
+      throw new Error('monday.com API returned no data')
+    }
+
+    return body.data
+  }
 }
 
 /**
  * GraphQL selection set for an item, shared between listing and single-item
  * fetches so the resolved fields stay in sync.
+ *
+ * `ColumnValue.text` is documented as "not every column supports the text
+ * value": mirror, board_relation (connect boards), dependency, and formula
+ * columns expose their readable content on `display_value` instead. Mirror and
+ * dependency return `null` for `text`; formula returns an empty string. Either
+ * way `columnValueText` falls through, but selecting only `text` would silently
+ * drop those columns from the indexed document, so each is pulled in via an
+ * inline fragment.
+ * @see https://developer.monday.com/api-reference/reference/column-values-v2
+ * @see https://developer.monday.com/api-reference/reference/mirror
+ * @see https://developer.monday.com/api-reference/reference/formula
+ * @see https://developer.monday.com/api-reference/reference/dependency
  */
 const ITEM_FIELDS = `
   id
@@ -174,6 +265,10 @@ const ITEM_FIELDS = `
     id
     text
     column { id title }
+    ... on MirrorValue { display_value }
+    ... on BoardRelationValue { display_value }
+    ... on DependencyValue { display_value }
+    ... on FormulaValue { display_value }
   }
   updates(limit: ${UPDATES_LIMIT}) {
     id
@@ -255,6 +350,15 @@ function itemToDocument(
 }
 
 /**
+ * Resolves the readable text of a column value, preferring `text` and falling
+ * back to `display_value` for the column types that do not populate `text`
+ * (mirror, board_relation, dependency, formula).
+ */
+function columnValueText(cv: MondayColumnValue): string {
+  return cv.text?.trim() || cv.display_value?.trim() || ''
+}
+
+/**
  * Formats an item's column values and updates into a plain-text document. The
  * resolved board is passed in so listing (which has a board fallback) and
  * single-item fetches produce identical content.
@@ -269,14 +373,14 @@ function formatItemContent(item: MondayItem, board: { id: string; name: string }
   if (item.created_at) parts.push(`Created: ${item.created_at}`)
   if (item.updated_at) parts.push(`Updated: ${item.updated_at}`)
 
-  const columns = item.column_values.filter((cv) => cv.text?.trim())
-  if (columns.length > 0) {
-    parts.push('')
-    parts.push('--- Fields ---')
-    for (const cv of columns) {
-      const title = cv.column?.title?.trim() || cv.id
-      parts.push(`${title}: ${cv.text}`)
-    }
+  const fieldLines: string[] = []
+  for (const cv of item.column_values) {
+    const value = columnValueText(cv)
+    if (!value) continue
+    fieldLines.push(`${cv.column?.title?.trim() || cv.id}: ${value}`)
+  }
+  if (fieldLines.length > 0) {
+    parts.push('', '--- Fields ---', ...fieldLines)
   }
 
   const updates = item.updates.filter((u) => u.text_body?.trim())
@@ -299,7 +403,8 @@ function formatItemContent(item: MondayItem, board: { id: string; name: string }
  */
 async function resolveBoardIds(
   accessToken: string,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>
 ): Promise<{ id: string; name: string | null }[]> {
   const configured = parseMultiValue(sourceConfig.boardIds)
   if (configured.length > 0) {
@@ -308,7 +413,7 @@ async function resolveBoardIds(
 
   const boards: { id: string; name: string | null }[] = []
   let page = 1
-  for (;;) {
+  for (; page <= MAX_BOARD_PAGES; page++) {
     const data = await mondayGraphQL<{ boards: { id: string; name: string | null }[] | null }>(
       accessToken,
       `query ($limit: Int!, $page: Int!) {
@@ -321,9 +426,23 @@ async function resolveBoardIds(
     )
     const batch = data.boards ?? []
     boards.push(...batch)
-    if (batch.length < BOARDS_PAGE_SIZE) break
-    page += 1
+    /**
+     * `boards` is offset-paginated with no cursor or total count: a short page
+     * (or an empty one) is the only exhaustion signal.
+     */
+    if (batch.length < BOARDS_PAGE_SIZE) return boards
   }
+
+  /**
+   * The drain bound was reached with a full final page, so boards beyond it were
+   * never enumerated and their items are missing from the listing. Block deletion
+   * reconciliation so the sync engine does not hard-delete their stored documents.
+   */
+  logger.warn('Monday.com board enumeration hit the page bound; listing is incomplete', {
+    boardCount: boards.length,
+    maxBoardPages: MAX_BOARD_PAGES,
+  })
+  if (syncContext) syncContext.listingCapped = true
   return boards
 }
 
@@ -341,7 +460,7 @@ export const mondayConnector: ConnectorConfig = {
 
     const boards =
       (syncContext?.boards as { id: string; name: string | null }[] | undefined) ??
-      (await resolveBoardIds(accessToken, sourceConfig))
+      (await resolveBoardIds(accessToken, sourceConfig, syncContext))
     if (syncContext) syncContext.boards = boards
 
     if (state.boardIndex >= boards.length) {
@@ -412,7 +531,19 @@ export const mondayConnector: ConnectorConfig = {
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxItems > 0 && totalFetched >= maxItems
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+
+    /**
+     * `listingCapped` blocks the sync engine's deletion reconciliation, so it must
+     * only be set when the cap actually hid documents that still exist. A cap that
+     * lands exactly on source exhaustion (nothing sliced off this page, no
+     * `items_page` cursor, no boards left) is a complete listing and must stay
+     * reconcilable — otherwise deleted items are never removed from the KB.
+     */
+    const moreAvailable =
+      documents.length < allDocuments.length ||
+      Boolean(nextItemsCursor) ||
+      state.boardIndex + 1 < boards.length
+    if (hitLimit && moreAvailable && syncContext) syncContext.listingCapped = true
 
     let nextCursor: string | undefined
     let hasMore = false
@@ -435,31 +566,26 @@ export const mondayConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const data = await mondayGraphQL<{ items: MondayItem[] | null }>(
-        accessToken,
-        `query ($ids: [ID!]) {
-          items(ids: $ids) { ${ITEM_FIELDS} }
-        }`,
-        { ids: [externalId] }
-      )
+    const data = await mondayGraphQL<{ items: MondayItem[] | null }>(
+      accessToken,
+      `query ($ids: [ID!]) {
+        items(ids: $ids) { ${ITEM_FIELDS} }
+      }`,
+      { ids: [externalId] }
+    )
 
-      const item = data.items?.[0]
-      if (!item) return null
+    /**
+     * monday answers a deleted or inaccessible id with an empty `items` array
+     * rather than an error, so this is the only absence. Every other failure
+     * propagates out of `mondayGraphQL` and is recorded by the sync engine as a
+     * visible failed document instead of being read as a deletion.
+     */
+    const item = data.items?.[0]
+    if (!item) return null
 
-      const doc = itemToDocument(item)
-      if (!doc.content.trim()) return null
-
-      return doc
-    } catch (error) {
-      logger.warn('Failed to get Monday.com item', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
-    }
+    return itemToDocument(item)
   },
 
   validateConfig: async (

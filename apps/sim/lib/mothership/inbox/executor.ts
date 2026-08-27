@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
@@ -27,7 +28,11 @@ import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
-import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  checkWorkspaceAccess,
+  getUserEntityPermissions,
+  type PermissionType,
+} from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
@@ -142,7 +147,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       const chatResult = await resolveOrCreateChat({
         userId,
         workspaceId: ws.id,
-        model: 'claude-opus-4-8',
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
         type: 'mothership',
       })
       chatId = chatResult.chatId
@@ -216,7 +221,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
-    const userPermission = workspaceAccess.permission
+    const userPermission = inboxToolPermission(actor, workspaceAccess.permission)
     const secretMountPolicy = normalizeSecretMountPolicy({
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
@@ -343,10 +348,47 @@ export async function executeInboxTask(taskId: string): Promise<void> {
  * Resolve the execution and raw-secret actors independently. Workspace members
  * execute and mount secrets as themselves. External senders retain the existing
  * owner execution fallback but receive no raw-secret actor.
+ *
+ * The owner fallback exists because billing attribution and workspace reads need
+ * a real user, not because an unknown sender should act as the owner. A null
+ * `secretActorUserId` is therefore the run's "no caller" signal, and callers must
+ * treat it as one everywhere authority is derived — see
+ * {@link inboxToolPermission}.
  */
 interface InboxExecutionActor {
   executionUserId: string
+  /** Null when no workspace member owns this message. */
   secretActorUserId: string | null
+}
+
+/**
+ * How far an inbox run's tools may reach.
+ *
+ * An attributed message uses the sender's own workspace permission, which makes an
+ * emailed request equivalent to that member performing it in the app — a read-only
+ * member still cannot run or edit anything.
+ *
+ * An unattributed message resolves to the workspace owner so the run has a real
+ * user for billing and workspace reads, and the owner is typically an admin. Left
+ * alone, that hands an allowlisted external correspondent the owner's write
+ * authority: `create_workflow` and `edit_workflow` gate on
+ * `requiredPermission: 'write'`, and `run_workflow` is gated by the headless
+ * client-fallback bar in `executeTool` — it carries no catalog permission of its
+ * own. A workflow built or run through any of them executes with
+ * `enforceCredentialAccess`, resolving the owner's workspace *and personal*
+ * secrets. That is the same reach `secretActorUserId: null` already refuses for a
+ * direct mount, so refusing it here keeps one answer rather than two.
+ *
+ * Read is the ceiling rather than no permission at all because answering an
+ * external correspondent from workspace context is the point of the inbox; only
+ * mutation and execution are withheld.
+ */
+function inboxToolPermission(
+  actor: InboxExecutionActor,
+  workspacePermission: PermissionType | null
+): PermissionType | null {
+  if (actor.secretActorUserId !== null) return workspacePermission
+  return workspacePermission === null ? null : 'read'
 }
 
 async function resolveInboxExecutionActor(

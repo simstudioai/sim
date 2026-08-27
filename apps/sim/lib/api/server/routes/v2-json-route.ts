@@ -16,12 +16,15 @@ import {
   type V2ApiKeyAuthContext,
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
-import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
+import {
+  type ParsedRequest,
+  type ParseRequestOptions,
+  parseRequest,
+} from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
@@ -39,7 +42,7 @@ const V2_PREAUTH_IP_LIMIT = {
 } as const
 
 export class V2RouteInfrastructureError extends Error {
-  constructor(stage: 'authentication' | 'rollout_gate' | 'rate_limit', cause: unknown) {
+  constructor(stage: 'authentication' | 'rate_limit', cause: unknown) {
     super(`V2 ${stage} infrastructure failed`, { cause })
     this.name = 'V2RouteInfrastructureError'
   }
@@ -126,11 +129,74 @@ const v2PayloadTooLargeResponse = () => v2Error('PAYLOAD_TOO_LARGE', 'Request bo
 export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body must be valid JSON')
 
 /**
+ * Whether the request declared a media type that is not a JSON body at all.
+ *
+ * Only consulted once a body has already **failed** to parse as JSON — see
+ * {@link v2InvalidBodyResponse} — so this decides how to describe a request
+ * that is failing either way, never whether one is accepted.
+ *
+ * An absent `Content-Type` is not a mismatch. A body sent without one is
+ * indistinguishable from a client that simply omits the header, and today's
+ * callers include ones that do; treating absence as a refusal is the likeliest
+ * way to turn a working client into a 415.
+ *
+ * `text/plain` is not a mismatch either, and that carve-out is load-bearing:
+ * `fetch(url, { method: 'POST', body: JSON.stringify(x) })` with no explicit
+ * headers sends `text/plain;charset=UTF-8`, so it is the default media type of
+ * a hand-written JSON body from a browser rather than a declaration that the
+ * body is not JSON.
+ *
+ * Anything else — `application/x-www-form-urlencoded`, `multipart/form-data`,
+ * `application/xml` — is a positive statement that the body is in some other
+ * format, which is exactly what 415 names.
+ */
+function declaresNonJsonBody(request: Request): boolean {
+  const header = request.headers.get('content-type')
+  if (!header) return false
+  const mediaType = header.split(';', 1)[0].trim().toLowerCase()
+  if (!mediaType || mediaType === 'text/plain') return false
+  const subtype = mediaType.slice(mediaType.indexOf('/') + 1)
+  return subtype !== 'json' && !subtype.endsWith('+json')
+}
+
+/**
+ * The v2 answer to a body that could not be read as JSON: `415` when the caller
+ * declared a non-JSON media type, `400` otherwise.
+ *
+ * `400 "Request body must be valid JSON"` is the same answer for a truncated
+ * JSON body and for a form-encoded one, which leaves a caller who sent
+ * `application/x-www-form-urlencoded` hunting a syntax error in a body that has
+ * none. `UNSUPPORTED_MEDIA_TYPE` was already a declared `V2ErrorCode` with no
+ * path that reached it; this is that path.
+ *
+ * Deliberately a **re-classification of an existing failure**, not a new gate.
+ * It runs only after the JSON read has already failed, so no request that
+ * succeeds today can start failing: `curl -d '{"a":1}'` without `-H` sends
+ * form-urlencoded around a body that parses as JSON perfectly well, and that
+ * caller keeps working exactly as before. A pre-parse content-type gate would
+ * have broken them — and would also have to special-case the multipart bodies
+ * `defineV2BodyLifecycleRoute` legitimately accepts. Only the status and
+ * `error.code` of an already-4xx request change.
+ */
+export function v2InvalidBodyResponse(request: Request): NextResponse {
+  return declaresNonJsonBody(request)
+    ? v2Error('UNSUPPORTED_MEDIA_TYPE', 'Request body must be sent as application/json')
+    : v2InvalidJsonResponse()
+}
+
+/**
  * The parse failures every v2 route renders the same way.
  *
  * The builders spread this, and so must the handful of raw `withRouteHandler`
  * v2 routes that call `parseRequest` directly — they are exactly the routes a
  * builder default cannot reach.
+ *
+ * `invalidJsonResponse` is the request-unaware 400. `parseRequest` invokes it
+ * with no arguments, so the media-type-aware {@link v2InvalidBodyResponse} can
+ * only be installed by a caller that still holds the request — which
+ * {@link defineV2JsonRoute} does, overriding this entry. A raw route wanting the
+ * same 415 passes `invalidJsonResponse: () => v2InvalidBodyResponse(request)`
+ * after spreading this.
  */
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
@@ -214,6 +280,16 @@ export const v2OrchestrationErrorPolicy = {
 
 async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextResponse | null> {
   const ip = getClientIp(request)
+  if (!ip) {
+    const resetAt = new Date(Date.now() + V2_PREAUTH_IP_LIMIT.refillIntervalMs)
+    return v2RateLimitError({
+      allowed: false,
+      limit: V2_PREAUTH_IP_LIMIT.maxTokens,
+      remaining: 0,
+      resetAt,
+      retryAfterMs: V2_PREAUTH_IP_LIMIT.refillIntervalMs,
+    })
+  }
   const abuseLimit = await rateLimiter.checkRateLimitDirect(
     `v2:preauth:ip:${ip}`,
     V2_PREAUTH_IP_LIMIT,
@@ -242,19 +318,11 @@ async function admitAuthenticatedV2Request(
     throw new V2RouteInfrastructureError('authentication', error)
   }
 
-  let gate
-  try {
-    gate = await v2ApiGateError(auth.rolloutUserId)
-  } catch (error) {
-    throw new V2RouteInfrastructureError('rollout_gate', error)
-  }
-  if (gate) return { success: false, response: gate }
-
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
-export async function admitV2Request(
+async function admitRateLimitedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
@@ -265,6 +333,18 @@ export async function admitV2Request(
   const preAuthResponse = await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+}
+
+/** Admission for a v2 route the builders do not cover, such as the resume leg. */
+export async function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy
+): Promise<
+  { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
+> {
+  return admitRateLimitedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
 export async function admitOptionalV2Request(
@@ -281,8 +361,24 @@ export async function admitOptionalV2Request(
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
+/**
+ * What `mapInput` learns about the authenticated credential.
+ *
+ * Deliberately not the whole {@link V2ApiKeyAuthContext}: it carries the
+ * principal, and a route mapping identity into use-case input would be routing
+ * an authorization decision around the application boundary. These are facts
+ * about the credential rather than about who holds it.
+ *
+ * One route reads it: `GET /api/v2/meta`, whose resource *is* the calling key.
+ */
+export interface V2CredentialFacts {
+  readonly keyType: 'personal' | 'workspace'
+  readonly keyExpiresAt: Date | null
+}
+
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>
-  extends JsonRouteDefinition<C, O, I, R> {
+  extends Omit<JsonRouteDefinition<C, O, I, R>, 'mapInput'> {
+  mapInput(input: ParsedRequest<C>, credential: V2CredentialFacts): I
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
@@ -338,7 +434,7 @@ export function defineV2JsonRoute<
         )
       }
 
-      const admission = await admitV2Request(
+      const admission = await admitRateLimitedV2Request(
         request,
         options.operation,
         options.auth,
@@ -360,15 +456,21 @@ export function defineV2JsonRoute<
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,
+        invalidJsonResponse: () => v2InvalidBodyResponse(request),
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
 
+      const credentialFacts: V2CredentialFacts = {
+        keyType: auth.keyType,
+        keyExpiresAt: auth.keyExpiresAt,
+      }
+
       if (request.method === 'HEAD' && options.headSafe === false) {
         let input: I
         try {
-          input = options.mapInput(parsed.data)
+          input = options.mapInput(parsed.data, credentialFacts)
         } catch (error) {
           const response = options.errorPolicy.render(error)
           if (response) return response
@@ -384,7 +486,7 @@ export function defineV2JsonRoute<
       }
 
       try {
-        const input = options.mapInput(parsed.data)
+        const input = options.mapInput(parsed.data, credentialFacts)
         const result = await options.useCase.execute({
           principal: auth.principal,
           input,

@@ -6,6 +6,7 @@ import {
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
   internalKnowledgeAnalytics,
+  resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
   toInternalKnowledgeConnectorDetail,
 } from '@/lib/knowledge/api/internal-route'
@@ -47,10 +48,12 @@ export const PATCH = defineInternalJsonRoute({
     reason: 'Preserve existing internal connector-update behavior',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params, body }) => ({
+  mapInput: ({ params, body }, { principal, request }) => ({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
     updates: body,
+    resolveBillingAttribution: (workspaceId: string) =>
+      resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
     source: 'ui' as const,
   }),
   useCase: updateKnowledgeConnector,

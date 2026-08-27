@@ -3,10 +3,22 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  connectedAccountsQuerySchema,
   instagramAuthorizeQuerySchema,
   instagramCallbackQuerySchema,
   trelloAuthorizeQuerySchema,
 } from '@/lib/api/contracts/oauth-connections'
+
+describe('Connected account query contracts', () => {
+  it('preserves first-value and blank-provider normalization', () => {
+    expect(connectedAccountsQuerySchema.parse({ provider: '' })).toEqual({
+      provider: undefined,
+    })
+    expect(connectedAccountsQuerySchema.parse({ provider: ['google', 'slack'] })).toEqual({
+      provider: 'google',
+    })
+  })
+})
 
 describe('Instagram OAuth query contracts', () => {
   it('accepts bounded authorize and callback values', () => {

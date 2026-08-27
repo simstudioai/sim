@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/providers/salesforce-payload'
 import type {
   AuthContext,
   EventMatchContext,
@@ -8,37 +10,6 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { buildFallbackDeliveryFingerprint, verifyTokenAuth } from '@/lib/webhooks/providers/utils'
-
-export function extractSalesforceObjectTypeFromPayload(
-  body: Record<string, unknown>
-): string | undefined {
-  const direct =
-    (typeof body.objectType === 'string' && body.objectType) ||
-    (typeof body.sobjectType === 'string' && body.sobjectType) ||
-    undefined
-  if (direct) {
-    return direct
-  }
-
-  const attrs = body.attributes as Record<string, unknown> | undefined
-  if (typeof attrs?.type === 'string') {
-    return attrs.type
-  }
-
-  const record = body.record
-  if (record && typeof record === 'object' && !Array.isArray(record)) {
-    const r = record as Record<string, unknown>
-    if (typeof r.sobjectType === 'string') {
-      return r.sobjectType
-    }
-    const ra = r.attributes as Record<string, unknown> | undefined
-    if (typeof ra?.type === 'string') {
-      return ra.type
-    }
-  }
-
-  return undefined
-}
 
 const logger = createLogger('WebhookProvider:Salesforce')
 
@@ -49,15 +20,9 @@ function verifySalesforceSharedSecret(request: Request, secret: string): boolean
   return verifyTokenAuth(request, secret)
 }
 
-function asRecord(body: unknown): Record<string, unknown> {
-  return body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as Record<string, unknown>)
-    : {}
-}
-
 function extractRecordCore(body: Record<string, unknown>): Record<string, unknown> {
   const nested = body.record
-  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+  if (isRecordLike(nested)) {
     return { ...(nested as Record<string, unknown>) }
   }
 
@@ -135,7 +100,7 @@ export const salesforceHandler: WebhookProviderHandler = {
 
     const { isSalesforceEventMatch } = await import('@/triggers/salesforce/utils')
     const configuredObjectType = providerConfig.objectType as string | undefined
-    const obj = asRecord(body)
+    const obj = toRecord(body)
 
     if (!isSalesforceEventMatch(triggerId, obj, configuredObjectType)) {
       logger.debug(
@@ -150,12 +115,9 @@ export const salesforceHandler: WebhookProviderHandler = {
 
   async formatInput(ctx: FormatInputContext): Promise<FormatInputResult> {
     const rawPc = (ctx.webhook as { providerConfig?: unknown }).providerConfig
-    const pc =
-      rawPc && typeof rawPc === 'object' && !Array.isArray(rawPc)
-        ? (rawPc as Record<string, unknown>)
-        : {}
+    const pc = isRecordLike(rawPc) ? (rawPc as Record<string, unknown>) : {}
     const id = typeof pc.triggerId === 'string' ? pc.triggerId : ''
-    const body = asRecord(ctx.body)
+    const body = toRecord(ctx.body)
 
     const record = extractRecordCore(body)
     const objectType =
@@ -300,7 +262,7 @@ export const salesforceHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown): string | null {
-    const b = asRecord(body)
+    const b = toRecord(body)
     const record = extractRecordCore(b)
     const id = pickRecordId(b, record)
     const et =

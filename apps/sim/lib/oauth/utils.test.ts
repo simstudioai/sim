@@ -8,6 +8,7 @@ import {
   getCanonicalScopesForProvider,
   getMissingRequiredScopes,
   getProviderIdFromServiceId,
+  getScopeDescription,
   getScopesForService,
   getServiceByProviderAndId,
   getServiceConfigByProviderId,
@@ -384,6 +385,21 @@ describe('getCanonicalScopesForProvider', () => {
   })
 })
 
+describe('getScopeDescription', () => {
+  it.concurrent('uses provider-specific labels for Bitbucket scope names', () => {
+    expect(getScopeDescription('account', 'bitbucket')).toBe(
+      'View your Bitbucket account and workspace memberships'
+    )
+    expect(getScopeDescription('pipeline:write', 'bitbucket')).toBe('Run and stop pipelines')
+    expect(getScopeDescription('webhook', 'bitbucket')).toBe('Manage repository webhooks')
+  })
+
+  it.concurrent('preserves the existing Reddit meaning of the account scope', () => {
+    expect(getScopeDescription('account', 'reddit')).toBe('Update account preferences and settings')
+    expect(getScopeDescription('account')).toBe('Update account preferences and settings')
+  })
+})
+
 describe('parseProvider', () => {
   it.concurrent('should parse simple provider without hyphen', () => {
     const config = parseProvider('slack' as OAuthProvider)
@@ -649,6 +665,19 @@ describe('getScopesForService', () => {
     expect(scopes).not.toContain('Calendars.ReadWrite.Shared')
   })
 
+  it.concurrent('should include webhook management in Bitbucket consent scopes', () => {
+    expect(getScopesForService('bitbucket')).toEqual([
+      'account',
+      'repository',
+      'repository:write',
+      'pullrequest',
+      'pullrequest:write',
+      'pipeline',
+      'pipeline:write',
+      'webhook',
+    ])
+  })
+
   it.concurrent('should return empty array for empty string', () => {
     const scopes = getScopesForService('')
 
@@ -696,6 +725,34 @@ describe('getMissingRequiredScopes', () => {
     const missing = getMissingRequiredScopes(credential, ['read', 'refresh_token'])
 
     expect(missing).toEqual([])
+  })
+
+  it.concurrent('accepts calendar for a required calendar.readonly via the generic rule', () => {
+    const credential = { scopes: ['https://www.googleapis.com/auth/calendar'] }
+    const missing = getMissingRequiredScopes(credential, [
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ])
+
+    expect(missing).toEqual([])
+  })
+
+  /**
+   * The rule derives only the bare read-write scope. Sim requests `gmail.send`,
+   * `gmail.modify` and `gmail.labels` but never `.../auth/gmail`, so a consumer
+   * must require one of the scopes actually granted rather than `gmail.readonly`.
+   */
+  it.concurrent('does not treat unrelated gmail scopes as covering gmail.readonly', () => {
+    const credential = {
+      scopes: [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+    }
+    const missing = getMissingRequiredScopes(credential, [
+      'https://www.googleapis.com/auth/gmail.readonly',
+    ])
+
+    expect(missing).toEqual(['https://www.googleapis.com/auth/gmail.readonly'])
   })
 
   it.concurrent('should ignore offline.access in required scopes', () => {

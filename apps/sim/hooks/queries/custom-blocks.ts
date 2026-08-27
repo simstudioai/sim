@@ -75,7 +75,7 @@ export function useCustomBlockUsageCounts(blockId?: string, options?: { enabled?
   })
 }
 
-export function usePublishCustomBlock(workspaceId?: string) {
+export function usePublishCustomBlock() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: PublishCustomBlockBody) => requestJson(publishCustomBlockContract, { body }),
@@ -85,7 +85,7 @@ export function usePublishCustomBlock(workspaceId?: string) {
   })
 }
 
-export function useUpdateCustomBlock(workspaceId?: string) {
+export function useUpdateCustomBlock() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, ...body }: UpdateCustomBlockBody & { id: string }) =>
@@ -96,7 +96,7 @@ export function useUpdateCustomBlock(workspaceId?: string) {
   })
 }
 
-export function useDeleteCustomBlock(workspaceId?: string) {
+export function useDeleteCustomBlock() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => requestJson(deleteCustomBlockContract, { params: { id } }),

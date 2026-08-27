@@ -19,6 +19,10 @@ import type { ProviderName } from '@/stores/providers'
 
 type ProviderModelSource = ProviderName | 'openrouter-embeddings'
 
+interface UseProviderModelsOptions {
+  enabled?: boolean
+}
+
 const logger = createLogger('ProviderModelsQuery')
 
 export const PROVIDER_MODELS_STALE_TIME = 5 * 60 * 1000
@@ -101,6 +105,13 @@ export function providerModelsQueryOptions(provider: ProviderModelSource, worksp
   })
 }
 
-export function useProviderModels(provider: ProviderModelSource, workspaceId?: string) {
-  return useQuery(providerModelsQueryOptions(provider, workspaceId))
+export function useProviderModels(
+  provider: ProviderModelSource,
+  workspaceId?: string,
+  options?: UseProviderModelsOptions
+) {
+  return useQuery({
+    ...providerModelsQueryOptions(provider, workspaceId),
+    enabled: options?.enabled ?? true,
+  })
 }

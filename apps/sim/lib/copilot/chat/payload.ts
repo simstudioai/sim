@@ -8,27 +8,21 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getBlockVisibilityForCopilot, visibilitySignature } from '@/lib/copilot/block-visibility'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
-  filterExposedIntegrationTools,
-  getExposedIntegrationTools,
-} from '@/lib/copilot/integration-tools'
+  type IntegrationGateConfig,
+  integrationGateSignature,
+  projectIntegrationToolsForViewer,
+} from '@/lib/copilot/integration-tool-projection'
 import { buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
-import {
-  getAllowedIntegrationsFromEnv,
-  isDocSandboxEnabled,
-  isHosted,
-} from '@/lib/core/config/env-flags'
-import {
-  isIntegrationDeploymentAvailableForVisibility,
-  isOAuthServiceDeploymentAvailable,
-} from '@/lib/integrations/availability.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { buildArchiveExtractGuidance, isArchiveFileName } from '@/lib/uploads/utils/file-utils'
+import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 
 const logger = createLogger('CopilotChatPayload')
 const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
@@ -117,11 +111,14 @@ function getIntegrationToolSchemaCacheKey(
   userId: string,
   workspaceId: string | undefined,
   schemaSurface: string,
-  visSignature: string
+  visSignature: string,
+  gateSignature: string
 ): string {
   // The visibility signature keys the entry to the viewer's gated projection —
   // two users in one workspace with different preview reveals must not share.
-  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature])
+  // The gate signature does the same for permission-group policy, so an admin's
+  // change takes effect on the next build rather than when the entry expires.
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface, visSignature, gateSignature])
 }
 
 function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
@@ -158,11 +155,20 @@ export async function buildIntegrationToolSchemas(
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  // Resolved before the key, not inside the cached build, so the entry is keyed
+  // to the policy it was produced under. The read this adds is cheap next to
+  // what the entry caches: a user-tool schema per exposed integration tool.
+  let permissionConfig: IntegrationGateConfig | null = null
+  if (workspaceId) {
+    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
+    permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+  }
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,
     workspaceId,
     schemaSurface,
-    visibilitySignature(vis)
+    visibilitySignature(vis),
+    integrationGateSignature(permissionConfig)
   )
   const cached = integrationToolSchemaCache.get(cacheKey)
   if (cached) {
@@ -174,7 +180,8 @@ export async function buildIntegrationToolSchemas(
     messageId,
     { schemaSurface },
     workspaceId,
-    vis
+    vis,
+    permissionConfig
   ).catch((error) => {
     integrationToolSchemaCache.delete(cacheKey)
     throw error
@@ -192,22 +199,11 @@ async function buildIntegrationToolSchemasUncached(
   messageId: string | undefined,
   options: Required<BuildIntegrationToolSchemasOptions>,
   workspaceId?: string,
-  vis: BlockVisibilityState | null = null
+  vis: BlockVisibilityState | null = null,
+  permissionConfig: IntegrationGateConfig | null = null
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
-  let allowedIntegrations = getAllowedIntegrationsFromEnv()
-  if (workspaceId) {
-    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-    const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-    allowedIntegrations = intersectIntegrationAllowlists(
-      permissionConfig?.allowedIntegrations ?? null,
-      allowedIntegrations
-    )
-  }
-  const allowedIntegrationTypes = allowedIntegrations
-    ? new Set(allowedIntegrations.map((integration) => integration.toLowerCase()))
-    : null
 
   try {
     const { createUserToolSchema } = await import('@/tools/params')
@@ -223,14 +219,7 @@ async function buildIntegrationToolSchemasUncached(
       })
     }
 
-    const exposedTools = filterExposedIntegrationTools(
-      getExposedIntegrationTools(),
-      vis,
-      (owner) =>
-        isIntegrationDeploymentAvailableForVisibility(owner.blockType, vis) &&
-        (allowedIntegrationTypes === null ||
-          allowedIntegrationTypes.has(owner.blockType.toLowerCase()))
-    )
+    const { tools: exposedTools } = projectIntegrationToolsForViewer(vis, permissionConfig)
     for (const { toolId, config: toolConfig, service, operation } of exposedTools) {
       try {
         const userSchema = createUserToolSchema(toolConfig, {
@@ -247,6 +236,7 @@ async function buildIntegrationToolSchemasUncached(
           operation,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
+            hostedApiKey: deriveHostedApiKeySupport(toolConfig.hosting),
             fallbackName: toolId,
             appendEmailTagline: shouldAppendEmailTagline,
           }),
@@ -362,7 +352,7 @@ export async function buildCopilotRequestPayload(
           userMessageId
         )
         // Encode the read path per the percent-encoded VFS convention (matches
-        // files/ and the uploads glob output). The materialize_file `fileName`
+        // files/ and the uploads glob output). The save_upload `fileName`
         // arg stays the raw display name — the upload resolver accepts both.
         let encodedUploadName = displayName
         try {
@@ -382,11 +372,11 @@ export async function buildCopilotRequestPayload(
           lines = [
             `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
             `Read with: read("uploads/${encodedUploadName}")`,
-            `To save permanently: materialize_file(fileName: "${displayName}")`,
+            `To save permanently: save_upload(fileName: "${displayName}")`,
           ]
           if (displayName.endsWith('.json')) {
             lines.push(
-              `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
+              `To import as a workflow: save_upload(fileName: "${displayName}", operation: "import")`
             )
           }
         }

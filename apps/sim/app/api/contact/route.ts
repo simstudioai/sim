@@ -54,8 +54,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
   try {
     const ip = getClientIp(req)
+    if (!ip) {
+      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
+    }
     const storageKey = `public:contact:${ip}`
-
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
       storageKey,
       PUBLIC_ENDPOINT_RATE_LIMIT

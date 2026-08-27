@@ -1,177 +1,64 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkspaceCredentialContract } from '@/lib/api/contracts/credentials'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  type CredentialActorContext,
-  canUseCredential,
-  getCredentialActorContext,
-} from '@/lib/credentials/access'
+  deleteWorkspaceCredentialContract,
+  getWorkspaceCredentialContract,
+  updateWorkspaceCredentialContract,
+} from '@/lib/api/contracts/credentials'
 import {
-  isProviderOutageCode,
-  performDeleteCredential,
-  performUpdateCredential,
-} from '@/lib/credentials/orchestration'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  credentialValidationParseOptions,
+  internalCredentialDetailErrorPolicy,
+  internalCredentialErrorPolicy,
+} from '@/lib/credentials/api/route-policies'
+import {
+  getWorkspaceCredentialUseCase,
+  updateWorkspaceCredentialUseCase,
+} from '@/lib/credentials/application/credential-crud'
+import { credentialOperations } from '@/lib/credentials/application/operations'
+import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
+import { deleteCredentialUseCase } from '@/lib/credentials/application/service-account'
 
-const logger = createLogger('CredentialByIdAPI')
+const rateLimit = internalRateLimits.none({ reason: 'Preserve existing internal behavior' })
 
-function formatCredentialResponse(access: CredentialActorContext) {
-  const cred = access.credential
-  if (!cred) return null
+export const GET = defineInternalJsonRoute({
+  contract: getWorkspaceCredentialContract,
+  auth: internalSessionAuth,
+  operation: credentialOperations.read,
+  rateLimit,
+  errorPolicy: internalCredentialDetailErrorPolicy,
+  parseOptions: credentialValidationParseOptions,
+  mapInput: ({ params }) => ({ credentialId: params.id }),
+  useCase: getWorkspaceCredentialUseCase,
+  present: ({ credential, access }) => ({
+    credential: toWorkspaceCredential(credential, access),
+  }),
+})
 
-  return {
-    id: cred.id,
-    workspaceId: cred.workspaceId,
-    type: cred.type,
-    displayName: cred.displayName,
-    description: cred.description,
-    providerId: cred.providerId,
-    accountId: cred.accountId,
-    envKey: cred.envKey,
-    envOwnerUserId: cred.envOwnerUserId,
-    createdBy: cred.createdBy,
-    createdAt: cred.createdAt,
-    updatedAt: cred.updatedAt,
-    role: access.isAdmin ? 'admin' : (access.member?.role ?? null),
-    status: access.member?.status ?? (access.isAdmin ? 'active' : null),
-  }
-}
+export const PUT = defineInternalJsonRoute({
+  contract: updateWorkspaceCredentialContract,
+  auth: internalSessionAuth,
+  operation: credentialOperations.update,
+  rateLimit,
+  errorPolicy: internalCredentialErrorPolicy,
+  parseOptions: credentialValidationParseOptions,
+  mapInput: ({ params, body }) => ({ credentialId: params.id, ...body }),
+  useCase: updateWorkspaceCredentialUseCase,
+  present: ({ credential, access }) => ({
+    credential: toWorkspaceCredential(credential, access),
+  }),
+})
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await params
-
-    try {
-      const access = await getCredentialActorContext(id, session.user.id)
-      if (!access.credential) {
-        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-      }
-      if (!canUseCredential(access)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      return NextResponse.json({ credential: formatCredentialResponse(access) }, { status: 200 })
-    } catch (error) {
-      logger.error('Failed to fetch credential', error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-export const PUT = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    try {
-      const parsed = await parseRequest(updateWorkspaceCredentialContract, request, context, {
-        validationErrorResponse: (error) =>
-          NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
-      const body = parsed.data.body
-
-      const result = await performUpdateCredential({
-        credentialId: id,
-        userId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        displayName: body.displayName,
-        description: body.description,
-        serviceAccountJson: body.serviceAccountJson,
-        signingSecret: body.signingSecret,
-        botToken: body.botToken,
-        apiToken: body.apiToken,
-        domain: body.domain,
-        clientId: body.clientId,
-        clientSecret: body.clientSecret,
-        certificateId: body.certificateId,
-        orgId: body.orgId,
-        dataCenter: body.dataCenter,
-        authMethod: body.authMethod,
-        privateKey: body.privateKey,
-        username: body.username,
-        request,
-      })
-      if (!result.success) {
-        const status =
-          result.errorCode === 'not_found'
-            ? 404
-            : result.errorCode === 'forbidden'
-              ? 403
-              : result.errorCode === 'conflict'
-                ? 409
-                : // A provider outage during reconnect is infra, not a bad
-                  // request — mirror the create route and runtime token route.
-                  // Every provider family names its own outage code, so this
-                  // asks the shared predicate rather than matching one literal.
-                  isProviderOutageCode(result.providerErrorCode)
-                  ? 502
-                  : result.errorCode === 'validation'
-                    ? 400
-                    : 500
-        return NextResponse.json(
-          {
-            error: result.error,
-            ...(result.providerErrorCode ? { code: result.providerErrorCode } : {}),
-          },
-          { status }
-        )
-      }
-
-      const access = await getCredentialActorContext(id, session.user.id)
-      return NextResponse.json({ credential: formatCredentialResponse(access) }, { status: 200 })
-    } catch (error) {
-      logger.error('Failed to update credential', error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id } = await params
-
-    try {
-      const result = await performDeleteCredential({
-        credentialId: id,
-        userId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        request,
-      })
-      if (!result.success) {
-        const status =
-          result.errorCode === 'not_found'
-            ? 404
-            : result.errorCode === 'forbidden'
-              ? 403
-              : result.errorCode === 'validation'
-                ? 400
-                : 500
-        return NextResponse.json({ error: result.error }, { status })
-      }
-
-      return NextResponse.json({ success: true }, { status: 200 })
-    } catch (error) {
-      logger.error('Failed to delete credential', error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkspaceCredentialContract,
+  auth: internalSessionAuth,
+  operation: credentialOperations.delete,
+  rateLimit,
+  errorPolicy: internalCredentialErrorPolicy,
+  parseOptions: credentialValidationParseOptions,
+  mapInput: ({ params }) => ({ credentialId: params.id }),
+  useCase: deleteCredentialUseCase,
+  present: () => ({ success: true as const }),
+})

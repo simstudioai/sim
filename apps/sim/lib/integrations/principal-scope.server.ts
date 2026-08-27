@@ -1,0 +1,56 @@
+import type { Principal } from '@sim/auth/principal'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+
+/**
+ * The workspace integration gate, shared by every catalog that projects
+ * caller-specific integration availability.
+ *
+ * It exists as one module because it has two independent consumers — the
+ * credential-provider catalog and the block/tool catalog — and the interesting
+ * case is the one that is easy to get wrong twice: a workspace API key carries
+ * no user, so there is no permission group to read, and the allowlist collapses
+ * to the deployment's own. Two copies of that reasoning would disagree the
+ * first time either changed, and the two endpoints describe the same
+ * integrations.
+ *
+ * Server-only: `getUserPermissionConfig` reads the database.
+ */
+
+/**
+ * The human whose permission groups apply, or `undefined` when the principal is
+ * not user-bearing.
+ *
+ * A workspace API key authorizes as the workspace itself, independently of who
+ * created it, so there is deliberately no fallback to a key owner: substituting
+ * one would apply a bystander's permission groups to every caller of that key.
+ */
+export function principalUserId(principal: Principal): string | undefined {
+  if (principal.kind === 'session' || principal.kind === 'personal_api_key') {
+    return principal.userId
+  }
+  if (principal.kind === 'delegated') return principal.subjectUserId
+  return undefined
+}
+
+/**
+ * Lowercased block types this principal may see in this workspace, or `null`
+ * when nothing restricts them.
+ *
+ * The intersection of the caller's permission-group allowlist with the
+ * deployment's `ALLOWED_INTEGRATIONS`. A principal with no user contributes no
+ * permission-group half, leaving the deployment allowlist alone.
+ */
+export async function allowedIntegrationTypes(
+  principal: Principal,
+  workspaceId: string
+): Promise<ReadonlySet<string> | null> {
+  const userId = principalUserId(principal)
+  const permissionConfig = userId ? await getUserPermissionConfig(userId, workspaceId) : null
+  const integrations = intersectIntegrationAllowlists(
+    permissionConfig?.allowedIntegrations ?? null,
+    getAllowedIntegrationsFromEnv()
+  )
+  return integrations ? new Set(integrations.map((type) => type.toLowerCase())) : null
+}

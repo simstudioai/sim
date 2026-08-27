@@ -7,6 +7,7 @@
  * and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */
+
 import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
@@ -14,6 +15,7 @@ import {
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
@@ -89,8 +91,7 @@ function parseCall(params: Record<string, unknown>): {
   const args = params.args
   return {
     operation,
-    args:
-      args && typeof args === 'object' && !Array.isArray(args) ? (args as TerminalToolArgs) : {},
+    args: isRecordLike(args) ? (args as TerminalToolArgs) : {},
   }
 }
 

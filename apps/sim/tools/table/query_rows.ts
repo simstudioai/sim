@@ -1,4 +1,3 @@
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
@@ -38,7 +37,8 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     limit: {
       type: 'number',
       required: false,
-      description: `Maximum rows to return (default: ${TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, max: ${TABLE_LIMITS.MAX_QUERY_LIMIT})`,
+      description:
+        'Maximum rows to return. Omit to return every matching row; the query fails if the result exceeds the 5MB response budget.',
       visibility: 'user-or-llm',
     },
     offset: {
@@ -50,6 +50,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
   },
 
   request: {
+    internal: true,
     secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowQueryParams) => {
       const workspaceId = params._context?.workspaceId
@@ -74,7 +75,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         searchParams.append('offset', String(params.offset))
       }
 
-      return `/api/table/${params.tableId}/rows?${searchParams.toString()}`
+      return `/api/table/${encodeURIComponent(params.tableId)}/rows?${searchParams.toString()}`
     },
     method: 'GET',
     headers: () => ({

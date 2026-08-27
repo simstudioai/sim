@@ -7,6 +7,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -52,7 +53,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
     if (denied) return denied
 
-    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger, {
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
     const fileName = validatedData.fileName || userFile.name
     const mimeType = userFile.type || 'application/octet-stream'
 

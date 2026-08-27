@@ -20,7 +20,20 @@ export {
   isRecordLike,
   omit,
   sortObjectKeysDeep,
+  toRecord,
+  toRecordOrNull,
 } from './object'
+export {
+  assessTextPaste,
+  countPasteRows,
+  formatPasteLimit,
+  PASTE_LIMITS,
+  type TextPasteAdmission,
+  type TextPasteAdmissionInput,
+  type TextPasteRejectionReason,
+  utf8ByteLength,
+  utf8ByteLengthRange,
+} from './paste'
 export {
   generateRandomBytes,
   generateRandomHex,
@@ -40,3 +53,10 @@ export {
   sanitizeValueForJsonb,
   truncate,
 } from './string'
+export {
+  findWorkflowReferenceTokens,
+  isLikelyWorkflowReferenceSegment,
+  splitWorkflowReferenceSegment,
+  type WorkflowReferenceToken,
+  type WorkflowReferenceTokenKind,
+} from './workflow-references'

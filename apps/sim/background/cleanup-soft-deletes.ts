@@ -35,6 +35,7 @@ import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { allocateUniqueWorkspaceFileName } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('CleanupSoftDeletes')
@@ -113,9 +114,7 @@ async function selectExpiredWorkspaceFiles(
           key: workspaceFiles.key,
           workspaceId: workspaceFiles.workspaceId,
           context: workspaceFiles.context,
-          size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
-            Number
-          ),
+          sizeBytes: workspaceFiles.sizeBytes,
         })
         .from(workspaceFiles)
         .where(
@@ -136,7 +135,7 @@ async function selectExpiredWorkspaceFiles(
       key: r.key,
       workspaceId: r.workspaceId,
       context: r.context as StorageContext,
-      size: r.size,
+      size: getWorkspaceFileSize(r),
     })),
   }
 }
@@ -329,14 +328,12 @@ async function deleteExpiredBillableWorkspaceFileRows(
             )
             .returning({
               id: workspaceFiles.id,
-              size: sql<number>`coalesce(${workspaceFiles.sizeBytes}, ${workspaceFiles.size})`.mapWith(
-                Number
-              ),
+              sizeBytes: workspaceFiles.sizeBytes,
             })
-          if (deletedRows.some(({ size }) => size < 0)) {
-            throw new Error('Cannot delete workspace files with negative stored-byte metadata')
-          }
-          const deletedBytes = deletedRows.reduce((total, { size }) => total + size, 0)
+          const deletedBytes = deletedRows.reduce(
+            (total, row) => total + getWorkspaceFileSize(row),
+            0
+          )
           await decrementStorageUsageForBillingContextInTx(tx, billingContext, deletedBytes)
           return deletedRows.length
         })

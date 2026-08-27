@@ -362,7 +362,6 @@ export function InboxSettingsTab() {
               setNewUsername(value)
               if (editAddressError) setEditAddressError(null)
             }}
-            onSubmit={handleEditAddress}
             placeholder='e.g., new-acme'
             error={editAddressError}
           />
@@ -370,6 +369,7 @@ export function InboxSettingsTab() {
         <ChipModalFooter
           onCancel={() => setIsEditAddressOpen(false)}
           cancelDisabled={updateAddress.isPending}
+          defaultAction='none'
           primaryAction={{
             label: updateAddress.isPending ? 'Updating...' : 'Change address',
             onClick: handleEditAddress,

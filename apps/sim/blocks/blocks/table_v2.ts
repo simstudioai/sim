@@ -1,5 +1,5 @@
+import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToPredicate, sortRulesToSortSpec } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
@@ -52,6 +52,9 @@ interface TableBlockParams {
   rowId?: string
   data?: string | unknown
   rows?: string | unknown
+  outputColumns?: unknown
+  /** The tool's own `columns` param, supplied by a model when the block runs as an Agent tool. */
+  columns?: unknown
   filterInput?: unknown
   sortInput?: unknown
   limit?: string
@@ -72,7 +75,7 @@ function resolveFilter(params: TableBlockParams): TablePredicate | undefined {
     return raw.length > 0 ? (filterRulesToPredicate(raw as FilterRule[]) ?? undefined) : undefined
   }
   const parsed = parseJSON(raw, 'Filter')
-  if (parsed === undefined) return undefined
+  if (parsed === undefined || parsed === null) return undefined
   const predicate = parsed as TablePredicateInput
   validatePredicateShape(predicate)
   return normalizeTablePredicate(predicate)
@@ -87,11 +90,34 @@ function resolveOrder(params: TableBlockParams): SortSpec | undefined {
   return (parsed as SortSpec | undefined) || undefined
 }
 
+/**
+ * Resolves the "Columns to Return" selection. Only an absent value (`undefined`,
+ * `null`, the dependsOn-cleared `''`, or `[]`) means "all columns"; anything
+ * else must be a list of column ids/names. A malformed value fails fast rather
+ * than silently widening a deliberately narrowed query to every column — the
+ * same stance `parseOptionalLimit` takes for a malformed limit. A JSON string is
+ * accepted because an agent-authored block config serializes arrays that way.
+ */
+function resolveOutputColumns(raw: unknown): string[] | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const parsed = typeof raw === 'string' ? parseJSON(raw, 'Columns to Return') : raw
+  if (!Array.isArray(parsed)) {
+    throw new Error('Invalid Columns to Return: expected a list of column ids or names')
+  }
+  if (parsed.length === 0) return undefined
+  const columns = parsed.map((column) => (typeof column === 'string' ? column.trim() : ''))
+  if (columns.some((column) => column.length === 0)) {
+    throw new Error('Invalid Columns to Return: every entry must be a non-empty column id or name')
+  }
+  return columns
+}
+
 interface ParsedParams {
   tableId?: string
   rowId?: string
   data?: unknown
   rows?: unknown
+  columns?: string[]
   filter?: TablePredicate
   order?: SortSpec
   limit?: number
@@ -174,6 +200,9 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 
   query_rows: (params) => ({
     tableId: params.tableId,
+    // The canvas selection wins; a model-supplied `columns` (Agent tool use) is the
+    // fallback so it is not clobbered by an empty canvas value when merged.
+    columns: resolveOutputColumns(params.outputColumns) ?? resolveOutputColumns(params.columns),
     filter: resolveFilter(params),
     order: resolveOrder(params),
     // Omitted limit returns the entire result (server fails fast over 5MB);
@@ -203,7 +232,8 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
     'nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort ' +
     'spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted ' +
     '(fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null ' +
-    'nextCursor means more rows exist — pass it back as the cursor.',
+    'nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to ' +
+    'the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.',
   bestPractices: `
 - To fetch specific rows, use Query Rows with a predicate filter (e.g. {"field":"slack_user_id","op":"in","value":["U1","U2"]}) — do NOT read every row and filter downstream with a Condition block.
 - Use "Get Row by ID" only when you have the row's id; otherwise filter with a predicate.
@@ -212,7 +242,8 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - like/ilike use * as the wildcard (e.g. {"field":"name","op":"ilike","value":"*jo*"}).
 - Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
 - With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
-- Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.`,
+- Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.
+- Use Columns to Return to keep only the fields a downstream step needs (e.g. ["col_email","name"]) — the 5MB budget counts only the returned columns, so narrowing columns is another way to fit a large table; leave it empty for every column.`,
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
   // Unreleased: hidden from every discovery surface until revealed via the hosted
@@ -221,7 +252,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   // and mark v1 `table` superseded.
   preview: true,
   bgColor: '#10B981',
-  icon: TableIcon,
+  icon: Table,
   canvasPresentation: {
     defaultTitle: 'Table',
     /*
@@ -244,6 +275,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
           { text: 'Query rows from', field: TABLE_FIELD, core: true },
           { text: ', where', field: FILTER_FIELD },
           { text: ', sorted by', field: SORT_FIELD },
+          { text: ', returning', field: 'outputColumns' },
         ],
         insert_row: [
           { text: 'Insert a row into', field: TABLE_FIELD, core: true },
@@ -320,6 +352,20 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       mode: 'advanced',
       placeholder: 'Enter table ID',
       required: true,
+    },
+
+    {
+      id: 'outputColumns',
+      title: 'Columns to Return',
+      type: 'dropdown',
+      selectorKey: 'table.outputColumns',
+      multiSelect: true,
+      searchable: true,
+      preserveLabelCase: true,
+      placeholder: 'All columns',
+      description: 'Only include these columns in each returned row. Leave empty for all columns.',
+      dependsOn: { any: ['tableSelector', 'manualTableId'] },
+      condition: { field: 'operation', value: 'query_rows' },
     },
 
     {
@@ -553,6 +599,10 @@ Return ONLY the JSON object:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
+    outputColumns: {
+      type: 'array',
+      description: 'Table columns to include in each queried row; omit for all columns',
+    },
     filterInput: {
       type: 'json',
       description:

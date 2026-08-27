@@ -10,7 +10,7 @@ import {
   messageForCopilotFileError,
   resolveCopilotFilePrincipal,
 } from '@/lib/copilot/auth/file-delegation'
-import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { PrepareFileEdit } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -111,6 +111,7 @@ const EXT_TO_MIME: Record<string, string> = {
   '.html': 'text/html',
   '.json': 'application/json',
   '.csv': 'text/csv',
+  '.chart': 'text/x-sim-chart',
   '.pptx': PPTX_MIME,
   '.docx': DOCX_MIME,
   '.pdf': PDF_MIME,
@@ -191,7 +192,7 @@ export type CompileForWriteResult =
   | { ok: false; message: string }
 
 /**
- * Shared write-time doc handling for create + edit_content: validates and builds
+ * Shared write-time doc handling for create + apply_file_edit: validates and builds
  * the document (E2B doc sandbox when enabled — Node pptx/docx, Python pdf/xlsx —
  * else isolated-vm JS) and returns the source MIME to store, or a user-facing
  * failure message. Non-doc files resolve to `fallbackMime`. The remote backend publishes a
@@ -260,7 +261,7 @@ export async function compileDocForWrite(args: {
 }
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
-  name: WorkspaceFile.id,
+  name: PrepareFileEdit.id,
   async execute(
     params: WorkspaceFileArgs,
     context?: ServerToolContext
@@ -381,7 +382,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             if (classified?.code !== 'not_found') throw error
           }
           if (existingFile) {
-            return { success: false, message: `File "${target.fileName}" already exists` }
+            return {
+              success: false,
+              message: `File "${target.fileName}" already exists in this workspace (file names are workspace-scoped; folders do not namespace them). Use operation "update"/"append"/"patch" to change it, rename the existing file, or pick a different fileName.`,
+            }
           }
 
           const compiled = await compileDocForWrite({
@@ -478,7 +482,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           return {
             success: true,
             message: withMessageId(
-              `Intent set: append to "${existingFile.name}". Wait for this success result, then call edit_content in the next step with the content to write. Do not call edit_content in parallel.`
+              `Intent set: append to "${existingFile.name}". Wait for this success result, then call apply_file_edit in the next step with the content to write. Do not call apply_file_edit in parallel.`
             ),
             data: { id: existingFile.id, name: existingFile.name, vfsPath, operation: 'append' },
           }
@@ -506,7 +510,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           return {
             success: true,
             message: withMessageId(
-              `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
+              `Intent set: update "${fileRecord.name}". Wait for this success result, then call apply_file_edit in the next step with the replacement content. Do not call apply_file_edit in parallel.`
             ),
             data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'update' },
           }
@@ -710,7 +714,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           return {
             success: true,
             message: withMessageId(
-              `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
+              `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call apply_file_edit in the next step with the replacement/insert content. Do not call apply_file_edit in parallel.`
             ),
             data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'patch' },
           }
@@ -724,7 +728,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
-      logger.error('Error in workspace_file tool', {
+      logger.error('Error in prepare_file_edit tool', {
         operation,
         error: errorMessage,
         userId: context.userId,

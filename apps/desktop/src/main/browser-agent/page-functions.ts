@@ -34,8 +34,14 @@ declare global {
       root: Node
       observer: MutationObserver
       revision: number
+      /** Roots already passed to observe(), so re-observing stays cheap. */
+      observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Why the last __simAgentResolveElement call returned null — read by the
+     * shared stale-error producers so a refusal names its cause instead of
+     * the blanket "the page changed". Cleared on every successful resolve. */
+    __simAgentStaleReason?: string
   }
 }
 
@@ -109,6 +115,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     '[onclick]',
     '[contenteditable="true"]',
     '[contenteditable=""]',
+    '[contenteditable="plaintext-only"]',
   ].join(', ')
   const landmarkSelector = [
     'nav',
@@ -593,13 +600,29 @@ export function collectSnapshot(startingElementId = 0): unknown {
 
   /**
    * React commonly replaces a control's DOM node while preserving its
-   * semantics. Recover only when the old page URL and a strong semantic
+   * semantics. Recover only when the old page origin and a strong semantic
    * fingerprint still identify one candidate; a weak or ambiguous match is a
    * real stale ref, never permission to click something nearby.
    */
   window.__simAgentResolveElement = (id: number) => {
     const locator = locators[id]
-    if (!locator) return null
+    if (!locator) {
+      window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
+      return null
+    }
+
+    // Origin, not full URL: a live SPA rewrites its path with pushState
+    // between snapshot and act (Slack does so continuously), while the
+    // element the model chose is often still the same mounted node. The
+    // origin still pins the document/frame; the role/name/attribute and
+    // ancestor/context signatures below pin the element itself.
+    const pageOriginOf = (url: string): string => {
+      try {
+        return new URL(url).origin
+      } catch {
+        return url
+      }
+    }
 
     const stableAttributes = [
       'id',
@@ -620,7 +643,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     const identityMatches = (candidate: Element, connected = false): boolean => {
       if (
         candidate.tagName.toUpperCase() !== locator.tag ||
-        pageUrlFor(candidate) !== locator.url ||
+        pageOriginOf(pageUrlFor(candidate)) !== pageOriginOf(locator.url) ||
         roleFor(candidate) !== locator.role
       ) {
         return false
@@ -704,8 +727,40 @@ export function collectSnapshot(startingElementId = 0): unknown {
 
     const current = registry[id]
     if (current?.isConnected) {
-      if (!identityMatches(current, true)) return null
-      if (isCurrentlyVisible(current)) return { element: current, recovered: false }
+      if (!identityMatches(current, true)) {
+        window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`
+        return null
+      }
+      if (isCurrentlyVisible(current)) {
+        window.__simAgentStaleReason = undefined
+        return { element: current, recovered: false }
+      }
+    }
+
+    // Past this point the original node is gone or hidden, so anything returned
+    // is a DIFFERENT node adopted by structural resemblance. Identity matching
+    // compares origins only — deliberately, so a pushState between snapshot and
+    // act does not kill every ref — but that same leniency let a ref to "More
+    // actions" on a row in one view rebind to the identical control in another
+    // view the app had since navigated to, and act on the wrong thing with no
+    // signal beyond `recovered: true`.
+    //
+    // A same-document path change means the view was swapped, so resemblance is
+    // no longer evidence of sameness. Refuse to adopt and report the ref stale:
+    // the caller re-snapshots, which is cheap and always correct. Revalidating
+    // the still-connected node above stays lenient — it is literally the node
+    // the model chose.
+    const pathOf = (url: string): string => {
+      try {
+        const parsed = new URL(url)
+        return `${parsed.origin}${parsed.pathname}`
+      } catch {
+        return url
+      }
+    }
+    if (pathOf(window.location.href) !== pathOf(locator.url)) {
+      window.__simAgentStaleReason = `the view changed since the snapshot (${pathOf(locator.url)} -> ${pathOf(window.location.href)}), so a lookalike must not be adopted`
+      return null
     }
 
     const reachable: Element[] = []
@@ -786,12 +841,20 @@ export function collectSnapshot(startingElementId = 0): unknown {
       .filter((entry) => entry.score >= 45)
       .sort((a, b) => b.score - a.score)
 
-    if (scored.length === 0) return null
+    if (scored.length === 0) {
+      window.__simAgentStaleReason =
+        'the original node left the DOM and no confident replacement matched'
+      return null
+    }
     const bestScore = scored[0].score
     const best = scored.filter((entry) => entry.score === bestScore)
     const chosen = best.length === 1 ? best[0] : undefined
-    if (!chosen) return null
+    if (!chosen) {
+      window.__simAgentStaleReason = `the original node left the DOM and ${best.length} equally-plausible replacements tied`
+      return null
+    }
     registry[id] = chosen.candidate
+    window.__simAgentStaleReason = undefined
     return { element: chosen.candidate, recovered: true }
   }
 
@@ -828,7 +891,7 @@ export function clickElement(
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   const isDisabled = (node: Element | null): boolean =>
     Boolean(
       node &&
@@ -862,7 +925,7 @@ export function clickElement(
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
 
   const view = el.ownerDocument.defaultView
-  if (!view) return { error: 'stale' }
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
   for (let current: Element | null = el; current; ) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -1028,7 +1091,7 @@ export function clickElement(
       addCandidate(el)
       for (const candidate of Array.from(
         el.querySelectorAll<HTMLElement>(
-          'input, textarea, [contenteditable="true"], [contenteditable=""]'
+          'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
         )
       )) {
         addCandidate(candidate)
@@ -1086,6 +1149,22 @@ export function clickElement(
     }
     if (suggestionsCoverFocusedEditable()) {
       return { error: 'suggestions-open', blocker: blockerLabel(blocker) }
+    }
+    // A hit INSIDE the requested element is not an overlay — it is the ref
+    // wrapping its own control (a row containing a button, a card containing a
+    // link). hitBelongsToTarget rejects both cases identically, so this was
+    // reported as "covered by X, close or move the overlay", advice that cannot
+    // be followed because there is nothing to close. Name it for what it is so
+    // the agent retargets instead of hunting a phantom overlay.
+    let nested = false
+    for (let current = blocker; current; current = composedParent(current)) {
+      if (current === el) {
+        nested = true
+        break
+      }
+    }
+    if (nested) {
+      return { error: 'nested-control', blocker: blockerLabel(blocker) }
     }
     return { error: 'obstructed', blocker: blockerLabel(blocker) }
   }
@@ -1212,7 +1291,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -1236,7 +1315,12 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       tag === 'TEXTAREA' ||
       (tag === 'INPUT' &&
         ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
-      (node as HTMLElement).isContentEditable
+      (node as HTMLElement).isContentEditable ||
+      // An ARIA-only textbox. The snapshot already advertises these as
+      // `[textbox]` with a ref, and browser_insert_text accepts them, so
+      // refusing here meant one tool rejecting exactly what the outline told
+      // the model to type into and what its sibling would have accepted.
+      node.getAttribute('role') === 'textbox'
     ) {
       potentialEditables.push(node as HTMLElement)
     }
@@ -1244,14 +1328,34 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
     )
   )) {
     addEditable(candidate)
   }
   const editables = Array.from(new Set(potentialEditables))
-  if (editables.length === 0) return { error: 'not-editable' }
-  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  if (editables.length === 0) {
+    // Describe the element instead of only refusing it. Without this the agent
+    // cannot tell "wrong ref" from "this tool cannot type here" and retries
+    // variations of the same failing call.
+    return {
+      error: 'not-editable',
+      elementTag: String(el.tagName || '').toLowerCase(),
+      ...(el.getAttribute('role') ? { elementRole: el.getAttribute('role') } : {}),
+    }
+  }
+  if (editables.length > 1) {
+    // The candidate list is right here; discarding it left the agent unable to
+    // pick a narrower target, which is the only recovery this error allows.
+    return {
+      error: 'ambiguous-editable',
+      candidates: editables.slice(0, 5).map((field) => {
+        const fieldTag = String(field.tagName || '').toLowerCase()
+        const label = field.getAttribute('aria-label') || field.getAttribute('placeholder') || ''
+        return label ? `${fieldTag} "${label}"` : fieldTag
+      }),
+    }
+  }
   const editable = editables[0]
   const editableTag = tagFor(editable)
 
@@ -1274,7 +1378,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   const rawRects = Array.from(editable.getClientRects())
   if (rawRects.length === 0) rawRects.push(editable.getBoundingClientRect())
   const view = editable.ownerDocument.defaultView
-  if (!view) return { error: 'stale' }
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
   const rects = rawRects
     .map((rect) => ({
       left: Math.max(0, rect.left),
@@ -1737,7 +1841,7 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -1762,7 +1866,12 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
       candidateTag === 'TEXTAREA' ||
       (candidateTag === 'INPUT' &&
         ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
-      (node as HTMLElement).isContentEditable
+      (node as HTMLElement).isContentEditable ||
+      // An ARIA-only textbox. The snapshot already advertises these as
+      // `[textbox]` with a ref, and browser_insert_text accepts them, so
+      // refusing here meant one tool rejecting exactly what the outline told
+      // the model to type into and what its sibling would have accepted.
+      node.getAttribute('role') === 'textbox'
     ) {
       potentialEditables.push(node as HTMLElement)
     }
@@ -1770,14 +1879,34 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
     )
   )) {
     addEditable(candidate)
   }
   const editables = Array.from(new Set(potentialEditables))
-  if (editables.length === 0) return { error: 'not-editable' }
-  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  if (editables.length === 0) {
+    // Describe the element instead of only refusing it. Without this the agent
+    // cannot tell "wrong ref" from "this tool cannot type here" and retries
+    // variations of the same failing call.
+    return {
+      error: 'not-editable',
+      elementTag: String(el.tagName || '').toLowerCase(),
+      ...(el.getAttribute('role') ? { elementRole: el.getAttribute('role') } : {}),
+    }
+  }
+  if (editables.length > 1) {
+    // The candidate list is right here; discarding it left the agent unable to
+    // pick a narrower target, which is the only recovery this error allows.
+    return {
+      error: 'ambiguous-editable',
+      candidates: editables.slice(0, 5).map((field) => {
+        const fieldTag = String(field.tagName || '').toLowerCase()
+        const label = field.getAttribute('aria-label') || field.getAttribute('placeholder') || ''
+        return label ? `${fieldTag} "${label}"` : fieldTag
+      }),
+    }
+  }
   const editable = editables[0]
   const tag = String(editable.tagName || '').toUpperCase()
   editable.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
@@ -1859,9 +1988,37 @@ export function pressKeyOnPage(
       .some((token) => token === 'current-password' || token === 'new-password')
   }
 
-  const target = (document.activeElement as HTMLElement | null) ?? document.body
+  // Descend to what is really focused, like every other focus reader here.
+  // Without this the synthetic key lands on the shadow HOST or the <iframe>
+  // element: the event bubbles from there but never enters the shadow tree or
+  // the frame document, so the editor's keymap never sees it — and the result
+  // still reports success. It also made this function's `target` disagree with
+  // the `activeElement` reported alongside it in the same tool result.
+  let target = (document.activeElement as HTMLElement | null) ?? document.body
+  for (let depth = 0; depth < 10; depth++) {
+    const shadow = target.shadowRoot
+    if (shadow?.activeElement) {
+      target = shadow.activeElement as HTMLElement
+      continue
+    }
+    const targetTag = String(target.tagName || '').toUpperCase()
+    if (targetTag === 'IFRAME' || targetTag === 'FRAME') {
+      try {
+        const inner = (target as HTMLIFrameElement).contentDocument
+        if (inner?.activeElement && inner.activeElement !== inner.body) {
+          target = inner.activeElement as HTMLElement
+          continue
+        }
+      } catch {
+        // Cross-origin frame — not inspectable; dispatch to the frame itself.
+      }
+    }
+    break
+  }
   // The driver checks focus before taking the trusted CDP path; this covers
   // the synthetic fallback, which is reached independently when CDP is down.
+  // Descending first is what makes this guard reach a password field nested in
+  // a shadow root or frame, rather than only inspecting the host.
   if (isSecretField(target)) return { error: 'password' }
   const opts = {
     bubbles: true,
@@ -1916,6 +2073,23 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
     if (allElements.length >= stateNodeCap) break
   }
 
+  const mutationOptions: MutationObserverInit = {
+    subtree: true,
+    childList: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: [
+      'aria-activedescendant',
+      'aria-expanded',
+      'aria-hidden',
+      'aria-selected',
+      'checked',
+      'disabled',
+      'hidden',
+      'open',
+      'selected',
+    ],
+  }
   const mutationStates = (window.__simAgentMutationStates ??= [])
   let mutationState = observationRoot
     ? mutationStates.find((state) => state.root === observationRoot)
@@ -1925,32 +2099,28 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
       root: observationRoot,
       observer: null as unknown as MutationObserver,
       revision: 0,
+      observedRoots: new WeakSet<ParentNode>(),
     }
     const state = mutationState
     state.observer = new MutationObserver((records) => {
       state.revision += records.length
     })
-    for (const root of roots) {
-      state.observer.observe(root, {
-        subtree: true,
-        childList: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: [
-          'aria-activedescendant',
-          'aria-expanded',
-          'aria-hidden',
-          'aria-selected',
-          'checked',
-          'disabled',
-          'hidden',
-          'open',
-          'selected',
-        ],
-      })
-    }
     mutationStates.push(state)
     if (mutationStates.length > 10) mutationStates.shift()?.observer.disconnect()
+  }
+  // Observe on EVERY call, not only the first. The roots list is rebuilt each
+  // time and grows as shadow roots mount, so attaching once left every
+  // component that appeared later unobserved — its DOM changes raised no
+  // revision, and an action that mounted UI inside one reported no effect at
+  // all. `observe` on an already-observed root with the same options is a
+  // documented no-op, and observedRoots keeps the common case cheap.
+  if (mutationState) {
+    const state = mutationState
+    for (const root of roots) {
+      if (state.observedRoots.has(root)) continue
+      state.observer.observe(root as Node, mutationOptions)
+      state.observedRoots.add(root)
+    }
   }
   if (resetMutationRevision) {
     mutationState?.observer.takeRecords()
@@ -2024,8 +2194,18 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
         .replace(/[\uD800-\uDBFF]$/, '')
     )
 
+  // Roles an app uses for something that APPEARS over the page. The first three
+  // were the whole list, which missed the most common hover affordance there
+  // is: a row's action bar (Slack's message shortcuts is role="toolbar"/"group"
+  // with an aria-label). A hover that mounted one produced no popup change, no
+  // target change, and so no observed effect at all — the agent concluded its
+  // hover had failed and escalated to clicking pixels.
   const visiblePopupLabels = allElements
-    .filter((element) => element.matches('[role="tooltip"], [role="menu"], [role="listbox"]'))
+    .filter((element) =>
+      element.matches(
+        '[role="tooltip"], [role="menu"], [role="listbox"], [role="toolbar"], [role="menubar"], [role="group"][aria-label], [popover]'
+      )
+    )
     .filter((element) => {
       const rect = element.getBoundingClientRect()
       const view = element.ownerDocument.defaultView
@@ -2254,7 +2434,8 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     const resolver = window.__simAgentResolveElement
     const resolved = resolver?.(elementId)
     const element = resolver ? resolved?.element : (window.__simAgentElements || [])[elementId]
-    if (!element || !element.isConnected) return { error: 'stale' }
+    if (!element || !element.isConnected)
+      return { error: 'stale', reason: window.__simAgentStaleReason }
     const candidates = ancestors(element)
     target = candidates.find(canMove) ?? candidates[0]
     source = target && canMove(target) ? 'element' : 'element-boundary'
@@ -2361,7 +2542,7 @@ export function selectOptionInElement(id: number, value: string): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
   if (select.disabled || select.getAttribute('aria-disabled') === 'true') {
@@ -2401,7 +2582,7 @@ export function readSelectElementState(id: number): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
   return {
@@ -2414,7 +2595,7 @@ export function hoverElement(id: number): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   el.scrollIntoView({ block: 'center', behavior: 'instant' })
   const rect = el.getBoundingClientRect()
   const opts = {
@@ -2635,7 +2816,7 @@ export function readPageText(id?: number): unknown {
     const resolver = window.__simAgentResolveElement
     const resolved = resolver?.(id)
     const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-    if (!el || !el.isConnected) return { error: 'stale' }
+    if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
     text = (el as HTMLElement).innerText ?? el.textContent ?? ''
   } else {
     text = document.body?.innerText ?? ''
@@ -2660,5 +2841,186 @@ export function getViewportInfo(): unknown {
     title: document.title.slice(0, 500),
     width: window.innerWidth,
     height: window.innerHeight,
+  }
+}
+
+/**
+ * Describes whatever sits at a viewport point, descending through open shadow
+ * roots and same-origin iframes. Coordinate-addressed actions have no
+ * snapshot ref to revalidate, so this probe is their safety check: the driver
+ * refuses file inputs outright and reports what the point resolves to so the
+ * model can confirm it hit what the screenshot showed.
+ */
+export function describePointTarget(x: number, y: number): unknown {
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    x < 0 ||
+    y < 0 ||
+    x >= window.innerWidth ||
+    y >= window.innerHeight
+  ) {
+    return { error: 'outside-viewport' }
+  }
+
+  let doc: Document = document
+  let localX = x
+  let localY = y
+  let element: Element | null = null
+  for (let depth = 0; depth < 10; depth++) {
+    if (typeof doc.elementFromPoint !== 'function') break
+    let found: Element | null = doc.elementFromPoint(localX, localY)
+    // Open shadow roots re-hit-test at the same point until a leaf host.
+    for (let shadowDepth = 0; shadowDepth < 10; shadowDepth++) {
+      const shadow = (found as HTMLElement | null)?.shadowRoot
+      const inner = shadow?.elementFromPoint(localX, localY)
+      if (!inner || inner === found) break
+      found = inner
+    }
+    element = found
+    const tag = String(found?.tagName || '').toUpperCase()
+    if ((tag !== 'IFRAME' && tag !== 'FRAME') || !found) break
+    try {
+      const innerDoc = (found as HTMLIFrameElement).contentDocument
+      if (!innerDoc) break
+      const rect = found.getBoundingClientRect()
+      localX -= rect.left + (found as HTMLIFrameElement).clientLeft
+      localY -= rect.top + (found as HTMLIFrameElement).clientTop
+      doc = innerDoc
+    } catch {
+      // Cross-origin frame — cannot inspect further; report the frame itself.
+      break
+    }
+  }
+  if (!element) return { found: false }
+
+  const tag = String(element.tagName || '').toUpperCase()
+  const inputType =
+    tag === 'INPUT' ? String((element as HTMLInputElement).type || 'text').toLowerCase() : ''
+  const secret =
+    tag === 'INPUT' &&
+    (inputType === 'password' ||
+      String(element.getAttribute('autocomplete') || '')
+        .toLowerCase()
+        .split(/\s+/)
+        .some((token) => token === 'current-password' || token === 'new-password'))
+  const editable = Boolean(
+    tag === 'TEXTAREA' ||
+      (tag === 'INPUT' &&
+        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+      (element as HTMLElement).isContentEditable
+  )
+
+  const name = (
+    element.getAttribute('aria-label') ||
+    element.getAttribute('title') ||
+    element.getAttribute('alt') ||
+    ((element as HTMLElement).innerText ?? element.textContent ?? '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+  const role = element.getAttribute('role') || ''
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+
+  return {
+    found: true,
+    element: name
+      ? `${tag.toLowerCase()}${role ? `[${role}]` : ''} "${name}"`
+      : `${tag.toLowerCase()}${role ? `[${role}]` : ''}`,
+    tag: tag.toLowerCase(),
+    role,
+    editable,
+    secret,
+    fileInput: tag === 'INPUT' && inputType === 'file',
+    disabled:
+      (element as HTMLInputElement).disabled === true ||
+      element.getAttribute('aria-disabled') === 'true',
+    canvas: tag === 'CANVAS',
+    crossOriginFrame: tag === 'IFRAME' || tag === 'FRAME',
+    cursor: style?.cursor || '',
+  }
+}
+
+/**
+ * Reports whether the currently-focused element accepts text insertion, for
+ * browser_insert_text — which types at the caret instead of addressing a
+ * snapshot ref. Secrecy is separately (and authoritatively) probed by
+ * activeElementSecrecy before any insertion.
+ */
+export function describeFocusedEditable(): unknown {
+  // Descend shadow roots AND same-origin frames, matching activeElementReadback
+  // exactly. Focus inside a frame surfaces on the outer document as the FRAME
+  // element, which is not an input, not contentEditable, not a canvas and has no
+  // textbox role — so stopping here reported a perfectly writable field as
+  // `not-editable`, while press-key (which does descend) typed into it fine.
+  // Any divergence between these two loops is a tool that refuses what its
+  // sibling accepts on the same page state.
+  let active = document.activeElement as HTMLElement | null
+  for (let depth = 0; active && depth < 10; depth++) {
+    const shadow = active.shadowRoot
+    if (shadow?.activeElement) {
+      active = shadow.activeElement as HTMLElement
+      continue
+    }
+    const activeTag = String(active.tagName || '').toUpperCase()
+    if (activeTag === 'IFRAME' || activeTag === 'FRAME') {
+      try {
+        const inner = (active as HTMLIFrameElement).contentDocument
+        if (inner?.activeElement && inner.activeElement !== inner.body) {
+          active = inner.activeElement as HTMLElement
+          continue
+        }
+      } catch {
+        // Cross-origin frame — not inspectable. The caller refuses separately on
+        // opaque secrecy, so report the frame itself rather than guessing.
+      }
+    }
+    break
+  }
+  if (!active || active === document.body) return { editable: false, reason: 'none' }
+  const tag = String(active.tagName || '').toUpperCase()
+  const inputType =
+    tag === 'INPUT' ? String((active as HTMLInputElement).type || 'text').toLowerCase() : ''
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const field = active as HTMLInputElement | HTMLTextAreaElement
+    if (field.disabled || active.getAttribute('aria-disabled') === 'true') {
+      return { editable: false, reason: 'disabled' }
+    }
+    if (field.readOnly || active.getAttribute('aria-readonly') === 'true') {
+      return { editable: false, reason: 'readonly' }
+    }
+    if (
+      tag === 'INPUT' &&
+      !['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)
+    ) {
+      return { editable: false, reason: 'not-text' }
+    }
+    return { editable: true, kind: tag === 'TEXTAREA' ? 'textarea' : `input:${inputType}` }
+  }
+  if (active.isContentEditable) {
+    if (active.getAttribute('aria-disabled') === 'true') {
+      return { editable: false, reason: 'disabled' }
+    }
+    if (active.getAttribute('aria-readonly') === 'true') {
+      return { editable: false, reason: 'readonly' }
+    }
+    return { editable: true, kind: 'contenteditable' }
+  }
+  // A canvas-rendered editor (Google Docs) focuses a hidden proxy or the
+  // canvas region itself; trusted IME insertion still reaches it, so report
+  // it as insertable rather than refusing.
+  if (tag === 'CANVAS' || active.getAttribute('role') === 'textbox') {
+    return { editable: true, kind: tag === 'CANVAS' ? 'canvas' : 'textbox-role' }
+  }
+  // Describe what actually held focus. A bare "not-editable" tells the agent
+  // nothing it can act on, so it guesses at the cause and burns rounds on the
+  // wrong recovery; naming the element lets it click the real field instead.
+  return {
+    editable: false,
+    reason: 'not-editable',
+    focusedTag: tag.toLowerCase(),
+    ...(active.getAttribute('role') ? { focusedRole: active.getAttribute('role') } : {}),
+    contentEditable: String(active.getAttribute('contenteditable') ?? 'unset'),
   }
 }

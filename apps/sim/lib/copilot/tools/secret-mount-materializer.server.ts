@@ -9,7 +9,10 @@ import {
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import type { ResolvedSecretTraceCatalogEntry } from '@/executor/utils/resolved-secret-trace-registry'
+import type {
+  ResolvedSecretScope,
+  ResolvedSecretTraceCatalogEntry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export { MAX_SECRET_MOUNT_NAME_LENGTH, MAX_SECRET_MOUNT_NAMES }
 
@@ -31,6 +34,17 @@ interface CredentialAccessRow {
 interface AuthorizedEncryptedSecret {
   name: string
   encryptedValue: string
+  /** Which environment authorized this value, so the usage trail can attribute it. */
+  scope: ResolvedSecretScope
+  /**
+   * Whose personal environment a `personal` value came from — the actor for their own
+   * secret, the sharer for one shared with them. Never the actor by default: the trail is
+   * read per owner, so attributing a shared secret to its borrower would file the row under
+   * a secret the borrower does not have.
+   */
+  ownerUserId?: string
+  /** Workspace secrets whose credential row opts them out of redaction. */
+  unredacted?: true
 }
 
 export interface MaterializedCopilotCodeSecrets {
@@ -113,8 +127,22 @@ function overLimitNames(row: { overLimitNames?: unknown } | undefined): Set<stri
   return new Set(row.overLimitNames.filter((name): name is string => typeof name === 'string'))
 }
 
-function activeAdmin(row: CredentialAccessRow): boolean {
-  return row.role === 'admin' && row.status === 'active'
+/**
+ * Whether the actor holds a live grant on this credential, at any role.
+ *
+ * Deliberately looser than the credential-admin predicate that reveals a value under
+ * Settings → Secrets, and deliberately equal to what a workflow resolves. A Function block
+ * reads the same secret at use level through {@link getPersonalAndWorkspaceEnv}, and Copilot
+ * reaches that path itself via `edit_workflow` + `run_workflow`, so an admin-only bar here
+ * contained nothing — it redirected a member through a detour that mutates a persisted
+ * workflow, while the direct path is ephemeral and files a usage row. The view gate stays
+ * where it can still hold: the Settings mask and the usage trail.
+ *
+ * Rechecked in memory even though the query already filters on it, so a later edit to that
+ * `where` cannot silently widen this.
+ */
+function activeGrant(row: CredentialAccessRow): boolean {
+  return row.status === 'active'
 }
 
 function unavailableError(names: readonly string[]): CopilotCodeSecretAccessError {
@@ -142,7 +170,7 @@ export async function materializeCopilotCodeSecrets(params: {
     )
   }
 
-  const [personalRows, workspaceRows, credentialRows] = await Promise.all([
+  const [personalRows, workspaceRows, credentialRows, unredactedRows] = await Promise.all([
     db
       .select({
         variables: requestedVariables(environment.variables, requestedNames),
@@ -192,7 +220,6 @@ export async function materializeCopilotCodeSecrets(params: {
           eq(credential.workspaceId, params.workspaceId),
           inArray(credential.type, ['env_workspace', 'env_personal']),
           inArray(credential.envKey, requestedNames),
-          eq(credentialMember.role, 'admin'),
           eq(credentialMember.status, 'active'),
           or(
             eq(credential.type, 'env_workspace'),
@@ -202,10 +229,32 @@ export async function materializeCopilotCodeSecrets(params: {
       )
       .orderBy(credential.type, credential.envKey, desc(credential.updatedAt))
       .limit(MAX_SECRET_MOUNT_NAMES * 2),
+    /**
+     * Membership-free on purpose: the join above returns rows only for the actor's own
+     * credentialMember grants, but a workspace admin mounts through `access.canAdmin` with no
+     * membership row at all — the flag must not go silently inert for exactly the admins who
+     * set it. The flag is workspace-level metadata, not secret material, and the actor already
+     * passed the write-access check above.
+     */
+    db
+      .select({ envKey: credential.envKey })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, params.workspaceId),
+          eq(credential.type, 'env_workspace'),
+          inArray(credential.envKey, requestedNames),
+          eq(credential.unredacted, true)
+        )
+      )
+      .limit(MAX_SECRET_MOUNT_NAMES),
   ])
 
   const ownPersonalEncrypted = encryptedVariables(personalRows[0])
   const workspaceEncrypted = encryptedVariables(workspaceRows[0])
+  const unredactedWorkspaceKeys = new Set(
+    unredactedRows.flatMap((row) => (row.envKey === null ? [] : [row.envKey]))
+  )
   const ownPersonalOverLimit = overLimitNames(personalRows[0])
   const workspaceOverLimit = overLimitNames(workspaceRows[0])
   const envCredentialRows = credentialRows.filter(
@@ -218,7 +267,7 @@ export async function materializeCopilotCodeSecrets(params: {
       row.type === 'env_personal' &&
       row.envOwnerUserId !== null &&
       row.envOwnerUserId !== params.actorUserId &&
-      activeAdmin(row)
+      activeGrant(row)
   )
 
   const authorizedSources: AuthorizedEncryptedSecret[] = []
@@ -231,7 +280,7 @@ export async function materializeCopilotCodeSecrets(params: {
       workspaceExists &&
       (access.canAdmin ||
         envCredentialRows.some(
-          (row) => row.type === 'env_workspace' && row.envKey === name && activeAdmin(row)
+          (row) => row.type === 'env_workspace' && row.envKey === name && activeGrant(row)
         ))
 
     if (workspaceAuthorized) {
@@ -239,7 +288,12 @@ export async function materializeCopilotCodeSecrets(params: {
         overLimit.push(name)
         continue
       }
-      authorizedSources.push({ name, encryptedValue: workspaceValue })
+      authorizedSources.push({
+        name,
+        encryptedValue: workspaceValue,
+        scope: 'workspace',
+        ...(unredactedWorkspaceKeys.has(name) ? { unredacted: true as const } : {}),
+      })
       continue
     }
 
@@ -249,7 +303,12 @@ export async function materializeCopilotCodeSecrets(params: {
       continue
     }
     if (ownPersonalValue !== undefined) {
-      authorizedSources.push({ name, encryptedValue: ownPersonalValue })
+      authorizedSources.push({
+        name,
+        encryptedValue: ownPersonalValue,
+        scope: 'personal',
+        ownerUserId: params.actorUserId,
+      })
       continue
     }
 
@@ -267,7 +326,13 @@ export async function materializeCopilotCodeSecrets(params: {
     }
     const sharedPersonalValue = sharedPersonal?.encryptedValue ?? undefined
     if (sharedPersonalValue !== undefined) {
-      authorizedSources.push({ name, encryptedValue: sharedPersonalValue })
+      authorizedSources.push({
+        name,
+        encryptedValue: sharedPersonalValue,
+        scope: 'personal',
+        /** Non-null by the `authorizedSharedPersonalRows` filter above. */
+        ownerUserId: sharedPersonal?.envOwnerUserId as string,
+      })
       continue
     }
 
@@ -279,12 +344,19 @@ export async function materializeCopilotCodeSecrets(params: {
   }
   if (unavailable.length > 0) throw unavailableError(unavailable)
 
-  let decryptedEntries: Array<{ name: string; plaintext: string; encryptedValue: string }>
+  let decryptedEntries: ResolvedSecretTraceCatalogEntry[]
   try {
     decryptedEntries = await Promise.all(
-      authorizedSources.map(async ({ name, encryptedValue }) => {
+      authorizedSources.map(async ({ name, encryptedValue, scope, ownerUserId, unredacted }) => {
         const { decrypted } = await decryptSecret(encryptedValue)
-        return { name, plaintext: decrypted, encryptedValue }
+        return {
+          name,
+          plaintext: decrypted,
+          encryptedValue,
+          scope,
+          ...(ownerUserId ? { ownerUserId } : {}),
+          ...(unredacted ? { unredacted } : {}),
+        }
       })
     )
   } catch {

@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jsmConnectorMeta } from '@/connectors/jsm/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
@@ -21,14 +21,25 @@ type JsmRequestStatus = (typeof VALID_REQUEST_STATUS)[number]
 /**
  * Allowed `requestOwnership` filter values for `GET /rest/servicedeskapi/request`.
  *
- * This param scopes results to the OAuth user's relationship to each request. When
- * omitted, the JSM API defaults to `OWNED_REQUESTS` — i.e. only requests the
- * authenticated user reported. For a knowledge-base sync the user almost always
- * wants every request in the service desk, so the connector defaults this to
- * `ALL_REQUESTS` (which the JSM API treats as "owned + participated") rather than
- * relying on the API's narrower default.
+ * This param scopes results to the OAuth user's relationship to each request —
+ * `GET /request` is always relative to the executing user, never a service-desk-wide
+ * dump. When omitted the API defaults to the combination `OWNED_REQUESTS`,
+ * `PARTICIPATED_REQUESTS`, and `ALL_ORGANIZATIONS`; `ALL_REQUESTS` is documented as
+ * "returns all customer requests" — the widest of the strategies — so it is the
+ * connector default. Atlassian marks it deprecated because the set it unions may
+ * change as strategies are added, not because it was narrowed, so it is kept until a
+ * single non-deprecated value covers the same breadth.
+ *
+ * `ORGANIZATION` and `APPROVER` are omitted: the first is only meaningful alongside
+ * an `organizationId` the connector does not collect, and the second is already
+ * inside what `ALL_REQUESTS` returns.
  */
-const VALID_REQUEST_OWNERSHIP = ['OWNED_REQUESTS', 'PARTICIPATED_REQUESTS', 'ALL_REQUESTS'] as const
+const VALID_REQUEST_OWNERSHIP = [
+  'OWNED_REQUESTS',
+  'PARTICIPATED_REQUESTS',
+  'ALL_ORGANIZATIONS',
+  'ALL_REQUESTS',
+] as const
 type JsmRequestOwnership = (typeof VALID_REQUEST_OWNERSHIP)[number]
 
 /**
@@ -54,6 +65,7 @@ interface JsmDate {
 interface JsmRequest {
   issueId?: string
   issueKey?: string
+  summary?: string
   requestTypeId?: string
   serviceDeskId?: string
   createdDate?: JsmDate
@@ -143,13 +155,27 @@ function resolveOptions(sourceConfig: Record<string, unknown>): {
 
 /**
  * Extracts a plain-text value for a given request field id (e.g. `summary`,
- * `description`) from a request's `requestFieldValues`. The JSM API returns
- * `value` either as a plain string (wiki markup) or, for some rich-text fields,
- * as an ADF document — both are handled.
+ * `description`) from a request's `requestFieldValues`.
+ *
+ * `renderedValue.html` is preferred when the API supplies it: rich-text fields
+ * come back in `value` as raw Jira wiki markup (`I need a new *mouse*`) or as an
+ * ADF document, and the rendered HTML is the only form that preserves list,
+ * table, and link text without markup noise. Falls back to `value` as a string
+ * or via ADF extraction.
  */
 function getFieldText(request: JsmRequest, fieldId: string): string {
   const field = request.requestFieldValues?.find((f) => f.fieldId === fieldId)
   if (!field) return ''
+
+  const rendered = field.renderedValue
+  if (rendered && typeof rendered === 'object') {
+    const html = (rendered as { html?: unknown }).html
+    if (typeof html === 'string' && html.trim()) {
+      const text = htmlToPlainText(html).trim()
+      if (text) return text
+    }
+  }
+
   const { value } = field
   if (typeof value === 'string') return value
   if (value && typeof value === 'object') {
@@ -157,6 +183,17 @@ function getFieldText(request: JsmRequest, fieldId: string): string {
     if (adf) return adf
   }
   return ''
+}
+
+/**
+ * Resolves a request's summary. `CustomerRequestDTO.summary` is always present,
+ * whereas `requestFieldValues` omits fields hidden on the request-type form — so
+ * the top-level field is preferred and the field value is only a fallback.
+ */
+function getSummary(request: JsmRequest): string {
+  const top = typeof request.summary === 'string' ? request.summary.trim() : ''
+  if (top) return top
+  return getFieldText(request, 'summary').trim()
 }
 
 /**
@@ -188,7 +225,7 @@ function getChangeIndicator(request: JsmRequest): string {
 function requestToStub(request: JsmRequest, domain: string): ExternalDocument {
   const issueId = String(request.issueId ?? '')
   const issueKey = request.issueKey ?? issueId
-  const summary = getFieldText(request, 'summary') || 'Untitled'
+  const summary = getSummary(request) || 'Untitled'
   const status = request.currentStatus?.status
 
   const bareDomain = domain
@@ -228,7 +265,7 @@ function requestToStub(request: JsmRequest, domain: string): ExternalDocument {
 function buildContent(request: JsmRequest, comments: JsmComment[]): string {
   const parts: string[] = []
 
-  const summary = getFieldText(request, 'summary')
+  const summary = getSummary(request)
   if (summary) parts.push(summary)
 
   const description = getFieldText(request, 'description')
@@ -269,9 +306,62 @@ async function resolveCloudId(
 }
 
 /**
+ * Resolves a configured service desk identifier to the numeric service desk id.
+ *
+ * `GET /servicedesk/{serviceDeskId}` accepts either the numeric id or a project
+ * key, but the `serviceDeskId` filter on `GET /request` is typed `integer` — a
+ * project key entered in advanced mode would validate and then silently match
+ * nothing. Resolve it once per sync and cache it on `syncContext`.
+ */
+async function resolveServiceDeskId(
+  baseUrl: string,
+  accessToken: string,
+  configuredId: string,
+  syncContext?: Record<string, unknown>
+): Promise<string> {
+  const trimmed = configuredId.trim()
+  if (/^\d+$/.test(trimmed)) return trimmed
+
+  const cached = syncContext?.serviceDeskNumericId as string | undefined
+  if (cached) return cached
+
+  const response = await fetchWithRetry(`${baseUrl}/servicedesk/${encodeURIComponent(trimmed)}`, {
+    method: 'GET',
+    headers: getJsmHeaders(accessToken),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to resolve service desk "${trimmed}": ${response.status}`)
+  }
+
+  const data = (await response.json()) as { id?: string }
+  const resolved = data.id ? String(data.id) : ''
+  if (!resolved) {
+    throw new Error(`Service desk "${trimmed}" returned no id`)
+  }
+
+  if (syncContext) syncContext.serviceDeskNumericId = resolved
+  return resolved
+}
+
+/**
+ * Upper bound on comments pulled into a single document. A pathological request
+ * thread must not fan out into unbounded pagination or an unbounded in-memory
+ * array; the cap is logged when it engages.
+ */
+const MAX_COMMENTS_PER_REQUEST = 500
+
+/**
  * Fetches comments for a request, following offset pagination until the API
  * signals `isLastPage`. When `publicOnly` is true the `public=true` filter is
  * applied so internal/agent-only comments are excluded.
+ *
+ * Throws on a failed page rather than returning what it has. The document's
+ * `contentHash` is metadata-only, so a thread cut short by a transient error
+ * would be indexed as complete and never re-fetched; throwing lets the sync
+ * engine record the document as failed and retry it on the next run. The
+ * {@link MAX_COMMENTS_PER_REQUEST} cut is deliberate and deterministic instead —
+ * retrying would land in exactly the same place — so it only warns.
  */
 async function fetchComments(
   baseUrl: string,
@@ -305,11 +395,7 @@ async function fetchComments(
     })
 
     if (!response.ok) {
-      logger.warn('Failed to fetch JSM comments', {
-        issueIdOrKey,
-        status: response.status,
-      })
-      break
+      throw new Error(`Failed to fetch JSM comments for ${issueIdOrKey}: ${response.status}`)
     }
 
     const data = (await response.json()) as JsmPage<JsmComment>
@@ -317,6 +403,15 @@ async function fetchComments(
     comments.push(...values)
 
     if (data.isLastPage || values.length === 0) break
+
+    if (comments.length >= MAX_COMMENTS_PER_REQUEST) {
+      logger.warn('Truncating JSM comment thread at cap', {
+        issueIdOrKey,
+        cap: MAX_COMMENTS_PER_REQUEST,
+      })
+      break
+    }
+
     start += values.length
   }
 
@@ -369,8 +464,15 @@ export const jsmConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    const params = new URLSearchParams({
+    const resolvedServiceDeskId = await resolveServiceDeskId(
+      baseUrl,
+      accessToken,
       serviceDeskId,
+      syncContext
+    )
+
+    const params = new URLSearchParams({
+      serviceDeskId: resolvedServiceDeskId,
       requestStatus,
       start: String(start),
       limit: String(Math.min(PAGE_SIZE, remaining)),
@@ -400,13 +502,7 @@ export const jsmConnector: ConnectorConfig = {
     }
 
     const data = (await response.json()) as JsmPage<JsmRequest>
-    let requests = data.values ?? []
-
-    let slicedSome = false
-    if (maxRequests > 0 && requests.length > remaining) {
-      slicedSome = true
-      requests = requests.slice(0, remaining)
-    }
+    const requests = data.values ?? []
 
     const documents = requests.map((request) => requestToStub(request, domain))
 
@@ -419,12 +515,10 @@ export const jsmConnector: ConnectorConfig = {
      * When `maxRequests` truncates the listing before the source is exhausted,
      * flag the run as capped so the sync engine skips deletion reconciliation —
      * otherwise unseen requests beyond the cap would be deleted on every sync.
-     * `slicedSome` covers truncation on the final page: requests dropped from
-     * this page still exist even when `isLastPage` is true. (The requested
-     * `limit` never exceeds the remaining budget, so a slice should be
-     * impossible — this is defense in depth against the API over-returning.)
+     * Reaching the cap exactly as the source runs out (`isLastPage`) is not a
+     * truncation, so it must still reconcile.
      */
-    if (((reachedCap && !data.isLastPage) || slicedSome) && syncContext) {
+    if (reachedCap && !data.isLastPage && syncContext) {
       syncContext.listingCapped = true
     }
 
@@ -449,15 +543,28 @@ export const jsmConnector: ConnectorConfig = {
     const cloudId = await resolveCloudId(domain, accessToken, syncContext)
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const requestUrl = `${baseUrl}/request/${encodeURIComponent(externalId)}?expand=status`
+    /**
+     * No `expand` is requested: `summary`, `requestFieldValues`, `currentStatus`,
+     * `reporter`, and `_links` are all returned by default. `expand=status`
+     * would only add the full status-transition history, which is unused.
+     */
+    const requestUrl = `${baseUrl}/request/${encodeURIComponent(externalId)}`
     const response = await fetchWithRetry(requestUrl, {
       method: 'GET',
       headers: getJsmHeaders(accessToken),
     })
 
+    /**
+     * The JSM REST docs document 404 as "Returned if the customer request does not
+     * exist" and 403 as "Returned if the user does not have permission to complete
+     * this request" — for a sync credential both amount to absence, since the
+     * connector can never widen its own visibility. A 401 ("Returned if the user is
+     * not logged in") is an invalid/expired token: a whole-sync fault that must
+     * surface as a failed document rather than silently dropping every request.
+     */
     if (!response.ok) {
       if (response.status === 404) return null
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 403) {
         logger.warn('Access denied fetching JSM request', { externalId, status: response.status })
         return null
       }
@@ -499,10 +606,20 @@ export const jsmConnector: ConnectorConfig = {
       }
     }
 
+    /**
+     * `requestTypeId` is typed `integer` on `GET /request`; a non-numeric value
+     * would be rejected mid-sync rather than at configuration time.
+     */
+    const requestTypeId =
+      typeof sourceConfig.requestTypeId === 'string' ? sourceConfig.requestTypeId.trim() : ''
+    if (requestTypeId && !/^\d+$/.test(requestTypeId)) {
+      return { valid: false, error: 'Request type ID must be a number' }
+    }
+
     try {
       const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
       const baseUrl = getJsmApiBaseUrl(cloudId)
-      const url = `${baseUrl}/servicedesk/${encodeURIComponent(serviceDeskId)}`
+      const url = `${baseUrl}/servicedesk/${encodeURIComponent(serviceDeskId.trim())}`
 
       const response = await fetchWithRetry(
         url,

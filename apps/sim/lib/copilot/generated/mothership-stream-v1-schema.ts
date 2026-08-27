@@ -514,7 +514,13 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
       type: 'object',
     },
     MothershipStreamV1RunKind: {
-      enum: ['checkpoint_pause', 'resumed', 'compaction_start', 'compaction_done'],
+      enum: [
+        'checkpoint_pause',
+        'resumed',
+        'compaction_start',
+        'compaction_done',
+        'steering_applied',
+      ],
       type: 'string',
     },
     MothershipStreamV1RunResumedEventEnvelope: {
@@ -776,6 +782,26 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     MothershipStreamV1SpanPayloadKind: {
       enum: ['subagent', 'structured_result', 'subagent_result'],
       type: 'string',
+    },
+    MothershipStreamV1SteeringAppliedPayload: {
+      additionalProperties: false,
+      properties: {
+        content: {
+          type: 'string',
+        },
+        kind: {
+          $ref: '#/$defs/MothershipStreamV1RunKind',
+        },
+        messageId: {
+          type: 'string',
+        },
+        mode: {
+          enum: ['deferred', 'interrupt'],
+          type: 'string',
+        },
+      },
+      required: ['kind', 'messageId', 'content', 'mode'],
+      type: 'object',
     },
     MothershipStreamV1StreamCursor: {
       additionalProperties: false,
@@ -1311,6 +1337,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           type: 'boolean',
         },
         hidden: {
+          type: 'boolean',
+        },
+        inbandOwned: {
           type: 'boolean',
         },
         internal: {

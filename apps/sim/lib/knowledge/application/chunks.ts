@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -69,8 +70,8 @@ function requireChunkReadable(context: ActiveKnowledgeDocumentContext): void {
 
 function requireChunkWritable(context: ActiveKnowledgeDocumentContext): void {
   if (context.document.connectorId) {
-    throw new OrchestrationError(
-      'forbidden',
+    throw new ForbiddenOperationError(
+      'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
       'Chunks from connector-synced documents are read-only'
     )
   }

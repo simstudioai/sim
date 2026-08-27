@@ -24,15 +24,6 @@ export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete OCR image output definition
- */
-export const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Extracted image with bounding box',
-  properties: MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for page dimension objects
  */
 export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
@@ -87,15 +78,6 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete OCR page output definition
- */
-export const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'OCR processed page',
-  properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for usage info objects
  */
 export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
@@ -127,15 +109,6 @@ export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
   sourceUrl: { type: 'string', description: 'Source URL if applicable', optional: true },
   usageInfo: MISTRAL_OCR_USAGE_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete parser metadata output definition
- */
-export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Processing metadata',
-  properties: MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES,
-}
 
 export interface MistralParserInput {
   filePath?: string

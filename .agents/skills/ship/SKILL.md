@@ -102,13 +102,20 @@ chore(scope): description for maintenance
 
 ## What to Omit
 
-The repo is public. Keep the title and description to the code change and its reasoning — never:
+The repo is public. **Everything you publish — title, description, commit messages, and every later comment — must stand on its own without the incident that produced it.** Never include:
 
-- Customer, company, or user names; workspace/user/org IDs; email addresses
+- Customer, company, or user names; workspace/user/org/KB/connector IDs; email addresses
 - Prod or staging operational data: log lines, DB rows, metrics, timestamps, incident details, canary/alert output
-- Infrastructure specifics: hostnames, ARNs, internal URLs, env var values, secret names
+- Infrastructure specifics: hostnames (incl. tenant subdomains), ARNs, internal URLs, env var values, secret names
+- Verbatim customer content: file names, document titles, sheet/column names, folder paths
 
-Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123".
+Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123". Aggregate counts are fine once detached from the tenant ("1,379 PDFs failed"); the same number attributed to a named customer is not. Replace real examples with placeholders (`<real sheet name>`) rather than cutting them — the illustration is usually the useful part.
+
+**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, and `git log origin/staging..HEAD` before publishing:
+
+```bash
+grep -niE 'customer-or-company-name|@[a-z0-9.-]+\.(com|io|ai)|[0-9a-f]{8}-[0-9a-f]{4}-|\.sharepoint\.com|arn:aws|https?://[a-z0-9.-]*\.internal'
+```
 
 ## PR Description Format
 
@@ -143,7 +150,7 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 ## Important Notes
 
-- Always confirm the commit message and PR description with the user before executing
+- Do not ask the user to confirm the commit message or PR description before executing
 - The PR should be created against `staging` branch
 - Keep descriptions concise and in active voice
 - Match the user's previous PR style: direct, no fluff, bullet points

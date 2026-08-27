@@ -226,6 +226,45 @@ describe('incidentioConnector.listDocuments', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('does not flag the listing capped when the cap lands on an exhausted source', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        incidents: [incidentFixture({ id: 'inc-1' })],
+        pagination_meta: {},
+      })
+    )
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await incidentioConnector.listDocuments(
+      ACCESS_TOKEN,
+      { maxIncidents: '1' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('requests only the remaining records on the final capped page', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ incidents: [] }))
+
+    await incidentioConnector.listDocuments(ACCESS_TOKEN, { maxIncidents: '7' }, undefined, {})
+
+    expect(requestUrl().searchParams.get('page_size')).toBe('7')
+  })
+
+  it('stops paginating when a page returns no incidents but still echoes a cursor', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ incidents: [], pagination_meta: { after: 'cursor-9' } })
+    )
+
+    const result = await incidentioConnector.listDocuments(ACCESS_TOKEN, {})
+
+    expect(result.hasMore).toBe(false)
+    expect(result.nextCursor).toBeUndefined()
+  })
+
   it('throws instead of reporting an empty listing when the API fails', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: 'nope' }, 500))
 
@@ -281,22 +320,45 @@ describe('incidentioConnector.getDocument', () => {
     expect(doc?.content).toContain('Checkout is down')
   })
 
+  it('marks the hash partial when updates could not be fetched, so the next sync retries', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ incident: incidentFixture() }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500))
+
+    const partial = await incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')
+
+    vi.clearAllMocks()
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ incident: incidentFixture() }))
+      .mockResolvedValueOnce(jsonResponse({ incident_updates: [] }))
+
+    const complete = await incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')
+
+    vi.clearAllMocks()
+    mockFetch.mockResolvedValue(jsonResponse({ incidents: [incidentFixture()] }))
+    const listed = await incidentioConnector.listDocuments(ACCESS_TOKEN, {})
+    const stubHash = listed.documents[0].contentHash
+
+    expect(complete?.contentHash).toBe(stubHash)
+    expect(partial?.contentHash).not.toBe(stubHash)
+  })
+
   it('returns null for a deleted incident', async () => {
     mockFetch.mockResolvedValue(jsonResponse({}, 404))
 
     await expect(incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')).resolves.toBeNull()
   })
 
-  it('returns null instead of throwing when the API fails', async () => {
+  it('throws when the API fails so the sync engine records a failed row', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: 'nope' }, 500))
 
-    await expect(incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')).resolves.toBeNull()
+    await expect(incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')).rejects.toThrow('500')
   })
 
-  it('returns null instead of throwing when fetch rejects', async () => {
+  it('throws when fetch rejects rather than dropping the incident silently', async () => {
     mockFetch.mockRejectedValue(new Error('boom'))
 
-    await expect(incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')).resolves.toBeNull()
+    await expect(incidentioConnector.getDocument(ACCESS_TOKEN, {}, 'inc-1')).rejects.toThrow('boom')
   })
 
   it('returns null for an empty external id without calling the API', async () => {

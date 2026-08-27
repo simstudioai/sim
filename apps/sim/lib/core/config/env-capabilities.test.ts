@@ -1,3 +1,4 @@
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ASYNC_JOBS_CAPABILITY,
@@ -20,7 +21,6 @@ import {
   validateCapabilityFieldInput,
   wireFallback,
 } from '@/lib/core/config/env-capabilities'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 

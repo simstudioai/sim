@@ -791,12 +791,13 @@ export async function upsertRow(
       })
       if (!updatedRow) throw new Error('Matched table row no longer exists')
 
-      const executions = await loadExecutionsForRow(trx, updatedRow.id)
+      // No executions sidecar: no upsert surface puts one on the wire, and
+      // loading it here would hold the write transaction open for a result that
+      // is discarded. See `getRowSummaryById` for the same reasoning on reads.
       return {
         row: {
           id: updatedRow.id,
           data: updatedRow.data as RowData,
-          executions,
           position: updatedRow.position,
           orderKey: updatedRow.orderKey ?? undefined,
           createdAt: updatedRow.createdAt,
@@ -842,7 +843,6 @@ export async function upsertRow(
       row: {
         id: insertedRow.id,
         data: insertedRow.data as RowData,
-        executions: {},
         position: insertedRow.position,
         orderKey: insertedRow.orderKey ?? undefined,
         createdAt: insertedRow.createdAt,
@@ -1113,6 +1113,8 @@ export async function queryRows(
     after,
     includeTotal = true,
     withExecutions = true,
+    runStateBudgetBytes,
+    columnIds,
   } = options
 
   const tableName = USER_TABLE_ROWS_SQL_NAME
@@ -1185,15 +1187,27 @@ export async function queryRows(
     limit,
     budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
     pageCutBytes: getMaxPageBytes(),
+    columnIds,
   })
 
   const [fetched, totalCount] = await Promise.all([drainPromise, countPromise])
   const rows = fetched.rows
 
+  /**
+   * The budget is opt-in, not a property of reading run state.
+   *
+   * It exists for the public row reads, which publish a `413` and a documented
+   * ceiling. The first-party grid reads run state too, at five times the row
+   * limit, and has no such contract: applying the budget there turns a large
+   * page into a hard failure — with an error naming a parameter the internal
+   * route does not expose — where it previously rendered. Callers that publish
+   * the ceiling pass it; callers that do not keep the unbounded read they had.
+   */
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
         db,
-        rows.map((r) => r.id)
+        rows.map((r) => r.id),
+        runStateBudgetBytes === undefined ? undefined : { budgetBytes: runStateBudgetBytes }
       )
     : null
 
@@ -1240,7 +1254,7 @@ export async function queryRows(
   }
 }
 
-interface BoundedFetchParams {
+export interface BoundedFetchParams {
   /** Tenant + delete-mask + user filter — WITHOUT any seek predicate. */
   baseWhere: SQL | undefined
   orderBy: SQL
@@ -1257,9 +1271,11 @@ interface BoundedFetchParams {
   budgetBytes: number
   /** Byte cut for a **bounded** page; defaults to 5MB and is environment-overridable. */
   pageCutBytes: number
+  /** Stable column ids to keep in `data`; projected before a row is measured. */
+  columnIds?: ReadonlySet<string>
 }
 
-interface BoundedFetchResult {
+export interface BoundedFetchResult {
   rows: Array<typeof userTableRows.$inferSelect>
   bytes: number
   /** Proven by a fetched-but-unreturned witness row — never inferred from page fullness. */
@@ -1270,16 +1286,14 @@ interface BoundedFetchResult {
   anchorOffset: number
 }
 
-/**
- * Belt-and-braces bound on drain iterations.
- *
- * Unreachable only because every iteration either consumes at least one row or cuts, and a bounded
- * page's `limit` is capped at {@link TABLE_LIMITS.MAX_QUERY_LIMIT} — so the limit cut always fires
- * first. That makes the two constants exactly tight: raising `MAX_QUERY_LIMIT` above this bound
- * would let the loop exit with rows still unread and `hasMore: false`, which clients now trust as
- * end-of-table (they terminate on `nextCursor`, which this decides). Raise both together.
- */
-const MAX_QUERY_BATCHES = 1000
+/** Keeps only `columnIds` in a stored row's data (a column a row never wrote stays absent). */
+function projectRowData(data: RowData, columnIds: ReadonlySet<string>): RowData {
+  const projected: RowData = {}
+  for (const columnId of columnIds) {
+    if (Object.hasOwn(data, columnId)) projected[columnId] = data[columnId]
+  }
+  return projected
+}
 
 /**
  * Drains rows in adaptively-sized bounded batches until the caller's `limit`
@@ -1302,8 +1316,9 @@ const MAX_QUERY_BATCHES = 1000
  * Always returns at least one row when any match exists, even if that row
  * alone exceeds the budget.
  */
-async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetchResult> {
-  const { baseWhere, orderBy, sorted, keysetValid, limit, budgetBytes, pageCutBytes } = params
+export async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetchResult> {
+  const { baseWhere, orderBy, sorted, keysetValid, limit, budgetBytes, pageCutBytes, columnIds } =
+    params
 
   const firstBatchCap = Math.max(1, Math.floor((4 * budgetBytes) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES))
 
@@ -1314,6 +1329,11 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   const rows: Array<typeof userTableRows.$inferSelect> = []
   let bytes = 0
   let maxRowBytes = 0
+  // What each consumed row cost to FETCH, as stored. With a projection the
+  // response bytes above can be tiny while the SELECT still returns whole rows,
+  // so batch sizing must be bounded by this, not by the projected average.
+  let storedBytes = 0
+  let maxStoredRowBytes = 0
   let hasMore = false
   let anchor = params.seek
   let anchorOffset = params.startOffset
@@ -1329,7 +1349,26 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
     const remaining = Math.max(1, cutBytes === undefined ? budgetBytes : cutBytes - bytes)
     const byAverage = Math.ceil(remaining / avg) + 1
     const varianceCap = Math.ceil((8 * remaining) / Math.max(maxRowBytes, 1))
-    return Math.max(1, Math.min(byAverage, TABLE_LIMITS.QUERY_BATCH_MAX_ROWS, varianceCap))
+    // A batch may hold about one budget's worth of rows AS STORED, whatever the
+    // projection keeps — without this a narrow selection over wide rows would
+    // size the next batch from a few projected bytes and ask for thousands of
+    // full rows. Unprojected, stored and projected bytes agree, so this is the
+    // budget-sized batch the drain already takes.
+    const fetchCap = Math.ceil(budgetBytes / Math.max(1, storedBytes / rows.length))
+    // The stored-size counterpart of varianceCap: once a wide row has been seen,
+    // assume the next batch could be all that wide, so a run of small rows
+    // cannot talk the average into an oversized SELECT.
+    const storedVarianceCap = Math.ceil((8 * budgetBytes) / Math.max(maxStoredRowBytes, 1))
+    return Math.max(
+      1,
+      Math.min(
+        byAverage,
+        TABLE_LIMITS.QUERY_BATCH_MAX_ROWS,
+        varianceCap,
+        fetchCap,
+        storedVarianceCap
+      )
+    )
   }
 
   const runBatch = (batchSeek: TableRowsCursor | undefined, batchOffset: number, ask: number) => {
@@ -1364,7 +1403,7 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
     return withReadGuards(async (trx) => buildQuery(trx), { seqscanOff: sorted })
   }
 
-  for (let iteration = 0; iteration < MAX_QUERY_BATCHES; iteration++) {
+  while (true) {
     const limitRemaining = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length
     const target = Math.min(nextBatchRows(), limitRemaining)
     const ask = target + 1 // +1 = witness row proving more data exists past a cut
@@ -1372,8 +1411,16 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
     if (batch.length === 0) break
 
     let cut = false
-    for (const row of batch) {
+    for (const fetchedRow of batch) {
+      // Project before measuring: the budget is a promise about the response,
+      // so columns the caller will never receive must not count against it.
+      const row = columnIds
+        ? { ...fetchedRow, data: projectRowData(fetchedRow.data as RowData, columnIds) }
+        : fetchedRow
       const rowBytes = Buffer.byteLength(JSON.stringify(row.data))
+      const rowStoredBytes = columnIds
+        ? Buffer.byteLength(JSON.stringify(fetchedRow.data))
+        : rowBytes
       if (cutBytes !== undefined && rows.length > 0 && bytes + rowBytes > cutBytes) {
         // Unbounded queries promise the ENTIRE result — a partial page would be
         // silent truncation, so fail fast instead (the drain has only fetched
@@ -1398,8 +1445,10 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
       }
       rows.push(row)
       bytes += rowBytes
+      storedBytes += rowStoredBytes
       consumedSinceAnchor++
       if (rowBytes > maxRowBytes) maxRowBytes = rowBytes
+      if (rowStoredBytes > maxStoredRowBytes) maxStoredRowBytes = rowStoredBytes
       if (keysetValid && row.orderKey) {
         anchor = { orderKey: row.orderKey, id: row.id }
         anchorOffset = 0
@@ -1420,20 +1469,11 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   }
 }
 
-/**
- * Gets a single row by ID.
- *
- * @param tableId - Table ID
- * @param rowId - Row ID to fetch
- * @param workspaceId - Workspace ID for access control
- * @returns Row or null if not found
- */
-export async function getRowById(
-  tableId: string,
-  rowId: string,
-  workspaceId: string
-): Promise<TableRow | null> {
-  const results = await db
+/** The stored row without its executions sidecar. */
+export type TableRowSummary = Omit<TableRow, 'executions'>
+
+function selectRowRecord(tableId: string, rowId: string, workspaceId: string) {
+  return db
     .select()
     .from(userTableRows)
     .where(
@@ -1444,20 +1484,62 @@ export async function getRowById(
       )
     )
     .limit(1)
+}
 
-  if (results.length === 0) return null
-
-  const row = results[0]
-  const executions = await loadExecutionsForRow(db, row.id)
+function toRowSummary(row: Awaited<ReturnType<typeof selectRowRecord>>[number]): TableRowSummary {
   return {
     id: row.id,
     data: row.data as RowData,
-    executions,
     position: row.position,
     orderKey: row.orderKey ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+/**
+ * One row without its executions sidecar, for the single-row read routes, which
+ * project `id`/`data`/`position`/`createdAt`/`updatedAt` and never put executions
+ * on the wire. Loading the sidecar for them is a query whose result is discarded.
+ *
+ * Not every `readTableRow` caller is such a surface: the Copilot `get_row` tool
+ * spreads the row straight onto its result, so it used to hand the model an
+ * executions map and no longer does. That narrowing is deliberate — the generated
+ * tool contract never described the field, and the bulk `query_rows` path has
+ * always returned an empty one — but it is a wire change, not a pure saving.
+ *
+ * Deliberately a separate function rather than a flag on {@link getRowById}: a
+ * caller that forgets to pass the flag reads an empty sidecar and cannot tell
+ * that from a row with no executions, whereas here the field simply is not on
+ * the type.
+ */
+export async function getRowSummaryById(
+  tableId: string,
+  rowId: string,
+  workspaceId: string
+): Promise<TableRowSummary | null> {
+  const [row] = await selectRowRecord(tableId, rowId, workspaceId)
+  return row ? toRowSummary(row) : null
+}
+
+/** One row with its executions sidecar, for the write and background paths. */
+export async function getRowById(
+  tableId: string,
+  rowId: string,
+  workspaceId: string
+): Promise<TableRow | null> {
+  // The executions sidecar is keyed on the row id the caller already gave us, so
+  // it does not depend on the row lookup — issuing both together makes this one
+  // round trip instead of two. A miss pays one redundant sidecar read, which is
+  // the rare path and costs no extra wall time.
+  const [results, executions] = await Promise.all([
+    selectRowRecord(tableId, rowId, workspaceId),
+    loadExecutionsForRow(db, rowId),
+  ])
+
+  if (results.length === 0) return null
+
+  return { ...toRowSummary(results[0]), executions }
 }
 
 /**
@@ -1615,13 +1697,33 @@ export async function updateRow(
     )
   }
 
-  // Check unique constraints using optimized database query
-  const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
+  // Scoped to the columns this patch actually writes. A merge cannot newly
+  // violate uniqueness on a column it leaves alone: that value is the one
+  // already stored, and it satisfied the constraint when it was written. The
+  // probe opens its own transaction and queries once per unique column, so on a
+  // table that has any unique column this was several round trips on every
+  // edit, including edits nowhere near one.
+  //
+  // What this does not cover is a duplicate that already exists — either from a
+  // constraint added to a column that already held one, or from two concurrent
+  // inserts both passing this probe, since uniqueness here is advisory (a
+  // SELECT, not a DB constraint). Such a row is no longer blocked from edits
+  // elsewhere in it. That is the intended outcome: an unrelated cell edit
+  // should not fail on data it did not write, and blocking it was never a
+  // repair mechanism.
+  const patchedColumnIds = new Set(Object.keys(data.data))
+  const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
+    patchedColumnIds.has(getColumnId(column))
+  )
+  if (patchedUniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
       mergedData,
-      table.schema,
+      // Narrowed to the patched unique columns, not just used as a gate: the
+      // probe issues one SELECT per unique column it is given, so a table with
+      // several would otherwise re-check all of them to validate a patch that
+      // touched one. `schema` is read only for its unique columns here.
+      { ...table.schema, columns: patchedUniqueColumns },
       data.rowId // Exclude current row
     )
     if (!uniqueValidation.valid) {

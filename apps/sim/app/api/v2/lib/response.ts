@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
+import {
+  V2_ERROR_CODE_BY_STATUS,
+  V2_ERROR_STATUS_BY_CODE,
+  type V2ErrorCode,
+} from '@/lib/api/contracts/v2/error-codes'
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
@@ -20,41 +25,6 @@ import type { RateLimitResult } from '@/app/api/v1/middleware'
  * middleware and the platform domain services — these helpers only standardize
  * the HTTP envelope.
  */
-
-export type V2ErrorCode =
-  | 'BAD_REQUEST'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'PAYLOAD_TOO_LARGE'
-  | 'UNSUPPORTED_MEDIA_TYPE'
-  | 'USAGE_LIMIT_EXCEEDED'
-  | 'LOCKED'
-  | 'RATE_LIMITED'
-  | 'CLIENT_CLOSED_REQUEST'
-  | 'INTERNAL_ERROR'
-  | 'SERVICE_UNAVAILABLE'
-
-const STATUS_BY_CODE: Record<V2ErrorCode, number> = {
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  USAGE_LIMIT_EXCEEDED: 402,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  CONFLICT: 409,
-  PAYLOAD_TOO_LARGE: 413,
-  UNSUPPORTED_MEDIA_TYPE: 415,
-  LOCKED: 423,
-  RATE_LIMITED: 429,
-  CLIENT_CLOSED_REQUEST: 499,
-  INTERNAL_ERROR: 500,
-  SERVICE_UNAVAILABLE: 503,
-}
-
-const V2_CODE_BY_HTTP_STATUS: Partial<Record<number, V2ErrorCode>> = Object.fromEntries(
-  Object.entries(STATUS_BY_CODE).map(([code, status]) => [status, code as V2ErrorCode])
-)
 
 /**
  * Every v2 response is authed, per-caller data (ids/filters appear in query
@@ -78,8 +48,8 @@ const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
  * improvement on the baseline rather than a conformance fix: without it a
  * client's only defensible policy on a 503 is an immediate retry, which is
  * exactly the traffic a degraded dependency cannot absorb. Sim raises 503 when
- * the API-key store, the rollout gate, the rate-limit backend, or
- * execution-identity allocation is briefly unavailable, and all four are made
+ * the API-key store, the rate-limit backend, or execution-identity allocation
+ * is briefly unavailable, and all three are made
  * worse by an unthrottled retry storm.
  *
  * 429 is deliberately absent because every 429 already knows its own wait: the
@@ -99,6 +69,28 @@ const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
 const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
   503: ADMISSION_RETRY_AFTER_SECONDS,
 }
+
+/**
+ * The challenge every v2 `401` carries, so a 401 is a complete one.
+ *
+ * RFC 9110 §11.6.1 makes `WWW-Authenticate` a MUST on 401 — a 401 without it is
+ * a refusal that never says what would have been accepted, and a generic HTTP
+ * client has nothing to react to.
+ *
+ * The scheme name is deliberately Sim-specific rather than a registered one.
+ * v2 authenticates from the `x-api-key` header and accepts no `Authorization`
+ * scheme at all — `Authorization: Bearer <key>` is not a channel here — so
+ * `Bearer` and `Basic` would both be false advertising. `Basic` is worse than
+ * false: a browser reacts to it by opening a native credential prompt that
+ * cannot produce an API key. An unregistered scheme is what remains, and it is
+ * legal: §11.6.1's grammar requires *an* `auth-scheme` token, not a registered
+ * one. Every challenge implies "retry via `Authorization: <scheme> …`" by
+ * construction, so the token is chosen to be one no client has a built-in
+ * handler for — the challenge surfaces to a human instead of triggering an
+ * automatic retry down a channel v2 does not read — and the real channel is
+ * named outright in the `header` parameter beside it.
+ */
+const V2_AUTH_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
 
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
@@ -173,7 +165,7 @@ export function v2Error(
 ): NextResponse {
   const error: { code: V2ErrorCode; message: string; details?: unknown } = { code, message }
   if (options.details !== undefined) error.details = options.details
-  const status = options.status ?? STATUS_BY_CODE[code]
+  const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
     : RETRY_AFTER_SECONDS_BY_STATUS[status]
@@ -183,6 +175,7 @@ export function v2Error(
       status,
       headers: {
         ...PRIVATE_NO_STORE,
+        ...(status === 401 ? { 'WWW-Authenticate': V2_AUTH_CHALLENGE } : {}),
         ...(retryAfterSeconds === undefined ? {} : { 'Retry-After': retryAfterSeconds.toString() }),
         ...options.headers,
       },
@@ -192,7 +185,7 @@ export function v2Error(
 
 /** Renders a trusted typed HTTP error without changing the v2 envelope. */
 export function v2HttpError(error: HttpError): NextResponse {
-  const code = V2_CODE_BY_HTTP_STATUS[error.statusCode]
+  const code = V2_ERROR_CODE_BY_STATUS[error.statusCode]
   if (!code) return v2Error('INTERNAL_ERROR', 'Internal server error')
   return v2Error(code, error.message)
 }

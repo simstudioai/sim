@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
@@ -368,9 +369,7 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   },
 }
 
-const sttV2Inputs = SttBlock.inputs
-  ? Object.fromEntries(Object.entries(SttBlock.inputs).filter(([key]) => key !== 'audioUrl'))
-  : {}
+const sttV2Inputs = SttBlock.inputs ? omit(SttBlock.inputs, ['audioUrl']) : {}
 const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.id !== 'audioUrl')
 
 export const SttV2Block: BlockConfig<SttBlockResponse> = {

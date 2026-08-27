@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -132,10 +133,6 @@ async function persistExecutionPointerProgress(
   await saveExecutionPointer({ workflowId, executionId, lastEventId })
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function isRecoverableStreamRecoveryError(
   error: unknown
 ): error is SSEEventHandlerError | SSEStreamInterruptedError {
@@ -158,12 +155,12 @@ function normalizeErrorMessage(error: unknown): string {
     if (message) return message
   }
 
-  if (isRecord(error)) {
+  if (isRecordLike(error)) {
     const directMessage = sanitizeMessage(error.message)
     if (directMessage) return directMessage
 
     const nestedError = error.error
-    if (isRecord(nestedError)) {
+    if (isRecordLike(nestedError)) {
       const nestedMessage = sanitizeMessage(nestedError.message)
       if (nestedMessage) return nestedMessage
     } else {
@@ -181,7 +178,7 @@ interface ChatWorkflowInput {
 }
 
 function isChatWorkflowInput(value: unknown): value is ChatWorkflowInput {
-  return isRecord(value) && 'input' in value
+  return isRecordLike(value) && 'input' in value
 }
 
 export interface ChatWorkflowRunResult {
@@ -199,7 +196,7 @@ export class WorkflowAttachmentUploadError extends Error {
 
 export function isChatWorkflowRunResult(value: unknown): value is ChatWorkflowRunResult {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     value.success === true &&
     value.stream instanceof ReadableStream &&
     Array.isArray(value.uploadedAttachments)
@@ -1688,10 +1685,11 @@ export function useWorkflowExecution() {
     }
 
     let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
-    const requestError = isRecord(error) && isRecord(error.request) ? error.request : undefined
+    const requestError =
+      isRecordLike(error) && isRecordLike(error.request) ? error.request : undefined
     if (requestError && sanitizeMessage(requestError.url)) {
       notificationMessage += `: Request to ${(requestError.url as string).trim()} failed`
-      if (isRecord(error) && typeof error.status === 'number') {
+      if (isRecordLike(error) && typeof error.status === 'number') {
         notificationMessage += ` (Status: ${error.status})`
       }
     } else if (sanitizeMessage(errorResult.error)) {
@@ -2405,7 +2403,12 @@ export function useWorkflowExecution() {
           .getWorkflowExecution(reconnectWorkflowId)
         const currentId = executionState?.currentExecutionId ?? null
         if (currentId && currentId !== capturedExecutionId) return
-        finishRunningEntries(reconnectWorkflowId, capturedExecutionId)
+        handleExecutionErrorConsole({
+          workflowId: reconnectWorkflowId,
+          executionId: capturedExecutionId,
+          error: 'Execution state is no longer available after reconnect',
+          blockLogs: [],
+        })
         setCurrentExecutionId(reconnectWorkflowId, null)
         setIsExecuting(reconnectWorkflowId, false)
         setActiveBlocks(reconnectWorkflowId, new Set())

@@ -1,5 +1,8 @@
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import {
+  filterHiddenOutputKeys,
+  isHiddenOutputKey,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBlock } from '@/blocks'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { isTriggerBehavior, isTriggerInternalKey } from '@/executor/constants'
@@ -51,6 +54,11 @@ export function filterOutputForLog(
   for (const [key, value] of Object.entries(output)) {
     // Skip internal keys (underscore prefix)
     if (key.startsWith('_')) continue
+
+    // Skip globally hidden keys. A block whose config does not declare the key as
+    // `hiddenFromDisplay` (a custom block, whose outputs are publisher-curated) would
+    // otherwise persist it straight into the block log and the trace span's output.
+    if (isHiddenOutputKey(key)) continue
 
     if (blockConfig?.outputs && isHiddenFromDisplay(blockConfig.outputs[key])) {
       continue

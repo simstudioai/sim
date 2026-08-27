@@ -29,8 +29,21 @@ export const googleMeetConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       required: false,
       mode: 'advanced',
-      placeholder: 'e.g. 90 (default: all time)',
-      description: 'Only sync meetings from the last N days. Leave blank to sync any age.',
+      placeholder: 'e.g. 30 (default: all available)',
+      description:
+        'Only sync meetings from the last N days. Google keeps transcript entry data for 30 days after a conference ends and deletes the conference record itself on the same schedule, so older meetings have nothing left to index.',
+    },
+    {
+      id: 'includeParticipants',
+      title: 'Include Participants',
+      type: 'dropdown',
+      required: false,
+      options: [
+        { label: 'Yes (default)', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      description:
+        'When Yes, participant display names are written into the indexed transcript — in the participant list, and as the speaker label on every line — and into the Participants tag. Dial-in participants are named by a partially redacted phone number and anonymous joiners by whatever name they typed. Indexed text is embedded into searchable chunks, so anyone with access to this knowledge base can retrieve those identifiers. Choose No to index a participant count and pseudonymous speaker labels instead, and drop the Participants tag.',
     },
   ],
 

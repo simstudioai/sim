@@ -16,3 +16,7 @@ Steps:
 1. Read https://react.dev/learn/you-might-not-need-an-effect to understand the guidelines
 2. Analyze the specified scope for useEffect anti-patterns
 3. If fix=true, apply the fixes. If fix=false, propose the fixes without applying.
+
+## Query-backed forms
+
+When query data supplies the initial values for an editable form, do not copy it into draft state in an Effect. Render loading chrome in an outer component, then mount a keyed form child once data exists and initialize its state lazily from props. Key by the resource identity so every related draft, dialog, and upload state resets together when the resource changes. Keep independent queries in the outer component to preserve parallel fetching.

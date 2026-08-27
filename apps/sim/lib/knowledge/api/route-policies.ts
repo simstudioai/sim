@@ -77,6 +77,13 @@ export const internalKnowledgeErrorPolicies = {
   update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
   delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
   restore: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  /**
+   * Workspace-scoped bulk routes. Deliberately not concealed: the request names
+   * a workspace, not one knowledge base, and per-item authorization failures
+   * are already folded into the response's `notFound` list by the use case.
+   */
+  bulkMove: internalKnowledgeErrorPolicy('Failed to move knowledge bases'),
+  bulkDelete: internalKnowledgeErrorPolicy('Failed to delete knowledge bases'),
   default: internalKnowledgeErrorPolicy('Internal server error'),
   documents: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge document request')
@@ -127,6 +134,25 @@ const v2KnowledgeDocumentUploadErrorPolicy = {
   },
 } satisfies V2ErrorPolicy
 
+/**
+ * A chunk read or write whose document has not finished processing.
+ *
+ * `409`, not the internal surface's `400`: the request is well-formed and the
+ * resource state is what refuses it. Per the v2 conventions a `409` carries no
+ * `Retry-After` — waiting is not what fixes a `failed` document — so the
+ * internal policy's `retryAfter` field is deliberately not carried over. The
+ * status the document is in rides in the message, which is what tells a caller
+ * whether to poll or to requeue.
+ */
+const v2KnowledgeChunkErrorPolicy = {
+  render(error) {
+    if (error instanceof KnowledgeDocumentNotReadyError) {
+      return v2Error('CONFLICT', error.message)
+    }
+    return v2OrchestrationErrorPolicy.render(error)
+  },
+} satisfies V2ErrorPolicy
+
 export const v2KnowledgeErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   usage: v2KnowledgeUsageErrorPolicy,
@@ -137,6 +163,10 @@ export const v2KnowledgeErrorPolicies = {
   concealKnowledgeBaseUsageAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',
     render: v2KnowledgeUsageErrorPolicy.render,
+  }),
+  concealKnowledgeChunkAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base not found',
+    render: v2KnowledgeChunkErrorPolicy.render,
   }),
   concealKnowledgeBaseUploadAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',

@@ -1,0 +1,206 @@
+---
+title: Scripting
+description: File and stdin inputs, list flags, pagination, exit codes, and automation recipes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Everything below applies to every command.
+
+## Reading input from files and stdin
+
+Any flag that takes JSON or a list also accepts `@path` to read a file, or `@-`
+to read stdin.
+
+```bash
+sim workflows import --workflow @wf.json
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
+cat wf.json | sim workflows import --workflow @-
+```
+
+## List flags
+
+Primitive lists take space-separated values. With `@`, the file supplies one
+value per line:
+
+```bash
+sim files mv --file-ids wf_3Qm8ZtLpR2yVnKd7BsXwC wf_5Hn1JvTqW9xUcMb4RzPgL --to Archive
+sim files mv --file-ids @file-ids.txt --to Archive
+printf 'wf_3Qm8ZtLpR2yVnKd7BsXwC\nwf_5Hn1JvTqW9xUcMb4RzPgL\n' | sim files mv --file-ids @- --to Archive
+```
+
+Arrays of objects stay JSON.
+
+## Passing a literal leading `@`
+
+Because `@` introduces a file reference, a value that genuinely starts with one
+is written `@@`. Only the leading `@` is dropped, and every `@`-aware flag
+accepts the escape:
+
+```bash
+sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --allowed-emails @@example.org
+sim secrets set API_HOST --value @@internal
+```
+
+Without it, `--allowed-emails @example.org` can only be read as a request to
+open a file named `example.org`.
+
+## Filtering table rows
+
+`--filter` takes the same predicate tree the API uses: `all` (AND) or `any` (OR)
+groups of `{field, op, value}` conditions, nestable.
+
+```bash
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 \
+  --filter '{"all":[{"field":"status","op":"eq","value":"open"},
+                    {"field":"score","op":"gt","value":10}]}' \
+  --limit 50
+```
+
+Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`,
+`ncontains`, `startsWith`, `endsWith`, `like`, `ilike`, `nlike`, `nilike`,
+`isEmpty`, `isNotEmpty`, `isNull`, `isNotNull`.
+
+`--sort` is also JSON, an ordered list of keys:
+
+```bash
+sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"createdAt","direction":"desc"}]'
+```
+
+## Pagination
+
+List commands page automatically up to `--limit`, which defaults to `100`. Pass
+`--limit 0` to fetch everything:
+
+```bash
+sim logs list --limit 0 --output json > all-logs.json
+```
+
+## Destructive commands
+
+Deletions require an explicit selector **and** `--yes`. There is no "delete
+everything" default:
+
+```bash
+sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81c0a94db54e6f8a13c7e0526bd94a row_6b3e59d0af1c42d7b80e94f3a271c568 --yes
+sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
+```
+
+Without `--yes` the command explains what it would have destroyed and stops.
+
+<Callout type="warn">
+On `batch-delete` and `batch-update`, `--limit` has no default and is not a page
+size — it is a ceiling on how many matching rows the one call may touch. Leave it
+off and the command acts on **every** row the filter matches, however many that
+is. `--limit 0` is not the unbounded form here and is rejected; pass a whole
+number of 1 or more to cap the blast radius, or omit the flag deliberately.
+</Callout>
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | Anything else — API error, bad configuration, invalid arguments, or a missing `--yes` |
+| `2` | `sim whoami` only: the check could not be made at all |
+
+Errors print one line to stderr, prefixed `Error:`, plus the API's error code and
+validation details when it supplies them. Failures are safe to branch on:
+
+```bash
+if ! sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json > result.json; then
+  echo "run failed" >&2
+  exit 1
+fi
+```
+
+An unexpected error prints a stack trace — that is a bug in the CLI, so please
+[open an issue](https://github.com/simstudioai/sim/issues).
+
+`sim whoami` splits its failure in two because the fixes differ: `1` means the
+credentials are wrong and a fresh `sim login` is the answer, while `2` means the
+CLI never got a verdict — no workspace to check against, or an endpoint that did
+not answer — and logging in again would not help.
+
+```bash
+sim whoami > /dev/null
+case $? in
+  0) ;;                                  # ready
+  1) echo "run: sim login" >&2; exit 1 ;;
+  2) echo "endpoint unreachable, retrying later" >&2; exit 75 ;;
+esac
+```
+
+## Selecting workflow output
+
+`--select-output` shapes a streamed result, so it requires `--follow`. It takes
+`blockName.field` selectors; fields that a run did not produce are simply
+omitted:
+
+```bash
+sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --follow --select-output agent_1.content --output json
+```
+
+Without `--follow` the CLI refuses the pair rather than spending a request on a
+response that carries no outputs, and `--async` cannot be combined with it
+either — there is no stream to shape. To narrow a run that has already finished,
+read it back with `workflows runs get`, which matches block **ids** rather than
+the block names `workflows run` takes:
+
+```bash
+sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 \
+  --select-output 1d4c8f02-7b63-4a19-8e52-63f0a7c5d9b1.content --output json
+```
+
+## Polling a long run
+
+Start the run asynchronously, then poll its status:
+
+```bash
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
+
+until sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json \
+  | jq -e '.status | IN("completed","failed","cancelled")' > /dev/null; do
+  sleep 5
+done
+
+sim logs get "$run_id" --trace
+```
+
+`workflows runs get` is the lightweight status check; `logs get` is the full
+diagnostic. For a paused run, the status includes the context ID that
+`sim workflows runs resume` needs.
+
+## Working with folders
+
+Every folder-backed resource — `workflows`, `tables`, `files`, `knowledge` —
+shares the same path commands:
+
+```bash
+sim tables ls Reports
+sim tables mkdir Reports/Quarterly
+sim tables folders mv Reports/Quarterly Archive/Quarterly
+sim tables folders delete Archive --recursive --yes
+```
+
+`ls` lists the resources at a path plus that folder's direct children, never
+deeper. Its `ref` column is the value to pass to the next command. Use `list` for
+resources only, or `folders ls` for folders only. A leading `/` is optional.
+
+## A nightly job, end to end
+
+```bash title="nightly-digest.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+export SIM_API_KEY="${SIM_API_KEY:?missing}"
+export SIM_WORKSPACE="${SIM_WORKSPACE:?missing}"
+export SIM_OUTPUT=json
+
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' | jq -r '.runId')
+
+if [ "$(sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 | jq -r '.status')" != "completed" ]; then
+  sim logs get "$run_id" >&2
+  exit 1
+fi
+```

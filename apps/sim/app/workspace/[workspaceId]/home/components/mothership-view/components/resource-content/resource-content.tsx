@@ -102,9 +102,6 @@ interface ResourceContentProps {
   isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
-  /** Resolved server-side by the home page — the embedded table can't read
-   *  AppConfig itself, so the flag is threaded down rather than looked up. */
-  tableViewsEnabled?: boolean
   onNotFound?: (resourceId: string) => void
   /**
    * Whether this resource is the one on screen. Only the persistent panels
@@ -177,7 +174,6 @@ export const ResourceContent = memo(function ResourceContent({
   isAgentResponding,
   genericResourceData,
   previewContextKey,
-  tableViewsEnabled,
   onNotFound,
   visible = true,
   onBrowserOverlayControllerChange,
@@ -255,7 +251,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           tableId={resource.id}
           embedded
-          viewsEnabled={tableViewsEnabled}
+          initialViewId={resource.viewId}
         />
       )
 

@@ -38,6 +38,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'ORGANIZATION_ADMIN_REQUIRED',
   /** The organization has no usable enterprise subscription. */
   'ENTERPRISE_PLAN_REQUIRED',
+  /** The organization has no usable organization plan of any tier. */
+  'ORGANIZATION_PLAN_REQUIRED',
   /** Audit logging is switched off for this deployment. */
   'AUDIT_LOGS_DISABLED',
   /** The caller holds workspace write but is not an editor of this skill. */
@@ -48,8 +50,16 @@ export const FORBIDDEN_DETAIL_CODES = [
   'WORKSPACE_RESOURCE_LIMIT_REACHED',
   /** The workspace's organization does not permit public sharing. */
   'PUBLIC_SHARING_NOT_ALLOWED',
+  /** The caller can reach the workspace but cannot administer this credential. */
+  'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
   /** The MCP server URL is outside the allowed domains or resolves internally. */
   'MCP_SERVER_URL_NOT_ALLOWED',
+  /** The workspace's plan does not include a capability the request depends on. */
+  'WORKSPACE_PLAN_CAPABILITY_REQUIRED',
+  /** The workspace's permission group does not allow this chat authentication mode. */
+  'CHAT_AUTH_MODE_NOT_PERMITTED',
+  /** The resource is owned by a knowledge base connector and cannot be edited directly. */
+  'CONNECTOR_MANAGED_RESOURCE_READ_ONLY',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -74,6 +84,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
   ORGANIZATION_ADMIN_REQUIRED:
     'The caller is a member of the organization but not an admin or owner.',
   ENTERPRISE_PLAN_REQUIRED: 'The organization has no active enterprise subscription.',
+  ORGANIZATION_PLAN_REQUIRED:
+    'The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).',
   AUDIT_LOGS_DISABLED: 'Audit logging is not enabled for this deployment.',
   SKILL_EDITOR_ACCESS_REQUIRED:
     'The caller can write in the workspace but is not an editor of this skill.',
@@ -83,8 +95,16 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     'The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.',
   PUBLIC_SHARING_NOT_ALLOWED:
     "The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.",
+  CREDENTIAL_ADMIN_ACCESS_REQUIRED:
+    'The caller can reach the workspace but cannot administer this credential.',
   MCP_SERVER_URL_NOT_ALLOWED:
     'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
+  WORKSPACE_PLAN_CAPABILITY_REQUIRED:
+    "The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.",
+  CHAT_AUTH_MODE_NOT_PERMITTED:
+    "The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.",
+  CONNECTOR_MANAGED_RESOURCE_READ_ONLY:
+    'This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector.',
 }
 
 /**

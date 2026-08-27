@@ -24,6 +24,7 @@ export const deploymentsListVersionsTool: ToolConfig<
   },
 
   request: {
+    internal: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

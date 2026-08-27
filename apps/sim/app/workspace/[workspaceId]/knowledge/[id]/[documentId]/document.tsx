@@ -1,12 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@sim/emcn'
-import { ChevronDown, ChevronUp, Database, FileText, Pencil, TagIcon } from '@sim/emcn/icons'
+import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn'
+import {
+  ChevronDown,
+  ChevronUp,
+  Database,
+  FileText,
+  FileX,
+  Pencil,
+  Plus,
+  TagIcon,
+  Trash,
+  TriangleAlert,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -20,7 +33,12 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  ResourceNotFound,
+  SearchHighlight,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -38,10 +56,9 @@ import {
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
-import { ActionBar, SearchHighlight } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
@@ -51,6 +68,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -129,6 +147,41 @@ const CHUNK_COLUMNS: ResourceColumn[] = [
   { id: 'status', header: 'Status', widthMultiplier: 0.75 },
 ]
 
+/** Stable identity for the error branch's empty row set. */
+const EMPTY_CHUNK_ROWS: ResourceRow[] = []
+
+/** Longer than this and a server message pushes the frame taller than the table body. */
+const ERROR_MESSAGE_MAX_LENGTH = 160
+
+interface ChunkLoadErrorProps {
+  message: string
+  /**
+   * Which read failed. A failed search leaves the loaded chunks intact, so saying the
+   * chunks could not be loaded would be untrue — it is the search that did not run.
+   */
+  kind: 'load' | 'search'
+}
+
+/**
+ * A failed read, drawn where the rows would have been.
+ *
+ * The table keeps its chrome and its controls — the headers still render, and the search
+ * box stays so a search that triggered the failure can be cleared. Only the body says
+ * what went wrong, instead of the page going silently blank.
+ *
+ * Tinted with the error token: at the muted weight the other empty states use, a failure
+ * is indistinguishable from "nothing here yet", which is the confusion this exists to end.
+ */
+function ChunkLoadError({ message, kind }: ChunkLoadErrorProps) {
+  return (
+    <EmptyState
+      graphic={<TriangleAlert className='size-[24px] text-[var(--text-error)]' />}
+      title={kind === 'search' ? 'Search failed' : "Couldn't load chunks"}
+      description={truncate(message, ERROR_MESSAGE_MAX_LENGTH)}
+    />
+  )
+}
+
 export function Document({
   knowledgeBaseId,
   documentId,
@@ -204,7 +257,6 @@ export function Document({
     chunks: initialChunks,
     currentPage: initialPage,
     totalPages: initialTotalPages,
-    goToPage: initialGoToPage,
     error: initialError,
     updateChunk: initialUpdateChunk,
   } = useDocumentChunks(
@@ -234,7 +286,7 @@ export function Document({
     }
   )
 
-  const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
+  const searchError = searchQueryError ? getErrorMessage(searchQueryError) : null
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
@@ -292,26 +344,22 @@ export function Document({
   const totalPagesRef = useRef(totalPages)
   totalPagesRef.current = totalPages
 
-  const goToPage = useCallback(
-    async (page: number) => {
-      await setDocumentParams({ page })
-
-      if (showingSearch) {
-        return
-      }
-      return initialGoToPage(page)
-    },
-    [showingSearch, initialGoToPage, setDocumentParams]
-  )
+  const goToPage = useCallback((page: number) => setDocumentParams({ page }), [setDocumentParams])
 
   const updateChunk = showingSearch
     ? (_id: string, _updates: Record<string, unknown>) => {}
     : initialUpdateChunk
 
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
-  const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
+  const [contextMenuChunkId, setContextMenuChunkId] = useState<string | null>(null)
+  /**
+   * The id, not the row: the chunk list polls while a document processes, and a menu that
+   * captured the row on open would keep offering "Enable" for a chunk already enabled.
+   */
+  const contextMenuChunk = contextMenuChunkId
+    ? (displayChunks.find((chunk) => chunk.id === contextMenuChunkId) ?? null)
+    : null
 
   const { mutate: updateChunkMutation } = useUpdateChunk()
   const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
@@ -330,8 +378,6 @@ export function Document({
     closeMenu: closeContextMenu,
   } = useContextMenu()
 
-  const combinedError = documentError || searchError || initialError
-
   const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
   /**
@@ -347,19 +393,25 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
+
+  /**
+   * Kept separate from `documentError`: without the document there is no page to draw,
+   * while a failed chunk read still has one to frame it.
+   *
+   * A document that is not `completed` is excluded, because the chunk read rejects for
+   * those by design — `requireChunkReadable` throws `KnowledgeDocumentNotReadyError`
+   * before it queries anything. That is the document's state, not a failure, and
+   * `chunkRows` already renders a row saying which state it is in.
+   */
+  const chunkError = isCompleted ? initialError || searchError : null
   const canEdit = userPermissions.canEdit === true
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
 
-  const selectedChunk = useMemo(
-    () => (selectedChunkId ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null) : null),
-    [selectedChunkId, displayChunks]
-  )
-
-  const currentChunkIndex = useMemo(
-    () => (selectedChunk ? displayChunks.findIndex((c) => c.id === selectedChunk.id) : -1),
-    [selectedChunk, displayChunks]
-  )
+  const currentChunkIndex = selectedChunkId
+    ? displayChunks.findIndex((chunk) => chunk.id === selectedChunkId)
+    : -1
+  const selectedChunk = currentChunkIndex >= 0 ? displayChunks[currentChunkIndex] : null
   const canNavigatePrev = currentChunkIndex > 0 || currentPage > 1
   const canNavigateNext = currentChunkIndex < displayChunks.length - 1 || currentPage < totalPages
 
@@ -402,14 +454,14 @@ export function Document({
     }
   }, [isDirty, isCreatingNewChunk])
 
-  const handleUnsavedChangesOpenChange = useCallback((open: boolean) => {
+  const handleUnsavedChangesOpenChange = (open: boolean) => {
     if (!open) {
       setShowUnsavedChangesAlert(false)
       setPendingAction(null)
     }
-  }, [])
+  }
 
-  const handleDiscardChanges = useCallback(() => {
+  const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
     const action = pendingAction
     setPendingAction(null)
@@ -419,7 +471,7 @@ export function Document({
     } else {
       closeEditor()
     }
-  }, [pendingAction, closeEditor])
+  }
 
   const handleSaveEvent = useEffectEvent(handleSave)
 
@@ -534,7 +586,7 @@ export function Document({
 
   /**
    * `Knowledge Base / …the base's folders / <base> / <last>`. Every view on this route is that
-   * trail with a different last crumb — the document, a chunk, an error, a loading placeholder
+   * trail with a different last crumb — the document, a chunk, a loading placeholder
    * — so it is built once here rather than restated per view.
    */
   const documentTrail = useCallback(
@@ -573,35 +625,30 @@ export function Document({
 
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
     () =>
-      documentTrail(
-        combinedError
-          ? { label: 'Error', terminal: true }
-          : {
-              label: documentCrumbLabel,
-              icon: DocumentIcon,
-              editing: docRename.editingId
-                ? {
-                    isEditing: true,
-                    value: docRename.editValue,
-                    onChange: docRename.setEditValue,
-                    onSubmit: docRename.submitRename,
-                    onCancel: docRename.cancelRename,
-                    disabled: docRename.isSaving,
-                  }
-                : undefined,
-              dropdownItems: [
-                ...(userPermissions.canEdit
-                  ? [
-                      { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
-                      { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
-                      { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
-                    ]
-                  : []),
-              ],
+      documentTrail({
+        label: documentCrumbLabel,
+        icon: DocumentIcon,
+        editing: docRename.editingId
+          ? {
+              isEditing: true,
+              value: docRename.editValue,
+              onChange: docRename.setEditValue,
+              onSubmit: docRename.submitRename,
+              onCancel: docRename.cancelRename,
+              disabled: docRename.isSaving,
             }
-      ),
+          : undefined,
+        dropdownItems: [
+          ...(userPermissions.canEdit
+            ? [
+                { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
+                { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
+                { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
+              ]
+            : []),
+        ],
+      }),
     [
-      combinedError,
       documentTrail,
       documentCrumbLabel,
       DocumentIcon,
@@ -646,7 +693,6 @@ export function Document({
         if (found) {
           setSelectedChunkId(chunkId)
         } else if (!navigatedToNewPage && totalPagesRef.current > totalPages) {
-          // A new page was created — navigate to it
           navigatedToNewPage = true
           retries = 0
           void goToPage(totalPagesRef.current)
@@ -681,10 +727,8 @@ export function Document({
       }
     : undefined
 
-  const enabledDisplayLabel = useMemo(() => {
-    if (enabledFilter.length === 0) return 'All'
-    return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
-  }, [enabledFilter])
+  const enabledDisplayLabel =
+    enabledFilter.length === 0 ? 'All' : enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
 
   const filterContent = useMemo(
     () => (
@@ -724,7 +768,7 @@ export function Document({
         )}
       </div>
     ),
-    [enabledFilter, enabledDisplayLabel, setEnabledFilter]
+    [enabledFilter, setEnabledFilter]
   )
 
   const filterTags: FilterTag[] = useMemo(
@@ -746,31 +790,22 @@ export function Document({
     [setSelectedChunkId]
   )
 
-  const handleToggleEnabled = useCallback(
-    (chunkId: string) => {
-      const chunk = displayChunks.find((c) => c.id === chunkId)
-      if (!chunk) return
+  const handleToggleEnabled = (chunkId: string) => {
+    const chunk = displayChunks.find((c) => c.id === chunkId)
+    if (!chunk) return
 
-      const newEnabled = !chunk.enabled
-      updateChunk(chunkId, { enabled: newEnabled })
-      updateChunkMutation(
-        { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
-        { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
-      )
-    },
-    [displayChunks, knowledgeBaseId, documentId, updateChunk]
-  )
+    const newEnabled = !chunk.enabled
+    updateChunk(chunkId, { enabled: newEnabled })
+    updateChunkMutation(
+      { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
+      { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
+    )
+  }
 
-  const handleDeleteChunk = useCallback(
-    (chunkId: string) => {
-      const chunk = displayChunks.find((c) => c.id === chunkId)
-      if (chunk) {
-        setChunkToDelete(chunk)
-        setIsDeleteModalOpen(true)
-      }
-    },
-    [displayChunks]
-  )
+  const handleDeleteChunk = (chunkId: string) => {
+    const chunk = displayChunks.find((c) => c.id === chunkId)
+    if (chunk) setChunkToDelete(chunk)
+  }
 
   const handleCloseDeleteModal = () => {
     if (chunkToDelete) {
@@ -780,7 +815,6 @@ export function Document({
         return newSet
       })
     }
-    setIsDeleteModalOpen(false)
     setChunkToDelete(null)
   }
 
@@ -863,17 +897,14 @@ export function Document({
     performBulkChunkOperation('delete', chunksToDelete)
   }
 
-  const [enabledCount, disabledCount] = useMemo(() => {
-    let enabled = 0
-    let disabled = 0
-    for (const chunk of displayChunks) {
-      if (selectedChunks.has(chunk.id)) {
-        if (chunk.enabled) enabled++
-        else disabled++
-      }
+  let enabledCount = 0
+  let disabledCount = 0
+  for (const chunk of displayChunks) {
+    if (selectedChunks.has(chunk.id)) {
+      if (chunk.enabled) enabledCount++
+      else disabledCount++
     }
-    return [enabled, disabled]
-  }, [displayChunks, selectedChunks])
+  }
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
@@ -890,7 +921,7 @@ export function Document({
         }
       }
 
-      setContextMenuChunk(chunk)
+      setContextMenuChunkId(chunk.id)
       baseHandleContextMenu(e)
     },
     [
@@ -902,18 +933,15 @@ export function Document({
     ]
   )
 
-  const handleEmptyContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      setContextMenuChunk(null)
-      baseHandleContextMenu(e)
-    },
-    [baseHandleContextMenu]
-  )
+  const handleEmptyContextMenu = (e: React.MouseEvent) => {
+    setContextMenuChunkId(null)
+    baseHandleContextMenu(e)
+  }
 
-  const handleContextMenuClose = useCallback(() => {
+  const handleContextMenuClose = () => {
     closeContextMenu()
-    setContextMenuChunk(null)
-  }, [closeContextMenu])
+    setContextMenuChunkId(null)
+  }
 
   const selectableConfig: SelectableConfig | undefined = isCompleted
     ? {
@@ -933,6 +961,12 @@ export function Document({
           onPageChange: goToPage,
         }
       : undefined
+
+  /**
+   * A failed read paged nothing, so the bar would be counting pages that were never
+   * fetched. Read by the table and by the action bar's offset, which has to agree.
+   */
+  const tablePagination = chunkError ? undefined : paginationConfig
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -955,7 +989,17 @@ export function Document({
     [activeSort, onSortColumn, onClearSort, goToPage]
   )
 
+  const hasDocumentData = documentData !== null
+  const processingStatus = documentData?.processingStatus
+
   const chunkRows: ResourceRow[] = useMemo(() => {
+    /**
+     * No document yet is "not known", not "not ready". Falling through to the status row
+     * flashed `Document not ready` on every open, for the frame between mount and the
+     * document query resolving — a claim about a document nothing had read yet.
+     */
+    if (!hasDocumentData) return []
+
     if (!isCompleted) {
       return [
         {
@@ -966,12 +1010,10 @@ export function Document({
                 <div className='flex items-center gap-2'>
                   <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
-                    {documentData?.processingStatus === 'pending' &&
-                      'Document processing pending...'}
-                    {documentData?.processingStatus === 'processing' &&
-                      'Document processing in progress...'}
-                    {documentData?.processingStatus === 'failed' && 'Document processing failed'}
-                    {!documentData?.processingStatus && 'Document not ready'}
+                    {processingStatus === 'pending' && 'Document processing pending...'}
+                    {processingStatus === 'processing' && 'Document processing in progress...'}
+                    {processingStatus === 'failed' && 'Document processing failed'}
+                    {!processingStatus && 'Document not ready'}
                   </span>
                 </div>
               ),
@@ -992,16 +1034,14 @@ export function Document({
         cells: {
           content: {
             content: (
-              <span className='block truncate text-[var(--text-primary)] text-sm'>
+              <span className={cn('block', chipContentLabelClass)}>
                 <SearchHighlight text={previewContent} searchQuery={searchQuery} />
               </span>
             ),
           },
           index: {
             content: (
-              <span className='font-mono text-[var(--text-primary)] text-sm'>
-                {chunk.chunkIndex}
-              </span>
+              <span className={cn('font-mono', chipContentLabelClass)}>{chunk.chunkIndex}</span>
             ),
           },
           tokens: {
@@ -1017,7 +1057,7 @@ export function Document({
         },
       }
     })
-  }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
+  }, [isCompleted, hasDocumentData, processingStatus, displayChunks, searchQuery])
 
   const saveLabel =
     saveStatus === 'saving'
@@ -1113,6 +1153,21 @@ export function Document({
     saveStatus,
   ])
 
+  /**
+   * Ahead of the editor branches on purpose — `selectedChunkId` renders the chunk editor
+   * without checking for a document, so a document that failed to load has to
+   * short-circuit before it. Mirrors the base page's 'not found' screen one level up.
+   */
+  if (documentError && !documentData) {
+    return (
+      <ResourceNotFound
+        icon={FileX}
+        title='Document not found'
+        description='This document may have been deleted or moved'
+      />
+    )
+  }
+
   if (isCreatingNewChunk && documentData) {
     return (
       <>
@@ -1205,18 +1260,23 @@ export function Document({
           ]}
         />
         <Resource.Options
-          search={combinedError ? undefined : searchConfig}
-          sort={combinedError ? undefined : sortConfig}
-          filterTags={combinedError ? undefined : filterTags}
-          filter={combinedError ? undefined : { content: filterContent }}
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
         />
         <Resource.Table
           columns={CHUNK_COLUMNS}
-          rows={combinedError ? [] : chunkRows}
-          selectable={combinedError ? undefined : selectableConfig}
+          rows={chunkError ? EMPTY_CHUNK_ROWS : chunkRows}
+          emptyState={
+            chunkError ? (
+              <ChunkLoadError message={chunkError} kind={initialError ? 'load' : 'search'} />
+            ) : undefined
+          }
+          selectable={chunkError ? undefined : selectableConfig}
           onRowClick={isCompleted ? handleChunkClick : undefined}
           onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-          pagination={paginationConfig}
+          pagination={tablePagination}
         />
       </Resource>
 
@@ -1232,12 +1292,12 @@ export function Document({
         chunk={chunkToDelete}
         knowledgeBaseId={knowledgeBaseId}
         documentId={documentId}
-        isOpen={isDeleteModalOpen}
+        isOpen={chunkToDelete !== null}
         onClose={handleCloseDeleteModal}
       />
 
       <ActionBar
-        className={paginationConfig ? 'bottom-[72px]' : undefined}
+        className={tablePagination ? 'bottom-[72px]' : undefined}
         selectedCount={selectedChunks.size}
         onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}
         onDisable={enabledCount > 0 && !isConnectorDocument ? handleBulkDisable : undefined}

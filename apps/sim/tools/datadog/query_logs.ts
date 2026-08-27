@@ -1,4 +1,10 @@
-import type { QueryLogsParams, QueryLogsResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  LogAttributes,
+  QueryLogsParams,
+  QueryLogsResponse,
+} from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
@@ -35,6 +41,13 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description: 'Maximum number of logs to return (e.g., 50, 100, max: 1000)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor from a previous call, taken from its nextLogId output. Omit for the first page.',
     },
     sort: {
       type: 'string',
@@ -80,7 +93,11 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        filter: { query: string; from: string; to: string; indexes?: string[] }
+        page: { limit: number; cursor?: string }
+        sort?: 'timestamp' | '-timestamp'
+      } = {
         filter: {
           query: params.query,
           from: params.from,
@@ -89,6 +106,10 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
         page: {
           limit: params.limit || 50,
         },
+      }
+
+      if (params.cursor) {
+        body.page.cursor = params.cursor
       }
 
       if (params.sort) {
@@ -108,18 +129,18 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           logs: [],
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
     const data = await response.json()
-    const logs = (data.data || []).map((log: any) => ({
+    const logs = (data.data || []).map((log: DatadogV2Resource<LogAttributes>) => ({
       id: log.id,
       content: {
         timestamp: log.attributes?.timestamp,
@@ -158,6 +179,8 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
               service: { type: 'string', description: 'Service name' },
               message: { type: 'string', description: 'Log message' },
               status: { type: 'string', description: 'Log status/level' },
+              attributes: { type: 'json', description: 'Free-form log attributes' },
+              tags: { type: 'array', description: 'Log tags' },
             },
           },
         },

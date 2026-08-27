@@ -36,7 +36,8 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
   if (authz.error) return authz.error
   const { ctx } = authz
 
-  const { name, description, enabled, iconUrl, inputs, exposedOutputs } = parsed.data.body
+  const { name, description, enabled, iconUrl, inputs, exposedOutputs, traceChildRuns } =
+    parsed.data.body
   try {
     await updateCustomBlock(id, {
       name,
@@ -45,6 +46,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Rout
       inputs,
       iconUrl,
       exposedOutputs,
+      traceChildRuns,
     })
     recordAudit({
       workspaceId: ctx.sourceWorkspaceId,

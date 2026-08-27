@@ -67,16 +67,15 @@ vi.mock('@/lib/oauth/utils', () => ({
   getScopesForService: vi.fn(() => []),
 }))
 
-import type { SubBlockConfig } from '@/blocks/types'
 import {
   BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
-  getDependsOnFields,
-  getSubBlocksDependingOnChange,
+  getSerializedModelProviderId,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
+import { getProviderFromModel } from '@/providers/utils'
 
 describe('BUILT_IN_TOOL_TYPES', () => {
   it('classifies the current File block instead of the legacy File block', () => {
@@ -375,92 +374,45 @@ describe('parseOptionalBooleanInput', () => {
   })
 })
 
-describe('getDependsOnFields', () => {
-  it('returns an empty array when dependsOn is unset', () => {
-    expect(getDependsOnFields(undefined)).toEqual([])
+describe('getSerializedModelProviderId', () => {
+  const resolver = vi.mocked(getProviderFromModel)
+
+  beforeEach(() => {
+    resolver.mockReset()
+    resolver.mockImplementation(((model: string) => {
+      if (model.startsWith('openrouter/')) return 'openrouter'
+      if (model === 'gpt-4o') return 'openai'
+      if (model === 'claude-sonnet-5') return 'anthropic'
+      throw new Error(`No provider found for model: ${model}`)
+    }) as unknown as typeof getProviderFromModel)
   })
 
-  it('returns array dependencies unchanged', () => {
-    expect(getDependsOnFields(['credential', 'projectId'])).toEqual(['credential', 'projectId'])
+  it('resolves a gateway model that the base model map deliberately omits', () => {
+    expect(getSerializedModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe(
+      'openrouter'
+    )
   })
 
-  it('flattens all and any dependencies', () => {
-    expect(getDependsOnFields({ all: ['credential'], any: ['teamId', 'manualTeamId'] })).toEqual([
-      'credential',
-      'teamId',
-      'manualTeamId',
-    ])
-  })
-})
-
-describe('getSubBlocksDependingOnChange', () => {
-  it('finds direct dependents of a changed subblock', () => {
-    const subBlocks: SubBlockConfig[] = [
-      { id: 'provider', title: 'Provider', type: 'dropdown' },
-      { id: 'model', title: 'Model', type: 'dropdown', dependsOn: ['provider'] },
-      { id: 'prompt', title: 'Prompt', type: 'long-input' },
-    ]
-
-    expect(
-      getSubBlocksDependingOnChange(subBlocks, 'provider').map((subBlock) => subBlock.id)
-    ).toEqual(['model'])
+  it('uses the fallback model when the model is still an unresolved reference', () => {
+    expect(getSerializedModelProviderId('openrouter/<variable.vllm>')).toBe('openai')
+    expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
   })
 
-  it('matches dependents through canonical basic and advanced siblings', () => {
-    const subBlocks: SubBlockConfig[] = [
-      {
-        id: 'channel',
-        title: 'Channel',
-        type: 'channel-selector',
-        canonicalParamId: 'channelId',
-        mode: 'basic',
-      },
-      {
-        id: 'manualChannel',
-        title: 'Channel ID',
-        type: 'short-input',
-        canonicalParamId: 'channelId',
-        mode: 'advanced',
-      },
-      {
-        id: 'messageId',
-        title: 'Message ID',
-        type: 'short-input',
-        dependsOn: ['channelId'],
-      },
-      {
-        id: 'threadTs',
-        title: 'Thread Timestamp',
-        type: 'short-input',
-        dependsOn: ['otherField'],
-      },
-    ]
-
-    expect(
-      getSubBlocksDependingOnChange(subBlocks, 'manualChannel').map((subBlock) => subBlock.id)
-    ).toEqual(['messageId'])
-    expect(
-      getSubBlocksDependingOnChange(subBlocks, 'channel').map((subBlock) => subBlock.id)
-    ).toEqual(['messageId'])
+  it('honours a caller-supplied fallback model', () => {
+    expect(getSerializedModelProviderId(undefined, 'claude-sonnet-5')).toBe('anthropic')
   })
 
-  it('matches object-form dependencies when any listed dependency changes', () => {
-    const subBlocks: SubBlockConfig[] = [
-      { id: 'credential', title: 'Credential', type: 'oauth-input' },
-      { id: 'teamId', title: 'Team', type: 'short-input' },
-      {
-        id: 'projectId',
-        title: 'Project',
-        type: 'short-input',
-        dependsOn: { all: ['credential'], any: ['teamId'] },
-      },
-    ]
+  it('never throws when the resolver rejects the model', () => {
+    expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
+    expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+  })
 
-    expect(
-      getSubBlocksDependingOnChange(subBlocks, 'credential').map((subBlock) => subBlock.id)
-    ).toEqual(['projectId'])
-    expect(
-      getSubBlocksDependingOnChange(subBlocks, 'teamId').map((subBlock) => subBlock.id)
-    ).toEqual(['projectId'])
+  it('never throws when the resolver rejects every model, including the fallback', () => {
+    resolver.mockImplementation((() => {
+      throw new Error('Provider "openai" is not available')
+    }) as unknown as typeof getProviderFromModel)
+
+    expect(() => getSerializedModelProviderId('gpt-4o')).not.toThrow()
+    expect(getSerializedModelProviderId('gpt-4o')).toBe('openai')
   })
 })

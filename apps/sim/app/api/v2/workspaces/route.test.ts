@@ -5,7 +5,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -14,12 +13,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getWorkspace: vi.fn(),
+  listWorkspaces: vi.fn(),
   listMembers: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/workspaces/application/get-public-workspace', () => ({
   getPublicWorkspace: {
@@ -35,10 +34,18 @@ vi.mock('@/lib/workspaces/application/list-public-workspace-members', () => ({
   },
 }))
 
+vi.mock('@/lib/workspaces/application/list-public-workspaces', () => ({
+  listPublicWorkspaces: {
+    operation: { id: 'workspaces.list_public' },
+    execute: mocks.listWorkspaces,
+  },
+}))
+
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET as listMembers } from '@/app/api/v2/workspaces/[workspaceId]/members/route'
 import { GET as getWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/route'
+import { GET as listWorkspaces } from '@/app/api/v2/workspaces/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const auth = {
@@ -47,7 +54,6 @@ const auth = {
     workspaceId: WORKSPACE_ID,
     keyId: 'key-1',
   },
-  rolloutUserId: 'billing-owner-1',
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -85,7 +91,6 @@ describe('v2 workspace routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.getWorkspace.mockResolvedValue({
@@ -114,6 +119,53 @@ describe('v2 workspace routes', () => {
         ],
         nextEmail: 'ada@example.com',
       },
+    })
+    mocks.listWorkspaces.mockResolvedValue({
+      workspaces: [
+        {
+          id: WORKSPACE_ID,
+          name: 'Engineering',
+          color: '#33C482',
+          logoUrl: null,
+          memberCount: 1,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          updatedAt: new Date('2026-01-02T00:00:00Z'),
+        },
+      ],
+      hasMore: false,
+      offset: 0,
+      limit: 50,
+    })
+  })
+
+  it('lists the workspaces available to the API key', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/workspaces')
+    const response = await listWorkspaces(request)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: [
+        {
+          id: WORKSPACE_ID,
+          name: 'Engineering',
+          color: '#33C482',
+          logoUrl: null,
+          memberCount: 1,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(mocks.listWorkspaces).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        limit: 50,
+        offset: 0,
+      },
+      request,
     })
   })
 

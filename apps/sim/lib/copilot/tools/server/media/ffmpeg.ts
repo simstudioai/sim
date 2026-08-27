@@ -13,6 +13,7 @@ import {
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
+import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   getBoundWorkspaceFileSecretProvenance,
@@ -25,6 +26,13 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 
 const logger = createLogger('FfmpegTool')
 const MEDIA_OPERATION_FAILED_SAFELY = 'The media operation failed safely'
+
+/**
+ * Backstops the `maxItems` the generated tool schema declares: the byte budget
+ * below does not bound a call that lists many small clips, and a caller that
+ * reaches this handler without passing Ajv still must not get an unbounded run.
+ */
+const { maxInputFiles: MAX_INPUT_FILES } = FFMPEG_LIMITS
 
 const VALID_OPERATIONS: FfmpegOperation[] = [
   'overlay_audio',
@@ -83,12 +91,21 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       return { success: false, message: 'Workspace ID is required' }
     }
     if (!VALID_OPERATIONS.includes(params.operation)) {
-      return { success: false, message: `Invalid operation "${params.operation}".` }
+      return {
+        success: false,
+        message: `Invalid operation "${params.operation}" (allowed: ${VALID_OPERATIONS.join(', ')}).`,
+      }
     }
 
     const inputPaths = params.inputs?.files?.map((f) => f.path) ?? []
     if (inputPaths.length === 0) {
       return { success: false, message: 'At least one input file is required in inputs.files' }
+    }
+    if (inputPaths.length > MAX_INPUT_FILES) {
+      return {
+        success: false,
+        message: `${inputPaths.length} input files were requested; at most ${MAX_INPUT_FILES} are allowed per ffmpeg call. Combine them in batches.`,
+      }
     }
 
     let inputRequiresOpaqueError = false
@@ -97,6 +114,12 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       let totalInputBytes = 0
       const inputProvenances: WorkspaceFileSecretProvenance[] = []
       for (const filePath of inputPaths) {
+        // Preparing the inputs is itself the expensive part of a many-file call —
+        // up to the whole byte budget in storage reads. Without this the run only
+        // notices an explicit stop once every download has already finished.
+        if (context.abortSignal?.aborted) {
+          throw new Error('ffmpeg cancelled while preparing inputs')
+        }
         const fileRecord = await resolveCopilotWorkspaceFileReference(
           context,
           fileOperations.readContent,
@@ -105,13 +128,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
             reference: filePath,
           }
         )
+        // Reject on the recorded size before spending the download. The
+        // accumulated check below still backstops a stale size row.
+        if (totalInputBytes + fileRecord.size > MAX_MEDIA_BYTES) {
+          throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
+        }
         const fileProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
           fileId: fileRecord.id,
           key: fileRecord.key,
           context: fileRecord.storageContext ?? 'workspace',
         })
         inputRequiresOpaqueError ||=
-          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
+          fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0
         const { content: buffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -136,21 +164,29 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
 
       const inputProvenance = mergeWorkspaceFileSecretProvenance(...inputProvenances)
       inputRequiresOpaqueError ||=
-        inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
+        inputProvenance.status !== 'exact' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
-      const result = await runFfmpegOperation(params.operation, mediaFiles, {
-        text: params.text,
-        position: params.position,
-        start: params.start,
-        end: params.end,
-        width: params.width,
-        height: params.height,
-        aspectRatio: params.aspectRatio,
-        volume: params.volume,
-        musicVolume: params.musicVolume,
-        loopToVideo: params.loopToVideo,
-        format: params.format,
-      })
+      const result = await runFfmpegOperation(
+        params.operation,
+        mediaFiles,
+        {
+          text: params.text,
+          position: params.position,
+          start: params.start,
+          end: params.end,
+          width: params.width,
+          height: params.height,
+          aspectRatio: params.aspectRatio,
+          volume: params.volume,
+          musicVolume: params.musicVolume,
+          loopToVideo: params.loopToVideo,
+          format: params.format,
+        },
+        // Every abort of this signal is an explicit user stop — the copilot
+        // lifecycle tracks a passive client disconnect separately and does not
+        // abort on it — so a transcode dies when the user says stop, and only then.
+        { signal: context.abortSignal }
+      )
 
       // probe reports metadata only — no file written.
       if (params.operation === 'probe') {

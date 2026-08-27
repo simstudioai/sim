@@ -12,7 +12,6 @@ const toBool = (v: unknown): boolean | undefined => {
 }
 
 const REPORT_USER_OPS = [
-  'sap_concur_list_expense_reports',
   'sap_concur_get_expense_report',
   'sap_concur_create_expense_report',
   'sap_concur_update_expense_report',
@@ -40,36 +39,73 @@ const REPORT_USER_OPS = [
 const REPORT_GET_CONTEXT_TYPE_OPS = ['sap_concur_get_expense_report']
 
 const EXPENSE_READ_CONTEXT_TYPE_OPS = [
-  'sap_concur_list_expense_reports',
-  'sap_concur_list_expenses',
   'sap_concur_get_expense',
-  'sap_concur_get_itemizations',
   'sap_concur_list_exceptions',
+  'sap_concur_list_report_comments',
+  'sap_concur_create_report_comment',
 ]
 
-const QUICK_EXPENSE_CONTEXT_TYPE_OPS = [
+const TRAVELER_ONLY_CONTEXT_TYPE_OPS = [
+  'sap_concur_list_expenses',
+  'sap_concur_get_itemizations',
   'sap_concur_create_quick_expense',
   'sap_concur_create_quick_expense_with_image',
 ]
-
-const MANAGER_ONLY_CONTEXT_TYPE_OPS = ['sap_concur_list_reports_to_approve']
 
 const ATTENDEE_CONTEXT_TYPE_OPS = [
   'sap_concur_list_attendee_associations',
   'sap_concur_associate_attendees',
   'sap_concur_remove_all_attendees',
-  'sap_concur_create_report_comment',
-  'sap_concur_list_report_comments',
 ]
 
 const ALLOCATION_CONTEXT_TYPE_OPS = [
-  'sap_concur_list_allocations',
   'sap_concur_get_allocation',
   'sap_concur_update_allocation',
   'sap_concur_recall_expense_report',
   'sap_concur_create_expense_report',
   'sap_concur_update_expense_report',
 ]
+
+const LIST_ALLOCATIONS_CONTEXT_TYPE_OPS = ['sap_concur_list_allocations']
+
+/** Every `contextType` subBlock variant shares one state key, so a value picked under one
+ * operation survives a switch to an operation whose dropdown never offered it. This maps each
+ * operation to the values its own dropdown exposes so the stored value can be clamped. */
+const CONTEXT_TYPE_ALLOWED_VALUES: Record<string, readonly string[]> = {}
+for (const [ops, allowed] of [
+  [REPORT_GET_CONTEXT_TYPE_OPS, ['TRAVELER', 'MANAGER', 'PROCESSOR', 'PROXY']],
+  [EXPENSE_READ_CONTEXT_TYPE_OPS, ['TRAVELER', 'MANAGER', 'PROXY']],
+  [TRAVELER_ONLY_CONTEXT_TYPE_OPS, ['TRAVELER']],
+  [LIST_ALLOCATIONS_CONTEXT_TYPE_OPS, ['TRAVELER', 'MANAGER']],
+  [ALLOCATION_CONTEXT_TYPE_OPS, ['TRAVELER', 'PROXY']],
+  [ATTENDEE_CONTEXT_TYPE_OPS, ['TRAVELER', 'PROXY']],
+] as const) {
+  for (const op of ops) CONTEXT_TYPE_ALLOWED_VALUES[op] = allowed
+}
+
+/** Default context every operation's dropdown offers. */
+const DEFAULT_CONTEXT_TYPE = 'TRAVELER'
+
+/** Clamps the shared `contextType` state to the values the given operation actually accepts. */
+const clampContextType = (operation: unknown, value: unknown): string => {
+  const allowed = CONTEXT_TYPE_ALLOWED_VALUES[String(operation)]
+  if (!allowed) return DEFAULT_CONTEXT_TYPE
+  return typeof value === 'string' && allowed.includes(value) ? value : DEFAULT_CONTEXT_TYPE
+}
+
+/** List Lists and List List Items share one `sortBy` state key but accept disjoint sort fields,
+ * so a value picked under one operation is illegal under the other and must be clamped away. */
+const SORT_BY_ALLOWED_VALUES: Record<string, readonly string[]> = {
+  sap_concur_list_lists: ['name', 'levelcount', 'listcategory'],
+  sap_concur_list_list_items: ['value', 'shortCode'],
+}
+
+/** Clamps the shared `sortBy` state to the fields the given operation accepts, else unset. */
+const clampSortBy = (operation: unknown, value: unknown): string | undefined => {
+  const allowed = SORT_BY_ALLOWED_VALUES[String(operation)]
+  if (!allowed || typeof value !== 'string' || !allowed.includes(value)) return undefined
+  return value
+}
 
 const REPORT_ID_OPS = [
   'sap_concur_get_expense_report',
@@ -130,8 +166,6 @@ const LIST_ITEM_ID_OPS = [
 const BODY_OPS = [
   'sap_concur_create_expense_report',
   'sap_concur_update_expense_report',
-  'sap_concur_submit_expense_report',
-  'sap_concur_recall_expense_report',
   'sap_concur_approve_expense_report',
   'sap_concur_send_back_expense_report',
   'sap_concur_update_expense',
@@ -164,7 +198,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
   description: 'Manage expense reports, travel requests, cash advances, and more in SAP Concur',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.',
+    'Connect SAP Concur with an OAuth client ID and secret (client-credentials or password grant) — no account linking required. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.',
   docsLink: 'https://docs.sim.ai/integrations/sap_concur',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -359,12 +393,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         ],
         sap_concur_get_itinerary: [{ text: 'Read trip', field: 'tripId', core: true }],
         sap_concur_list_users: [
-          {
-            text: 'List',
-            field: 'count',
-            after: 'user identities',
-            core: true,
-          },
+          'List user identities',
           { text: ', returning', field: 'attributes' },
         ],
         sap_concur_get_user: [{ text: 'Read user', field: 'userUuid', core: true }],
@@ -520,12 +549,79 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Datacenter',
       type: 'dropdown',
       options: [
-        { label: 'US (us.api.concursolutions.com)', id: 'us.api.concursolutions.com' },
-        { label: 'US 2 (us2.api.concursolutions.com)', id: 'us2.api.concursolutions.com' },
-        { label: 'EU (eu.api.concursolutions.com)', id: 'eu.api.concursolutions.com' },
-        { label: 'EU 2 (eu2.api.concursolutions.com)', id: 'eu2.api.concursolutions.com' },
-        { label: 'EMEA (emea.api.concursolutions.com)', id: 'emea.api.concursolutions.com' },
-        { label: 'CN (cn.api.concursolutions.com)', id: 'cn.api.concursolutions.com' },
+        {
+          label: 'US — may request client cert (us.api.concursolutions.com)',
+          id: 'us.api.concursolutions.com',
+        },
+        {
+          label: 'US — no client cert (www-us.api.concursolutions.com)',
+          id: 'www-us.api.concursolutions.com',
+        },
+        {
+          label: 'US 2 — may request client cert (us2.api.concursolutions.com)',
+          id: 'us2.api.concursolutions.com',
+        },
+        {
+          label: 'US 2 — no client cert (www-us2.api.concursolutions.com)',
+          id: 'www-us2.api.concursolutions.com',
+        },
+        {
+          label: 'EU — may request client cert (eu.api.concursolutions.com)',
+          id: 'eu.api.concursolutions.com',
+        },
+        {
+          label: 'EU 2 — may request client cert (eu2.api.concursolutions.com)',
+          id: 'eu2.api.concursolutions.com',
+        },
+        {
+          label: 'EU 2 — no client cert (www-eu2.api.concursolutions.com)',
+          id: 'www-eu2.api.concursolutions.com',
+        },
+        {
+          label: 'EMEA — may request client cert (emea.api.concursolutions.com)',
+          id: 'emea.api.concursolutions.com',
+        },
+        {
+          label: 'EMEA — no client cert (www-emea.api.concursolutions.com)',
+          id: 'www-emea.api.concursolutions.com',
+        },
+        {
+          label: 'APJ — may request client cert (apj1.api.concursolutions.com)',
+          id: 'apj1.api.concursolutions.com',
+        },
+        {
+          label: 'APJ — no client cert (www-apj1.api.concursolutions.com)',
+          id: 'www-apj1.api.concursolutions.com',
+        },
+        {
+          label: 'US Gov — may request client cert (usg.api.concursolutions.com)',
+          id: 'usg.api.concursolutions.com',
+        },
+        {
+          label: 'US Gov — no client cert (www-usg.api.concursolutions.com)',
+          id: 'www-usg.api.concursolutions.com',
+        },
+        {
+          label: 'GLZ — may request client cert (glz.api.concursolutions.com)',
+          id: 'glz.api.concursolutions.com',
+        },
+        {
+          label: 'US Implementation — may request client cert (us-impl.api.concursolutions.com)',
+          id: 'us-impl.api.concursolutions.com',
+        },
+        {
+          label: 'US Implementation — no client cert (www-us-impl.api.concursolutions.com)',
+          id: 'www-us-impl.api.concursolutions.com',
+        },
+        {
+          label:
+            'EMEA Implementation — may request client cert (emea-impl.api.concursolutions.com)',
+          id: 'emea-impl.api.concursolutions.com',
+        },
+        {
+          label: 'EMEA Implementation — no client cert (www-emea-impl.api.concursolutions.com)',
+          id: 'www-emea-impl.api.concursolutions.com',
+        },
       ],
       value: () => 'us.api.concursolutions.com',
       required: true,
@@ -560,15 +656,14 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'username',
       title: 'Username',
       type: 'short-input',
-      placeholder: 'Username (password grant only)',
+      placeholder: 'User login — or leave blank and set Company UUID',
       condition: { field: 'grantType', value: 'password' },
-      required: { field: 'grantType', value: 'password' },
     },
     {
       id: 'password',
       title: 'Password',
       type: 'short-input',
-      placeholder: 'Password (password grant only)',
+      placeholder: 'User password, or the 24-hour company request token',
       password: true,
       condition: { field: 'grantType', value: 'password' },
       required: { field: 'grantType', value: 'password' },
@@ -577,7 +672,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'companyUuid',
       title: 'Company UUID',
       type: 'short-input',
-      placeholder: 'Multi-company access token UUID (optional)',
+      placeholder: 'Company-level auth: sent as the token username',
       mode: 'advanced',
     },
 
@@ -623,8 +718,20 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'dropdown',
       options: [{ label: 'TRAVELER', id: 'TRAVELER' }],
       value: () => 'TRAVELER',
-      condition: { field: 'operation', value: QUICK_EXPENSE_CONTEXT_TYPE_OPS },
-      required: { field: 'operation', value: QUICK_EXPENSE_CONTEXT_TYPE_OPS },
+      condition: { field: 'operation', value: TRAVELER_ONLY_CONTEXT_TYPE_OPS },
+      required: { field: 'operation', value: TRAVELER_ONLY_CONTEXT_TYPE_OPS },
+    },
+    {
+      id: 'contextType',
+      title: 'Context Type',
+      type: 'dropdown',
+      options: [
+        { label: 'TRAVELER', id: 'TRAVELER' },
+        { label: 'MANAGER', id: 'MANAGER' },
+      ],
+      value: () => 'TRAVELER',
+      condition: { field: 'operation', value: LIST_ALLOCATIONS_CONTEXT_TYPE_OPS },
+      required: { field: 'operation', value: LIST_ALLOCATIONS_CONTEXT_TYPE_OPS },
     },
     {
       id: 'contextType',
@@ -649,15 +756,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       value: () => 'TRAVELER',
       condition: { field: 'operation', value: ATTENDEE_CONTEXT_TYPE_OPS },
       required: { field: 'operation', value: ATTENDEE_CONTEXT_TYPE_OPS },
-    },
-    {
-      id: 'contextType',
-      title: 'Context Type',
-      type: 'dropdown',
-      options: [{ label: 'MANAGER', id: 'MANAGER' }],
-      value: () => 'MANAGER',
-      condition: { field: 'operation', value: MANAGER_ONLY_CONTEXT_TYPE_OPS },
-      required: { field: 'operation', value: MANAGER_ONLY_CONTEXT_TYPE_OPS },
     },
 
     // Report ID
@@ -704,6 +802,15 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Approval Status Code',
       type: 'short-input',
       placeholder: 'A_NOTF, A_PEND, A_APPR...',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SAP Concur v3 expense report approval status code from the user's request.
+
+Valid codes include A_NOTF (not submitted), A_PEND (pending approval), A_APPR (approved), A_ACCO (pending cost object approval), A_RESU (submitted, pending validation), A_TEXP (approved, pending expense processor review), A_RJCT (sent back to employee), A_PECO (pending expense processor review).
+
+Return ONLY the approval status code - no explanations, no extra text.`,
+        placeholder: 'Describe the approval state (e.g., "reports still awaiting approval")',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -712,6 +819,15 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Payment Status Code',
       type: 'short-input',
       placeholder: 'P_NOTP, P_PAID...',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SAP Concur v3 expense report payment status code from the user's request.
+
+Valid codes include P_NOTP (not paid), P_PROC (processing payment), P_PAYC (payment confirmed), P_PAID (paid).
+
+Return ONLY the payment status code - no explanations, no extra text.`,
+        placeholder: 'Describe the payment state (e.g., "reports that have not been reimbursed")',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -736,6 +852,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Submit Date After',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -744,6 +871,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Submit Date Before',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -752,6 +890,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Paid Date After',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -760,6 +909,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Paid Date Before',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -768,6 +928,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Modified Date After',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -776,6 +947,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Modified Date Before',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -784,6 +966,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Create Date After',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -792,6 +985,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Create Date Before',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into a SAP Concur v3 expense report date filter.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the first of last month" -> the first day of the previous month, "30 days ago" -> the date 30 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff date (e.g., "the first of last month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_expense_reports' },
       mode: 'advanced',
     },
@@ -804,10 +1008,29 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       required: { field: 'operation', value: 'sap_concur_create_report_comment' },
     },
     {
+      id: 'sendbackComment',
+      title: 'Sendback Comment',
+      type: 'long-input',
+      placeholder: 'Visible wherever Request comments are shown',
+      condition: {
+        field: 'operation',
+        value: 'sap_concur_move_travel_request',
+        and: { field: 'action', value: 'sendback' },
+      },
+      mode: 'advanced',
+    },
+    {
       id: 'includeAllComments',
       title: 'Include All Comments',
       type: 'switch',
       condition: { field: 'operation', value: 'sap_concur_list_report_comments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'excludeExpenses',
+      title: 'Exclude Expense Exceptions',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sap_concur_list_exceptions' },
       mode: 'advanced',
     },
 
@@ -905,10 +1128,19 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
           'sap_concur_list_travel_requests',
           'sap_concur_get_travel_request',
           'sap_concur_create_travel_request',
+          'sap_concur_update_travel_request',
           'sap_concur_delete_travel_request',
           'sap_concur_move_travel_request',
         ],
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'companyID',
+      title: 'Company ID',
+      type: 'short-input',
+      placeholder: 'Company identifier for the workflow action',
+      condition: { field: 'operation', value: 'sap_concur_move_travel_request' },
       mode: 'advanced',
     },
     {
@@ -1043,7 +1275,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'systemFormat',
       title: 'System Format',
       type: 'short-input',
-      placeholder: 'GDS',
+      placeholder: 'Tripit',
       condition: { field: 'operation', value: 'sap_concur_get_itinerary' },
       mode: 'advanced',
     },
@@ -1052,14 +1284,38 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Start Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into the earliest trip start date for a SAP Concur itinerary search.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "the start of this quarter" -> the first day of the current quarter, "two weeks ago" -> the date 14 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the earliest trip date (e.g., "the start of this quarter")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
     },
     {
       id: 'endDate',
       title: 'End Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into the latest trip end date for a SAP Concur itinerary search.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "end of next month" -> the last day of the following month, "today" -> today's date.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the latest trip date (e.g., "end of next month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
     },
     {
       id: 'bookingType',
@@ -1075,6 +1331,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: '25',
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
     },
     {
       id: 'itineraryPage',
@@ -1082,6 +1339,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: '1',
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
     },
     {
       id: 'includeMetadata',
@@ -1098,10 +1356,36 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'includeVirtualTrip',
+      title: 'Include Virtual Trips',
+      type: 'short-input',
+      placeholder: '1 to include Request-booked offline segments',
+      condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeGuestBookings',
+      title: 'Include Guest Bookings',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
+      mode: 'advanced',
+    },
+    {
       id: 'createdAfterDate',
       title: 'Created After Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into the earliest trip creation date for a SAP Concur itinerary search.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "booked since last Monday" -> the date of the most recent Monday.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe when the trip was booked (e.g., "since last Monday")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
       mode: 'advanced',
     },
@@ -1110,6 +1394,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Created Before Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into the latest trip creation date for a SAP Concur itinerary search.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "booked before this month" -> the last day of the previous month.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the booking cutoff (e.g., "before this month")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
       mode: 'advanced',
     },
@@ -1118,6 +1413,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Last Modified Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a date into the last-modified cutoff for a SAP Concur itinerary search.
+
+The output must be a calendar date in YYYY-MM-DD form, resolved against the current date. For example "changed in the last week" -> the date 7 days before today.
+
+If the input looks like a reference to another block's output (contains < and >) or is already YYYY-MM-DD, return it as-is.
+Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
+        placeholder: 'Describe the change cutoff (e.g., "changed in the last week")',
+        generationType: 'timestamp',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_itineraries' },
       mode: 'advanced',
     },
@@ -1144,6 +1450,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'sap_concur_list_users' },
+      mode: 'advanced',
     },
     {
       id: 'usersCursor',
@@ -1151,12 +1458,22 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: 'Pagination cursor from previous response',
       condition: { field: 'operation', value: 'sap_concur_list_users' },
+      mode: 'advanced',
     },
     {
       id: 'attributes',
       title: 'Attributes',
       type: 'short-input',
       placeholder: 'id,active,emails',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of SCIM user attribute names to return from SAP Concur Identity v4.
+
+Use SCIM attribute paths such as id, externalId, userName, active, displayName, name.givenName, name.familyName, emails, emails.value, title, userType, and enterprise extension paths like urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber.
+
+Return ONLY the comma-separated attribute names - no explanations, no extra text.`,
+        placeholder: 'Describe the user fields to return (e.g., "just email and status")',
+      },
       condition: {
         field: 'operation',
         value: ['sap_concur_list_users', 'sap_concur_get_user'],
@@ -1167,6 +1484,15 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Excluded Attributes',
       type: 'short-input',
       placeholder: 'name,emails',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of SCIM user attribute names to omit from a SAP Concur Identity v4 response.
+
+Use SCIM attribute paths such as name, emails, phoneNumbers, addresses, entitlements, and enterprise extension paths like urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager.
+
+Return ONLY the comma-separated attribute names - no explanations, no extra text.`,
+        placeholder: 'Describe the user fields to drop (e.g., "leave out addresses and phones")',
+      },
       condition: {
         field: 'operation',
         value: ['sap_concur_list_users', 'sap_concur_get_user'],
@@ -1203,6 +1529,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Admin View',
       type: 'switch',
       condition: { field: 'operation', value: 'sap_concur_list_budgets' },
+      mode: 'advanced',
     },
     {
       id: 'responseSchema',
@@ -1214,6 +1541,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       ],
       value: () => '',
       condition: { field: 'operation', value: 'sap_concur_list_budgets' },
+      mode: 'advanced',
     },
 
     // Purchase Requests
@@ -1236,6 +1564,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         field: 'operation',
         value: ['sap_concur_list_expense_reports', 'sap_concur_list_travel_requests'],
       },
+      mode: 'advanced',
     },
     {
       id: 'offset',
@@ -1246,6 +1575,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         field: 'operation',
         value: ['sap_concur_list_budgets', 'sap_concur_list_expense_reports'],
       },
+      mode: 'advanced',
     },
     {
       id: 'page',
@@ -1256,16 +1586,33 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         field: 'operation',
         value: ['sap_concur_list_lists', 'sap_concur_list_list_items'],
       },
+      mode: 'advanced',
     },
     {
       id: 'sortBy',
       title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'name',
-      condition: {
-        field: 'operation',
-        value: ['sap_concur_list_lists', 'sap_concur_list_list_items'],
-      },
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Name', id: 'name' },
+        { label: 'Level Count', id: 'levelcount' },
+        { label: 'List Category', id: 'listcategory' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'sap_concur_list_lists' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sortBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Value', id: 'value' },
+        { label: 'Short Code', id: 'shortCode' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'sap_concur_list_list_items' },
       mode: 'advanced',
     },
     {
@@ -1317,6 +1664,70 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         field: 'operation',
         value: ['sap_concur_list_travel_requests'],
       },
+      mode: 'advanced',
+    },
+
+    // Custom list / list item filters (v4)
+    {
+      id: 'value',
+      title: 'Value',
+      type: 'short-input',
+      placeholder: 'Exact value, or an operator form like sw:Trav, ew:ing, not:Old, cp:cost',
+      condition: {
+        field: 'operation',
+        value: ['sap_concur_list_lists', 'sap_concur_list_list_items'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'categoryType',
+      title: 'Category Type',
+      type: 'short-input',
+      placeholder: 'List category type (e.g., EXPENSE)',
+      condition: { field: 'operation', value: 'sap_concur_list_lists' },
+      mode: 'advanced',
+    },
+    {
+      id: 'levelCount',
+      title: 'Level Count',
+      type: 'short-input',
+      placeholder: 'Exact count, or an operator form like eq:2, gt:1, gte:2, lt:4, lte:3',
+      condition: { field: 'operation', value: 'sap_concur_list_lists' },
+      mode: 'advanced',
+    },
+    {
+      id: 'isDeleted',
+      title: 'Is Deleted',
+      type: 'short-input',
+      placeholder: 'true, false, or the operator form eq:true',
+      condition: {
+        field: 'operation',
+        value: ['sap_concur_list_lists', 'sap_concur_list_list_items'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'shortCode',
+      title: 'Short Code',
+      type: 'short-input',
+      placeholder: 'Exact short code, or an operator form like sw:EU',
+      condition: { field: 'operation', value: 'sap_concur_list_list_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'shortCodeOrValue',
+      title: 'Short Code Or Value',
+      type: 'short-input',
+      placeholder: 'Matches either field, or an operator form like cp:travel',
+      condition: { field: 'operation', value: 'sap_concur_list_list_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'hasChildren',
+      title: 'Has Children',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sap_concur_list_list_items' },
+      mode: 'advanced',
     },
 
     // List Item ID (for update/delete list item)
@@ -1335,6 +1746,17 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       title: 'Last Modified Date',
       type: 'short-input',
       placeholder: '1900-01-01T00:00:00 (UTC datetime)',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a moment in time into a SAP Concur Travel Profile summary cutoff.
+
+The output must be a UTC datetime with no timezone suffix, in YYYY-MM-DDTHH:mm:ss form, resolved against the current date. For example "everything" -> 1900-01-01T00:00:00, "changed in the last day" -> the datetime 24 hours before now.
+
+If the input looks like a reference to another block's output (contains < and >) or is already in YYYY-MM-DDTHH:mm:ss form, return it as-is.
+Return ONLY the UTC datetime - no explanations, no extra text.`,
+        placeholder: 'Describe the cutoff (e.g., "profiles changed in the last day")',
+        generationType: 'timestamp',
+      },
       condition: {
         field: 'operation',
         value: 'sap_concur_list_travel_profiles_summary',
@@ -1350,6 +1772,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: '1',
       condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
+      mode: 'advanced',
     },
     {
       id: 'itemsPerPage',
@@ -1357,13 +1780,38 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: '200',
       condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
+      mode: 'advanced',
     },
     {
       id: 'travelConfigs',
       title: 'Travel Config IDs',
       type: 'short-input',
       placeholder: 'Comma-separated config ids',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of SAP Concur travel configuration IDs from the user's request.
+
+Travel configuration IDs are numeric identifiers issued by Concur. Emit them separated by commas with no spaces.
+
+If the input looks like a reference to another block's output (contains < and >), return it as-is.
+Return ONLY the comma-separated travel config IDs - no explanations, no extra text.`,
+        placeholder: 'Describe or paste the travel configurations to scope the search to',
+      },
       condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
+      mode: 'advanced',
+    },
+    {
+      id: 'active',
+      title: 'User State',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Active users', id: '1' },
+        { label: 'Inactive users', id: '0' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
+      mode: 'advanced',
     },
 
     // Locations fields (v5)
@@ -1380,6 +1828,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: 'IATA / city code (e.g., SEA)',
       condition: { field: 'operation', value: 'sap_concur_search_locations' },
+      mode: 'advanced',
     },
     {
       id: 'locationNameId',
@@ -1403,6 +1852,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: 'US',
       condition: { field: 'operation', value: 'sap_concur_search_locations' },
+      mode: 'advanced',
     },
     {
       id: 'subdivisionCode',
@@ -1410,6 +1860,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'short-input',
       placeholder: 'US-WA',
       condition: { field: 'operation', value: 'sap_concur_search_locations' },
+      mode: 'advanced',
     },
     {
       id: 'adminRegionId',
@@ -1430,7 +1881,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       condition: { field: 'operation', value: RECEIPT_UPLOAD_OPS },
       mode: 'basic',
       multiple: false,
-      required: true,
+      required: { field: 'operation', value: RECEIPT_UPLOAD_OPS },
       acceptedTypes: 'image/jpeg,image/png,image/gif,image/tiff,application/pdf',
     },
     // Receipt Image (advanced mode — variable reference)
@@ -1442,30 +1893,45 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       placeholder: 'Reference file from previous block',
       condition: { field: 'operation', value: RECEIPT_UPLOAD_OPS },
       mode: 'advanced',
-      required: true,
+      required: { field: 'operation', value: RECEIPT_UPLOAD_OPS },
     },
-    {
-      id: 'forwardId',
-      title: 'Forward ID',
-      type: 'short-input',
-      placeholder: 'Optional dedup id (max 40 chars)',
-      condition: { field: 'operation', value: 'sap_concur_upload_receipt_image' },
-      mode: 'advanced',
-    },
-
     // Body (JSON payload) — shared across all create/update/action ops
     {
       id: 'body',
       title: 'Request Body (JSON)',
       type: 'long-input',
       placeholder: '{ ... }',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate the JSON request body for the selected SAP Concur operation from the user's request.
+
+Match the payload to the resource being written. Every family below is camelCase EXCEPT exchange rates, which is snake_case.
+
+Expense reports (v4): name, businessPurpose, comment, policyId, countryCode, countrySubDivisionCode, reportDate, startDate, endDate, and reportSource — reportSource is REQUIRED when updating a report and must be one of EA, MOB, OTHER, SE, TR, UI.
+
+Quick expenses (v4): expenseTypeId (required), transactionAmount as { currencyCode, value } (required), transactionDate as YYYY-MM-DD (required), plus optional comment, vendor, paymentTypeId (CASHX, CPAID or PENDC) and location as { city, countryCode, countrySubDivisionCode }.
+
+Travel requests and expected expenses (Request v4): name, businessPurpose, startDate, endDate, startTime, endTime, policy as { id }, mainDestination as { city, countryCode, countrySubDivisionCode }, expenseType, transactionDate, and custom1 through custom20. Amounts here are { value, currency } — this family uses currency, NOT currencyCode. Never send an id field on create.
+
+SCIM users (Identity v4.1): create and update payloads use schemas, userName, name.givenName, name.familyName, emails, active, and companyId inside urn:ietf:params:scim:schemas:extension:enterprise:2.0:User. Update uses urn:ietf:params:scim:api:messages:2.0:PatchOp with Operations. Search payloads use schemas with urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest plus filter, count, attributes and cursor — startIndex is NOT supported as a request parameter.
+
+List items: listId, level, value, shortCode. Cash advances: amountRequested as { currency, amount }, name and userId (all required), plus optional accountCode, comment and purpose.
+
+Exchange rates are the one snake_case family: currency_sets as an array of up to 100 entries, each { from_crn_code, to_crn_code, start_date as YYYY-MM-DD, rate }.
+
+Omit fields the user did not describe rather than inventing identifiers.
+
+Return ONLY the JSON object - no explanations, no extra text.`,
+        placeholder:
+          'Describe the payload in plain language (e.g., "a $42 taxi in USD on March 3")',
+        generationType: 'json-object',
+      },
       condition: { field: 'operation', value: BODY_OPS },
       required: {
         field: 'operation',
         value: [
           'sap_concur_create_expense_report',
           'sap_concur_update_expense_report',
-          'sap_concur_approve_expense_report',
           'sap_concur_send_back_expense_report',
           'sap_concur_update_expense',
           'sap_concur_update_allocation',
@@ -1578,15 +2044,14 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         const offset = params.offset ? Number(params.offset) : undefined
         const start = params.start ? Number(params.start) : undefined
         const count = params.count ? Number(params.count) : undefined
-        const startIndex = params.startIndex ? Number(params.startIndex) : undefined
         const page = params.page ? Number(params.page) : undefined
-        const levelCount = params.levelCount ? Number(params.levelCount) : undefined
+        const contextType = clampContextType(params.operation, params.contextType)
 
         switch (params.operation) {
           case 'sap_concur_list_expense_reports':
             return {
               ...auth,
-              user: params.expenseReportUser || params.userId || undefined,
+              user: params.expenseReportUser || undefined,
               submitDateBefore: params.submitDateBefore || undefined,
               submitDateAfter: params.submitDateAfter || undefined,
               paidDateBefore: params.paidDateBefore || undefined,
@@ -1606,21 +2071,21 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
             }
           case 'sap_concur_create_expense_report':
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               body: params.body,
             }
           case 'sap_concur_update_expense_report':
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               body: params.body,
             }
@@ -1631,15 +2096,13 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               ...auth,
               userId: params.userId,
               reportId: params.reportId,
-              body: params.body || undefined,
             }
           case 'sap_concur_recall_expense_report':
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
-              body: params.body || undefined,
             }
           case 'sap_concur_approve_expense_report':
           case 'sap_concur_send_back_expense_report':
@@ -1652,7 +2115,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType: 'MANAGER',
               sort: params.reportsToApproveSort || undefined,
               order: params.reportsToApproveOrder || undefined,
               includeDelegateApprovals: toBool(params.includeDelegateApprovals),
@@ -1661,7 +2124,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
             }
           case 'sap_concur_get_expense':
@@ -1669,7 +2132,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               expenseId: params.expenseId,
             }
@@ -1690,7 +2153,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               expenseId: params.expenseId,
             }
@@ -1698,7 +2161,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               allocationId: params.allocationId,
             }
@@ -1706,7 +2169,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               allocationId: params.allocationId,
               body: params.body,
@@ -1715,7 +2178,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               expenseId: params.expenseId,
             }
@@ -1723,7 +2186,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               expenseId: params.expenseId,
               body: params.body,
@@ -1732,7 +2195,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               expenseId: params.expenseId,
             }
@@ -1740,7 +2203,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               includeAllComments: toBool(params.includeAllComments),
             }
@@ -1748,7 +2211,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
               comment: params.comment,
             }
@@ -1756,14 +2219,15 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               reportId: params.reportId,
+              excludeExpenses: toBool(params.excludeExpenses),
             }
           case 'sap_concur_create_quick_expense':
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               body: params.body,
             }
           case 'sap_concur_list_receipts':
@@ -1798,7 +2262,12 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
           case 'sap_concur_create_travel_request':
             return { ...auth, body: params.body, userId: params.travelRequestUserId || undefined }
           case 'sap_concur_update_travel_request':
-            return { ...auth, requestUuid: params.requestUuid, body: params.body }
+            return {
+              ...auth,
+              requestUuid: params.requestUuid,
+              body: params.body,
+              userId: params.travelRequestUserId || undefined,
+            }
           case 'sap_concur_move_travel_request':
             return {
               ...auth,
@@ -1806,6 +2275,9 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               action: params.action,
               body: params.body || undefined,
               userId: params.travelRequestUserId || undefined,
+              companyID: params.companyID || undefined,
+              comment:
+                params.action === 'sendback' ? params.sendbackComment || undefined : undefined,
             }
           case 'sap_concur_list_travel_request_comments':
             return { ...auth, requestUuid: params.requestUuid }
@@ -1862,6 +2334,8 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               page: params.itineraryPage ? Number(params.itineraryPage) : undefined,
               includeMetadata: toBool(params.includeMetadata),
               includeCanceledTrips: toBool(params.includeCanceledTrips),
+              includeVirtualTrip: params.includeVirtualTrip || undefined,
+              includeGuestBookings: toBool(params.includeGuestBookings),
               createdAfterDate: params.createdAfterDate || undefined,
               createdBeforeDate: params.createdBeforeDate || undefined,
               lastModifiedDate: params.itineraryLastModifiedDate || undefined,
@@ -1901,12 +2375,12 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               page,
-              sortBy: params.sortBy || undefined,
+              sortBy: clampSortBy(params.operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               value: params.value || undefined,
               categoryType: params.categoryType || undefined,
-              isDeleted: toBool(params.isDeleted),
-              levelCount,
+              isDeleted: params.isDeleted || undefined,
+              levelCount: params.levelCount || undefined,
             }
           case 'sap_concur_get_list':
             return { ...auth, listId: params.listId }
@@ -1915,10 +2389,10 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               ...auth,
               listId: params.listId,
               page,
-              sortBy: params.sortBy || undefined,
+              sortBy: clampSortBy(params.operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               hasChildren: toBool(params.hasChildren),
-              isDeleted: toBool(params.isDeleted),
+              isDeleted: params.isDeleted || undefined,
               shortCode: params.shortCode || undefined,
               value: params.value || undefined,
               shortCodeOrValue: params.shortCodeOrValue || undefined,
@@ -1964,6 +2438,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               page: params.travelProfilePage ? Number(params.travelProfilePage) : undefined,
               itemsPerPage: params.itemsPerPage ? Number(params.itemsPerPage) : undefined,
               travelConfigs: params.travelConfigs || undefined,
+              active: params.active || undefined,
             }
           case 'sap_concur_search_locations':
             return {
@@ -1984,7 +2459,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               ...auth,
               userId: params.userId,
               receipt: normalizedReceipt,
-              forwardId: params.forwardId || undefined,
             }
           }
           case 'sap_concur_create_quick_expense_with_image': {
@@ -1994,7 +2468,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return {
               ...auth,
               userId: params.userId,
-              contextType: params.contextType,
+              contextType,
               receipt: normalizedReceipt,
               body: params.body,
             }
@@ -2017,7 +2491,8 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     userId: { type: 'string', description: 'Concur user UUID' },
     contextType: {
       type: 'string',
-      description: 'Access context (TRAVELER/MANAGER, or TRAVELER/PROXY for allocations)',
+      description:
+        'Access context, clamped per operation to the values that operation accepts (TRAVELER/MANAGER/PROCESSOR/PROXY for get expense report, TRAVELER/MANAGER/PROXY for get expense, exceptions and report comments, TRAVELER/MANAGER for list allocations, TRAVELER/PROXY for single allocations, attendees and report create/update/recall, TRAVELER only for list expenses, itemizations and quick expenses)',
     },
     reportId: { type: 'string', description: 'Expense report ID' },
     expenseId: { type: 'string', description: 'Expense entry ID' },
@@ -2065,7 +2540,18 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     view: { type: 'string', description: 'Travel request view filter' },
     travelRequestUserId: {
       type: 'string',
-      description: 'User UUID for travel request impersonation/filter',
+      description:
+        "Optional user UUID for travel request impersonation/filter. On Update Travel Request it is taken into account only when calling with a Company token; if not provided the update is performed as 'Concur System'",
+    },
+    companyID: {
+      type: 'string',
+      description:
+        'Optional company identifier for a travel request workflow action (documented as companyID, distinct from companyUuid)',
+    },
+    sendbackComment: {
+      type: 'string',
+      description:
+        'Optional comment on a travel request workflow action — Concur applies it only to the sendback action, and it is visible wherever Request comments are shown',
     },
     travelRequestApprovedBefore: { type: 'string', description: 'Travel requests approved before' },
     travelRequestApprovedAfter: { type: 'string', description: 'Travel requests approved after' },
@@ -2085,11 +2571,22 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     startDate: { type: 'string', description: 'Itinerary start date filter' },
     endDate: { type: 'string', description: 'Itinerary end date filter' },
     bookingType: { type: 'string', description: 'Itinerary booking type filter' },
-    systemFormat: { type: 'string', description: 'Itinerary system format (e.g., GDS)' },
+    systemFormat: {
+      type: 'string',
+      description: 'Itinerary system format — the only supported value is Tripit',
+    },
     itineraryItemsPerPage: { type: 'number', description: 'Itinerary items per page' },
     itineraryPage: { type: 'number', description: 'Itinerary page number' },
     includeMetadata: { type: 'boolean', description: 'Include itinerary paging metadata' },
     includeCanceledTrips: { type: 'boolean', description: 'Include canceled trips' },
+    includeVirtualTrip: {
+      type: 'string',
+      description: 'Set to 1 to include virtual trips carrying Request-booked offline segments',
+    },
+    includeGuestBookings: {
+      type: 'boolean',
+      description: 'Include trips booked on behalf of guests (defaults to false)',
+    },
     createdAfterDate: { type: 'string', description: 'Itinerary created-after date' },
     createdBeforeDate: { type: 'string', description: 'Itinerary created-before date' },
     itineraryLastModifiedDate: { type: 'string', description: 'Itinerary last-modified date' },
@@ -2104,8 +2601,14 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     sortDirection: { type: 'string', description: 'Sort direction: asc or desc' },
     value: { type: 'string', description: 'Filter by value/name for v4 lists/items endpoints' },
     categoryType: { type: 'string', description: 'List category.type filter' },
-    isDeleted: { type: 'boolean', description: 'Include deleted lists/items' },
-    levelCount: { type: 'number', description: 'Filter lists by level count' },
+    isDeleted: {
+      type: 'string',
+      description: 'Include deleted lists/items — accepts true, false, or an operator form',
+    },
+    levelCount: {
+      type: 'string',
+      description: 'Filter lists by level count — accepts an exact count or eq:/gt:/gte:/lt:/lte:',
+    },
     hasChildren: { type: 'boolean', description: 'Filter list items that have children' },
     shortCode: { type: 'string', description: 'Filter list items by short code' },
     shortCodeOrValue: { type: 'string', description: 'Filter list items by short code or value' },
@@ -2124,6 +2627,10 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     travelProfilePage: { type: 'number', description: 'Profile summary page number' },
     itemsPerPage: { type: 'number', description: 'Profile summary items per page' },
     travelConfigs: { type: 'string', description: 'Comma-separated travel config ids' },
+    active: {
+      type: 'string',
+      description: 'Travel profile summary user state filter — 1 for active, 0 for inactive',
+    },
     searchText: { type: 'string', description: 'Locations v5 free-text search' },
     locCode: { type: 'string', description: 'Locations v5 location code' },
     locationNameId: { type: 'string', description: 'Locations v5 location name id' },
@@ -2132,7 +2639,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     subdivisionCode: { type: 'string', description: 'Locations v5 ISO 3166-2 subdivision code' },
     adminRegionId: { type: 'string', description: 'Locations v5 administrative region id' },
     receipt: { type: 'json', description: 'Receipt image file (canonical param)' },
-    forwardId: { type: 'string', description: 'Optional dedup id for receipt upload' },
     reportsToApproveSort: {
       type: 'string',
       description: 'Sort field for reportsToApprove (e.g., reportDate)',
@@ -2146,16 +2652,25 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'boolean',
       description: 'Include comments from all expenses in the report',
     },
+    excludeExpenses: {
+      type: 'boolean',
+      description:
+        'Return only report-header exceptions, excluding expense-level and allocation-level ones',
+    },
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
-    data: { type: 'json', description: 'Concur API response payload' },
+    data: {
+      type: 'json',
+      description:
+        'Concur API response payload. Shape follows the operation: expense report headers (reportId, name, ownerName, approvalStatusName, paymentStatusName, reportTotal, currencyCode, submitDate); expense entries (expenseId, expenseTypeName, transactionDate, transactionAmount, vendorDescription, isPersonal); itemizations and allocations (allocationId, percentage, amount, custom fields); attendee associations (attendeeId, associatedAmount); report comments (author, text, isLatest); policy exceptions (code, level, message); quick expenses and receipts (quickExpenseIdUri, receiptId, imageId, status); travel requests (requestId, requestUuid, name, approvalStatus, totalApprovedAmount, startDate, endDate) and expected expenses (expenseUuid, expenseType, transactionAmount); cash advances (cashAdvanceId, amount, currencyCode, status); itineraries, which come back as a raw Concur XML string rather than JSON; SCIM user resources (id, userName, displayName, emails, active, meta); custom lists and list items (listId, itemId, level, value, shortCode); budget item headers and categories (budgetId, name, spent, remaining); and locations (locationNameId, locCode, countryCode, subdivisionCode).',
+    },
   },
 }
 
 export const SapConcurBlockMeta = {
-  tags: ['automation'],
+  tags: ['automation', 'payments'],
   url: 'https://www.concur.com',
   templates: [
     {
@@ -2245,7 +2760,7 @@ export const SapConcurBlockMeta = {
       description:
         'Create a quick expense in SAP Concur from a receipt, attaching the receipt image.',
       content:
-        '# Capture Quick Expense\n\nLog an out-of-pocket expense quickly, with the receipt attached.\n\n## Steps\n1. If you have a receipt image, run Upload Receipt Image and keep the returned receipt ID, or use Create Quick Expense (With Image) to do both in one step.\n2. Run Create Quick Expense with the vendor, amount, currency, and transaction date.\n3. Verify the entry with Get Expense.\n\n## Output\nReport the created quick expense ID, the captured vendor and amount, and confirm the receipt image is attached.',
+        '# Capture Quick Expense\n\nLog an out-of-pocket expense quickly, with the receipt attached.\n\n## Steps\n1. If you have a receipt image, use Create Quick Expense (With Image) to upload it and create the expense in one step. To upload on its own, run Upload Receipt Image — it returns no receipt ID, only a `location` URL and a raw `link` header of the form `<https://{datacenter}/receipts/v4/status/{id}>; rel="processing-status"`. Parse the id out of that URL.\n2. Run Create Quick Expense with the vendor, amount, currency, and transaction date.\n3. To check the upload, run Get Receipt Status with the id from step 1 — that is the only working post-upload read. Do not use List Receipts or Get Receipt: they read the e-receipt family, while Upload Receipt Image writes to the disjoint image-only family, so a freshly uploaded image never appears in List Receipts and Get Receipt on its id returns 404. Reading back the image-only receipt itself requires endpoints this integration does not yet wrap.\n4. A quick expense is not attached to a report yet, so Get Expense cannot read it. Once it has been moved onto a report, List Expenses on that report ID shows the entry.\n\n## Output\nReport the created quick expense ID, the captured vendor and amount, and the receipt processing status if an image was uploaded.',
     },
     {
       name: 'manage-travel-requests',
@@ -2253,6 +2768,34 @@ export const SapConcurBlockMeta = {
         'List and act on SAP Concur travel requests, moving them through the approval workflow.',
       content:
         '# Manage Travel Requests\n\nHandle pre-trip travel requests through their approval lifecycle.\n\n## Steps\n1. Run List Travel Requests to find pending requests, then Get Travel Request for full detail on a specific one.\n2. Review the expected expenses and any linked cash advance via Get Request Cash Advance.\n3. Run Move Travel Request (Workflow Action) to advance, approve, or send back the request based on the decision.\n\n## Output\nReturn the travel request ID, destination, estimated cost, and the workflow action applied so the trip approval state is clear.',
+    },
+    {
+      name: 'provision-concur-user-identity',
+      description:
+        'Create, update, search, and deactivate SAP Concur user identities through the SCIM Identity API.',
+      content:
+        '# Provision Concur User Identity\n\nRun the joiner, mover, and leaver steps against the SAP Concur Identity (SCIM) API.\n\n## Steps\n1. Run Search Users with a SCIM search body (filter on userName or emails.value) to check whether the person already exists, or List Users with Attributes set to a narrow field list when scanning the directory.\n2. To onboard, run Create User with the SCIM body — schemas, userName, name.givenName, name.familyName, emails, and active.\n3. To change a role, department, or manager, run Update User (PATCH) against the user UUID, then confirm with Get User.\n4. To offboard, prefer Update User (PATCH) setting active to false; use Delete User only when the identity must be removed outright.\n\n## Output\nReport the user UUID, userName, the change applied, and the resulting active state so the identity lifecycle is auditable.',
+    },
+    {
+      name: 'maintain-concur-custom-lists',
+      description:
+        'Browse and edit SAP Concur custom lists and their items — the value sets behind list-type expense fields.',
+      content:
+        '# Maintain Concur Custom Lists\n\nKeep the value sets behind list-type expense and request fields current.\n\n## Steps\n1. Run List Lists to find the list you need, filtering by Value or Category Type; note that on List Lists the Value and Level Count filters accept operator prefixes (sw:, ew:, not:, cp: on Value; eq:, gt:, gte:, lt:, lte: on Level Count), while Is Deleted accepts only eq:.\n2. Run Get List for the definition, then List List Items with the list ID to page through its current entries — there Value, Short Code, and Short Code Or Value take the same string operator prefixes.\n3. Run Create List Item to add a value, Update List Item to correct one, and Delete List Item to retire one. Read a single entry back with Get List Item.\n\n## Output\nReturn the list ID and name, the items added, changed, or retired with their short codes and values, and the level each item sits at.',
+    },
+    {
+      name: 'track-budget-consumption',
+      description:
+        'Read SAP Concur budget item headers and categories to see how much of each budget is already consumed.',
+      content:
+        '# Track Budget Consumption\n\nCheck spend against the budgets configured in SAP Concur.\n\n## Steps\n1. Run List Budget Categories to learn how budgets are grouped for the company.\n2. Run List Budgets to page through budget item headers; enable Admin View to see every budget the credentials can administer, and set Response Schema to COMPACT for a lighter payload.\n3. Run Get Budget on any header of interest for the full detail, including the spent and remaining amounts.\n\n## Output\nReturn each budget header ID, its name and category, the budgeted amount, the amount consumed, and the remaining balance, calling out any budget already over its limit.',
+    },
+    {
+      name: 'issue-cash-advance',
+      description:
+        'Create, inspect, and issue SAP Concur cash advances, including advances attached to a travel request.',
+      content:
+        '# Issue Cash Advance\n\nMove a cash advance from request through to issued funds.\n\n## Steps\n1. Run Create Cash Advance with the amount, currency code, and comment describing the need.\n2. Run Get Cash Advance on the returned ID to confirm the amount and current status, or Get Request Cash Advance when the advance hangs off a travel request UUID.\n3. Once approved, run Issue Cash Advance to record the disbursement, supplying the issued amount and exchange rate in the body when they differ from the request.\n\n## Output\nReturn the cash advance ID, requested and issued amounts with currency, the current status, and the linked travel request UUID when there is one.',
     },
   ],
 } as const satisfies BlockMeta

@@ -5,6 +5,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2PaginationFields,
+  v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
@@ -36,6 +37,17 @@ export const v2WorkspaceSchema = z
     description: 'Public metadata for an accessible workspace.',
   })
 export type V2Workspace = z.output<typeof v2WorkspaceSchema>
+
+export const v2WorkspaceSortFields = ['name', 'createdAt', 'updatedAt'] as const
+export type V2WorkspaceSortBy = (typeof v2WorkspaceSortFields)[number]
+
+export const v2ListWorkspacesQuerySchema = z
+  .object({
+    ...v2SortFields(v2WorkspaceSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum workspaces to return per page.' }),
+  })
+  .strict()
+export type V2ListWorkspacesQuery = z.output<typeof v2ListWorkspacesQuerySchema>
 
 export const v2WorkspaceMemberSchema = z
   .object({
@@ -75,6 +87,13 @@ export const v2GetWorkspaceContract = defineRouteContract({
   query: noInputSchema,
   params: v2WorkspaceParamsSchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
+})
+
+export const v2ListWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workspaces',
+  query: v2ListWorkspacesQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2WorkspaceSchema) },
 })
 
 export const v2ListWorkspaceMembersContract = defineRouteContract({

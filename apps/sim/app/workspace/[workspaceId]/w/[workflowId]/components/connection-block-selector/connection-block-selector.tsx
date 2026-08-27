@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Button, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
@@ -45,6 +53,8 @@ const SELECTOR_ACTION_MENU_RIGHT_INSET = 24
 const SELECTOR_ACTION_MENU_AMPLITUDE = 7
 const RECENT_SELECTION_LIMIT = 3
 const RECENT_SELECTION_STORAGE_PREFIX = 'sim:connection-block-selector:recent'
+const BROWSE_PREFETCH_MARGIN_PX = 640
+const BROWSE_PAGE_SIZE = 50
 const POPULAR_BLOCK_TYPES = [
   'agent',
   'function',
@@ -53,6 +63,11 @@ const POPULAR_BLOCK_TYPES = [
   'knowledge',
   'memory',
 ] as const
+
+/** Ordered prefix that reuses the source array once `count` covers all of it. */
+function takePrefix<T>(items: T[], count: number): T[] {
+  return count >= items.length ? items : items.slice(0, Math.max(0, count))
+}
 
 const SELECTOR_PORTS: WorkflowBorderPort[] = [
   {
@@ -136,9 +151,11 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
   const posthog = usePostHog()
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const browseSentinelRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState('')
   const [selectedValue, setSelectedValue] = useState('')
   const [recentSelections, setRecentSelections] = useState<RecentSelection[]>([])
+  const [browseLimit, setBrowseLimit] = useState(BROWSE_PAGE_SIZE)
   const deferredSearch = useDeferredValue(search)
   const isSearching = deferredSearch.trim().length > 0
   const recentStorageKey = `${RECENT_SELECTION_STORAGE_PREFIX}:${workspaceId}`
@@ -260,6 +277,42 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
     () => availableTools.filter((tool) => !recentSelectionKeys.has(`tool:${tool.id}`)),
     [availableTools, recentSelectionKeys]
   )
+  const visibleBrowseBlocks = useMemo(
+    () => takePrefix(browseBlocks, browseLimit),
+    [browseBlocks, browseLimit]
+  )
+  const visibleBrowseTools = useMemo(
+    () => takePrefix(browseTools, browseLimit - browseBlocks.length),
+    [browseBlocks.length, browseLimit, browseTools]
+  )
+  const hasMoreBrowseResults = browseLimit < browseBlocks.length + browseTools.length
+
+  /**
+   * Mounting every cmdk item up front caused the frame spike; a manual "show
+   * more" control would leak that constraint into the UI. Prefetching near the
+   * viewport keeps scrolling continuous and cmdk's keyboard navigation intact.
+   */
+  useEffect(() => {
+    const list = listRef.current
+    const sentinel = browseSentinelRef.current
+    if (isSearching || !hasMoreBrowseResults || !list || !sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        startTransition(() => {
+          setBrowseLimit((current) => current + BROWSE_PAGE_SIZE)
+        })
+      },
+      {
+        root: list,
+        rootMargin: `0px 0px ${BROWSE_PREFETCH_MARGIN_PX}px 0px`,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMoreBrowseResults, isSearching])
 
   const dispatchSelection = useCallback(
     (type: string, resultType: 'block' | 'tool' | 'tool_operation', presetOperation?: string) => {
@@ -480,11 +533,14 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                 )}
                 <BlocksGroup items={popularBlocks} onSelect={handleBlockSelect} heading='Popular' />
                 <BlocksGroup
-                  items={browseBlocks}
+                  items={visibleBrowseBlocks}
                   onSelect={handleBlockSelect}
                   heading='All blocks'
                 />
-                <ToolsGroup items={browseTools} onSelect={handleToolSelect} />
+                <ToolsGroup items={visibleBrowseTools} onSelect={handleToolSelect} />
+                {hasMoreBrowseResults && (
+                  <div ref={browseSentinelRef} aria-hidden='true' className='h-px' />
+                )}
               </>
             )}
           </CommandFadedList>

@@ -4,9 +4,12 @@ import {
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import {
+  attachRetryHeaders,
   type HTTPError,
   isRetryableError,
   type RetryOptions,
+  readBoundedHttpErrorBody,
+  resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 
@@ -32,7 +35,6 @@ export async function secureFetchWithRetry(
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
   const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
-
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
       url,
@@ -45,22 +47,23 @@ export async function secureFetchWithRetry(
       'url'
     )
 
-    if (!response.ok && isRetryableError({ status: response.status })) {
-      const errorText = await response.text()
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
+    /**
+     * Headers are passed to `isRetryableError` so a rate-limit 403 is
+     * distinguishable from an authorization denial, and are carried onto the
+     * thrown error because `retryWithExponentialBackoff` re-evaluates the retry
+     * condition against it. `resolveRetryDelayMs` prefers `Retry-After` and
+     * falls back to the epoch-seconds reset header that X (and GitHub's primary
+     * limit) use instead.
+     */
+    if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
+      const errorText = await readBoundedHttpErrorBody(response)
+      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
       error.status = response.status
-      error.statusText = response.statusText
+      attachRetryHeaders(error, response.headers)
 
-      const retryAfter = response.headers.get('retry-after')
-      if (retryAfter) {
-        const waitMs = Number.isNaN(Number(retryAfter))
-          ? Math.max(0, new Date(retryAfter).getTime() - Date.now())
-          : Number(retryAfter) * 1000
-        if (waitMs > 0) {
-          error.retryAfterMs = waitMs
-        }
+      const waitMs = resolveRetryDelayMs(response.headers)
+      if (waitMs !== undefined) {
+        error.retryAfterMs = waitMs
       }
 
       throw error

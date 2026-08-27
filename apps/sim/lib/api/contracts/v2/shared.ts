@@ -57,7 +57,7 @@ import {
  * A list that needs a real expression tree (Tables) keeps its own `POST /query`.
  *
  * Two lists predate the convention and are the documented exceptions:
- * `GET /api/v2/logs` and `GET /api/v2/workflows/{id}/runs` have no `sortBy`
+ * `GET /api/v2/logs` and `GET /api/v2/workflows/{workflowId}/runs` have no `sortBy`
  * (the sort column is fixed to execution start time) and spell the direction
  * `order`, not `sortOrder`. They are not a pattern to copy, and renaming the
  * param would break shipped callers.
@@ -65,12 +65,12 @@ import {
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
- *   skills, `title` for custom tools, `filename` for knowledge documents
- *   (`GET /knowledge/{id}/documents`), and `displayName` for both credentials
- *   and secrets (`GET /secrets`, where the secret's name *is* the credential
- *   `displayName`). It never matches ids, descriptions, or content. `%` and `_` in the term are matched
- *   literally, not as wildcards. Empty is rejected rather than silently
- *   ignored — omit the param instead.
+ *   skills/credential providers, `title` for custom tools, `filename` for
+ *   knowledge documents (`GET /knowledge/{knowledgeBaseId}/documents`), and `displayName`
+ *   for both credentials and secrets (`GET /secrets`, where the secret's name
+ *   *is* the credential `displayName`). It never matches ids, descriptions, or
+ *   content. `%` and `_` in the term are matched literally, not as wildcards.
+ *   Empty is rejected rather than silently ignored — omit the param instead.
  * - **`sortBy` + `sortOrder`** ({@link v2SortFields}) — `sortBy` is a
  *   per-resource enum, never a free string, because the value selects a column
  *   in the query. `sortOrder` is `asc`/`desc`. Both always have a default, so
@@ -93,9 +93,12 @@ import {
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
  * static builtin registry with the same search term, merges it into the DB rows,
- * then re-sorts the merged array) and `GET /files/folders` (which applies `parentPath` and `search`
- * in JS; its sort is pushed into SQL like every other folder list). Both read a
- * full result set to produce a page; neither is a pattern to copy.
+ * then re-sorts the merged array), `GET /files/folders` (which applies
+ * `parentPath` and `search` in JS; its sort is pushed into SQL like every other
+ * folder list), and `GET /credentials/providers` (whose bounded catalog is
+ * assembled from code-defined registries before its caller-specific
+ * availability is projected). These read a full result set to produce a page;
+ * none is a pattern to copy.
  *
  * ## Which lists are paged
  *
@@ -108,10 +111,11 @@ import {
  * including `GET /mcp-servers`, since nothing caps how many servers a workspace
  * registers. What remains full-set is bounded by construction rather than by a
  * caller's `limit`: the four folder lists, whose trees are capped where they
- * load; `GET /knowledge/{id}/tags`, capped by the fixed tag-slot table;
- * `GET /mcp-servers/{id}/tools`, capped by tool discovery itself; and
+ * load; `GET /knowledge/{knowledgeBaseId}/tags`, capped by the fixed tag-slot table;
+ * `GET /mcp-servers/{mcpServerId}/tools`, capped by tool discovery itself; and
  * `GET /tables/{tableId}/views` and `GET /tables/{tableId}/groups`, capped per
- * table.
+ * table; and the credential-provider catalog, bounded by code-defined OAuth
+ * and service-account registries.
  *
  * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
  * *default* `limit` truncates callers reading the whole set today, so once v2 is
@@ -123,12 +127,12 @@ import {
  * (`encodeSortedCursor`) wherever the page comes from one ordered SQL read, and
  * an offset (`encodeOffsetCursor`) only where it cannot — `GET /skills`, which
  * merges the static builtin registry into the DB rows and re-sorts in JS, and
- * `GET /knowledge/{id}/documents`, whose underlying query is limit/offset.
+ * `GET /knowledge/{knowledgeBaseId}/documents`, whose underlying query is limit/offset.
  * Prefer the keyset; an offset needs that kind of reason.
  *
  * The third is per-domain: a list whose read predates the shared codecs, or
  * whose page boundary is not expressible as one, mints its own — a bare
- * `encodeCursor({ version })` on `GET /workflows/{id}/versions` and
+ * `encodeCursor({ version })` on `GET /workflows/{workflowId}/versions` and
  * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
  * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
  * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
@@ -148,9 +152,9 @@ import {
  *
  * The authoritative per-list binding is pinned in
  * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
- * that is neither bound nor explicitly exempted. The three lists whose token is
- * minted by a domain codec (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`)
- * get the same binding by wrapping that token in a query-stamped envelope.
+ * that is neither bound nor explicitly exempted. The two lists whose token is
+ * minted by a domain codec (`GET /audit-logs`, `GET /billing/logs`) get the same
+ * binding by wrapping that token in a query-stamped envelope.
  */
 
 /**
@@ -175,6 +179,12 @@ import {
  * means proving the producer first.
  */
 export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
+
+/** Canonical absolute browser URL for a resource with a stable workspace UI destination. */
+export const v2ResourceWebUrlSchema = z
+  .string()
+  .url()
+  .describe('Canonical absolute URL for opening this resource in the Sim web application.')
 
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
@@ -242,7 +252,7 @@ export const v2CursorListResponse = <T extends z.ZodType>(
  * Default and maximum page size for a v2 paged list.
  *
  * These are the values the majority of already-paged v2 lists shipped with
- * (`/workflows`, `/workflows/{id}/versions`, `/workflows/{id}/runs`,
+ * (`/workflows`, `/workflows/{workflowId}/versions`, `/workflows/{workflowId}/runs`,
  * `/workspaces/{id}/members`, `/billing/logs`), so they are what a list adopting
  * pagination now inherits.
  */
@@ -372,7 +382,7 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  *
  * The form is `z.datetime()`, which is UTC-only: a date with no time
  * (`2026-08-06`) and an offset-bearing timestamp (`2026-08-06T00:00:00+02:00`)
- * are both rejected. `GET /logs` and `GET /workflows/{id}/runs` are sibling
+ * are both rejected. `GET /logs` and `GET /workflows/{workflowId}/runs` are sibling
  * reads over the same runs, so the same timestamp must work on both — sharing
  * the schema is what makes that true rather than merely intended, and it is why
  * the descriptions say "UTC ISO 8601" instead of overpromising "ISO 8601".
@@ -401,18 +411,19 @@ export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
 }
 
 /**
- * The single `order` param the two run-window reads take in place of
- * `sortBy` + `sortOrder`, for the same reason they share
- * {@link v2RunWindowBoundSchema}: `GET /logs` and `GET /workflows/{id}/runs` are
- * sibling reads over the same runs, so a value that works on one must work on
- * the other.
+ * The single `order` param `GET /workflows/{workflowId}/runs` takes in place of
+ * `sortBy` + `sortOrder`, because start time is the only column it can order by.
  *
- * Sharing it also keeps the *published* member order identical. Two hand-written
- * `z.enum([...])` literals spelled the same set in opposite orders, which the
- * generated specs faithfully reproduced — harmless to a parser, but it reads as
- * two APIs rather than one, and a caller comparing the two pages has no way to
- * tell an ordering accident from a meaningful difference. The order is
- * {@link LIST_SORT_ORDERS}, the same one `sortOrder` publishes everywhere else.
+ * `GET /logs` used to be its twin here. It is not any more: it reads the same
+ * rows but can also order them by duration, cost, and status, so it publishes
+ * the ordinary `sortBy` + `sortOrder` pair. The two remain sibling reads and
+ * still share {@link v2RunWindowBoundSchema}, so a timestamp that works on one
+ * works on the other — only the ordering vocabulary differs, and it differs
+ * because the sortable sets genuinely differ.
+ *
+ * The member order is {@link LIST_SORT_ORDERS}, the same one `sortOrder`
+ * publishes everywhere else, so the two spellings cannot drift apart in the
+ * generated specs and read as two APIs.
  */
 export function v2RunOrderSchema(subject: 'execution' | 'run') {
   return z

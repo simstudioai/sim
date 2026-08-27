@@ -2,13 +2,13 @@ import { db } from '@sim/db'
 import {
   jobExecutionLogs,
   pausedExecutions,
-  usageLog,
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
-import type { CostLedger } from '@/lib/api/contracts/logs'
+import { buildCostLedger } from '@/lib/logs/cost-ledger'
+import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import {
   type ExecutionProgressMarkers,
   getProgressMarkers,
@@ -17,55 +17,10 @@ import {
 } from '@/lib/logs/execution/progress-markers'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
+import type { TraceSpan } from '@/lib/logs/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type LookupColumn = 'id' | 'executionId'
-
-async function buildCostLedger(executionId: string): Promise<CostLedger | null> {
-  const rows = await db
-    .select({
-      category: usageLog.category,
-      description: usageLog.description,
-      cost: usageLog.cost,
-      metadata: usageLog.metadata,
-    })
-    .from(usageLog)
-    .where(and(eq(usageLog.executionId, executionId), eq(usageLog.source, 'workflow')))
-
-  if (rows.length === 0) return null
-
-  type LedgerItem = CostLedger['items'][number]
-  const byKey = new Map<string, LedgerItem>()
-  for (const row of rows) {
-    const metadata = (row.metadata ?? {}) as { inputTokens?: number; outputTokens?: number }
-    const category = row.category as LedgerItem['category']
-    const key = `${category}::${row.description}`
-    const existing = byKey.get(key)
-    if (existing) {
-      existing.cost += Number(row.cost)
-      if (typeof metadata.inputTokens === 'number') {
-        existing.inputTokens = Math.max(existing.inputTokens ?? 0, metadata.inputTokens)
-      }
-      if (typeof metadata.outputTokens === 'number') {
-        existing.outputTokens = Math.max(existing.outputTokens ?? 0, metadata.outputTokens)
-      }
-    } else {
-      byKey.set(key, {
-        category,
-        description: row.description,
-        cost: Number(row.cost),
-        ...(typeof metadata.inputTokens === 'number' ? { inputTokens: metadata.inputTokens } : {}),
-        ...(typeof metadata.outputTokens === 'number'
-          ? { outputTokens: metadata.outputTokens }
-          : {}),
-      })
-    }
-  }
-
-  const items = [...byKey.values()]
-  const total = items.reduce((sum, item) => sum + item.cost, 0)
-  return { total, items }
-}
 
 export function jobCostTotal(raw: unknown): { total: number } | null {
   const total = (raw as { total?: unknown } | null | undefined)?.total
@@ -181,6 +136,12 @@ export async function fetchLogDetail({
         userId,
       }
     )
+
+    // A custom block's child ran in another workspace and kept its spans on its
+    // own log row. Join in the ones whose publisher opened them to consumers.
+    if (Array.isArray(executionData?.traceSpans)) {
+      await hydrateChildTraces(executionData.traceSpans as TraceSpan[], { viewerUserId: userId })
+    }
 
     const liveMarkers =
       log.status === 'running' || log.status === 'pending' || log.status === 'redacting'

@@ -538,16 +538,18 @@ the OAuth service configuration, deployment availability, and the setup CLI.
 1. Ensure the block has exactly one distinct OAuth `serviceId` and that it matches the canonical
    service entry in `apps/sim/lib/oauth/oauth.ts`.
 2. Confirm `resolveOAuthClientCapabilityId(serviceId)` resolves to the intended provider entry in
-   `OAUTH_CLIENT_CAPABILITIES` in `apps/sim/lib/core/config/env-capabilities.ts`. Google and
+   `OAUTH_CLIENT_CAPABILITIES` in `packages/deployment-config/src/env-capabilities.ts`. Google and
    Microsoft service IDs deliberately share provider-level capabilities.
 3. For a new OAuth provider, add the required client fields to `OAUTH_CLIENT_CAPABILITIES`, add
    every referenced field to the env schema in `apps/sim/lib/core/config/env.ts`, and add the
    matching `text` or `secret` entries to `OAUTH_CLIENT_SETUP_FIELDS` in
-   `scripts/setup/capability-config.ts`. Do not create integration-specific setup logic or infer
-   secret fields from naming; the CLI mapping is exhaustively checked against the runtime fields.
-4. If the canonical OAuth service has `serviceAccountProviderId`, add the matching projection to
-   `SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID` in
-   `apps/sim/lib/integrations/service-account-metadata.ts`. Use:
+   `packages/sim-setup/src/capability-config.ts`. Do not create integration-specific setup logic or
+   infer secret fields from naming; the CLI mapping is exhaustively checked against the runtime
+   fields.
+4. If the canonical OAuth service has `serviceAccountProviderId`, run
+   `bun run deployment-config:generate` to refresh
+   `packages/deployment-config/src/service-account-providers.generated.ts`; never hand-edit the
+   generated provider-ID map. In `packages/deployment-config/src/service-account-metadata.ts`, use:
    - no `deploymentRequirement` when the service-account path works independently of OAuth client fields;
    - `'oauth-client'` when it requires the same deployment OAuth client fields;
    - `'preview-gated'` when availability is controlled by the service-account preview block.
@@ -560,14 +562,18 @@ a resolvable capability must fail validation.
 Run the documentation generator:
 ```bash
 bun run scripts/generate-docs.ts
+bun run deployment-config:generate
 bun run integration-catalog:check
+bun run deployment-config:check
+bun run docs:check
 ```
 
 This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
-The same generator refreshes `apps/sim/lib/integrations/integrations.json`. The catalog check then
-derives the deployment-relevant fields from the executable block registry and compares them with the
-committed projection. Review the generated diff and keep only intentional changes.
+The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
+config generator projects service-account provider IDs from that catalog plus the canonical OAuth
+registry. The checks compare both committed projections with their sources. Review the generated
+diff and keep only intentional changes.
 
 ## V2 Integration Pattern
 
@@ -646,11 +652,16 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all triggers in `triggers/registry.ts`
 
-### Docs
+### Docs and deployment metadata
 - [ ] Ran `bun run scripts/generate-docs.ts`
+- [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
 - [ ] Verified docs file created
-- [ ] Reviewed and committed the generated `apps/sim/lib/integrations/integrations.json` change
+- [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
 - [ ] `bun run integration-catalog:check` passes
+- [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
+      output, including catch-up regeneration for pages another PR left stale (never revert it as
+      "unrelated drift")
+- [ ] `bun run deployment-config:check` passes
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
@@ -998,4 +1009,4 @@ requiredScopes: getScopesForService('{service}'),
 11. **Never hardcode scopes** - Use `getScopesForService()` in blocks and `getCanonicalScopesForProvider()` in auth.ts
 12. **Always add scope descriptions** - New scopes must have entries in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 13. **OAuth service IDs need deployment capabilities** - Every visible OAuth integration must resolve through `OAUTH_CLIENT_CAPABILITIES`; shared Google/Microsoft aliases map to their provider capability
-14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `env-capabilities.ts`; CLI input modes live in the exhaustively checked `scripts/setup/capability-config.ts` mapping
+14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `packages/deployment-config/src/env-capabilities.ts`; CLI input modes live in the exhaustively checked `packages/sim-setup/src/capability-config.ts` mapping

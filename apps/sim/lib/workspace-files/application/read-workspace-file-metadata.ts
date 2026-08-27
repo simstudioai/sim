@@ -14,6 +14,12 @@ import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/applica
 export interface ReadWorkspaceFileMetadataInput {
   fileId: string
   assertedWorkspaceId?: string
+  /**
+   * Opt into the archived lifecycle set. It relaxes only the `deleted_at` predicate on the
+   * canonical row lookup — the workspace the file resolves to, the asserted-workspace check,
+   * and the `files.read_metadata` authorization that follows are identical either way, so it
+   * never widens who may read a file.
+   */
   includeDeleted?: boolean
 }
 

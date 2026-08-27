@@ -34,7 +34,7 @@ These capabilities let you eliminate manual data entry, accelerate close cycles,
 
 ## Usage Instructions
 
-Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.
+Connect SAP Concur with an OAuth client ID and secret (client-credentials or password grant) — no account linking required. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.
 
 
 
@@ -42,7 +42,7 @@ Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocat
 
 ### SAP Concur Approve Expense Report
 
-Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{reportId\}/approve). Required body field: comment.
+Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{reportId\}/approve). Optional body fields: comment, expenseRejectedComment (required if the report has rejected expenses), expectedStepCode, expectedStepSequence, statusId (default A_APPR).
 
 #### Input
 
@@ -56,7 +56,7 @@ Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{repor
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `reportId` | string | Yes | Expense report ID to approve |
-| `body` | json | Yes | Request body — `comment` is required by Concur \(e.g., \{ "comment": "Approved" \}\). If the report contains rejected expenses, `expenseRejectedComment` is also required. Optional fields: `expectedStepCode`, `expectedStepSequence`, `statusId` \(defaults to "A_APPR"\). |
+| `body` | json | No | Optional request body. All fields are optional: `comment` \(e.g., \{ "comment": "Approved" \}\), `expenseRejectedComment` \(required only if the report contains rejected expenses\), `expectedStepCode`, `expectedStepSequence`, `statusId` \(defaults to "A_APPR"\). |
 
 #### Output
 
@@ -84,7 +84,7 @@ Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/co
 | `contextType` | string | Yes | Access context: TRAVELER or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `expenseId` | string | Yes | Expense ID |
-| `body` | json | Yes | Attendee associations payload \(e.g., \{ "attendeeAssociations": \[...\] \}\) |
+| `body` | json | Yes | Attendee association payload with exactly two top-level fields: "noShowAttendeeCount" \(integer, default 0\) and "expenseAttendeeList" \(array\). Each entry in expenseAttendeeList requires "attendeeId" \(string\) and "transactionAmount" \(object: \{ "value": number, "currencyCode": string \}\), and optionally accepts "customData", "isAmountUserEdited" \(boolean\), "isTraveling" \(boolean\), "associatedAttendeeCount" \(integer\), and "versionNumber" \(integer\). Example: \{ "noShowAttendeeCount": 0, "expenseAttendeeList": \[\{ "attendeeId": "gWmMv2Ii5rGtEBTBhBqUw", "transactionAmount": \{ "value": 23, "currencyCode": "USD" \} \}\] \}. Note: the object form follows the request schema \(Amount = value + currencyCode, both required\), but the documented POST example sends a scalar "transactionAmount": 23 — the docs conflict here. |
 
 #### Output
 
@@ -109,7 +109,7 @@ Create a cash advance (POST /cashadvance/v4.1/cashadvances).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `body` | json | Yes | Cash advance payload |
+| `body` | json | Yes | Cash advance payload. Required fields: amountRequested \(\{ currency, amount \}\), name, and userId. Optional fields: accountCode, comment, purpose. The Concur docs are inconsistent on casing — the reference request example and the API Explorer swagger both use userId, while the schema table spells it userID; if a request is rejected with a 400, retry with the other spelling. |
 
 #### Output
 
@@ -148,14 +148,14 @@ Create an expected expense on a travel request (POST /travelrequest/v4/requests/
 |   ↳ `href` | string | Self-link to the resource |
 |   ↳ `expenseType` | json | Expense type \{id, name\} |
 |   ↳ `transactionDate` | string | Transaction date |
-|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
-|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
-|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currency\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currency\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currency\} |
 |   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
 |   ↳ `businessPurpose` | string | Business purpose of the expense |
 |   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
 |   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
-|   ↳ `allocations` | json | Budget allocations array \(allocationId, allocationAmount, approvedAmount, postedAmount, expenseId, percentEdited, systemAllocation, percentage\) |
+|   ↳ `allocations` | json | Budget allocations array \(allocationId, allocationAmount \{value, currency\}, approvedAmount \{value, currency\}, postedAmount \{value, currency\}, expenseId, percentEdited, systemAllocation, percentage\) |
 |   ↳ `tripData` | json | Trip data \{agencyBooked, selfBooked, tripType \(ONE_WAY\|ROUND_TRIP\), legs\[\{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class \{code,value\}, travelExceptionReasonCodes\}\], segmentType \{category, code\}\} |
 |   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
 |   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
@@ -211,6 +211,7 @@ Create a list item (POST /list/v4/items).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Created list item |
 |   ↳ `id` | string | List item UUID |
+|   ↳ `listId` | string | UUID of the list that contains the list item |
 |   ↳ `code` | string | Long code format for the item |
 |   ↳ `shortCode` | string | Short code identifier |
 |   ↳ `value` | string | Display value of the item |
@@ -236,7 +237,7 @@ Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `body` | json | Yes | Purchase request payload |
+| `body` | json | Yes | Purchase request payload. Required: exactly one of userId, userEmail, or userLoginId; currencyCode \(ISO 4217\); and lineItems\[\]. Each line item requires purchaseType \(GOODS or SERVICES\), vendorCode, vendorAddressCode, description, quantity, and unitPrice. |
 
 #### Output
 
@@ -253,7 +254,7 @@ Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 
 ### SAP Concur Create Quick Expense
 
-Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/quickexpenses).
+Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/\{contextType\}/quickexpenses). TRAVELER is the only supported context type.
 
 #### Input
 
@@ -268,7 +269,7 @@ Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID who owns the quick expense |
 | `contextType` | string | Yes | Access context: must be TRAVELER |
-| `body` | json | Yes | Quick expense payload \(expenseTypeId, transactionAmount, transactionDate, etc.\) |
+| `body` | json | Yes | Quick expense payload. Required: expenseTypeId, transactionAmount \{currencyCode, value\}, transactionDate \(YYYY-MM-DD\). Optional: comment, entryDetails, location \{city, countryCode, countrySubDivisionCode, id, name\}, paymentTypeId \(CASHX \| CPAID \| PENDC\), vendor. |
 
 #### Output
 
@@ -295,8 +296,8 @@ Create a quick expense with an attached image (POST /quickexpense/v4/users/\{use
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
 | `contextType` | string | Yes | Access context: must be TRAVELER |
-| `receipt` | json | Yes | Receipt image \(UserFile\). Allowed: PDF, PNG, JPEG, TIFF \(max 50MB\) |
-| `body` | json | Yes | Quick expense payload \(transactionAmount, transactionDate, expenseTypeId, vendor, ...\) |
+| `receipt` | json | Yes | Receipt image \(UserFile\). Allowed: PNG, PDF, TIFF, JPEG. Maximum size 50 MB |
+| `body` | json | Yes | Quick expense payload. Required: expenseTypeId, transactionAmount \{currencyCode, value\}, transactionDate \(YYYY-MM-DD\). Optional: comment, entryDetails, location \{city, countryCode, countrySubDivisionCode, id, name\}, paymentTypeId \(CASHX \| CPAID \| PENDC\), vendor. |
 
 #### Output
 
@@ -322,7 +323,7 @@ Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `comment` | string | Yes | Comment text to add |
 
@@ -349,8 +350,8 @@ Create a travel request (POST /travelrequest/v4/requests).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
-| `body` | json | Yes | Travel request payload \(name, purpose, startDate, endDate, requestPolicyId, etc.\) |
+| `userId` | string | No | Concur user UUID of the Request owner — required when using the default `client_credentials` \(company\) grant; omitting it returns 400 `missingRequiredParam`. |
+| `body` | json | Yes | Travel request payload. Supported fields: name, businessPurpose, startDate/endDate \(YYYY-MM-DD\), startTime/endTime \(HH:mm\), mainDestination \(\{ city, countryCode, countrySubDivisionCode, name \}\), policy \(\{ id \}\), and custom1-custom20 \(\{ value \} or \{ code, value \}\). An id field is not allowed. |
 
 #### Output
 
@@ -420,6 +421,22 @@ Create a travel request (POST /travelrequest/v4/requests).
 |   ↳ `custom2` | json | Custom field 2 |
 |   ↳ `custom3` | json | Custom field 3 |
 |   ↳ `custom4` | json | Custom field 4 |
+|   ↳ `custom5` | json | Custom field 5 |
+|   ↳ `custom6` | json | Custom field 6 |
+|   ↳ `custom7` | json | Custom field 7 |
+|   ↳ `custom8` | json | Custom field 8 |
+|   ↳ `custom9` | json | Custom field 9 |
+|   ↳ `custom10` | json | Custom field 10 |
+|   ↳ `custom11` | json | Custom field 11 |
+|   ↳ `custom12` | json | Custom field 12 |
+|   ↳ `custom13` | json | Custom field 13 |
+|   ↳ `custom14` | json | Custom field 14 |
+|   ↳ `custom15` | json | Custom field 15 |
+|   ↳ `custom16` | json | Custom field 16 |
+|   ↳ `custom17` | json | Custom field 17 |
+|   ↳ `custom18` | json | Custom field 18 |
+|   ↳ `custom19` | json | Custom field 19 |
+|   ↳ `custom20` | json | Custom field 20 |
 
 ### SAP Concur Create User
 
@@ -436,7 +453,7 @@ Create a new user identity (POST /profile/identity/v4.1/Users).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `body` | json | Yes | SCIM User payload \(schemas, userName, name, emails, active, etc.\) |
+| `body` | json | Yes | SCIM User payload. Required: schemas \(include both "urn:ietf:params:scim:schemas:core:2.0:User" and "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"\), userName, name.familyName, name.givenName, emails\[\].value, and companyId — which is required and immutable and must be set inside the "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" block, not at the top level. Optional: active, displayName, timezone, and other SCIM User attributes. |
 
 #### Output
 
@@ -468,7 +485,7 @@ Delete an expected expense (DELETE /travelrequest/v4/expenses/\{expenseUuid\}).
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Returns boolean true on 200 OK when the expected expense is deleted. |
+| `data` | boolean | true when the expected expense was deleted |
 
 ### SAP Concur Delete Expense
 
@@ -521,7 +538,7 @@ Delete an expense report (DELETE /expensereports/v4/reports/\{reportId\}).
 
 ### SAP Concur Delete List Item
 
-Delete a list item (DELETE /list/v4/items/\{itemId\}).
+Delete a list item from all lists that contain it (DELETE /list/v4/items/\{itemId\}). This is not scoped to a single list, and all children of that list item are also deleted.
 
 #### Input
 
@@ -559,18 +576,18 @@ Delete a travel request (DELETE /travelrequest/v4/requests/\{requestUuid\}).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `requestUuid` | string | Yes | Travel request UUID to delete |
-| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+| `userId` | string | No | Concur user UUID of the Request owner — required when using the default `client_credentials` \(company\) grant; omitting it returns 400 `missingRequiredParam`. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Concur delete response payload \(boolean true on 200 OK\) |
+| `data` | boolean | Concur delete response body — literally true on 200 OK |
 
 ### SAP Concur Delete User
 
-Delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}).
+Hard delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}). Not recommended: SAP restricts hard delete to users with no transaction history and governs it by the Concur Data Retention policy. To deactivate a user instead, use SAP Concur Update User with a PATCH replacing active with false.
 
 #### Input
 
@@ -651,7 +668,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `budgetId` | string | Yes | Budget item header ID \(syncguid\) |
+| `budgetId` | string | Yes | The budget item header's key field \(uuid\) |
 
 #### Output
 
@@ -788,9 +805,9 @@ Get an expected expense (GET /travelrequest/v4/expenses/\{expenseUuid\}).
 |   ↳ `href` | string | Self-link |
 |   ↳ `expenseType` | json | Expense type \{id, name\} |
 |   ↳ `transactionDate` | string | Transaction date |
-|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
-|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
-|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currency\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currency\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currency\} |
 |   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
 |   ↳ `businessPurpose` | string | Business purpose of the expense |
 |   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
@@ -831,7 +848,6 @@ Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextT
 |   ↳ `allocationState` | string | FULLY_ALLOCATED, NOT_ALLOCATED, or PARTIALLY_ALLOCATED |
 |   ↳ `expenseType` | json | Expense type \{id, name, code, isDeleted\} |
 |   ↳ `paymentType` | json | Payment type \{id, name, code\} |
-|   ↳ `expenseSource` | string | Source of the expense \(CASH, CCARD, EBOOKING, etc.\) |
 |   ↳ `transactionDate` | string | Transaction date \(YYYY-MM-DD\) |
 |   ↳ `budgetAccrualDate` | string | Budget accrual date |
 |   ↳ `transactionAmount` | json | Transaction amount \{currencyCode, value\} |
@@ -843,7 +859,6 @@ Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextT
 |   ↳ `vendor` | json | Vendor info \{id, name, description\} |
 |   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode\} |
 |   ↳ `businessPurpose` | string | Business purpose |
-|   ↳ `comment` | string | Free-form comment associated with the expense |
 |   ↳ `isExpenseBillable` | boolean | Billable flag |
 |   ↳ `isPersonalExpense` | boolean | Personal-expense flag |
 |   ↳ `isExpenseRejected` | boolean | Whether the expense was rejected |
@@ -876,7 +891,7 @@ Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextT
 |   ↳ `governmentInvoiceId` | string | Government invoice identifier |
 |   ↳ `lastModifiedDate` | string | Last modified timestamp |
 |   ↳ `expenseSourceIdentifiers` | json | Source reference identifiers |
-|   ↳ `links` | json | HATEOAS links for the expense |
+|   ↳ `links` | array | HATEOAS links for the expense |
 
 ### SAP Concur Get Expense Report
 
@@ -968,7 +983,7 @@ Retrieve a single expense report header by id via Expense Report v4 (/expenserep
 |   ↳ `submitterId` | string | Submitter user ID |
 |   ↳ `taxConfigId` | string | Tax configuration ID |
 |   ↳ `redirectFund` | json | Redirect fund object \{ amount, creditCardId \} |
-|   ↳ `customData` | array | Array of custom data \{ id, value, isValid, listItemUrl \} |
+|   ↳ `customData` | array | Array of custom data \{ id, value, isValid \}. Responses may additionally carry a response-only listItemUrl, which can be null |
 |   ↳ `employee` | json | Employee object \{ employeeId, employeeUuid \} |
 |   ↳ `links` | array | HATEOAS links |
 
@@ -988,7 +1003,7 @@ Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{cont
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER \(the only value the endpoint supports\) |
 | `reportId` | string | Yes | Expense report ID |
 | `expenseId` | string | Yes | Expense ID |
 
@@ -998,9 +1013,7 @@ Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{cont
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | array | Array of itemizations \(ReportExpenseSummary\[\]\) |
-|   ↳ `id` | string | Itemization identifier |
 |   ↳ `expenseId` | string | Itemization expense id |
-|   ↳ `allocations` | array | Allocations applied to the itemization |
 |   ↳ `expenseType` | json | Expense type \{id, name, code, isDeleted\} |
 |   ↳ `transactionDate` | string | Transaction date \(YYYY-MM-DD\) |
 |   ↳ `transactionAmount` | json | Transaction amount |
@@ -1036,39 +1049,16 @@ Get a single trip/itinerary (GET /api/travel/trip/v1.1/\{tripID\}).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `tripId` | string | Yes | Trip ID |
-| `useridType` | string | No | User identifier type \(login, xmlsyncid, uuid\) |
+| `useridType` | string | No | User identifier type. The only value documented for Trips v1.1 is "login" \(the value is the user login id\); xmlsyncid and uuid are Travel Profile v2 identifier types and are not documented for this endpoint. |
 | `useridValue` | string | No | User identifier value \(paired with useridType\) |
-| `systemFormat` | string | No | Optional system format \(e.g., GDS\) for the response |
+| `systemFormat` | string | No | Optional response format. The only supported value is "Tripit", which returns a completely different XML document rooted at &lt;Response&gt;&lt;Trip&gt; instead of the standard itinerary document. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Trip detail payload \(Itinerary v1.1\) |
-|   ↳ `ItinLocator` | string | Concur trip locator \(trip ID\) |
-|   ↳ `ClientLocator` | string | Client \(booking source\) trip locator |
-|   ↳ `ItinSourceName` | string | Booking source name |
-|   ↳ `BookedVia` | string | How the trip was booked \(e.g. ConcurTravel, Direct\) |
-|   ↳ `TripName` | string | Trip name |
-|   ↳ `Status` | string | Trip status \(e.g. Confirmed, Cancelled\) |
-|   ↳ `Description` | string | Trip description |
-|   ↳ `Comments` | string | Comments attached to the trip |
-|   ↳ `CancelComments` | string | Cancellation comments \(when applicable\) |
-|   ↳ `ProjectName` | string | Associated project name |
-|   ↳ `StartDateUtc` | string | Trip start datetime in UTC |
-|   ↳ `EndDateUtc` | string | Trip end datetime in UTC |
-|   ↳ `StartDateLocal` | string | Trip start datetime in local time |
-|   ↳ `EndDateLocal` | string | Trip end datetime in local time |
-|   ↳ `DateCreatedUtc` | string | Trip creation timestamp \(UTC\) |
-|   ↳ `DateModifiedUtc` | string | Trip last-modified timestamp \(UTC\) |
-|   ↳ `DateBookedLocal` | string | Booking date in local time |
-|   ↳ `UserLoginId` | string | Login id of the trip owner |
-|   ↳ `BookedByFirstName` | string | First name of the booker |
-|   ↳ `BookedByLastName` | string | Last name of the booker |
-|   ↳ `IsPersonal` | boolean | Whether the trip is flagged personal |
-|   ↳ `RuleViolations` | array | Travel rule violations attached to the trip |
-|   ↳ `Bookings` | array | Bookings \(air/hotel/car/rail\) attached to the trip |
+| `data` | string | Raw XML trip document returned by Concur \(Trips v1.1 emits application/xml only, so this is a string and not a parsed object\). The document is rooted at &lt;Itinerary&gt; and contains id, ItinLocator, ClientLocator, ItinSourceName, BookedVia, TripName, Status, Description, Comments, CancelComments, ProjectName, StartDateUtc, EndDateUtc, StartDateLocal, EndDateLocal, DateCreatedUtc, DateModifiedUtc, DateBookedLocal, BookedByFirstName, BookedByLastName, IsPersonal, RuleViolations, and Bookings &gt; Booking. When systemFormat=Tripit is passed the document is rooted at &lt;Response&gt;&lt;Trip&gt; instead. |
 
 ### SAP Concur Get List
 
@@ -1130,6 +1120,7 @@ Get a single list item (GET /list/v4/items/\{itemId\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | List item detail payload |
 |   ↳ `id` | string | List item UUID |
+|   ↳ `listId` | string | UUID of the list that contains the list item |
 |   ↳ `code` | string | Long code format for the item |
 |   ↳ `shortCode` | string | Short code identifier |
 |   ↳ `value` | string | Display value of the item |
@@ -1260,33 +1251,7 @@ Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Travel profile payload. Concur returns XML; downstream may parse it to a best-effort JSON object with the documented top-level sections. |
-|   ↳ `General` | json | General profile info \(NamePrefix, FirstName, MiddleName, LastName, NameSuffix, JobTitle, CompanyEmployeeID, EmailAddress, RuleClass, TravelConfigID, etc.\) |
-|   ↳ `Telephones` | json | Telephone numbers \(Telephone\[\] with Type, CountryCode, PhoneNumber, etc.\) |
-|   ↳ `Addresses` | json | Address records \(Address\[\] with Type, Street, City, StateProvince, etc.\) |
-|   ↳ `DriversLicenses` | array | Drivers license records |
-|   ↳ `NationalIDs` | array | National ID records |
-|   ↳ `EmailAddresses` | json | Email addresses \(EmailAddress\[\] with Type, Address, Contact, Verified\) |
-|   ↳ `EmergencyContact` | json | Emergency contact \(Name, Relationship, Phones, Address\) |
-|   ↳ `Air` | json | Air travel preferences \(HomeAirport, Seat, Meal, AirOther, AirMemberships\) |
-|   ↳ `Rail` | json | Rail preferences \(Seat, Coach, Berth, Other, RailMemberships\) |
-|   ↳ `Hotel` | json | Hotel preferences \(SmokingCode, RoomType, HotelOther, HotelMemberships, Accessibility flags\) |
-|   ↳ `Car` | json | Car rental preferences \(CarSmokingCode, CarType, CarMemberships, etc.\) |
-|   ↳ `CustomFields` | json | Custom-defined fields configured by the company |
-|   ↳ `RatePreferences` | json | Rate preferences \(e.g. AAA, AARP, government, military rates\) |
-|   ↳ `DiscountCodes` | json | Discount codes available to the traveler |
-|   ↳ `HasNoPassport` | boolean | Whether the traveler has no passport on file |
-|   ↳ `Roles` | json | Role assignments \(TravelManager, Assistant, etc.\) |
-|   ↳ `Sponsors` | json | Sponsor information for guest travelers |
-|   ↳ `TSAInfo` | json | TSA SecureFlight info \(Gender, DateOfBirth, NoMiddleName, etc.\) |
-|   ↳ `Passports` | json | Passport documents \(Passport\[\] with PassportNumber, Country, Expiration\) |
-|   ↳ `Visas` | json | Visa documents \(Visa\[\] with VisaNationality, VisaNumber, etc.\) |
-|   ↳ `UnusedTickets` | json | Unused ticket records |
-|   ↳ `SouthwestUnusedTickets` | json | Southwest-specific unused ticket records |
-|   ↳ `AdvantageMemberships` | json | Advantage program memberships |
-|   ↳ `XmlSyncId` | string | XML sync identifier for the user |
-|   ↳ `LoginId` | string | Concur login id |
-|   ↳ `ProfileLastModifiedUTC` | string | UTC timestamp the profile was last modified |
+| `data` | string | Raw XML travel profile document returned by Concur \(Travel Profile v2 emits application/xml only, per the TravelUserProfile.xsd schema, so this is a string and not a parsed object\). The Profile root element contains General, EmergencyContact, Telephones, Addresses, NationalIDs, DriversLicenses, HasNoPassport, Passports, Visas, EmailAddresses, RatePreferences, DiscountCodes, Air, Rail, Car, Hotel, CustomFields, Roles, Sponsors, TSAInfo, UnusedTickets, SouthwestUnusedTickets, and AdvantageMemberships. LoginId is an attribute of the &lt;ProfileResponse&gt; element returned by create/update, not a child element; XmlProfileSyncID and ProfileLastModifiedUTC belong to the Travel Profile summaries \(ProfileSummary\) response, not to this document. |
 
 ### SAP Concur Get Travel Request
 
@@ -1304,7 +1269,7 @@ Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `requestUuid` | string | Yes | Travel request UUID |
-| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+| `userId` | string | No | The unique identifier of the user getting the content of the Request. If empty when using a Company token the default system user will be assumed to perform the action. |
 
 #### Output
 
@@ -1327,15 +1292,11 @@ Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 |   ↳ `endDate` | string | Trip end date \(ISO 8601\) |
 |   ↳ `startTime` | string | Trip start time \(HH:mm\) |
 |   ↳ `endTime` | string | Trip end time \(HH:mm\) |
-|   ↳ `pnr` | string | Passenger record number |
 |   ↳ `approved` | boolean | Whether the request is approved |
 |   ↳ `pendingApproval` | boolean | Pending approval flag |
 |   ↳ `closed` | boolean | Closed flag |
 |   ↳ `everSentBack` | boolean | Ever-sent-back flag |
 |   ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
-|   ↳ `isParentRequest` | boolean | Parent request flag |
-|   ↳ `parentRequestId` | string | Parent budget request ID |
-|   ↳ `allocationFormId` | string | Allocation form identifier |
 |   ↳ `highestExceptionLevel` | string | Highest exception level \(WARNING, ERROR, NONE\) |
 |   ↳ `approvalStatus` | json | Approval status |
 |     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
@@ -1381,12 +1342,23 @@ Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 |   ↳ `travelAgency` | json | Resource link to travel agency |
 |     ↳ `id` | string | Resource ID |
 |     ↳ `href` | string | Resource hyperlink |
-|   ↳ `parentRequest` | json | Resource link to parent request |
-|     ↳ `id` | string | Resource ID |
-|     ↳ `href` | string | Resource hyperlink |
-|   ↳ `eventRequest` | json | Resource link to parent event request |
-|     ↳ `id` | string | Resource ID |
-|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `extensionOf` | json | The Request for which this Request is an extension of, or addendum to |
+|     ↳ `requestId` | string | The public key of the Request \(unique per customer\) |
+|     ↳ `id` | string | Unique identifier of the Request |
+|     ↳ `href` | string | Hyperlink to the resource |
+|     ↳ `template` | string | Hyperlink template to the resource |
+|   ↳ `pnr` | string | The value of the pnr provided within the agency proposals by the travel agency |
+|   ↳ `isParentRequest` | boolean | Indicates whether this Request is a Budget Request |
+|   ↳ `parentRequestId` | string | Required if a Child Request is created, corresponds to the unique identifier of the Budget Request the Child Request will be linked to |
+|   ↳ `allocationFormId` | string | The unique identifier of the allocation form |
+|   ↳ `parentRequest` | json | If the Request is a Child Request, reference to the corresponding Budget Request |
+|     ↳ `id` | string | Unique identifier of the related object |
+|     ↳ `href` | string | Hyperlink to the resource |
+|     ↳ `template` | string | Hyperlink template to the resource |
+|   ↳ `eventRequest` | json | The parent Event Request to which this child Request is related |
+|     ↳ `id` | string | Unique identifier of the related object |
+|     ↳ `href` | string | Hyperlink to the resource |
+|     ↳ `template` | string | Hyperlink template to the resource |
 |   ↳ `operations` | array | Available workflow actions |
 |     ↳ `rel` | string | Operation name |
 |     ↳ `href` | string | Operation URL |
@@ -1397,6 +1369,22 @@ Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 |   ↳ `custom2` | json | Custom field 2 |
 |   ↳ `custom3` | json | Custom field 3 |
 |   ↳ `custom4` | json | Custom field 4 |
+|   ↳ `custom5` | json | Custom field 5 |
+|   ↳ `custom6` | json | Custom field 6 |
+|   ↳ `custom7` | json | Custom field 7 |
+|   ↳ `custom8` | json | Custom field 8 |
+|   ↳ `custom9` | json | Custom field 9 |
+|   ↳ `custom10` | json | Custom field 10 |
+|   ↳ `custom11` | json | Custom field 11 |
+|   ↳ `custom12` | json | Custom field 12 |
+|   ↳ `custom13` | json | Custom field 13 |
+|   ↳ `custom14` | json | Custom field 14 |
+|   ↳ `custom15` | json | Custom field 15 |
+|   ↳ `custom16` | json | Custom field 16 |
+|   ↳ `custom17` | json | Custom field 17 |
+|   ↳ `custom18` | json | Custom field 18 |
+|   ↳ `custom19` | json | Custom field 19 |
+|   ↳ `custom20` | json | Custom field 20 |
 
 ### SAP Concur Get User
 
@@ -1440,7 +1428,7 @@ Issue a cash advance (POST /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}/issu
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `cashAdvanceId` | string | Yes | Cash advance ID to issue |
-| `body` | json | No | Optional request body |
+| `body` | json | No | Optional request body. All documented fields are optional: accountCode, comment, and exchangeRate. |
 
 #### Output
 
@@ -1469,7 +1457,7 @@ List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER or MANAGER |
 | `reportId` | string | Yes | Expense report ID |
 | `expenseId` | string | Yes | Expense ID |
 
@@ -1478,8 +1466,27 @@ List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Allocations list payload |
-|   ↳ `items` | array | Array of allocation objects \(allocationId, accountCode, percentage, allocationAmount, approvedAmount, claimedAmount, customData, expenseId, isSystemAllocation, isPercentEdited, overLimitAccountCode\) |
+| `data` | array | Bare array of allocation objects \(ReportAllocationResponse\[\]\) |
+|   ↳ `allocationId` | string | Unique allocation identifier |
+|   ↳ `accountCode` | string | Ledger account code |
+|   ↳ `overLimitAccountCode` | string | Account code applied to amounts over the per-allocation limit |
+|   ↳ `percentage` | number | Allocation percentage |
+|   ↳ `allocationAmount` | json | Allocation amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `approvedAmount` | json | Pro-rated approved amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `claimedAmount` | json | Requested reimbursement amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `customData` | array | Custom field values \(id, value, isValid\) |
+|     ↳ `id` | string | Custom field identifier |
+|     ↳ `value` | string | Custom field value |
+|     ↳ `isValid` | boolean | Whether the value passes validation |
+|   ↳ `expenseId` | string | Associated expense identifier |
+|   ↳ `isSystemAllocation` | boolean | True when system-managed |
+|   ↳ `isPercentEdited` | boolean | True when the percentage was manually edited |
 
 ### SAP Concur List Attendee Associations
 
@@ -1547,13 +1554,12 @@ List budget categories (GET /budget/v4/budgetCategory).
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Budget categories collection payload |
-|   ↳ `items` | array | Array of budget category objects |
-|     ↳ `id` | string | Category ID |
-|     ↳ `name` | string | Admin-facing category name |
-|     ↳ `description` | string | Friendly name |
-|     ↳ `statusType` | string | Status: OPEN or REMOVED |
-|     ↳ `expenseTypes` | array | Expense types in this category \(id, featureTypeCode, expenseTypeCode, name\) |
+| `data` | array | Top-level array of budget category objects |
+|   ↳ `id` | string | Category ID |
+|   ↳ `name` | string | Admin-facing category name |
+|   ↳ `description` | string | Friendly name |
+|   ↳ `statusType` | string | Status: OPEN or REMOVED |
+|   ↳ `expenseTypes` | array | Expense types in this category \(id, featureTypeCode, expenseTypeCode, name\) |
 
 ### SAP Concur List Budgets
 
@@ -1572,7 +1578,7 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `adminView` | boolean | No | When true, returns all budgets the caller can administer \(default false\) |
 | `offset` | number | No | Page offset \(Concur returns up to 50 budget headers per page\) |
-| `responseSchema` | string | No | Response schema variant: "COMPACT" returns a smaller payload |
+| `responseSchema` | string | No | Response schema variant: "COMPACT" returns a smaller payload. Defaults to the non-compact schema |
 
 #### Output
 
@@ -1580,10 +1586,15 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Budget headers collection payload |
-|   ↳ `items` | array | Array of budget item header summaries \(id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...\) |
-|   ↳ `offset` | number | Page offset |
-|   ↳ `limit` | number | Page size |
-|   ↳ `totalCount` | number | Total result count |
+|   ↳ `budgetItemHeaders` | array | Array of budget item header summaries \(id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...\) |
+|   ↳ `totalRows` | number | Total number of budget headers |
+|   ↳ `offset` | number | Offset of the current page |
+|   ↳ `limit` | number | Page size \(Concur returns up to 50\) |
+|   ↳ `href` | string | URL of the current page |
+|   ↳ `previous` | json | Previous page link \(\{ href \}\); null on the first page |
+|     ↳ `href` | string | Previous page URL |
+|   ↳ `next` | json | Next page link \(\{ href \}\); null when no results remain. This is the only forward cursor for paging |
+|     ↳ `href` | string | Next page URL |
 
 ### SAP Concur List Report Exceptions
 
@@ -1603,6 +1614,7 @@ List exceptions on a report (GET /expensereports/v4/users/\{userId\}/context/\{c
 | `userId` | string | Yes | Concur user UUID |
 | `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
 | `reportId` | string | Yes | Expense report ID |
+| `excludeExpenses` | boolean | No | Return only exceptions for the report header, excluding expense-level and allocation-level exceptions \(default false\) |
 
 #### Output
 
@@ -1641,7 +1653,22 @@ List expected expenses on a travel request (GET /travelrequest/v4/requests/\{req
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Array of expected expense objects. Each entry includes id, href, expenseType \{id,name\}, transactionDate, transactionAmount, postedAmount, approvedAmount, remainingAmount, businessPurpose, location, exchangeRate, allocations, tripData, parentRequest \{href, id\}, comments \{href, id\}. |
+| `data` | array | Array of expected expense objects |
+|   ↳ `id` | string | Expected expense identifier |
+|   ↳ `href` | string | Self-link |
+|   ↳ `expenseType` | json | Expense type \{id, name\} |
+|   ↳ `transactionDate` | string | Transaction date |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currency\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currency\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currency\} |
+|   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
+|   ↳ `businessPurpose` | string | Business purpose of the expense |
+|   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
+|   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
+|   ↳ `allocations` | json | Budget allocations array |
+|   ↳ `tripData` | json | Trip data \{agencyBooked, selfBooked, tripType \(ONE_WAY\|ROUND_TRIP\), legs\[\{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class \{code,value\}, travelExceptionReasonCodes\}\], segmentType \{category, code\}\} |
+|   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\}. Documented on the single-expense GET, not on this list endpoint |
+|   ↳ `comments` | json | Comments sub-resource link \{href, id\}. Documented on the single-expense GET, not on this list endpoint |
 
 ### SAP Concur List Expenses
 
@@ -1659,7 +1686,7 @@ List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER \(the only value the endpoint supports\) |
 | `reportId` | string | Yes | Expense report ID |
 
 #### Output
@@ -1695,6 +1722,8 @@ List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 |   ↳ `ereceiptImageId` | string | eReceipt image identifier |
 |   ↳ `ticketNumber` | string | Ticket number |
 |   ↳ `exchangeRate` | json | Exchange rate |
+|   ↳ `fuelTypeListItem` | json | Fuel type list item \{id, value, isValid\} |
+|   ↳ `jptRouteId` | string | Japan Public Transport route id |
 |   ↳ `travelAllowance` | json | Travel allowance |
 |   ↳ `expenseSourceIdentifiers` | json | Expense source identifiers |
 |   ↳ `links` | array | HATEOAS links |
@@ -1707,7 +1736,7 @@ List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `datacenter` | string | No | Concur datacenter base URL \(us, us2, eu, eu2, cn, emea — defaults to us.api.concursolutions.com\) |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
 | `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
@@ -1727,8 +1756,8 @@ List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with
 | `paymentStatusCode` | string | No | Filter by payment status code |
 | `currencyCode` | string | No | Filter by ISO currency code \(e.g. USD, EUR\) |
 | `approverLoginID` | string | No | Filter by approver login ID |
-| `limit` | number | No | Number of records per page \(default 25, max 100\) |
-| `offset` | string | No | Opaque cursor token returned by a prior call \(NextPage\). |
+| `limit` | number | No | Number of records per page \(default 25\) |
+| `offset` | string | No | Pagination token. The previous response returns NextPage as a full URI — extract its `offset` query parameter and pass that value here, not the whole URI. |
 
 #### Output
 
@@ -1759,7 +1788,7 @@ List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with
 |     ↳ `LastModifiedDate` | string | Last modified date |
 |     ↳ `PaidDate` | string | Paid date |
 |     ↳ `URI` | string | Self URI |
-|   ↳ `NextPage` | string | URI of the next page \(use as offset cursor\) |
+|   ↳ `NextPage` | string | Full URI of the next page — read its `offset` query parameter to page forward |
 
 ### SAP Concur List Trips
 
@@ -1778,50 +1807,25 @@ List travel trips/itineraries (GET /api/travel/trip/v1.1).
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `startDate` | string | No | Filter trips starting on/after this date \(YYYY-MM-DD\) |
 | `endDate` | string | No | Filter trips ending on/before this date \(YYYY-MM-DD\) |
-| `bookingType` | string | No | Filter by booking type \(air, car, hotel, rail, etc.\) |
-| `useridType` | string | No | User identifier type \(login, xmlsyncid, uuid\) |
+| `bookingType` | string | No | Filter by booking type. Supported values are capitalized: Air, Car, Dining, Hotel, Parking, Rail, Ride. |
+| `useridType` | string | No | User identifier type. The only value documented for Trips v1.1 is "login" \(the value is the user login id\); xmlsyncid and uuid are Travel Profile v2 identifier types and are not documented for this endpoint. |
 | `useridValue` | string | No | User identifier value \(paired with useridType\) |
-| `itemsPerPage` | number | No | Items per page |
-| `page` | number | No | 1-based page number |
-| `includeMetadata` | boolean | No | Include paging metadata in the response |
+| `itemsPerPage` | number | No | Items per page. Concur only paginates when includeMetadata is also sent, so this tool sets includeMetadata automatically whenever itemsPerPage or page is provided. |
+| `page` | number | No | 1-based page number. Concur only paginates when includeMetadata is also sent, so this tool sets includeMetadata automatically whenever page or itemsPerPage is provided. |
+| `includeMetadata` | boolean | No | Include paging metadata in the response. Implied when page or itemsPerPage is set. |
 | `includeCanceledTrips` | boolean | No | Include canceled trips in the result set |
 | `createdAfterDate` | string | No | Only trips created after this date \(YYYY-MM-DD\) |
 | `createdBeforeDate` | string | No | Only trips created before this date \(YYYY-MM-DD\) |
 | `lastModifiedDate` | string | No | Only trips modified on/after this date \(YYYY-MM-DD\) |
+| `includeVirtualTrip` | string | No | Set to "1" to include virtual trips, which carry the offline segments booked through Concur Request. |
+| `includeGuestBookings` | boolean | No | Include trips booked on behalf of guests. Defaults to false. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Trips list payload \(Itinerary v1.1 ConnectResponse\) |
-|   ↳ `Metadata` | json | Paging metadata \(when includeMetadata=true\) |
-|     ↳ `Paging` | json | Pagination details |
-|       ↳ `TotalPages` | number | Total pages |
-|       ↳ `TotalItems` | number | Total items |
-|       ↳ `Page` | number | Current page |
-|       ↳ `ItemsPerPage` | number | Items per page |
-|       ↳ `PreviousPageURL` | string | Previous page URL |
-|       ↳ `NextPageURL` | string | Next page URL |
-|   ↳ `ItineraryInfoList` | array | List of itinerary summary records |
-|     ↳ `ItinLocator` | string | Trip locator \(trip ID\) |
-|     ↳ `ClientLocator` | string | Client trip locator |
-|     ↳ `ItinSourceName` | string | Booking source name |
-|     ↳ `BookedVia` | string | Booking channel |
-|     ↳ `TripName` | string | Trip name |
-|     ↳ `Status` | string | Trip status |
-|     ↳ `Description` | string | Trip description |
-|     ↳ `StartDateUtc` | string | Start \(UTC\) |
-|     ↳ `EndDateUtc` | string | End \(UTC\) |
-|     ↳ `StartDateLocal` | string | Start \(local\) |
-|     ↳ `EndDateLocal` | string | End \(local\) |
-|     ↳ `DateCreatedUtc` | string | Created \(UTC\) |
-|     ↳ `DateModifiedUtc` | string | Modified \(UTC\) |
-|     ↳ `DateBookedLocal` | string | Booked \(local\) |
-|     ↳ `UserLoginId` | string | Trip owner login id |
-|     ↳ `BookedByFirstName` | string | Booker first name |
-|     ↳ `BookedByLastName` | string | Booker last name |
-|     ↳ `IsPersonal` | boolean | Personal trip flag |
+| `data` | string | Raw XML trips list returned by Concur \(Trips v1.1 emits application/xml only, so this is a string and not a parsed object\). By default the document is rooted at &lt;ItineraryInfoList&gt; containing one &lt;ItineraryInfo&gt; per trip \(TripId, TripName, TripStatus, StartDateLocal, EndDateLocal, DateModifiedUtc, UserLoginId, id\). When includeMetadata is sent — which this tool does automatically whenever page or itemsPerPage is supplied — the document is instead rooted at &lt;ConnectResponse&gt; with ConnectResponse &gt; Metadata &gt; Paging \(TotalPages, TotalItems, Page, ItemsPerPage, PreviousPageURL, NextPageURL\) and ConnectResponse &gt; Data &gt; ItineraryInfoList &gt; ItineraryInfo. |
 
 ### SAP Concur List Lists
 
@@ -1841,10 +1845,10 @@ List custom lists (GET /list/v4/lists).
 | `page` | number | No | Page number \(1-based; page size is fixed at 100\) |
 | `sortBy` | string | No | Sort field: name, levelcount, or listcategory |
 | `sortDirection` | string | No | Sort direction: asc or desc |
-| `value` | string | No | Filter by list name |
-| `categoryType` | string | No | Filter by category type \(mapped to category.type query param\) |
-| `isDeleted` | boolean | No | Include deleted lists |
-| `levelCount` | number | No | Filter by number of levels |
+| `value` | string | No | Filter by list name. Accepts an operator prefix: sw: \(starts with\), ew: \(ends with\), not:, cp: \(contains\) \(e.g. "sw:Cost"\). |
+| `categoryType` | string | No | Filter by category type \(mapped to the category.type query param\). Accepts an operator prefix: eq:, not:. |
+| `isDeleted` | string | No | Filter by deletion status. Pass "true" or "false" as a string because the filter also accepts the eq operator prefix \(eq:true\) — eq is the only operator this filter supports. |
+| `levelCount` | string | No | Filter by number of levels. Accepts an operator prefix: eq:, gt:, gte:, lt:, lte: \(e.g. "eq:1", "gt:2", "lte:9"\). |
 
 #### Output
 
@@ -1894,7 +1898,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/\{list
 | `sortBy` | string | No | Sort field: value or shortCode |
 | `sortDirection` | string | No | Sort direction: asc or desc |
 | `hasChildren` | boolean | No | Include only items that have children |
-| `isDeleted` | boolean | No | Include deleted items |
+| `isDeleted` | string | No | Filter by deletion status. Pass "true" or "false" as a string because the filter also accepts the eq operator prefix \(eq:true\) — eq is the only operator this filter supports. |
 | `shortCode` | string | No | Filter by short code |
 | `value` | string | No | Filter by display value |
 | `shortCodeOrValue` | string | No | Filter by short code OR value |
@@ -1907,6 +1911,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/\{list
 | `data` | json | Paginated list items collection |
 |   ↳ `content` | array | List items in the current page |
 |     ↳ `id` | string | List item UUID |
+|     ↳ `listId` | string | UUID of the list that contains the list item |
 |     ↳ `code` | string | Long code format for the item |
 |     ↳ `shortCode` | string | Short code identifier |
 |     ↳ `value` | string | Display value of the item |
@@ -1927,7 +1932,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/\{list
 
 ### SAP Concur List Receipts
 
-List receipts for a user (GET /receipts/v4/users/\{userId\}).
+List receipts for a user (GET /receipts/v4/users/\{userId\}). Concur documents no query parameters for this endpoint, so page size and offset cannot be controlled; follow the "next" URL in the response to page forward.
 
 #### Input
 
@@ -1947,15 +1952,17 @@ List receipts for a user (GET /receipts/v4/users/\{userId\}).
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | array | Array of e-receipt objects |
-|   ↳ `id` | string | Receipt id |
-|   ↳ `userId` | string | Owner user UUID |
-|   ↳ `dateTimeReceived` | string | Timestamp the receipt was received |
-|   ↳ `receipt` | json | Structured receipt data |
-|   ↳ `image` | string | Receipt image URL or reference |
-|   ↳ `validationSchema` | string | Validation schema URI |
-|   ↳ `self` | string | Self URL |
-|   ↳ `template` | string | Template URL |
+| `data` | json | E-receipt collection wrapper |
+|   ↳ `receipts` | array | Array of e-receipt objects |
+|     ↳ `id` | string | Receipt id |
+|     ↳ `userId` | string | Owner user UUID |
+|     ↳ `dateTimeReceived` | string | Timestamp the receipt was received |
+|     ↳ `receipt` | json | Structured receipt data |
+|     ↳ `image` | string | Receipt image URL or reference |
+|     ↳ `validationSchema` | string | Validation schema URI |
+|     ↳ `self` | string | Self URL |
+|     ↳ `template` | string | Template URL |
+|   ↳ `next` | string | URL of the next page of receipts, if returned. Concur documents this cursor on the image-only-receipts endpoint rather than on this one |
 
 ### SAP Concur List Report Comments
 
@@ -1973,7 +1980,7 @@ List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `includeAllComments` | boolean | No | Include comments from all expenses in the report \(default false\) |
 
@@ -1985,7 +1992,7 @@ List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 | `data` | array | Array of report comment entries |
 |   ↳ `comment` | string | Comment text |
 |   ↳ `creationDate` | string | Comment creation timestamp \(ISO 8601\) |
-|   ↳ `expenseId` | string | Related expense entry ID |
+|   ↳ `expenseId` | string | Related expense entry ID \(null for report header comments\) |
 |   ↳ `isAuditorComment` | boolean | Whether the comment was added by an auditor |
 |   ↳ `isLatest` | boolean | Whether this is the latest comment |
 |   ↳ `createdForEmployeeId` | string | Employee ID the comment was created for |
@@ -2040,7 +2047,7 @@ List expense reports awaiting approval (GET /expensereports/v4/users/\{userId\}/
 
 ### SAP Concur Get Request Cash Advance
 
-Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/\{cashAdvanceUuid\}).
+Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/\{cashAdvanceUuid\}). This endpoint exists for feature parity only and will be deprecated in the future — SAP recommends relying on the list of cash advances link available in the Request payload response instead.
 
 #### Input
 
@@ -2063,13 +2070,15 @@ Get a single cash advance assigned to a travel request (GET /travelrequest/v4/ca
 | `data` | json | Cash advance detail |
 |   ↳ `cashAdvanceId` | string | Unique cash advance identifier |
 |   ↳ `amountRequested` | json | Requested amount |
-|     ↳ `value` | number | Amount value |
+|     ↳ `amount` | number | Preferred amount field — use this over value |
+|     ↳ `value` | number | Legacy amount value — will soon be deprecated in favor of amount |
 |     ↳ `currency` | string | Currency code |
-|     ↳ `amount` | number | Amount \(alias\) |
 |   ↳ `approvalStatus` | json | Approval status |
 |     ↳ `code` | string | Status code |
 |     ↳ `name` | string | Status name |
 |   ↳ `requestDate` | string | Request datetime \(ISO 8601\) |
+|   ↳ `issueDate` | string | Date the cash advance was issued \(ISO 8601\) |
+|   ↳ `comment` | string | Comment attached to the cash advance |
 |   ↳ `exchangeRate` | json | Exchange rate |
 |     ↳ `value` | number | Rate value |
 |     ↳ `operation` | string | Multiply or divide |
@@ -2093,31 +2102,14 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 | `page` | number | No | 1-based page number |
 | `itemsPerPage` | number | No | Items per page \(max 200\) |
 | `travelConfigs` | string | No | Comma-separated travel configuration ids |
+| `active` | string | No | Filter by user state: "1" returns active users, "0" returns inactive users. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Travel profile summary list payload \(Concur returns XML mapped to JSON\) |
-|   ↳ `Metadata` | json | Paging metadata |
-|     ↳ `Paging` | json | Pagination details |
-|       ↳ `TotalPages` | number | Total number of pages |
-|       ↳ `TotalItems` | number | Total number of items |
-|       ↳ `Page` | number | Current page |
-|       ↳ `ItemsPerPage` | number | Items per page |
-|       ↳ `PreviousPageURL` | string | URL to the previous page |
-|       ↳ `NextPageURL` | string | URL to the next page |
-|   ↳ `Data` | array | Array of travel profile summaries |
-|     ↳ `Status` | string | Status \(Active/Inactive\) |
-|     ↳ `LoginID` | string | Login identifier |
-|     ↳ `XmlProfileSyncID` | string | XML profile sync identifier |
-|     ↳ `ProfileLastModifiedUTC` | string | Last modified timestamp \(UTC\) |
-|     ↳ `RuleClass` | string | Travel rule class assigned to the profile |
-|     ↳ `TravelConfigID` | string | Travel configuration identifier |
-|     ↳ `UUID` | string | Profile UUID |
-|     ↳ `EmployeeID` | string | Employee ID |
-|     ↳ `CompanyID` | string | Company ID |
+| `data` | string | Raw XML travel profile summary list returned by Concur \(Travel Profile v2 emits application/xml only, per the TravelProfileSummaryV2.xsd schema, so this is a string and not a parsed object\). The document is rooted at &lt;ConnectResponse&gt; with ConnectResponse &gt; Metadata &gt; Paging \(TotalPages, TotalItems, Page, ItemsPerPage, PreviousPageURL, NextPageURL\) and ConnectResponse &gt; Data &gt; ProfileSummary, whose only child elements are Status, LoginID, XmlProfileSyncID, and ProfileLastModifiedUTC. |
 
 ### SAP Concur List Travel Request Comments
 
@@ -2164,10 +2156,10 @@ List travel requests (GET /travelrequest/v4/requests).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `view` | string | No | View filter \(e.g., ALL, ACTIVE, PENDING, TOAPPROVE\) |
-| `limit` | number | No | Max number of results per page |
+| `view` | string | No | View filter: ALL, ACTIVE, ACTIVEAPPROVED, UNSUBMITTED, PENDING, VALIDATED, APPROVED, CANCELED, CLOSED, SUBMITTED, TOAPPROVE, PENDINGEBOOKING, PENDINGPROPOSAL, PROPOSALAPPROVED, or PROPOSALCANCELED. Defaults to ALL when omitted. The three TMC-agent views \(PENDINGPROPOSAL, PROPOSALAPPROVED, PROPOSALCANCELED\) require userId. |
+| `limit` | number | No | Records per page \(default 10, maximum 100 — higher values return 400\) |
 | `start` | number | No | Page start cursor \(offset\) |
-| `userId` | string | No | Filter by Concur user UUID |
+| `userId` | string | No | For a traveler view, the unique identifier of the Request owner to search for. For an approver view, the unique identifier of the approver. For a TMC-agent view \(PENDINGPROPOSAL, PROPOSALAPPROVED, PROPOSALCANCELED\) this is required and is the unique identifier of the TMC agent. |
 | `approvedBefore` | string | No | ISO 8601 date — return requests approved before this date |
 | `approvedAfter` | string | No | ISO 8601 date — return requests approved after this date |
 | `modifiedBefore` | string | No | ISO 8601 date — return requests modified before this date |
@@ -2225,8 +2217,6 @@ List travel requests (GET /travelrequest/v4/requests).
 |   ↳ `operations` | array | Pagination links \(next, prev, first, last\) |
 |     ↳ `rel` | string | Link relation |
 |     ↳ `href` | string | Link target |
-|     ↳ `method` | string | HTTP method |
-|     ↳ `name` | string | Link name |
 
 ### SAP Concur List Users
 
@@ -2244,7 +2234,7 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `count` | number | No | Max number of users to return \(default 100, max 1000\) |
-| `cursor` | string | No | SCIM v4.1 pagination cursor returned by a prior call |
+| `cursor` | string | No | SCIM v4.1 pagination cursor — the nextCursor value returned by a prior call |
 | `attributes` | string | No | Comma-separated list of attributes to include in the response |
 | `excludedAttributes` | string | No | Comma-separated list of attributes to exclude from the response |
 
@@ -2272,40 +2262,104 @@ Move a travel request through workflow (POST /travelrequest/v4/requests/\{reques
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `requestUuid` | string | Yes | Travel request UUID |
 | `action` | string | Yes | Workflow action: submit, recall, cancel, approve, sendback, close, reopen |
-| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
-| `body` | json | No | Optional payload \(e.g., \{ "comment": "..." \}\) |
+| `userId` | string | No | The unique identifier of the user performing the status transition. Required when connecting with a Company token for traveler and Non traveler actions only; not required for External system validation actions. If empty, a 400 `missingRequiredParam` error code is returned. For non-traveler actions, if not provided, "System, Concur" is displayed in the Audit Trail of the Request. |
+| `companyID` | string | No | Optional company identifier for the workflow action \(documented as `companyID`, distinct from the companyUuid auth field\) |
+| `comment` | string | No | Comment sent as a query parameter. Only works when the workflow action is `sendback`. This comment is visible wherever Request comments are available. |
+| `body` | json | No | Optional payload — only the `sendback` action accepts one \(e.g., \{ "comment": "..." \}\). Every other action takes no payload. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Workflow transition response payload |
+| `data` | json | The full travel request having that requestUuid, after the workflow transition |
 |   ↳ `id` | string | Travel request UUID |
 |   ↳ `href` | string | Resource hyperlink |
+|   ↳ `requestId` | string | Public-facing request ID \(4-6 alphanumeric characters\) |
+|   ↳ `name` | string | Request name |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Last attached comment |
+|   ↳ `creationDate` | string | Creation timestamp |
+|   ↳ `lastModified` | string | Last modification timestamp |
+|   ↳ `submitDate` | string | Last submission timestamp |
+|   ↳ `authorizedDate` | string | Date when approval was completed |
+|   ↳ `approvalLimitDate` | string | Required approval deadline |
+|   ↳ `startDate` | string | Trip start date \(ISO 8601\) |
+|   ↳ `endDate` | string | Trip end date \(ISO 8601\) |
+|   ↳ `startTime` | string | Trip start time \(HH:mm\) |
+|   ↳ `endTime` | string | Trip end time \(HH:mm\) |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `pendingApproval` | boolean | Pending approval flag |
+|   ↳ `closed` | boolean | Closed flag |
+|   ↳ `everSentBack` | boolean | Ever-sent-back flag |
+|   ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
+|   ↳ `highestExceptionLevel` | string | Highest exception level \(WARNING, ERROR, NONE\) |
 |   ↳ `approvalStatus` | json | Approval status after the workflow transition |
 |     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
 |     ↳ `name` | string | Localized status name |
+|   ↳ `owner` | json | Travel request owner |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Owner first name |
+|     ↳ `lastName` | string | Owner last name |
 |   ↳ `approver` | json | Approver assigned after the transition |
 |     ↳ `id` | string | User UUID |
 |     ↳ `firstName` | string | Approver first name |
 |     ↳ `lastName` | string | Approver last name |
+|   ↳ `policy` | json | Resource link to the applicable policy |
+|     ↳ `id` | string | Policy ID |
+|     ↳ `href` | string | Policy hyperlink |
+|   ↳ `type` | json | Request type |
+|     ↳ `code` | string | Request type code |
+|     ↳ `label` | string | Request type label |
+|   ↳ `mainDestination` | json | Main destination of the trip |
+|     ↳ `city` | string | City |
+|     ↳ `countryCode` | string | ISO country code |
+|     ↳ `countrySubDivisionCode` | string | ISO country sub-division code |
+|     ↳ `name` | string | Destination name |
+|   ↳ `totalApprovedAmount` | json | Total approved amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalPostedAmount` | json | Total posted amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalRemainingAmount` | json | Total remaining amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `expenses` | array | Resource links to expected expenses |
+|   ↳ `cashAdvances` | json | Resource link to cash advances |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `comments` | json | Resource link to comments |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `exceptions` | json | Resource link to exceptions |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `travelAgency` | json | Resource link to travel agency |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `extensionOf` | json | The Request for which this Request is an extension of, or addendum to |
+|     ↳ `requestId` | string | The public key of the Request \(unique per customer\) |
+|     ↳ `id` | string | Unique identifier of the Request |
+|     ↳ `href` | string | Hyperlink to the resource |
+|     ↳ `template` | string | Hyperlink template to the resource |
+|   ↳ `expensePolicy` | json | Expense policy reference |
+|     ↳ `id` | string | Policy identifier |
+|     ↳ `href` | string | Policy URL |
 |   ↳ `operations` | array | Available follow-up workflow actions |
 |     ↳ `rel` | string | Link relation |
 |     ↳ `href` | string | Link target |
-|     ↳ `method` | string | HTTP method |
-|     ↳ `name` | string | Link name |
 
 ### SAP Concur Recall Expense Report
 
-Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/recall — supported contexts: TRAVELER, PROXY). No request body is required.
+Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/recall — supported contexts: TRAVELER, PROXY). Takes no request body. This operation supports user-level access tokens: set grantType to "password" with username and password, since the default client_credentials grant yields a company-level token.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password. Recall requires a user-level access token, so set this to "password" and supply username/password — client_credentials produces a company-level token that Concur rejects for this operation. |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2314,7 +2368,6 @@ Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/con
 | `userId` | string | Yes | Concur user UUID who owns the report |
 | `contextType` | string | Yes | Access context: TRAVELER or PROXY |
 | `reportId` | string | Yes | Expense report ID to recall |
-| `body` | json | No | Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain. |
 
 #### Output
 
@@ -2365,13 +2418,13 @@ Search Concur location reference data (GET /localities/v5/locations).
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `searchText` | string | No | Free-text query \(city, airport, landmark, etc.\) |
-| `locCode` | string | No | IATA / location code |
-| `locationNameId` | string | No | Concur internal location name ID \(UUID\) |
-| `locationNameKey` | number | No | Concur internal numeric location name key |
-| `countryCode` | string | No | 2-letter ISO 3166-1 country code |
-| `subdivisionCode` | string | No | ISO 3166-2:2007 country subdivision \(e.g. US-WA\) |
-| `adminRegionId` | string | No | Administrative region ID |
+| `searchText` | string | No | Free-text for location search. Conditional — required if none of locationNameKey, locationNameId, or locCode is present. |
+| `locCode` | string | No | Location code. Conditional — required if none of locationNameKey, locationNameId, or searchText is present. |
+| `locationNameId` | string | No | UUID identifier of the location name. Conditional — required if none of locationNameKey, locCode, or searchText is present. |
+| `locationNameKey` | number | No | Unique key for the location name. Conditional — required if none of locationNameId, locCode, or searchText is present. |
+| `countryCode` | string | No | 2-letter ISO 3166-1 country code. Only valid together with searchText. |
+| `subdivisionCode` | string | No | ISO 3166-2:2007 country subdivision \(e.g. US-WA\). Only valid together with searchText. |
+| `adminRegionId` | string | No | Administrative region ID. Only valid together with searchText. |
 
 #### Output
 
@@ -2383,27 +2436,31 @@ Search Concur location reference data (GET /localities/v5/locations).
 |     ↳ `id` | string | Location ID \(UUID\) |
 |     ↳ `code` | string | IATA / location code |
 |     ↳ `legacyKey` | number | Legacy numeric location key |
-|     ↳ `timeZoneOffset` | string | IANA timezone or UTC offset |
+|     ↳ `timeZoneOffset` | number | Time zone offset of the location, in minutes \(e.g. 60\) |
 |     ↳ `active` | boolean | Whether the location is active |
 |     ↳ `point` | json | Geographic coordinates |
 |       ↳ `latitude` | number | Latitude |
 |       ↳ `longitude` | number | Longitude |
 |     ↳ `names` | array | Localized location names |
 |       ↳ `id` | string | Name ID |
-|       ↳ `key` | number | Numeric name key |
-|       ↳ `locale` | string | Locale tag |
+|       ↳ `legacyKey` | number | Legacy numeric name key |
+|       ↳ `langCode` | string | Language code |
 |       ↳ `name` | string | Display name |
+|       ↳ `active` | boolean | Whether the name is active |
 |     ↳ `administrativeRegion` | json | Administrative region \(e.g., metro area\) |
-|       ↳ `id` | string | Region ID |
-|       ↳ `name` | string | Region name |
-|     ↳ `country` | json | Country reference |
-|       ↳ `id` | string | Country ID |
+|       ↳ `id` | string | Unique identifier of the admin region |
+|       ↳ `names` | array | Localized region names |
+|       ↳ `countryCode` | string | ISO 3166-1 country code of the region |
+|       ↳ `subDivCode` | string | ISO 3166-2 subdivision code of the region |
+|       ↳ `links` | array | HATEOAS links |
+|     ↳ `country` | json | Country reference \(Code schema\) |
 |       ↳ `code` | string | ISO country code |
-|       ↳ `name` | string | Country name |
-|     ↳ `subDivision` | json | Country subdivision \(state/province\) |
-|       ↳ `id` | string | Subdivision ID |
+|       ↳ `names` | array | Localized country names |
+|       ↳ `links` | array | HATEOAS links |
+|     ↳ `subDivision` | json | Country subdivision \(state/province, Code schema\) |
 |       ↳ `code` | string | ISO subdivision code |
-|       ↳ `name` | string | Subdivision name |
+|       ↳ `names` | array | Localized subdivision names |
+|       ↳ `links` | array | HATEOAS links |
 |     ↳ `links` | array | HATEOAS links |
 
 ### SAP Concur Search Users
@@ -2421,7 +2478,7 @@ Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.searc
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `body` | json | Yes | SCIM search request payload \(\{ schemas, attributes, filter, count, startIndex \}\) |
+| `body` | json | Yes | SCIM search payload. Required: schemas: \["urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest"\] \(Concur-specific URN, not the standard SearchRequest URN\). Optional: filter, count \(1-1000\), attributes, excludedAttributes, cursor \(the nextCursor value from a prior response\). The startIndex request parameter is not supported \(responses still return a startIndex value\). |
 
 #### Output
 
@@ -2457,7 +2514,7 @@ Send back an expense report to the employee (PATCH /expensereports/v4/reports/\{
 
 ### SAP Concur Submit Expense Report
 
-Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/\{userId\}/reports/\{reportId\}/submit).
+Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/\{userId\}/reports/\{reportId\}/submit). Takes no request body.
 
 #### Input
 
@@ -2472,7 +2529,6 @@ Submit an expense report into the workflow via Expense Report v4 (PATCH /expense
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID who owns the report |
 | `reportId` | string | Yes | Expense report ID to submit |
-| `body` | json | No | Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain. |
 
 #### Output
 
@@ -2500,7 +2556,7 @@ Update an allocation (PATCH /expensereports/v4/users/\{userId\}/context/\{contex
 | `contextType` | string | Yes | Access context: TRAVELER or PROXY \(write requires expense.report.readwrite\) |
 | `reportId` | string | Yes | Expense report ID |
 | `allocationId` | string | Yes | Allocation ID to update |
-| `body` | json | Yes | Fields to update on the allocation |
+| `body` | json | Yes | JSON Merge Patch \(RFC 7386\) payload. Must be the two-key envelope \{ "allocation": \{ "customData": \[\{ "id": "custom9", "value": "...", "isValid": true \}\] \}, "expenseIds": \["29EE..."\] \}. |
 
 #### Output
 
@@ -2538,9 +2594,9 @@ Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
 |   ↳ `href` | string | Self-link |
 |   ↳ `expenseType` | json | Expense type \{id, name\} |
 |   ↳ `transactionDate` | string | Transaction date |
-|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
-|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
-|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currency\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currency\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currency\} |
 |   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
 |   ↳ `businessPurpose` | string | Business purpose of the expense |
 |   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
@@ -2552,7 +2608,7 @@ Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
 
 ### SAP Concur Update Expense
 
-Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
+Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}). Only Company JWT authentication is allowed on this endpoint — the password grant is rejected. A submitted report cannot be updated once it has reached a Paid workflow status. Although the primary intent of this operation is for submitted report updates, it also works on unsubmitted reports, but with the same limited set of fields.
 
 #### Input
 
@@ -2578,7 +2634,7 @@ Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expe
 
 ### SAP Concur Update Expense Report
 
-Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.
+Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\} — supported contexts: TRAVELER, PROXY). The body must always include `reportSource` (EA, MOB, OTHER, SE, TR, or UI).
 
 #### Input
 
@@ -2594,7 +2650,7 @@ Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/
 | `userId` | string | Yes | Concur user UUID who owns the report |
 | `contextType` | string | Yes | Access context: TRAVELER \(own report\) or PROXY \(editing on behalf of another user\) |
 | `reportId` | string | Yes | Expense report ID to update |
-| `body` | json | Yes | Fields to update on the report |
+| `body` | json | Yes | Fields to update on the report. `reportSource` is REQUIRED by Concur on every update — one of "EA", "MOB", "OTHER", "SE", "TR", "UI" \(use "OTHER" if unknown\). Other updatable fields: businessPurpose, comment, country, countryCode, countrySubDivisionCode, customData, endDate, isCopyDownInherited, isPaperReceiptsReceived, name, policy, policyId, redirectFund, reportDate, startDate. |
 
 #### Output
 
@@ -2628,6 +2684,7 @@ Update a list item (PUT /list/v4/items/\{itemId\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Updated list item |
 |   ↳ `id` | string | List item UUID |
+|   ↳ `listId` | string | UUID of the list that contains the list item |
 |   ↳ `code` | string | Long code format for the item |
 |   ↳ `shortCode` | string | Short code identifier |
 |   ↳ `value` | string | Display value of the item |
@@ -2654,7 +2711,8 @@ Update a travel request (PUT /travelrequest/v4/requests/\{requestUuid\}).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `requestUuid` | string | Yes | Travel request UUID to update |
-| `body` | json | Yes | Fields to update on the travel request |
+| `userId` | string | No | The unique identifier of the user performing the update. Optional. Will be taken into account only if calling with a Company token. If not provided the update will be performed as "Concur System". |
+| `body` | json | Yes | Fields to update on the travel request. Partial update is supported. Only these fields are updatable: comment, startDate, startTime, endDate, endTime, expensePolicy, name, businessPurpose, mainDestination, travelAgency, and the custom1-custom20 fields — any other field is silently ignored. Pass an unquoted null to clear a field. |
 
 #### Output
 
@@ -2729,7 +2787,7 @@ Patch a user identity (PATCH /profile/identity/v4.1/Users/\{id\}).
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userUuid` | string | Yes | User UUID to update |
-| `body` | json | Yes | SCIM PATCH operations payload \(\{ schemas, Operations: \[...\] \}\) |
+| `body` | json | Yes | SCIM PATCH payload. Required: schemas: \["urn:ietf:params:scim:api:messages:2.0:PatchOp"\] and Operations, an array of \{ op, path, value \} where op is add, replace, or remove. If the target location is a multi-valued attribute and no filter is specified, the attribute and all values are replaced. Example: deactivate a user with \{ op: "replace", path: "active", value: false \}. |
 
 #### Output
 
@@ -2754,8 +2812,7 @@ Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-rece
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID who owns the receipt |
-| `receipt` | json | Yes | Receipt image file \(UserFile reference\). Supported formats: PDF, PNG, JPEG, GIF, TIFF |
-| `forwardId` | string | No | Optional client-supplied dedup id \(max 40 chars\). Sent as the concur-forwardid header. |
+| `receipt` | json | Yes | Receipt image file \(UserFile reference\). Supported formats: png, jpg, jpeg, tiff, tif, gif, pdf. TIFF/TIF files are converted to PDF server-side. Maximum size 25 MB. |
 
 #### Output
 
@@ -2764,6 +2821,6 @@ Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-rece
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Image-only receipt upload response \(HTTP 202 Accepted; Location and Link response headers exposed in body\) |
 |   ↳ `location` | string | Location header URL for the new receipt image \(e.g. /receipts/v4/images/\{receiptId\}\) |
-|   ↳ `link` | string | Link header URL pointing to /receipts/v4/status/\{receiptId\} |
+|   ↳ `link` | string | Raw Link header value, forwarded verbatim — it is not a bare URL. Format: &lt;https://\{datacenter\}/receipts/v4/status/\{receiptId\}&gt;; rel="processing-status". Parse the href out of the angle brackets before using it. |
 
 

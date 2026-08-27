@@ -33,7 +33,11 @@ export {
   TableHeader,
   TableRow,
 } from './components/table/table'
-export { useCopyToClipboard } from './hooks/use-copy-to-clipboard'
+export {
+  type ClipboardContent,
+  useCopyToClipboard,
+  writeTextToClipboard,
+} from './hooks/use-copy-to-clipboard'
 export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
 export * from './icons'
 export { cn } from './lib/cn'

@@ -7,7 +7,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -70,7 +70,6 @@ import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
-  handleInvoiceFinalized,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
@@ -95,8 +94,13 @@ import {
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
-import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import {
+  captureOAuthCredentialDraftBinding,
+  consumeOAuthCredentialDraftBinding,
+  processCredentialDraft,
+} from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -160,17 +164,6 @@ if (validStripeKey) {
     apiVersion: '2025-08-27.basil',
   })
 }
-
-/**
- * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
- * Better Auth walks the x-forwarded-for chain right to left, skips these
- * hops, and records the first untrusted address as the session client IP —
- * preventing header spoofing behind multi-hop proxies.
- */
-const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
 
 /**
  * Resolves the org's API instance URL for a freshly linked Salesforce account.
@@ -258,40 +251,18 @@ export const auth = betterAuth({
     },
   },
   user: {
+    /**
+     * Account deletion runs through `POST /api/users/me/deletion`, which owns the
+     * whole procedure — the blocker preflight, the storage purge, and the
+     * constraint-ordered teardown that a bare `DELETE FROM "user"` cannot
+     * express. Better Auth's endpoint stays off, and `beforeDelete` refuses
+     * unconditionally so that flipping `enabled` can never route a deletion
+     * around any of it.
+     */
     deleteUser: {
       enabled: false,
-      beforeDelete: async (deletingUser) => {
-        const { isSoleOwnerOfPaidOrganization } = await import(
-          '@/lib/billing/organizations/membership'
-        )
-        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
-        if (check.isBlocker) {
-          throw new Error(
-            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
-          )
-        }
-
-        const { reassignBilledAccountForUser, reassignOwnedWorkspacesForUser } = await import(
-          '@/lib/workspaces/utils'
-        )
-        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
-        if (unresolved.length > 0) {
-          throw new Error(
-            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
-
-        // Reassign workspace ownership BEFORE deletion so the `workspace.owner_id`
-        // ON DELETE CASCADE can never silently nuke workspaces this user owns
-        // (e.g. org workspaces they created but are billed to the org owner).
-        const { unresolved: ownedUnresolved } = await reassignOwnedWorkspacesForUser(
-          deletingUser.id
-        )
-        if (ownedUnresolved.length > 0) {
-          throw new Error(
-            `Your account owns ${ownedUnresolved.length} workspace${ownedUnresolved.length === 1 ? '' : 's'} with no other admin to take over ownership. Add another admin to ${ownedUnresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${ownedUnresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
+      beforeDelete: async () => {
+        throw new Error('Account deletion runs through POST /api/users/me/deletion')
       },
     },
   },
@@ -401,8 +372,21 @@ export const auth = betterAuth({
     },
     account: {
       create: {
-        before: async (account) => {
+        before: async (account, context) => {
           const modifiedAccount = { ...account }
+
+          if (context?.path.startsWith('/oauth2/callback/')) {
+            try {
+              await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
+            } catch (error) {
+              logger.error('[account.create.before] Failed to read OAuth credential draft state', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              throw error
+            }
+          }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
             const instanceUrl = await fetchSalesforceInstanceUrl(
@@ -430,7 +414,7 @@ export const auth = betterAuth({
 
           return { data: modifiedAccount }
         },
-        after: async (account) => {
+        after: async (account, context) => {
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
@@ -523,18 +507,33 @@ export const auth = betterAuth({
             }
           }
 
-          try {
-            await processCredentialDraft({
-              userId: account.userId,
-              providerId: account.providerId,
-              accountId: account.id,
-            })
-          } catch (error) {
-            logger.error('[account.create.after] Failed to process credential draft', {
-              userId: account.userId,
-              providerId: account.providerId,
-              error,
-            })
+          const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
+          const credentialDraftBinding = context
+            ? consumeOAuthCredentialDraftBinding(context)
+            : undefined
+
+          if (isOAuth2Callback && !credentialDraftBinding) {
+            throw new Error(
+              'OAuth credential draft binding was not captured before account creation'
+            )
+          }
+
+          if (credentialDraftBinding) {
+            try {
+              await processCredentialDraft({
+                draftId: credentialDraftBinding.draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                accountId: account.id,
+              })
+            } catch (error) {
+              logger.error('[account.create.after] Failed to process credential draft', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              if (credentialDraftBinding.draftId) throw error
+            }
           }
 
           try {
@@ -1151,14 +1150,24 @@ export const auth = betterAuth({
       ? [
           sso({
             /**
-             * Honor the IdP's `email_verified` claim so the local account is
-             * verified rather than forced to false.
+             * MUST stay false. Better Auth's link gate is
+             * `!isTrustedProvider && !userInfo.emailVerified`, so a true
+             * `email_verified` claim substitutes for the domain binding
+             * entirely: an IdP could assert any address — including one from a
+             * domain it does not own — and auto-link into that user's existing
+             * account. Since a provider row can be registered by any Enterprise
+             * org admin (and by any signed-in user when self-hosted), trusting
+             * the claim makes every account reachable from any tenant's IdP.
              *
-             * This is not what enables linking — Entra omits the claim entirely,
-             * and SAML ignores it without an explicit `mapping.emailVerified`.
-             * `domainVerification` below establishes linking trust.
+             * Turning it on only ever set `emailVerified` on the local row; it
+             * was never what made linking work. Entra omits the claim, and SAML
+             * ignores it without an explicit `mapping.emailVerified` that the
+             * register contract does not accept — so SSO users are created
+             * unverified either way, and `domainVerification` below is the sole
+             * linking trust source, which is what `trustProviderByName: false`
+             * already assumes.
              */
-            trustEmailVerified: true,
+            trustEmailVerified: false,
             /**
              * Marks a provider authoritative for its domain, which is what lets an
              * SSO sign-in auto-link to an existing same-email account. Without it
@@ -1169,9 +1178,10 @@ export const auth = betterAuth({
              * proven by the `sso_domain` flow before registration, and the register
              * route mirrors that decision onto this flag.
              *
-             * It narrows nothing on its own — an IdP asserting `email_verified`
-             * links regardless of domain (see `trustEmailVerified` above). It
-             * exists so linking survives IdPs that omit the claim.
+             * With `trustEmailVerified` off this is the only path to linking, and
+             * it is domain-scoped: `isTrustedProvider` additionally requires
+             * `validateEmailDomain(userInfo.email, provider.domain)`, so a
+             * provider can only ever claim identities inside the domain it proved.
              */
             domainVerification: { enabled: true },
             organizationProvisioning: {
@@ -1489,10 +1499,6 @@ export const auth = betterAuth({
                   }
                   case 'invoice.payment_failed': {
                     await handleInvoicePaymentFailed(event)
-                    break
-                  }
-                  case 'invoice.finalized': {
-                    await handleInvoiceFinalized(event)
                     break
                   }
                   case 'customer.subscription.created':

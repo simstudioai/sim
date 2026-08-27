@@ -1,6 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
-import type { ConfigStore } from '@/main/config'
+import { type ConfigStore, isSimCloudOrigin } from '@/main/config'
 import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
@@ -13,8 +13,11 @@ const ZOOM_STEP = 0.5
 export interface MenuDeps {
   config: ConfigStore
   getMainWindow: () => BrowserWindow | null
+  isMainWindow: (win: BrowserWindow) => boolean
   allowHttpLocalhost: () => boolean
   openSettings: () => void
+  /** Opens the native server picker (see main/server-window.ts). */
+  openServerSettings: () => void
   newWindow: () => void
   newChat: () => void
   /**
@@ -30,6 +33,7 @@ export interface MenuDeps {
   openSearch: () => void
   signOut: () => void
   checkForUpdates: () => void
+  openDiagnostics: () => void
 }
 
 /**
@@ -38,22 +42,29 @@ export interface MenuDeps {
  * the zoom level persists across launches.
  */
 export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] {
-  const withWindow = (fn: (win: BrowserWindow) => void) => () => {
-    const win = deps.getMainWindow()
-    if (win && !win.isDestroyed()) {
-      fn(win)
+  /** Utility windows must not redirect resource commands into the hidden main window. */
+  const focusedMainOrFallback = (focusedWindow: unknown): BrowserWindow | null => {
+    if (focusedWindow instanceof BrowserWindow) {
+      return !focusedWindow.isDestroyed() && deps.isMainWindow(focusedWindow) ? focusedWindow : null
     }
+    const fallback = deps.getMainWindow()
+    return fallback && !fallback.isDestroyed() ? fallback : null
   }
 
-  /** Accelerators fire on whichever window has focus; fall back to the main one. */
-  const focusedOrMain = (focusedWindow: unknown): BrowserWindow | null =>
-    focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+  const focusedWindowOrMain = (focusedWindow: unknown): BrowserWindow | null => {
+    if (focusedWindow instanceof BrowserWindow) {
+      return focusedWindow.isDestroyed() ? null : focusedWindow
+    }
+    const fallback = deps.getMainWindow()
+    return fallback && !fallback.isDestroyed() ? fallback : null
+  }
 
   const resourceShortcut = (
     shortcut: FocusedResourceShortcut
   ): NonNullable<MenuItemConstructorOptions['click']> => {
     return (_item, focusedWindow) => {
-      deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), shortcut)
+      const win = focusedMainOrFallback(focusedWindow)
+      if (win) deps.handleFocusedResourceShortcut(win, shortcut)
     }
   }
 
@@ -63,6 +74,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     return {
       label: number === 9 ? 'Last Tab' : `Tab ${number}`,
       accelerator: `CmdOrCtrl+${number}`,
+      visible: false,
       click: resourceShortcut(shortcut),
     }
   })
@@ -73,8 +85,8 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     const resolve = (current: number) =>
       action === 'reset' ? 0 : action === 'in' ? current + ZOOM_STEP : current - ZOOM_STEP
     return (_item, focusedWindow) => {
-      const win = focusedOrMain(focusedWindow)
-      if (!win || win.isDestroyed()) return
+      const win = focusedMainOrFallback(focusedWindow)
+      if (!win) return
       if (deps.handleFocusedResourceShortcut(win, `zoom-${action}`)) return
       const level = resolve(win.webContents.getZoomLevel())
       win.webContents.setZoomLevel(level)
@@ -107,21 +119,39 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: 'Back',
       accelerator: 'CmdOrCtrl+[',
-      click: withWindow((win) => {
+      click: (_item, focusedWindow) => {
+        const win = focusedMainOrFallback(focusedWindow)
+        if (!win) return
         const history = win.webContents.navigationHistory
         if (history.canGoBack()) {
           history.goBack()
         }
-      }),
+      },
     },
     {
       label: 'Reload',
       accelerator: 'CmdOrCtrl+R',
       click: (_item, focusedWindow) => {
-        const win = focusedOrMain(focusedWindow)
-        if (!win || win.isDestroyed()) return
+        const win = focusedMainOrFallback(focusedWindow)
+        if (!win) return
         if (deps.handleFocusedResourceShortcut(win, 'reload-or-clear')) return
         win.webContents.reload()
+      },
+    },
+    /**
+     * Hard refresh, cache ignored. A focused Browser tab claims it first
+     * (same boundary as Reload/Close Tab); otherwise it reloads the Sim
+     * shell — the recovery lever for picking up freshly deployed client
+     * code.
+     */
+    {
+      label: 'Force Reload',
+      accelerator: 'CmdOrCtrl+Shift+R',
+      click: (_item, focusedWindow) => {
+        const win = focusedMainOrFallback(focusedWindow)
+        if (!win) return
+        if (deps.handleFocusedResourceShortcut(win, 'hard-reload')) return
+        win.webContents.reloadIgnoringCache()
       },
     },
     { type: 'separator' },
@@ -138,10 +168,9 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       submenu: [
         { role: 'about' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
+        { label: 'Server…', click: deps.openServerSettings },
         { label: 'Check for Updates…', click: deps.checkForUpdates },
         { label: 'Sign Out', click: deps.signOut },
-        { type: 'separator' },
-        { role: 'services' },
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },
@@ -154,13 +183,6 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       label: 'File',
       submenu: [
         {
-          label: 'New Tab',
-          accelerator: 'CmdOrCtrl+T',
-          click: (_item, focusedWindow) => {
-            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'new-tab')
-          },
-        },
-        {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: deps.newWindow,
@@ -168,44 +190,69 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
         { type: 'separator' },
         {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: (_item, focusedWindow) => {
+            focusedWindowOrMain(focusedWindow)?.close()
+          },
+        },
+        /**
+         * Resource-scoped shortcuts: these act on whichever Browser/Terminal
+         * panel is focused, not on the app, so they stay out of the visible
+         * File menu. The accelerators still fire — macOS registers a hidden
+         * item's accelerator (`acceleratorWorksWhenHidden` defaults to true).
+         * The numbered tab items sit flat here rather than under a "Select
+         * Tab" submenu because children of a hidden submenu do not reliably
+         * register their accelerators.
+         */
+        {
+          label: 'New Tab',
+          accelerator: 'CmdOrCtrl+T',
+          visible: false,
+          click: (_item, focusedWindow) => {
+            const win = focusedMainOrFallback(focusedWindow)
+            if (win) deps.handleFocusedResourceShortcut(win, 'new-tab')
+          },
+        },
+        {
           label: 'Reopen Closed Tab',
           accelerator: 'CmdOrCtrl+Shift+T',
+          visible: false,
           click: (_item, focusedWindow) => {
-            deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), 'reopen-closed-tab')
+            const win = focusedMainOrFallback(focusedWindow)
+            if (win) deps.handleFocusedResourceShortcut(win, 'reopen-closed-tab')
           },
         },
         {
           label: 'Focus Address Bar',
           accelerator: 'CmdOrCtrl+L',
+          visible: false,
           click: resourceShortcut('focus-omnibox'),
         },
-        { type: 'separator' },
         {
           label: 'Next Tab',
           accelerator: 'Ctrl+Tab',
+          visible: false,
           click: resourceShortcut('next-tab'),
         },
         {
           label: 'Previous Tab',
           accelerator: 'Ctrl+Shift+Tab',
+          visible: false,
           click: resourceShortcut('previous-tab'),
         },
-        { label: 'Select Tab', submenu: numberedTabItems },
-        { type: 'separator' },
+        ...numberedTabItems,
         {
           label: 'Close Tab',
           accelerator: 'CmdOrCtrl+W',
+          visible: false,
           click: (_item, focusedWindow) => {
-            const win = focusedOrMain(focusedWindow)
-            deps.handleFocusedResourceShortcut(win, 'close-tab')
-          },
-        },
-        {
-          label: 'Close Window',
-          accelerator: 'CmdOrCtrl+Shift+W',
-          click: (_item, focusedWindow) => {
-            const win = focusedOrMain(focusedWindow)
-            if (win && !win.isDestroyed()) win.close()
+            const win = focusedWindowOrMain(focusedWindow)
+            if (!win) return
+            if (deps.isMainWindow(win) && deps.handleFocusedResourceShortcut(win, 'close-tab')) {
+              return
+            }
+            win.close()
           },
         },
       ],
@@ -220,10 +267,18 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           label: 'Sim Documentation',
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
-        {
-          label: 'Sim Status',
-          click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
-        },
+        // Omitted for a self-hosted shell, like the offline page's status
+        // button — see isSimCloudOrigin.
+        ...(isSimCloudOrigin(deps.config.getOrigin())
+          ? [
+              {
+                label: 'Sim Status',
+                click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
+              },
+            ]
+          : []),
+        { type: 'separator' },
+        { label: 'Show Diagnostic Logs', click: deps.openDiagnostics },
       ],
     },
   ]

@@ -5,6 +5,7 @@
  */
 import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
@@ -79,11 +80,19 @@ export async function uploadFilesForTeamsMessage(params: {
       throw new FileAccessDeniedError()
     }
 
-    // Download file from storage
-    const { buffer, contentType } = await downloadServableFileFromStorage(file, requestId, log)
-
-    if (buffer.length > MAX_TEAMS_FILE_SIZE) {
-      const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+    // Download file from storage, bounded by the same 4MB limit checked above — the
+    // declared size is the caller's claim, so the ceiling has to reach the read itself.
+    let buffer: Buffer
+    let contentType: string
+    try {
+      const servable = await downloadServableFileFromStorage(file, requestId, log, {
+        maxBytes: MAX_TEAMS_FILE_SIZE,
+      })
+      buffer = servable.buffer
+      contentType = servable.contentType
+    } catch (error) {
+      if (!isPayloadSizeLimitError(error)) throw error
+      const sizeMB = ((error.observedBytes ?? file.size) / (1024 * 1024)).toFixed(2)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the 4MB limit for Teams attachments. Use smaller files or upload to SharePoint/OneDrive first.`
       )

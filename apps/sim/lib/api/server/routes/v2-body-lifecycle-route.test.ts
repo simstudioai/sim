@@ -7,7 +7,6 @@ import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
@@ -21,7 +20,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { defineRouteContract } from '@/lib/api/contracts'
 import { defineV2BodyLifecycleRoute } from '@/lib/api/server/routes/v2-body-lifecycle-route'
@@ -126,15 +124,10 @@ describe('defineV2BodyLifecycleRoute', () => {
       mocks.order.push('operation-limit')
       return V2_OPERATION_RATE_LIMIT_ALLOWED
     })
-    v2RouteMocks.gate.mockImplementation(async () => {
-      mocks.order.push('rollout')
-      return null
-    })
     v2RouteMocks.authenticate.mockImplementation(async () => {
       mocks.order.push('authenticate')
       return {
         principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-        rolloutUserId: 'user-1',
         rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
         rateLimitSubscription: null,
         keyType: 'personal',
@@ -175,7 +168,6 @@ describe('defineV2BodyLifecycleRoute', () => {
     expect(mocks.order).toEqual([
       'ip-limit',
       'authenticate',
-      'rollout',
       'operation-limit',
       'operation-limit',
       'contract',
@@ -190,6 +182,31 @@ describe('defineV2BodyLifecycleRoute', () => {
     expect(response.headers.get('x-request-id')).toBeTruthy()
   })
 
+  /**
+   * `v2InvalidBodyResponse` answers `415` when an unreadable body declared a
+   * non-JSON media type, and `multipart/form-data` is exactly such a type. That
+   * change is argued safe for this builder in prose — its contract must omit the
+   * body schema, so `parseRequest` never attempts a JSON read and the
+   * classification is unreachable — but nothing executed it. A multipart upload
+   * is the shape this builder exists for, so it gets a test rather than a
+   * paragraph.
+   */
+  it('accepts a multipart body, which the JSON builder would classify as 415', async () => {
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array([1, 2, 3])]), 'data.bin')
+    const request = new NextRequest(
+      'http://localhost/api/v2/body-lifecycle/item-1?workspaceId=workspace-1',
+      { method: 'POST', headers: { 'x-api-key': 'secret' }, body: form }
+    )
+    expect(request.headers.get('content-type')).toContain('multipart/form-data')
+
+    const response = await buildHandler()(request, context())
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toEqual({ data: { id: 'item-1' } })
+    expect(mocks.order).toContain('body')
+  })
+
   it('rejects at the IP abuse limit before authentication', async () => {
     v2RouteMocks.preauthRate.mockImplementation(async () => {
       mocks.order.push('ip-limit')
@@ -202,7 +219,7 @@ describe('defineV2BodyLifecycleRoute', () => {
     expect(mocks.order).toEqual(['ip-limit'])
   })
 
-  it('rejects unauthenticated requests before rollout and operation limiting', async () => {
+  it('rejects unauthenticated requests before operation limiting', async () => {
     v2RouteMocks.authenticate.mockImplementation(async () => {
       mocks.order.push('authenticate')
       throw new MockV2ApiKeyUnauthenticatedError('Authentication required')
@@ -214,18 +231,6 @@ describe('defineV2BodyLifecycleRoute', () => {
     expect(mocks.order).toEqual(['ip-limit', 'authenticate'])
   })
 
-  it('rejects rollout-gated requests before operation limiting', async () => {
-    v2RouteMocks.gate.mockImplementation(async () => {
-      mocks.order.push('rollout')
-      return v2Error('FORBIDDEN', 'V2 API access is not enabled')
-    })
-
-    const response = await buildHandler()(buildRequest(), context())
-
-    expect(response.status).toBe(403)
-    expect(mocks.order).toEqual(['ip-limit', 'authenticate', 'rollout'])
-  })
-
   it('rejects operation-limited requests before contract or application admission', async () => {
     v2RouteMocks.operationRate.mockImplementation(async () => {
       mocks.order.push('operation-limit')
@@ -235,26 +240,14 @@ describe('defineV2BodyLifecycleRoute', () => {
     const response = await buildHandler()(buildRequest(), context())
 
     expect(response.status).toBe(429)
-    expect(mocks.order).toEqual([
-      'ip-limit',
-      'authenticate',
-      'rollout',
-      'operation-limit',
-      'operation-limit',
-    ])
+    expect(mocks.order).toEqual(['ip-limit', 'authenticate', 'operation-limit', 'operation-limit'])
   })
 
   it('rejects invalid contract input before application admission or body reads', async () => {
     const response = await buildHandler()(buildRequest(), context(''))
 
     expect(response.status).toBe(400)
-    expect(mocks.order).toEqual([
-      'ip-limit',
-      'authenticate',
-      'rollout',
-      'operation-limit',
-      'operation-limit',
-    ])
+    expect(mocks.order).toEqual(['ip-limit', 'authenticate', 'operation-limit', 'operation-limit'])
   })
 
   it.each<RejectableStage>(['admission', 'body', 'application', 'presenter', 'effects'])(
@@ -272,12 +265,11 @@ describe('defineV2BodyLifecycleRoute', () => {
     }
   )
 
-  it.each(['authentication', 'rollout', 'rate_limit'] as const)(
+  it.each(['authentication', 'rate_limit'] as const)(
     'maps %s infrastructure failures to service unavailable',
     async (stage) => {
       const failure = new Error(`${stage} unavailable`)
       if (stage === 'authentication') v2RouteMocks.authenticate.mockRejectedValue(failure)
-      if (stage === 'rollout') v2RouteMocks.gate.mockRejectedValue(failure)
       if (stage === 'rate_limit') v2RouteMocks.operationRate.mockRejectedValue(failure)
 
       const response = await buildHandler()(buildRequest(), context())

@@ -12,12 +12,12 @@ import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveCanonicalMode,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import {
   AvailableData,
   RetrySettings,
@@ -148,11 +148,10 @@ export function Editor() {
     isEqual
   )
 
-  const subBlocksForCanonical = useMemo(() => {
-    const subBlocks = blockConfig?.subBlocks || []
-    if (!triggerMode) return subBlocks
-    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-  }, [blockConfig?.subBlocks, triggerMode])
+  const subBlocksForCanonical = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerMode),
+    [blockConfig?.subBlocks, triggerMode]
+  )
 
   const canonicalIndex = useMemo(
     () => buildCanonicalIndex(subBlocksForCanonical),
@@ -594,12 +593,6 @@ export function Editor() {
                               subBlockValues={subBlockState}
                               disabled={!canEditBlock}
                               allowExpandInPreview={false}
-                              isSearchHighlighted={
-                                activeSearchTarget?.blockId === currentBlockId &&
-                                (activeSearchTarget.subBlockId === subBlock.id ||
-                                  activeSearchTarget.canonicalSubBlockId ===
-                                    (subBlock.canonicalParamId ?? subBlock.id))
-                              }
                               canonicalToggle={
                                 isCanonicalSwap && canonicalMode && canonicalId
                                   ? {

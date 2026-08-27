@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt, or, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
@@ -601,7 +602,8 @@ export class IdempotencyService {
         return await this.waitForResult<T>(
           claimResult.normalizedKey,
           claimResult.storageMethod,
-          existingResult.inProgressExpiresAt ?? Date.now() + MAX_WAIT_TIME_MS
+          existingResult.inProgressExpiresAt ??
+            (existingResult.startedAt ?? Date.now()) + this.config.inProgressTtlSeconds * 1000
         )
       }
 
@@ -632,7 +634,13 @@ export class IdempotencyService {
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error')
 
-      if (this.config.retryFailures) {
+      /**
+       * A `RetryableSetupError` certifies the operation failed before any
+       * effect happened, so there is no outcome to memoize: release the claim
+       * so a re-attempt or provider redelivery can run instead of being
+       * rejected with the cached failure for the whole result TTL.
+       */
+      if (this.config.retryFailures || isRetryableSetupError(error)) {
         await this.deleteKey(
           claimResult.normalizedKey,
           claimResult.storageMethod,
@@ -701,13 +709,35 @@ export class IdempotencyService {
 }
 
 /**
+ * Longest an unfinished webhook claim stays live when its caller cannot name a
+ * real execution deadline.
+ *
+ * The lease only has to outlive a normal run; it must not outlive the process
+ * holding it. Untimed executions have no deadline to borrow — `getExecutionDeadlineAt`
+ * returns `undefined` for them — so before this bound existed they fell through
+ * to the result TTL, which is the seven-day *dedupe* window. One crashed holder
+ * therefore wedged a webhook for a week while every concurrent duplicate delivery
+ * polled {@link IdempotencyService.waitForResult} once a second against it.
+ *
+ * Two hours clears the 90-minute default async execution budget plus the
+ * reservation buffer with room to spare. A run that genuinely outlives it may be
+ * executed a second time if the provider retries after the lease lapses — a
+ * bounded, recoverable duplicate rather than an unbounded stall.
+ */
+export const WEBHOOK_IN_PROGRESS_LEASE_SECONDS = 60 * 60 * 2
+
+/**
  * As a webhook receiver we only need a "we saw this delivery" marker —
  * the provider's retry just needs a 2xx, not our cached response body.
  * TTL must exceed the longest provider retry window (Gmail / Pub-Sub: 7d).
+ *
+ * The in-progress lease is deliberately far shorter than that dedupe window:
+ * see {@link WEBHOOK_IN_PROGRESS_LEASE_SECONDS}.
  */
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
   ttlSeconds: 60 * 60 * 24 * 7, // 7 days
+  inProgressTtlSeconds: WEBHOOK_IN_PROGRESS_LEASE_SECONDS,
   storeResultBody: false,
 })
 
@@ -716,22 +746,6 @@ export const pollingIdempotency = new IdempotencyService({
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
   retryFailures: true,
   storeResultBody: false,
-})
-
-/**
- * Used by the internal `/api/billing/update-cost` endpoint (copilot,
- * workspace-chat, MCP, mothership) to dedupe cost-recording calls. Storage
- * is forced to Postgres: the operation writes AI cost to `user_stats`,
- * and if Redis evicts the dedup key under memory pressure (high call
- * volume) or drops it on restart, a retry would double-record usage —
- * real money. DB storage fate-shares with `user_stats` and is
- * eviction-proof; ~1-5ms added latency is invisible against LLM call
- * latency.
- */
-export const billingIdempotency = new IdempotencyService({
-  namespace: 'billing',
-  ttlSeconds: 60 * 60, // 1 hour
-  forceStorage: 'database',
 })
 
 /**

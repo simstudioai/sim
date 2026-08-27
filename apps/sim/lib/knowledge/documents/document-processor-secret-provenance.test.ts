@@ -26,6 +26,7 @@ vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
 
 vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
+  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'txt', 'csv'].includes(extension),
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
@@ -90,7 +91,17 @@ describe('knowledge document model-input provenance', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  /**
+   * The refusal guards egress to an external model, so it is asserted against the
+   * outbound request rather than the storage read. A PDF is now parsed locally
+   * first and only reaches OCR when it has no usable text layer — local parsing is
+   * not model input, as the case above establishes — so the bytes are read before
+   * the projection is checked, and never leave the worker when it refuses.
+   */
   it('rejects secret-bearing opaque document bytes before external OCR', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
     await expect(
       runWithKnowledgeModelInputProvenance(
         undefined,
@@ -108,7 +119,7 @@ describe('knowledge document model-input provenance', () => {
       )
     ).rejects.toThrow('Knowledge model input could not be safely projected')
 
-    expect(mockDownloadFileFromUrl).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('attaches exact-empty provenance to the internal Mistral OCR request', async () => {

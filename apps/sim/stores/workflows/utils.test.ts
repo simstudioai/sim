@@ -7,8 +7,10 @@ import {
   createStarterBlock,
 } from '@sim/testing'
 import type { Edge } from 'reactflow'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
+import { prepareBlockState } from './prepare-block-state'
 import { filterNewEdges, getUniqueBlockName, regenerateBlockIds } from './utils'
 
 describe('normalizeName', () => {
@@ -1061,5 +1063,104 @@ describe('regenerateBlockIds — cloned webhook path', () => {
     expect(result.subBlockValues[newId].triggerConfig).toEqual({ labelIds: ['a'] })
     expect(result.subBlockValues[newId].triggerId).toBe('generic_webhook')
     expect(result.subBlockValues[newId].token).toBe('user-secret')
+  })
+})
+
+describe('prepareBlockState — permission-group seed veto', () => {
+  const blockWithDefaults = {
+    name: 'Mock Block',
+    description: '',
+    icon: () => null,
+    outputs: {},
+    tools: { access: ['slack_message'] },
+    subBlocks: [
+      { id: 'operation', type: 'dropdown', defaultValue: 'send' },
+      { id: 'model', type: 'combobox', defaultValue: 'claude-sonnet-5' },
+      { id: 'channel', type: 'short-input', defaultValue: '#general' },
+      { id: 'blank', type: 'short-input', defaultValue: '' },
+      { id: 'headers', type: 'table', defaultValue: [] },
+    ],
+  }
+
+  const seededValues = (isSeededValueAllowed?: (subBlockId: string, value: string) => boolean) => {
+    vi.mocked(getBlock).mockReturnValueOnce(blockWithDefaults as never)
+    const block = prepareBlockState({
+      id: 'b1',
+      type: 'slack',
+      name: 'Slack',
+      position: { x: 0, y: 0 },
+      isSeededValueAllowed,
+    })
+    return Object.fromEntries(
+      Object.entries(block.subBlocks).map(([id, subBlock]) => [id, subBlock.value])
+    )
+  }
+
+  afterEach(() => {
+    vi.mocked(getBlock).mockReset()
+  })
+
+  it('seeds every declared default when no gate is supplied', () => {
+    expect(seededValues()).toEqual({
+      operation: 'send',
+      model: 'claude-sonnet-5',
+      channel: '#general',
+      blank: '',
+      headers: [],
+    })
+  })
+
+  it('seeds every declared default when the gate allows them', () => {
+    expect(seededValues(() => true)).toEqual({
+      operation: 'send',
+      model: 'claude-sonnet-5',
+      channel: '#general',
+      blank: '',
+      headers: [],
+    })
+  })
+
+  it('never consults the gate for an empty or non-string default', () => {
+    /* Both are "nothing was declared" rather than a value to authorize, and a
+       gate that saw them would veto every unfilled field. */
+    const seen: string[] = []
+    seededValues((subBlockId) => {
+      seen.push(subBlockId)
+      return true
+    })
+    expect(seen).not.toContain('blank')
+    expect(seen).not.toContain('headers')
+  })
+
+  it('keeps an empty or non-string default even when the gate rejects everything', () => {
+    const values = seededValues(() => false)
+    expect(values.blank).toBe('')
+    expect(values.headers).toEqual([])
+  })
+
+  it('leaves a denied operation unseeded rather than substituting one', () => {
+    const values = seededValues((subBlockId) => subBlockId !== 'operation')
+    expect(values.operation).toBeNull()
+    expect(values.model).toBe('claude-sonnet-5')
+    expect(values.channel).toBe('#general')
+  })
+
+  it('leaves a denied model unseeded', () => {
+    const values = seededValues((subBlockId) => subBlockId !== 'model')
+    expect(values.model).toBeNull()
+    expect(values.operation).toBe('send')
+  })
+
+  it('passes the seeded value to the gate, not just the field id', () => {
+    const seen: Array<[string, string]> = []
+    seededValues((subBlockId, value) => {
+      seen.push([subBlockId, value])
+      return true
+    })
+    expect(seen).toEqual([
+      ['operation', 'send'],
+      ['model', 'claude-sonnet-5'],
+      ['channel', '#general'],
+    ])
   })
 })

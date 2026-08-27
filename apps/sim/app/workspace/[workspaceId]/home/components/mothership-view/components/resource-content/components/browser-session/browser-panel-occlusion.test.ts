@@ -30,6 +30,7 @@ import {
   createBrowserPanelGeometryOcclusionLease,
   hasNativeSurfaceOcclusion,
   NATIVE_SURFACE_OCCLUSION_SELECTOR,
+  snapshotMatchesHost,
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 
@@ -499,10 +500,11 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
 
   it('reuses a painted popover frame for a modal without revealing the native view between them', async () => {
     const fallback = vi.fn()
+    const onOwnershipLost = vi.fn()
     const hook = renderOcclusionHook()
 
     act(() => {
-      void hook.result().requestOverlay('resources', fallback)
+      void hook.result().requestOverlay('resources', fallback, onOwnershipLost)
     })
     await flushOcclusionLifecycle()
 
@@ -521,6 +523,7 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
     expect(hook.result().activeOverlay).toBeNull()
     expect(hook.result().snapshotLayer).toBe('modal')
+    expect(onOwnershipLost).toHaveBeenCalledOnce()
 
     await act(async () => {
       await hook.result().closeOverlay('resources')
@@ -539,12 +542,13 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
   it('replaces one popover with another without revealing or recapturing the native view', async () => {
     const firstFallback = vi.fn()
     const secondFallback = vi.fn()
+    const firstOwnershipLost = vi.fn()
     const hook = renderOcclusionHook()
     let firstRequest!: Promise<boolean>
     let secondRequest!: Promise<boolean>
 
     act(() => {
-      firstRequest = hook.result().requestOverlay('resources', firstFallback)
+      firstRequest = hook.result().requestOverlay('resources', firstFallback, firstOwnershipLost)
     })
     await flushOcclusionLifecycle()
     expect(await firstRequest).toBe(true)
@@ -559,6 +563,7 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(hook.result().activeOverlay).toBe('tab')
     expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
     expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
+    expect(firstOwnershipLost).toHaveBeenCalledOnce()
     expect(firstFallback).not.toHaveBeenCalled()
     expect(secondFallback).not.toHaveBeenCalled()
     hook.unmount()
@@ -580,5 +585,46 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(hook.result().snapshot).toBeNull()
     expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
     hook.unmount()
+  })
+})
+
+describe('snapshotMatchesHost', () => {
+  const rect = (x: number, y: number, width: number, height: number) =>
+    ({ x, y, width, height }) as DOMRect
+
+  it('accepts a capture that still describes the host rect', () => {
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10, 20, 800, 600)
+      )
+    ).toBe(true)
+  })
+
+  it('tolerates sub-pixel drift from rounding', () => {
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10.4, 19.6, 800.5, 599.5)
+      )
+    ).toBe(true)
+  })
+
+  it('rejects a capture taken before a scroll lock reflowed the panel', () => {
+    // Modal scroll lock removes the scrollbar: the host widens by 15px, so the
+    // pre-lock capture would paint misaligned — the flash this guards.
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10, 20, 815, 600)
+      )
+    ).toBe(false)
+  })
+
+  it('accepts captures with no viewport bounds (host-tracking fallback style)', () => {
+    expect(snapshotMatchesHost({ viewportBounds: undefined }, rect(0, 0, 100, 100))).toBe(true)
+    expect(
+      snapshotMatchesHost({ viewportBounds: { x: 0, y: 0, width: 10, height: 10 } }, null)
+    ).toBe(true)
   })
 })

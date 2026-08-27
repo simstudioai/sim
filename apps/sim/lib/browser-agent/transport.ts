@@ -186,6 +186,7 @@ export async function executeBrowserTool(
   }
   const activeTool = { toolCallId, tool, scopeId, onCancel }
   activeBrowserTools.set(toolCallId, activeTool)
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     const invocation = agent.executeTool(toolCallId, tool, params, scopeId)
     const response =
@@ -194,7 +195,7 @@ export async function executeBrowserTool(
         : await Promise.race([
             invocation,
             new Promise<never>((_, reject) => {
-              setTimeout(
+              timeoutId = setTimeout(
                 () => reject(new Error(`The browser did not respond within ${timeoutMs}ms`)),
                 timeoutMs
               )
@@ -205,6 +206,7 @@ export async function executeBrowserTool(
     }
     return response.result
   } finally {
+    clearTimeout(timeoutId)
     if (activeBrowserTools.get(toolCallId) === activeTool) {
       activeBrowserTools.delete(toolCallId)
     }
@@ -305,6 +307,15 @@ export async function openBrowserTab(
   }
   useBrowserSessionStore.getState().setTabsState(state)
   return state
+}
+
+/** Opens a distinct browser tab and navigates it after the shell accepts it. */
+export async function openUrlInNewBrowserTab(
+  url: string,
+  scopeId = currentBrowserScopeId()
+): Promise<void> {
+  await openBrowserTab(scopeId)
+  sendBrowserPanelAction('navigate', { url }, scopeId)
 }
 
 /** Pins or unpins a live browser tab. */
@@ -485,6 +496,19 @@ export async function loadBrowserSuggestionSources(): Promise<{
     desktop?.browserImport?.listSites().catch(() => []) ?? [],
   ])
   return { sessions: known?.sessions ?? [], credentials, sites }
+}
+
+/**
+ * Requests live Google completions through the desktop shell. Older shells and
+ * disabled/offline providers resolve to an empty list, leaving local sites and
+ * ordinary Enter-to-search behavior intact.
+ */
+export function loadBrowserSearchSuggestions(query: string): Promise<string[]> {
+  return (
+    bridge()
+      ?.getSearchSuggestions?.(query)
+      .catch(() => []) ?? Promise.resolve([])
+  )
 }
 
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */

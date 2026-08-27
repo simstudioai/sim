@@ -85,7 +85,8 @@ export const associateAttendeesTool: ToolConfig<AssociateAttendeesParams, SapCon
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Attendee associations payload (e.g., { "attendeeAssociations": [...] })',
+        description:
+          'Attendee association payload with exactly two top-level fields: "noShowAttendeeCount" (integer, default 0) and "expenseAttendeeList" (array). Each entry in expenseAttendeeList requires "attendeeId" (string) and "transactionAmount" (object: { "value": number, "currencyCode": string }), and optionally accepts "customData", "isAmountUserEdited" (boolean), "isTraveling" (boolean), "associatedAttendeeCount" (integer), and "versionNumber" (integer). Example: { "noShowAttendeeCount": 0, "expenseAttendeeList": [{ "attendeeId": "gWmMv2Ii5rGtEBTBhBqUw", "transactionAmount": { "value": 23, "currencyCode": "USD" } }] }. Note: the object form follows the request schema (Amount = value + currencyCode, both required), but the documented POST example sends a scalar "transactionAmount": 23 — the docs conflict here.',
       },
     },
     request: {

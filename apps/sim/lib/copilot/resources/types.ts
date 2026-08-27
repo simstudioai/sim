@@ -20,6 +20,14 @@ export interface MothershipResource {
   id: string
   title: string
   path?: string
+  /** Saved table view to open pinned (type "table" only). */
+  viewId?: string
+  /**
+   * The run this log row records (type "log" only). Distinct from `id`, which
+   * is the log row's own key: the tab loads by row id, while chat context and
+   * the logs deep-link address the run itself.
+   */
+  executionId?: string
 }
 
 /**

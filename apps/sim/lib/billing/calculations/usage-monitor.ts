@@ -6,24 +6,22 @@ import { eq } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import { getUserUsageLimit, type UsageLimitSubscription } from '@/lib/billing/core/usage'
 import {
-  getPooledOrgCurrentPeriodCost,
-  getUserUsageLimit,
-  type UsageLimitSubscription,
-} from '@/lib/billing/core/usage'
-import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+  type BillingContext,
+  type BillingEntity,
+  getBillingPeriodUsageCost,
+  type UsageQueryPeriod,
+} from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import {
-  computeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
+import { computeBillingPeriodUsageWithWeeklyRefresh } from '@/lib/billing/credits/weekly-refresh'
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
+import { getPlanWeeklyRefreshDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('UsageMonitor')
@@ -48,26 +46,36 @@ interface UsageData {
 
 async function computePooledOrgUsage(
   organizationId: string,
-  sub: {
-    plan: string | null
-    seats: number | null
-    periodStart: Date | null
-    periodEnd: Date | null
-  }
+  sub: UsageLimitSubscription,
+  preloadedBillingPeriod?: UsageQueryPeriod
 ): Promise<number> {
-  const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
-  if (memberIds.length === 0) return 0
+  const billingPeriod = preloadedBillingPeriod ??
+    resolveSubscriptionUsagePeriod(sub) ?? {
+      ...defaultBillingPeriod(),
+      source: 'default' as const,
+      anchorDate: null,
+      interval: null,
+    }
 
-  const billingPeriod =
-    sub.periodStart && sub.periodEnd
-      ? { start: sub.periodStart, end: sub.periodEnd }
-      : defaultBillingPeriod()
-  const ledgerUsage = await getBillingPeriodUsageCost(
-    { type: 'organization', id: organizationId },
-    billingPeriod
-  )
+  if (!isPaid(sub.plan) || !sub.periodStart) {
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+  }
 
-  return applyOrgRefresh(organizationId, sub, currentPeriodCost + ledgerUsage, memberIds)
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+  if (weeklyRefreshDollars <= 0) {
+    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+  }
+
+  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithWeeklyRefresh({
+    billingEntity: { type: 'organization', id: organizationId },
+    billingPeriod,
+    refreshPeriodStart: sub.periodStart,
+    refreshPeriodEnd: sub.periodEnd ?? null,
+    weeklyRefreshDollars,
+    seats: sub.seats || 1,
+  })
+
+  return Math.max(0, ledgerUsage - refreshConsumed)
 }
 
 /**
@@ -76,13 +84,16 @@ async function computePooledOrgUsage(
  */
 export async function checkUsageStatus(
   userId: string,
-  preloadedSubscription?: UsageLimitSubscription | null
+  preloadedSubscription?: UsageLimitSubscription | null,
+  preloadedBillingContext?: BillingContext
 ): Promise<UsageData> {
   try {
     if (!isBillingEnabled) {
-      const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-      const currentUsage =
-        statsRecords.length > 0 ? toNumber(toDecimal(statsRecords[0].currentPeriodCost)) : 0
+      // Self-hosted display: lifetime ledger over the open default window.
+      const currentUsage = await getBillingPeriodUsageCost(
+        { type: 'user', id: userId },
+        { ...defaultBillingPeriod(), source: 'default' }
+      )
 
       return {
         percentUsed: Math.min((currentUsage / 1000) * 100, 100),
@@ -108,48 +119,43 @@ export async function checkUsageStatus(
     const organizationId: string | null = subIsOrgScoped && sub ? sub.referenceId : null
 
     if (subIsOrgScoped && sub) {
-      const currentUsage = await computePooledOrgUsage(sub.referenceId, sub)
+      const currentUsage = await computePooledOrgUsage(
+        sub.referenceId,
+        sub,
+        preloadedBillingContext?.billingPeriod
+      )
       return buildUsageData({ currentUsage, limit, scope, organizationId })
     }
 
-    const statsRecords = await db
-      .select()
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    if (statsRecords.length === 0) {
-      logger.info('No usage stats found for user', { userId, limit })
-      return {
-        percentUsed: 0,
-        isWarning: false,
-        isExceeded: false,
-        currentUsage: 0,
-        limit,
-        scope: 'user',
-        organizationId: null,
-      }
-    }
-
     const billingPeriod =
-      sub?.periodStart && sub.periodEnd
+      preloadedBillingContext?.billingPeriod ??
+      (sub?.periodStart && sub.periodEnd
         ? { start: sub.periodStart, end: sub.periodEnd }
-        : defaultBillingPeriod()
-    const ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
-    let currentUsage = toNumber(toDecimal(statsRecords[0].currentPeriodCost)) + ledgerUsage
+        : defaultBillingPeriod())
+    let ledgerUsage: number
+    let refreshConsumed = 0
+    let appliedWeeklyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
-      const planDollars = getPlanTierDollars(sub.plan)
-      if (planDollars > 0) {
-        const refresh = await computeDailyRefreshConsumed({
-          userIds: [userId],
-          periodStart: sub.periodStart,
-          periodEnd: sub.periodEnd ?? null,
-          planDollars,
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      if (weeklyRefreshDollars > 0) {
+        const usage = await computeBillingPeriodUsageWithWeeklyRefresh({
           billingEntity: { type: 'user', id: userId },
+          billingPeriod,
+          refreshPeriodStart: sub.periodStart,
+          refreshPeriodEnd: sub.periodEnd ?? null,
+          weeklyRefreshDollars,
         })
-        currentUsage = Math.max(0, currentUsage - refresh)
+        ledgerUsage = usage.ledgerUsage
+        refreshConsumed = usage.refreshConsumed
+        appliedWeeklyRefresh = true
+      } else {
+        ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
       }
+    } else {
+      ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
+    const usageBeforeRefresh = ledgerUsage - refreshConsumed
+    const currentUsage = appliedWeeklyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
@@ -173,42 +179,6 @@ export async function checkUsageStatus(
       organizationId: null,
     }
   }
-}
-
-async function applyOrgRefresh(
-  organizationId: string,
-  sub: {
-    plan: string | null
-    seats: number | null
-    periodStart: Date | null
-    periodEnd: Date | null
-  },
-  currentUsage: number,
-  preloadedMemberIds?: string[]
-): Promise<number> {
-  if (!isPaid(sub.plan) || !sub.periodStart) {
-    return currentUsage
-  }
-
-  const memberIds =
-    preloadedMemberIds ?? (await getPooledOrgCurrentPeriodCost(organizationId)).memberIds
-  if (memberIds.length === 0) return currentUsage
-
-  const planDollars = getPlanTierDollars(sub.plan)
-  if (planDollars <= 0) return currentUsage
-
-  const userBounds = await getOrgMemberRefreshBounds(organizationId, sub.periodStart)
-  const refresh = await computeDailyRefreshConsumed({
-    userIds: memberIds,
-    periodStart: sub.periodStart,
-    periodEnd: sub.periodEnd ?? null,
-    planDollars,
-    seats: sub.seats || 1,
-    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-    billingEntity: { type: 'organization', id: organizationId },
-  })
-
-  return Math.max(0, currentUsage - refresh)
 }
 
 function buildUsageData(params: {
@@ -240,53 +210,6 @@ function buildUsageData(params: {
     limit,
     scope,
     organizationId,
-  }
-}
-
-/**
- * Displays a notification to the user when they're approaching their usage limit
- * Can be called on app startup or before executing actions that might incur costs
- */
-async function checkAndNotifyUsage(userId: string): Promise<void> {
-  try {
-    if (!isBillingEnabled) {
-      return
-    }
-
-    const usageData = await checkUsageStatus(userId)
-
-    if (usageData.isExceeded) {
-      logger.warn('User has exceeded usage limits', {
-        userId,
-        usage: usageData.currentUsage,
-        limit: usageData.limit,
-      })
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('usage-exceeded', {
-            detail: { usageData },
-          })
-        )
-      }
-    } else if (usageData.isWarning) {
-      logger.info('User approaching usage limits', {
-        userId,
-        usage: usageData.currentUsage,
-        limit: usageData.limit,
-        percent: usageData.percentUsed,
-      })
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('usage-warning', {
-            detail: { usageData },
-          })
-        )
-      }
-    }
-  } catch (error) {
-    logger.error('Error in usage notification system', { error, userId })
   }
 }
 
@@ -372,7 +295,8 @@ export async function checkBillingEntityBlocked(
  */
 export async function checkServerSideUsageLimits(
   userId: string,
-  preloadedSubscription?: UsageLimitSubscription | null
+  preloadedSubscription?: UsageLimitSubscription | null,
+  preloadedBillingContext?: BillingContext
 ): Promise<{
   isExceeded: boolean
   currentUsage: number
@@ -390,20 +314,26 @@ export async function checkServerSideUsageLimits(
 
     logger.info('Server-side checking usage limits for user', { userId })
 
-    const stats = await db
-      .select({ current: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    const currentUsage = stats.length > 0 ? toNumber(toDecimal(stats[0].current)) : 0
-
     const blocked = await checkBillingBlocked(userId)
     if (blocked.blocked) {
+      // Enforcement stays blocked, but surfaced usage must be the real ledger
+      // value — `/api/users/me/usage-limits` exposes it as `currentPeriodCost`.
+      const sub =
+        preloadedSubscription !== undefined
+          ? preloadedSubscription
+          : await getHighestPrioritySubscription(userId)
+      const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
+      const billingEntity: BillingEntity =
+        subIsOrgScoped && sub
+          ? { type: 'organization', id: sub.referenceId }
+          : { type: 'user', id: userId }
+      const billingPeriod = preloadedBillingContext?.billingPeriod ??
+        resolveSubscriptionUsagePeriod(sub) ?? { ...defaultBillingPeriod(), source: 'default' }
+      const currentUsage = await getBillingPeriodUsageCost(billingEntity, billingPeriod)
       return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
     }
 
-    const usageData = await checkUsageStatus(userId, preloadedSubscription)
+    const usageData = await checkUsageStatus(userId, preloadedSubscription, preloadedBillingContext)
 
     const formattedUsage = (usageData.currentUsage ?? 0).toFixed(2)
     const formattedLimit = (usageData.limit ?? 0).toFixed(2)
@@ -455,7 +385,7 @@ export async function checkServerSideUsageLimits(
 export async function checkOrganizationMemberUsageLimit(
   userId: string,
   organizationId: string,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: UsageQueryPeriod
 ): Promise<OrganizationMemberUsageLimitResult> {
   try {
     if (!isHosted || !isBillingEnabled || !organizationId) {

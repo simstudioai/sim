@@ -20,7 +20,7 @@ import {
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
-import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
+import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'

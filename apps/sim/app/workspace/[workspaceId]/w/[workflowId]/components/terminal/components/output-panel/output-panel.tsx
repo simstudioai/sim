@@ -35,8 +35,8 @@ import {
   StructuredOutput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components'
 import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/toggle-button'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 

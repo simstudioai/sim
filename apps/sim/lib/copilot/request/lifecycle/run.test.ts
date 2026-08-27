@@ -158,7 +158,6 @@ describe('runCopilotLifecycle', () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
       isHosted: false,
-      isCopilotBillingAttributionV1Enabled: false,
       isCopilotToolPermissionsEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
@@ -206,6 +205,48 @@ describe('runCopilotLifecycle', () => {
     expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
+
+  it.each([
+    { interactive: true, expected: 'interactive' as const },
+    { interactive: false, expected: 'headless' as const },
+    { interactive: undefined, expected: 'headless' as const },
+  ])(
+    'stamps the trusted $expected lifecycle mode over supplied context',
+    async ({ interactive, expected }) => {
+      let capturedExecutionContext: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _url: string,
+          _request: RequestInit,
+          _streamingContext: StreamingContext,
+          context: ExecutionContext
+        ) => {
+          capturedExecutionContext = context
+        }
+      )
+
+      await runCopilotLifecycle(
+        {
+          message: 'hello',
+          messageId: `stream-${expected}-context`,
+          copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          interactive,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+          },
+        }
+      )
+
+      expect(capturedExecutionContext?.copilotInteractionMode).toBe(expected)
+    }
+  )
 
   it('forwards the configured Mothership system prompt override', async () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
@@ -1334,7 +1375,6 @@ describe('runCopilotLifecycle', () => {
       payerSubscription: null,
     }
     setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockRunStreamLoop.mockImplementationOnce(
       async (
@@ -1433,66 +1473,20 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
+  it('rejects hosted work without immutable billing attribution before egress', async () => {
     setEnvFlags({ isHosted: true })
-    mockEnv.COPILOT_API_KEY = 'sim-agent-key'
 
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'message-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        executionId: 'execution-1',
-        runId: 'run-1',
-        simRequestId: 'request-1',
-        billingAttribution: {
-          actorUserId: 'user-1',
+    await expect(
+      runCopilotLifecycle(
+        { message: 'hello', messageId: 'message-1' },
+        {
+          userId: 'user-1',
           workspaceId: 'ws-1',
-          billedAccountUserId: 'owner-1',
-          organizationId: null,
-          billingEntity: { type: 'user', id: 'owner-1' },
-          billingPeriod: {
-            start: '2026-07-01T00:00:00.000Z',
-            end: '2026-08-01T00:00:00.000Z',
-          },
-          payerSubscription: null,
-        },
-      }
-    )
-
-    const headers = mockRunStreamLoop.mock.calls[0]?.[1].headers as Record<string, string>
-    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
-    expect(headers['x-sim-billing-request-id']).toBeUndefined()
-    expect(headers['x-sim-billing-attribution']).toBeUndefined()
-  })
-
-  it('runs modern hosted work without legacy compatibility storage', async () => {
-    setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'message-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        billingAttribution: {
-          actorUserId: 'user-1',
-          workspaceId: 'ws-1',
-          billedAccountUserId: 'owner-1',
-          organizationId: null,
-          billingEntity: { type: 'user', id: 'owner-1' },
-          billingPeriod: {
-            start: '2026-07-01T00:00:00.000Z',
-            end: '2026-08-01T00:00:00.000Z',
-          },
-          payerSubscription: null,
-        },
-      }
-    )
-
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
+          chatId: 'chat-1',
+        }
+      )
+    ).rejects.toThrow('Billing attribution is required for hosted Copilot execution')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
   it('does not emit trusted billing headers for a non-hosted lifecycle', async () => {
@@ -1757,6 +1751,61 @@ describe('runCopilotLifecycle', () => {
     for (const body of bodies) {
       expect(body.willRetryOnStreamError).toBeUndefined()
     }
+  })
+
+  it('retries an initial stream that ended before its checkpoint pause with one request identity', async () => {
+    const headers: Array<Record<string, string>> = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        headers.push(fetchOptions.headers as Record<string, string>)
+        context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+        throw new StreamEndedWithoutTerminalError('/api/mothership')
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        headers.push(fetchOptions.headers as Record<string, string>)
+        context.streamComplete = true
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-initial-retry' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        simRequestId: 'request-initial-retry',
+        executionContext,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(headers.map((value) => value['X-Sim-Request-ID'])).toEqual([
+      'request-initial-retry',
+      'request-initial-retry',
+    ])
+    expect(result).toEqual(
+      expect.objectContaining({ success: true, cancelled: false, errors: undefined })
+    )
   })
 
   it('does not retry a resume leg the backend already claimed and ended early', async () => {
@@ -2120,5 +2169,104 @@ describe('runCopilotLifecycle', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+  it('completes the turn when a pending subagent tool has no result', async () => {
+    // A tool that never reached a terminal state used to throw
+    // "Cannot resume subagent chain ...: missing result for tool call ...",
+    // which inside a fanout cancelled every sibling lane and reported the whole
+    // request as an error blaming an unrelated tool. Synthesize the failure Go
+    // already writes for itself instead, and let the turn finish.
+    const bodies: Array<Record<string, unknown>> = []
+    mockRunStreamLoop.mockImplementation(
+      async (
+        fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        if (!fetchUrl.includes('/api/tools/resume')) {
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'cp-root',
+            pendingToolCallIds: [],
+            frames: [
+              {
+                parentToolCallId: 'subagent-file',
+                parentToolName: 'file',
+                pendingToolIds: ['tool-never-dispatched'],
+                checkpointId: 'cp-file',
+              },
+            ],
+          }
+          return
+        }
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.streamComplete = true
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-missing-subagent-result' },
+      { userId: 'user-1', workspaceId: 'ws-1' }
+    )
+
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].checkpointId).toBe('cp-file')
+    expect(bodies[0].results).toEqual([
+      expect.objectContaining({
+        callId: 'tool-never-dispatched',
+        success: false,
+        data: { error: expect.stringContaining('no result was returned') },
+      }),
+    ])
+    expect(result.success).toBe(true)
+  })
+
+  it('classifies a Stop landing during a subagent fanout as cancelled', async () => {
+    // Guards the trap in the fanout fix: `wasAborted` is now isolated per leg, so
+    // a user Stop must still reach the turn — via the abort signal or the folded
+    // turn-level abort — or a cancelled turn would be reported as a success.
+    const controller = new AbortController()
+    mockRunStreamLoop.mockImplementation(
+      async (
+        fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        if (!fetchUrl.includes('/api/tools/resume')) {
+          context.toolCalls.set('tool-done', {
+            id: 'tool-done',
+            name: 'read',
+            status: MothershipStreamV1ToolOutcome.success,
+            result: { success: true },
+            endTime: Date.now(),
+          })
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'cp-root',
+            pendingToolCallIds: [],
+            frames: [
+              {
+                parentToolCallId: 'subagent-file',
+                parentToolName: 'file',
+                pendingToolIds: ['tool-done'],
+                checkpointId: 'cp-file',
+              },
+            ],
+          }
+          return
+        }
+        // The user hits Stop mid-fanout. `wasAborted` is isolated per leg now, so
+        // the turn's own signal is what has to carry the cancellation into the
+        // classification — reading only `context.wasAborted` reports success.
+        controller.abort('user_stop')
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-stop-during-fanout' },
+      { userId: 'user-1', workspaceId: 'ws-1', abortSignal: controller.signal }
+    )
+
+    expect(result.cancelled).toBe(true)
+    expect(result.success).toBe(false)
   })
 })

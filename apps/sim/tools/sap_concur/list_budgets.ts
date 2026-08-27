@@ -71,7 +71,8 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Response schema variant: "COMPACT" returns a smaller payload',
+      description:
+        'Response schema variant: "COMPACT" returns a smaller payload. Defaults to the non-compact schema',
     },
   },
   request: {
@@ -96,16 +97,42 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
       type: 'json',
       description: 'Budget headers collection payload',
       properties: {
-        items: {
+        budgetItemHeaders: {
           type: 'array',
           optional: true,
           description:
             'Array of budget item header summaries (id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...)',
           items: { type: 'json' },
         },
-        offset: { type: 'number', optional: true, description: 'Page offset' },
-        limit: { type: 'number', optional: true, description: 'Page size' },
-        totalCount: { type: 'number', optional: true, description: 'Total result count' },
+        totalRows: {
+          type: 'number',
+          optional: true,
+          description: 'Total number of budget headers',
+        },
+        offset: { type: 'number', optional: true, description: 'Offset of the current page' },
+        limit: {
+          type: 'number',
+          optional: true,
+          description: 'Page size (Concur returns up to 50)',
+        },
+        href: { type: 'string', optional: true, description: 'URL of the current page' },
+        previous: {
+          type: 'json',
+          optional: true,
+          description: 'Previous page link ({ href }); null on the first page',
+          properties: {
+            href: { type: 'string', optional: true, description: 'Previous page URL' },
+          },
+        },
+        next: {
+          type: 'json',
+          optional: true,
+          description:
+            'Next page link ({ href }); null when no results remain. This is the only forward cursor for paging',
+          properties: {
+            href: { type: 'string', optional: true, description: 'Next page URL' },
+          },
+        },
       },
     },
   },

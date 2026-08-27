@@ -91,7 +91,7 @@ export const listAnnotationsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum number of annotations to return',
+      description: 'Maximum number of annotations to return (Grafana defaults to 100)',
     },
   },
 
@@ -102,7 +102,7 @@ export const listAnnotationsTool: ToolConfig<
 
       if (params.from) searchParams.set('from', String(params.from))
       if (params.to) searchParams.set('to', String(params.to))
-      if (params.dashboardUid) searchParams.set('dashboardUID', params.dashboardUid)
+      if (params.dashboardUid) searchParams.set('dashboardUID', params.dashboardUid.trim())
       if (params.dashboardId) searchParams.set('dashboardId', String(params.dashboardId))
       if (params.panelId) searchParams.set('panelId', String(params.panelId))
       if (params.alertId) searchParams.set('alertId', String(params.alertId))

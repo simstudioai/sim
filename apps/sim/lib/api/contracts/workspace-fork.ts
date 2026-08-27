@@ -14,6 +14,11 @@ export const forkRemapKindSchema = z.enum([
   'file',
   'mcp-server',
   'custom-tool',
+  /**
+   * A published custom block, referenced by the placed block's `type` rather than by any
+   * sub-block value — the only remap kind that rewrites the block itself.
+   */
+  'custom-block',
   'skill',
 ])
 
@@ -33,6 +38,12 @@ export const forkResourceTypeSchema = z.enum([
    * never user-mapped (nothing in a workflow references these servers).
    */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -328,17 +339,32 @@ export const forkWorkflowChangeSchema = z.object({
  * so blocks aren't padded with every operation variant.
  */
 export const forkDependentReconfigSchema = z.object({
-  /** The remappable parent resource kind whose target swap clears this field. */
-  parentKind: z.enum(['credential', 'knowledge-base', 'table']),
+  /**
+   * The remappable parent whose target swap makes this field reconfigurable. For
+   * `custom-block` the "parent" IS the block itself: repointing it at another environment's
+   * block makes EVERY one of its inputs reconfigurable, not the `dependsOn` subset a
+   * credential/KB/table swap invalidates.
+   */
+  parentKind: z.enum(['credential', 'knowledge-base', 'table', 'custom-block']),
   /** Source id of that parent (matches a mapping entry's `sourceId`). */
   parentSourceId: z.string(),
-  /** SelectorContext key the new parent value is supplied under (`oauthCredential` | `knowledgeBaseId` | `tableId`). */
-  parentContextKey: z.string(),
+  /**
+   * SelectorContext key the new parent value is supplied under (`oauthCredential` |
+   * `knowledgeBaseId` | `tableId`). Absent for `custom-block`: its inputs are plain typed
+   * fields, not selectors, so there is no parent value to feed them.
+   */
+  parentContextKey: z.string().optional(),
   targetWorkflowId: z.string(),
   targetBlockId: z.string(),
   blockName: z.string(),
   subBlockKey: z.string(),
-  selectorKey: z.string(),
+  /** Absent for `custom-block` fields, which are typed inputs rather than selectors. */
+  selectorKey: z.string().optional(),
+  /**
+   * A `custom-block` input's declared field type (`string` | `number` | `boolean` | `object` |
+   * `array` | ...), so the modal renders the matching control instead of a selector.
+   */
+  fieldType: z.string().optional(),
   /** Plain field title (e.g. `Label`), never a `Tool: Field` composite. */
   title: z.string(),
   /**
@@ -346,6 +372,12 @@ export const forkDependentReconfigSchema = z.object({
    * `Gmail 1`). Absent for top-level block subblocks.
    */
   toolName: z.string().optional(),
+  /**
+   * Stable scope for one nested tool instance (e.g. `tools[0]`). Dependency context and
+   * descendant invalidation never cross this boundary, even when two tools expose the same
+   * canonical parameter ids. Absent for top-level block subblocks, which share the block scope.
+   */
+  dependencyScope: z.string().optional(),
   /**
    * The field's stored value (from the persisted mapping), so the always-on reconfigure listing
    * pre-fills the selector with what the user last set. Empty string when unset; for an edge
@@ -465,11 +497,17 @@ export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
  *    dead id to an existing live target resource, or by fixing/archiving the source workflow.
  *  - `workflow-missing`: a cross-workflow reference to a workflow not carried into the target -
  *    resolve by deploying the referenced workflow in the source, or removing the reference.
+ *  - `unmapped-custom-block`: a placed custom block with no target mapping. Unlike every other
+ *    unmapped reference this one does NOT clear - a block's type cannot be emptied without
+ *    deleting the node - so the target would silently keep invoking the SOURCE environment's
+ *    block. Blocking is what makes that visible; resolve by mapping it to the target
+ *    environment's own published block.
  */
 export const forkSyncBlockerReasonSchema = z.enum([
   'unmapped-copyable',
   'source-deleted',
   'workflow-missing',
+  'unmapped-custom-block',
 ])
 export type ForkSyncBlockerReason = z.output<typeof forkSyncBlockerReasonSchema>
 

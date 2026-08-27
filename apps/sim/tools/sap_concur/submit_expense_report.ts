@@ -14,7 +14,7 @@ export const submitExpenseReportTool: ToolConfig<
   id: 'sap_concur_submit_expense_report',
   name: 'SAP Concur Submit Expense Report',
   description:
-    'Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit).',
+    'Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit). Takes no request body.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -71,13 +71,6 @@ export const submitExpenseReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Expense report ID to submit',
     },
-    body: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        "Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain.",
-    },
   },
   request: {
     url: SAP_CONCUR_PROXY_URL,
@@ -90,7 +83,6 @@ export const submitExpenseReportTool: ToolConfig<
         ...baseProxyBody(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/reports/${encodeURIComponent(reportId)}/submit`,
         method: 'PATCH',
-        body: params.body ?? {},
       }
     },
   },

@@ -16,6 +16,7 @@ import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   extractStorageKey,
   isInternalFileUrl,
@@ -125,7 +126,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
-        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+        // The three providers this route serves disagree too much for a single
+        // route-wide image limit to be right (Anthropic: 10MB base64 per image;
+        // OpenAI: 512MB total request payload), and picking the lowest would reject
+        // images the others accept. So bound the buffer we hold and let each provider
+        // reject what it will not take, with its own message.
+        const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        })
         base64 = buffer.toString('base64')
         bufferLength = buffer.length
       }

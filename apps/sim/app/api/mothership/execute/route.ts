@@ -244,7 +244,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           userId,
           lastUserMessage,
           workspaceId,
-          effectiveChatId
+          effectiveChatId,
+          activeResolvedSecretTraceRegistry
         ).catch((error) => {
           reqLogger.warn('Failed to resolve agent contexts for execution', {
             error: toError(error).message,

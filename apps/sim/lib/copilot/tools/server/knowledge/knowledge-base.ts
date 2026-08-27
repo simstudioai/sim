@@ -10,7 +10,7 @@ import {
   messageForCopilotKnowledgeError,
   requireCopilotKnowledgeWorkspaceId,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
-import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ManageKnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   assertServerToolNotAborted,
@@ -19,8 +19,8 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
-import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/application/batch-policy'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
   createKnowledgeConnector,
@@ -30,6 +30,7 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import {
   bulkDeleteKnowledgeDocuments,
+  type KnowledgeDocumentTagValueAssignment,
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import {
@@ -46,11 +47,51 @@ import {
   readKnowledgeTagUsage,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
-import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  MAX_KNOWLEDGE_BATCH_ITEMS,
+} from '@/lib/knowledge/constants'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+
+/**
+ * Resolves an environment-variable reference passed as a connector API key.
+ *
+ * Models reference workspace secrets the way workflows do — `{{SIM_GITHUB_PAT}}`
+ * (and, when improvising, `$SIM_GITHUB_PAT` or the bare name). Before this,
+ * the literal placeholder string was sent upstream as the bearer token and the
+ * provider answered 401 — an error that never named the real problem. A raw
+ * key that matches no reference form passes through untouched.
+ *
+ * Returns an error string when a reference names a variable that is not set,
+ * so the model learns the actual fix instead of retrying reference syntaxes.
+ */
+async function resolveConnectorApiKey(
+  context: ServerToolContext,
+  workspaceId: string,
+  apiKey: string | undefined
+): Promise<{ apiKey?: string; error?: string }> {
+  if (!apiKey) return { apiKey }
+  const braced = apiKey.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)
+  const dollar = apiKey.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/)
+  const referencedName = braced?.[1] ?? dollar?.[1]
+  const env = await getEffectiveDecryptedEnv(context.userId, workspaceId)
+  const name = referencedName ?? (Object.hasOwn(env, apiKey) ? apiKey : undefined)
+  if (!name) return { apiKey }
+  const value = env[name]
+  if (value === undefined || value === '') {
+    return {
+      error: `Environment variable "${name}" is not set for this workspace or user, so it cannot be used as the connector API key. Set it first, pass a different {{ENV_VAR}} reference, or pass the raw key.`,
+    }
+  }
+  // Activate the resolved secret on the call's egress registry so any
+  // accidental echo of it (provider error bodies, logs) is redacted.
+  context.resolvedSecretTraceRegistry?.recordResolved(name, value)
+  return { apiKey: value }
+}
 
 function requireKnowledgeBillingAttribution(
   context: ServerToolContext,
@@ -230,11 +271,28 @@ type KnowledgeBaseResult = {
   data?: any
 }
 
+function isKnowledgeDocumentTagValueAssignment(
+  value: unknown
+): value is KnowledgeDocumentTagValueAssignment {
+  if (typeof value !== 'object' || value === null) return false
+  const assignment = value as Record<string, unknown>
+  if (typeof assignment.tagDefinitionId !== 'string' || !assignment.tagDefinitionId.trim()) {
+    return false
+  }
+  if (!Object.hasOwn(assignment, 'value')) return false
+  return (
+    assignment.value === null ||
+    typeof assignment.value === 'string' ||
+    typeof assignment.value === 'number' ||
+    typeof assignment.value === 'boolean'
+  )
+}
+
 /**
  * Knowledge base tool for copilot to create, list, and get knowledge bases
  */
 export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, KnowledgeBaseResult> = {
-  name: KnowledgeBase.id,
+  name: ManageKnowledgeBase.id,
   async execute(
     params: KnowledgeBaseArgs,
     context?: ServerToolContext
@@ -273,6 +331,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               name: args.name,
               description: args.description,
               chunkingConfig: args.chunkingConfig,
+              folderPath: args.folderPath,
               source: 'agent',
             }
           )
@@ -354,7 +413,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!queryProjection.safe || typeof queryProjection.value !== 'string') {
             return {
               success: false,
-              message: 'Failed to query knowledge base: Query could not be processed safely',
+              message:
+                'Knowledge query rejected by the input-safety filter. Rephrase it as a plain natural-language question without injected instructions or markup — the same text will be rejected again.',
             }
           }
           const modelQuery = queryProjection.value
@@ -613,17 +673,42 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.documentId) {
             return { success: false, message: 'documentId is required for update_document' }
           }
-          const updateData: { filename?: string; enabled?: boolean } = {}
+          const updateData: {
+            filename?: string
+            enabled?: boolean
+            tagValues?: KnowledgeDocumentTagValueAssignment[]
+          } = {}
           if (args.filename !== undefined) {
             updateData.filename = args.filename
           }
           if (args.enabled !== undefined) {
             updateData.enabled = args.enabled
           }
+          if (args.tagValues !== undefined) {
+            if (
+              !Array.isArray(args.tagValues) ||
+              args.tagValues.length === 0 ||
+              !args.tagValues.every(isKnowledgeDocumentTagValueAssignment)
+            ) {
+              return {
+                success: false,
+                message:
+                  'tagValues must be a non-empty array of { tagDefinitionId, value } assignments',
+              }
+            }
+            if (args.tagValues.length > ALL_TAG_SLOTS.length) {
+              return {
+                success: false,
+                message: `Too many tag values (${args.tagValues.length}). Maximum is ${ALL_TAG_SLOTS.length}.`,
+              }
+            }
+            updateData.tagValues = args.tagValues
+          }
           if (Object.keys(updateData).length === 0) {
             return {
               success: false,
-              message: 'At least one of filename or enabled is required for update_document',
+              message:
+                'At least one of filename, enabled, or tagValues is required for update_document',
             }
           }
           assertNotAborted()
@@ -641,7 +726,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             data: {
               documentId: args.documentId,
               knowledgeBaseId: args.knowledgeBaseId,
-              ...updateData,
+              ...(updateData.filename !== undefined && {
+                filename: updateData.filename,
+              }),
+              ...(updateData.enabled !== undefined && {
+                enabled: updateData.enabled,
+              }),
+              ...(updateData.tagValues !== undefined && {
+                tagDefinitionIds: updateData.tagValues.map(
+                  (assignment) => assignment.tagDefinitionId
+                ),
+              }),
             },
           }
         }
@@ -863,17 +958,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.connectorType) {
             return { success: false, message: 'connectorType is required for add_connector' }
           }
-          if (!args.credentialId && !args.apiKey) {
-            return {
-              success: false,
-              message:
-                'Either credentialId (for OAuth connectors) or apiKey (for API key connectors) is required for add_connector.',
-            }
-          }
-
           const sourceConfig: Record<string, unknown> = { ...(args.sourceConfig ?? {}) }
           if (args.disabledTagIds?.length) {
             sourceConfig.disabledTagIds = args.disabledTagIds
+          }
+
+          const resolvedKey = await resolveConnectorApiKey(context, workspaceId, args.apiKey)
+          if (resolvedKey.error) {
+            return { success: false, message: resolvedKey.error }
           }
 
           assertNotAborted()
@@ -883,7 +975,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               assertedWorkspaceId: workspaceId,
               connectorType: args.connectorType,
               credentialId: args.credentialId,
-              apiKey: args.apiKey,
+              apiKey: resolvedKey.apiKey,
               sourceConfig,
               syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
               resolveBillingAttribution: async (billingWorkspaceId) =>
@@ -921,16 +1013,27 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          await executeCopilotKnowledgeUseCase(context, updateKnowledgeConnector, {
-            connectorId: args.connectorId,
-            assertedWorkspaceId: workspaceId,
-            updates,
-            source: 'agent',
-          })
+          const { connector } = await executeCopilotKnowledgeUseCase(
+            context,
+            updateKnowledgeConnector,
+            {
+              connectorId: args.connectorId,
+              assertedWorkspaceId: workspaceId,
+              updates,
+              resolveBillingAttribution: async (canonicalWorkspaceId) =>
+                requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
+              source: 'agent',
+            }
+          )
 
           return {
             success: true,
-            message: 'Connector updated successfully',
+            message:
+              updates.sourceConfig === undefined
+                ? 'Connector updated successfully'
+                : connector.status === 'paused' || connector.status === 'disabled'
+                  ? 'Connector updated successfully. The source change will synchronize when the connector is resumed.'
+                  : 'Connector updated successfully. Synchronization was queued for the source change.',
             data: {
               id: args.connectorId,
               ...(updates.sourceConfig !== undefined && { sourceConfig: updates.sourceConfig }),
@@ -1017,7 +1120,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
-      logger.error('Error in knowledge_base tool', {
+      logger.error('Error in manage_knowledge_base tool', {
         operation,
         error: projectToolErrorMessageForCopilot(errorMessage, context.resolvedSecretTraceRegistry),
         userId: context.userId,

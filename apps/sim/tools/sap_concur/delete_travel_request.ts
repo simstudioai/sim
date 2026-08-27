@@ -68,7 +68,8 @@ export const deleteTravelRequestTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional Concur user UUID — required when impersonating another user',
+      description:
+        'Concur user UUID of the Request owner — required when using the default `client_credentials` (company) grant; omitting it returns 400 `missingRequiredParam`.',
     },
   },
   request: {
@@ -78,7 +79,8 @@ export const deleteTravelRequestTool: ToolConfig<
     body: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
-      if (params.userId) query.userId = params.userId
+      const userId = params.userId?.trim()
+      if (userId) query.userId = userId
       return {
         ...baseProxyBody(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}`,
@@ -91,9 +93,8 @@ export const deleteTravelRequestTool: ToolConfig<
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Concur delete response payload (boolean true on 200 OK)',
-      properties: {},
+      type: 'boolean',
+      description: 'Concur delete response body — literally true on 200 OK',
     },
   },
 }

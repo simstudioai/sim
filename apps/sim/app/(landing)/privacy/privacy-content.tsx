@@ -1,24 +1,55 @@
+import { Fragment, type ReactNode } from 'react'
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
-/**
- * Privacy Policy content - the verbatim legal text, expressed as the typed
- * {@link LegalPageConfig} that {@link ProsePage} renders. The text is ported
- * unchanged from the prior Privacy document; only the layout, definition-list
- * emphasis, and inline-link chrome are re-authored onto the landing primitives.
- */
+const INLINE_PATTERN =
+  /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|https:\/\/[^\s)]+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi
+
+function richText(content: string): ReactNode {
+  return content.split(INLINE_PATTERN).map((part, index) => {
+    const key = `inline-${index}-${part}`
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={key}>{part.slice(2, -2)}</strong>
+    }
+
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (link) {
+      return (
+        <ProseLink key={key} href={link[2]}>
+          {link[1]}
+        </ProseLink>
+      )
+    }
+
+    if (part.startsWith('https://')) {
+      return (
+        <ProseLink key={key} href={part}>
+          {part}
+        </ProseLink>
+      )
+    }
+
+    if (part.includes('@')) {
+      return (
+        <ProseLink key={key} href={`mailto:${part}`}>
+          {part}
+        </ProseLink>
+      )
+    }
+
+    return <Fragment key={key}>{part}</Fragment>
+  })
+}
+
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
-  description:
-    'How Sim, the open-source AI workspace, collects, uses, and protects your data, including data obtained from Google APIs, and the controls you have over it.',
-  lastUpdated: 'October 11, 2025',
+  description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
+  lastUpdated: 'August 25, 2026',
   intro: [
     {
       kind: 'paragraph',
-      content: `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data.`,
-    },
-    {
-      kind: 'paragraph',
-      content: `By using or accessing the Service, you confirm that you have read and understood this Privacy Policy, and you consent to the collection, use, and disclosure of your information as described herein.`,
+      content: richText(
+        'This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](https://sim.ai/terms).'
+      ),
     },
   ],
   sections: [
@@ -29,122 +60,73 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         { kind: 'subheading', text: 'Interpretation' },
         {
           kind: 'paragraph',
-          content: `Under the following conditions, the meanings of words with capitalized first letters are defined. The following definitions have the same meaning whether they are written in singular or plural form.`,
+          content: richText(
+            'Under the following conditions, the meanings of words with capitalized first letters are defined. The following definitions have the same meaning whether they are written in singular or plural form.'
+          ),
         },
         { kind: 'subheading', text: 'Definitions' },
-        { kind: 'paragraph', content: `For the purposes of this Privacy Policy:` },
+        { kind: 'paragraph', content: richText('For the purposes of this Privacy Policy:') },
         {
           kind: 'list',
           items: [
-            <>
-              <strong>Application</strong> or <strong>Service</strong> means the Sim web or mobile
-              application or related services.
-            </>,
-            <>
-              <strong>Account</strong> means a unique account created for You to access our Service
-              or parts of our Service.
-            </>,
-            <>
-              <strong>Affiliate</strong> means an entity that controls, is controlled by or is under
-              common control with a party, where "control" means ownership of 50% or more of the
-              shares, equity interest or other securities entitled to vote for election of directors
-              or other managing authority.
-            </>,
-            <>
-              <strong>Business</strong>, for the purpose of the CCPA (California Consumer Privacy
-              Act), refers to the Company as the legal entity that collects Consumers' personal
-              information and determines the purposes and means of the processing of Consumers'
-              personal information, or on behalf of which such information is collected and that
-              alone, or jointly with others, determines the purposes and means of the processing of
-              consumers' personal information, that does business in the State of California.
-            </>,
-            <>
-              <strong>Company</strong> (referred to as either "the Company", "We", "Us" or "Our" in
-              this Agreement) refers to Sim. For the purpose of the GDPR, the Company is the Data
-              Controller.
-            </>,
-            <>
-              <strong>Cookies</strong> are small files that are placed on Your computer, mobile
-              device or any other device by a website, containing the details of Your browsing
-              history on that website among its many uses.
-            </>,
-            <>
-              <strong>Country</strong> refers to: Quebec, Canada
-            </>,
-            <>
-              <strong>Data Controller</strong>, for the purposes of the GDPR (General Data
-              Protection Regulation), refers to the Company as the legal person which alone or
-              jointly with others determines the purposes and means of the processing of Personal
-              Data.
-            </>,
-            <>
-              <strong>Device</strong> means any device that can access the Service such as a
-              computer, a cellphone or a digital tablet.
-            </>,
-            <>
-              <strong>Do Not Track (DNT)</strong> is a concept that has been promoted by US
-              regulatory authorities, in particular the U.S. Federal Trade Commission (FTC), for the
-              Internet industry to develop and implement a mechanism for allowing internet users to
-              control the tracking of their online activities across websites.
-            </>,
-            <>
-              <strong>Personal Data</strong> (or "Personal Information") is any information that
-              relates to an identified or identifiable individual. For the purposes for GDPR,
-              Personal Data means any information relating to You such as a name, an identification
-              number, location data, online identifier or to one or more factors specific to the
-              physical, physiological, genetic, mental, economic, cultural or social identity. For
-              the purposes of the CCPA, Personal Data means any information that identifies, relates
-              to, describes or is capable of being associated with, or could reasonably be linked,
-              directly or indirectly, with You.
-            </>,
-            <>
-              <strong>Google Data</strong> means any data, content, or metadata obtained via Google
-              APIs (including Google Workspace APIs).
-            </>,
-            <>
-              <strong>Generalized AI/ML model</strong> means an AI or ML model intended to be
-              broadly trained across multiple users, not specific to a single user's data or
-              behavior.
-            </>,
-            <>
-              <strong>User-facing features</strong> means features directly visible or used by the
-              individual user through the app UI.
-            </>,
-            <>
-              <strong>Sale</strong>, for the purpose of the CCPA (California Consumer Privacy Act),
-              means selling, renting, releasing, disclosing, disseminating, making available,
-              transferring, or otherwise communicating orally, in writing, or by electronic or other
-              means, a Consumer's Personal information to another business or a third party for
-              monetary or other valuable consideration.
-            </>,
-            <>
-              <strong>Service Provider</strong> means any natural or legal person who processes the
-              data on behalf of the Company. It refers to third-party companies or individuals
-              employed by the Company to facilitate the Service, to provide the Service on behalf of
-              the Company, to perform services related to the Service or to assist the Company in
-              analyzing how the Service is used. For the purpose of the GDPR, Service Providers are
-              considered Data Processors.
-            </>,
-            <>
-              <strong>Third-party Social Media Service</strong> refers to any website or any social
-              network website through which a User can log in or create an account to use the
-              Service.
-            </>,
-            <>
-              <strong>Usage Data</strong> refers to data collected automatically, either generated
-              by the use of the Service or from the Service infrastructure itself (for example, the
-              duration of a page visit).
-            </>,
-            <>
-              <strong>Website</strong> refers to Sim, accessible from sim.ai
-            </>,
-            <>
-              <strong>You</strong> means the individual accessing or using the Service, or the
-              company, or other legal entity on behalf of which such individual is accessing or
-              using the Service, as applicable. Under GDPR (General Data Protection Regulation), You
-              can be referred to as the Data Subject or as the User as you are the individual using
-              the Service.
-            </>,
+            richText(
+              '**Application** means the Sim web or mobile application or related services.'
+            ),
+            richText(
+              '**Account** means a unique account created for You to access our Service or parts of our Service.'
+            ),
+            richText(
+              '**Affiliate** means an entity that controls, is controlled by, or is under common control with a party, where "control" means ownership of 50% or more of the shares, equity interest, or other securities entitled to vote for election of directors or other managing authority.'
+            ),
+            richText(
+              '**Business**, for the purpose of the California Consumer Privacy Act ("CCPA"), refers to the Company as the legal entity that collects Consumers\' personal information and determines the purposes and means of processing that information, or on behalf of which that information is collected, and that does business in California.'
+            ),
+            richText(
+              '**Company** (referred to as "the Company", "We", "Us", or "Our") refers to Sim Studio, Inc. For the purpose of the GDPR, the Company is the Data Controller when it determines the purposes and means of processing Personal Data.'
+            ),
+            richText(
+              '**Cookies** are small files placed on Your computer, mobile device, or other device by a website, containing details of Your browsing history among their uses.'
+            ),
+            richText(
+              '**Country** refers to the United States, specifically California. Sim Studio, Inc. is a Delaware corporation with its principal place of business at 80 Langton Street, San Francisco, CA 94103, USA.'
+            ),
+            richText(
+              '**Data Controller**, for the purposes of the GDPR, refers to the person that alone or jointly with others determines the purposes and means of processing Personal Data.'
+            ),
+            richText(
+              '**Device** means any device that can access the Service, such as a computer, cellphone, or digital tablet.'
+            ),
+            richText(
+              '**Do Not Track (DNT)** is a concept promoted by U.S. regulatory authorities for mechanisms that allow internet users to control tracking of their online activities across websites.'
+            ),
+            richText(
+              "**Personal Data** or **Personal Information** means information relating to an identified or identifiable individual. Under the GDPR, this includes information such as a name, identification number, location data, online identifier, or factors specific to a person's physical, physiological, genetic, mental, economic, cultural, or social identity. Under the CCPA, it includes information that identifies, relates to, describes, is capable of being associated with, or could reasonably be linked, directly or indirectly, with You."
+            ),
+            richText(
+              '**Google Data** means any data, content, or metadata obtained via Google APIs, including Google Workspace APIs.'
+            ),
+            richText(
+              "**Generalized AI/ML Model** means an AI or machine-learning model intended to be broadly trained across multiple users and not specific to a single user's data or behavior."
+            ),
+            richText(
+              '**User-facing Features** means features directly visible or used by the individual user through the application interface.'
+            ),
+            richText(
+              "**Sale**, for the purpose of the CCPA, means selling, renting, releasing, disclosing, disseminating, making available, transferring, or otherwise communicating a Consumer's Personal Information to another business or third party for monetary or other valuable consideration."
+            ),
+            richText(
+              '**Service Provider** means a natural or legal person that processes data on behalf of the Company, including third parties engaged to facilitate, provide, support, or analyze the Service. For the purpose of the GDPR, Service Providers are Data Processors.'
+            ),
+            richText(
+              '**Third-party Social Media Service** means a website or social network through which a User can log in to or create an Account for the Service.'
+            ),
+            richText(
+              '**Usage Data** means data collected automatically, either generated through use of the Service or from the Service infrastructure itself.'
+            ),
+            richText('**Website** refers to Sim, accessible from sim.ai.'),
+            richText(
+              '**You** means the individual accessing or using the Service, or the company or other legal entity on whose behalf that individual accesses or uses the Service. Under the GDPR, You may be the Data Subject or User.'
+            ),
           ],
         },
       ],
@@ -156,63 +138,165 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         { kind: 'subheading', text: 'Personal Data You Provide' },
         {
           kind: 'paragraph',
-          content: `When you sign up, link accounts, or use features, you may provide Personal Data such as:`,
+          content: richText(
+            'When you sign up, link accounts, or use features, you may provide Personal Data such as:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `Name and email address`,
-            `Phone number and mailing address`,
-            `Profile picture, settings, and preferences`,
-            `Content you upload (e.g., documents, files) within Sim`,
-            `Any data you explicitly input or connect, including via Google integrations`,
+            richText('Name and email address'),
+            richText('Phone number and mailing address'),
+            richText('Profile picture, settings, and preferences'),
+            richText('Content you upload, including documents and files'),
+            richText('Data you explicitly input or connect, including through Google integrations'),
           ],
         },
         { kind: 'subheading', text: 'Google Data via API Scopes' },
         {
           kind: 'paragraph',
-          content: `If you choose to connect your Google account (e.g., Google Workspace, Gmail, Drive, Calendar, Contacts), we may request specific scopes. Types of Google Data we may access include:`,
+          content: richText(
+            'If you choose to connect your Google account, including Google Workspace, Gmail, Drive, Calendar, or Contacts, we may request specific scopes. Google Data we may access includes:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `Basic profile (name, email)`,
-            `Drive files and documents`,
-            `Calendar events`,
-            `Contacts`,
-            `Gmail messages (only if explicitly requested for a specific feature)`,
-            `Other Google Workspace content or metadata as needed per feature`,
+            richText('Basic profile information, including name and email address'),
+            richText('Drive files'),
+            richText('Calendar events'),
+            richText('Contacts'),
+            richText('Gmail messages, only when explicitly requested for a specific feature'),
+            richText('Other Google Workspace content or metadata needed for an enabled feature'),
           ],
         },
         {
           kind: 'paragraph',
-          content: `We only request the minimal scopes necessary for the features you enable. We do not request scopes for unimplemented features.`,
+          content: richText(
+            'We request only the minimum scopes necessary for the features you enable. We do not request scopes for unimplemented features.'
+          ),
         },
         { kind: 'subheading', text: 'Usage Data' },
         {
           kind: 'paragraph',
-          content: `We may also collect information on how the Service is accessed and used ("Usage Data"). This Usage Data may include information such as your computer's Internet Protocol address (e.g. IP address), browser type, browser version, the pages of our Service that you visit, the time and date of your visit, the time spent on those pages, unique device identifiers and other diagnostic data.`,
+          content: richText(
+            'We may collect information about how the Service is accessed and used. Usage Data may include your Internet Protocol address, browser type, browser version, pages visited, date and time of a visit, time spent on pages, unique Device identifiers, and other diagnostic data.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `When You access the Service by or through a mobile device, We may collect certain information automatically, including, but not limited to, the type of mobile device You use, Your mobile device unique ID, the IP address of Your mobile device, Your mobile operating system, the type of mobile Internet browser You use, unique device identifiers and other diagnostic data.`,
+          content: richText(
+            'When You access the Service through a mobile Device, we may collect the Device type, unique Device identifier, Device Internet Protocol address, mobile operating system, mobile browser type, and other diagnostic data. We may also collect information that Your browser sends when You visit or access the Service.'
+          ),
+        },
+        { kind: 'subheading', text: 'Tracking and Cookies Data' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'We use Cookies and similar tracking technologies, including beacons, tags, scripts, local storage, and pixels, to track activity and hold certain information. Where consent is required, non-essential Cookies are disabled until You make a choice through the cookie banner. Necessary Cookies remain enabled because the Service cannot operate without them. You may accept, reject, or customize non-essential Cookie categories and may later change or withdraw that choice.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `We may also collect information that Your browser sends whenever You visit our Service or when You access the Service by or through a mobile device.`,
+          content: richText(
+            'The [Cookie Policy](https://sim.ai/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.'
+          ),
         },
-        { kind: 'subheading', text: 'Tracking & Cookies Data' },
+      ],
+    },
+    {
+      id: 'legal-bases',
+      heading: '1A. Legal Bases for Processing',
+      blocks: [
         {
           kind: 'paragraph',
-          content: `We use cookies and similar tracking technologies to track the activity on our Service and hold certain information.`,
+          content: richText(
+            'Where the GDPR applies, Sim relies on the legal bases in Article 6(1) as follows:'
+          ),
+        },
+        {
+          kind: 'table',
+          columns: ['Processing activity', 'Personal data', 'Legal basis', 'Note'],
+          rows: [
+            [
+              'Creating and operating an Account',
+              'Name, email address, profile information, credentials, settings, and Account identifiers',
+              'Contractual necessity — Article 6(1)(b)',
+              'Required to create, authenticate, maintain, and administer the Account requested by You.',
+            ],
+            [
+              'Delivering the Service and user-enabled integrations',
+              'Customer content, workflow inputs and outputs, integration data, Google Data, support information, Device information, and Usage Data needed for delivery',
+              'Contractual necessity — Article 6(1)(b)',
+              'Required to provide the Service, integrations, and user-facing features You choose to enable.',
+            ],
+            [
+              'Billing and payment administration',
+              'Billing contact information, transaction details, subscription information, and payment status',
+              'Contractual necessity — Article 6(1)(b)',
+              'Required to administer paid products and services. Payment card details are provided directly to the payment processor and are not stored by Sim.',
+            ],
+            [
+              'Product analytics and service improvement',
+              'Usage Data, Device data, feature interactions, diagnostics, and aggregated or anonymized non-Google data',
+              'Legitimate interests — Article 6(1)(f)',
+              "Sim's interest is to understand use of the Service, improve reliability and features, and measure performance. Non-essential analytics Cookies are processed on consent where consent is required.",
+            ],
+            [
+              'Abuse, fraud, and security monitoring',
+              'Account identifiers, Internet Protocol addresses, Usage Data, logs, Device information, and security-event data',
+              'Legitimate interests — Article 6(1)(f)',
+              "Sim's interest is to protect users, the Service, systems, and data; prevent misuse; investigate incidents; and maintain service integrity.",
+            ],
+            [
+              'Non-essential Cookies and similar technologies',
+              'Online identifiers, Cookie identifiers, Device and browser information, and interaction data',
+              'Consent — Article 6(1)(a)',
+              'Consent may be changed or withdrawn at any time through the cookie preferences link. Necessary Cookies do not depend on consent where they are required to provide the requested Service.',
+            ],
+            [
+              'Marketing communications',
+              'Name, email address, communication preferences, and engagement data',
+              'Consent — Article 6(1)(a)',
+              'Consent may be withdrawn at any time through the unsubscribe method in the communication.',
+            ],
+            [
+              'Behavioral remarketing',
+              'Cookie and pixel identifiers, browser and Device data, campaign attribution, and website interaction data',
+              'Consent — Article 6(1)(a)',
+              'Marketing technologies are disabled until the Marketing category is accepted. Consent may be changed or withdrawn through the cookie preferences link.',
+            ],
+            [
+              'Retaining transaction and tax records',
+              'Billing records, transaction information, and related business records',
+              'Legal obligation — Article 6(1)(c)',
+              'Records are retained as required by applicable accounting, tax, and corporate laws.',
+            ],
+            [
+              'Responding to lawful requests',
+              'Personal Data within the scope of a binding legal request',
+              'Legal obligation — Article 6(1)(c)',
+              'Processing is limited to what applicable law or a valid legal process requires.',
+            ],
+          ],
         },
         {
           kind: 'paragraph',
-          content: `Cookies are files with small amount of data which may include an anonymous unique identifier. Cookies are sent to your browser from a website and stored on your device. Tracking technologies also used are beacons, tags, and scripts to collect and track information and to improve and analyze our Service.`,
+          content: richText(
+            'For processing based on legitimate interests, Sim performs a balancing assessment that considers the interest pursued, the necessity of the processing, and the rights and reasonable expectations of the affected individuals. You may object to that processing under Article 21 of the GDPR as described in section 14.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent. However, if you do not accept cookies, you may not be able to use some portions of our Service.`,
+          content: richText(
+            'Sim does not rely on public interest under Article 6(1)(e) or vital interests under Article 6(1)(d) for any current processing. Sim does not process special-category data under Article 9 as part of providing the Service.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Where Sim processes customer content on behalf of a customer, Sim acts as a processor, the customer is the controller, and the customer determines the applicable legal basis. That processing is governed by the Data Processing Addendum and the customer's documented instructions."
+          ),
         },
       ],
     },
@@ -220,32 +304,38 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       id: 'how-we-use-information',
       heading: '2. How We Use Your Information',
       blocks: [
-        { kind: 'paragraph', content: `We use the collected data for various purposes:` },
+        {
+          kind: 'paragraph',
+          content: richText('We use collected data for the following purposes:'),
+        },
         {
           kind: 'list',
           items: [
-            `To provide and maintain our Service`,
-            `To notify you about changes to our Service`,
-            `To allow you to participate in interactive features of our Service when you choose to do so`,
-            `To provide customer care and support`,
-            `To provide analysis or valuable information so that we can improve the Service`,
-            `To monitor the usage of the Service`,
-            `To detect, prevent and address technical issues`,
-            `To manage Your Account`,
-            `For the performance of a contract`,
-            `To contact You by email, telephone calls, SMS, or other equivalent forms of electronic communication`,
-            `To enable and support user-enabled integrations with Google services (e.g., syncing files or calendar) and provide personalization, suggestions, and user-specific automation for that individual user.`,
-            `To detect and prevent fraud, abuse, or security incidents and to comply with legal obligations.`,
+            richText('To provide and maintain the Service'),
+            richText('To notify You about changes to the Service'),
+            richText(
+              'To allow You to participate in interactive features when You choose to do so'
+            ),
+            richText('To provide customer care and support'),
+            richText('To provide analysis or information that helps us improve the Service'),
+            richText('To monitor use of the Service'),
+            richText('To detect, prevent, and address technical issues'),
+            richText('To manage Your Account'),
+            richText('To perform our contract with You'),
+            richText(
+              'To contact You by email, telephone, SMS, or equivalent electronic communications'
+            ),
+            richText(
+              'To enable and support user-enabled integrations with Google services, including file or calendar synchronization, personalization, suggestions, and user-specific automation'
+            ),
+            richText('To detect and prevent fraud, abuse, and security incidents'),
+            richText('To comply with legal obligations'),
           ],
         },
         {
           kind: 'paragraph',
-          content: (
-            <>
-              <strong>Importantly:</strong> any Google Data used within Sim is used only for
-              features tied to that specific user (user-facing features), and <strong>never</strong>{' '}
-              for generalized AI/ML training or shared model improvement across users.
-            </>
+          content: richText(
+            'Any Google Data used within Sim is used only for features tied to that specific user and is not used for generalized AI/ML training or shared model improvement across users.'
           ),
         },
       ],
@@ -256,15 +346,127 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `Your information, including Personal Information, may be transferred to, and maintained on, computers located outside of your state, province, country or other governmental jurisdiction where the data protection laws may differ than those from your jurisdiction.`,
+          content: richText(
+            "Your information, including Personal Data, may be transferred to and maintained on computers outside Your state, province, country, or other governmental jurisdiction, where data protection laws may differ. If You are outside the United States and provide information to us, we transfer the data to the United States and process it there. Sim's primary hosting region is AWS us-east-1 in the United States. The current Service Provider list is maintained on the Sub-processors page."
+          ),
         },
         {
           kind: 'paragraph',
-          content: `If you are located outside United States and choose to provide information to us, please note that we transfer the data, including Personal Information, to United States and process it there.`,
+          content: richText(
+            'Providing Personal Data does not by itself constitute consent to an international transfer. Where Sim relies on consent, that consent will be freely given, specific, informed, unambiguous, obtained separately through a positive action, and recorded.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `Your consent to this Privacy Policy followed by your submission of such information represents your agreement to that transfer.`,
+          content: richText(
+            'International transfers from the European Economic Area or United Kingdom are made using applicable transfer safeguards, including:'
+          ),
+        },
+        {
+          kind: 'list',
+          items: [
+            richText(
+              "The European Commission's Standard Contractual Clauses adopted by Implementing Decision (EU) 2021/914 and, for transfers from the United Kingdom, the UK International Data Transfer Addendum"
+            ),
+            richText(
+              'Data Processing Addenda with each sub-processor that incorporate the applicable transfer clauses'
+            ),
+            richText('Transfer impact assessments where required'),
+            richText(
+              'Technical and organizational measures described in section 5, including encryption in transit and at rest, access controls, and logging'
+            ),
+          ],
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'A copy of the applicable transfer clauses is available on request at privacy@sim.ai.'
+          ),
+        },
+      ],
+    },
+    {
+      id: 'data-privacy-framework',
+      heading: '3A. Data Privacy Framework',
+      blocks: [
+        { kind: 'subheading', text: 'Participation and Scope' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim Studio, Inc. complies with the EU-U.S. Data Privacy Framework (EU-U.S. DPF), the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. Data Privacy Framework (Swiss-U.S. DPF) as set forth by the U.S. Department of Commerce. Sim Studio, Inc. has certified to the U.S. Department of Commerce that it adheres to the EU-U.S. Data Privacy Framework Principles (EU-U.S. DPF Principles) with regard to the processing of Personal Data received from the European Union in reliance on the EU-U.S. DPF and from the United Kingdom and Gibraltar in reliance on the UK Extension to the EU-U.S. DPF. Sim Studio, Inc. has certified to the U.S. Department of Commerce that it adheres to the Swiss-U.S. Data Privacy Framework Principles (Swiss-U.S. DPF Principles) with regard to the processing of Personal Data received from Switzerland in reliance on the Swiss-U.S. DPF. If there is any conflict between this Privacy Policy and the applicable DPF Principles, the DPF Principles govern. To learn more about the DPF program and view our certification, visit the [Data Privacy Framework website](https://www.dataprivacyframework.gov/) and [Data Privacy Framework List](https://www.dataprivacyframework.gov/list).'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. This public policy covers non-human-resources Personal Data. Any human-resources data covered by the certification is addressed in the applicable employee privacy notice.'
+          ),
+        },
+        { kind: 'subheading', text: 'Notice, Use, and Choice' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Sections 1 and 2 describe the types of Personal Data Sim collects and the purposes for which Sim collects and uses it. Sim may disclose Personal Data to cloud hosting and infrastructure providers, authentication providers, customer-support providers, analytics and advertising providers, payment processors, integration providers, AI model providers, professional advisers, public authorities, and parties involved in a corporate transaction, in each case for the purposes described in sections 4, 6, 8, 9, and 10A. Service Providers acting on Sim's behalf may process Personal Data only for limited and specified purposes consistent with Sim's instructions."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Where the DPF Principles require choice, You may opt out of the disclosure of covered Personal Data to a third party that is not acting as Sim's agent or its use for a purpose materially different from the purpose for which it was originally collected or subsequently authorized. You may exercise this choice by contacting privacy@sim.ai. Sim obtains affirmative express consent before disclosing sensitive Personal Data to a third party or using it for a purpose other than the purpose for which it was originally collected or subsequently authorized, except where the DPF Principles allow otherwise. Sim also treats Personal Data as sensitive when a third party identifies and treats it as sensitive."
+          ),
+        },
+        { kind: 'subheading', text: 'Data Integrity, Purpose Limitation, and Security' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim limits covered Personal Data to information relevant for the purposes of processing and does not process it in a way that is incompatible with those purposes unless subsequently authorized by the individual or otherwise permitted by the applicable DPF Principles. To the extent necessary for those purposes, Sim takes reasonable steps to ensure that covered Personal Data is reliable for its intended use, accurate, complete, and current. Sim retains covered Personal Data only for as long as it serves a processing purpose, subject to the exceptions permitted by the applicable DPF Principles. Section 5 describes the safeguards Sim uses to protect Personal Data against loss, misuse, and unauthorized access, disclosure, alteration, or destruction.'
+          ),
+        },
+        { kind: 'subheading', text: 'Accountability for Onward Transfers' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "For onward transfers of covered Personal Data to a third party acting as a controller, Sim complies with the Notice and Choice Principles and requires the recipient by contract to process the data only for limited and specified purposes consistent with the consent provided and to provide the same level of protection as the applicable DPF Principles. For transfers to a third party acting as an agent, Sim transfers covered Personal Data only for limited and specified purposes, requires at least the same level of privacy protection as the applicable DPF Principles, takes reasonable and appropriate steps to ensure that the agent processes the data consistently with Sim's DPF obligations, and takes reasonable and appropriate steps to stop and remediate unauthorized processing upon notice."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim remains liable under the applicable DPF Principles if an agent processes covered Personal Data in a manner inconsistent with the DPF Principles, unless Sim proves that it is not responsible for the event giving rise to the damage.'
+          ),
+        },
+        { kind: 'subheading', text: 'Access and Public-Authority Requests' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'You may request access to covered Personal Data and ask Sim to correct, amend, or delete it where it is inaccurate or has been processed in violation of the applicable DPF Principles. The methods for submitting a request are described in sections 14 and 17. Sim may be required to disclose Personal Data in response to lawful requests by public authorities, including to meet national-security or law-enforcement requirements.'
+          ),
+        },
+        { kind: 'subheading', text: 'Questions, Complaints, and Independent Recourse' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'In compliance with the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF, Sim commits to resolve DPF Principles-related complaints about its collection and use of Personal Data. Individuals in the European Union, the United Kingdom and Gibraltar, and Switzerland with inquiries or complaints regarding Personal Data received in reliance on the applicable DPF program should first contact Sim using the information in section 17. Sim will respond to a DPF Principles-related complaint within 45 days.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "For unresolved complaints, Sim commits to cooperate with and comply with the advice of the panel established by the European Union data protection authorities, the United Kingdom Information Commissioner's Office and the Gibraltar Regulatory Authority, and the Swiss Federal Data Protection and Information Commissioner, as applicable. These independent recourse mechanisms are available at no cost to You. For more information about submitting a complaint, visit the [DPF complaint guidance](https://www.dataprivacyframework.gov/program-articles/How-to-Submit-a-Complaint-Relating-to-a-Participating-Organization%E2%80%99s-Compliance-with-the-DPF-Principles)."
+          ),
+        },
+        { kind: 'subheading', text: 'Enforcement and Binding Arbitration' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "The Federal Trade Commission has jurisdiction over Sim Studio, Inc.'s compliance with the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Under certain conditions, You may invoke binding arbitration for residual claims regarding Sim's compliance with the applicable DPF Principles that have not been resolved through the other DPF mechanisms. For more information about the requirements and procedure for invoking binding arbitration, see [Annex I of the DPF Principles](https://www.dataprivacyframework.gov/framework-article/ANNEX-I-introduction)."
+          ),
         },
       ],
     },
@@ -275,26 +477,32 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         { kind: 'subheading', text: 'Business Transactions' },
         {
           kind: 'paragraph',
-          content: `If the Company is involved in a merger, acquisition or asset sale, Your Personal Data may be transferred. We will provide notice before Your Personal Data is transferred and becomes subject to a different Privacy Policy.`,
+          content: richText(
+            'If the Company is involved in a merger, acquisition, or asset sale, Your Personal Data may be transferred. We will provide notice before Your Personal Data is transferred and becomes subject to a different Privacy Policy.'
+          ),
         },
         { kind: 'subheading', text: 'Law Enforcement' },
         {
           kind: 'paragraph',
-          content: `Under certain circumstances, the Company may be required to disclose Your Personal Data if required to do so by law or in response to valid requests by public authorities (e.g. a court or a government agency).`,
+          content: richText(
+            'The Company may be required to disclose Your Personal Data if required by law or in response to valid requests by public authorities, including a court or government agency and to meet national-security or law-enforcement requirements.'
+          ),
         },
         { kind: 'subheading', text: 'Legal Requirements' },
         {
           kind: 'paragraph',
-          content: `Sim may disclose your Personal Information in the good faith belief that such action is necessary to:`,
+          content: richText(
+            'Sim may disclose Your Personal Data in the good-faith belief that the action is necessary to:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `To comply with a legal obligation`,
-            `To protect and defend the rights or property of Sim`,
-            `To prevent or investigate possible wrongdoing in connection with the Service`,
-            `To protect the personal safety of users of the Service or the public`,
-            `To protect against legal liability`,
+            richText('Comply with a legal obligation'),
+            richText('Protect and defend the rights or property of Sim'),
+            richText('Prevent or investigate possible wrongdoing connected with the Service'),
+            richText('Protect the personal safety of users of the Service or the public'),
+            richText('Protect against legal liability'),
           ],
         },
       ],
@@ -305,7 +513,9 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `The security of your data is important to us, but remember that no method of transmission over the Internet, or method of electronic storage is 100% secure. While we strive to use commercially acceptable means to protect your Personal Information, we cannot guarantee its absolute security.`,
+          content: richText(
+            'The security of Your data is important to us, but no method of transmission over the Internet or method of electronic storage is completely secure. We use technical and organizational measures designed to protect Personal Data, including encryption in transit and at rest, access controls, role-based permissions, logging, and auditing. While we use commercially acceptable measures to protect Personal Data, we cannot guarantee absolute security.'
+          ),
         },
       ],
     },
@@ -315,11 +525,35 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `We may employ third party companies and individuals to facilitate our Service ("Service Providers"), to provide the Service on our behalf, to perform Service-related services or to assist us in analyzing how our Service is used.`,
+          content: richText(
+            'We engage third-party companies and individuals to facilitate the Service, provide the Service on our behalf, perform Service-related services, or assist us in analyzing how the Service is used. These Service Providers may access Personal Data only to perform assigned tasks on our behalf and may not disclose or use it for another purpose.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `These third parties have access to your Personal Information only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.`,
+          content: richText(
+            'The legal basis for disclosing Personal Data to Service Providers depends on the service involved:'
+          ),
+        },
+        {
+          kind: 'list',
+          items: [
+            richText(
+              '**Contractual necessity — Article 6(1)(b):** providers required to deliver the Service, integrations, billing, or other features requested by You'
+            ),
+            richText(
+              "**Legitimate interests — Article 6(1)(f):** providers used for security, hosting, monitoring, and support tooling, where Sim's interests are to operate, protect, maintain, and support the Service"
+            ),
+            richText(
+              '**Consent — Article 6(1)(a):** analytics and advertising providers activated through non-essential Cookies or similar technologies'
+            ),
+          ],
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Every Service Provider that processes Personal Data on Sim's behalf is engaged under a written data processing agreement that imposes confidentiality, purpose limitation, security, and sub-processor controls. Each provider is security-reviewed before onboarding and periodically thereafter and acts only on Sim's documented instructions. The current provider list is maintained on the Sub-processors page."
+          ),
         },
       ],
     },
@@ -329,7 +563,9 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `We may aggregate or anonymize non-Google data (not tied to personal identity) for internal analytics, product improvement, usage trends, or performance monitoring. This data cannot be tied back to individual users and is not used for generalized AI/ML training with Google Data.`,
+          content: richText(
+            'We may aggregate or anonymize non-Google data that is not tied to personal identity for internal analytics, product improvement, usage trends, or performance monitoring. This data cannot be tied back to individual users and is not used for generalized AI/ML training with Google Data.'
+          ),
         },
       ],
     },
@@ -339,22 +575,29 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `The Company uses remarketing services to advertise on third party websites to You after You visited our Service. We and Our third-party vendors use cookies to inform, optimize and serve ads based on Your past visits to our Service.`,
+          content: richText(
+            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. They are activated only after You give consent to the Marketing category in the cookie banner. No marketing Cookie is set before that consent.'
+          ),
         },
-        { kind: 'subheading', text: 'Google Ads (AdWords)' },
         {
           kind: 'paragraph',
-          content: `Google Ads remarketing service is provided by Google Inc. You can opt-out of Google Analytics for Display Advertising and customize the Google Display Network ads by visiting the Google Ads Settings page.`,
+          content: richText(
+            'You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](https://sim.ai/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.'
+          ),
         },
-        { kind: 'subheading', text: 'Twitter' },
         {
           kind: 'paragraph',
-          content: `Twitter remarketing service is provided by Twitter Inc. You can opt-out from Twitter's interest-based ads by following their instructions.`,
+          content: richText('Provider-level controls remain available as an additional route:'),
         },
-        { kind: 'subheading', text: 'Facebook' },
         {
-          kind: 'paragraph',
-          content: `Facebook remarketing service is provided by Facebook Inc. You can learn more about interest-based advertising from Facebook by visiting their Privacy Policy.`,
+          kind: 'list',
+          items: [
+            richText('Google Ads: [Google Ads Settings](https://adssettings.google.com/)'),
+            richText(
+              'Twitter: [Personalization and data settings](https://twitter.com/settings/account/personalization)'
+            ),
+            richText('Facebook: [Ad preferences](https://www.facebook.com/adpreferences/)'),
+          ],
         },
       ],
     },
@@ -364,105 +607,168 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `We may provide paid products and/or services within the Service. In that case, we may use third-party services for payment processing (e.g. payment processors).`,
+          content: richText(
+            'We may provide paid products or services within the Service and may use third-party payment processors. We do not store or collect Your payment card details. Those details are provided directly to the payment processor, whose use of Personal Data is governed by its privacy policy. Payment processors adhere to the PCI Data Security Standard managed by the PCI Security Standards Council. The payment processor we use is Stripe.'
+          ),
         },
-        {
-          kind: 'paragraph',
-          content: `We will not store or collect Your payment card details. That information is provided directly to Our third-party payment processors whose use of Your personal information is governed by their Privacy Policy. These payment processors adhere to the standards set by PCI-DSS as managed by the PCI Security Standards Council, which is a joint effort of brands like Visa, Mastercard, American Express and Discover. PCI-DSS requirements help ensure the secure handling of payment information.`,
-        },
-        { kind: 'subheading', text: 'Payment processors we work with:' },
-        { kind: 'list', items: [`Stripe`] },
       ],
     },
     {
       id: 'google-workspace-apis',
       heading: '10. Use of Google / Workspace APIs & Data: Limited Use',
       blocks: [
-        { kind: 'subheading', text: 'Affirmative Statement & Compliance' },
+        { kind: 'subheading', text: 'Affirmative Statement and Compliance' },
         {
           kind: 'paragraph',
-          content: `Sim's use, storage, processing, and transfer of Google Data (raw or derived) strictly adheres to the Google API Services User Data Policy, including the Limited Use requirements, and to the Google Workspace API user data policy (when applicable). We explicitly affirm that:`,
+          content: richText(
+            "Sim's use, storage, processing, and transfer of Google Data, whether raw or derived, strictly adheres to the Google API Services User Data Policy, including the Limited Use requirements, and to the Google Workspace API user data policy where applicable. We affirm that:"
+          ),
         },
         {
           kind: 'list',
           items: [
-            `Sim does not use, transfer, or allow Google Data to be used to train, improve, or develop generalized or non-personalized AI/ML models.`,
-            `Any processing of Google Data is limited to providing or improving user-facing features visible in the app UI.`,
-            `We do not allow third parties to access Google Data for purposes of training or model improvement.`,
-            `Transfers of Google Data are disallowed except in limited permitted cases.`,
+            richText(
+              'Sim does not use, transfer, or allow Google Data to be used to train, improve, or develop generalized or non-personalized AI/ML models.'
+            ),
+            richText(
+              'Processing of Google Data is limited to providing or improving user-facing features visible in the application interface.'
+            ),
+            richText(
+              'We do not allow third parties to access Google Data for training or model improvement.'
+            ),
+            richText(
+              'Transfers of Google Data are disallowed except in the limited permitted cases described below.'
+            ),
           ],
         },
-        { kind: 'subheading', text: 'Permitted Transfers & Data Use' },
+        { kind: 'subheading', text: 'Permitted Transfers and Data Use' },
         {
           kind: 'paragraph',
-          content: `We may only transfer Google Data (raw or derived) to third parties under the following limited conditions and always aligned with user disclosures and consent:`,
+          content: richText(
+            'We may transfer Google Data, whether raw or derived, to third parties only under the following limited conditions and in line with user disclosures and consent:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `To provide or improve user-facing features (with the user's explicit consent)`,
-            `For security, abuse investigation, or system integrity`,
-            `To comply with laws or legal obligations`,
-            `As part of a merger, acquisition, divestiture, or sale of assets, with explicit user consent`,
+            richText(
+              "To provide or improve user-facing features, with the user's explicit consent"
+            ),
+            richText('For security, abuse investigation, or system integrity'),
+            richText('To comply with laws or legal obligations'),
+            richText(
+              'As part of a merger, acquisition, divestiture, or sale of assets, with explicit user consent'
+            ),
           ],
         },
         { kind: 'subheading', text: 'Human Access Restrictions' },
         {
           kind: 'paragraph',
-          content: `We restrict human review of Google Data strictly. No employee, contractor, or agent may view Google Data unless one of the following is true:`,
+          content: richText(
+            'No employee, contractor, or agent may view Google Data unless one of the following applies:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `The user gave explicit, documented consent to view specific items (e.g., "Let customer support view this email/file").`,
-            `It is necessary for security, abuse investigation, or legal process.`,
-            `Data is aggregated, anonymized, and used for internal operations only (without re-identification).`,
+            richText(
+              'The user gave explicit, documented consent to view specific items, such as allowing customer support to view a particular email or file.'
+            ),
+            richText('Access is necessary for security, abuse investigation, or legal process.'),
+            richText(
+              'The data is aggregated and anonymized and used for internal operations only, without re-identification.'
+            ),
           ],
         },
-        { kind: 'subheading', text: 'Scope Minimization & Justification' },
+        { kind: 'subheading', text: 'Scope Minimization and Justification' },
         {
           kind: 'paragraph',
-          content: `We only request scopes essential to features you opt into; we do not request broad or unused permissions. For each Google API scope we request, we maintain internal documentation justifying why that scope is needed and why narrower scopes are insufficient. Where possible, we follow incremental authorization and request additional scopes only when needed in context.`,
+          content: richText(
+            'We request only scopes essential to features You choose to enable. We do not request broad or unused permissions. For each Google API scope requested, we maintain internal documentation explaining why the scope is needed and why a narrower scope is insufficient. Where possible, we use incremental authorization and request additional scopes only when needed in context.'
+          ),
         },
-        { kind: 'subheading', text: 'Secure Handling & Storage' },
+        { kind: 'subheading', text: 'Secure Handling and Storage' },
         {
           kind: 'list',
           items: [
-            `Google Data is encrypted in transit (TLS/HTTPS) and at rest.`,
-            `Access controls, role-based permissions, logging, and auditing protect data.`,
-            `OAuth tokens and credentials are stored securely (e.g., encrypted vault, hardware or secure key management).`,
-            `We regularly review security practices and infrastructure.`,
-            `If a security incident affects Google Data, we will notify Google as required and cooperate fully.`,
+            richText('Google Data is encrypted in transit using TLS/HTTPS and at rest.'),
+            richText(
+              'Access controls, role-based permissions, logging, and auditing protect Google Data.'
+            ),
+            richText(
+              'OAuth tokens and credentials are stored securely using encrypted vault or secure key-management controls.'
+            ),
+            richText('We regularly review security practices and infrastructure.'),
+            richText(
+              'If a security incident affects Google Data, we notify Google as required and cooperate fully.'
+            ),
           ],
         },
-        { kind: 'subheading', text: 'Retention & Deletion' },
+        { kind: 'subheading', text: 'Retention and Deletion' },
         {
           kind: 'paragraph',
-          content: `We retain data only as long as necessary for the purposes disclosed:`,
+          content: richText('We retain data only as long as necessary for the disclosed purposes:'),
         },
         {
-          kind: 'list',
-          items: [
-            <>
-              <strong>Account Data:</strong> Retained during active account + 30 days after deletion
-              request
-            </>,
-            <>
-              <strong>Google API Data:</strong> Retained during feature use + 7 days after
-              revocation or account deletion
-            </>,
-            <>
-              <strong>Usage Logs:</strong> 90 days for analytics; up to 1 year for security
-              investigations
-            </>,
-            <>
-              <strong>Transaction Records:</strong> Up to 7 years for legal and tax compliance
-            </>,
+          kind: 'table',
+          columns: ['Data category', 'Retention period'],
+          rows: [
+            ['Account Data', 'During the active Account and for 30 days after a deletion request'],
+            [
+              'Google API Data',
+              'During use of the enabled feature and for 7 days after revocation or Account deletion',
+            ],
+            ['Usage Logs', '90 days for analytics; up to 1 year for security investigations'],
+            ['Transaction Records', 'Up to 7 years for legal and tax compliance'],
           ],
         },
         {
           kind: 'paragraph',
-          content: `When you revoke access, delete your account, or stop using a feature, we remove associated data within the timeframes above. You may request deletion via in-app settings or by contacting us; we will comply promptly.`,
+          content: richText(
+            'When You revoke access, delete Your Account, or stop using a feature, we remove associated data within the timeframes above. You may request deletion through in-app settings or by contacting us.'
+          ),
+        },
+      ],
+    },
+    {
+      id: 'artificial-intelligence',
+      heading: '10A. Use of Artificial Intelligence',
+      blocks: [
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim is a platform for building and running AI agents. AI models process the prompts, files, records, integration data, and other content that users choose to send through their workflows.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Model providers are engaged as sub-processors under Data Processing Addenda and are identified on the Sub-processors page. Customer content sent to a model provider is not used by Sim or by that provider to train or improve generalized or shared models. This commitment applies to customer content generally and restates the Google Data Limited Use commitment in section 10 for Google Data.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            "Users choose which models and providers their workflows call. Users may also bring their own provider credentials. When a user supplies provider credentials, the selected provider's processing remains subject to the user's arrangement with that provider as well as the workflow configuration chosen by the user."
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'AI outputs are probabilistic and may be incomplete, inaccurate, or unsuitable for a particular purpose. Users should review outputs and should not rely on them as the sole basis for a decision that produces legal or similarly significant effects on an individual.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Sim does not carry out automated decision-making that produces legal or similarly significant effects on individuals within the meaning of Article 22 of the GDPR. If that changes, we will update this Privacy Policy and provide the safeguards required by Article 22, including information about the logic involved and the right to obtain human intervention, express a point of view, and contest the decision where applicable.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Prompts and outputs are retained according to the data category and context in which they are processed. Account and workflow content follows the Account Data period in the retention table in section 10; Google Data, Usage Logs, and Transaction Records follow their respective periods in that table. Questions about AI processing may be sent to privacy@sim.ai.'
+          ),
         },
       ],
     },
@@ -472,11 +778,9 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `Our Service may contain links to other sites that are not operated by us. If you click on a third party link, you will be directed to that third party's site. We strongly advise you to review the Privacy Policy of every site you visit.`,
-        },
-        {
-          kind: 'paragraph',
-          content: `We have no control over and assume no responsibility for the content, privacy policies or practices of any third party sites or services.`,
+          content: richText(
+            "Our Service may contain links to sites not operated by us. If You follow a third-party link, You will be directed to that third party's site. We recommend reviewing the privacy policy of each site You visit. We do not control and are not responsible for the content, privacy policies, or practices of third-party sites or services."
+          ),
         },
       ],
     },
@@ -486,11 +790,9 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `Our Service does not address anyone under the age of 18 ("Children").`,
-        },
-        {
-          kind: 'paragraph',
-          content: `We do not knowingly collect personally identifiable information from anyone under the age of 18. If you are a parent or guardian and you are aware that your Children has provided us with Personal Information, please contact us. If we become aware that we have collected Personal Information from children without verification of parental consent, we take steps to remove that information from our servers.`,
+          content: richText(
+            "The Service is not directed at anyone under the age of 18, and Sim does not knowingly collect or process children's Personal Data. If children's Personal Data has been collected inadvertently without appropriate parental consent, Sim will take the necessary steps to erase it from its records. Anyone who believes that Sim has collected children's Personal Data should contact privacy@sim.ai so the matter can be addressed promptly."
+          ),
         },
       ],
     },
@@ -500,15 +802,9 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page.`,
-        },
-        {
-          kind: 'paragraph',
-          content: `We will let you know via email and/or a prominent notice on our Service, prior to the change becoming effective and update the "Last updated" date at the top of this Privacy Policy.`,
-        },
-        {
-          kind: 'paragraph',
-          content: `You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are effective when they are posted on this page.`,
+          content: richText(
+            'We may update this Privacy Policy from time to time. We will notify You by posting the revised Privacy Policy on this page and updating the "Last updated" date. For a material change, we will provide notice by email or a prominent notice on the Service before the change becomes effective. Changes take effect when posted unless the notice states otherwise.'
+          ),
         },
       ],
     },
@@ -518,34 +814,71 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `If you are a resident of the European Economic Area (EEA), you have certain data protection rights. Sim aims to take reasonable steps to allow you to correct, amend, delete, or limit the use of your Personal Information.`,
-        },
-        {
-          kind: 'paragraph',
-          content: `If you wish to be informed what Personal Information we hold about you and if you want it to be removed from our systems, please contact us.`,
-        },
-        {
-          kind: 'paragraph',
-          content: `In certain circumstances, you have the following data protection rights:`,
+          content: richText(
+            'If You are in the European Economic Area, You have the following data protection rights:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            `The right to access, update or to delete the information we have on you.`,
-            `The right of rectification. You have the right to have your information rectified if that information is inaccurate or incomplete.`,
-            `The right to object. You have the right to object to our processing of your Personal Information.`,
-            `The right of restriction. You have the right to request that we restrict the processing of your personal information.`,
-            `The right to data portability. You have the right to be provided with a copy of the information we have on you in a structured, machine-readable and commonly used format.`,
-            `The right to withdraw consent. You also have the right to withdraw your consent at any time where Sim relied on your consent to process your personal information.`,
+            richText(
+              '**Access:** the right to obtain confirmation of whether we process Your Personal Data and to receive a copy of that data.'
+            ),
+            richText(
+              '**Rectification:** the right to correct inaccurate Personal Data and complete incomplete Personal Data.'
+            ),
+            richText(
+              '**Erasure:** the right to request deletion of Your Personal Data where the applicable conditions are met.'
+            ),
+            richText(
+              '**Objection:** the right to object to processing based on legitimate interests and to object at any time to processing for direct marketing.'
+            ),
+            richText(
+              '**Restriction:** the right to request restriction of processing where the applicable conditions are met.'
+            ),
+            richText(
+              '**Data portability:** the right to receive Personal Data You provided in a structured, commonly used, machine-readable format and to transmit it to another controller where applicable.'
+            ),
+            richText(
+              '**Withdrawal of consent:** the right to withdraw consent at any time where Sim relies on consent. Withdrawal does not affect the lawfulness of processing before withdrawal.'
+            ),
           ],
         },
         {
           kind: 'paragraph',
-          content: `Please note that we may ask you to verify your identity before responding to such requests.`,
+          content: richText(
+            'You may submit a request at privacy@sim.ai, through in-app Account settings for access and deletion, or by using the postal address in section 17.'
+          ),
         },
         {
-          kind: 'callout',
-          content: `You have the right to complain to a Data Protection Authority about our collection and use of your Personal Information. For more information, please contact your local data protection authority in the European Economic Area (EEA).`,
+          kind: 'paragraph',
+          content: richText(
+            'We respond without undue delay and within one month after receiving a request. That period may be extended by up to two further months where necessary because of the complexity or number of requests. If an extension is required, we will tell You within the first month and explain the reason.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Requests are handled free of charge. Where a request is manifestly unfounded, excessive, or repetitive, we may charge a reasonable fee based on the administrative cost or refuse to act. If we refuse or charge a fee, we will give reasons and explain the available complaint and judicial-remedy rights.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'We may request information needed to verify Your identity before acting on a request. Information collected for verification will be used only for that purpose.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'You have the right to lodge a complaint with the supervisory authority in the Member State of Your residence, place of work, or place of the alleged infringement, without prejudice to any other administrative or judicial remedy.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'The same rights are extended to data subjects in the United Kingdom under the UK GDPR.'
+          ),
         },
       ],
     },
@@ -555,34 +888,29 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `If you are a California resident, you have specific rights under the California Consumer Privacy Act (CCPA) and California Privacy Rights Act (CPRA), including the right to know what personal information we collect, the right to delete your information, and the right to opt-out of the sale or sharing of your personal information.`,
+          content: richText(
+            'If You are a California resident, You have rights under the CCPA and California Privacy Rights Act, including the right to know what Personal Information we collect, the right to delete Personal Information, and the right to opt out of the sale or sharing of Personal Information.'
+          ),
         },
         { kind: 'subheading', text: 'Do Not Sell or Share My Personal Information' },
         {
           kind: 'paragraph',
-          content: (
-            <>
-              We do not sell your personal information for monetary consideration. However, some
-              data sharing practices (such as analytics or advertising services) may be considered a
-              "sale" or "share" under CCPA/CPRA. You have the right to opt-out of such data sharing.
-              To exercise this right, contact us at{' '}
-              <ProseLink href='mailto:privacy@sim.ai'>privacy@sim.ai</ProseLink>.
-            </>
+          content: richText(
+            'We do not sell Personal Information for monetary consideration. Some analytics or advertising disclosures may be considered a "sale" or "share" under California law. You may opt out by contacting privacy@sim.ai or by using the cookie preferences link.'
           ),
         },
-        { kind: 'subheading', text: 'Global Privacy Control (GPC)' },
+        { kind: 'subheading', text: 'Global Privacy Control' },
         {
           kind: 'paragraph',
-          content: `We recognize and honor Global Privacy Control (GPC) signals. When your browser sends a GPC signal, we will treat it as a valid request to opt-out of the sale or sharing of your personal information.`,
-        },
-        { kind: 'subheading', text: 'Shine The Light Law' },
-        {
-          kind: 'paragraph',
-          content: `California Civil Code Section 1798.83 permits California residents to request information about categories of personal information we disclosed to third parties for direct marketing purposes in the preceding calendar year.`,
+          content: richText(
+            'We recognize and honor Global Privacy Control signals. When Your browser sends a Global Privacy Control signal, we treat it as a valid request to opt out of the sale or sharing of Personal Information.'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `To make a request under CCPA or the Shine The Light law, please submit your request using the contact information provided below.`,
+          content: richText(
+            'California Civil Code section 1798.83 permits California residents to request information about categories of Personal Information disclosed to third parties for direct-marketing purposes during the preceding calendar year. Requests under the CCPA, California Privacy Rights Act, or Shine the Light law may be submitted using the contact information in section 17.'
+          ),
         },
       ],
     },
@@ -590,92 +918,93 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       id: 'vulnerability-disclosure',
       heading: '16. Vulnerability Disclosure Policy',
       blocks: [
-        { kind: 'subheading', text: 'Introduction' },
         {
           kind: 'paragraph',
-          content: `Sim is dedicated to preserving data security by preventing unauthorized disclosure of information. This policy was created to provide security researchers with instructions for conducting vulnerability discovery activities and to provide information on how to report vulnerabilities that have been discovered. This policy explains which systems and sorts of activity are covered, how to send vulnerability reports, and how long we require you to wait before publicly reporting vulnerabilities identified.`,
+          content: richText(
+            'Sim is dedicated to preserving data security by preventing unauthorized disclosure of information. This section provides security researchers with instructions for conducting vulnerability discovery and reporting identified vulnerabilities.'
+          ),
         },
         { kind: 'subheading', text: 'Guidelines' },
-        { kind: 'paragraph', content: `We request that you:` },
         {
           kind: 'list',
           items: [
-            `Notify us as soon as possible after you discover a real or potential security issue.`,
-            `Provide us a reasonable amount of time to resolve the issue before you disclose it publicly.`,
-            `Make every effort to avoid privacy violations, degradation of user experience, disruption to production systems, and destruction or manipulation of data.`,
-            `Only use exploits to the extent necessary to confirm a vulnerability's presence. Do not use an exploit to compromise or obtain data, establish command line access and/or persistence, or use the exploit to "pivot" to other systems.`,
-            `Once you've established that a vulnerability exists or encounter any sensitive data (including personal data, financial information, or proprietary information or trade secrets of any party), you must stop your test, notify us immediately, and keep the data strictly confidential.`,
-            `Do not submit a high volume of low-quality reports.`,
+            richText(
+              'Notify us as soon as possible after discovering a real or potential security issue.'
+            ),
+            richText(
+              'Give us a reasonable amount of time to resolve the issue before public disclosure.'
+            ),
+            richText(
+              'Avoid privacy violations, degradation of user experience, disruption to production systems, and destruction or manipulation of data.'
+            ),
+            richText(
+              'Use exploits only to the extent necessary to confirm that a vulnerability exists. Do not use an exploit to compromise or obtain data, establish command-line access or persistence, or pivot to other systems.'
+            ),
+            richText(
+              'If You encounter sensitive data, including Personal Data, financial information, proprietary information, or trade secrets, stop testing, notify us immediately, and keep the data confidential.'
+            ),
+            richText('Do not submit a high volume of low-quality reports.'),
           ],
         },
         { kind: 'subheading', text: 'Authorization' },
         {
           kind: 'paragraph',
-          content: `Security research carried out in conformity with this policy is deemed permissible. We'll work with you to swiftly understand and fix the problem, and Sim will not suggest or pursue legal action in connection with your study.`,
+          content: richText(
+            'Security research performed in conformity with this policy is considered permissible. We will work with You to understand and correct the issue, and Sim will not suggest or pursue legal action in connection with conforming research.'
+          ),
         },
         { kind: 'subheading', text: 'Scope' },
         {
           kind: 'paragraph',
-          content: `This policy applies to the following systems and services:`,
-        },
-        {
-          kind: 'list',
-          items: [`sim.ai website`, `Sim web application`, `Sim API services`],
-        },
-        {
-          kind: 'paragraph',
-          content: (
-            <>
-              Any service that isn't explicitly specified above, such as related services, is out of
-              scope and isn't allowed to be tested. Vulnerabilities discovered in third-party
-              solutions Sim interacts with are not covered by this policy and should be reported
-              directly to the solution vendor in accordance with their disclosure policy (if any).
-              Before beginning your inquiry, email us at{' '}
-              <ProseLink href='mailto:security@sim.ai'>security@sim.ai</ProseLink> if you're unsure
-              whether a system or endpoint is in scope.
-            </>
-          ),
-        },
-        { kind: 'subheading', text: 'Types of testing' },
-        { kind: 'paragraph', content: `The following test types are not authorized:` },
-        {
-          kind: 'list',
-          items: [
-            `Network denial of service (DoS or DDoS) tests`,
-            `Physical testing (e.g., office access, open doors, tailgating), social engineering (e.g., phishing, vishing), or any other non-technical vulnerability testing`,
-          ],
-        },
-        { kind: 'subheading', text: 'Reporting a vulnerability' },
-        {
-          kind: 'paragraph',
-          content: (
-            <>
-              To report any security flaws, send an email to{' '}
-              <ProseLink href='mailto:security@sim.ai'>security@sim.ai</ProseLink>. The next
-              business day, we'll acknowledge receipt of your vulnerability report and keep you
-              updated on our progress. Reports can be anonymously submitted.
-            </>
-          ),
-        },
-        { kind: 'subheading', text: 'Desirable information' },
-        {
-          kind: 'paragraph',
-          content: `In order to process and react to a vulnerability report, we recommend to include the following information:`,
+          content: richText('This policy applies to the following systems and services:'),
         },
         {
           kind: 'list',
           items: [
-            `Vulnerability description`,
-            `Place of discovery`,
-            `Potential Impact`,
-            `Steps required to reproduce a vulnerability (include scripts and screenshots if possible)`,
+            richText('sim.ai website'),
+            richText('Sim web application'),
+            richText('Sim API services'),
           ],
         },
-        { kind: 'paragraph', content: `If possible, please provide your report in English.` },
-        { kind: 'subheading', text: 'Our commitment' },
         {
           kind: 'paragraph',
-          content: `If you choose to give your contact information, we promise to communicate with you in a transparent and timely manner. We will acknowledge receipt of your report within three business days. We will keep you informed on vulnerability confirmation and remedy to the best of our capabilities. We welcome a discussion of concerns and are willing to engage in a discourse.`,
+          content: richText(
+            'A service not expressly listed above, including related third-party services, is out of scope and may not be tested. Vulnerabilities in third-party products used by Sim are not covered and should be reported to the relevant provider under its disclosure policy. If You are unsure whether a system or endpoint is in scope, contact security@sim.ai before testing.'
+          ),
+        },
+        { kind: 'subheading', text: 'Unauthorized Testing' },
+        { kind: 'paragraph', content: richText('The following testing is not authorized:') },
+        {
+          kind: 'list',
+          items: [
+            richText('Network denial-of-service or distributed denial-of-service testing'),
+            richText('Physical testing, including office access, open doors, or tailgating'),
+            richText('Social engineering, including phishing or vishing'),
+            richText('Other non-technical vulnerability testing'),
+          ],
+        },
+        { kind: 'subheading', text: 'Reporting' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Send vulnerability reports to security@sim.ai. We will acknowledge a report by the next business day. Reports may be submitted anonymously.'
+          ),
+        },
+        { kind: 'paragraph', content: richText('A report should include, where possible:') },
+        {
+          kind: 'list',
+          items: [
+            richText('A description of the vulnerability'),
+            richText('The location where it was discovered'),
+            richText('Its potential impact'),
+            richText('Steps to reproduce it, including scripts and screenshots if available'),
+          ],
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Reports should be provided in English where possible. If You provide contact information, we will communicate in a transparent and timely manner. We will acknowledge receipt within three business days and will keep You informed about validation and remediation to the extent possible.'
+          ),
         },
       ],
     },
@@ -685,20 +1014,59 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
       blocks: [
         {
           kind: 'paragraph',
-          content: `If you have questions, requests, or complaints regarding this Privacy Policy or our data practices, you may contact us at:`,
+          content: richText(
+            'Questions, requests, or complaints about this Privacy Policy or our data practices may be submitted to:'
+          ),
         },
         {
           kind: 'list',
           items: [
-            <>
-              Email: <ProseLink href='mailto:privacy@sim.ai'>privacy@sim.ai</ProseLink>
-            </>,
-            `Mailing Address: Sim, 80 Langton St, San Francisco, CA 94103, USA`,
+            richText('Email: privacy@sim.ai'),
+            richText(
+              'Mailing Address: Sim Studio, Inc., 80 Langton Street, San Francisco, CA 94103, USA'
+            ),
           ],
+        },
+        { kind: 'subheading', text: 'Our EU Representative' },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Under Article 27 of the GDPR, Sim has appointed an EU Representative to act as its data protection agent:'
+          ),
         },
         {
           kind: 'paragraph',
-          content: `We will respond to your request within a reasonable timeframe.`,
+          content: (
+            <>
+              Instant EU GDPR Representative Ltd.
+              <br />
+              Adam Brogden
+              <br />
+              {richText('contact@gdprlocal.com')}
+              <br />
+              Tel: +353 1 554 9700
+              <br />
+              INSTANT EU GDPR REPRESENTATIVE LTD
+              <br />
+              Office 2, 12A Lower Main Street
+              <br />
+              Lucan, Co. Dublin, K78 X5P8
+              <br />
+              Ireland
+            </>
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Data subjects in the European Economic Area may contact the Representative on any matter relating to the processing of their Personal Data.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'We will respond to Your request within the timeframes stated in section 14 where those timeframes apply.'
+          ),
         },
       ],
     },

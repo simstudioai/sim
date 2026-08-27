@@ -26,6 +26,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
@@ -49,11 +50,11 @@ function isHiddenScope(scope: string): boolean {
 function resolveService(
   provider: OAuthProvider,
   serviceId: string
-): { providerName: string; ProviderIcon: ServiceIcon } {
+): { providerName: string; ProviderIcon: ServiceIcon | null } {
   const { baseProvider } = parseProvider(provider)
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
   let providerName = baseProviderConfig?.name || provider
-  let ProviderIcon: ServiceIcon = baseProviderConfig?.icon || (() => null)
+  let ProviderIcon: ServiceIcon | null = baseProviderConfig?.icon ?? null
   if (baseProviderConfig) {
     for (const [key, service] of Object.entries(baseProviderConfig.services)) {
       if (key === serviceId || service.providerId === provider) {
@@ -111,6 +112,11 @@ interface ConnectOAuthModalReauthorizeProps extends ConnectOAuthModalBaseProps {
   toolName: string
   requiredScopes?: readonly string[]
   newScopes?: readonly string[]
+  reconnectTarget?: {
+    workspaceId: string
+    credentialId: string
+    displayName: string
+  }
   onConnect?: () => Promise<void> | void
 }
 
@@ -256,6 +262,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     setSubmitError(null)
     try {
       let connectorType: string | undefined
+      let draftId: string | undefined
 
       if (isConnect) {
         const trimmed = displayName.trim()
@@ -264,12 +271,13 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           return
         }
 
-        await createDraft.mutateAsync({
+        const draft = await createDraft.mutateAsync({
           workspaceId,
           providerId,
           displayName: trimmed,
           description: description.trim() || undefined,
         })
+        draftId = draft.draftId
 
         const preCount = credentials.filter(
           (c) => c.type === 'oauth' && c.providerId === providerId
@@ -279,6 +287,15 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           displayName: trimmed,
           providerId,
           preCount,
+          baselineCredentials: credentials
+            .filter(
+              (credential) => credential.type === 'oauth' && credential.providerId === providerId
+            )
+            .map((credential) => ({
+              id: credential.id,
+              accountId: credential.accountId,
+              updatedAt: credential.updatedAt,
+            })),
           workspaceId,
           requestedAt: Date.now(),
         }
@@ -304,6 +321,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         handleClose()
         return
       } else {
+        if (props.reconnectTarget) {
+          const draft = await createDraft.mutateAsync({
+            workspaceId: props.reconnectTarget.workspaceId,
+            providerId,
+            credentialId: props.reconnectTarget.credentialId,
+            displayName: props.reconnectTarget.displayName,
+          })
+          draftId = draft.draftId
+        }
+
         logger.info('Reauthorizing OAuth2', {
           providerId,
           requiredScopes,
@@ -319,6 +346,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       await connectOAuthService.mutateAsync({
         providerId,
         callbackURL: callbackURL.toString(),
+        draftId,
       })
       handleClose()
     } catch (err: unknown) {
@@ -328,7 +356,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     }
   }
 
-  const isPending = (isConnect && createDraft.isPending) || connectOAuthService.isPending
+  const createsDraft = isConnect || (!isConnect && Boolean(props.reconnectTarget))
+  const isPending = (createsDraft && createDraft.isPending) || connectOAuthService.isPending
   const isDisabled = isConnect
     ? !displayName.trim() || isPending || Boolean(existingCredential)
     : isPending
@@ -343,7 +372,10 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader icon={ProviderIcon} onClose={handleClose}>
+      <ChipModalHeader
+        icon={ProviderIcon ? withBrandIcon(ProviderIcon) : null}
+        onClose={handleClose}
+      >
         {title}
       </ChipModalHeader>
       <ChipModalBody>
@@ -400,7 +432,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
                 {displayScopes.map((scope) => (
                   <InfoCardItem key={scope}>
                     <span className='flex items-center gap-2'>
-                      {getScopeDescription(scope)}
+                      {getScopeDescription(scope, providerId)}
                       {!isConnect && newScopesSet.has(scope) && (
                         <Badge variant='amber' size='sm'>
                           New

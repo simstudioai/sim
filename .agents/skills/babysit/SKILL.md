@@ -1,6 +1,6 @@
 ---
 name: babysit
-description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — ships if needed, keeps it mergeable against staging, triggers Greptile/Cursor Bugbot, fixes real findings, replies to and resolves every thread, and loops until clean
+description: Drive a PR to a clean review (Greptile 5/5, zero open threads) — ships if needed, keeps it mergeable against staging, triggers Greptile, fixes real findings, replies to and resolves every thread, and loops until clean
 ---
 
 # Babysit PRs
@@ -58,9 +58,9 @@ round. Always check both conditions freshly after every push.
 2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
    usual pre-push checks, push, and go to step 8 to re-trigger review.
 
-3. **If no review has run yet** (fresh PR, no Greptile/Cursor comments): they usually run
-   automatically on PR open — confirm via `gh pr checks <n>` (look for `Cursor Bugbot` /
-   `Greptile Review`) and wait for that first round before doing anything else.
+3. **If no review has run yet** (fresh PR, no Greptile comments): Greptile usually runs
+   automatically on PR open — confirm via `gh pr checks <n>` (look for `Greptile Review`) and
+   wait for that first round before doing anything else.
 
 4. **If a review round has landed and it isn't clean**: for every thread where
    `isResolved: false`, triage the finding on its own merits — this is the part that requires
@@ -113,15 +113,13 @@ round. Always check both conditions freshly after every push.
    rounds; checking sync only before the push (step 6) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.
 
-8. **Re-trigger review** by posting `@greptile` and `@cursor review` as **two separate PR
-   comments** — never combine them into one comment, each bot only responds to its own mention:
+8. **Re-trigger review** by posting `@greptile` as its own PR comment:
    ```bash
    gh pr comment <n> --body "@greptile"
-   gh pr comment <n> --body "@cursor review"
    ```
 
 9. **Wait for the new round**, then go back to step 1. Pace the wait with `ScheduleWakeup` using
-   a fallback delay of ~250–300s (Greptile/Cursor typically take 1–3 minutes) — never busy-poll
+   a fallback delay of ~250–300s (Greptile typically takes 1–3 minutes) — never busy-poll
    in a sleep loop. Pass the same `/loop babysit PR <n>` prompt on each wakeup so the loop
    resumes correctly.
 
@@ -134,9 +132,20 @@ round. Always check both conditions freshly after every push.
 When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each),
 what was pushed back on as a false positive and why, and the final Greptile score / thread count.
 
+## Public-repo hygiene
+
+Every reply, comment and commit you post here is public and permanent, and review bots quote
+your replies back so a leak propagates. Before each post, strip anything that ties the change to
+a tenant: customer/company names, workspace/user/org/KB/connector IDs, emails, tenant hostnames,
+verbatim document/sheet/folder names, log lines, and per-tenant DB output. Cite the mechanism and
+aggregate numbers instead — see `/ship`'s "What to Omit" for the full list and the pre-publish
+grep. Triaging a finding often means pasting evidence you gathered from prod; that is exactly the
+moment this gets violated. Check before posting, not after: editing a comment does not unsend its
+notification email.
+
 ## Hard rules
 
-- Never post the two re-review mentions as a single combined comment.
+- Never paste prod evidence into a reply without scrubbing it first (see above).
 - Never resolve a thread without replying to it first.
 - Never fix a finding with a hacky workaround — if the clean fix isn't obvious, find the sibling
   pattern elsewhere in the codebase solving the same class of problem and match it.

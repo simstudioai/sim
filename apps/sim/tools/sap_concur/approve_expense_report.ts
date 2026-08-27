@@ -14,7 +14,7 @@ export const approveExpenseReportTool: ToolConfig<
   id: 'sap_concur_approve_expense_report',
   name: 'SAP Concur Approve Expense Report',
   description:
-    'Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment.',
+    'Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Optional body fields: comment, expenseRejectedComment (required if the report has rejected expenses), expectedStepCode, expectedStepSequence, statusId (default A_APPR).',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -67,10 +67,10 @@ export const approveExpenseReportTool: ToolConfig<
     },
     body: {
       type: 'json',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Request body — `comment` is required by Concur (e.g., { "comment": "Approved" }). If the report contains rejected expenses, `expenseRejectedComment` is also required. Optional fields: `expectedStepCode`, `expectedStepSequence`, `statusId` (defaults to "A_APPR").',
+        'Optional request body. All fields are optional: `comment` (e.g., { "comment": "Approved" }), `expenseRejectedComment` (required only if the report contains rejected expenses), `expectedStepCode`, `expectedStepSequence`, `statusId` (defaults to "A_APPR").',
     },
   },
   request: {

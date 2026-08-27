@@ -117,6 +117,17 @@ describe('desktop settings service', () => {
     expect(setTerminalEnabled).toHaveBeenCalledWith(false)
   })
 
+  it('defaults live browser search suggestions on and persists the privacy switch', () => {
+    const { config, service } = makeService()
+
+    expect(service.getPreferences().browserSearchSuggestionsEnabled).toBe(true)
+
+    const preferences = service.setBrowserSearchSuggestionsEnabled(false)
+
+    expect(config.get('browserSearchSuggestionsEnabled')).toBe(false)
+    expect(preferences.browserSearchSuggestionsEnabled).toBe(false)
+  })
+
   it('persists browser and terminal appearance with match-Sim defaults', () => {
     const { config, service, setBrowserTheme, onBrowserThemeChanged } = makeService()
     expect(service.getPreferences()).toMatchObject({

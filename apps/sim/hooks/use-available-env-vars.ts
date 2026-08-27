@@ -1,10 +1,15 @@
 import { useMemo } from 'react'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 
-export function useAvailableEnvVarKeys(workspaceId?: string): Set<string> | undefined {
-  const { data: personalEnv, isLoading: personalLoading } = usePersonalEnvironment()
+export function useAvailableEnvVarKeys(
+  workspaceId?: string,
+  options?: { enabled?: boolean }
+): Set<string> | undefined {
+  const enabled = options?.enabled ?? true
+  const { data: personalEnv, isLoading: personalLoading } = usePersonalEnvironment({ enabled })
   const { data: workspaceEnvData, isLoading: workspaceLoading } = useWorkspaceEnvironment(
-    workspaceId || ''
+    workspaceId || '',
+    { enabled }
   )
 
   return useMemo(() => {

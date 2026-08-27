@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -34,52 +34,107 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.tsv',
 ])
 
+const HTML_EXTENSIONS = new Set(['.html', '.htm'])
+
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
-interface DropboxFileEntry {
-  '.tag': 'file' | 'folder' | 'deleted'
+/** Dropbox `FileMetadata` — the only `.tag` variant this connector indexes. */
+interface DropboxFileMetadata {
+  '.tag': 'file'
   id: string
   name: string
   path_lower: string
   path_display: string
   client_modified?: string
   server_modified?: string
+  rev?: string
   size?: number
   content_hash?: string
   is_downloadable?: boolean
 }
 
+/**
+ * Dropbox serializes `Metadata` as a discriminated union. `folder` entries carry
+ * no size/modified fields and `deleted` entries carry no `id` at all, so they must
+ * be narrowed away before a stub is built from them.
+ */
+interface DropboxNonFileMetadata {
+  '.tag': 'folder' | 'deleted'
+  id?: string
+  name: string
+  path_lower?: string
+  path_display?: string
+}
+
+type DropboxEntry = DropboxFileMetadata | DropboxNonFileMetadata
+
 interface DropboxListFolderResponse {
-  entries: DropboxFileEntry[]
+  entries: DropboxEntry[]
   cursor: string
   has_more: boolean
 }
 
-function hasSupportedExtension(name: string): boolean {
+function extensionOf(name: string): string {
   const lower = name.toLowerCase()
   const dotIndex = lower.lastIndexOf('.')
-  if (dotIndex === -1) return false
-  return SUPPORTED_EXTENSIONS.has(lower.slice(dotIndex))
+  return dotIndex === -1 ? '' : lower.slice(dotIndex)
 }
 
 /** A downloadable file with a supported extension, regardless of size. */
-function isDownloadableFile(entry: DropboxFileEntry): boolean {
+function isDownloadableFile(entry: DropboxEntry): entry is DropboxFileMetadata {
   return (
-    entry['.tag'] === 'file' && entry.is_downloadable !== false && hasSupportedExtension(entry.name)
+    entry['.tag'] === 'file' &&
+    entry.is_downloadable !== false &&
+    SUPPORTED_EXTENSIONS.has(extensionOf(entry.name))
   )
 }
 
-async function downloadFileContent(accessToken: string, filePath: string): Promise<string> {
+/**
+ * Normalizes a user-supplied folder path to the `PathROrId` format
+ * `/2/files/list_folder` declares: the empty string for the Dropbox root (the
+ * leading-slash branch of the pattern is optional precisely so `""` matches),
+ * otherwise a leading slash. The trailing slash is stripped as defensive
+ * tidying of free-form input, not because Dropbox documents rejecting it.
+ * A path outside the format fails with `path/malformed_path`.
+ */
+function normalizeFolderPath(raw: unknown): string {
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed || trimmed === '/') return ''
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  return withLeadingSlash.replace(/\/+$/, '')
+}
+
+/**
+ * Serializes the `Dropbox-API-Arg` header value as HTTP-header-safe ASCII.
+ * Dropbox requires DEL (0x7F) and every non-ASCII character to be sent as a JSON
+ * `\uXXXX` escape; a raw `JSON.stringify` of any argument carrying non-ASCII text
+ * fails with `could not decode input as JSON` or an invalid-header error.
+ *
+ * @see https://www.dropbox.com/developers/reference/json-encoding
+ */
+function toDropboxApiArg(arg: Record<string, unknown>): string {
+  return JSON.stringify(arg).replace(
+    /[\u007f-\uffff]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`
+  )
+}
+
+async function downloadFileContent(
+  accessToken: string,
+  fileId: string,
+  isHtml: boolean
+): Promise<string> {
   const response = await fetchWithRetry('https://content.dropboxapi.com/2/files/download', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Dropbox-API-Arg': JSON.stringify({ path: filePath }),
+      'Dropbox-API-Arg': toDropboxApiArg({ path: fileId }),
     },
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to download file ${filePath}: ${response.status}`)
+    const errorText = await response.text().catch(() => '')
+    throw new Error(`Failed to download file ${fileId}: ${response.status} ${errorText}`.trim())
   }
 
   // Stream with a hard byte cap so a file whose listing metadata under-reported
@@ -92,22 +147,18 @@ async function downloadFileContent(accessToken: string, filePath: string): Promi
 
   const text = buffer.toString('utf8')
 
-  if (filePath.endsWith('.html') || filePath.endsWith('.htm')) {
-    return htmlToPlainText(text)
-  }
-
-  return text
+  return isHtml ? htmlToPlainText(text) : text
 }
 
-function fileToStub(entry: DropboxFileEntry): ExternalDocument {
+function fileToStub(entry: DropboxFileMetadata): ExternalDocument {
   return {
     externalId: entry.id,
     title: entry.name,
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: `https://www.dropbox.com/home${entry.path_display}`,
-    contentHash: `dropbox:${entry.id}:${entry.content_hash ?? entry.server_modified ?? ''}`,
+    sourceUrl: `https://www.dropbox.com/home${encodeURI(entry.path_display)}`,
+    contentHash: `dropbox:${entry.id}:${entry.content_hash ?? entry.rev ?? entry.server_modified ?? ''}`,
     metadata: {
       path: entry.path_display,
       lastModified: entry.server_modified || entry.client_modified,
@@ -151,8 +202,7 @@ export const dropboxConnector: ConnectorConfig = {
 
       data = await response.json()
     } else {
-      const folderPath = (sourceConfig.folderPath as string)?.trim() || ''
-      const path = folderPath.startsWith('/') ? folderPath : folderPath ? `/${folderPath}` : ''
+      const path = normalizeFolderPath(sourceConfig.folderPath)
 
       logger.info('Listing Dropbox folder', { path: path || '(root)' })
 
@@ -187,7 +237,8 @@ export const dropboxConnector: ConnectorConfig = {
     // of dropping them silently at listing time.
     const candidateFiles = data.entries.filter(isDownloadableFile)
 
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const parsedMaxFiles = Number(sourceConfig.maxFiles)
+    const maxFiles = Number.isFinite(parsedMaxFiles) && parsedMaxFiles > 0 ? parsedMaxFiles : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     const stubs = candidateFiles.map((entry) =>
@@ -202,9 +253,19 @@ export const dropboxConnector: ConnectorConfig = {
     )
 
     const totalFetched = previouslyFetched + indexableCount
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = capReached
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+    /**
+     * `listingCapped` blocks the sync engine's deletion reconciliation, so it is set
+     * only when the cap actually hid documents that still exist — either entries were
+     * dropped from this page, or Dropbox reported more pages we will not request.
+     * A cap that lands exactly on the last entry of the final page is a complete
+     * listing; flagging it would permanently block deletion reconciliation.
+     */
+    const cappedWithItemsLeft = hitLimit && (documents.length < stubs.length || data.has_more)
+    if (syncContext) {
+      syncContext.totalDocsFetched = totalFetched
+      if (cappedWithItemsLeft) syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -218,48 +279,64 @@ export const dropboxConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      const response = await fetchWithRetry('https://api.dropboxapi.com/2/files/get_metadata', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ path: externalId }),
-      })
+    const response = await fetchWithRetry('https://api.dropboxapi.com/2/files/get_metadata', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path: externalId }),
+    })
 
-      if (!response.ok) {
-        if (response.status === 409) return null
-        throw new Error(`Failed to get metadata: ${response.status}`)
-      }
-
-      const entry = (await response.json()) as DropboxFileEntry
-
-      if (!isDownloadableFile(entry)) return null
-
-      const stub = fileToStub(entry)
-      if (entry.size && entry.size > MAX_FILE_SIZE) {
-        return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
-      }
-
-      let content: string
-      try {
-        content = await downloadFileContent(accessToken, entry.path_lower)
-      } catch (error) {
-        if (error instanceof ConnectorFileTooLargeError) {
-          return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
+    /**
+     * Dropbox reports every endpoint-specific error as 409, so the status alone
+     * does not mean the file is gone. For `get_metadata` the error union is
+     * `path: LookupError`, whose variants include `restricted_content` and
+     * `locked` — the file still exists in both. Only `not_found` is absence, and
+     * only that returns `null`; anything else propagates so the sync engine
+     * records a failed row instead of silently dropping the document.
+     */
+    if (!response.ok) {
+      if (response.status === 409) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: { '.tag'?: string; path?: { '.tag'?: string } }
+        } | null
+        if (body?.error?.['.tag'] === 'path' && body.error.path?.['.tag'] === 'not_found') {
+          return null
         }
-        throw error
       }
-      if (!content.trim()) return null
-
-      return { ...stub, content, contentDeferred: false }
-    } catch (error) {
-      logger.warn(`Failed to fetch document ${externalId}`, {
-        error: toError(error).message,
-      })
-      return null
+      throw new Error(`Failed to get metadata: ${response.status}`)
     }
+
+    const entry = (await response.json()) as DropboxEntry
+
+    if (!isDownloadableFile(entry)) return null
+
+    const stub = fileToStub(entry)
+    if (entry.size && entry.size > MAX_FILE_SIZE) {
+      return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+    }
+
+    let content: string
+    try {
+      /**
+       * Addressed by file id rather than path: ids are stable across renames and
+       * are pure ASCII, so the `Dropbox-API-Arg` header stays header-safe.
+       */
+      content = await downloadFileContent(
+        accessToken,
+        entry.id,
+        HTML_EXTENSIONS.has(extensionOf(entry.name))
+      )
+    } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
+      }
+      throw error
+    }
+    if (!content.trim()) return null
+
+    return { ...stub, content, contentDeferred: false }
   },
 
   validateConfig: async (
@@ -272,8 +349,7 @@ export const dropboxConnector: ConnectorConfig = {
     }
 
     try {
-      const folderPath = (sourceConfig.folderPath as string)?.trim() || ''
-      const path = folderPath.startsWith('/') ? folderPath : folderPath ? `/${folderPath}` : ''
+      const path = normalizeFolderPath(sourceConfig.folderPath)
 
       const response = await fetchWithRetry(
         'https://api.dropboxapi.com/2/files/list_folder',

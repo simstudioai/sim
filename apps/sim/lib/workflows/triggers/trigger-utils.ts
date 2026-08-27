@@ -26,63 +26,6 @@ export function hasValidStartBlockInState(state: WorkflowState | null | undefine
   return !!startBlock
 }
 
-interface TriggerInfo {
-  id: string
-  name: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-  category: 'core' | 'integration'
-  enableTriggerMode?: boolean
-}
-
-/**
- * Get all blocks that can act as triggers
- * This includes both dedicated trigger blocks and tools with trigger capabilities
- */
-export function getAllTriggerBlocks(): TriggerInfo[] {
-  const allBlocks = getAllBlocks()
-  const triggers: TriggerInfo[] = []
-
-  for (const block of allBlocks) {
-    // Skip hidden blocks
-    if (block.hideFromToolbar) continue
-
-    // Check if it's a core trigger block (category: 'triggers')
-    if (block.category === 'triggers') {
-      triggers.push({
-        id: block.type,
-        name: block.name,
-        description: block.description,
-        icon: block.icon,
-        color: block.bgColor,
-        category: 'core',
-        enableTriggerMode: hasTriggerCapability(block),
-      })
-    }
-    // Check if it's a tool with trigger capability (has trigger-config subblock)
-    else if (hasTriggerCapability(block)) {
-      triggers.push({
-        id: block.type,
-        name: block.name,
-        description: block.description.replace(' or trigger workflows from ', ', trigger from '),
-        icon: block.icon,
-        color: block.bgColor,
-        category: 'integration',
-        enableTriggerMode: true,
-      })
-    }
-  }
-
-  // Sort: core triggers first, then integration triggers, alphabetically within each category
-  return triggers.sort((a, b) => {
-    if (a.category !== b.category) {
-      return a.category === 'core' ? -1 : 1
-    }
-    return a.name.localeCompare(b.name)
-  })
-}
-
 /**
  * Check if a block has trigger capability (contains trigger mode subblocks)
  */
@@ -110,16 +53,6 @@ export function getTriggersForSidebar(): BlockConfig[] {
     // Include blocks with triggers category or trigger-config subblock
     return block.category === 'triggers' || hasTriggerCapability(block)
   })
-}
-
-/**
- * Get the proper display name for a trigger block in the UI
- */
-export function getTriggerDisplayName(blockType: string): string {
-  const block = getBlock(blockType)
-  if (!block) return blockType
-
-  return block.name
 }
 
 /**

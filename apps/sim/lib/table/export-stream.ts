@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { formatCsvCell } from '@/lib/table/export-format'
@@ -9,19 +9,6 @@ import type { TableDefinition, TableExportFormat } from '@/lib/table/types'
 const logger = createLogger('TableExportStream')
 
 const EXPORT_BATCH_SIZE = 1000
-
-export function sanitizeExportFilename(name: string): string {
-  const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
-  return cleaned || 'table'
-}
-
-function escapeCsvField(field: string): string {
-  return /[",\n\r]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field
-}
-
-function toCsvRow(values: string[]): string {
-  return values.map(escapeCsvField).join(',')
-}
 
 export function exportContentType(format: TableExportFormat): string {
   return format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json'

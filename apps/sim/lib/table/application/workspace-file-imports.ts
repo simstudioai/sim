@@ -14,6 +14,7 @@ import {
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
   CsvImportValidationError,
+  type CsvRejectionSummary,
   coerceRowsForTable,
   getWorkspaceTableLimits,
   inferSchemaFromCsv,
@@ -36,6 +37,7 @@ import { runTableImport, type TableImportPayload } from '@/lib/table/import-runn
 import {
   markTableJobRunningInWorkspace,
   releaseJobClaimInWorkspace,
+  type TableImportRejectionSummary,
 } from '@/lib/table/jobs/service'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { createTable, deleteTable } from '@/lib/table/service'
@@ -87,6 +89,8 @@ export type CreateTableFromWorkspaceFileResult =
       droppedRows: number
       maxRowsPerTable: number
       sourceFile: TableWorkspaceFileSource
+      /** Omitted when the file imported cleanly. See {@link summarizeRejections}. */
+      rejections?: TableImportRejectionSummary
     }
 
 export interface ImportWorkspaceFileInput {
@@ -119,6 +123,8 @@ export type ImportWorkspaceFileResult =
       skippedColumns: string[]
       insertedCount: number
       sourceFileName: string
+      /** Omitted when the file imported cleanly. See {@link summarizeRejections}. */
+      rejections?: TableImportRejectionSummary
     }
   | {
       kind: 'inline'
@@ -129,6 +135,8 @@ export type ImportWorkspaceFileResult =
       insertedCount: number
       deletedCount: number
       sourceFileName: string
+      /** Omitted when the file imported cleanly. See {@link summarizeRejections}. */
+      rejections?: TableImportRejectionSummary
     }
 
 function requestId(): string {
@@ -144,7 +152,7 @@ async function resolveSafeSourceFile(
     if (reference.replace(/^\/+/, '').startsWith('uploads/')) {
       throw new OrchestrationError(
         'validation',
-        `Cannot import "${reference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+        `Cannot import "${reference}": chat uploads are not workspace files. Use save_upload to save it to a files/... path first, then pass that canonical path.`
       )
     }
     throw new OrchestrationError(
@@ -180,6 +188,37 @@ function shouldImportInBackground(file: TableWorkspaceFileSource): boolean {
 async function loadInlineRows(file: WorkspaceFileRecord) {
   const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_INLINE_FILE_BYTES })
   return parseFileRows(content, file.name, file.type)
+}
+
+/**
+ * What an inline (buffered) import reports about the data it lost, so a
+ * partially imported file is not presented as a clean one — the same accounting
+ * the streaming runner folds into the import record, returned inline because
+ * these imports never create one.
+ *
+ * `undefined` when nothing was lost, leaving a clean import's result exactly
+ * what it has always been. `rowsRejected` stays a FLOOR: one parser failure can
+ * discard many records and is reported once. Any loss is also warned, so a
+ * caller that discards the summary still leaves a trace.
+ */
+function summarizeRejections(
+  rejections: CsvRejectionSummary,
+  cellsRejected: number,
+  file: TableWorkspaceFileSource
+): TableImportRejectionSummary | undefined {
+  if (rejections.rowsRejected === 0 && cellsRejected === 0) return undefined
+  const summary = {
+    rowsRejected: rejections.rowsRejected,
+    cellsRejected,
+    rejectedSamples: rejections.rejectedSamples,
+  }
+  logger.warn('Inline table import lost source data', {
+    workspaceId: file.workspaceId,
+    fileId: file.id,
+    fileName: file.name,
+    ...summary,
+  })
+  return summary
 }
 
 async function batchInsertAll(params: {
@@ -333,8 +372,9 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
       return { kind: 'background', table, jobId, sourceFile }
     }
 
-    const { headers, rows: sourceRows } = await loadInlineRows(sourceFile)
+    const { headers, rows: sourceRows, rejections } = await loadInlineRows(sourceFile)
     if (sourceRows.length === 0) {
+      summarizeRejections(rejections, 0, sourceFile)
       return { kind: 'empty', sourceFile }
     }
     const { columns, headerToColumn } = inferSchemaFromCsv(headers, sourceRows)
@@ -352,14 +392,18 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
       },
       requestId()
     )
+    let cellsRejected = 0
     try {
       const insertedCount = await batchInsertAll({
         table,
-        rows: coerceRowsForTable(rows, table.schema, headerToColumn),
+        rows: coerceRowsForTable(rows, table.schema, headerToColumn, undefined, () => {
+          cellsRejected++
+        }),
         workspaceId: context.workspaceId,
         userId,
         assertNotAborted: input.assertNotAborted,
       })
+      const summary = summarizeRejections(rejections, cellsRejected, sourceFile)
       return {
         kind: 'inline',
         table,
@@ -368,6 +412,7 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
         droppedRows,
         maxRowsPerTable: limits.maxRowsPerTable,
         sourceFile,
+        ...(summary ? { rejections: summary } : {}),
       }
     } catch (error) {
       try {
@@ -454,9 +499,10 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
     if (!claimed)
       throw new OrchestrationError('conflict', 'A job is already in progress for this table')
     return withReleasedTableJobClaim(context.table.id, context.workspaceId, jobId, async () => {
-      const { headers, rows: sourceRows } = await loadInlineRows(sourceFile)
+      const { headers, rows: sourceRows, rejections } = await loadInlineRows(sourceFile)
       input.assertNotAborted?.()
       if (sourceRows.length === 0) {
+        summarizeRejections(rejections, 0, sourceFile)
         return { kind: 'empty', table: context.table, mode: input.mode }
       }
       const mapping = input.mapping ?? buildAutoMapping(headers, context.table.schema)
@@ -477,7 +523,17 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
           `No matching columns between file (${headers.join(', ')}) and table (${context.table.schema.columns.map((column) => column.name).join(', ')})`
         )
       }
-      const rows = coerceRowsForTable(sourceRows, context.table.schema, validation.effectiveMap)
+      let cellsRejected = 0
+      const rows = coerceRowsForTable(
+        sourceRows,
+        context.table.schema,
+        validation.effectiveMap,
+        undefined,
+        () => {
+          cellsRejected++
+        }
+      )
+      const summary = summarizeRejections(rejections, cellsRejected, sourceFile)
       if (input.mode === 'replace') {
         const result = await replaceTableRows(
           {
@@ -499,6 +555,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
           insertedCount: result.insertedCount,
           deletedCount: result.deletedCount,
           sourceFileName: sourceFile.name,
+          ...(summary ? { rejections: summary } : {}),
         }
       }
       const insertedCount = await batchInsertAll({
@@ -516,6 +573,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
         skippedColumns: validation.skippedHeaders,
         insertedCount,
         sourceFileName: sourceFile.name,
+        ...(summary ? { rejections: summary } : {}),
       }
     })
   },

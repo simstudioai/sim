@@ -12,6 +12,8 @@ const {
   mockGetPlanTierCredits,
   mockHasUsableSubscriptionAccess,
   mockGetEffectiveBillingStatus,
+  mockIsOrganizationBillingBlocked,
+  mockCheckOrgPlan,
 } = vi.hoisted(() => ({
   mockGetHighestPrioritySubscription: vi.fn(),
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
@@ -20,11 +22,13 @@ const {
   mockGetPlanTierCredits: vi.fn(),
   mockHasUsableSubscriptionAccess: vi.fn(),
   mockGetEffectiveBillingStatus: vi.fn(),
+  mockIsOrganizationBillingBlocked: vi.fn(),
+  mockCheckOrgPlan: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/access', () => ({
   getEffectiveBillingStatus: mockGetEffectiveBillingStatus,
-  isOrganizationBillingBlocked: vi.fn(),
+  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
 }))
 
 vi.mock('@/lib/billing/core/plan', () => ({
@@ -47,6 +51,7 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
 /** Mirrors the production sets exactly — a mock that widens them would let a gate regress unnoticed. */
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
   checkEnterprisePlan: mockCheckEnterprisePlan,
+  checkOrgPlan: mockCheckOrgPlan,
   checkProPlan: vi.fn(),
   checkTeamPlan: vi.fn(),
   ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
@@ -65,6 +70,7 @@ import {
   hasWorkspaceLiveSyncAccess,
   hasWorkspaceSandboxAccess,
   isWorkspaceOnEnterprisePlan,
+  resolveOrganizationPlan,
   syncSubscriptionPlan,
 } from '@/lib/billing/core/subscription'
 
@@ -415,5 +421,56 @@ describe('hasWorkspaceSandboxAccess', () => {
 
     await expect(hasWorkspaceSandboxAccess('workspace-host')).resolves.toBe(true)
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveOrganizationPlan', () => {
+  const ORGANIZATION_ID = 'org-1'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    /** An earlier describe leaves billing disabled, which short-circuits this gate to true. */
+    setEnvFlags({ isBillingEnabled: true, isHosted: true })
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockCheckOrgPlan.mockReturnValue(true)
+  })
+
+  it('accepts an organization holding a usable organization plan', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'team_6000', status: 'active' }])
+
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(true)
+  })
+
+  it('rejects a billing-blocked organization without consulting the plan', async () => {
+    mockIsOrganizationBillingBlocked.mockResolvedValue(true)
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'active' }])
+
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(false)
+    expect(mockCheckOrgPlan).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The subscription read soft-fails to `null` on its own, so without the
+   * option threaded through it an outage arrives as an ordinary "no usable
+   * subscription" and returns a successful `false`. A caller that caches the
+   * answer would then record the outage as a plan lapse for its whole TTL.
+   */
+  it('propagates a failed subscription read instead of reporting it as no plan', async () => {
+    dbChainMockFns.limit.mockRejectedValue(new Error('billing database unavailable'))
+
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID, { onError: 'throw' })).rejects.toThrow(
+      'billing database unavailable'
+    )
+  })
+
+  it('propagates a failed block-state read the same way', async () => {
+    mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('userStats unavailable'))
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'team_6000', status: 'active' }])
+
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(resolveOrganizationPlan(ORGANIZATION_ID, { onError: 'throw' })).rejects.toThrow(
+      'userStats unavailable'
+    )
   })
 })

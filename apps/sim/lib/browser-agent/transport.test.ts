@@ -153,6 +153,7 @@ import {
   fillBrowserCredential,
   initBrowserAgentTransport,
   loadBrowserFillOptions,
+  loadBrowserSearchSuggestions,
   migrateBrowserScope,
   onBrowserAddToChat,
   onBrowserFillAvailability,
@@ -162,6 +163,7 @@ import {
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
   openBrowserTab,
+  openUrlInNewBrowserTab,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
@@ -241,6 +243,33 @@ describe('browser panel transport', () => {
 
     expect(openTab).toHaveBeenCalledWith('chat-test')
     expect(setTabsState).toHaveBeenCalledWith(state)
+  })
+
+  it('opens chat URLs in a distinct tab before navigating', async () => {
+    const callOrder: string[] = []
+    openTab.mockImplementation(async () => {
+      callOrder.push('open-tab')
+      return {
+        scopeId: 'chat-test',
+        activeTabId: '2',
+        tabs: [],
+      }
+    })
+    panelAction.mockImplementation(() => {
+      callOrder.push('navigate')
+    })
+
+    await openUrlInNewBrowserTab('https://example.com/docs', 'chat-test')
+
+    expect(callOrder).toEqual(['open-tab', 'navigate'])
+    expect(panelAction).toHaveBeenCalledWith(
+      { action: 'navigate', url: 'https://example.com/docs' },
+      'chat-test'
+    )
+  })
+
+  it('keeps search suggestions local-only on older installed shells', async () => {
+    await expect(loadBrowserSearchSuggestions('sim ai')).resolves.toEqual([])
   })
 
   it('forwards panel bounds directly to the native view', () => {
@@ -442,6 +471,22 @@ describe('browser panel transport', () => {
     expect(cancelActiveTool).toHaveBeenCalledWith('chat-detached')
     settleNative({ ok: false, error: 'cancelled' })
     await expect(execution).rejects.toThrow('cancelled')
+  })
+
+  it('clears the response watchdog when a browser tool settles early', async () => {
+    vi.useFakeTimers()
+    try {
+      executeTool.mockResolvedValue({ ok: true, result: { done: true } })
+      const timersBefore = vi.getTimerCount()
+
+      await expect(
+        executeBrowserTool('tool-fast', 'browser_snapshot', {}, 30_000, 'chat-fast')
+      ).resolves.toEqual({ done: true })
+
+      expect(vi.getTimerCount()).toBe(timersBefore)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('starts the native scope boundary without waiting for exact cancellation', async () => {

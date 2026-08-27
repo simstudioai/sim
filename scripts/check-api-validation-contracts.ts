@@ -8,9 +8,20 @@ const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
+/**
+ * `totalRoutes` is reported, never gated.
+ *
+ * The invariant worth holding is that every route is contract-backed, and
+ * `nonZodRoutes` states exactly that: it is 0, and rises the moment a route ships
+ * without one. Failing on the total as well meant a fully compliant new route
+ * still turned CI red, fixable only by editing the number here. A ratchet
+ * survives on the habit of never bumping it casually, and a gate that must be
+ * bumped to add a compliant route teaches precisely the opposite habit — on a
+ * file whose other seven baselines depend on that habit holding.
+ */
 const BASELINE = {
-  totalRoutes: 1107,
-  zodRoutes: 1107,
+  totalRoutes: 1201,
+  zodRoutes: 1201,
   nonZodRoutes: 0,
 } as const
 
@@ -42,6 +53,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
   // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
   'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
+  // Public updater download redirect: input-less GET, session-less, whose only
+  // response is a 302 to a GitHub release asset. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/download/route.ts',
   'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
@@ -75,6 +89,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
+  'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
   'apps/sim/app/api/cron/reconcile-inbox-entitlement/route.ts',
   'apps/sim/app/api/cron/run-data-drains/route.ts',
@@ -1370,9 +1385,6 @@ async function main() {
   if (!checkOnly) return
 
   const failures: string[] = []
-  if (totalRoutes > BASELINE.totalRoutes) {
-    failures.push(`route count increased from ${BASELINE.totalRoutes} to ${totalRoutes}`)
-  }
   if (nonZodRoutes > BASELINE.nonZodRoutes) {
     failures.push(
       `non-Zod routes increased from ${BASELINE.nonZodRoutes} to ${nonZodRoutes} (${zodRoutes} Zod-backed routes)`

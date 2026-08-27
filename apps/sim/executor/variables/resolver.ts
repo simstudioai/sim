@@ -109,6 +109,34 @@ async function replaceEnvVarsAsync(
   return result + template.slice(cursor)
 }
 
+/**
+ * A number, boolean, or null literal, optionally padded with spaces or tabs.
+ *
+ * Every character this admits — digits, `.`, `-`, `+`, `e`, the three keywords, spaces, and
+ * tabs — is inert in both places a Condition placeholder can land. In expression position none
+ * of them introduces an operator or a comment; inside a string literal none of them terminates
+ * it. Padding is admitted rather than trimmed so the inlined text stays byte-identical to the
+ * stored value: whitespace is meaningless in expression position but significant inside a
+ * quoted string, and only the untrimmed value is correct in both. Line terminators stay out —
+ * a raw newline would break a single-quoted string.
+ */
+const STRUCTURALLY_INERT_CONDITION_LITERAL =
+  /^[ \t]*(?:-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|true|false|null)[ \t]*$/
+
+/**
+ * Whether an environment variable value may be inlined into a Condition expression as source.
+ *
+ * Condition expressions are user-authored JavaScript, so an inlined value is parsed as code.
+ * Only self-contained literals are safe to inline; every other value keeps its `{{NAME}}`
+ * placeholder and is bound as a string by the execution-boundary compiler instead. That keeps
+ * `{{COUNT}} === 3` and `{{ENABLED}} === true` comparing as literals — the long-standing
+ * behavior — while a value containing a quote, newline, or operator can no longer break the
+ * expression or forge its result.
+ */
+function isStructurallyInertConditionLiteral(value: string): boolean {
+  return STRUCTURALLY_INERT_CONDITION_LITERAL.test(value)
+}
+
 type ShellQuoteContext = 'single' | 'double' | null
 type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
 type CodeScanMode =
@@ -1419,7 +1447,8 @@ export class VariableResolver {
 
     result = await replaceEnvVarsAsync(result, async (match) => {
       const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
+      if (typeof resolved !== 'string') return match
+      return isStructurallyInertConditionLiteral(resolved) ? resolved : match
     })
     ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
       inputPath,

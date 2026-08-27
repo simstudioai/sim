@@ -14,6 +14,7 @@ import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@
 import {
   assertFolderCollectionHasRoom,
   findActiveFolder,
+  findArchivedFolderIdByPath,
   listActiveFolderRows,
   listFoldersForWorkspace,
   loadActiveFolderPathIndex,
@@ -350,6 +351,88 @@ describe('folder queries', () => {
      */
     it('narrows to nothing for a path that names no active folder', () => {
       expect(resolveFolderPathFilter(index, 'Archive')).toEqual({ kind: 'noMatch' })
+    })
+  })
+
+  /**
+   * The path lookup behind `POST /api/v2/tables/folders/restore`. It deliberately does NOT go
+   * through `buildFolderPathIndex`: the partial unique index on folder names covers ACTIVE
+   * rows only, so an archived `/Reports` and a new active `/Reports` legally coexist and the
+   * lossless index would throw on the duplicate path.
+   */
+  describe('findArchivedFolderIdByPath', () => {
+    const ARCHIVED_AT = new Date('2026-02-01T00:00:00.000Z')
+
+    function archived(overrides: Partial<typeof ROW> & { id: string }) {
+      return { ...ROW, resourceType: 'table' as const, deletedAt: ARCHIVED_AT, ...overrides }
+    }
+
+    it('resolves a root-level archived folder by its canonical path', async () => {
+      queueTableRows(schemaMock.folder, [archived({ id: 'f-1', name: 'Reports' })])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBe('f-1')
+    })
+
+    it('resolves a nested archived folder through its archived ancestors', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'parent', name: 'Sales', parentId: null }),
+        archived({ id: 'child', name: 'Reports', parentId: 'parent' }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Sales/Reports')).toBe('child')
+    })
+
+    it('resolves an archived folder still hanging off an ACTIVE parent', async () => {
+      queueTableRows(schemaMock.folder, [
+        { ...ROW, id: 'parent', name: 'Sales', resourceType: 'table', deletedAt: null },
+        archived({ id: 'child', name: 'Reports', parentId: 'parent' }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Sales/Reports')).toBe('child')
+    })
+
+    /** An active folder standing on the path is not a restore target. */
+    it('ignores an active folder occupying the same path', async () => {
+      queueTableRows(schemaMock.folder, [
+        { ...ROW, id: 'active', name: 'Reports', resourceType: 'table', deletedAt: null },
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBeNull()
+    })
+
+    /** Archive, recreate, archive again: two archived rows share one path. */
+    it('picks the most recently archived row when a path is ambiguous', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'old', name: 'Reports' }),
+        archived({
+          id: 'new',
+          name: 'Reports',
+          deletedAt: new Date('2026-03-01T00:00:00.000Z'),
+        }),
+      ])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBe('new')
+    })
+
+    it('returns null when no archived folder holds the path', async () => {
+      queueTableRows(schemaMock.folder, [archived({ id: 'f-1', name: 'Other' })])
+
+      expect(await findArchivedFolderIdByPath('ws-1', 'table', '/Reports')).toBeNull()
+    })
+
+    it('refuses to restore the workspace root', async () => {
+      await expect(findArchivedFolderIdByPath('ws-1', 'table', '/')).rejects.toThrow()
+    })
+
+    it('refuses a truncated read rather than resolving against a partial tree', async () => {
+      queueTableRows(schemaMock.folder, [
+        archived({ id: 'a', name: 'A' }),
+        archived({ id: 'b', name: 'B' }),
+      ])
+
+      await expect(
+        findArchivedFolderIdByPath('ws-1', 'table', '/Reports', { maxRows: 1 })
+      ).rejects.toBeInstanceOf(FolderCollectionLimitExceededError)
     })
   })
 

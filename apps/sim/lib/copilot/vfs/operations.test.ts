@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { glob, grep, grepReadResult, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import {
+  glob,
+  grep,
+  grepReadResult,
+  pathWithinGrepScope,
+  WorkspaceFileGrepError,
+} from '@/lib/copilot/vfs/operations'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
@@ -48,14 +54,36 @@ describe('glob', () => {
     expect(hits).toContain('files/a/meta.json')
   })
 
-  it('treats braces literally when nobrace is set (matches old builder)', () => {
+  it('expands brace alternatives across path segments', () => {
     const files = vfsFromEntries([
-      ['weird{brace}/x', ''],
-      ['weirdA/x', ''],
+      ['workflows/Elder/state.json', '{}'],
+      ['workflows/Utils/state.json', '{}'],
+      ['workflows/Other/state.json', '{}'],
     ])
-    const hits = glob(files, 'weird{brace}/*')
-    expect(hits).toContain('weird{brace}/x')
-    expect(hits).not.toContain('weirdA/x')
+    const hits = glob(files, 'workflows/{Elder,Utils}/state.json')
+    expect(hits.sort()).toEqual(['workflows/Elder/state.json', 'workflows/Utils/state.json'])
+  })
+
+  it('expands extension braces', () => {
+    const files = vfsFromEntries([
+      ['files/a.png', ''],
+      ['files/b.md', ''],
+      ['files/c.txt', ''],
+    ])
+    const hits = glob(files, 'files/*.{png,md}')
+    expect(hits.sort()).toEqual(['files/a.png', 'files/b.md'])
+  })
+
+  it('expands braces in decoded-form patterns against encoded keys', () => {
+    const files = vfsFromEntries([
+      ['workflows/Elder%20v1/state.json', '{}'],
+      ['workflows/Elder%20v2/state.json', '{}'],
+    ])
+    const hits = glob(files, 'workflows/{Elder v1,Elder v2}/state.json')
+    expect(hits.sort()).toEqual([
+      'workflows/Elder%20v1/state.json',
+      'workflows/Elder%20v2/state.json',
+    ])
   })
 })
 
@@ -233,5 +261,20 @@ describe('grepReadResult placeholders', () => {
     // Untagged, so it is content — text alone never makes something a placeholder.
     const { content } = readPlaceholder.binaryFile('app.bin', 'text/plain', 10)
     expect(grepResult({ content, totalLines: 1 })).toHaveLength(1)
+  })
+})
+
+describe('decode-normalized matching', () => {
+  it('glob matches a decoded display pattern against encoded keys, returning canonical paths', () => {
+    const files = new Map([['workflows/Elder%20v2/The%20Elder/state.json', '{}']])
+    const matches = glob(files, 'workflows/Elder v2/**')
+    expect(matches).toContain('workflows/Elder%20v2/The%20Elder/state.json')
+  })
+
+  it('grep scope written in decoded form filters in encoded keys', () => {
+    expect(
+      pathWithinGrepScope('workflows/Elder%20v2/The%20Elder/state.json', 'workflows/Elder v2')
+    ).toBe(true)
+    expect(pathWithinGrepScope('workflows/Other/state.json', 'workflows/Elder v2')).toBe(false)
   })
 })

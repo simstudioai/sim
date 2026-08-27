@@ -10,8 +10,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 
-import { integer, PgDialect, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { decimal, integer, PgDialect, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import {
+  decimalKey,
   encodeKeyset,
   escapeLikePattern,
   keysetAfter,
@@ -27,6 +28,7 @@ const thing = pgTable('thing', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   size: integer('size').notNull(),
+  cost: decimal('cost'),
   createdAt: timestamp('created_at').notNull(),
 })
 
@@ -126,6 +128,35 @@ describe('timestampKey', () => {
   it('rejects a cursor value that is not a parseable timestamp', () => {
     expect(createdKey.bind('not-a-date')).toBeNull()
     expect(createdKey.bind(1700000000000)).toBeNull()
+  })
+})
+
+describe('decimalKey', () => {
+  const costKey = decimalKey<{ cost: string }>(thing.cost, (r) => r.cost)
+
+  /**
+   * The regression this exists for: `numeric` is unconstrained, so a cursor
+   * value that round-trips through a JS number is narrowed to float64 and then
+   * compared back against full precision. Rows differing beyond that precision
+   * collapse onto one anchor and the page boundary skips or repeats them.
+   */
+  it('carries the value as the digit string Postgres returned', () => {
+    const exact = '0.12345678901234567890123'
+
+    expect(costKey.encode({ cost: exact })).toBe(exact)
+    expect(render(costKey.bind(exact)!).params).toEqual([exact])
+  })
+
+  it('casts the bound value so it compares as numeric rather than as text', () => {
+    expect(render(costKey.bind('1.5')!).sql).toBe('cast($1 as numeric)')
+  })
+
+  it('rejects a value numeric would accept but a keyset cannot order totally', () => {
+    expect(costKey.bind('NaN')).toBeNull()
+    expect(costKey.bind('Infinity')).toBeNull()
+    expect(costKey.bind('1e10')).toBeNull()
+    expect(costKey.bind(1.5)).toBeNull()
+    expect(costKey.bind('-1')).not.toBeNull()
   })
 })
 

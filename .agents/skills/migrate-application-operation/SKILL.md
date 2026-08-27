@@ -78,6 +78,43 @@ Classify each as `migrate`, `defer`, or `non-goal`. Do not migrate adjacent oper
 
 Preserve behavior unless the task explicitly changes it. Stop and report a decision when surfaces currently disagree on security or compatibility behavior; do not silently choose one.
 
+## Freeze observable behavior before editing
+
+Treat the legacy route or tool as an ordered program, not merely a bag of business logic. Before moving code, write a compact baseline for every in-scope entry point and add focused characterization tests for behavior not already pinned down.
+
+Capture all of these when they apply:
+
+- Accepted inputs, including trimming, blank omission, duplicate query keys, aliases, defaults, and bounds.
+- Authentication and authorization order, minimum roles, resource membership, concealment, and exact error/status mapping.
+- Exact success bodies, optional fields, status codes, redirects, cookies, headers, and binary or stream behavior.
+- Mutation ordering, transaction boundaries, idempotency, no-ops, and observable state after each possible partial failure.
+- Audit, notification, analytics, and billing timing plus exact semantic dimensions and attribution.
+- Browser or protocol state ownership, concurrency isolation, expiry, callback ordering, and cleanup behavior.
+- Every value newly crossing into HTML, JavaScript, SQL, URLs, logs, provider payloads, or another encoding context.
+
+Compare the old statement order with the proposed application lifecycle explicitly:
+
+```text
+legacy parse/normalize
+  -> legacy authorization checks
+  -> branch-specific canonical lookup
+  -> mutation(s)
+  -> per-step side effects
+  -> response or redirect catch
+```
+
+Moving those steps under a wrapper may change behavior even when each individual call is reused. In particular:
+
+- `projectAudit` and `afterSuccess` run only after `execute` returns. They cannot describe earlier committed mutations when a later step throws. Make the compound mutation atomic or define explicit partial-result/failure projection semantics before migrating it.
+- Operation metadata is executable policy. Adding a resource role to a workspace-only legacy read is an authorization change, not an architectural cleanup.
+- A shared error policy does not automatically preserve route-local concealment, subclass ordering, browser redirects, or branch-specific messages.
+- A shared contract does not automatically preserve manual `URLSearchParams` normalization or exact legacy response unions.
+- A shared use case may own domain behavior while separate surface presenters still preserve different wire shapes.
+- Per-flow identity is insufficient when another part of the flow remains in browser-global state such as one cookie.
+- Passing a newly supported parameter through old rendering code creates a new security boundary even when the renderer itself is unchanged.
+
+Fail fast if the baseline cannot be established from code, tests, or an explicit product decision. Do not infer that behavior is unimportant because it was previously implicit.
+
 ## Keep the layers distinct
 
 Use these responsibilities:
@@ -270,13 +307,17 @@ Add focused tests for every migrated surface and principal kind allowed by the o
 - Public API: personal and workspace keys, rate and rollout behavior, concealment, exact external envelope, and rate headers.
 - Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
 - Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
+- Compatibility characterization: legacy normalization, exact response/redirect/cookie behavior, concealment, error subclass precedence, and branch-specific output.
+- Failure sequencing: inject a failure after each independently committing step and assert persisted state plus audit, analytics, and notification effects.
+- Concurrency: overlap stateful browser or provider flows and prove each callback consumes only its own state and return destination.
+- Rendering boundaries: exercise hostile values for every newly connected input that reaches HTML, inline JavaScript, URLs, logs, or provider requests.
 
 Run at minimum:
 
 ```bash
 bunx vitest run <focused test files>
 bunx biome check <changed source and test files>
-bunx turbo run type-check --filter=sim --filter=@sim/auth
+bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
 bun run check:api-validation:strict
 git diff --check
 ```

@@ -1,15 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({
+const { mockDecryptSecret, mockIsOrganizationBYOKEntitled } = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
+  mockIsOrganizationBYOKEntitled: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
+}))
+
+vi.mock('@/lib/api-key/byok-entitlement', () => ({
+  isOrganizationBYOKEntitledCached: mockIsOrganizationBYOKEntitled,
 }))
 
 vi.mock('@/lib/core/config/api-keys', () => ({
@@ -58,14 +63,18 @@ import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
 import { useProvidersStore } from '@/stores/providers/store'
 
 /**
- * Rotation counters in the module under test are keyed by
- * `${workspaceId}:${providerId}` and persist for the process lifetime, so
- * each test uses a unique workspace id to start from a fresh cursor.
+ * Rotation counters persist for the process lifetime, so each test uses
+ * unique workspace and organization ids to start from fresh cursors.
  */
 let testIndex = 0
 const uniqueWorkspaceId = () => `workspace-${++testIndex}`
+const uniqueOrganizationId = () => `organization-${++testIndex}`
 
 const storedKey = (id: string) => ({ id, encryptedApiKey: `encrypted-${id}` })
+const storedOrganizationKey = (organizationId: string, id: string) => ({
+  organizationId,
+  ...storedKey(id),
+})
 
 afterAll(resetDbChainMock)
 
@@ -76,6 +85,7 @@ describe('getBYOKKey', () => {
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted: encrypted.replace('encrypted-', 'decrypted-'),
     }))
+    mockIsOrganizationBYOKEntitled.mockResolvedValue(true)
   })
 
   it('returns null when no workspaceId is provided', async () => {
@@ -83,8 +93,10 @@ describe('getBYOKKey', () => {
     expect(await getBYOKKey(null, 'openai')).toBeNull()
   })
 
-  it('returns null when the workspace has no keys for the provider', async () => {
+  it('returns null when neither the workspace nor its organization has provider keys', async () => {
     expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(2)
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
   })
 
   it('returns the same key on every call when only one key is stored', async () => {
@@ -95,6 +107,7 @@ describe('getBYOKKey', () => {
       expect(await getBYOKKey(workspaceId, 'openai')).toEqual({
         apiKey: 'decrypted-key-1',
         isBYOK: true,
+        scope: 'workspace',
       })
     }
   })
@@ -154,6 +167,7 @@ describe('getBYOKKey', () => {
     expect(await getBYOKKey(workspaceId, 'openai')).toEqual({
       apiKey: 'decrypted-key-2',
       isBYOK: true,
+      scope: 'workspace',
     })
   })
 
@@ -163,12 +177,277 @@ describe('getBYOKKey', () => {
     mockDecryptSecret.mockRejectedValue(new Error('corrupt ciphertext'))
 
     expect(await getBYOKKey(workspaceId, 'openai')).toBeNull()
+    expect(dbChainMockFns.innerJoin).not.toHaveBeenCalled()
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
   })
 
   it('returns null when the keys query throws', async () => {
     dbChainMockFns.orderBy.mockRejectedValue(new Error('database unavailable'))
 
     expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
+    expect(dbChainMockFns.innerJoin).not.toHaveBeenCalled()
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
+  })
+
+  it('inherits an entitled organization key only after the workspace provider pool is absent', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key-1')])
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-1',
+      isBYOK: true,
+      scope: 'organization',
+    })
+
+    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
+      schemaMock.organizationBYOKKeys,
+      expect.anything()
+    )
+    expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledWith(organizationId)
+    expect(mockIsOrganizationBYOKEntitled.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDecryptSecret.mock.invocationCallOrder[0]
+    )
+
+    const outerWhere = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(
+      hasMockCondition(
+        outerWhere,
+        (node) =>
+          node.type === 'eq' && node.left === schemaMock.workspace.id && node.right === workspaceId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        outerWhere,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.organizationBYOKKeys.providerId &&
+          node.right === 'openai'
+      )
+    ).toBe(true)
+    expect(hasMockCondition(outerWhere, (node) => node.type === 'notExists')).toBe(true)
+
+    const localOverrideWhere = dbChainMockFns.where.mock.calls.at(-2)?.[0]
+    expect(
+      hasMockCondition(
+        localOverrideWhere,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.workspaceBYOKKeys.workspaceId &&
+          node.right === schemaMock.workspace.id
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        localOverrideWhere,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.workspaceBYOKKeys.providerId &&
+          node.right === 'openai'
+      )
+    ).toBe(true)
+  })
+
+  it('uses a nonempty workspace pool exclusively without querying organization keys', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('workspace-key')])
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-workspace-key',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.innerJoin).not.toHaveBeenCalled()
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
+  })
+
+  it('keeps provider overrides isolated within the same workspace', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([storedKey('workspace-openai')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-anthropic')])
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-workspace-openai',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+    await expect(getBYOKKey(workspaceId, 'anthropic')).resolves.toEqual({
+      apiKey: 'decrypted-org-anthropic',
+      isBYOK: true,
+      scope: 'organization',
+    })
+
+    expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledTimes(1)
+    expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledWith(organizationId)
+  })
+
+  it('fails closed before decrypting when organization entitlement is false', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key')])
+    mockIsOrganizationBYOKEntitled.mockResolvedValue(false)
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toBeNull()
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before decrypting when organization entitlement throws', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key')])
+    mockIsOrganizationBYOKEntitled.mockRejectedValue(new Error('entitlement unavailable'))
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toBeNull()
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('does not advance organization rotation while entitlement is denied', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    const organizationPool = [
+      storedOrganizationKey(organizationId, 'org-key-1'),
+      storedOrganizationKey(organizationId, 'org-key-2'),
+    ]
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(organizationPool)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(organizationPool)
+    mockIsOrganizationBYOKEntitled.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toBeNull()
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-1',
+      isBYOK: true,
+      scope: 'organization',
+    })
+  })
+
+  it('returns null when the organization key query throws', async () => {
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('organization keys unavailable'))
+
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toBeNull()
+    expect(mockIsOrganizationBYOKEntitled).not.toHaveBeenCalled()
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('returns null when every organization key fails to decrypt', async () => {
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        storedOrganizationKey(organizationId, 'org-key-1'),
+        storedOrganizationKey(organizationId, 'org-key-2'),
+      ])
+    mockDecryptSecret.mockRejectedValue(new Error('corrupt organization ciphertext'))
+
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toBeNull()
+    expect(mockDecryptSecret).toHaveBeenCalledTimes(2)
+  })
+
+  it('shares organization rotation across member workspaces', async () => {
+    const organizationId = uniqueOrganizationId()
+    const organizationPool = [
+      storedOrganizationKey(organizationId, 'org-key-1'),
+      storedOrganizationKey(organizationId, 'org-key-2'),
+    ]
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(organizationPool)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(organizationPool)
+
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-1',
+      isBYOK: true,
+      scope: 'organization',
+    })
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-2',
+      isBYOK: true,
+      scope: 'organization',
+    })
+  })
+
+  it('keeps workspace and organization rotation counters in separate namespaces', async () => {
+    const sharedId = `shared-${++testIndex}`
+    const workspacePool = [storedKey('workspace-key-1'), storedKey('workspace-key-2')]
+    const organizationPool = [
+      storedOrganizationKey(sharedId, 'org-key-1'),
+      storedOrganizationKey(sharedId, 'org-key-2'),
+    ]
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce(workspacePool)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(organizationPool)
+
+    await expect(getBYOKKey(sharedId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-workspace-key-1',
+      isBYOK: true,
+      scope: 'workspace',
+    })
+    await expect(getBYOKKey(uniqueWorkspaceId(), 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-1',
+      isBYOK: true,
+      scope: 'organization',
+    })
+  })
+
+  it('reads organization key updates fresh on every resolution', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key-before')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key-after')])
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-before',
+      isBYOK: true,
+      scope: 'organization',
+    })
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key-after',
+      isBYOK: true,
+      scope: 'organization',
+    })
+
+    expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledTimes(2)
+  })
+
+  it('rechecks the canonical organization attachment and key rows after a delete or detach', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const organizationId = uniqueOrganizationId()
+    dbChainMockFns.orderBy
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([storedOrganizationKey(organizationId, 'org-key')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toEqual({
+      apiKey: 'decrypted-org-key',
+      isBYOK: true,
+      scope: 'organization',
+    })
+    await expect(getBYOKKey(workspaceId, 'openai')).resolves.toBeNull()
+
+    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(4)
+    expect(mockIsOrganizationBYOKEntitled).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -207,7 +486,7 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
 
     const result = await getApiKeyWithBYOK('fireworks', HOSTED_POOL_MODEL, uniqueWorkspaceId())
 
-    expect(result).toEqual({ apiKey: 'decrypted-key-1', isBYOK: true })
+    expect(result).toEqual({ apiKey: 'decrypted-key-1', isBYOK: true, scope: 'workspace' })
     expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
   })
 

@@ -1,0 +1,141 @@
+suite: removing an inherited env key — null deletion, and why "" does not work
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.ENCRYPTION_KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: xxxxxxxx
+tests:
+  - it: baseline — a preset envDefaults cap is inlined on the app pod
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLE_ROWS_LIMIT
+            value: "1000"
+
+  - it: an empty string does NOT clear an envDefaults key — it reads as "unspecified"
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.FREE_TABLES_LIMIT: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+
+  - it: null removes the key from the inlined envDefaults
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+      - values/unset-free-limits.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLE_ROWS_LIMIT
+            value: "1000"
+
+  - it: null removes an app.env key from the chart-managed Secret
+    template: secrets-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+      - values/unset-free-limits.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - isNull:
+          path: stringData.FREE_STORAGE_LIMIT_GB
+
+  - it: the app.env key is present in the Secret before it is nulled
+    template: secrets-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: stringData.FREE_STORAGE_LIMIT_GB
+          value: "5"
+
+  - it: nulling unrelated keys leaves the rest of envDefaults intact
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+      - values/unset-free-limits.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_URL
+            value: http://localhost:3000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BILLING_CONCURRENCY_LIMIT_FREE
+            value: "10"
+
+  - it: nulling only app.env lets a matching envDefaults value apply again
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.FREE_TABLES_LIMIT: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+
+  - it: nulling both layers is what actually removes the key
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+      - values/unset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.FREE_TABLES_LIMIT: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+
+  - it: nulling a boot-critical key is still refused by the existing validator
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.ENCRYPTION_KEY: null
+    asserts:
+      - failedTemplate:
+          errorMessage: app.env.ENCRYPTION_KEY is required for production deployment

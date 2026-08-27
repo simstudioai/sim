@@ -1,7 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import {
+  CHILD_EXECUTION_ID_OUTPUT_KEY,
+  CHILD_TRACE_DISABLED_OUTPUT_KEY,
+} from '@/executor/constants'
 import type { ExecutionContext } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
@@ -12,6 +17,8 @@ export interface ProviderRuntimeContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted server execution context inherited by model-emitted tool calls. */
   executionContext?: ExecutionContext
+  /** Request-scoped provider wire ids mapped back to canonical tool registry ids. */
+  toolIdByWireId?: ReadonlyMap<string, string>
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -46,16 +53,42 @@ function toProviderModelResponse(
   }
 }
 
+/**
+ * Drops a custom block's child-run handle from the copy bound for the model.
+ *
+ * The handle has to survive on `rawResponse`, which is what the tool-call record
+ * (and therefore the trace span) is built from — but it is trace plumbing, and an
+ * opaque execution id in a tool result reads to a model like data the tool
+ * returned, which it may then quote back to the user. Applied at this single
+ * split point because every provider's tool loop goes through here; there is no
+ * other place both copies exist.
+ */
+function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
+  const output = response.output
+  if (!isRecordLike(output)) return response
+  if (
+    !Object.hasOwn(output, CHILD_EXECUTION_ID_OUTPUT_KEY) &&
+    !Object.hasOwn(output, CHILD_TRACE_DISABLED_OUTPUT_KEY)
+  ) {
+    return response
+  }
+  return {
+    ...response,
+    output: omit(output, [CHILD_EXECUTION_ID_OUTPUT_KEY, CHILD_TRACE_DISABLED_OUTPUT_KEY]),
+  }
+}
+
 export async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeTool>[1],
   options: ExecuteProviderToolOptions = {}
 ): Promise<ProviderToolExecutionResult> {
   const runtimeContext = providerRuntimeContext.getStore()
+  const executionToolId = runtimeContext?.toolIdByWireId?.get(toolId) ?? toolId
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
-  if (runtimeContext && !registry) {
+  if (runtimeContext && Object.hasOwn(runtimeContext, 'resolvedSecretTraceRegistry') && !registry) {
     const response: ToolResponse = { success: false, output: {} }
     return { rawResponse: response, modelResponse: response }
   }
@@ -72,18 +105,17 @@ export async function executeProviderTool(
 
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext
-    const result = await executeTool(toolId, params, {
+    const result = await executeTool(executionToolId, params, {
       ...options,
       ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,
     })
     if (!registry || !toolCallRegistry) {
-      return { rawResponse: result, modelResponse: result }
+      return { rawResponse: result, modelResponse: withoutChildTraceHandle(result) }
     }
 
-    const modelResponse = toProviderModelResponse(
-      result,
-      projectToolResultForCopilot(result, toolCallRegistry)
+    const modelResponse = withoutChildTraceHandle(
+      toProviderModelResponse(result, projectToolResultForCopilot(result, toolCallRegistry))
     )
     registry.mergeToolCallRegistry(toolCallRegistry)
     return { rawResponse: result, modelResponse }

@@ -10,7 +10,8 @@ import type { ToolConfig } from '@/tools/types'
 export const listReceiptsTool: ToolConfig<ListReceiptsParams, SapConcurProxyResponse> = {
   id: 'sap_concur_list_receipts',
   name: 'SAP Concur List Receipts',
-  description: 'List receipts for a user (GET /receipts/v4/users/{userId}).',
+  description:
+    'List receipts for a user (GET /receipts/v4/users/{userId}). Concur documents no query parameters for this endpoint, so page size and offset cannot be controlled; follow the "next" URL in the response to page forward.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -79,27 +80,44 @@ export const listReceiptsTool: ToolConfig<ListReceiptsParams, SapConcurProxyResp
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'array',
-      description: 'Array of e-receipt objects',
-      items: {
-        type: 'json',
-        properties: {
-          id: { type: 'string', description: 'Receipt id', optional: true },
-          userId: { type: 'string', description: 'Owner user UUID', optional: true },
-          dateTimeReceived: {
-            type: 'string',
-            description: 'Timestamp the receipt was received',
-            optional: true,
+      type: 'json',
+      description: 'E-receipt collection wrapper',
+      properties: {
+        receipts: {
+          type: 'array',
+          description: 'Array of e-receipt objects',
+          optional: true,
+          items: {
+            type: 'json',
+            properties: {
+              id: { type: 'string', description: 'Receipt id', optional: true },
+              userId: { type: 'string', description: 'Owner user UUID', optional: true },
+              dateTimeReceived: {
+                type: 'string',
+                description: 'Timestamp the receipt was received',
+                optional: true,
+              },
+              receipt: { type: 'json', description: 'Structured receipt data', optional: true },
+              image: {
+                type: 'string',
+                description: 'Receipt image URL or reference',
+                optional: true,
+              },
+              validationSchema: {
+                type: 'string',
+                description: 'Validation schema URI',
+                optional: true,
+              },
+              self: { type: 'string', description: 'Self URL', optional: true },
+              template: { type: 'string', description: 'Template URL', optional: true },
+            },
           },
-          receipt: { type: 'json', description: 'Structured receipt data', optional: true },
-          image: { type: 'string', description: 'Receipt image URL or reference', optional: true },
-          validationSchema: {
-            type: 'string',
-            description: 'Validation schema URI',
-            optional: true,
-          },
-          self: { type: 'string', description: 'Self URL', optional: true },
-          template: { type: 'string', description: 'Template URL', optional: true },
+        },
+        next: {
+          type: 'string',
+          description:
+            'URL of the next page of receipts, if returned. Concur documents this cursor on the image-only-receipts endpoint rather than on this one',
+          optional: true,
         },
       },
     },

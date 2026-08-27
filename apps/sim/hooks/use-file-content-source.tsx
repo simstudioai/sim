@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react'
 import {
   type EmbeddedFileRef,
   extractEmbeddedFileRef,
+  storedFileId,
 } from '@/lib/uploads/utils/embedded-image-ref'
 
 export interface FileContentUrlOptions {
@@ -24,7 +25,7 @@ export interface FileContentUrlOptions {
 function inlineRefQuery(ref: NonNullable<EmbeddedFileRef>): string {
   return 'key' in ref
     ? `key=${encodeURIComponent(ref.key)}`
-    : `fileId=${encodeURIComponent(ref.fileId)}`
+    : `fileId=${encodeURIComponent(storedFileId(ref.fileId))}`
 }
 
 export interface ImageDimensions {

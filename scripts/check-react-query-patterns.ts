@@ -8,6 +8,10 @@
  *
  *   1. missing-stale-time   — useQuery/useInfiniteQuery/useSuspenseQuery without an explicit `staleTime`
  *   2. queryfn-no-signal    — an inline `queryFn` that takes no args (cannot forward the AbortSignal)
+ *   2b. stale-time-literal  — `staleTime` given as a numeric literal rather than a named constant, so a
+ *                             server prefetch hydrating the same key cannot import the one value and the
+ *                             two drift apart silently. `0` is exempt: it is a sentinel meaning "always
+ *                             refetch", not a duration anyone tunes.
  *   3. inline-query-key     — `queryKey: ['literal', ...]` instead of a colocated key factory
  *   4. key-factory-no-root  — a `*Keys` factory in hooks/queries/** without an `all` root key
  *   5. key-fetch-arg-drift  — an identifier the queryFn forwards into the fetch (e.g. `workspaceId`)
@@ -44,6 +48,7 @@ const ALLOW = 'rq-lint-allow:'
 
 type Category =
   | 'missing-stale-time'
+  | 'stale-time-literal'
   | 'queryfn-no-signal'
   | 'inline-query-key'
   | 'key-factory-no-root'
@@ -60,6 +65,9 @@ interface Violation {
 const SUGGESTION: Record<Category, string> = {
   'missing-stale-time':
     'add an explicit staleTime (default 0 is rarely correct); e.g. staleTime: 60 * 1000',
+  'stale-time-literal':
+    'assign staleTime from a named exported constant (e.g. ENTITY_LIST_STALE_TIME) so a server ' +
+    'prefetch on the same query key can import the one value instead of restating it',
   'queryfn-no-signal':
     'destructure the AbortSignal: queryFn: ({ signal }) => fetchX(..., signal) and forward it',
   'inline-query-key':
@@ -131,7 +139,75 @@ function hasAllow(lines: string[], line: number): boolean {
   return false
 }
 
-const QUERY_CALL = /\b(useQuery|useInfiniteQuery|useSuspenseQuery|useSuspenseInfiniteQuery)\s*\(/g
+/**
+ * The optional explicit type argument on a query call — `useQuery<Row[]>({ ... })`.
+ *
+ * Matched rather than ignored because a call carrying one is still a query call: without this
+ * the scan skipped every generically-typed query, including ten in the strict zone, which then
+ * reported zero violations while never having looked at them. One level of nesting is enough
+ * for the shapes that occur here (`useQuery<Record<string, T>>`).
+ */
+const TYPE_ARGS = String.raw`(?:\s*<[^<>()]*(?:<[^<>()]*>[^<>()]*)*>)?`
+
+const QUERY_CALL = new RegExp(
+  String.raw`\b(useQuery|useInfiniteQuery|useSuspenseQuery|useSuspenseInfiniteQuery)${TYPE_ARGS}\s*\(`,
+  'g'
+)
+
+/**
+ * `useQueries` nests its option objects one level deeper — `useQueries({ queries: [ {...} ] })` —
+ * so the single-object walk above would read the wrapper and see one `staleTime` anywhere inside
+ * the array as covering every entry. It gets its own pass that visits each entry.
+ */
+const USE_QUERIES_CALL = new RegExp(String.raw`\buseQueries${TYPE_ARGS}\s*\(`, 'g')
+
+/**
+ * Every top-level `{ ... }` inside a `queries` value, whether written as an array literal or
+ * produced by a `.map(...)` callback — both forms put each query's options in a brace group at
+ * the same nesting depth, so one balanced scan covers them.
+ */
+function splitObjectLiterals(value: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let start = -1
+  let inStr: string | null = null
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i]
+    if (inStr) {
+      if (c === inStr && value[i - 1] !== '\\') inStr = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      inStr = c
+      continue
+    }
+    if (c === '{') {
+      if (depth === 0) start = i
+      depth++
+      continue
+    }
+    if (c === '}') {
+      depth--
+      if (depth === 0 && start !== -1) {
+        out.push(value.slice(start, i + 1))
+        start = -1
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Whether a `staleTime` value is a named constant rather than a literal duration.
+ *
+ * `0` is allowed: it is the sentinel for "always refetch", not a number anyone tunes, and the
+ * drift this rule prevents cannot occur when there is no window to keep in step.
+ */
+function isNamedStaleTime(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed === '0') return true
+  return !/^[0-9]/.test(trimmed)
+}
 const QUERYFN_NOARG = /queryFn\s*:\s*(?:async\s+)?\(\s*\)\s*=>/
 const QUERYFN_PRESENT = /queryFn\s*:/
 const INLINE_KEY = /queryKey\s*:\s*\[\s*[`'"]/
@@ -278,6 +354,14 @@ function scanFile(rel: string, content: string): Violation[] {
     if (!/\bstaleTime\b/.test(obj) && !/\.\.\.\w/.test(obj)) {
       add(m.index, 'missing-stale-time', `${m[1]}({ ... }) without staleTime`)
     }
+    const staleTimeValue = extractOptionValue(obj, 'staleTime')
+    if (staleTimeValue !== null && !isNamedStaleTime(staleTimeValue)) {
+      add(
+        m.index,
+        'stale-time-literal',
+        `${m[1]} staleTime is the literal ${staleTimeValue.trim()}`
+      )
+    }
     if (QUERYFN_PRESENT.test(obj) && QUERYFN_NOARG.test(obj)) {
       add(m.index, 'queryfn-no-signal', `${m[1]} queryFn takes no args`)
     }
@@ -287,6 +371,44 @@ function scanFile(rel: string, content: string): Violation[] {
         'key-fetch-arg-drift',
         `${m[1]}: '${id}' passed to fetch but absent from queryKey`
       )
+    }
+  }
+
+  // 2b: useQueries — same checks, applied to each entry of its `queries` array
+  USE_QUERIES_CALL.lastIndex = 0
+  let q: RegExpExecArray | null = USE_QUERIES_CALL.exec(content)
+  for (; q !== null; q = USE_QUERIES_CALL.exec(content)) {
+    const parenStart = q.index + q[0].length - 1
+    const arg = matchBalanced(content, parenStart, '(', ')')
+    const braceRel = arg.indexOf('{')
+    if (braceRel === -1) continue
+    const wrapper = matchBalanced(arg, braceRel, '{', '}')
+    const queriesValue = extractOptionValue(wrapper, 'queries')
+    if (queriesValue === null) continue
+
+    for (const entry of splitObjectLiterals(queriesValue)) {
+      if (/\.\.\.\w/.test(entry)) continue
+      if (!/\bstaleTime\b/.test(entry)) {
+        add(q.index, 'missing-stale-time', 'useQueries entry without staleTime')
+      }
+      const entryStaleTime = extractOptionValue(entry, 'staleTime')
+      if (entryStaleTime !== null && !isNamedStaleTime(entryStaleTime)) {
+        add(
+          q.index,
+          'stale-time-literal',
+          `useQueries entry staleTime is the literal ${entryStaleTime.trim()}`
+        )
+      }
+      if (QUERYFN_PRESENT.test(entry) && QUERYFN_NOARG.test(entry)) {
+        add(q.index, 'queryfn-no-signal', 'useQueries entry queryFn takes no args')
+      }
+      for (const id of findKeyFetchArgDrift(entry)) {
+        add(
+          q.index,
+          'key-fetch-arg-drift',
+          `useQueries: '${id}' passed to fetch but absent from queryKey`
+        )
+      }
     }
   }
 
@@ -345,7 +467,9 @@ async function main() {
   for (const file of files) {
     const rel = path.relative(ROOT, file)
     const content = await readFile(file, 'utf8')
-    if (!/\buse(Query|InfiniteQuery|SuspenseQuery|Mutation)\b|[kK]eys\s*[:=]/.test(content))
+    /* `useQueries` must be listed before `useQuery`: the alternation is ordered, and a trailing
+       `\b` after `useQuery` would reject it outright on the `s`. */
+    if (!/\buse(Queries|Query|InfiniteQuery|SuspenseQuery|Mutation)\b|[kK]eys\s*[:=]/.test(content))
       continue
     all.push(...scanFile(rel, content))
   }

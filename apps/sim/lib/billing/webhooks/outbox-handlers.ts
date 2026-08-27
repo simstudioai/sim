@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -21,6 +22,8 @@ export const OUTBOX_EVENT_TYPES = {
    * enqueue this event after every DB change to `cancelAtPeriodEnd`.
    */
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
+  /** Cancel in Stripe; the verified deletion webhook remains the only DB entitlement authority. */
+  STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY: 'stripe.cancel-subscription-immediately',
   /**
    * Sync a Team subscription's price and seat quantity from our DB to
    * Stripe. The handler reads the current DB plan + seats at processing
@@ -40,6 +43,46 @@ interface StripeSyncCancelAtPeriodEndPayload {
   subscriptionId: string
   /** Optional: reason this was enqueued — e.g. 'member-joined-paid-org'. */
   reason?: string
+  /** Correlates Enterprise-issuance follow-up work for Admin progress/retry. */
+  sourceOperationId?: string
+  operationId?: string
+  organizationId?: string
+  requestedBy?: { id: string | null; name: string; email: string | null }
+}
+
+interface StripeCancelSubscriptionImmediatelyPayload {
+  stripeSubscriptionId: string
+  subscriptionId: string
+  organizationId: string
+  operationId: string
+  reason?: string
+  requestedBy: { id: string | null; name: string; email: string | null }
+}
+
+async function recordAdminCancellationAudit(params: {
+  operationId?: string
+  organizationId?: string
+  subscriptionId: string
+  requestedBy?: { id: string | null; name: string; email: string | null }
+  timing: 'period_end' | 'immediate'
+  reason?: string
+}) {
+  if (!params.operationId || !params.organizationId || !params.requestedBy) return
+  await recordAuditOnce(`${params.operationId}:cancellation-requested`, {
+    actorId: params.requestedBy.id,
+    actorName: params.requestedBy.name,
+    actorEmail: params.requestedBy.email,
+    action: AuditAction.SUBSCRIPTION_CANCELLED,
+    resourceType: AuditResourceType.SUBSCRIPTION,
+    resourceId: params.subscriptionId,
+    description: `Admin requested ${params.timing === 'period_end' ? 'period-end' : 'immediate'} organization subscription cancellation`,
+    metadata: {
+      organizationId: params.organizationId,
+      requestOperationId: params.operationId,
+      timing: params.timing,
+      reason: params.reason ?? null,
+    },
+  })
 }
 
 interface StripeSyncSubscriptionSeatsPayload {
@@ -86,6 +129,7 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayl
   payload,
   ctx
 ) => {
+  await recordAdminCancellationAudit({ ...payload, timing: 'period_end' })
   // Read the DB value at processing time (not at enqueue time). This
   // makes the handler idempotent across racing enqueues: multiple
   // events for the same subscription all push whatever the DB
@@ -115,6 +159,26 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayl
     stripeSubscriptionId: payload.stripeSubscriptionId,
     subscriptionId: payload.subscriptionId,
     desiredValue,
+    reason: payload.reason,
+  })
+}
+
+const stripeCancelSubscriptionImmediately: OutboxHandler<
+  StripeCancelSubscriptionImmediatelyPayload
+> = async (payload, ctx) => {
+  await recordAdminCancellationAudit({ ...payload, timing: 'immediate' })
+  const stripe = requireStripeClient()
+  await stripe.subscriptions.cancel(
+    payload.stripeSubscriptionId,
+    { prorate: true, invoice_now: true },
+    { idempotencyKey: `outbox:${ctx.eventId}` }
+  )
+  logger.info('Cancelled subscription immediately in Stripe; awaiting verified webhook cleanup', {
+    eventId: ctx.eventId,
+    organizationId: payload.organizationId,
+    subscriptionId: payload.subscriptionId,
+    stripeSubscriptionId: payload.stripeSubscriptionId,
+    operationId: payload.operationId,
     reason: payload.reason,
   })
 }
@@ -396,6 +460,8 @@ const stripeSyncCustomerContact: OutboxHandler<StripeSyncCustomerContactPayload>
 export const billingOutboxHandlers = {
   [OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END]:
     stripeSyncCancelAtPeriodEnd as OutboxHandler<unknown>,
+  [OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY]:
+    stripeCancelSubscriptionImmediately as OutboxHandler<unknown>,
   [OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS]:
     stripeSyncSubscriptionSeats as OutboxHandler<unknown>,
   [OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE]:

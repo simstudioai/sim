@@ -77,6 +77,13 @@ describe('buildWithClause', () => {
     )
   })
 
+  it('accepts the exact multi-property clause the Kusto reference shows', () => {
+    // .append OldExtents with(tags='["TagA","TagB"]', ingestIfNotExists='["myTag"]')
+    expect(
+      buildWithClause(`tags='["TagA","TagB"]', ingestIfNotExists='["myTag"]'`, 'distributed=true')
+    ).toBe(` with (tags='["TagA","TagB"]', ingestIfNotExists='["myTag"]')`)
+  })
+
   it('rejects a value that would close the clause and extend the command', () => {
     expect(() => buildWithClause('format="json") <| evil', 'format="json"')).toThrow(
       /Invalid property/

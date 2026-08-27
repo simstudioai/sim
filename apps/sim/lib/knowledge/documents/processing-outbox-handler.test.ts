@@ -75,7 +75,12 @@ describe('knowledge document processing outbox handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getKnowledgeDocument.mockResolvedValue(DOCUMENT)
-    mocks.processDocumentsWithQueue.mockResolvedValue(undefined)
+    mocks.processDocumentsWithQueue.mockResolvedValue({
+      requested: 1,
+      accepted: 1,
+      failed: 0,
+      failedDocumentIds: [],
+    })
     mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValue(false)
   })
 
@@ -169,6 +174,19 @@ describe('knowledge document processing outbox handler', () => {
     mocks.processDocumentsWithQueue.mockRejectedValueOnce(failure)
 
     await expect(handler()(PAYLOAD, createContext())).rejects.toBe(failure)
+  })
+
+  it('keeps the event retryable when dispatch returns a zero-acceptance failure', async () => {
+    mocks.processDocumentsWithQueue.mockResolvedValueOnce({
+      requested: 1,
+      accepted: 0,
+      failed: 1,
+      failedDocumentIds: ['document-1'],
+    })
+
+    await expect(handler()(PAYLOAD, createContext())).rejects.toThrow(
+      'processing dispatch was not accepted'
+    )
   })
 
   it('fails fast on malformed durable processing options', async () => {

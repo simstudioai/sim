@@ -13,7 +13,7 @@ const logger = createLogger('FetchServableWorkspaceFileBuffer')
 export async function fetchAuthorizedServableWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
   filePrincipal: Principal,
-  options: { maxBytes?: number; signal?: AbortSignal; requestId?: string } = {}
+  options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
 ): Promise<{ buffer: Buffer; contentType: string }> {
   return downloadServableFileFromStorage(
     {

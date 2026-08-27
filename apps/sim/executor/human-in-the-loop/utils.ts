@@ -27,18 +27,6 @@ export function generatePauseContextId(
   return contextId
 }
 
-export function buildTriggerBlockId(nodeId: string): string {
-  if (nodeId.includes('__response')) {
-    return nodeId.replace('__response', '__trigger')
-  }
-
-  if (nodeId.endsWith('_response')) {
-    return nodeId.replace(/_response$/, '_trigger')
-  }
-
-  return `${nodeId}__trigger`
-}
-
 export function mapNodeMetadataToPauseScopes(
   ctx: ExecutionContext,
   nodeMetadata: NodeMetadataLike

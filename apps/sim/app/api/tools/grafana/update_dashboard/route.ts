@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { grafanaUpdateDashboardContract } from '@/lib/api/contracts/tools/grafana'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -15,6 +16,11 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GrafanaUpdateDashboardAPI')
+
+/** Grafana is reached over two sequential hops, so each one needs its own bound. */
+const OUTBOUND_FETCH_TIMEOUT_MS = 30_000
+/** Upstream error bodies can be a full HTML page; only a prefix is useful. */
+const MAX_ERROR_MESSAGE_LENGTH = 2000
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -63,7 +69,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       getHeaders['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const getUrl = `${baseUrl}/api/dashboards/uid/${params.dashboardUid.trim()}`
+    const getUrl = `${baseUrl}/api/dashboards/uid/${encodeURIComponent(params.dashboardUid.trim())}`
     const getValidation = await validateUrlWithDNS(getUrl, 'baseUrl')
     if (!getValidation.isValid || !getValidation.resolvedIP) {
       return NextResponse.json({
@@ -77,10 +83,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       method: 'GET',
       headers: getHeaders,
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!getResponse.ok) {
-      const errorText = await getResponse.text()
+      const errorText = truncate(await getResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},
@@ -88,7 +96,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const existing = (await getResponse.json()) as any
+    /**
+     * `GET /api/dashboards/uid/:uid` answers `{dashboard, meta}`. Only the few
+     * fields this route reads are narrowed — the rest of the dashboard is
+     * arbitrary user JSON that is spread through untouched.
+     */
+    const existing = (await getResponse.json()) as {
+      dashboard?: Record<string, unknown>
+      meta?: { folderUid?: string }
+    }
     const existingDashboard = existing.dashboard
     const existingMeta = existing.meta
 
@@ -100,7 +116,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const updatedDashboard: Record<string, any> = {
+    const updatedDashboard: Record<string, unknown> = {
       ...existingDashboard,
     }
 
@@ -131,7 +147,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       updatedDashboard.version = existingDashboard.version
     }
 
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       dashboard: updatedDashboard,
       overwrite: params.overwrite === true,
     }
@@ -169,10 +185,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
       body: JSON.stringify(body),
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
+      const errorText = truncate(await updateResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},

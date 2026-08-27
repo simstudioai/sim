@@ -20,6 +20,7 @@ import {
   type ClientCredentialAccountFieldId,
   partitionClientCredentialFields,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
@@ -214,7 +215,7 @@ export function ClientCredentialAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} ${descriptor.connectNoun}`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} {descriptor.connectNoun}
       </ChipModalHeader>
       <ChipModalBody>

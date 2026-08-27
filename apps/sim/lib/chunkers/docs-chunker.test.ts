@@ -8,6 +8,7 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
   getConfiguredEmbeddingModel: vi.fn(() => 'test-model'),
 }))
 
+import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { DocsChunker } from '@/lib/chunkers/docs-chunker'
 
 function cleanContent(content: string): string {
@@ -127,5 +128,44 @@ describe('cleanContent scaffolding strips', () => {
     expect(cleaned).not.toContain('props.title')
     expect(cleaned).toContain('Visible prose')
     expect(cleaned).toContain('Inside text stays')
+  })
+})
+
+describe('DocsChunker output budget', () => {
+  function splitContent(
+    chunker: DocsChunker,
+    content: string
+  ): Promise<{ chunks: string[]; cleanedContent: string }> {
+    return (
+      chunker as unknown as {
+        splitContent(content: string): Promise<{ chunks: string[]; cleanedContent: string }>
+      }
+    ).splitContent.call(chunker, content)
+  }
+
+  it('applies maxChunks after short intermediate chunks are filtered out', async () => {
+    const chunker = new DocsChunker({ chunkSize: 1, chunkOverlap: 0, maxChunks: 1 })
+
+    await expect(splitContent(chunker, 'a b c d')).resolves.toEqual({
+      chunks: [],
+      cleanedContent: 'a b c d',
+    })
+  })
+
+  it('rejects when the final transformed output exceeds maxChunks', async () => {
+    const chunker = new DocsChunker({ chunkSize: 30, chunkOverlap: 0, maxChunks: 1 })
+    const content = `${'a'.repeat(110)}\n\n${'b'.repeat(110)}`
+
+    await expect(splitContent(chunker, content)).rejects.toThrow(ChunkLimitExceededError)
+  })
+
+  it('enforces maxChunks after oversized chunks are split into final chunks', () => {
+    const chunker = new DocsChunker({ chunkSize: 30, maxChunks: 1 })
+    const enforceSizeLimit = (
+      chunker as unknown as { enforceSizeLimit(chunks: string[]): string[] }
+    ).enforceSizeLimit.bind(chunker)
+    const longLine = 'a'.repeat(120)
+
+    expect(() => enforceSizeLimit([`${longLine}\n${longLine}`])).toThrow(ChunkLimitExceededError)
   })
 })

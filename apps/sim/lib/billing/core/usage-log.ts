@@ -7,6 +7,10 @@ import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  resolveSubscriptionUsagePeriod,
+  type UsagePeriodSource,
+} from '@/lib/billing/core/reporting-period'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
@@ -126,7 +130,13 @@ type ResolvedSubscription = Awaited<ReturnType<typeof getHighestPrioritySubscrip
 
 export interface BillingContext {
   billingEntity: BillingEntity
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: UsageQueryPeriod
+}
+
+export interface UsageQueryPeriod {
+  start: Date
+  end: Date
+  source?: UsagePeriodSource
 }
 
 /**
@@ -144,10 +154,10 @@ export function deriveBillingContext(
       ? { type: 'organization', id: subscription.referenceId }
       : { type: 'user', id: userId }
 
-  const billingPeriod =
-    subscription?.periodStart && subscription.periodEnd
-      ? { start: subscription.periodStart, end: subscription.periodEnd }
-      : defaultBillingPeriod()
+  const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+    ...defaultBillingPeriod(),
+    source: 'default' as const,
+  }
 
   return { billingEntity, billingPeriod }
 }
@@ -170,20 +180,24 @@ async function resolveBillingContext(
 }
 
 /**
- * Returns post-cutover usage for an attributed billing entity/period.
- * Legacy pre-cutover usage remains in userStats as a baseline until reset.
+ * Returns attributed ledger usage for a billing entity/period. The ledger is
+ * the sole source of truth for usage — there is no userStats baseline.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
-    eq(usageLog.billingPeriodStart, billingPeriod.start),
-    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
   ]
   if (source) {
     conditions.push(
@@ -202,6 +216,43 @@ export async function getBillingPeriodUsageCost(
 }
 
 /**
+ * Counts distinct workflow executions that produced billable ledger entries in
+ * an attributed billing period. Multiple line items for one execution count as
+ * one run; executions with no billable usage are intentionally excluded.
+ */
+export async function getBillingPeriodWorkflowRunCount(
+  billingEntity: BillingEntity,
+  billingPeriod: UsageQueryPeriod,
+  executor: DbClient = db
+): Promise<number> {
+  const [row] = await executor
+    .select({
+      workflowRuns:
+        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow')`.mapWith(
+          Number
+        ),
+    })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
+      )
+    )
+
+  return row?.workflowRuns ?? 0
+}
+
+/**
  * Period total plus the portion attributable to `source`, in a single scan.
  *
  * Two separate aggregates over the identical row set double the work and, because
@@ -210,7 +261,7 @@ export async function getBillingPeriodUsageCost(
  */
 export async function getBillingPeriodUsageCostWithSourceSubset(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
@@ -224,8 +275,15 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
       and(
         eq(usageLog.billingEntityType, billingEntity.type),
         eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, billingPeriod.start),
-        eq(usageLog.billingPeriodEnd, billingPeriod.end)
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
       )
     )
 
@@ -237,15 +295,66 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
 
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
-  billingPeriod: { start: Date; end: Date },
+  billingPeriod: UsageQueryPeriod,
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbClient = db,
+  userIds?: readonly string[]
+): Promise<Map<string, number>> {
+  if (userIds?.length === 0) return new Map()
+  if (userIds && userIds.length > 1_000) {
+    throw new Error('Billing usage user filter cannot exceed 1,000 users')
+  }
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+  if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
+
+  const rows = await executor
+    .select({
+      userId: usageLog.userId,
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+    })
+    .from(usageLog)
+    .where(and(...conditions))
+    .groupBy(usageLog.userId)
+
+  return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
+}
+
+/**
+ * Per-user ledger cost for every stamped billing period fully contained in
+ * `[from, to]`. Rows are matched on their write-time period stamps
+ * (`billing_period_start >= from AND billing_period_end <= to`), not on
+ * `created_at`, so a row written moments after rollover but stamped with the
+ * prior period is still attributed to that prior period.
+ *
+ * Used by the cycle-close sweep, whose window is normally exactly one period
+ * (`from` = the closed period's start, `to` = its end == the current period's
+ * start); a wider window absorbs multi-period catch-up after missed sweeps.
+ */
+export async function getStampedPeriodRangeUsageCostByUser(
+  billingEntity: BillingEntity,
+  range: { from: Date; to: Date },
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
-    eq(usageLog.billingPeriodStart, billingPeriod.start),
-    eq(usageLog.billingPeriodEnd, billingPeriod.end),
+    gte(usageLog.billingPeriodStart, range.from),
+    lte(usageLog.billingPeriodEnd, range.to),
   ]
   if (source) {
     conditions.push(

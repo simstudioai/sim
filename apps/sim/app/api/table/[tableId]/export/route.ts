@@ -6,11 +6,8 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  createTableExportStream,
-  exportContentType,
-  sanitizeExportFilename,
-} from '@/lib/table/export-stream'
+import { sanitizeExportFilename } from '@/lib/table/export-format'
+import { createTableExportStream, exportContentType } from '@/lib/table/export-stream'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 interface RouteParams {

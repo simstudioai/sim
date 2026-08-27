@@ -7,9 +7,11 @@ import {
   createFolderAtPathTransition,
   deleteFolderByPathTransition,
   relocateFolderByPathTransition,
+  restoreFolder,
 } from '@/lib/folders/orchestration'
 import {
   type FolderSortBy,
+  findArchivedFolderIdByPath,
   listActiveFolderRows,
   loadActiveFolderPathIndex,
   resolveFolderPathFromIndex,
@@ -184,6 +186,82 @@ export const deleteTableFolderUseCase = defineAuthorizedTableUseCase({
           tables: result.deletedItems.tables,
           subfolders: Math.max(result.deletedItems.folders - 1, 0),
         },
+      },
+    }
+  },
+})
+
+export interface RestoreTableFolderInput {
+  workspaceId: string
+  path: string
+}
+
+/**
+ * Restores a soft-deleted table folder tree.
+ *
+ * `DELETE /api/v2/tables/folders` archives recursively, so without this a recursive delete
+ * was unrecoverable over the API: the archived tables stayed visible through
+ * `GET /api/v2/tables?scope=archived`, but nothing could put the folder structure back.
+ *
+ * The folder is addressed by the path it held when it was deleted. The restore itself may
+ * land it somewhere else — a folder whose parent is still archived is re-rooted, and a name
+ * an active sibling has taken meanwhile is deduplicated — so the response reports the
+ * folder's ACTUAL post-restore path rather than echoing the request.
+ */
+export const restoreTableFolderUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.restoreFolder,
+  resolveContext: ({ input }: { input: RestoreTableFolderInput }) =>
+    resolveTableWorkspaceContext(input.workspaceId),
+  async execute({ principal, input, context }) {
+    const attribution = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: context.billedAccountUserId,
+    })
+    const folderId = await findArchivedFolderIdByPath(context.workspaceId, 'table', input.path, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    if (!folderId) throw new OrchestrationError('not_found', 'Folder not found')
+
+    const result = await restoreFolder(
+      {
+        resourceType: 'table',
+        workspaceId: context.workspaceId,
+        userId: attribution.attributedUserId,
+        folderId,
+      },
+      { projectAudit: false }
+    )
+    if (!result.success || !result.restoredItems) {
+      throwTableOperationFailure(result, 'Failed to restore folder')
+    }
+
+    const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    const folder = index.rowById.get(folderId)
+    if (!folder) {
+      throw new OrchestrationError('internal', 'Restored folder is missing from the folder tree')
+    }
+    return {
+      folder,
+      index,
+      requestedPath: input.path,
+      restoredItems: {
+        folders: result.restoredItems.folders,
+        tables: result.restoredItems.tables ?? 0,
+      },
+    }
+  },
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.FOLDER_RESTORED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: result.folder.id,
+      resourceName: result.folder.name,
+      description: `Restored table folder "${result.requestedPath}"`,
+      metadata: {
+        folderResourceType: 'table',
+        path: result.requestedPath,
+        restoredItems: result.restoredItems,
       },
     }
   },

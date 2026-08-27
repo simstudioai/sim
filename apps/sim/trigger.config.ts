@@ -9,6 +9,7 @@ import {
 } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
+import { markInsideTriggerRun } from './lib/core/config/trigger-runtime'
 import { parseOtlpHeaders } from './lib/monitoring/otlp'
 
 const grafanaEndpoint = env.GRAFANA_OTLP_ENDPOINT
@@ -23,6 +24,25 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
   throw new Error(
     'Grafana OTLP telemetry is partially configured. Set GRAFANA_OTLP_ENDPOINT, GRAFANA_OTLP_HEADERS, and GRAFANA_DEPLOYMENT_ENVIRONMENT together, or leave all three unset.'
   )
+}
+
+const FUNCTION_EXECUTION_ENV = [
+  { name: 'REDIS_URL', secret: true },
+  { name: 'REDIS_TLS_SERVERNAME', secret: false },
+  { name: 'SANDBOX_PROVIDER', secret: false },
+  { name: 'E2B_ENABLED', secret: false },
+  { name: 'E2B_API_KEY', secret: true },
+  { name: 'E2B_FUNCTION_TEMPLATE_ID', secret: false },
+  { name: 'E2B_FUNCTION_TEMPLATE_GENERATION', secret: false },
+  { name: 'DAYTONA_API_KEY', secret: true },
+  { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
+] as const
+
+function getFunctionExecutionEnvVars() {
+  return FUNCTION_EXECUTION_ENV.flatMap(({ name, secret }) => {
+    const value = env[name]
+    return value ? [{ name, value, isSecret: secret }] : []
+  })
 }
 
 const grafanaTelemetry = grafanaFullyConfigured
@@ -58,6 +78,17 @@ export default defineConfig({
     },
   },
   dirs: ['./background'],
+  /**
+   * Runs before any task run, in the run process. Marks the process so that
+   * dispatch decisions further down the call graph stop inferring from
+   * environment variables whether Trigger.dev is available: a process that
+   * Trigger.dev is executing has Trigger.dev available by definition.
+   *
+   * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
+   */
+  init: () => {
+    markInsideTriggerRun()
+  },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {
     external: [
@@ -73,7 +104,17 @@ export default defineConfig({
       '@daytona/sdk',
     ],
     extensions: [
-      syncEnvVars(() => [{ name: 'DB_APP_NAME', value: 'sim-trigger' }]),
+      syncEnvVars(() => [
+        { name: 'DB_APP_NAME', value: 'sim-trigger' },
+        /**
+         * Workers run Trigger.dev by definition, but the flag saying so was only
+         * set on the app container. Syncing it keeps the deployment flag honest
+         * inside runs; the dispatch decision itself no longer depends on it,
+         * because the `init` hook above marks the run process directly.
+         */
+        { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
+        ...getFunctionExecutionEnvVars(),
+      ]),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',

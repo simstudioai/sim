@@ -101,6 +101,8 @@ export interface DesktopSettings {
   launchAtLogin?: boolean
   autoDownloadUpdates?: boolean
   browserEnabled?: boolean
+  /** Whether omnibox typing may request live Google search completions. */
+  browserSearchSuggestionsEnabled?: boolean
   terminalEnabled?: boolean
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'
@@ -178,6 +180,22 @@ export function canonicalOrigin(origin: string): string {
 }
 
 /**
+ * Whether an origin is one of Sim's own deployments rather than a self-hosted
+ * one. Sim-operated resources — the public status page above all — describe
+ * only these, so a shell pointed elsewhere must not be offered them: telling a
+ * self-hoster whose server is down to consult a page that is always green
+ * sends the person who most needs an answer to the one place that has none.
+ */
+export function isSimCloudOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase()
+    return host === 'sim.ai' || host.endsWith('.sim.ai')
+  } catch {
+    return false
+  }
+}
+
+/**
  * Maps a server origin to its cookie/storage partition. Each origin gets an
  * isolated persistent partition so sessions never leak across instances.
  */
@@ -216,17 +234,19 @@ const DEFAULT_SETTINGS: DesktopSettings = {
   launchAtLogin: false,
   autoDownloadUpdates: true,
   browserEnabled: true,
+  browserSearchSuggestionsEnabled: true,
   terminalEnabled: true,
 }
 
 export interface ConfigStore {
   readonly filePath: string
+  isPersistenceAvailable(): boolean
   getOrigin(): string
   setOrigin(origin: string): OriginValidation
   get<K extends keyof DesktopSettings>(key: K): DesktopSettings[K]
   set<K extends keyof DesktopSettings>(key: K, value: DesktopSettings[K]): void
-  /** Writes any debounced change immediately. Called on quit. */
-  flush(): void
+  /** Writes any debounced change immediately and reports whether persistence is healthy. */
+  flush(): boolean
 }
 
 /**
@@ -258,21 +278,38 @@ export function createConfigStore(
 ): ConfigStore {
   let settings: DesktopSettings = { ...DEFAULT_SETTINGS }
   let rewroteOrigin = false
+  let persistenceBlocked = false
   try {
-    const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as Partial<DesktopSettings>
-    settings = { ...DEFAULT_SETTINGS, ...parsed }
-    const validated = validateOriginInput(settings.origin)
-    const loaded = validated.ok ? validated.origin : DEFAULT_ORIGIN
-    settings.origin = canonicalOrigin(loaded)
-    rewroteOrigin = settings.origin !== loaded
-    if (rewroteOrigin) {
-      logger.info('Rewrote stored server origin to its canonical form', {
-        from: loaded,
-        to: settings.origin,
-      })
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8')) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      persistenceBlocked = true
+    } else {
+      const loadedSettings = { ...DEFAULT_SETTINGS, ...(parsed as Partial<DesktopSettings>) }
+      const validated = validateOriginInput(loadedSettings.origin)
+      if (!validated.ok) {
+        persistenceBlocked = true
+      } else {
+        const loaded = validated.origin
+        settings = loadedSettings
+        settings.origin = canonicalOrigin(loaded)
+        rewroteOrigin = settings.origin !== loaded
+        if (rewroteOrigin) {
+          logger.info('Rewrote stored server origin to its canonical form', {
+            from: loaded,
+            to: settings.origin,
+          })
+        }
+      }
     }
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      persistenceBlocked = true
+    }
+  }
+  if (persistenceBlocked) {
     settings = { ...DEFAULT_SETTINGS }
+    rewroteOrigin = false
+    logger.warn('Desktop settings persistence is unavailable because the existing file is invalid')
   }
 
   const envOverride = env.SIM_DESKTOP_ORIGIN ? validateOriginInput(env.SIM_DESKTOP_ORIGIN) : null
@@ -283,13 +320,17 @@ export function createConfigStore(
   let saveTimer: ReturnType<typeof setTimeout> | null = null
 
   /** Writes the whole file now and cancels any pending debounced write. */
-  const writeNow = () => {
+  const writeNow = (): boolean => {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = null
+    if (persistenceBlocked) return false
     try {
       writeJsonFileAtomicallySync(filePath, settings, SETTINGS_INDENT)
+      return true
     } catch (error) {
+      persistenceBlocked = true
       logger.error('Failed to persist desktop settings', { error })
+      return false
     }
   }
 
@@ -303,7 +344,7 @@ export function createConfigStore(
    * not were paying a full fsync per event.
    */
   const save = () => {
-    if (saveTimer) return
+    if (persistenceBlocked || saveTimer) return
     saveTimer = setTimeout(writeNow, SAVE_DEBOUNCE_MS)
     saveTimer.unref?.()
   }
@@ -318,6 +359,9 @@ export function createConfigStore(
 
   return {
     filePath,
+    isPersistenceAvailable() {
+      return !persistenceBlocked
+    },
     getOrigin() {
       if (envOverride?.ok) {
         return envOverride.origin
@@ -336,11 +380,35 @@ export function createConfigStore(
       // only repairs it on the next launch. The canonical origin is also
       // returned so the caller sees what was actually stored.
       const origin = canonicalOrigin(validated.origin)
+      if (persistenceBlocked) {
+        const previousOrigin = settings.origin
+        try {
+          settings.origin = origin
+          writeJsonFileAtomicallySync(filePath, settings, SETTINGS_INDENT)
+          persistenceBlocked = false
+          logger.warn('Recovered desktop settings persistence')
+          return { ok: true, origin }
+        } catch (error) {
+          settings.origin = previousOrigin
+          logger.error('Could not recover invalid desktop settings', { error })
+          return { ok: false, error: 'Could not repair the desktop settings file' }
+        }
+      }
+      // Re-confirming the origin already stored is the common case in the
+      // server picker, and setOrigin's write is a synchronous mkdir + whole-file
+      // write + rename on the main thread. There is nothing to persist.
+      if (origin === settings.origin) {
+        return { ok: true, origin }
+      }
+      const previousOrigin = settings.origin
       settings.origin = origin
       // Not debounced: changing the origin tears the session down and
       // reloads, so a pending write could be lost on the way out — and this
       // is the one setting whose loss strands the app on the wrong server.
-      writeNow()
+      if (!writeNow()) {
+        settings.origin = previousOrigin
+        return { ok: false, error: 'Could not save the desktop settings file' }
+      }
       return { ok: true, origin }
     },
     get(key) {
@@ -358,8 +426,7 @@ export function createConfigStore(
       save()
     },
     flush() {
-      if (!saveTimer) return
-      writeNow()
+      return saveTimer ? writeNow() : !persistenceBlocked
     },
   }
 }

@@ -36,13 +36,9 @@ import {
   COMMAND_ITEM_CLASSNAME,
   filterAndCap,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-import {
-  buildCustomBlockConfig,
-  CUSTOM_BLOCK_TILE_COLOR,
-  isCustomBlockType,
-} from '@/blocks/custom/build-config'
+import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
+import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -470,10 +466,7 @@ export const Toolbar = memo(
       return customBlocksData
         .filter((cb) => cb.enabled && cb.workflowId !== currentWorkflowId)
         .map((cb) => {
-          const icon = getCustomBlockIcon(cb.iconUrl, fallbackIconUrl)
-          // An image (uploaded or whitelabel) renders on a transparent tile; the
-          // default glyph keeps the neutral tile so it stays visible.
-          const tileColor = cb.iconUrl || fallbackIconUrl ? 'transparent' : CUSTOM_BLOCK_TILE_COLOR
+          const { icon, bgColor } = getCustomBlockTile(cb.iconUrl, fallbackIconUrl)
           return {
             name: cb.name,
             type: cb.type,
@@ -487,10 +480,10 @@ export const Toolbar = memo(
                 exposedOutputs: cb.exposedOutputs,
               },
               cb.inputFields,
-              { icon, bgColor: tileColor }
+              { icon, bgColor }
             ),
             icon,
-            bgColor: tileColor,
+            bgColor,
           } satisfies BlockItem
         })
         .sort((a, b) => a.name.localeCompare(b.name))

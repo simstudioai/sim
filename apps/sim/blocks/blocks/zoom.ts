@@ -271,6 +271,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'password',
       title: 'Password',
       type: 'short-input',
+      password: true,
+      required: false,
       placeholder: 'Meeting password',
       mode: 'advanced',
       condition: {

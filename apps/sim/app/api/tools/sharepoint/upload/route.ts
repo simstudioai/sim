@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -88,34 +89,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (denied) return denied
       logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
 
+      const fileName = validatedData.fileName || userFile.name
+      const folderPath = validatedData.folderPath?.trim() || ''
+
+      const skipOversized = (size: number) => {
+        logger.warn(
+          `[${requestId}] File ${fileName} is ${(size / (1024 * 1024)).toFixed(2)}MB, exceeds 250MB limit`
+        )
+        skippedFiles.push({
+          name: fileName,
+          size,
+          limit: MAX_SHAREPOINT_UPLOAD_BYTES,
+          reason: 'File exceeds the 250 MB Microsoft Graph small upload limit',
+        })
+      }
+
       let buffer: Buffer
       let downloadedContentType = ''
       try {
-        const result = await downloadServableFileFromStorage(userFile, requestId, logger)
+        const result = await downloadServableFileFromStorage(userFile, requestId, logger, {
+          maxBytes: MAX_SHAREPOINT_UPLOAD_BYTES,
+        })
         buffer = result.buffer
         downloadedContentType = result.contentType
       } catch (error) {
         const notReady = docNotReadyResponse(error)
         if (notReady) return notReady
+        // An oversized file is skipped rather than failing the whole batch, exactly as
+        // it was when the size was only discovered after the download.
+        if (isPayloadSizeLimitError(error)) {
+          skipOversized(error.observedBytes ?? userFile.size)
+          continue
+        }
         throw error
-      }
-
-      const fileName = validatedData.fileName || userFile.name
-      const folderPath = validatedData.folderPath?.trim() || ''
-
-      const fileSizeMB = buffer.length / (1024 * 1024)
-
-      if (buffer.length > MAX_SHAREPOINT_UPLOAD_BYTES) {
-        logger.warn(
-          `[${requestId}] File ${fileName} is ${fileSizeMB.toFixed(2)}MB, exceeds 250MB limit`
-        )
-        skippedFiles.push({
-          name: fileName,
-          size: buffer.length,
-          limit: MAX_SHAREPOINT_UPLOAD_BYTES,
-          reason: 'File exceeds the 250 MB Microsoft Graph small upload limit',
-        })
-        continue
       }
 
       let uploadPath = ''

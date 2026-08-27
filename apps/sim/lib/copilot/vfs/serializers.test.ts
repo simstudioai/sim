@@ -11,17 +11,31 @@ import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
 import {
+  buildOrganizationReadme,
+  serializeAccessControl,
+  serializeAccountBilling,
+  serializeAccountMembers,
+  serializeAccountWorkspace,
+  serializeAccountWorkspaces,
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeConnectors,
+  serializeCredentialGroups,
   serializeCredentials,
   serializeDeployments,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeOrganization,
+  serializeOrganizationCustomBlocks,
+  serializeOrganizationWorkspaces,
+  serializeOrgCustomBlockDetail,
+  serializePermissionGroupRoster,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeTableMeta,
   serializeWorkflowMeta,
+  serializeWorkspaceForks,
 } from './serializers'
 
 function hostedTool(id: string, conditional = false): ToolConfig {
@@ -377,6 +391,57 @@ describe('hosted-key VFS metadata', () => {
   })
 })
 
+describe('serializeBlockSchema permission-group gating', () => {
+  const slackBlock = {
+    type: 'slack',
+    name: 'Slack',
+    description: 'Slack',
+    category: 'tools',
+    subBlocks: [
+      {
+        id: 'operation',
+        title: 'Operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+    tools: { access: ['slack_message', 'slack_canvas'] },
+    inputs: {},
+    outputs: {},
+  } as unknown as BlockConfig
+
+  it('publishes every operation and tool when nothing is denied', () => {
+    const schema = JSON.parse(serializeBlockSchema(slackBlock))
+
+    expect(schema.tools).toEqual(['slack_message', 'slack_canvas'])
+    expect(schema.subBlocks[0].options.map((option: { id: string }) => option.id)).toEqual([
+      'send',
+      'canvas',
+    ])
+  })
+
+  it('withholds denied operations and tool ids from the viewer schema', () => {
+    const schema = JSON.parse(
+      serializeBlockSchema(slackBlock, {
+        deniedOperationIds: new Set(['canvas']),
+        isToolAllowed: (toolId: string) => toolId !== 'slack_canvas',
+      })
+    )
+
+    expect(schema.tools).toEqual(['slack_message'])
+    expect(schema.subBlocks[0].options).toEqual([{ label: 'Send Message', id: 'send' }])
+  })
+
+  it('leaves the shared registry options array untouched', () => {
+    serializeBlockSchema(slackBlock, { deniedOperationIds: new Set(['canvas']) })
+
+    expect(slackBlock.subBlocks[0].options).toHaveLength(2)
+  })
+})
+
 describe('serializeKBMeta', () => {
   const baseKb = {
     id: 'kb-1',
@@ -484,11 +549,6 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     expect(schema.auth.serviceAccount).toEqual({ connectNoun: 'integration secret' })
     expect(schema.oauth).toBeUndefined()
   })
-
-  // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
-  // service-account-gate.test.ts, which mocks getBlock — the block registry is
-  // globally stubbed here, so slack_v2's real `preview: true` isn't observable
-  // through serializeIntegrationSchema.
 })
 
 describe('serializeCredentials — type distinguishes reconnect flow', () => {
@@ -526,5 +586,378 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
       serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
     )
     expect(json[0].type).toBeUndefined()
+  })
+
+  it('shows what a workspace secret is for, and omits the field when nothing was recorded', () => {
+    const json = JSON.parse(
+      serializeCredentials([
+        {
+          providerId: 'STRIPE_KEY',
+          description: 'Stripe live key for billing',
+          scope: 'workspace',
+          createdAt: now,
+        },
+        { providerId: 'OPENAI_API_KEY', description: null, scope: 'workspace', createdAt: now },
+      ])
+    )
+    expect(json[0].description).toBe('Stripe live key for billing')
+    expect(json[1]).not.toHaveProperty('description')
+  })
+})
+
+describe('serializeConnectors — cloneable references, never key material', () => {
+  const now = new Date('2026-08-14T00:00:00.000Z')
+
+  it('exposes credentialId and sourceConfig so a connector can be recreated', () => {
+    const json = JSON.parse(
+      serializeConnectors([
+        {
+          id: 'conn-1',
+          connectorType: 'slack',
+          status: 'active',
+          syncMode: 'incremental',
+          syncIntervalMinutes: 1440,
+          credentialId: 'cred-42',
+          sourceConfig: { channel: 'eng-help', maxMessages: '500' },
+          lastSyncAt: now,
+          lastSyncError: null,
+          lastSyncDocCount: 12,
+          nextSyncAt: null,
+          consecutiveFailures: 0,
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0]).toMatchObject({
+      id: 'conn-1',
+      credentialId: 'cred-42',
+      sourceConfig: { channel: 'eng-help', maxMessages: '500' },
+    })
+    expect(JSON.stringify(json)).not.toContain('encryptedApiKey')
+  })
+
+  it('omits the credential reference when a connector has none (API-key connectors)', () => {
+    const json = JSON.parse(
+      serializeConnectors([
+        {
+          id: 'conn-2',
+          connectorType: 'github',
+          status: 'active',
+          syncMode: 'incremental',
+          syncIntervalMinutes: 1440,
+          credentialId: null,
+          sourceConfig: { repository: 'simstudioai/sim', branch: 'staging' },
+          lastSyncAt: null,
+          lastSyncError: null,
+          lastSyncDocCount: null,
+          nextSyncAt: null,
+          consecutiveFailures: 0,
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0].credentialId).toBeUndefined()
+    expect(json[0].sourceConfig).toMatchObject({ repository: 'simstudioai/sim' })
+  })
+})
+
+describe('account and organization namespace serializers', () => {
+  it('references the files that own org and fork detail instead of restating them', () => {
+    const workspace = JSON.parse(
+      serializeAccountWorkspace({
+        workspace: { id: 'ws-1', name: 'Elder', workspaceMode: 'standard' },
+        viewer: { permission: 'admin', organizationRole: 'owner' },
+        organization: { id: 'org-1', name: 'Acme' },
+        forkedFrom: { id: 'ws-0', name: 'Elder (parent)' },
+        entitlements: ['custom-blocks'],
+      })
+    )
+
+    expect(workspace.yourPermission).toBe('admin')
+    expect(workspace.organization).toEqual({
+      id: 'org-1',
+      name: 'Acme',
+      yourRole: 'owner',
+      detail: 'organization/organization.json',
+    })
+    expect(workspace.forkedFrom.detail).toBe('organization/forks.json')
+    // The org record itself (plan, restrictions, members) must not be inlined —
+    // one relation per file is what keeps the two from disagreeing.
+    expect(workspace.organization.plan).toBeUndefined()
+  })
+
+  it('omits organization and fork stubs for a personal, unforked workspace', () => {
+    const workspace = JSON.parse(
+      serializeAccountWorkspace({
+        workspace: { id: 'ws-1', name: 'Personal' },
+        viewer: { permission: 'admin' },
+        organization: null,
+        forkedFrom: null,
+        entitlements: [],
+      })
+    )
+
+    expect(workspace.organization).toBeNull()
+    expect(workspace.forkedFrom).toBeNull()
+  })
+
+  it('withholds member emails from a non-admin viewer and says so', () => {
+    const members = [
+      { userId: 'u-1', name: 'Ada', email: 'ada@example.com', permissionType: 'admin' },
+      {
+        userId: 'u-2',
+        name: 'Grace',
+        email: 'grace@example.com',
+        permissionType: 'read',
+        isExternal: true,
+      },
+    ]
+
+    const asAdmin = JSON.parse(serializeAccountMembers(members, { includeContactDetails: true }))
+    expect(asAdmin.members[0].email).toBe('ada@example.com')
+    expect(asAdmin.note).toBeUndefined()
+
+    const asMember = JSON.parse(serializeAccountMembers(members, { includeContactDetails: false }))
+    expect(asMember.members.map((m: { email?: string }) => m.email)).toEqual([undefined, undefined])
+    expect(asMember.members[0].name).toBe('Ada')
+    expect(asMember.members[1].isExternal).toBe(true)
+    expect(asMember.note).toContain('admins only')
+  })
+
+  it('keeps money and usage numbers in billing.json alone', () => {
+    const billing = JSON.parse(
+      serializeAccountBilling({
+        plan: 'team',
+        billingScope: 'organization',
+        organizationId: 'org-1',
+        usage: {
+          currentPeriodCost: 12.5,
+          limit: 100,
+          remaining: 87.5,
+          percentUsed: 12.5,
+          isExceeded: false,
+          billingPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        credits: { balance: 40, scope: 'organization' },
+      })
+    )
+
+    expect(billing.plan).toBe('team')
+    expect(billing.billedTo).toBe('organization')
+    expect(billing.usage.billingPeriodEnd).toBe('2026-09-01T00:00:00.000Z')
+    expect(billing.credits.balance).toBe(40)
+
+    const organization = JSON.parse(
+      serializeOrganization({
+        organization: { id: 'org-1', relationship: 'internal', role: 'admin' },
+        capabilities: { canManageOrganization: true, canManageBilling: true },
+        plan: 'team',
+        isEnterprise: false,
+      })
+    )
+    expect(organization.usage).toBeUndefined()
+    expect(organization.credits).toBeUndefined()
+    expect(organization.note).toContain('account/billing.json')
+  })
+
+  it('describes access control as this viewer’s own binding restrictions', () => {
+    const accessControl = JSON.parse(
+      serializeAccessControl({
+        entitled: true,
+        permissionGroup: { id: 'pg-1', name: 'Contractors', resolution: 'explicit-member' },
+        restrictions: [{ key: 'hideDeployApi', description: 'Cannot deploy workflows as APIs' }],
+      })
+    )
+
+    expect(accessControl.governingPermissionGroup.appliedBecause).toBe('explicit-member')
+    expect(accessControl.activeRestrictions).toEqual([
+      { key: 'hideDeployApi', description: 'Cannot deploy workflows as APIs' },
+    ])
+    expect(accessControl.note).toContain('THIS user')
+  })
+
+  it('keeps the index to names and defers depth to per-block detail files', () => {
+    const blocks = JSON.parse(
+      serializeOrganizationCustomBlocks([
+        {
+          type: 'acme_scorer',
+          name: 'Acme Scorer',
+          description: 'Scores a lead',
+          enabled: true,
+          workflowId: 'wf-1',
+          workflowName: 'Scorer',
+          workspaceId: 'ws-9',
+          workspaceName: 'Platform',
+        },
+      ])
+    )
+
+    expect(blocks.customBlocks[0]).toEqual({
+      type: 'acme_scorer',
+      name: 'Acme Scorer',
+      enabled: true,
+      detail: 'organization/custom-blocks/acme_scorer.json',
+    })
+    // Depth belongs to the detail file — an index row carrying provenance
+    // would drift from it.
+    expect(blocks.customBlocks[0].publishedFrom).toBeUndefined()
+  })
+
+  it('gives the detail file provenance, the schema pointer, and the read-only deployed graph', () => {
+    const detail = JSON.parse(
+      serializeOrgCustomBlockDetail(
+        {
+          type: 'acme_scorer',
+          name: 'Acme Scorer',
+          enabled: true,
+          workflowId: 'wf-1',
+          workflowName: 'Scorer',
+          workspaceId: 'ws-9',
+          workspaceName: 'Platform',
+        },
+        { blocks: { b1: { type: 'agent' } }, edges: [{ source: 'b1', target: 'b2' }] }
+      )
+    )
+
+    expect(detail.publishedFrom.workflowId).toBe('wf-1')
+    expect(detail.schema).toBe('components/blocks/acme_scorer.json')
+    expect(detail.deployedWorkflowState.edges).toHaveLength(1)
+    // The graph is the deployed one and is not editable from here; the note
+    // is what tells the model both facts.
+    expect(detail.note).toContain('DEPLOYED')
+    expect(detail.note).toContain('publishing workspace')
+  })
+
+  it('writes the namespace guide with the inventory the index defers', () => {
+    const readme = buildOrganizationReadme({
+      organizationId: 'org-1',
+      isEnterprise: true,
+      customBlocks: [
+        {
+          type: 'acme_scorer',
+          name: 'Acme Scorer',
+          enabled: true,
+          workflowName: 'Scorer',
+          workspaceName: 'Platform',
+        },
+        { type: 'acme_retired', name: 'Retired', enabled: false },
+      ],
+      forksMounted: false,
+      permissionGroupsMounted: false,
+      credentialGroupsMounted: true,
+    })
+
+    expect(readme).toContain('# Organization')
+    expect(readme).toContain('custom-blocks/{type}.json')
+    expect(readme).toContain('**Acme Scorer** (`acme_scorer`) — published from Scorer in Platform')
+    expect(readme).toContain('**Retired** (`acme_retired`) — disabled')
+    // Gated files must not be advertised when unmounted for this viewer.
+    expect(readme).not.toContain('forks.json')
+    expect(readme).not.toContain('permission-groups.json')
+    expect(readme).toContain('credential-groups.json')
+  })
+
+  it('scopes credential-group people to admins and flags truncated counts', () => {
+    const base = {
+      id: 'cg-1',
+      name: 'Clients',
+      description: null,
+      status: 'active' as const,
+      options: [
+        { provider: 'gmail', label: 'Work email', required: true, configurationStatus: 'ready' },
+        { provider: 'slack', configurationStatus: 'not_configured' },
+      ],
+      enrollmentCounts: { completed: 2, invited: 1 },
+      enrollmentsTruncated: true,
+      people: [{ email: 'a@x.com', status: 'completed' }],
+    }
+
+    const admin = JSON.parse(serializeCredentialGroups([base], { includeEmails: true }))
+    expect(admin.credentialGroups[0].people).toHaveLength(1)
+    expect(admin.credentialGroups[0].enrollments.countsFromFirstPageOnly).toBe(true)
+    expect(admin.credentialGroups[0].options[1].configurationStatus).toBe('not_configured')
+
+    const member = JSON.parse(serializeCredentialGroups([base], { includeEmails: false }))
+    expect(member.credentialGroups[0].people).toBeUndefined()
+    // The runtime contract the model most needs: empty loop, not an error.
+    expect(member.note).toContain('empty loop, not an error')
+  })
+
+  it('maps the org workspace directory with access flags and fork parentage', () => {
+    const dir = JSON.parse(
+      serializeOrganizationWorkspaces([
+        { id: 'ws-1', name: 'Platform', hasAccess: true, forkedFromWorkspaceId: null },
+        { id: 'ws-2', name: 'Client Fork', hasAccess: false, forkedFromWorkspaceId: 'ws-1' },
+      ])
+    )
+    expect(dir.workspaces[1]).toEqual({
+      id: 'ws-2',
+      name: 'Client Fork',
+      hasAccess: false,
+      forkedFromWorkspaceId: 'ws-1',
+    })
+    expect(dir.note).toContain('nameable, not readable')
+  })
+
+  it('gives the admin roster restrictions per group, not per viewer', () => {
+    const roster = JSON.parse(
+      serializePermissionGroupRoster([
+        {
+          id: 'pg-1',
+          name: 'Contractors',
+          description: null,
+          isDefault: false,
+          memberCount: 4,
+          workspaces: [{ id: 'ws-1', name: 'Platform' }],
+          activeRestrictions: [{ key: 'hideDeployApi', description: 'Cannot deploy as API' }],
+        },
+      ])
+    )
+    expect(roster.permissionGroups[0].memberCount).toBe(4)
+    expect(roster.permissionGroups[0].activeRestrictions[0].key).toBe('hideDeployApi')
+    expect(roster.note).toContain('access-control.json')
+  })
+
+  it('summarizes fork mappings by resource type and omits them at the root', () => {
+    const forked = JSON.parse(
+      serializeWorkspaceForks({
+        parent: { id: 'ws-0', name: 'Template' },
+        children: [{ id: 'ws-2', name: 'Child', createdAt: new Date('2026-08-01T00:00:00.000Z') }],
+        resourceMappingCounts: { workflow: 3, table: 1 },
+        blockMappingCount: 12,
+      })
+    )
+    expect(forked.mappedFromParent).toEqual({ resources: { workflow: 3, table: 1 }, blocks: 12 })
+    expect(forked.children[0].createdAt).toBe('2026-08-01T00:00:00.000Z')
+
+    const root = JSON.parse(
+      serializeWorkspaceForks({
+        parent: null,
+        children: [],
+        resourceMappingCounts: {},
+        blockMappingCount: 0,
+      })
+    )
+    expect(root.mappedFromParent).toBeUndefined()
+  })
+
+  it('marks the current workspace and never implies the others are readable', () => {
+    const roster = JSON.parse(
+      serializeAccountWorkspaces([
+        { id: 'ws-1', name: 'Elder', role: 'admin', isCurrent: true, organizationId: 'org-1' },
+        {
+          id: 'ws-2',
+          name: 'Other',
+          role: 'read',
+          isCurrent: false,
+          forkedFromWorkspaceId: 'ws-1',
+        },
+      ])
+    )
+
+    expect(roster.workspaces[0].isCurrent).toBe(true)
+    expect(roster.workspaces[1].isCurrent).toBeUndefined()
+    expect(roster.workspaces[1].forkedFromWorkspaceId).toBe('ws-1')
+    expect(roster.note).toContain('isCurrent')
   })
 })

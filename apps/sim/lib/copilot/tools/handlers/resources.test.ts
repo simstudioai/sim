@@ -39,6 +39,10 @@ vi.mock('@/lib/table/service', () => ({
   getTableById: vi.fn(),
 }))
 
+vi.mock('@/lib/table/views/service', () => ({
+  getTableView: vi.fn(),
+}))
+
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   readKnowledgeBase: {
     operation: { id: 'knowledge.read' },
@@ -86,6 +90,8 @@ vi.mock('@/lib/logs/service', () => ({
   getLogById: vi.fn(),
 }))
 
+import { getTableById } from '@/lib/table/service'
+import { getTableView } from '@/lib/table/views/service'
 import { executeOpenResource } from './resources'
 
 describe('executeOpenResource', () => {
@@ -227,5 +233,54 @@ describe('executeOpenResource', () => {
         }
       )
     ).rejects.toThrow('knowledge database unavailable')
+  })
+})
+
+describe('open_resource table views', () => {
+  const executionContext = { userId: 'user-1', workspaceId: 'ws-1' } as never
+
+  it('opens a table pinned to a saved view by id, stamping viewId and a pinned title', async () => {
+    vi.mocked(getTableById).mockResolvedValue({
+      id: 'tbl-1',
+      name: 'Leads',
+      workspaceId: 'ws-1',
+      schema: { columns: [{ id: 'col_a', name: 'status', type: 'string' }] },
+    } as never)
+    vi.mocked(getTableView).mockResolvedValue({
+      id: 'view-1',
+      name: 'Overdue',
+      isDefault: false,
+      config: {},
+    } as never)
+
+    const result = await executeOpenResource(
+      { resources: [{ type: 'table', id: 'tbl-1', view: 'view-1' }] },
+      executionContext
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.resources?.[0]).toMatchObject({
+      type: 'table',
+      id: 'tbl-1',
+      title: 'Leads — Overdue',
+      viewId: 'view-1',
+    })
+  })
+
+  it('rejects an unknown view id and points at views.json', async () => {
+    vi.mocked(getTableById).mockResolvedValue({
+      id: 'tbl-1',
+      name: 'Leads',
+      workspaceId: 'ws-1',
+      schema: { columns: [] },
+    } as never)
+    vi.mocked(getTableView).mockResolvedValue(null as never)
+
+    const missing = await executeOpenResource(
+      { resources: [{ type: 'table', id: 'tbl-1', view: 'view-nope' }] },
+      executionContext
+    )
+    expect(missing.success).toBe(false)
+    expect((missing.output as { errors: string[] }).errors[0]).toContain('views.json')
   })
 })

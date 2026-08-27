@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { FolderPathError } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
@@ -10,7 +10,6 @@ import {
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
   FileConflictError,
-  moveRenameWorkspaceFile,
   moveWorkspaceFileItems,
   relocateWorkspaceFileFolderByPath,
   renameWorkspaceFile,
@@ -385,10 +384,10 @@ export async function performMoveWorkspaceFileItems(
     ) {
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'A file or folder with this name already exists in the destination folder',
+        error: getErrorMessage(
+          error,
+          'A file or folder with this name already exists in the destination folder'
+        ),
         errorCode: 'conflict',
       }
     }
@@ -433,73 +432,6 @@ export async function performRenameWorkspaceFile(
     const classified = asOrchestrationError(error)
     if (classified) {
       return { success: false, error: classified.message, errorCode: classified.code }
-    }
-    return { success: false, error: toError(error).message, errorCode: 'internal' }
-  }
-}
-
-export interface PerformMoveRenameWorkspaceFileParams {
-  workspaceId: string
-  userId: string
-  fileId: string
-  targetFolderId: string | null
-  newName: string
-}
-
-export interface PerformMoveRenameWorkspaceFileResult {
-  success: boolean
-  error?: string
-  errorCode?: OrchestrationErrorCode
-  file?: WorkspaceFileRecord
-}
-
-export async function performMoveRenameWorkspaceFile(
-  params: PerformMoveRenameWorkspaceFileParams
-): Promise<PerformMoveRenameWorkspaceFileResult> {
-  const { workspaceId, userId, fileId, targetFolderId, newName } = params
-
-  try {
-    const { file, renamed, moved } = await moveRenameWorkspaceFile({
-      workspaceId,
-      fileId,
-      targetFolderId,
-      newName,
-    })
-    logger.info('Moved/renamed workspace file', { workspaceId, fileId, renamed, moved })
-
-    if (moved) {
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.FILE_MOVED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        resourceName: file.name,
-        description: `Moved file "${file.name}"${targetFolderId ? ' to folder' : ' to root'}`,
-        metadata: { targetFolderId },
-      })
-    }
-    if (renamed) {
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.FILE_UPDATED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        resourceName: file.name,
-        description: `Renamed file to "${file.name}"`,
-      })
-    }
-
-    await notifyWorkspaceFilesChanged(workspaceId)
-    return { success: true, file }
-  } catch (error) {
-    logger.error('Failed to move/rename workspace file', { error })
-    if (error instanceof FileConflictError || getPostgresErrorCode(error) === '23505') {
-      return { success: false, error: toError(error).message, errorCode: 'conflict' }
-    }
-    if (toError(error).message.includes('not found')) {
-      return { success: false, error: toError(error).message, errorCode: 'not_found' }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }

@@ -5,6 +5,7 @@ import { sftpUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -109,16 +110,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )
-            const { buffer } = await downloadServableFileFromStorage(file, requestId, logger)
+            const { buffer } = await downloadServableFileFromStorage(file, requestId, logger, {
+              maxBytes: maxSize - resolvedTotal,
+            })
 
             resolvedTotal += buffer.length
-            if (resolvedTotal > maxSize) {
-              const sizeMB = (resolvedTotal / (1024 * 1024)).toFixed(2)
-              return NextResponse.json(
-                { success: false, error: `Total file size (${sizeMB}MB) exceeds limit of 100MB` },
-                { status: 400 }
-              )
-            }
 
             const safeFileName = sanitizeFileName(file.name)
             const fullRemotePath = remotePath.endsWith('/')
@@ -155,6 +151,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           } catch (error) {
             const notReady = docNotReadyResponse(error)
             if (notReady) return notReady
+            if (isPayloadSizeLimitError(error)) {
+              const observed = resolvedTotal + (error.observedBytes ?? file.size)
+              const sizeMB = (observed / (1024 * 1024)).toFixed(2)
+              return NextResponse.json(
+                { success: false, error: `Total file size (${sizeMB}MB) exceeds limit of 100MB` },
+                { status: 400 }
+              )
+            }
             logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
             throw new Error(
               `Failed to upload file "${file.name}": ${getErrorMessage(error, 'Unknown error')}`

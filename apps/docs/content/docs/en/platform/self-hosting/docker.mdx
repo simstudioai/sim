@@ -10,19 +10,13 @@ import { FAQ } from '@/components/ui/faq'
 ## Quick Start
 
 ```bash
-git clone https://github.com/simstudioai/sim.git && cd sim
-
-cat > .env << EOF
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
-CRON_SECRET=$(openssl rand -hex 32)
-EOF
-
-docker compose -f docker-compose.prod.yml up -d
+npx sim-setup
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+The setup package creates `./sim` with a generated `.env` and the production Compose file, then
+starts published container images. Pass `--dir <path>` to choose another directory.
 
 ## Production Setup
 
@@ -140,6 +134,26 @@ OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml 
   Inside Docker, `localhost` refers to the container, not your host. Use `host.docker.internal` or your host's IP.
 </Callout>
 
+### LM Studio
+
+[LM Studio exposes an OpenAI-compatible API](https://lmstudio.ai/docs/developer/openai-compat). Start its local server, load a model, and enable **Serve on Local Network** so the Docker container can reach it. [Enable API authentication](https://lmstudio.ai/docs/developer/core/authentication), then set the endpoint and token in the `.env` file next to your Compose file:
+
+```bash
+# macOS/Windows
+VLLM_BASE_URL=http://host.docker.internal:1234
+
+# Linux - use your host IP instead
+# VLLM_BASE_URL=http://192.168.1.100:1234
+
+VLLM_API_KEY=your_lm_studio_api_token
+```
+
+Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
+
+```bash
+docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
+```
+
 ## Commands
 
 ```bash
@@ -150,7 +164,7 @@ docker compose -f docker-compose.prod.yml logs migrations
 docker compose -f docker-compose.prod.yml logs -f cron
 
 # Upgrade: bump SIM_VERSION in .env when pinned, then
-bun run sim update
+npx sim-setup update
 ```
 
 <FAQ items={[

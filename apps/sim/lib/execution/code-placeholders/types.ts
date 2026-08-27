@@ -66,6 +66,10 @@ export interface CodePlaceholderCompilationContext {
     occurrence: CodePlaceholderOccurrence
   ): ResolvedCodePlaceholderValueOccurrence | undefined
   resolve(occurrence: CodePlaceholderOccurrence): ResolvedCodePlaceholderOccurrence | undefined
+  /** Reports a secret read straight off the runtime environment, without a `{{NAME}}` placeholder. */
+  recordDirectEnvironmentRead(name: string, offset: number): void
+  /** Whether {@link recordDirectEnvironmentRead} would keep this name, so a scanner can skip work. */
+  tracksDirectEnvironmentRead(name: string): boolean
   runtimeBindingFor(kind: CodePlaceholderRuntimeBinding['kind']): CodePlaceholderRuntimeBinding
   registerInternalIdentifier(identifier: string): void
   createPrivateInput(content: string): CodePlaceholderPrivateInput

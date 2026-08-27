@@ -12,8 +12,8 @@ import type {
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
-import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
+import { TRIGGER_ROUTING_FIELD, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import { blockAdvertisesWebhookUrl, resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 /**
  * Sanitized workflow state for copilot (removes all UI-specific data)
@@ -364,6 +364,35 @@ function resolveTriggerWebhookUrl(blockId: string, block: BlockState): string | 
   }
 }
 
+/** Trigger ids that deliver by credential routing — no per-workflow URL exists. */
+const CREDENTIAL_ROUTED_TRIGGER_IDS = new Set(['slack_oauth'])
+
+/**
+ * Derived routing note for trigger blocks that have NO per-workflow webhook URL
+ * (credential-routed delivery, e.g. Slack v2's `slack_oauth`). Mirrors what the
+ * setup wizard shows: events arrive at the selected credential's endpoint — a
+ * custom bot's per-credential Request URL (surfaced as `requestUrl` on that
+ * credential in environment/credentials.json) or the shared Sim-app endpoint
+ * routed by Slack workspace. Surfaced as the read-only
+ * {@link TRIGGER_ROUTING_FIELD} input; rejected on write by `edit_workflow`.
+ */
+function resolveTriggerRouting(block: BlockState): Record<string, unknown> | null {
+  const triggerId = resolveBlockTriggerId(block)
+  if (!triggerId || !CREDENTIAL_ROUTED_TRIGGER_IDS.has(triggerId)) return null
+  const selected =
+    block.subBlocks?.customBotCredential?.value ?? block.subBlocks?.manualBotCredential?.value
+  const selectedCredentialId = typeof selected === 'string' && selected.length > 0 ? selected : null
+  return {
+    model: 'credential-routed',
+    note:
+      'This trigger has no per-workflow webhook URL. Events are delivered via the selected Slack credential: ' +
+      'a custom bot posts to its per-credential Request URL (the requestUrl field on that credential in ' +
+      'environment/credentials.json — the same URL the setup wizard shows for Slack Event Subscriptions); ' +
+      'a Sim-app connection routes by Slack workspace automatically. Derived at read time; not an editable field.',
+    ...(selectedCredentialId ? { selectedCredentialId } : {}),
+  }
+}
+
 /**
  * Convert internal condition handle (condition-{uuid}) to simple format (if, else-if-0, else)
  * Uses 0-indexed numbering for else-if conditions
@@ -562,7 +591,11 @@ export function sanitizeForCopilot(
         loopInputs.parallelType = parallelType
         // Only export fields relevant to the current parallelType
         if (parallelType === 'count' && block.data?.count !== undefined) {
-          loopInputs.iterations = block.data.count
+          // `count`, not `iterations`: the parallel schema the model is given names this
+          // field `count` and the edit path reads it back under that name. A loop's
+          // equivalent field really is called `iterations` on both sides — copying that
+          // line here made the model's read view disagree with its own write contract.
+          loopInputs.count = block.data.count
         }
         if (parallelType === 'collection' && block.data?.collection !== undefined) {
           loopInputs.collection = block.data.collection
@@ -586,6 +619,10 @@ export function sanitizeForCopilot(
       const webhookUrl = resolveTriggerWebhookUrl(blockId, block)
       if (webhookUrl) {
         inputs[TRIGGER_WEBHOOK_URL_FIELD] = webhookUrl
+      }
+      const triggerRouting = resolveTriggerRouting(block)
+      if (triggerRouting) {
+        inputs[TRIGGER_ROUTING_FIELD] = triggerRouting
       }
     }
 

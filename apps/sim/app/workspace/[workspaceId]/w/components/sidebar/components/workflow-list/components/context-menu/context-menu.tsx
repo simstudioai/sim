@@ -26,6 +26,7 @@ import {
   Unlock,
   X,
 } from '@sim/emcn/icons'
+import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ContextMenuProps {
   isOpen: boolean
@@ -35,8 +36,6 @@ interface ContextMenuProps {
   onOpenInNewTab?: () => void
   openInNewTabLabel?: string
   openInNewTabPosition?: 'first' | 'last'
-  separateNavigationAction?: boolean
-  groupNonDestructiveActions?: boolean
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
   onTogglePin?: () => void
@@ -98,6 +97,7 @@ interface ContextMenuProps {
   onUploadLogo?: () => void
   showUploadLogo?: boolean
   disableUploadLogo?: boolean
+  selectedCount?: number
 }
 
 /**
@@ -121,8 +121,6 @@ export function ContextMenu({
   onOpenInNewTab,
   openInNewTabLabel = 'Open in new tab',
   openInNewTabPosition = 'first',
-  separateNavigationAction = false,
-  groupNonDestructiveActions = false,
   onMarkAsRead,
   onMarkAsUnread,
   onTogglePin,
@@ -168,19 +166,26 @@ export function ContextMenu({
   onUploadLogo,
   showUploadLogo = false,
   disableUploadLogo = false,
+  selectedCount = 1,
 }: ContextMenuProps) {
-  const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
-  const hasStatusSection =
+  const hasActionsAboveDestructive =
+    (showOpenInNewTab && onOpenInNewTab) ||
     (showMarkAsRead && onMarkAsRead) ||
     (showMarkAsUnread && onMarkAsUnread) ||
-    (showPin && onTogglePin)
-  const hasEditSection =
+    (showPin && onTogglePin) ||
     (showRename && onRename) ||
     (showCreate && onCreate) ||
     (showCreateFolder && onCreateFolder) ||
     (showLock && onToggleLock) ||
-    (showUploadLogo && onUploadLogo)
-  const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
+    (showUploadLogo && onUploadLogo) ||
+    (showDuplicate && onDuplicate) ||
+    (showExport && onExport)
+  const hasDestructiveSection =
+    (showLeave && onLeave) ||
+    showDelete ||
+    (showCloseTab && onCloseTab) ||
+    onCloseOtherTabs ||
+    onCloseTabsToRight
 
   /**
    * Only the "Rename" item should trigger the `onCloseAutoFocus` refocus below —
@@ -237,11 +242,6 @@ export function ContextMenu({
             {openInNewTabLabel}
           </DropdownMenuItem>
         )}
-        {openInNewTabPosition === 'first' &&
-          (!groupNonDestructiveActions || separateNavigationAction) &&
-          hasNavigationSection &&
-          (hasStatusSection || hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
-
         {showMarkAsRead && onMarkAsRead && (
           <DropdownMenuItem
             disabled={disableMarkAsRead}
@@ -277,10 +277,6 @@ export function ContextMenu({
             {isPinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
-        {!groupNonDestructiveActions && hasStatusSection && (hasEditSection || hasCopySection) && (
-          <DropdownMenuSeparator />
-        )}
-
         {showRename && onRename && (
           <DropdownMenuItem
             disabled={disableRename}
@@ -343,9 +339,6 @@ export function ContextMenu({
           </DropdownMenuItem>
         )}
 
-        {!groupNonDestructiveActions && hasEditSection && hasCopySection && (
-          <DropdownMenuSeparator />
-        )}
         {showDuplicate && onDuplicate && (
           <DropdownMenuItem
             disabled={disableDuplicate}
@@ -355,7 +348,7 @@ export function ContextMenu({
             }}
           >
             <Duplicate />
-            Duplicate
+            {selectionActionLabel('Duplicate', selectedCount)}
           </DropdownMenuItem>
         )}
         {showExport && onExport && (
@@ -367,13 +360,9 @@ export function ContextMenu({
             }}
           >
             <Download />
-            Export
+            {selectionActionLabel('Export', selectedCount)}
           </DropdownMenuItem>
         )}
-        {openInNewTabPosition === 'last' &&
-          (!groupNonDestructiveActions || separateNavigationAction) &&
-          hasNavigationSection &&
-          (hasStatusSection || hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
         {openInNewTabPosition === 'last' && showOpenInNewTab && onOpenInNewTab && (
           <DropdownMenuItem
             onSelect={() => {
@@ -386,12 +375,7 @@ export function ContextMenu({
           </DropdownMenuItem>
         )}
 
-        {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
-          (showLeave ||
-            showDelete ||
-            (showCloseTab && onCloseTab) ||
-            onCloseOtherTabs ||
-            onCloseTabsToRight) && <DropdownMenuSeparator />}
+        {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -413,7 +397,7 @@ export function ContextMenu({
             }}
           >
             <Trash />
-            Delete
+            {selectionActionLabel('Delete', selectedCount)}
           </DropdownMenuItem>
         )}
         {showCloseTab && onCloseTab && (

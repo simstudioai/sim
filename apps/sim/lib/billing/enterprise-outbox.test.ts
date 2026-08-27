@@ -26,6 +26,7 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   deriveEnterpriseOperationStatus,
   EnterpriseIssuanceInProgressError,
+  enterpriseMetadataIntentMatchesStripeSubscription,
   enterpriseOperationMatchesStripeSubscription,
   enterpriseProvisionPayloadSchema,
   isEnterpriseOperationUnresolved,
@@ -41,6 +42,7 @@ const payload = {
     requestedByEmail: 'admin@sim.ai',
     requestedByUserId: 'admin-1',
     invoiceAmountCents: 10000,
+    billingInterval: 'month' as const,
     usageLimitCredits: 20000,
     seats: 5,
     concurrencyLimit: 1250,
@@ -188,6 +190,49 @@ describe('Enterprise issuance Stripe-term correlation', () => {
   })
 })
 
+describe('Enterprise configuration Stripe-term correlation', () => {
+  const configurationPayload = {
+    subscriptionId: 'sub-local',
+    revision: 2,
+    deliveryRevision: 1,
+    metadata: { seats: 7, reportingPeriodAnchorDate: '2026-08-01', monthlyPrice: null },
+    terms: { invoiceAmountCents: 12000, billingInterval: 'year' as const },
+    stripeProgress: {},
+  }
+
+  function configuredSubscription(metadata: Record<string, string> = {}): Stripe.Subscription {
+    return stripeSubscription({
+      amount: 12000,
+      interval: 'year',
+      metadata: {
+        seats: '7',
+        reportingPeriodAnchorDate: '2026-08-01',
+        simConfigOperationId: 'config-2',
+        simConfigRevision: '2',
+        simConfigDeliveryRevision: '1',
+        ...metadata,
+      },
+    })
+  }
+
+  it('requires the exact desired metadata, delivery marker, and billing terms', () => {
+    expect(
+      enterpriseMetadataIntentMatchesStripeSubscription(
+        configurationPayload,
+        'config-2',
+        configuredSubscription()
+      )
+    ).toBe(true)
+    expect(
+      enterpriseMetadataIntentMatchesStripeSubscription(
+        configurationPayload,
+        'config-2',
+        configuredSubscription({ seats: '8' })
+      )
+    ).toBe(false)
+  })
+})
+
 function executorReturning(rows: unknown[]) {
   const chain = {
     from: () => chain,
@@ -222,6 +267,8 @@ describe('Enterprise metadata intent admission state', () => {
       id: 'config-2',
       status: 'pending',
       requestedMetadata: { seats: 7 },
+      requestedTerms: null,
+      providerAccepted: false,
       error: null,
     })
   })
@@ -249,6 +296,173 @@ describe('Enterprise metadata intent admission state', () => {
       id: 'config-2',
       status: 'failed',
       requestedMetadata: { seats: 7 },
+      requestedTerms: null,
+      providerAccepted: false,
+      error: null,
+    })
+  })
+
+  it('keeps a legacy commercial-term intent pending until Stripe state is checked', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'pending',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'pending',
+      providerAccepted: false,
+      error: null,
+    })
+  })
+
+  it('releases a legacy commercial-term intent after Stripe confirms it was not applied', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'pending',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: {
+              seats: 7,
+              reportingPeriodAnchorDate: '2026-05-01',
+            },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            commercialTermsRetiredAt: '2026-08-01T00:00:00.000Z',
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(false)
+    expect(state.effectiveSeatCapacity).toBe(10)
+    expect(state.configurationUpdate).toEqual({
+      id: 'config-2',
+      status: 'failed',
+      requestedMetadata: {
+        seats: 7,
+        reportingPeriodAnchorDate: '2026-05-01',
+      },
+      requestedTerms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+      providerAccepted: false,
+      error:
+        'Enterprise commercial-term updates are no longer supported. Submit a reporting-period change instead.',
+    })
+  })
+
+  it('keeps a Stripe-accepted legacy commercial-term intent fail-closed', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'dead_letter',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            acknowledgement: {
+              startedAt: '2026-08-01T00:00:00.000Z',
+              deadlineAt: '2026-08-01T00:30:00.000Z',
+            },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'failed',
+      requestedTerms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+      providerAccepted: true,
+    })
+  })
+
+  it('does not release an accepted legacy intent even if a retirement marker is present', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'dead_letter',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            terms: { invoiceAmountCents: 500_00, billingInterval: 'year' },
+            commercialTermsRetiredAt: '2026-08-01T00:00:00.000Z',
+            deliveryState: {
+              priorPause: null,
+              billingIntervalChanged: true,
+              providerAcceptedAt: '2026-08-01T00:00:00.000Z',
+            },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toMatchObject({
+      id: 'config-2',
+      status: 'failed',
+      providerAccepted: true,
+      error: null,
+    })
+  })
+
+  it('keeps a Stripe-accepted dead letter fail-closed until reconciliation', async () => {
+    const state = await resolveEnterpriseMetadataIntent(
+      executorReturning([
+        {
+          id: 'config-2',
+          status: 'dead_letter',
+          payload: {
+            subscriptionId: 'sub-local',
+            revision: 2,
+            metadata: { seats: 7 },
+            acknowledgement: {
+              startedAt: '2026-08-01T00:00:00.000Z',
+              deadlineAt: '2026-08-01T00:30:00.000Z',
+            },
+          },
+        },
+      ]),
+      'sub-local',
+      { seats: '10', simConfigRevision: '1', simConfigOperationId: 'config-1' }
+    )
+
+    expect(state.hasUnappliedIntent).toBe(true)
+    expect(state.effectiveSeatCapacity).toBe(7)
+    expect(state.configurationUpdate).toEqual({
+      id: 'config-2',
+      status: 'failed',
+      requestedMetadata: { seats: 7 },
+      requestedTerms: null,
+      providerAccepted: true,
       error: null,
     })
   })

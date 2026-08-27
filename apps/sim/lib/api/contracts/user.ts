@@ -413,3 +413,75 @@ export const subscriptionTransferContract = defineRouteContract({
     }),
   },
 })
+
+/** Every reason an account cannot be erased on its own, as rendered to its owner. */
+export const accountDeletionBlockerSchema = z.object({
+  code: z.enum([
+    'paid_organization_owner',
+    'organization_member',
+    'active_subscription',
+    'shared_workspace',
+    'organization_workspace',
+    'data_drain_owner',
+  ]),
+  /** A sentence naming both the obstacle and the way out. */
+  message: z.string(),
+})
+
+const accountDeletionResourceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+
+export type AccountDeletionResource = z.output<typeof accountDeletionResourceSchema>
+
+export const accountDeletionPlanSchema = z.object({
+  blockers: z.array(accountDeletionBlockerSchema),
+  /** Workspaces nobody else can reach — erased along with the account. */
+  workspacesToDelete: z.array(accountDeletionResourceSchema),
+  /**
+   * Workspaces the account only anchors — it pays for them or is recorded as
+   * their owner while holding no access to them. The anchor moves to an admin
+   * who does; nothing inside changes hands.
+   */
+  workspacesToTransfer: z.array(accountDeletionResourceSchema),
+})
+
+export type AccountDeletionBlocker = z.output<typeof accountDeletionBlockerSchema>
+export type AccountDeletionPlan = z.output<typeof accountDeletionPlanSchema>
+
+export const getAccountDeletionPlanContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/users/me/deletion',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      plan: accountDeletionPlanSchema,
+    }),
+  },
+})
+
+export const deleteAccountBodySchema = z.object({
+  /**
+   * The account's own email address, retyped. Checked server-side against the
+   * session's account so a mis-wired client cannot delete anything else.
+   */
+  confirmEmail: z
+    .string({ error: 'Confirm your email address to delete your account' })
+    .min(1, 'Confirm your email address to delete your account')
+    .max(320, 'Email address is too long'),
+})
+
+export type DeleteAccountBody = z.input<typeof deleteAccountBodySchema>
+
+export const deleteAccountContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/users/me/deletion',
+  body: deleteAccountBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+    }),
+  },
+})
