@@ -39,6 +39,7 @@ export const byokProviderIdSchema = z.enum([
   'leadmagic',
   'icypeas',
   'enrow',
+  'smarte',
 ])
 
 export type BYOKProviderId = z.output<typeof byokProviderIdSchema>

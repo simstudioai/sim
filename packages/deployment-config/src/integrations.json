@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-26",
+  "updatedAt": "2026-08-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -20887,6 +20887,49 @@
         },
         "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       }
+    },
+    {
+      "type": "smarte",
+      "slug": "smarte",
+      "name": "SMARTe",
+      "description": "Enrich people and companies with contact, funding, and technology data",
+      "longDescription": "Use SMARTe to enrich person and company profiles, retrieve work emails and mobile numbers, research company funding, and identify technologies used by a company.",
+      "bgColor": "#4622FF",
+      "iconName": "SmarteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/smarte",
+      "operations": [
+        {
+          "name": "Enrich Person",
+          "description": "Enrich a person with professional details, current and past experience, and associated company context."
+        },
+        {
+          "name": "Enrich Company",
+          "description": "Enrich a company with firmographic, financial, corporate hierarchy, and geographic attributes."
+        },
+        {
+          "name": "Enrich Email",
+          "description": "Retrieve enriched work email data without returning a full person profile."
+        },
+        {
+          "name": "Enrich Mobile",
+          "description": "Retrieve direct dial and mobile phone fields without returning a full person profile."
+        },
+        {
+          "name": "Enrich Funding",
+          "description": "Retrieve funding and investment data for a company."
+        },
+        {
+          "name": "Enrich Technographics",
+          "description": "Retrieve company technology stack data for segmentation and targeting."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "smartlead",

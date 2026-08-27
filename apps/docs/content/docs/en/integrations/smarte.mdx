@@ -1,0 +1,175 @@
+---
+title: SMARTe
+description: Enrich people and companies with contact, funding, and technology data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="smarte"
+  color="#4622FF"
+/>
+
+## Usage Instructions
+
+Use SMARTe to enrich person and company profiles, retrieve work emails and mobile numbers, research company funding, and identify technologies used by a company.
+
+
+
+## Actions
+
+### SMARTe Enrich Company
+
+Enrich a company with firmographic, financial, corporate hierarchy, and geographic attributes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `recordId` | string | No | Client-side reference identifier |
+| `companyId` | string | Yes | SMARTe company identifier |
+| `companyName` | string | Yes | Company name |
+| `companyWebsite` | string | Yes | Company website |
+| `companyLinkedinUrl` | string | Yes | Company LinkedIn profile URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+### SMARTe Enrich Email
+
+Retrieve enriched work email data without returning a full person profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `recordId` | string | No | Client-side reference identifier |
+| `experienceId` | string | No | SMARTe person experience identifier |
+| `firstName` | string | No | First name of the person |
+| `lastName` | string | No | Last name of the person |
+| `fullName` | string | No | Full name of the person |
+| `email` | string | No | Known work email address |
+| `jobTitle` | string | No | Current job title |
+| `linkedinUrl` | string | No | LinkedIn profile URL |
+| `companyId` | string | No | SMARTe company identifier |
+| `companyName` | string | No | Company name |
+| `companyWebsite` | string | No | Company website |
+| `companyLinkedinUrl` | string | No | Company LinkedIn profile URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+### SMARTe Enrich Funding
+
+Retrieve funding and investment data for a company.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `companyId` | string | No | SMARTe company identifier |
+| `companyName` | string | No | Company name |
+| `companyWebsite` | string | No | Company website |
+| `companyLinkedinUrl` | string | No | Company LinkedIn profile URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+### SMARTe Enrich Mobile
+
+Retrieve direct dial and mobile phone fields without returning a full person profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `recordId` | string | No | Client-side reference identifier |
+| `experienceId` | string | No | SMARTe person experience identifier |
+| `firstName` | string | No | First name of the person |
+| `lastName` | string | No | Last name of the person |
+| `fullName` | string | No | Full name of the person |
+| `email` | string | No | Work email address |
+| `jobTitle` | string | No | Current job title |
+| `linkedinUrl` | string | No | LinkedIn profile URL |
+| `companyId` | string | No | SMARTe company identifier |
+| `companyName` | string | No | Company name |
+| `companyWebsite` | string | No | Company website |
+| `companyLinkedinUrl` | string | No | Company LinkedIn profile URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+### SMARTe Enrich Person
+
+Enrich a person with professional details, current and past experience, and associated company context.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `recordId` | string | No | Client-side reference identifier |
+| `experienceId` | string | No | Identifier for a specific experience |
+| `firstName` | string | Yes | First name of the person |
+| `lastName` | string | Yes | Last name of the person |
+| `fullName` | string | Yes | Full name of the person |
+| `email` | string | Yes | Business email address |
+| `jobTitle` | string | Yes | Current job title |
+| `linkedinUrl` | string | Yes | LinkedIn profile URL |
+| `companyId` | string | No | SMARTe company identifier |
+| `companyName` | string | No | Company name |
+| `companyWebsite` | string | No | Company website |
+| `companyLinkedinUrl` | string | No | Company LinkedIn profile URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+### SMARTe Enrich Technographics
+
+Retrieve company technology stack data for segmentation and targeting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | SMARTe API key |
+| `companyId` | string | No | SMARTe company identifier |
+| `companyName` | string | No | Company name |
+| `companyWebsite` | string | No | Company website |
+| `companyLinkedinUrl` | string | No | Company LinkedIn profile URL |
+| `product` | string | No | Technology product name filter |
+| `vendor` | string | No | Technology vendor name filter |
+| `category` | string | No | Technology product category filter |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Enriched records using the selected operation documented response schema |
+| `creditsDeducted` | number | Credits charged by SMARTe for the request |
+
+

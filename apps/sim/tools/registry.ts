@@ -4416,6 +4416,14 @@ import {
   slackUpdateViewTool,
 } from '@/tools/slack'
 import {
+  smarteEnrichCompanyTool,
+  smarteEnrichEmailTool,
+  smarteEnrichFundingTool,
+  smarteEnrichMobileTool,
+  smarteEnrichPersonTool,
+  smarteEnrichTechnographicsTool,
+} from '@/tools/smarte'
+import {
   smartleadAddEmailAccountsToCampaignTool,
   smartleadAddLeadsToCampaignTool,
   smartleadCreateCampaignTool,
@@ -6830,6 +6838,12 @@ export const tools: Record<string, ToolConfig> = {
   slack_rename_conversation: slackRenameConversationTool,
   slack_set_conversation_topic: slackSetConversationTopicTool,
   slack_set_conversation_purpose: slackSetConversationPurposeTool,
+  smarte_enrich_company: smarteEnrichCompanyTool,
+  smarte_enrich_email: smarteEnrichEmailTool,
+  smarte_enrich_funding: smarteEnrichFundingTool,
+  smarte_enrich_mobile: smarteEnrichMobileTool,
+  smarte_enrich_person: smarteEnrichPersonTool,
+  smarte_enrich_technographics: smarteEnrichTechnographicsTool,
   smartlead_list_campaigns: smartleadListCampaignsTool,
   smartlead_get_campaign: smartleadGetCampaignTool,
   smartlead_create_campaign: smartleadCreateCampaignTool,

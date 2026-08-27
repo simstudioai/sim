@@ -42,6 +42,7 @@ export type BYOKProviderId =
   | 'leadmagic'
   | 'icypeas'
   | 'enrow'
+  | 'smarte'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
