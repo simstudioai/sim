@@ -16,6 +16,40 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TwilioGetRecordingAPI')
 
+/**
+ * Shape of a Twilio resource identifier.
+ *
+ * Twilio documents every resource id as a 34-character String Identifier: a
+ * two-letter prefix followed by 32 hexadecimal digits. No `/`, `\`, dot
+ * segment, `?`, or `#` is legal in one, so pinning the shape has zero
+ * false-rejection risk while closing the path zone entirely.
+ *
+ * This matters because both `accountSid` and `recordingSid` arrive in the
+ * request body rather than from a credential, and `recordingSid` is
+ * `visibility: 'user-or-llm'` on the calling tool. `validateUrlWithDNS` pins
+ * the *host*, not the path, so an unguarded `recordingSid` of `../Messages`
+ * re-aimed this route at an arbitrary resource in the caller's account — which
+ * it then refetched with the caller's Basic auth and returned base64-encoded as
+ * a `file` output.
+ */
+const ACCOUNT_SID_PATTERN = /^AC[0-9a-fA-F]{32}$/
+const RECORDING_SID_PATTERN = /^RE[0-9a-fA-F]{32}$/
+
+/**
+ * Ceiling on the downloaded recording media.
+ *
+ * This route returns the media base64-encoded inside its JSON body, and the
+ * executor reads an internal tool response through `readToolResponseBody`,
+ * which caps at `MAX_TOOL_RESPONSE_BODY_BYTES` (10 MB). Base64 inflates by 4/3,
+ * so the largest recording that can survive the round trip is ~7.5 MB of raw
+ * audio. Inheriting `DEFAULT_MAX_RESPONSE_BYTES` (100 MB) meant anything larger
+ * downloaded and encoded in full — peaking at hundreds of MB of live
+ * allocation — only for the executor to reject the body afterwards with "Tool
+ * response size limit exceeded". Capping at the reachable size makes the
+ * transport limit enforce itself while the bytes are still streaming.
+ */
+export const MAX_TWILIO_RECORDING_BYTES = 7 * 1024 * 1024
+
 interface TwilioRecordingResponse {
   sid?: string
   call_sid?: string
@@ -67,11 +101,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { accountSid, authToken, recordingSid } = parsed.data.body
 
-    if (!accountSid.startsWith('AC')) {
+    if (!ACCOUNT_SID_PATTERN.test(accountSid)) {
       return NextResponse.json(
         {
           success: false,
-          error: `Invalid Account SID format. Account SID must start with "AC" (you provided: ${accountSid.substring(0, 2)}...)`,
+          error: `Invalid Account SID format. Account SID must be "AC" followed by 32 hexadecimal digits (you provided: ${accountSid.substring(0, 2)}...)`,
+        },
+        { status: 400 }
+      )
+    }
+
+    if (!RECORDING_SID_PATTERN.test(recordingSid)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Invalid Recording SID format. Recording SID must be "RE" followed by 32 hexadecimal digits (you provided: ${recordingSid.substring(0, 2)}...)`,
         },
         { status: 400 }
       )
@@ -134,7 +178,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       | undefined
 
     try {
-      const transcriptionUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Transcriptions.json?RecordingSid=${data.sid}`
+      const transcriptionQuery = new URLSearchParams({ RecordingSid: data.sid ?? recordingSid })
+      const transcriptionUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Transcriptions.json?${transcriptionQuery}`
       logger.info(`[${requestId}] Checking for transcriptions`)
 
       const transcriptionUrlValidation = await validateUrlWithDNS(
@@ -182,6 +227,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             {
               method: 'GET',
               headers: { Authorization: `Basic ${twilioAuth}` },
+              maxResponseBytes: MAX_TWILIO_RECORDING_BYTES,
             }
           )
 

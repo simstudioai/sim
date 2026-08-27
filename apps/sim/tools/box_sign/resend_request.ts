@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxSignResendRequestParams } from './types'
 
 export const boxSignResendRequestTool: ToolConfig<BoxSignResendRequestParams, ToolResponse> = {
@@ -28,7 +29,8 @@ export const boxSignResendRequestTool: ToolConfig<BoxSignResendRequestParams, To
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/sign_requests/${params.signRequestId}/resend`,
+    url: (params) =>
+      `https://api.box.com/2.0/sign_requests/${safeUrlPathSegment(params.signRequestId, 'signRequestId')}/resend`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
