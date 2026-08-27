@@ -557,6 +557,7 @@ export function LoadedRichMarkdownEditor({
         'data-owned-shortcuts': 'Mod+K',
         'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
         'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': 'true',
       },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'

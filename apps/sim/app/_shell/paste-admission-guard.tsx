@@ -15,11 +15,20 @@ function finitePositiveAttribute(element: Element | null, name: string): number 
   return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
+function clipboardHasImageFile(data: DataTransfer | null): boolean {
+  if (!data) return false
+  if (Array.from(data.files).some((file) => file.type.startsWith('image/'))) return true
+  return Array.from(data.items).some(
+    (item) => item.kind === 'file' && item.type.startsWith('image/')
+  )
+}
+
 /**
  * Last-resort admission for every editable workspace surface. Specialized editors publish their
  * downstream ceiling on an ancestor with `data-paste-max-bytes`; controls without one inherit a
  * crash-only fallback. This layer bounds only the clipboard payload, so a small paste into an already
  * large field keeps native behavior. Editors with a real result-size contract enforce it themselves.
+ * Targets that explicitly handle clipboard images may claim those file events before the text guards.
  * The capture listener runs before React, ProseMirror, Monaco, and xterm parse the clipboard value.
  */
 export function PasteAdmissionGuard() {
@@ -35,6 +44,9 @@ export function PasteAdmissionGuard() {
 
       const acceptsSelectionContext = event.target.closest('[data-paste-selection-context]')
       if (acceptsSelectionContext && readSelectionContextFromClipboard(event.clipboardData)) return
+
+      const handlesImageFiles = event.target.closest('[data-paste-handles-images="true"]')
+      if (handlesImageFiles && clipboardHasImageFile(event.clipboardData)) return
 
       const text = event.clipboardData?.getData('text/plain') ?? ''
       const policyElement = event.target.closest('[data-paste-max-bytes]')

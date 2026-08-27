@@ -250,6 +250,7 @@ function LoadedRichMarkdownField({
         'data-owned-shortcuts': 'Mod+K',
         'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
         'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': uploadImage ? 'true' : 'false',
       },
       handlePaste: (view, event) => {
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []

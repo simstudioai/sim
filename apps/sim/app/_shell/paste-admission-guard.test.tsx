@@ -20,7 +20,7 @@ let root: Root
 function dispatchPaste(
   target: Element,
   text: string,
-  options: { selectionContext?: string; html?: string } = {}
+  options: { selectionContext?: string; html?: string; imageFile?: boolean } = {}
 ): Event {
   const event = new Event('paste', {
     bubbles: true,
@@ -35,6 +35,8 @@ function dispatchPaste(
         if (type === 'text/html') return options.html ?? ''
         return ''
       },
+      files: options.imageFile ? [new File(['image'], 'pasted.png', { type: 'image/png' })] : [],
+      items: options.imageFile ? [{ kind: 'file', type: 'image/png' }] : [],
     },
   })
   target.dispatchEvent(event)
@@ -139,5 +141,24 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(editable, 'abc', { html: '<strong>abc</strong>' }).defaultPrevented).toBe(
       true
     )
+  })
+
+  it('lets an opted-in rich editor handle clipboard image files before text admission', () => {
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    editable.dataset.pasteMaxBytes = '4'
+    editable.dataset.pasteMaxHtmlBytes = '4'
+    editable.dataset.pasteHandlesImages = 'true'
+    host.appendChild(editable)
+
+    const targetHandler = vi.fn()
+    editable.addEventListener('paste', targetHandler)
+    const event = dispatchPaste(editable, '12345', {
+      html: '<img src="data:image/png;base64,large">',
+      imageFile: true,
+    })
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(targetHandler).toHaveBeenCalledOnce()
   })
 })
