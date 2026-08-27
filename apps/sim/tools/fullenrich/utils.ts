@@ -1,7 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { z } from 'zod'
 
-/** Parse a JSON-capable tool parameter and validate it against the official request schema. */
 export function parseFullEnrichInput<T>(value: unknown, schema: z.ZodType<T>, label: string): T {
   let parsed = value
   if (typeof value === 'string') {
@@ -24,7 +23,6 @@ export function parseFullEnrichInput<T>(value: unknown, schema: z.ZodType<T>, la
   return result.data
 }
 
-/** Read a documented numeric credit value from a FullEnrich response. */
 export function requireFullEnrichCredits(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be a finite non-negative number`)
@@ -32,7 +30,6 @@ export function requireFullEnrichCredits(value: unknown, label: string): number 
   return value
 }
 
-/** Extract a useful message from a documented FullEnrich error response. */
 export async function extractFullEnrichError(response: Response): Promise<string> {
   const text = await response.text()
   if (text.length === 0) return `FullEnrich API error (${response.status})`
@@ -50,7 +47,6 @@ export async function extractFullEnrichError(response: Response): Promise<string
   return `FullEnrich API error (${response.status}): ${text}`
 }
 
-/** Assert that a provider response contains a non-empty string property. */
 export function requireFullEnrichString(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`${label} must be a non-empty string`)

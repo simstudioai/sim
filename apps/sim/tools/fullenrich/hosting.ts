@@ -39,7 +39,6 @@ const FULLENRICH_RATE_LIMIT = {
   requestsPerMinute: 10,
 }
 
-/** Build hosted-key pricing from exact credits reported in the tool output. */
 export function fullEnrichExactHosting<P>(
   getCredits: (params: P, output: Record<string, unknown>) => number
 ): ToolHostingConfig<P> {
@@ -105,7 +104,6 @@ export function fullEnrichEstimatedHosting<P>(
   }
 }
 
-/** Build hosted-key configuration for result retrieval that consumes no new credits. */
 export function fullEnrichRetrievalHosting<P>(): ToolHostingConfig<P> {
   return {
     envKeyPrefix: FULLENRICH_API_KEY_PREFIX,

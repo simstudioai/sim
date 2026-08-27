@@ -7846,6 +7846,57 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "fullenrich",
+      "slug": "fullenrich",
+      "name": "FullEnrich",
+      "description": "Enrich contacts and search or look up people and companies",
+      "longDescription": "Use FullEnrich to enrich batches of contacts with work emails, personal emails, and mobile phones; reverse email addresses; search people and companies; and retrieve standalone person or company profiles.",
+      "bgColor": "#8164F4",
+      "iconName": "FullEnrichIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/fullenrich",
+      "operations": [
+        {
+          "name": "Start Contact Enrichment",
+          "description": "Start an asynchronous enrichment of up to 100 contacts for work emails, personal emails, and mobile phones."
+        },
+        {
+          "name": "Get Contact Enrichment",
+          "description": "Retrieve the status, contact records, and historical credit usage for an enrichment."
+        },
+        {
+          "name": "Start Reverse Email",
+          "description": "Start an asynchronous reverse lookup of up to 100 email addresses."
+        },
+        {
+          "name": "Get Reverse Email",
+          "description": "Retrieve the status, matched profiles, and historical credit usage for a reverse lookup."
+        },
+        {
+          "name": "Search People",
+          "description": "Search FullEnrich people by company, identity, location, skills, role, seniority, employment, and education filters."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search FullEnrich companies by name, domain, professional network, keywords, industry, type, location, founding year, and headcount."
+        },
+        {
+          "name": "Lookup Person",
+          "description": "Look up one person by name, professional-network URL or ID, optionally disambiguated by company."
+        },
+        {
+          "name": "Lookup Company",
+          "description": "Look up one company by domain or professional-network URL or ID."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "gamma",
       "slug": "gamma",
       "name": "Gamma",

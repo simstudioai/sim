@@ -20,7 +20,6 @@ export function requireKittResponseObject(
   return value as Record<string, unknown>
 }
 
-/** Return a required non-empty response string. */
 export function requireKittResponseString(
   value: unknown,
   field: string,
@@ -32,7 +31,6 @@ export function requireKittResponseString(
   return value
 }
 
-/** Throw an upstream error without attempting to interpret an unsuccessful body. */
 export async function requireKittSuccess(
   response: Response,
   operation: 'find email' | 'verify email'

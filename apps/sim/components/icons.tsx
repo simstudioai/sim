@@ -2892,35 +2892,41 @@ export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
  */
 export function ForagerIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 30 31' fill='none' role='img' xmlns='http://www.w3.org/2000/svg'>
+    <svg
+      {...props}
+      viewBox='0 0 30 31'
+      fill='none'
+      aria-hidden='true'
+      xmlns='http://www.w3.org/2000/svg'
+    >
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M0 6L12.5 13.4597V31L8.84615 28.9839V15.6774L0 10.2339V6Z'
+        d='M0 6L12.5 13.46V31L8.846 28.984V15.677L0 10.234V6Z'
         fill='currentColor'
       />
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M30 6L17.5 13.4597V31L21.1538 28.9839V15.6774L30 10.2339V6Z'
+        d='M30 6L17.5 13.46V31L21.154 28.984V15.677L30 10.234V6Z'
         fill='currentColor'
       />
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M4 3.29167L14.5238 9.75L25.25 3.29167L21.8095 1L14.5238 5.16667L7.64286 1L4 3.29167Z'
+        d='M4 3.292L14.524 9.75L25.25 3.292L21.81 1L14.524 5.167L7.643 1L4 3.292Z'
         fill='currentColor'
       />
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M23.75 17.5698L30 13.5V18.1802L23.75 22.25V17.5698Z'
+        d='M23.75 17.57L30 13.5V18.18L23.75 22.25V17.57Z'
         fill='currentColor'
       />
       <path
         fillRule='evenodd'
         clipRule='evenodd'
-        d='M6.25 17.5698L0 13.5V18.1802L6.25 22.25V17.5698Z'
+        d='M6.25 17.57L0 13.5V18.18L6.25 22.25V17.57Z'
         fill='currentColor'
       />
     </svg>
@@ -2930,7 +2936,13 @@ export function ForagerIcon(props: SVGProps<SVGSVGElement>) {
 /** FullEnrich brand mark adapted from the official monochrome logo. */
 export function FullEnrichIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 336 336' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <svg
+      {...props}
+      viewBox='0 0 336 336'
+      fill='none'
+      aria-hidden='true'
+      xmlns='http://www.w3.org/2000/svg'
+    >
       <path
         d='M171.634 53.137c-.784-3.784-6.183-3.8-6.989-.02l-4.953 23.2c-2.261 10.596-10.631 18.818-21.265 20.89l-21.168 4.125c-3.831.746-3.859 6.218-.036 7.003l21.443 4.405c10.509 2.159 18.747 10.328 20.994 20.819l4.9 22.887c.806 3.768 6.185 3.763 6.985-.007l4.849-22.853c2.229-10.505 10.466-18.695 20.983-20.864l21.535-4.441c3.825-.789 3.79-6.264-.044-7.004l-21.115-4.074c-10.712-2.067-19.132-10.371-21.347-21.054l-4.772-23.012Z'
         fill='currentColor'
@@ -5134,7 +5146,13 @@ export function MicrosoftSharepointIcon(props: SVGProps<SVGSVGElement>) {
 
 export function MicrosoftPlannerIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='none'
+      aria-hidden='true'
+      xmlns='http://www.w3.org/2000/svg'
+    >
       <path
         d='M8.26 15.74C7.22 16.77 5.55 16.77 4.52 15.74L0.77 12C-0.26 10.97 -0.26 9.29 0.77 8.26L4.52 4.52C5.55 3.48 7.22 3.48 8.26 4.52L12 8.26C13.03 9.29 13.03 10.97 12 12L8.26 15.74Z'
         fill='#185ABD'
@@ -9328,7 +9346,7 @@ export function ZeliqIcon(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
     >
       <path
-        d='M109.983 0C111.014 0 111.407 1.3444 110.54 1.90005L70.5964 27.478C69.9628 27.8837 69.9628 28.8095 70.5964 29.2152L90.7169 42.1C91.5846 42.6556 91.191 44 90.1606 44H1.03331C0.00400424 44 -0.390355 42.6579 0.47534 42.1011L40.2905 16.4923C40.9218 16.0862 40.9218 15.1633 40.2905 14.7573L20.2982 1.89894C19.4325 1.34215 19.8269 0 20.8562 0H109.983Z'
+        d='M109.983 0C111.014 0 111.407 1.344 110.54 1.9L70.596 27.478C69.963 27.884 69.963 28.81 70.596 29.215L90.717 42.1C91.585 42.656 91.191 44 90.161 44H1.033C0.004 44 -0.39 42.658 0.475 42.101L40.291 16.492C40.922 16.086 40.922 15.163 40.291 14.757L20.298 1.899C19.433 1.342 19.827 0 20.856 0H109.983Z'
         fill='#62D762'
       />
     </svg>
