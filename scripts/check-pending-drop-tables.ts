@@ -318,22 +318,31 @@ function collectTableBindings(
   }
   visitImports(program)
 
-  const visitAliases = (node: SyntaxNode) => {
-    if (node.type === 'VariableDeclarator' && isSyntaxNode(node.init)) {
-      const init = unwrap(node.init)
-      if (init?.type === 'CallExpression' && identifierName(init.callee) === 'alias') {
-        const canonical = resolveTable(
-          Array.isArray(init.arguments) ? init.arguments[0] : undefined,
-          pendingTables,
-          bindings
-        )
+  /**
+   * Any `const x = <table expression>` re-binds the table, whether the right
+   * side is the table itself, a namespace member, an earlier binding, or an
+   * `alias()` call. Repeats to a fixpoint so a chain of bindings resolves
+   * regardless of declaration order; each pass adds at least one binding, and
+   * bindings are bounded by the declarator count, so it terminates.
+   */
+  let changed = true
+  while (changed) {
+    changed = false
+    const visitAssignments = (node: SyntaxNode) => {
+      if (node.type === 'VariableDeclarator' && isSyntaxNode(node.init)) {
         const bound = propertyName(node.id)
-        if (canonical && bound) bindings.locals.set(bound, canonical)
+        if (bound && !bindings.locals.has(bound) && !pendingTables.has(bound)) {
+          const canonical = resolveTable(node.init, pendingTables, bindings)
+          if (canonical) {
+            bindings.locals.set(bound, canonical)
+            changed = true
+          }
+        }
       }
+      for (const child of getChildNodes(node)) visitAssignments(child)
     }
-    for (const child of getChildNodes(node)) visitAliases(child)
+    visitAssignments(program)
   }
-  visitAliases(program)
 
   return bindings
 }
