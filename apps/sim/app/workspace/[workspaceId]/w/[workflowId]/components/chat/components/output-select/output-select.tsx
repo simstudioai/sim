@@ -269,8 +269,13 @@ export function OutputSelect({
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
+      overlayLabel={selectedDisplayText}
       overlayContent={
-        <OverflowText label={selectedDisplayText} className='text-[var(--text-primary)]' />
+        <OverflowText
+          label={selectedDisplayText}
+          className='block w-full text-[var(--text-primary)]'
+          tooltipEnabled={false}
+        />
       }
       disabled={disabled || workflowOutputs.length === 0}
       align={align}

@@ -23,6 +23,8 @@ export interface OverflowTextProps {
   className?: string
   /** Forces the tooltip when the visible label was shortened before rendering. */
   showWhen?: boolean
+  /** Whether the full-value tooltip may open. Disable for visual mirror layers. */
+  tooltipEnabled?: boolean
 }
 
 /**
@@ -38,11 +40,12 @@ export const OverflowText = memo(function OverflowText({
   children,
   className,
   showWhen,
+  tooltipEnabled = true,
 }: OverflowTextProps) {
   const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(label)
   const { state, handlers } = useFloatingTooltip(() => {
     const element = node.current
-    if (!element || label.length === 0) return false
+    if (!tooltipEnabled || !element || label.length === 0) return false
     return Boolean(showWhen) || isTextClipped(element)
   })
 
@@ -50,6 +53,7 @@ export const OverflowText = memo(function OverflowText({
     <>
       <span
         ref={textRef}
+        data-overflow-text=''
         className={cn(
           className,
           'min-w-0 overflow-hidden text-clip whitespace-nowrap',

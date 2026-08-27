@@ -1969,8 +1969,13 @@ export function Files() {
             multiSelect
             multiSelectValues={typeFilter}
             onMultiSelectChange={setTypeFilter}
+            overlayLabel={typeDisplayLabel}
             overlayContent={
-              <OverflowText label={typeDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={typeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -1988,8 +1993,13 @@ export function Files() {
             multiSelect
             multiSelectValues={sizeFilter}
             onMultiSelectChange={setSizeFilter}
+            overlayLabel={sizeDisplayLabel}
             overlayContent={
-              <OverflowText label={sizeDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={sizeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'

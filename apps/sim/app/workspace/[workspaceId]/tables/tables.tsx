@@ -692,8 +692,13 @@ export function Tables() {
             multiSelect
             multiSelectValues={rowCountFilter}
             onMultiSelectChange={setRowCountFilter}
+            overlayLabel={rowCountDisplayLabel}
             overlayContent={
-              <OverflowText label={rowCountDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={rowCountDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -708,8 +713,13 @@ export function Tables() {
               multiSelect
               multiSelectValues={ownerFilter}
               onMultiSelectChange={setOwnerFilter}
+              overlayLabel={ownerDisplayLabel}
               overlayContent={
-                <OverflowText label={ownerDisplayLabel} className='text-[var(--text-primary)]' />
+                <OverflowText
+                  label={ownerDisplayLabel}
+                  className='block w-full text-[var(--text-primary)]'
+                  tooltipEnabled={false}
+                />
               }
               searchable
               searchPlaceholder='Search members...'

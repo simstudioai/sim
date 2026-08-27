@@ -1464,15 +1464,20 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={selectedStatuses}
           onMultiSelectChange={handleStatusChange}
           placeholder='All statuses'
+          overlayLabel={statusDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
                   className='flex-shrink-0 rounded-[3px]'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <OverflowText label={statusDisplayLabel} />
+              <OverflowText
+                label={statusDisplayLabel}
+                className='block flex-1'
+                tooltipEnabled={false}
+              />
             </span>
           }
           showAllOption
@@ -1489,12 +1494,17 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={workflowIds}
           onMultiSelectChange={setWorkflowIds}
           placeholder='All workflows'
+          overlayLabel={workflowDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               )}
-              <OverflowText label={workflowDisplayLabel} />
+              <OverflowText
+                label={workflowDisplayLabel}
+                className='block flex-1'
+                tooltipEnabled={false}
+              />
             </span>
           }
           searchable
@@ -1513,8 +1523,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={folderIds}
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
+          overlayLabel={folderDisplayLabel}
           overlayContent={
-            <OverflowText label={folderDisplayLabel} className='text-[var(--text-primary)]' />
+            <OverflowText
+              label={folderDisplayLabel}
+              className='block w-full text-[var(--text-primary)]'
+              tooltipEnabled={false}
+            />
           }
           searchable
           searchPlaceholder='Search folders...'
@@ -1532,8 +1547,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={triggers}
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
+          overlayLabel={triggerDisplayLabel}
           overlayContent={
-            <OverflowText label={triggerDisplayLabel} className='text-[var(--text-primary)]' />
+            <OverflowText
+              label={triggerDisplayLabel}
+              className='block w-full text-[var(--text-primary)]'
+              tooltipEnabled={false}
+            />
           }
           searchable
           searchPlaceholder='Search triggers...'
@@ -1551,8 +1571,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
+            overlayLabel={timeDisplayLabel}
             overlayContent={
-              <OverflowText label={timeDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={timeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             className='w-full'
             maxHeight={320}

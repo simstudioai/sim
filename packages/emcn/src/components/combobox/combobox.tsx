@@ -94,8 +94,10 @@ export interface ComboboxProps
   disabled?: boolean
   /** Enable free-text input mode (default: false) */
   editable?: boolean
-  /** Custom overlay content for editable mode */
+  /** Visual content rendered over the selected value. */
   overlayContent?: ReactNode
+  /** Plain-text value represented by a visual overlay in non-editable mode. */
+  overlayLabel?: string
   /** Additional input props for editable mode */
   inputProps?: Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -173,6 +175,7 @@ const Combobox = memo(
         disabled,
         editable = false,
         overlayContent,
+        overlayLabel,
         inputProps = {},
         inputRef: externalInputRef,
         filterOptions = editable,
@@ -720,7 +723,9 @@ const Combobox = memo(
                   >
                     <OverflowText
                       label={
-                        multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)
+                        overlayLabel ??
+                        multiSelectLabel ??
+                        (selectedOption ? selectedOption.label : placeholder)
                       }
                       className={cn(
                         'flex-1',

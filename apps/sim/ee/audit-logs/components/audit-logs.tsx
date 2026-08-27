@@ -420,8 +420,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
+            overlayLabel={timeDisplayLabel}
             overlayContent={
-              <OverflowText label={timeDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={timeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             maxHeight={320}
             align='start'

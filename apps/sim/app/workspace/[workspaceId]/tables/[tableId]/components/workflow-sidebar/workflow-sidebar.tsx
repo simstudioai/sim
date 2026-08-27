@@ -764,7 +764,9 @@ export function WorkflowSidebarBody({
               <ArrowLeft className='size-[14px]' />
             </Button>
           )}
-          <OverflowText label={title} className='text-[var(--text-primary)] text-small' />
+          <h2 className='flex min-w-0'>
+            <OverflowText label={title} className='text-[var(--text-primary)] text-small' />
+          </h2>
         </div>
         <Button
           variant='ghost'

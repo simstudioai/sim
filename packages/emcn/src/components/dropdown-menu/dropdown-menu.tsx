@@ -81,13 +81,13 @@ const MENU_ROW_SELECTED_CLASS =
  * {@link withOverflowLabel}.
  */
 const MENU_ROW_SINGLE_LINE_CLASS =
-  'whitespace-nowrap [&>span]:min-w-0 [&>span]:overflow-hidden [&>span]:text-clip'
+  'whitespace-nowrap [&>span]:min-w-0 [&>span:not([data-overflow-text])]:truncate'
 
 /**
  * Wraps a row's bare text children in a truncating box so a label wider than
  * the menu uses the platform overflow treatment rather than being cut mid-word
- * at the surface edge. Consumers that already wrap their label in a `<span>`
- * are unaffected — the row's `[&>span]` rule truncates those in place.
+ * at the surface edge. Consumer-provided direct `<span>` labels retain an
+ * ellipsis fallback; a canonical {@link OverflowText} owns its fade and tooltip.
  *
  * Adjacent text is coalesced into a single box: a row is a flex container, so
  * wrapping `Insert row {n}` as two boxes would make them two flex items and

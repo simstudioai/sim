@@ -400,6 +400,7 @@ export function SettingsSidebar({
                         <OverflowText
                           label={item.label}
                           className='sidebar-collapse-hide text-[var(--text-body)]'
+                          tooltipEnabled={!showCollapsedTooltips}
                         />
                         {isLocked && (
                           <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>

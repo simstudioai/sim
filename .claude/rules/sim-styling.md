@@ -54,6 +54,8 @@ Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), n
 
 Use `OverflowText` from `@sim/emcn` for a constrained, single-line, read-only human label or title. It owns `min-w-0`, single-line clipping, the conditional edge fade, and the full-value floating tooltip; pass only layout and typography through `className`. Never combine a fade or hand-written `mask-image` with `truncate`, which leaves an ellipsis beneath the mask. Pass the full label to this component instead of shortening it in JavaScript first.
 
+For a non-editable `Combobox` visual overlay, pass the same plain value as `overlayLabel` and render the visible `OverflowText` with `block w-full` (or `block flex-1` beside an icon) plus `tooltipEnabled={false}`. The transparent interactive layer then owns the one reachable full-value tooltip while the visual layer owns the measured fade.
+
 Do not apply the fade universally to editable or mirrored input values, code, logs, paths, filenames that use intentional middle truncation, dense or virtualized grids, or a composite container that also holds icons/actions. Those keep their purpose-built overflow behavior. Multiline copy uses an intentional `line-clamp-*` treatment.
 
 ## Font Weight

@@ -753,8 +753,13 @@ export function Document({
               setEnabledFilter(values)
               setSelectedChunks(new Set())
             }}
+            overlayLabel={enabledDisplayLabel}
             overlayContent={
-              <OverflowText label={enabledDisplayLabel} className='text-[var(--text-primary)]' />
+              <OverflowText
+                label={enabledDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'

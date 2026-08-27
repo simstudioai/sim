@@ -110,5 +110,6 @@ describe('menu row labels', () => {
     )
 
     expect(row().querySelectorAll('span')).toHaveLength(1)
+    expect(row().className).toContain('[&>span:not([data-overflow-text])]:truncate')
   })
 })

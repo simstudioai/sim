@@ -118,6 +118,22 @@ describe('OverflowText', () => {
     expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
   })
 
+  it('can disable the tooltip for a visual mirror layer', () => {
+    act(() => root.render(<OverflowText label='A long workflow name' tooltipEnabled={false} />))
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 80, 180)
+    expect(label.className).toContain('mask-image:linear-gradient')
+
+    act(() => {
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+    expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
+  })
+
   it('keeps decorated visible content out of the plain tooltip label', () => {
     act(() =>
       root.render(
