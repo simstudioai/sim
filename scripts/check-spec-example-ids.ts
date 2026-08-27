@@ -33,7 +33,7 @@ const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 /**
  * Every example UUID the specs are allowed to publish, with what it stands for.
  *
- * Sentinels are covered structurally by {@link isSentinel} and are not listed here.
+ * The nil and max UUIDs are covered by {@link SENTINELS} and are not listed here.
  */
 const APPROVED: Record<string, string> = {
   '0f7c1a2e-9b3d-4c58-8a21-6d4e5f7a9b01': 'run id in the RUN_ID_CONFLICT error example',
@@ -56,18 +56,17 @@ const APPROVED: Record<string, string> = {
 }
 
 /**
- * All-zero and all-f sentinels read as synthetic on sight.
+ * The two UUIDs RFC 9562 reserves as sentinels: nil and max.
  *
- * Unlike a texture score this admits no real id even in principle: fewer than three distinct hex
- * digits across all 32 positions has probability on the order of 1e-27, so the family can be
- * covered by shape rather than enumerated one nil-UUID variant at a time.
- *
- * Takes an already-lowercased id: hex is case-insensitive, so counting `A` and `a` as two digits
- * would inflate the distinct count and admit ids this is meant to reject.
+ * Matched exactly rather than by shape. An earlier version accepted any id built from at most
+ * two distinct hex digits, which is astronomically unlikely for a generated id but is still a
+ * bypass of the approved list — and this check exists to be a list, not a shape test. Both
+ * values are used by the resources spec today.
  */
-function isSentinel(uuid: string): boolean {
-  return new Set(uuid.replace(/-/g, '')).size <= 2
-}
+const SENTINELS = new Set([
+  '00000000-0000-0000-0000-000000000000',
+  'ffffffff-ffff-ffff-ffff-ffffffffffff',
+])
 
 const specFiles = readdirSync(SPEC_DIR)
   .filter((file) => file.startsWith('openapi') && file.endsWith('.json'))
@@ -80,7 +79,7 @@ for (const file of specFiles) {
   const seen = new Set(contents.match(UUID_PATTERN) ?? [])
   for (const uuid of [...seen].sort()) {
     const normalized = uuid.toLowerCase()
-    if (normalized in APPROVED || isSentinel(normalized)) continue
+    if (normalized in APPROVED || SENTINELS.has(normalized)) continue
     findings.push(`  - ${file}: ${uuid}`)
   }
 }
