@@ -963,6 +963,7 @@ List Assets (Insight/CMDB) object schemas in Jira Service Management
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `startAt` | number | No | Pagination start index \(e.g., 0, 50\) |
 | `maxResults` | number | No | Maximum schemas to return \(e.g., 25, 50\) |
 | `includeCounts` | boolean | No | Include object and object-type counts per schema |
@@ -992,6 +993,7 @@ Get a single Assets (Insight/CMDB) object schema by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `schemaId` | string | Yes | The Assets object schema ID |
 
 #### Output
@@ -1017,6 +1019,7 @@ List object types within an Assets (Insight/CMDB) object schema
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `schemaId` | string | Yes | The Assets object schema ID to list object types for |
 | `excludeAbstract` | boolean | No | Exclude abstract object types from the result |
 
@@ -1044,6 +1047,7 @@ Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectTypeId` | string | Yes | The Assets object type ID |
 | `onlyValueEditable` | boolean | No | Return only attributes whose values can be edited |
 | `query` | string | No | Filter attributes by a search query |
@@ -1074,6 +1078,7 @@ Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. obj
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `qlQuery` | string | Yes | AQL query string \(e.g., objectType = "Host" AND "Operating System" = "Ubuntu"\) |
 | `page` | number | No | Page number \(1-based, defaults to 1\) |
 | `resultsPerPage` | number | No | Results per page \(e.g., 25, 50\) |
@@ -1105,6 +1110,7 @@ Get a single Assets (Insight/CMDB) object by ID, including its attribute values
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID |
 
 #### Output
@@ -1133,6 +1139,7 @@ Create an Assets (Insight/CMDB) object of a given object type. Attributes use ob
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectTypeId` | string | Yes | The object type ID to create the object under |
 | `attributes` | json | Yes | Array of attributes: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
 
@@ -1162,6 +1169,7 @@ Update an existing Assets (Insight/CMDB) object. Provide the attributes to chang
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID to update |
 | `attributes` | json | Yes | Array of attributes to set: \[\{ objectTypeAttributeId, objectAttributeValues: \[\{ value \}\] \}\] |
 | `objectTypeId` | string | No | Optional object type ID \(only if changing the type\) |
@@ -1192,6 +1200,7 @@ Delete an Assets (Insight/CMDB) object by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `objectId` | string | Yes | The Assets object ID to delete |
 
 #### Output

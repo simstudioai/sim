@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 import {
+  extractBlockSuppliedParamIds,
   extractUserSettableParamIds,
   getToolInfo,
   parseConstProperties,
@@ -163,5 +164,87 @@ describe('subBlock param extraction', () => {
     expect(() => extractUserSettableParamIds(`subBlocks: [\n  { id: 'operation' },\n`)).toThrow(
       /subBlocks/
     )
+  })
+})
+
+describe('hidden params supplied by the block mapper', () => {
+  const blockSource = (blockFile: string) =>
+    fs.readFileSync(path.join(import.meta.dirname, '../apps/sim/blocks/blocks', blockFile), 'utf-8')
+
+  const paramNames = async (toolId: string, blockFile: string) => {
+    const info = await getToolInfo(toolId, extractBlockSuppliedParamIds(blockSource(blockFile)))
+    return info?.params.map((param) => param.name) ?? []
+  }
+
+  it("keeps Cal.com's required attendee, assembled as result.attendee in the mapper", async () => {
+    expect(extractBlockSuppliedParamIds(blockSource('calcom.ts'))).toContain('attendee')
+    await expect(paramNames('calcom_create_booking', 'calcom.ts')).resolves.toContain('attendee')
+  })
+
+  it("keeps JSM's workspaceId, renamed from assetWorkspaceId in the mapper", async () => {
+    expect(extractBlockSuppliedParamIds(blockSource('jira_service_management.ts'))).toContain(
+      'workspaceId'
+    )
+    await expect(
+      paramNames('jsm_list_object_schemas', 'jira_service_management.ts')
+    ).resolves.toContain('workspaceId')
+  })
+
+  it('keeps the file params Textract renames from its document field', async () => {
+    const ids = extractBlockSuppliedParamIds(blockSource('textract.ts'))
+    expect(ids).toContain('file')
+    expect(ids).toContain('fileBack')
+    expect(ids).toContain('filePathBack')
+
+    const params = await paramNames('textract_analyze_id', 'textract.ts')
+    expect(params).toContain('file')
+    expect(params).toContain('fileBack')
+    expect(params).toContain('filePathBack')
+  })
+
+  it('keeps the Mistral parser file param, so its Input table is not empty', async () => {
+    await expect(paramNames('mistral_parser_v3', 'mistral_parse.ts')).resolves.toContain('file')
+  })
+
+  it('still drops resolver-derived hidden params with no user surface', async () => {
+    await expect(paramNames('jira_retrieve', 'jira.ts')).resolves.not.toContain('cloudId')
+    await expect(
+      paramNames('jsm_list_object_schemas', 'jira_service_management.ts')
+    ).resolves.not.toContain('cloudId')
+
+    const salesforce = await paramNames('salesforce_query', 'salesforce.ts')
+    expect(salesforce).not.toContain('idToken')
+    expect(salesforce).not.toContain('instanceUrl')
+
+    await expect(paramNames('netsuite_execute_suiteql', 'netsuite.ts')).resolves.not.toContain(
+      'instanceUrl'
+    )
+    await expect(paramNames('snowflake_execute_sql', 'snowflake.ts')).resolves.not.toContain(
+      'domain'
+    )
+    await expect(paramNames('pipedrive_get_deal', 'pipedrive.ts')).resolves.not.toContain(
+      'authStyle'
+    )
+    await expect(paramNames('zoho_desk_list_tickets', 'zoho-desk.ts')).resolves.not.toContain(
+      'apiDomain'
+    )
+  })
+
+  it('ignores a commented-out mapper assignment', () => {
+    const ids = extractBlockSuppliedParamIds(`
+      subBlocks: [{ id: 'operation' }],
+      tools: {
+        config: {
+          params: (params) => {
+            const result: Record<string, unknown> = {}
+            // result.commentedOut = params.nope
+            result.realOne = params.yes
+            return result
+          },
+        },
+      },
+    `)
+    expect(ids).toContain('realOne')
+    expect(ids).not.toContain('commentedOut')
   })
 })

@@ -200,7 +200,10 @@ interface BlockConfig {
     access?: string[]
   }
   operations?: OperationInfo[]
-  /** Param names the block exposes to the user via its own `subBlocks` (id or `canonicalParamId`). */
+  /**
+   * Param names the block itself supplies — via a `subBlocks` field (id or
+   * `canonicalParamId`) or via its `tools.config.params` mapper.
+   */
   userSettableParamIds?: string[]
   docsLink?: string
   [key: string]: any
@@ -733,6 +736,116 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
   }
 
   return [...ids]
+}
+
+/**
+ * Locates the bodies of every `tools.config.params` mapper in `scannable`.
+ *
+ * Returns `[start, end)` index pairs into `scannable` (a length-preserving blanked copy, so
+ * the same indices address the original content). A file can hold several block configs
+ * (Textract ships a v1 and a v2 block), so every `tools` object is scanned rather than only
+ * the first. Handles both `params: (params) => { ... }` and the concise
+ * `params: (params) => ({ ... })` form.
+ */
+function findMapperBodyRanges(scannable: string): [number, number][] {
+  const ranges: [number, number][] = []
+  const toolsRegex = /\btools\s*:\s*\{/g
+  let toolsMatch: RegExpExecArray | null
+
+  while ((toolsMatch = toolsRegex.exec(scannable)) !== null) {
+    const toolsEnd = findMatchingClose(scannable, toolsMatch.index + toolsMatch[0].length - 1)
+    if (toolsEnd === -1) continue
+    toolsRegex.lastIndex = toolsEnd
+
+    const toolsRegion = scannable.slice(toolsMatch.index, toolsEnd)
+    const configMatch = /\bconfig\s*:\s*\{/.exec(toolsRegion)
+    if (!configMatch) continue
+    const configStart = toolsMatch.index + configMatch.index + configMatch[0].length - 1
+    const configEnd = findMatchingClose(scannable, configStart)
+    if (configEnd === -1) continue
+
+    const configRegion = scannable.slice(configStart, configEnd)
+    const paramsMatch = /\bparams\s*(?::\s*)?\(/.exec(configRegion)
+    if (!paramsMatch) continue
+    const argsStart = configStart + paramsMatch.index + paramsMatch[0].length - 1
+    const argsEnd = findMatchingClose(scannable, argsStart, '(', ')')
+    if (argsEnd === -1) continue
+
+    const afterArgs = scannable.slice(argsEnd, configEnd)
+    const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
+    if (!bodyMatch) continue
+    const open = bodyMatch[1] as '(' | '{'
+    const bodyStart = argsEnd + bodyMatch[0].length - 1
+    const bodyEnd = findMatchingClose(scannable, bodyStart, open, open === '(' ? ')' : '}')
+    if (bodyEnd === -1) continue
+    ranges.push([bodyStart, bodyEnd])
+  }
+
+  return ranges
+}
+
+/**
+ * Collects the tool-param names a block's own `tools.config.params` mapper writes.
+ *
+ * A block can supply a hidden tool param without ever declaring a subBlock of that name:
+ * Cal.com assembles `result.attendee` from `attendeeName`/`attendeeEmail`/`attendeeTimeZone`,
+ * JSM renames its `assetWorkspaceId` field to `workspaceId`, and Textract renames its
+ * `document` field to `file`. All are user-driven and must stay documented, so this scan
+ * catches both shapes — `<anyIdentifier>.<param> = …` assignments (the accumulator is named
+ * `result` in one block and `parameters` in another, so the name is never assumed) and
+ * `<param>:` keys of the objects the mapper returns.
+ *
+ * The rule is deliberately biased toward keeping. Object keys are collected without proving
+ * they are top-level params, so a key on a nested object (Cal.com's `attendee.name`) can keep
+ * a same-named hidden param that the mapper never actually supplies. That false keep costs a
+ * reader one hard-to-set row; a false drop hides a required input — the exact failure this
+ * filter exists to prevent, and one it has already caused. When the two are in tension, keep.
+ *
+ * Scanning runs on the blanked copy, so a commented-out or string-embedded mapper cannot
+ * contribute names.
+ */
+export function extractMapperWrittenParamIds(blockContent: string): string[] {
+  const scannable = blankStringsAndComments(blockContent)
+  const ids = new Set<string>()
+
+  for (const [start, end] of findMapperBodyRanges(scannable)) {
+    const body = scannable.slice(start, end)
+
+    const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
+    let match: RegExpExecArray | null
+    while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
+
+    const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
+    while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
+
+    /**
+     * Quoted keys survive blanking only as their delimiters, so the name is read back from
+     * the original content at the same index — `blankStringsAndComments` is length-preserving.
+     */
+    const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
+    while ((match = quotedKeyRegex.exec(body)) !== null) {
+      const keyStart = start + match.index
+      const original = blockContent.slice(keyStart, keyStart + match[0].length)
+      const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(original)?.[2]
+      if (name) ids.add(name)
+    }
+  }
+
+  return [...ids]
+}
+
+/**
+ * Every param name the block itself supplies — via a user-facing `subBlocks` field or via
+ * its `tools.config.params` mapper. A hidden tool param in this set stays in the public
+ * Input table; the rest are genuinely resolver-derived and stay filtered out.
+ */
+export function extractBlockSuppliedParamIds(blockContent: string, blockName = 'block'): string[] {
+  return [
+    ...new Set([
+      ...extractUserSettableParamIds(blockContent, blockName),
+      ...extractMapperWrittenParamIds(blockContent),
+    ]),
+  ]
 }
 
 /**
@@ -1435,7 +1548,7 @@ function extractBlockConfigFromContent(
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
     let ownSettableParamIds: string[] = []
     try {
-      ownSettableParamIds = extractUserSettableParamIds(blockContent, blockName)
+      ownSettableParamIds = extractBlockSuppliedParamIds(blockContent, blockName)
     } catch (error) {
       /**
        * Recorded rather than rethrown so one unreadable block cannot drop itself from the
