@@ -456,7 +456,7 @@ const api: SimDesktopApi = {
     write: (terminalId: string, data: string, scopeId: string): void => {
       ipcRenderer.send('terminal:write', terminalId, data, scopeId)
     },
-    paste: (terminalId: string, scopeId: string): Promise<boolean> =>
+    paste: (terminalId: string, scopeId: string) =>
       ipcRenderer.invoke('terminal:paste', terminalId, scopeId),
     resize: (terminalId: string, cols: number, rows: number, scopeId: string): void => {
       ipcRenderer.send('terminal:resize', terminalId, cols, rows, scopeId)

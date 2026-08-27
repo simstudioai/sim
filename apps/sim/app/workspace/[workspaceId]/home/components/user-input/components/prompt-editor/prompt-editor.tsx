@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   OVERLAY_CLASSES,
@@ -78,6 +79,7 @@ export function PromptEditor({
    * Un-warming on blur would just re-open the race on the next focus.
    */
   const [hasFocused, setHasFocused] = useState(false)
+  const usePlainTextMode = value.length > PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
 
   /**
    * Autosize: grow the textarea to its full content height; the scroller caps
@@ -94,9 +96,10 @@ export function PromptEditor({
     const scroller = scrollerRef.current
     if (scroller) scroller.style.height = `${scroller.offsetHeight}px`
     textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
+    textarea.style.height = `${usePlainTextMode ? Math.min(textarea.scrollHeight, 240) : textarea.scrollHeight}px`
+    textarea.style.overflowY = usePlainTextMode ? 'auto' : 'hidden'
     if (scroller) scroller.style.height = ''
-  }, [textareaRef])
+  }, [textareaRef, usePlainTextMode])
 
   useLayoutEffect(() => {
     autosize()
@@ -151,6 +154,7 @@ export function PromptEditor({
   )
 
   const overlayContent = useMemo(() => {
+    if (usePlainTextMode) return null
     const contexts = editor.contexts
 
     if (!value) {
@@ -216,7 +220,7 @@ export function PromptEditor({
     }
 
     return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
-  }, [value, editor.contexts])
+  }, [value, editor.contexts, usePlainTextMode])
 
   return (
     <div
@@ -228,9 +232,11 @@ export function PromptEditor({
           height and the overlay fills it via `inset-0`, so both are flow
           children of the same scroller and co-scroll natively. */}
       <div className='relative'>
-        <div className={OVERLAY_CLASSES} aria-hidden='true'>
-          {overlayContent}
-        </div>
+        {!usePlainTextMode && (
+          <div className={OVERLAY_CLASSES} aria-hidden='true'>
+            {overlayContent}
+          </div>
+        )}
 
         <textarea
           ref={textareaRef}
@@ -242,6 +248,8 @@ export function PromptEditor({
           }
           onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}
+          data-paste-max-bytes={PASTE_LIMITS.CHAT_BYTES}
+          data-paste-max-characters={PASTE_LIMITS.CHAT_CHARACTERS}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
           onSelect={readOnly ? undefined : editor.handleSelectAdjust}
@@ -249,7 +257,12 @@ export function PromptEditor({
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
-          className={cn(TEXTAREA_BASE_CLASSES, readOnly && 'cursor-default caret-transparent')}
+          maxLength={PASTE_LIMITS.CHAT_CHARACTERS}
+          className={cn(
+            TEXTAREA_BASE_CLASSES,
+            usePlainTextMode && '!text-[var(--text-primary)]',
+            readOnly && 'cursor-default caret-transparent'
+          )}
         />
       </div>
 

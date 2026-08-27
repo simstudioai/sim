@@ -39,7 +39,7 @@ import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -201,6 +201,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
 
   const isFirstSaveRef = useRef(true)
+  const draftSaveTimerRef = useRef<number | null>(null)
+  const pendingDraftRef = useRef<{ key: string; payload: DraftPayload } | null>(null)
   useEffect(() => {
     if (isFirstSaveRef.current) {
       isFirstSaveRef.current = false
@@ -217,12 +219,31 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         size: f.size,
         ...(f.path ? { path: f.path } : {}),
       }))
-    useMothershipDraftsStore.getState().setDraft(draftScopeKeyRef.current, {
-      text: editor.value,
-      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
-      contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
-    })
+    pendingDraftRef.current = {
+      key: draftScopeKeyRef.current,
+      payload: {
+        text: editor.value,
+        fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+        contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
+      },
+    }
+    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      const pending = pendingDraftRef.current
+      if (pending) useMothershipDraftsStore.getState().setDraft(pending.key, pending.payload)
+      pendingDraftRef.current = null
+      draftSaveTimerRef.current = null
+    }, 200)
   }, [editor.value, files.attachedFiles, editor.contexts])
+
+  useEffect(
+    () => () => {
+      if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+      const pending = pendingDraftRef.current
+      if (pending) useMothershipDraftsStore.getState().setDraft(pending.key, pending.payload)
+    },
+    []
+  )
 
   const onContextRemoveRef = useRef(onContextRemove)
   onContextRemoveRef.current = onContextRemove

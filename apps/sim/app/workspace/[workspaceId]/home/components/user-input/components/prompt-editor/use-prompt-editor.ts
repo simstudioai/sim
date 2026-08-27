@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
+import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
@@ -733,7 +735,10 @@ export function usePromptEditor({
           previousValue,
           nextValue: finalValue,
         })
-      } else if (nextValue.length > previousValue.length + 1) {
+      } else if (
+        nextValue.length > previousValue.length + 1 &&
+        nextValue.length <= PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS
+      ) {
         // Multi-char insertion (paste, drag-drop, IME commit) — bulk convert all
         // matches and rewrite the textarea via `setRangeText` to keep the edit
         // in a single native undo step.
@@ -985,6 +990,26 @@ export function usePromptEditor({
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
+    const pastedPlainText = e.clipboardData?.getData('text/plain') ?? ''
+    if (pastedPlainText) {
+      const admission = assessTextPaste({
+        pastedText: pastedPlainText,
+        maxPastedBytes: PASTE_LIMITS.CHAT_BYTES,
+        maxPastedCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+        currentText: textarea.value,
+        selectionStart: textarea.selectionStart,
+        selectionEnd: textarea.selectionEnd,
+        maxResultBytes: PASTE_LIMITS.CHAT_BYTES,
+        maxResultCharacters: PASTE_LIMITS.CHAT_CHARACTERS,
+      })
+      if (!admission.accepted) {
+        e.preventDefault()
+        toast.warning('Paste is too large for a message', {
+          description: `Messages support up to ${PASTE_LIMITS.CHAT_CHARACTERS.toLocaleString()} characters. Attach the content as a file to send more without slowing the editor.`,
+        })
+        return
+      }
+    }
 
     // A selection copied from a file/table (Cmd+C) carries its context on a
     // custom clipboard type — paste it as a reference chip instead of plain text.
@@ -1018,7 +1043,7 @@ export function usePromptEditor({
     // paste-back. Rewrite each link span to its `@label ` token (the trailing
     // space is REQUIRED so useContextManagement's sync effect doesn't purge the
     // freshly-added context) and register the contexts directly.
-    const pastedText = e.clipboardData?.getData('text/plain') ?? ''
+    const pastedText = pastedPlainText
     const links = parseChipLinks(pastedText)
     if (links.length > 0) {
       e.preventDefault()

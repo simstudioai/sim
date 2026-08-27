@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -1693,6 +1694,28 @@ describe('registerIpcHandlers', () => {
     vi.mocked(clipboard.readText).mockReturnValue('')
     expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).toBe(false)
     expect(write).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized terminal paste before writing to the PTY', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    vi.mocked(clipboard.readText).mockReturnValue('x'.repeat(PASTE_LIMITS.TERMINAL_BYTES + 1))
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(
+      'too-large'
+    )
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('writes an admitted terminal paste in bounded chunks', async () => {
+    const { invoke } = collectHandlers()
+    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
+    const text = 'x'.repeat(70 * 1024)
+    vi.mocked(clipboard.readText).mockReturnValue(text)
+
+    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(write.mock.calls.map((call) => call[2]).join('')).toBe(text)
   })
 
   it('gates a command smuggled inside a fake OSC or DCS reply', () => {

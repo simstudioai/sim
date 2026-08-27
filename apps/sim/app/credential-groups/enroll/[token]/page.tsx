@@ -1,5 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
-import { Chip, ToastProvider } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -35,13 +35,11 @@ interface PageShellProps {
 
 function PageShell({ children }: PageShellProps) {
   return (
-    <ToastProvider>
-      <LogoShell footer={<SupportFooter position='static' />}>
-        <div className='mx-auto flex w-full max-w-[640px] flex-1 flex-col px-5 pt-16 pb-20 max-sm:pt-10'>
-          {children}
-        </div>
-      </LogoShell>
-    </ToastProvider>
+    <LogoShell footer={<SupportFooter position='static' />}>
+      <div className='mx-auto flex w-full max-w-[640px] flex-1 flex-col px-5 pt-16 pb-20 max-sm:pt-10'>
+        {children}
+      </div>
+    </LogoShell>
   )
 }
 
