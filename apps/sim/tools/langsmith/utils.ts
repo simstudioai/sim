@@ -47,7 +47,12 @@ export type LangsmithFeedbackValue = string | number | boolean | Record<string, 
  *   throws and the `catch` returns the original string.
  * - An array literal stays a string, since the schema has no array member.
  *
- * Idempotent: a value already coerced by the block layer is returned unchanged.
+ * Not idempotent, and deliberately called exactly once — from
+ * {@link file://./create_feedback.ts}'s `request.body`, which every surface
+ * (block, model tool call, Copilot) routes through. Applying it twice would
+ * unwrap a JSON-quoted string a second time, which is precisely how a user
+ * forces a categorical label that looks scalar: `"1"` would become the number
+ * `1`, `"true"` the boolean `true`, and `"null"` would be dropped entirely.
  */
 export const parseLangsmithFeedbackValue = (value: unknown): LangsmithFeedbackValue | undefined => {
   if (value === undefined || value === null) return undefined

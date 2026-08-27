@@ -1412,15 +1412,28 @@ Return ONLY the comment text - no explanations.`,
   outputs: {
     // Common outputs across all Jira operations
     ts: { type: 'string', description: 'Timestamp of the operation' },
+    success: { type: 'boolean', description: 'Whether the operation succeeded' },
 
-    // jira_retrieve (read) outputs
+    // jira_retrieve (read) outputs — the transformed issue is spread at the top
+    // level, so every field below sits alongside the raw `issue` object
     issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
     summary: { type: 'string', description: 'Issue summary/title' },
     description: { type: 'string', description: 'Issue description content' },
     created: { type: 'string', description: 'Issue creation date' },
     updated: { type: 'string', description: 'Issue last update date' },
-    status: { type: 'string', description: 'Issue status name' },
-    assignee: { type: 'string', description: 'Issue assignee display name or account ID' },
+    status: {
+      type: 'json',
+      description: 'Issue status object with id, name, description, and statusCategory',
+    },
+    statusName: { type: 'string', description: 'Issue status name (e.g., Open, In Progress)' },
+    assignee: {
+      type: 'json',
+      description: 'Assigned user object with accountId, displayName, and emailAddress',
+    },
+    assigneeName: {
+      type: 'string',
+      description: 'Assignee display name or account ID',
+    },
 
     // jira_write (create) outputs
     url: { type: 'string', description: 'URL to the created/accessed issue' },
@@ -1447,8 +1460,11 @@ Return ONLY the comment text - no explanations.`,
 
     // jira_add_comment, jira_update_comment outputs
     commentId: { type: 'string', description: 'Comment ID' },
-    commentBody: { type: 'string', description: 'Comment text content' },
-    author: { type: 'string', description: 'Comment author display name' },
+    body: { type: 'string', description: 'Comment text content' },
+    author: {
+      type: 'json',
+      description: 'Comment author object with accountId, displayName, and emailAddress',
+    },
 
     // jira_get_attachments outputs
     attachments: {
@@ -1478,7 +1494,11 @@ Return ONLY the comment text - no explanations.`,
 
     // jira_transition_issue outputs
     transitionId: { type: 'string', description: 'Applied transition ID' },
-    newStatus: { type: 'string', description: 'New status after transition' },
+    transitionName: { type: 'string', description: 'Applied transition name' },
+    toStatus: {
+      type: 'json',
+      description: 'Target status after transition, with id and name',
+    },
 
     // jira_create_issue_link outputs
     linkId: { type: 'string', description: 'Created link ID' },

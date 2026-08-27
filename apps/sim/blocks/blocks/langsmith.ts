@@ -2,7 +2,6 @@ import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
-import { parseLangsmithFeedbackValue } from '@/tools/langsmith/utils'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
   type: 'langsmith',
@@ -421,7 +420,7 @@ Common patch fields: outputs, end_time, status, error`,
             key: params.key,
             sessionId: params.feedback_session_id || params.session_id,
             score: parseScore(params.score),
-            value: parseLangsmithFeedbackValue(params.value),
+            value: params.value,
             comment: params.comment,
             correction: parseJsonValue(params.correction, 'correction'),
             feedbackSourceType: params.feedbackSourceType || undefined,
@@ -476,7 +475,7 @@ Common patch fields: outputs, end_time, status, error`,
     feedback_session_id: {
       type: 'string',
       description:
-        'UUID of the tracing project (session) the feedback belongs to. Optional — LangSmith accepts feedback without it',
+        "UUID of the tracing project (session) the feedback belongs to. LangSmith documents it as required and its SDK warns (or errors, on SmithDB-only deployments) without it. Left optional here so blocks saved against deployments that still resolve the run server-side keep working.",
     },
     session_name: { type: 'string', description: 'Session name' },
     status: { type: 'string', description: 'Run status' },

@@ -549,23 +549,29 @@ describe('langsmith feedback session_id documentation', () => {
   })
 })
 
-describe('langsmith feedback session_id is not enforced by LangSmith', () => {
+describe('langsmith feedback session_id documents both halves of the truth', () => {
   const toolDescription = langsmithCreateFeedbackTool.params.sessionId.description ?? ''
   const blockDescription = LangsmithBlock.inputs?.feedback_session_id?.description ?? ''
   const feedbackSessionSubBlock = LangsmithBlock.subBlocks.find(
     (subBlock) => subBlock.id === 'feedback_session_id'
   )
 
-  it('does not tell the model the OpenAPI spec marks session_id as required', () => {
-    expect(toolDescription).not.toMatch(/documents it as required|session_id is required/i)
+  it('never tells the model the SDK omits session_id, which is the failing shape', () => {
+    expect(toolDescription).not.toMatch(/sends feedback without|sdk (?:omits|does not send)/i)
   })
 
-  it('states that only key is required by POST /api/v1/feedback', () => {
-    expect(toolDescription).toMatch(/only `?key`? is required/i)
+  it('says LangSmith documents session_id as required', () => {
+    expect(toolDescription).toMatch(/documents (?:this|it) as required/i)
+    expect(toolDescription).toMatch(/warns|raises/i)
   })
 
-  it('does not claim in the block inputs that LangSmith requires it', () => {
-    expect(blockDescription).not.toMatch(/required by langsmith/i)
+  it('still explains that only key is in the OpenAPI required array', () => {
+    expect(toolDescription).toMatch(/only `?key`? is in the .*required array/i)
+  })
+
+  it('does not claim in the block inputs that LangSmith accepts feedback without it', () => {
+    expect(blockDescription).not.toMatch(/accepts feedback without it/i)
+    expect(blockDescription).toMatch(/documents it as required/i)
   })
 
   it('leaves the feedback Session ID subBlock optional so saved blocks keep validating', () => {
@@ -603,5 +609,53 @@ describe('langsmith batch post/patch shape guard', () => {
     const body = buildBody({ post: [{ name: 'run-a' }] })
     expect(Array.isArray(body.post)).toBe(true)
     expect((body.post as Record<string, unknown>[])[0]).toMatchObject({ name: 'run-a' })
+  })
+})
+
+describe('langsmith feedback value is coerced exactly once', () => {
+  const mapBlockParams = (value: string): Record<string, unknown> =>
+    (
+      LangsmithBlock.tools.config!.params as (p: Record<string, unknown>) => Record<string, unknown>
+    )({
+      operation: 'langsmith_create_feedback',
+      apiKey: 'test-key',
+      runId: 'run-1',
+      key: 'correctness',
+      value,
+    })
+
+  const bodyFromBlock = (value: string): Record<string, unknown> =>
+    resolveBody(
+      langsmithCreateFeedbackTool as never,
+      mapBlockParams(value) as unknown as LangsmithCreateFeedbackParams
+    )
+
+  it.each([
+    ['"1"', '1'],
+    ['"true"', 'true'],
+    ['"null"', 'null'],
+  ])(
+    'leaves a JSON-quoted %s untouched in the block param mapper',
+    (typed: string, _expected: string) => {
+      expect(mapBlockParams(typed).value).toBe(typed)
+    }
+  )
+
+  it.each([
+    ['"1"', '1'],
+    ['"true"', 'true'],
+    ['"null"', 'null'],
+  ])(
+    'keeps a JSON-quoted %s a string on the wire instead of double-coercing it',
+    (typed: string, expected: string) => {
+      const body = bodyFromBlock(typed)
+      expect(body).toHaveProperty('value')
+      expect(body.value).toBe(expected)
+    }
+  )
+
+  it('still coerces an unquoted numeric value exactly once through the block path', () => {
+    expect(bodyFromBlock('1').value).toBe(1)
+    expect(bodyFromBlock('true').value).toBe(true)
   })
 })

@@ -144,15 +144,24 @@ describe('linkedInSharePostTool.outputs', () => {
     expect(Object.keys(linkedInSharePostTool.outputs ?? {}).sort()).toEqual(['postId', 'postUrl'])
   })
 
-  it('names the ugcPost URN family that /v2/ugcPosts actually returns', () => {
-    const descriptions = [
-      linkedInSharePostTool.outputs?.postId?.description ?? '',
-      linkedInSharePostTool.outputs?.postUrl?.description ?? '',
-    ]
+  it('attributes the ugcPost id only to what LinkedIn documents: the create header', () => {
+    const postId = linkedInSharePostTool.outputs?.postId?.description ?? ''
 
-    for (const description of descriptions) {
-      expect(description).toContain('ugcPost')
-      expect(description).not.toMatch(/\bshare\b/i)
-    }
+    expect(postId).toContain('x-restli-id')
+    expect(postId).toContain('ugcPost')
+    expect(postId).not.toMatch(/never|always/i)
+  })
+
+  it('does not promise postUrl is gated on the ugcPost family the regex never checks', () => {
+    const postUrl = linkedInSharePostTool.outputs?.postUrl?.description ?? ''
+
+    expect(postUrl).not.toMatch(/ugcPost family/i)
+    expect(postUrl).toContain('urn:li:')
+  })
+
+  it('does not claim postUrl is absent only when postId is', () => {
+    const postUrl = linkedInSharePostTool.outputs?.postUrl?.description ?? ''
+
+    expect(postUrl).toMatch(/or did not carry/i)
   })
 })

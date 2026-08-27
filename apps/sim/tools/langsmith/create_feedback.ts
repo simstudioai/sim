@@ -38,7 +38,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'UUID of the tracing project (session) the feedback belongs to. Optional — in the LangSmith OpenAPI spec only `key` is required by POST /api/v1/feedback, and the official SDK sends feedback without a session_id. Supply it when you have it: some LangSmith deployments cannot locate the run without it. Never guess it — use the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions.',
+        'UUID of the tracing project (session) the feedback belongs to. LangSmith documents this as required: "POST /api/v1/feedback now requires a session_id field in the request body. It was previously optional." The official SDK warns when it is omitted and raises outright on SmithDB-only deployments, because some LangSmith deployments cannot locate the run without it. Only `key` is in the endpoint\'s OpenAPI required array, so omitting session_id will not fail request validation — but always supply it when you have it. Never guess it — use the sessionId reported by a preceding langsmith_get_run for the same run, or look the project up with GET /api/v1/sessions.',
     },
     key: {
       type: 'string',

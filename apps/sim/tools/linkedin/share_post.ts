@@ -176,13 +176,13 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
     postId: {
       type: 'string',
       description:
-        'The `urn:li:ugcPost:` URN of the created post, read from the `x-restli-id` response header. Absent when LinkedIn omits that header.',
+        'The URN of the created post, read from the `x-restli-id` response header, which LinkedIn documents as carrying the ugcPost id. Reported as received. Absent when LinkedIn omits that header.',
       optional: true,
     },
     postUrl: {
       type: 'string',
       description:
-        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when the `x-restli-id` header was missing or did not carry a `urn:li:` URN of the ugcPost family.',
+        'LinkedIn URL of the created post. Viewable by an authorized LinkedIn member — not a guaranteed public permalink. Absent when the `x-restli-id` header was missing or did not carry a `urn:li:<entityType>:<id>` URN.',
       optional: true,
     },
   },
