@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_RUN_DETAIL_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevRescheduleRunTool: ToolConfig<
   TriggerDevRescheduleRunParams,
@@ -44,7 +45,7 @@ export const triggerDevRescheduleRunTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${encodeURIComponent(params.runId.trim())}/reschedule`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${safeUrlPathSegment(params.runId, 'runId')}/reschedule`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => ({ delay: params.delay }),

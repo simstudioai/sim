@@ -1,6 +1,7 @@
 import type { TriggerDevRunActionResponse, TriggerDevRunIdParams } from '@/tools/trigger_dev/types'
 import { buildTriggerDevHeaders, TRIGGER_DEV_API_BASE } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevCancelRunTool: ToolConfig<
   TriggerDevRunIdParams,
@@ -29,7 +30,7 @@ export const triggerDevCancelRunTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v2/runs/${encodeURIComponent(params.runId.trim())}/cancel`,
+      `${TRIGGER_DEV_API_BASE}/api/v2/runs/${safeUrlPathSegment(params.runId, 'runId')}/cancel`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

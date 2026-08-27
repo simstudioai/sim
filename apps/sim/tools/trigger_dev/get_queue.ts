@@ -2,6 +2,7 @@ import type { TriggerDevQueueParams, TriggerDevQueueResponse } from '@/tools/tri
 import {
   buildTriggerDevHeaders,
   mapTriggerDevQueue,
+  safeTriggerDevPathSegment,
   TRIGGER_DEV_API_BASE,
   TRIGGER_DEV_QUEUE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
@@ -39,7 +40,7 @@ export const triggerDevGetQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDe
 
   request: {
     url: (params) => {
-      const base = `${TRIGGER_DEV_API_BASE}/api/v1/queues/${encodeURIComponent(params.queueName.trim())}`
+      const base = `${TRIGGER_DEV_API_BASE}/api/v1/queues/${safeTriggerDevPathSegment(params.queueName, 'queueName')}`
       return params.queueType ? `${base}?type=${encodeURIComponent(params.queueType)}` : base
     },
     method: 'GET',

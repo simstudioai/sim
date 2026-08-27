@@ -8,6 +8,7 @@ import {
   TRIGGER_DEV_API_BASE,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevUpdateRunMetadataTool: ToolConfig<
   TriggerDevUpdateRunMetadataParams,
@@ -41,7 +42,7 @@ export const triggerDevUpdateRunMetadataTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${encodeURIComponent(params.runId.trim())}/metadata`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${safeUrlPathSegment(params.runId, 'runId')}/metadata`,
     method: 'PUT',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => ({ metadata: parseJsonInput(params.metadata, 'metadata') ?? {} }),

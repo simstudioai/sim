@@ -17,6 +17,7 @@ import type {
   TriggerDevWaitpointToken,
 } from '@/tools/trigger_dev/types'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const TRIGGER_DEV_API_BASE = 'https://api.trigger.dev'
 
@@ -73,15 +74,57 @@ export async function resolveTriggerDevSuccess(response: Response): Promise<bool
 }
 
 /**
+ * Builds a traversal-safe path segment for a Trigger.dev parameter that may
+ * legitimately contain a `/`.
+ *
+ * `safeUrlPathSegment` rejects a separator outright, which is correct for the
+ * opaque prefixed identifiers this API is built from but wrong for two
+ * parameters. Trigger.dev's own SDK special-cases a `/` inside a queue
+ * parameter — `@trigger.dev/core`, `v3/apiClient/index.js`:
+ * `encodeURIComponent(value.replace(/\//g, "%2F"))` — which is only meaningful
+ * if a queue name may contain one, and a task identifier reaches the same
+ * routes through `queues.retrieve({ type: 'task', name })`. Rejecting a
+ * separator there would refuse a value the provider considers legal.
+ *
+ * Encoding is sufficient for a separator: `encodeURIComponent('a/b')` yields
+ * `a%2Fb`, which the WHATWG URL parser keeps verbatim inside a single segment.
+ * It is NOT sufficient for a dot segment — `.` and `..` are unreserved, so they
+ * survive encoding and the parser then removes them, popping a segment off a
+ * route that still carries the caller's bearer token. Those are rejected.
+ */
+export function safeTriggerDevPathSegment(value: string | number, paramName: string): string {
+  if (value === null || value === undefined) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  const trimmed = String(value).trim()
+
+  if (!trimmed) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  if (trimmed === '.' || trimmed === '..') {
+    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+
+  return encodeURIComponent(trimmed)
+}
+
+/**
  * Builds the URL for the environment variable endpoints of a project environment.
+ *
+ * `projectRef` (`proj_…`), the `dev | staging | prod` environment slug, and an
+ * environment variable name are all documented single-segment values, so each
+ * gets the strict guard. Against the live API an unguarded `..` here collapsed
+ * `DELETE .../envvars/{env}/{name}` onto the `.../envvars` collection.
  */
 export function buildTriggerDevEnvVarsUrl(
   projectRef: string,
   environment: string,
   name?: string
 ): string {
-  const base = `${TRIGGER_DEV_API_BASE}/api/v1/projects/${encodeURIComponent(projectRef.trim())}/envvars/${encodeURIComponent(environment.trim())}`
-  return name ? `${base}/${encodeURIComponent(name.trim())}` : base
+  const base = `${TRIGGER_DEV_API_BASE}/api/v1/projects/${safeUrlPathSegment(projectRef, 'projectRef')}/envvars/${safeUrlPathSegment(environment, 'environment')}`
+  return name ? `${base}/${safeUrlPathSegment(name, 'name')}` : base
 }
 
 /**

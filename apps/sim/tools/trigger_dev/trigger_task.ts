@@ -5,6 +5,7 @@ import type {
 import {
   buildTriggerDevHeaders,
   parseJsonInput,
+  safeTriggerDevPathSegment,
   splitCommaSeparated,
   TRIGGER_DEV_API_BASE,
 } from '@/tools/trigger_dev/utils'
@@ -88,7 +89,7 @@ export const triggerDevTriggerTaskTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/tasks/${encodeURIComponent(params.taskIdentifier.trim())}/trigger`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/tasks/${safeTriggerDevPathSegment(params.taskIdentifier, 'taskIdentifier')}/trigger`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => {

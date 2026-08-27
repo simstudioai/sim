@@ -1,6 +1,7 @@
 import type { TriggerDevBatchIdParams, TriggerDevGetBatchResponse } from '@/tools/trigger_dev/types'
 import { buildTriggerDevHeaders, TRIGGER_DEV_API_BASE } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetBatchTool: ToolConfig<
   TriggerDevBatchIdParams,
@@ -29,7 +30,7 @@ export const triggerDevGetBatchTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/batches/${encodeURIComponent(params.batchId.trim())}`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/batches/${safeUrlPathSegment(params.batchId, 'batchId')}`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

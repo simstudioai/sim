@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_WAITPOINT_TOKEN_PROPERTIES,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetWaitpointTokenTool: ToolConfig<
   TriggerDevWaitpointIdParams,
@@ -37,7 +38,7 @@ export const triggerDevGetWaitpointTokenTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/waitpoints/tokens/${encodeURIComponent(params.waitpointId.trim())}`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/waitpoints/tokens/${safeUrlPathSegment(params.waitpointId, 'waitpointId')}`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },
