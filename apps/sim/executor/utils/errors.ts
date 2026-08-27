@@ -36,14 +36,25 @@ export function attachExecutionResult(error: Error, executionResult: ExecutionRe
   Object.assign(error, { executionResult })
 }
 
-const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
+/**
+ * Dispatched-run ids, keyed by the thrown value itself.
+ *
+ * A side table rather than a property on the error, for the same reason
+ * {@link markExecutionFinalizedByCore} keeps one: a thrown value is not reliably writable.
+ * `Object.assign` throws on a frozen or sealed failure, and guarding that throw would drop
+ * the marker instead — silently converting "this run exists" into "nothing started", which
+ * is the one direction that duplicates work. Identity keying also means no id can arrive
+ * through a prototype chain, and nothing is added to the error's own surface, so a
+ * serialized error carries no stray field.
+ */
+const attemptedExecutionIds = new WeakMap<object, string>()
 
 /**
  * Names the run a failure belongs to once dispatch has been attempted.
  *
  * A caller that only sees the thrown error cannot tell an authorization refusal — which
  * created nothing — from a crash after the run was already dispatched, and those need
- * opposite retry decisions. Attaching the id at the point of no return makes its absence
+ * opposite retry decisions. Recording the id at the point of no return makes its absence
  * mean "nothing was started" rather than "we do not know", and its presence a key that
  * resolves to zero or one executions.
  *
@@ -51,39 +62,25 @@ const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
  * result, this says only that it was dispatched.
  */
 export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
-  if (!isAttachableThrown(error) || !executionId) return
-  if (Object.hasOwn(error, ATTEMPTED_EXECUTION_ID)) return
-  /**
-   * A frozen or sealed failure would otherwise throw here and replace the original error
-   * partway through cleanup, turning a diagnostic aid into the thing that loses the
-   * diagnosis. Losing the id is the lesser failure, and the log still records the run.
-   */
-  try {
-    Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
-  } catch {}
+  if (!isRecordedThrown(error) || !executionId) return
+  if (attemptedExecutionIds.has(error)) return
+  attemptedExecutionIds.set(error, executionId)
 }
 
 /** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
 export function readAttemptedExecutionId(error: unknown): string | undefined {
-  /**
-   * Own property only. `in` would accept one reached through the prototype chain, which
-   * would let an unrelated run's id be disclosed for a refusal that started nothing.
-   */
-  if (!isAttachableThrown(error) || !Object.hasOwn(error, ATTEMPTED_EXECUTION_ID)) return undefined
-  const value = (error as Record<string, unknown>)[ATTEMPTED_EXECUTION_ID]
-  return typeof value === 'string' && value.length > 0 ? value : undefined
+  return isRecordedThrown(error) ? attemptedExecutionIds.get(error) : undefined
 }
 
 /**
  * Any non-null object, not only an `Error`.
  *
  * Restricting this to `Error` would silently invert the invariant for a thrown plain object:
- * the id would not attach, the absence would then read as "nothing was started", and the
- * caller would retry a run that already exists — the exact duplicate-side-effect outcome
- * this id exists to prevent. A thrown primitive cannot carry a property at all, so callers
- * that must not lose the id normalize before attaching.
+ * no id would be recorded, its absence would read as "nothing was started", and the caller
+ * would retry a run that already exists. A thrown primitive cannot be keyed at all, which
+ * costs nothing today because every throw site past the dispatch boundary raises an `Error`.
  */
-function isAttachableThrown(value: unknown): value is Record<string, unknown> {
+function isRecordedThrown(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 

@@ -157,6 +157,21 @@ describe('a withheld run_workflow result', () => {
     expect(views[2]).toContain(EXECUTION_ID)
   })
 
+  /** A frozen failure cannot take a property, and losing the id here would invite a duplicate run. */
+  it('still names the run when the failure cannot be written to', async () => {
+    const error = Object.freeze(new Error('crashed'))
+    attachAttemptedExecutionId(error, EXECUTION_ID)
+    mocks.executeWorkflowUseCase.mockRejectedValue(error)
+
+    const { result } = await withheld(await executeRunWorkflow({ workflowId: 'wf-1' }, context))
+
+    expect(modelOutput(result)).toEqual({
+      resultWithheld: true,
+      effect: 'attempted',
+      executionId: EXECUTION_ID,
+    })
+  })
+
   it('never lets the withheld payload carry the run content past the boundary', async () => {
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: false,

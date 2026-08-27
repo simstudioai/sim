@@ -68,7 +68,7 @@ import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { readAttemptedExecutionId } from '@/executor/utils/errors'
+import { attachAttemptedExecutionId, readAttemptedExecutionId } from '@/executor/utils/errors'
 
 const principal = {
   kind: 'delegated' as const,
@@ -326,9 +326,9 @@ describe('Copilot workflow run application commands', () => {
 
     it('passes through the id executeWorkflow attached at its dispatch boundary', async () => {
       mocks.executeWorkflow.mockImplementationOnce(() => {
-        // Exactly what the execution core does once its logging session has started.
+        // Exactly what the execution core does once a block could have run.
         const dispatchFailure = new Error('database unavailable')
-        Object.assign(dispatchFailure, { attemptedExecutionId: 'child-execution-1' })
+        attachAttemptedExecutionId(dispatchFailure, 'child-execution-1')
         throw dispatchFailure
       })
 
