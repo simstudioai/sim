@@ -505,25 +505,31 @@ export class ExecutionEngine {
       this.context.finalOutputResolvedSecretTraceProvenance = state.resolvedSecretTraceProvenance
       return
     }
+    /**
+     * A block state without provenance is an absence of a shortcut, not a verdict. Several state
+     * writers legitimately store an output without one — a subflow sentinel aggregating iteration
+     * results is the common case, and a loop that ran no iterations has nothing to merge — so
+     * stamping an incomplete envelope here declared the run unvouchable whenever the last block
+     * was one of them. Every other consumer of a provenance-less block state falls back to the run
+     * registry; deriving does the same, against the value actually being described.
+     */
+    this.deriveFinalOutputProvenance()
+  }
 
-    if (this.context.resolvedSecretTraceRegistry) {
-      this.context.finalOutputResolvedSecretTraceProvenance = {
-        version: 1,
-        complete: false,
-        entries: [],
-      }
-    }
+  /**
+   * Derives the final-output envelope from the run registry. Fails closed on its own terms: a
+   * latched registry exports an incomplete envelope, which is the genuinely unvouchable case.
+   */
+  private deriveFinalOutputProvenance(): void {
+    const registry = this.context.resolvedSecretTraceRegistry
+    if (!registry) return
+    this.context.finalOutputResolvedSecretTraceProvenance =
+      registry.exportCommittedProvenanceForValue(this.finalOutput)
   }
 
   private ensureFinalOutputProvenance(): void {
-    if (
-      Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance') ||
-      !this.context.resolvedSecretTraceRegistry
-    ) {
-      return
-    }
-    this.context.finalOutputResolvedSecretTraceProvenance =
-      this.context.resolvedSecretTraceRegistry.exportCommittedProvenanceForValue(this.finalOutput)
+    if (Object.hasOwn(this.context, 'finalOutputResolvedSecretTraceProvenance')) return
+    this.deriveFinalOutputProvenance()
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

@@ -233,6 +233,81 @@ describe('ExecutionEngine', () => {
       expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.entries).toEqual([])
     })
 
+    /**
+     * A subflow sentinel stores its aggregate without provenance, and a loop that ran no
+     * iterations has none to merge. Treating that absence as a verdict marked the run
+     * unvouchable, which withheld the user's own final output from their execution log on every
+     * later view.
+     */
+    it('derives final output provenance when the last block state carries none', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value-1234')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      const provenance = result.executionState?.finalOutputResolvedSecretTraceProvenance
+      expect(provenance?.complete).toBe(true)
+      expect(provenance?.entries).toEqual([{ name: 'TOKEN', encryptedValue: 'ciphertext' }])
+    })
+
+    /** Deriving must not weaken the guarantee: a latched registry still exports incomplete. */
+    it('keeps the final output envelope incomplete when the registry latched', async () => {
+      const node = createMockNode('loop-1', 'loop')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.markIncomplete('unspecified')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockResolvedValue({
+        nodeId: node.id,
+        output: { results: ['secret-value-1234'] },
+        isFinalOutput: true,
+      })
+      vi.mocked(nodeOrchestrator.handleNodeCompletion).mockImplementation(
+        (_ctx, nodeId, output) => {
+          context.blockStates.set(nodeId, { output, executed: true, executionTime: 1 })
+        }
+      )
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+      const result = await engine.run(node.id)
+
+      expect(result.executionState?.finalOutputResolvedSecretTraceProvenance?.complete).toBe(false)
+    })
+
     it('should not fall back to starter blocks for terminal resume snapshots', async () => {
       const startNode = createMockNode('start', 'starter')
       const dag = createMockDAG([startNode])
