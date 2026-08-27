@@ -5,10 +5,13 @@
  * path against path traversal.
  *
  * The index name and object ID are `visibility: 'user-or-llm'`, so prompt
- * injection controls them. A value like `..` pops a path segment once `fetch`
- * normalizes the URL, re-aiming the request and the caller's admin API key at
- * a sibling endpoint — `DELETE /1/indexes/<index>/<objectID>` becomes
- * `DELETE /1/indexes/<index>`, deleting the whole index instead of one record.
+ * injection controls them. A value of exactly `.` pops nothing but the record:
+ * `DELETE /1/indexes/myindex/.` normalizes to `DELETE /1/indexes/myindex`,
+ * deleting the whole index instead of one record. A value of exactly `..` pops
+ * one segment further — `/1/indexes/myindex/..` becomes `/1/indexes/` — re-aiming
+ * the request and the caller's admin API key at the list-indices route. Both were
+ * verified through `new URL(...)`; neither is the "delete the index" escalation
+ * the other one is, so both are rejected.
  *
  * `applicationId` is deliberately NOT asserted on here: it is interpolated
  * into the HOST (`https://<appId>-dsn.algolia.net`), not the path, and the
@@ -21,6 +24,14 @@
  * resolves the built URL through `new URL(...)` — the same normalization
  * `fetch` performs — and compares *segment shape* rather than template text,
  * because `pathname.startsWith(prefix)` stays green after a segment is popped.
+ *
+ * The vector lists are **per parameter**, because the two path parameters do
+ * not share a charset. Algolia validates `indexName` (`/1/indexes/instant%2Fsearch/settings`
+ * → `400 indexName is not valid`) but not `objectID`: `foo%2Fbar` and a
+ * URL-keyed id both return `404 ObjectID does not exist`, i.e. well-formed but
+ * absent, and Algolia's own conformance suite exercises `Batman and Robin`.
+ * A single shared list that contained no `/`-bearing legitimate value is what
+ * let a guard rejecting `/` in `objectID` ship green.
  */
 import { describe, expect, it } from 'vitest'
 import * as toolModule from '@/tools/algolia/index'
@@ -28,8 +39,25 @@ import type { ToolConfig } from '@/tools/types'
 
 type AnyTool = ToolConfig<any, any>
 
-/** Vectors the guard must reject outright; no encoding neutralizes them. */
-const REJECTED = ['..', '.', '  ..  ', 'a/../../b', '\\..\\..'] as const
+/**
+ * Parameters whose value is an opaque record id rather than a named resource.
+ * Algolia treats `objectID` as an arbitrary string — a `/` inside it is a
+ * legal, common (URL-keyed) id, not a separator — so it is guarded by
+ * collapsing the whole value into one percent-encoded segment instead of
+ * rejecting separators.
+ */
+const OPAQUE_ID_PARAMS = new Set(['objectID'])
+
+/** No encoding scheme neutralizes these; every guard must reject them. */
+const DOT_SEGMENT_VECTORS = ['..', '.', '  ..  '] as const
+
+/**
+ * Separator-bearing vectors. These are rejected only by parameters that
+ * address a *named* resource, where a separator means the caller passed
+ * something other than what the parameter addresses. For an opaque id they are
+ * legitimate values and appear in {@link OPAQUE_LEGITIMATE} instead.
+ */
+const SEPARATOR_VECTORS = ['a/../../b', '\\..\\..'] as const
 
 /**
  * Vectors `encodeURIComponent` genuinely does neutralize — `%` and `?` are
@@ -49,6 +77,32 @@ const LEGITIMATE = [
   'foo..',
 ] as const
 
+/**
+ * Legitimate ids that only an opaque-id parameter accepts. The URL-keyed form
+ * is the common site-search pattern; `Batman and Robin` is lifted from
+ * Algolia's own client conformance suite (`/1/indexes/cts_e2e_browse/Batman%20and%20Robin`
+ * → 200); `a/../../b` and `docs/` are legal ids whose dot and trailing
+ * separators must survive as inert `%2F`-joined text rather than be rejected
+ * or emitted as real separators.
+ */
+const OPAQUE_LEGITIMATE = [
+  'https://example.com/docs/getting-started',
+  'Batman and Robin',
+  'foo/bar',
+  'a/../../b',
+  'docs/',
+] as const
+
+function rejectedFor(param: string): readonly string[] {
+  return OPAQUE_ID_PARAMS.has(param)
+    ? DOT_SEGMENT_VECTORS
+    : [...DOT_SEGMENT_VECTORS, ...SEPARATOR_VECTORS]
+}
+
+function legitimateFor(param: string): readonly string[] {
+  return OPAQUE_ID_PARAMS.has(param) ? [...LEGITIMATE, ...OPAQUE_LEGITIMATE] : LEGITIMATE
+}
+
 const ID_PREFIX = 'SAFE'
 const TOOL_ID_PREFIX = 'algolia_'
 
@@ -66,9 +120,9 @@ function isTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Number-typed parameters are stringified into the path by the tool
- * (`algolia_get_task_status` does `String(params.taskID)`), so they need a
- * numeric marker to be discoverable at all. Skipping them would silently drop
+ * Number-typed parameters (`algolia_get_task_status`'s `taskID`) reach the
+ * guard as a JSON number and are stringified by `toGuardedString`, so they need
+ * a numeric marker to be discoverable at all. Skipping them would silently drop
  * a real guard site from coverage.
  */
 const NUMBER_MARKERS = new Map<string, string>()
@@ -153,7 +207,7 @@ describe('Algolia path-parameter traversal safety', () => {
         expect(slot).toBeGreaterThan(0)
       })
 
-      it.each(REJECTED)('rejects %j instead of reshaping the path', (value) => {
+      it.each(rejectedFor(param))('rejects %j instead of reshaping the path', (value) => {
         expect(() => buildUrl(tool, param, value)).toThrow(new RegExp(param))
       })
 
@@ -170,7 +224,7 @@ describe('Algolia path-parameter traversal safety', () => {
         expect(url.searchParams.get('foo')).toBeNull()
       })
 
-      it.each(LEGITIMATE)('passes %j through byte-identical', (value) => {
+      it.each(legitimateFor(param))('passes %j through byte-identical', (value) => {
         const url = buildUrl(tool, param, value)
         const segments = url.pathname.split('/')
 
@@ -181,6 +235,12 @@ describe('Algolia path-parameter traversal safety', () => {
             index === slot ? value : segment
           )
         })
+
+        expect(segments[slot]).toBe(encodeURIComponent(value))
+
+        if (encodeURIComponent(value) === value) {
+          expect(segments[slot]).toBe(value)
+        }
       })
     })
   })
@@ -209,5 +269,57 @@ describe('Algolia guards every path param independently', () => {
         expect(segments[index]).toBe(segment)
       })
     })
+  })
+})
+
+/**
+ * Pins the two dot-segment normalizations the guards exist to prevent, through
+ * the same `new URL(...)` the `fetch` implementation applies, and shows that the
+ * relaxation for opaque ids did not re-open either one.
+ *
+ * The escalation is asymmetric, which the previous docstring here had backwards:
+ * `.` pops only the record segment and leaves the *index* addressed — that is
+ * the "delete the whole index" vector on `DELETE /1/indexes/<index>/<objectID>`.
+ * `..` pops one further and lands on `/1/indexes/`, re-aiming the admin key at
+ * the list/create-index route. Both are rejected; neither is merely encoded.
+ */
+describe('Algolia dot-segment normalization', () => {
+  const RECORD_ROUTE = 'https://app.algolia.net/1/indexes/myindex/'
+
+  it('confirms "." collapses the record route onto the index itself', () => {
+    expect(new URL(`${RECORD_ROUTE}.`).pathname).toBe('/1/indexes/myindex/')
+  })
+
+  it('confirms ".." pops the index segment too', () => {
+    expect(new URL(`${RECORD_ROUTE}..`).pathname).toBe('/1/indexes/')
+    expect(encodeURIComponent('..')).toBe('..')
+  })
+
+  it('still rejects an exact dot segment in an opaque objectID', () => {
+    for (const { tool, pathParams } of PATH_TOOLS) {
+      for (const param of pathParams.filter((name) => OPAQUE_ID_PARAMS.has(name))) {
+        expect(() => buildUrl(tool, param, '.')).toThrow(new RegExp(param))
+        expect(() => buildUrl(tool, param, '..')).toThrow(new RegExp(param))
+      }
+    }
+  })
+
+  it('collapses a slash-bearing opaque objectID into one %2F-joined segment', () => {
+    const opaque = PATH_TOOLS.flatMap(({ tool, pathParams }) =>
+      pathParams.filter((name) => OPAQUE_ID_PARAMS.has(name)).map((name) => ({ tool, name }))
+    )
+
+    expect(opaque.length).toBeGreaterThan(0)
+
+    for (const { tool, name } of opaque) {
+      const baselineSegments = buildUrl(tool).pathname.split('/')
+      const url = buildUrl(tool, name, 'a/../../b')
+      const segments = url.pathname.split('/')
+      const slot = baselineSegments.indexOf(markerFor(name, (tool.params as any)[name]?.type))
+
+      expect(segments).toHaveLength(baselineSegments.length)
+      expect(segments[slot]).toBe('a%2F..%2F..%2Fb')
+      expect(decodeURIComponent(segments[slot])).toBe('a/../../b')
+    }
   })
 })

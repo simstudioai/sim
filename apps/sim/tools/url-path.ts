@@ -215,3 +215,59 @@ export function safeUrlPath(
     })
     .join('/')
 }
+
+/**
+ * Builds a single, traversal-safe URL path segment from an **opaque** identifier
+ * — one the provider treats as an arbitrary string, where a `/` is a legal
+ * character of the id rather than a separator.
+ *
+ * Neither of the helpers above fits that shape. {@link safeUrlPathSegment}
+ * rejects a `/` outright, which turns a legal id into a hard failure;
+ * {@link safeUrlPath} emits the `/` as a real separator, which addresses a
+ * *different* route. This helper takes the third position: reject only a value
+ * that is exactly `.` or `..`, then `encodeURIComponent` everything else, so
+ * `/` becomes `%2F` and the whole value collapses into one inert segment.
+ *
+ * Encoding-everything is safe precisely because the dot-segment case is
+ * rejected first. `encodeURIComponent('a/../b')` is `'a%2F..%2Fb'` — a single
+ * segment whose text merely *contains* dots, which the WHATWG URL parser leaves
+ * untouched because it only removes a segment that is exactly `.` or `..`. The
+ * rejection cannot be dropped: `encodeURIComponent('..')` returns `'..'`
+ * verbatim, and `new URL('https://x/1/indexes/idx/..').pathname` is
+ * `'/1/indexes/'` — popping the parent segment too, not just the record.
+ *
+ * Motivating case: an Algolia `objectID`. Algolia validates charset when it
+ * means to — `GET /1/indexes/instant%2Fsearch/settings` answers
+ * `400 indexName is not valid` — but a slashed or URL-shaped objectID answers
+ * `404 ObjectID does not exist`, i.e. the route matched and the id was accepted
+ * as well-formed. The OpenAPI declares `objectID` as a bare `type: string` with
+ * no `pattern` while constraining `userID` with one in the same file, the
+ * official JS client `encodeURIComponent`s it into the segment, and Algolia's
+ * own conformance suite exercises `Batman and Robin` →
+ * `/1/indexes/cts_e2e_browse/Batman%20and%20Robin` at 200. URL-keyed object ids
+ * are a common site-search pattern.
+ *
+ * Use this only where the provider genuinely documents the parameter as an
+ * opaque string. A parameter that names a resource (an index, a bucket, a
+ * repository) should keep {@link safeUrlPathSegment}, where a stray separator
+ * signals the caller passed the wrong thing.
+ *
+ * @param value - The raw identifier, typically LLM- or user-supplied. A number is
+ *   stringified, since an LLM can emit a numeric-looking id as a JSON number.
+ * @param paramName - The parameter name, used to name the offender in errors.
+ * @returns The trimmed, fully percent-encoded segment, `/` included.
+ * @throws If the value is empty or is exactly `.` or `..`.
+ */
+export function safeOpaqueUrlSegment(value: string | number, paramName: string): string {
+  const trimmed = toGuardedString(value, paramName).trim()
+
+  if (!trimmed) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  if (trimmed === '.' || trimmed === '..') {
+    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+
+  return encodeURIComponent(trimmed)
+}

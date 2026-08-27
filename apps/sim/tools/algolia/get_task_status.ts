@@ -44,7 +44,7 @@ export const getTaskStatusTool: ToolConfig<
   request: {
     method: 'GET',
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/task/${safeUrlPathSegment(String(params.taskID), 'taskID')}`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/task/${safeUrlPathSegment(params.taskID, 'taskID')}`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

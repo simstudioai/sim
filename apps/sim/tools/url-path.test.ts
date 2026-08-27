@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
+import { safeOpaqueUrlSegment, safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 const ORIGIN = 'https://api.example.com'
 
@@ -382,5 +382,61 @@ describe('safeUrlPath options', () => {
     expect(() => safeUrlPath(undefined as unknown as string, 'path', STORAGE)).toThrow(
       /path is required/
     )
+  })
+})
+
+/**
+ * `safeOpaqueUrlSegment` is the third position between the two helpers above:
+ * a `/` is neither rejected (as `safeUrlPathSegment` does) nor emitted as a
+ * real separator (as `safeUrlPath` does), but percent-encoded to `%2F` so the
+ * whole value stays one inert segment. Only an exact `.` or `..` is rejected,
+ * because that is the only spelling no encoding neutralizes.
+ */
+describe('safeOpaqueUrlSegment', () => {
+  it.concurrent.each(['..', '.', '  ..  ', '', '   '])('rejects %j', (value) => {
+    expect(() => safeOpaqueUrlSegment(value, 'objectID')).toThrow(/objectID/)
+  })
+
+  it.concurrent.each([
+    'foo/bar',
+    'https://example.com/docs/getting-started',
+    'Batman and Robin',
+    'a/../../b',
+    'docs/',
+    '/leading',
+    'a//b',
+    '\\..\\..',
+    '%2e%2e',
+    'x?foo=attacker',
+  ])('collapses %j into one inert segment', (value) => {
+    const url = new URL(`${ORIGIN}/1/indexes/idx/${safeOpaqueUrlSegment(value, 'objectID')}`)
+    const segments = url.pathname.split('/')
+
+    expect(segments).toHaveLength(5)
+    expect(segments.slice(0, 4)).toEqual(['', '1', 'indexes', 'idx'])
+    expect(decodeURIComponent(segments[4])).toBe(value)
+    expect(url.searchParams.get('foo')).toBeNull()
+  })
+
+  it.concurrent.each(['obj-123', 'my.record.v2', '..foo', 'foo..', 'products'])(
+    'preserves %j byte-identically',
+    (value) => {
+      expect(safeOpaqueUrlSegment(value, 'objectID')).toBe(value)
+    }
+  )
+
+  it.concurrent('trims and stringifies like the other helpers', () => {
+    expect(safeOpaqueUrlSegment('  obj-1  ', 'objectID')).toBe('obj-1')
+    expect(safeOpaqueUrlSegment(9_000_001, 'objectID')).toBe('9000001')
+    expect(() => safeOpaqueUrlSegment(null as unknown as string, 'objectID')).toThrow(/required/)
+    expect(() => safeOpaqueUrlSegment(undefined as unknown as string, 'objectID')).toThrow(
+      /required/
+    )
+  })
+
+  it.concurrent('differs from both neighbours on the same slashed value', () => {
+    expect(() => safeUrlPathSegment('foo/bar', 'objectID')).toThrow(/separator/)
+    expect(safeUrlPath('foo/bar', 'objectID')).toBe('foo/bar')
+    expect(safeOpaqueUrlSegment('foo/bar', 'objectID')).toBe('foo%2Fbar')
   })
 })

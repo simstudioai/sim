@@ -37,9 +37,54 @@ const SENTINEL = 'ZZSENTINELZZ'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
- * `encodeURIComponent`-only fix looks correct while the hole stays live.
+ * `encodeURIComponent`-only fix looks correct while the hole stays live. No
+ * encoding scheme neutralizes an exact dot segment, so these are rejected for
+ * EVERY path parameter in this file, opaque ids included. Do not relax them.
  */
-const REJECTED_VALUES = ['..', '.', '  ..  ', 'a/../../b', '\\..\\..'] as const
+const DOT_SEGMENT_VALUES = ['..', '.', '  ..  '] as const
+
+/**
+ * Separator-bearing vectors, rejected by every parameter that names a
+ * *resource* — where a stray `/` or `\\` means the caller passed something
+ * other than what the parameter addresses.
+ *
+ * They are deliberately NOT applied to {@link OPAQUE_ID_PARAMS}. Keeping them
+ * global is what let a false rejection ship green: this file and
+ * `algolia/path_safety.test.ts` both encoded "a separator is always hostile"
+ * as a universal truth, so neither suite could see a legitimate slashed id
+ * being turned away.
+ */
+const SEPARATOR_VALUES = ['a/../../b', '\\..\\..'] as const
+
+/**
+ * Parameters the provider documents as an **opaque string** rather than a
+ * named resource, where a `/` is a legal character of the id and not a
+ * separator. These are guarded by `safeOpaqueUrlSegment`, which rejects an
+ * exact dot segment and then percent-encodes everything else (`/` → `%2F`), so
+ * the value still collapses to exactly one inert path segment.
+ *
+ * Only `objectID` qualifies. Algolia documents no charset for it — the OpenAPI
+ * declares a bare `type: string` with no `pattern` while constraining `userID`
+ * with one in the same file, its own JS client `encodeURIComponent`s the value
+ * into the segment, and the API distinguishes the two cases itself:
+ * `/1/indexes/instant%2Fsearch/settings` answers `400 indexName is not valid`
+ * while a slashed or URL-shaped objectID answers `404 ObjectID does not exist`,
+ * i.e. well-formed but absent. URL-keyed object ids are a common site-search
+ * pattern.
+ *
+ * Every other path parameter in this file was separately verified as unable to
+ * contain a slash — Qdrant collection names, Box ids, X snowflakes, Spotify
+ * base-62 ids — so widening this set would re-open a real traversal. Add to it
+ * only with provider evidence of the same kind.
+ */
+const OPAQUE_ID_PARAMS = new Set(['objectID'])
+
+/** The vectors a given parameter must reject outright. */
+function rejectedValuesFor(param: string): readonly string[] {
+  return OPAQUE_ID_PARAMS.has(param)
+    ? DOT_SEGMENT_VALUES
+    : [...DOT_SEGMENT_VALUES, ...SEPARATOR_VALUES]
+}
 
 /**
  * Values the guard neutralizes by encoding rather than rejecting. These must
@@ -157,7 +202,7 @@ describe.each(SUITES)(
       const baselineUrl = buildUrl(tool, param, SENTINEL)
       const baseline = segmentsOf(baselineUrl)
 
-      it.each(REJECTED_VALUES)('rejects %j outright', (value) => {
+      it.each(rejectedValuesFor(param))('rejects %j outright', (value) => {
         expect(() => buildUrl(tool, param, value)).toThrow(new RegExp(param))
       })
 
@@ -293,5 +338,80 @@ describe('qdrant collection cannot escape /collections/<name>/', () => {
     expect(index).toBeGreaterThanOrEqual(0)
     expect(segments[index + 1]).toBe('my.collection')
     expect(segments[index + 2]).toBe('points')
+  })
+})
+
+/**
+ * Pins the opaque-id split as a narrowing for exactly ONE parameter rather than
+ * a general loosening, so a later edit cannot quietly widen it.
+ *
+ * The failure this file exists to catch is not just an unguarded parameter — it
+ * is a vector list that stops describing reality. Both halves are asserted
+ * structurally: every path parameter still rejects dot segments, and every path
+ * parameter except `objectID` still rejects separators.
+ */
+describe('the opaque-id carve-out stays narrow', () => {
+  const ALL_PATH_PARAMS = SUITES.flatMap(({ service, pairs }) =>
+    pairs.map(({ name, param, tool }) => ({ service, name, param, tool }))
+  )
+
+  it('relaxes separators for objectID and no other parameter', () => {
+    const relaxed = [
+      ...new Set(
+        ALL_PATH_PARAMS.filter(({ param }) => OPAQUE_ID_PARAMS.has(param)).map(
+          (entry) => entry.param
+        )
+      ),
+    ]
+
+    expect(relaxed).toEqual(['objectID'])
+    expect([...OPAQUE_ID_PARAMS]).toEqual(['objectID'])
+  })
+
+  it('keeps the separator vectors on every non-opaque path parameter', () => {
+    const strict = ALL_PATH_PARAMS.filter(({ param }) => !OPAQUE_ID_PARAMS.has(param))
+
+    expect(strict.length).toBeGreaterThan(0)
+    for (const { param } of strict) {
+      expect(rejectedValuesFor(param)).toEqual([...DOT_SEGMENT_VALUES, ...SEPARATOR_VALUES])
+    }
+  })
+
+  it('leaves all five services with separator coverage', () => {
+    for (const { service, pairs } of SUITES) {
+      const strict = pairs.filter(({ param }) => !OPAQUE_ID_PARAMS.has(param))
+      expect(`${service}:${strict.length > 0}`).toBe(`${service}:true`)
+      for (const { tool, param } of strict) {
+        for (const value of SEPARATOR_VALUES) {
+          expect(() => buildUrl(tool, param, value)).toThrow(new RegExp(param))
+        }
+      }
+    }
+  })
+
+  it('keeps the dot-segment vectors on every path parameter, opaque included', () => {
+    for (const { tool, param } of ALL_PATH_PARAMS) {
+      expect(rejectedValuesFor(param)).toEqual(expect.arrayContaining([...DOT_SEGMENT_VALUES]))
+      for (const value of DOT_SEGMENT_VALUES) {
+        expect(() => buildUrl(tool, param, value)).toThrow(new RegExp(param))
+      }
+    }
+  })
+
+  it('accepts a slashed objectID as one %2F-joined segment', () => {
+    const opaque = ALL_PATH_PARAMS.filter(({ param }) => OPAQUE_ID_PARAMS.has(param))
+
+    expect(opaque.length).toBeGreaterThan(0)
+    for (const { tool, param } of opaque) {
+      const baseline = segmentsOf(buildUrl(tool, param, SENTINEL))
+      const slot = baseline.indexOf(SENTINEL)
+      const value = 'https://example.com/docs/getting-started'
+      const actual = segmentsOf(buildUrl(tool, param, value))
+
+      expect(slot).toBeGreaterThanOrEqual(0)
+      expect(actual).toHaveLength(baseline.length)
+      expect(actual[slot]).toBe(encodeURIComponent(value))
+      expect(decodeURIComponent(actual[slot])).toBe(value)
+    }
   })
 })

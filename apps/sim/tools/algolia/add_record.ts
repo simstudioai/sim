@@ -1,6 +1,6 @@
 import type { AlgoliaAddRecordParams, AlgoliaAddRecordResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { safeOpaqueUrlSegment, safeUrlPathSegment } from '@/tools/url-path'
 
 export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordResponse> = {
   id: 'algolia_add_record',
@@ -45,7 +45,7 @@ export const addRecordTool: ToolConfig<AlgoliaAddRecordParams, AlgoliaAddRecordR
     url: (params) => {
       const base = `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}`
       if (params.objectID) {
-        return `${base}/${safeUrlPathSegment(params.objectID, 'objectID')}`
+        return `${base}/${safeOpaqueUrlSegment(params.objectID, 'objectID')}`
       }
       return base
     },
