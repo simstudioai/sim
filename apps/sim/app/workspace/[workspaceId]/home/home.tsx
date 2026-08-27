@@ -36,6 +36,10 @@ import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import {
+  resolveResourceEventPresentation,
+  resolveResourceSelectionUpdate,
+} from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
@@ -102,6 +106,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
+  const activeResourceParamRef = useRef(activeResourceParam)
+  activeResourceParamRef.current = activeResourceParam
   /**
    * Strips any leftover URL fragment on selection change, preserving the old
    * effect's `url.hash = ''` (the only hash usage on this surface) without a
@@ -114,11 +120,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
     (action) => {
+      const nextResourceId = resolveResourceSelectionUpdate(activeResourceParamRef.current, action)
+      activeResourceParamRef.current = nextResourceId
       if (typeof window !== 'undefined' && window.location.hash) {
         const { pathname, search } = window.location
         window.history.replaceState(window.history.state, '', `${pathname}${search}`)
       }
-      void setResourceParam(action)
+      void setResourceParam(nextResourceId)
     },
     [setResourceParam]
   )
@@ -202,23 +210,30 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
-  const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
+  const [isResourceCollapsed, setIsResourceCollapsedState] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
-  isResourceCollapsedRef.current = isResourceCollapsed
-  const userOwnsResourceViewRef = useRef(false)
-  const activeResourceParamRef = useRef(activeResourceParam)
-  activeResourceParamRef.current = activeResourceParam
+  const setResourceCollapsed = useCallback((collapsed: boolean) => {
+    isResourceCollapsedRef.current = collapsed
+    setIsResourceCollapsedState(collapsed)
+  }, [])
+  const resourceCollapseOwnedByUserRef = useRef(false)
+  const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    // Agent work surfaces the resource and switches to it as it is created or
-    // edited; only the browser session stays in the background behind an
-    // existing selection (see shouldActivateResourceEvent).
-    if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
-
     const activeResourceId = activeResourceParamRef.current
-    if (!shouldActivateResourceEvent(activeResourceId, resourceId, options)) {
+    const presentation = resolveResourceEventPresentation({
+      activeResourceId,
+      activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
+      panelCollapseOwnedByUser: resourceCollapseOwnedByUserRef.current,
+      panelCollapsed: isResourceCollapsedRef.current,
+      resourceId,
+      selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
+    })
+
+    if (presentation.revealPanel) setResourceCollapsed(false)
+    if (presentation.markActivity) {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
       return
     }
@@ -228,7 +243,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       next.delete(resourceId)
       return next
     })
-    if (activeResourceId !== resourceId) {
+    if (presentation.activateResource && activeResourceId !== resourceId) {
       activeResourceParamRef.current = resourceId
       setActiveResourceUrl(resourceId)
     }
@@ -282,10 +297,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
-    userOwnsResourceViewRef.current = true
+    resourceCollapseOwnedByUserRef.current = true
+    resourceSelectionOwnedByUserRef.current = true
     clearWidth()
-    setIsResourceCollapsed(true)
-  }, [clearWidth])
+    setResourceCollapsed(true)
+  }, [clearWidth, setResourceCollapsed])
 
   const clearResourceActivity = useCallback((resourceId: string) => {
     setResourceActivityIds((current) => {
@@ -297,15 +313,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [])
 
   const expandResource = () => {
-    userOwnsResourceViewRef.current = true
+    resourceCollapseOwnedByUserRef.current = false
+    resourceSelectionOwnedByUserRef.current = true
     const activeResourceId = activeResourceParamRef.current
     if (activeResourceId) clearResourceActivity(activeResourceId)
-    setIsResourceCollapsed(false)
+    setResourceCollapsed(false)
   }
 
   const selectResourceFromUser = useCallback(
     (resourceId: string) => {
-      userOwnsResourceViewRef.current = true
+      resourceSelectionOwnedByUserRef.current = true
       clearResourceActivity(resourceId)
       if (effectiveActiveResourceIdRef.current === resourceId) return
       effectiveActiveResourceIdRef.current = resourceId
@@ -317,24 +334,30 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {
-      userOwnsResourceViewRef.current = true
+      resourceCollapseOwnedByUserRef.current = false
+      resourceSelectionOwnedByUserRef.current = true
       addResource(resource)
       selectResourceFromUser(resource.id)
-      setIsResourceCollapsed(false)
+      setResourceCollapsed(false)
     },
-    [addResource, selectResourceFromUser]
+    [addResource, selectResourceFromUser, setResourceCollapsed]
   )
 
   const handleResourceResizePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      userOwnsResourceViewRef.current = true
+      resourceSelectionOwnedByUserRef.current = true
       handleResizePointerDown(event)
     },
     [handleResizePointerDown]
   )
 
   const handleResourceInteraction = useCallback(() => {
-    userOwnsResourceViewRef.current = true
+    resourceSelectionOwnedByUserRef.current = true
+  }, [])
+
+  const prepareResourceViewForAgentTurn = useCallback(() => {
+    resourceSelectionOwnedByUserRef.current = false
+    setResourceActivityIds(new Set())
   }, [])
 
   useEffect(() => {
@@ -345,13 +368,14 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       markRead(resolvedChatId)
     } else {
       clearWidth()
-      setIsResourceCollapsed(true)
+      setResourceCollapsed(true)
     }
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
-      userOwnsResourceViewRef.current = false
+      resourceCollapseOwnedByUserRef.current = false
+      resourceSelectionOwnedByUserRef.current = false
       setResourceActivityIds(new Set())
     }
-  }, [resolvedChatId, markRead, clearWidth])
+  }, [resolvedChatId, markRead, clearWidth, setResourceCollapsed])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -363,22 +387,22 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useEffect(() => {
     if (
       !(resources.length > 0 && isResourceCollapsedRef.current) ||
-      userOwnsResourceViewRef.current
+      resourceCollapseOwnedByUserRef.current
     ) {
       return
     }
-    setIsResourceCollapsed(false)
+    setResourceCollapsed(false)
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [resources])
+  }, [resources, setResourceCollapsed])
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
       clearWidth()
-      setIsResourceCollapsed(true)
+      setResourceCollapsed(true)
     }
-  }, [resources, clearWidth])
+  }, [resources, clearWidth, setResourceCollapsed])
 
   useEffect(() => {
     const resourceIds = new Set(resources.map((resource) => resource.id))
@@ -413,11 +437,10 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         setIsInputEntering(true)
       }
 
-      userOwnsResourceViewRef.current = false
-      setResourceActivityIds(new Set())
+      prepareResourceViewForAgentTurn()
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [workspaceId, chatId, sendMessage]
+    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
   )
 
   /**
@@ -431,13 +454,14 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
       e.preventDefault()
+      prepareResourceViewForAgentTurn()
       sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-  }, [sendMessage])
+  }, [prepareResourceViewForAgentTurn, sendMessage])
 
   /**
    * Consumes a one-shot handoff left by another surface and applies it to this
@@ -462,6 +486,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (!handoff) return
     if (handoff.message) {
+      prepareResourceViewForAgentTurn()
       sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
@@ -477,7 +502,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     // keep it one-shot — and harmless either way, since `consume` clears the entry
     // atomically and any re-run would find nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [chatId, workspaceId, sendMessage])
+  }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(
     context: ChatContext
@@ -583,6 +608,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
+  const resourceActivityCount = resourceActivityIds.size
+  const resourceToggleLabel = isResourceCollapsed
+    ? resourceActivityCount > 0
+      ? `Expand resource view, ${resourceActivityCount} resource${resourceActivityCount === 1 ? '' : 's'} updated`
+      : 'Expand resource view'
+    : 'Collapse resource view'
 
   // The empty state is the chat pane's content, not a layout of its own. It
   // used to return early, which meant the resource panel and its toggle did
@@ -720,13 +751,16 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           size={null}
           type='button'
           onClick={isResourceCollapsed ? expandResource : collapseResource}
-          className='size-[var(--resource-header-toggle-size)] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-          aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
+          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+          aria-label={resourceToggleLabel}
         >
           <span className='relative'>
             <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
             {isResourceCollapsed && resourceActivityIds.size > 0 && (
-              <span className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]' />
+              <span
+                aria-hidden='true'
+                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]'
+              />
             )}
           </span>
         </Button>
