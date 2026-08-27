@@ -466,10 +466,10 @@ export const workflowExecutionLogs = pgTable(
     executionData: jsonb('execution_data').notNull().default('{}'),
     // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
     // cost. Same procedure and argless-read lint as the user_stats marker
-    // (scripts/check-pending-drop-tables.ts). Backfill precondition verified on
-    // the prod replica 2026-08-26: 94 of 4.77M rows carry a cost json with no
-    // cost_total (71 zero/absent totals Jul–Aug 2025, 22 small totals May 2026)
-    // — unread history the drop abandons.
+    // (scripts/check-pending-drop-tables.ts). Script migration
+    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
+    // whose json still held a numeric total into cost_total before the drop;
+    // the contract PR must ALSO deregister that script (it reads this column).
     /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
     cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
