@@ -1,29 +1,20 @@
 import { db } from '@sim/db'
 import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { lockPersonalEnvMap, lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
   deletePersonalEnvCredentialForUser,
   deleteWorkspaceEnvCredentials,
   upsertPersonalEnvCredentialForUser,
 } from '@/lib/credentials/environment'
-import type { DbOrTx } from '@/lib/db/types'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
-
-const SECRET_MAP_LOCK_TIMEOUT_MS = 5_000
 
 export interface SecretMutationResult {
   created: boolean
   updatedAt: Date
-}
-
-async function lockSecretMap(tx: DbOrTx, lockKey: string): Promise<void> {
-  await tx.execute(
-    sql`SELECT set_config('lock_timeout', ${`${SECRET_MAP_LOCK_TIMEOUT_MS}ms`}, true)`
-  )
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`)
 }
 
 /**
@@ -84,7 +75,7 @@ export async function setWorkspaceSecret(params: {
   const updatedAt = new Date()
 
   const created = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, workspaceId)
+    await lockWorkspaceEnvMap(tx, workspaceId)
     const [row] = await tx
       .select({
         id: workspaceEnvironment.id,
@@ -201,7 +192,7 @@ export async function setPersonalSecret(params: {
   const updatedAt = new Date()
 
   const created = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, userId)
+    await lockPersonalEnvMap(tx, userId)
     const [row] = await tx
       .select({ id: environment.id, variables: environment.variables })
       .from(environment)
@@ -248,7 +239,7 @@ export async function deleteWorkspaceSecret(params: {
   const { workspaceId, name } = params
 
   const deleted = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, workspaceId)
+    await lockWorkspaceEnvMap(tx, workspaceId)
     const [row] = await tx
       .select({ variables: workspaceEnvironment.variables })
       .from(workspaceEnvironment)
@@ -284,7 +275,7 @@ export async function deletePersonalSecret(params: {
   const { userId, name } = params
 
   const deleted = await db.transaction(async (tx) => {
-    await lockSecretMap(tx, userId)
+    await lockPersonalEnvMap(tx, userId)
     const [row] = await tx
       .select({ variables: environment.variables })
       .from(environment)

@@ -4,9 +4,10 @@ import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { lockWorkspaceEnvMap } from '@/lib/credentials/env-locks'
 import {
   createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
@@ -512,11 +513,8 @@ export async function upsertWorkspaceEnvVars(
 
   // Read-modify-write on a single jsonb column, so serialize against the
   // route's identically-locked transaction or concurrent writers lose keys.
-  const existingEncrypted = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
-    )
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
+  await db.transaction(async (tx) => {
+    await lockWorkspaceEnvMap(tx, workspaceId)
 
     const [existingRow] = await tx
       .select()
@@ -540,15 +538,23 @@ export async function upsertWorkspaceEnvVars(
         set: { variables: merged, updatedAt: new Date() },
       })
 
-    return existing
+    // Derived from the stored variables, not from the credential rows: a legacy
+    // secret present in the jsonb map without a credential row is NOT new, and
+    // minting an ACL for it would make the caller its secret-admin.
+    //
+    // Written inside this transaction because a value committed without its
+    // credential row cannot be repaired by retrying: the key is in the map by
+    // then, so the next attempt reads it as pre-existing and creates nothing.
+    const newKeys = updatedKeys.filter((key) => !(key in existing))
+    await createWorkspaceEnvCredentials({
+      workspaceId,
+      newKeys,
+      actingUserId,
+      executor: tx,
+    })
   })
 
   invalidateEffectiveDecryptedEnvCache({ workspaceId })
-  // Derived from the stored variables, not from the credential rows: a legacy
-  // secret present in the jsonb map without a credential row is NOT new, and
-  // minting an ACL for it would make the caller its secret-admin.
-  const newKeys = updatedKeys.filter((key) => !(key in existingEncrypted))
-  await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
 
   recordAudit({
     workspaceId,
