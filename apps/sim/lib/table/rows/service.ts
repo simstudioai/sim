@@ -51,6 +51,7 @@ import {
 } from '@/lib/table/rows/executions'
 import {
   acquireRowOrderLock,
+  type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
   insertOrderedRow,
@@ -109,6 +110,15 @@ import {
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableRowsService')
+
+function dispatchDeleteTriggers(
+  table: TableDefinition,
+  deletedRows: DeletedTableRow[],
+  requestId: string
+): void {
+  if (deletedRows.length === 0) return
+  void fireTableTrigger(table.id, table.name, 'delete', deletedRows, null, table.schema, requestId)
+}
 
 /**
  * Inserts a single row into a table.
@@ -1886,6 +1896,7 @@ export async function deleteRow(
   if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
+  dispatchDeleteTriggers(table, [deleted], requestId)
 }
 
 type BulkUpdateMatch = { id: string; data: RowData }
@@ -2573,7 +2584,7 @@ export async function deleteRowsByFilter(
   )
 
   const limit = data.limit
-  const deletedRows: { id: string }[] = []
+  const deletedRowIds: string[] = []
   if (limit === undefined) {
     const cutoff = new Date()
     let afterId: string | undefined
@@ -2589,14 +2600,14 @@ export async function deleteRowsByFilter(
       if (page.length === 0) break
       const nextAfterId = page[page.length - 1]
       for (let index = 0; index < page.length; index += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-        deletedRows.push(
-          ...(await deleteOrderedRowsByIds({
-            tableId: table.id,
-            workspaceId: table.workspaceId,
-            rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
-            proof,
-          }))
-        )
+        const deletedRows = await deleteOrderedRowsByIds({
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
+          proof,
+        })
+        deletedRowIds.push(...deletedRows.map((row) => row.id))
+        dispatchDeleteTriggers(table, deletedRows, requestId)
       }
       afterId = nextAfterId
       if (page.length < TABLE_LIMITS.DELETE_PAGE_SIZE) break
@@ -2612,19 +2623,18 @@ export async function deleteRowsByFilter(
     )
     const rowIds = matchingRows.map((row) => row.id)
     if (rowIds.length > 0) {
-      deletedRows.push(
-        ...(await deleteOrderedRowsByIds({
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          rowIds,
-          proof,
-        }))
-      )
+      const deletedRows = await deleteOrderedRowsByIds({
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        rowIds,
+        proof,
+      })
+      deletedRowIds.push(...deletedRows.map((row) => row.id))
+      dispatchDeleteTriggers(table, deletedRows, requestId)
     }
   }
 
-  if (deletedRows.length === 0) return { affectedCount: 0, affectedRowIds: [] }
-  const deletedRowIds = deletedRows.map((row) => row.id)
+  if (deletedRowIds.length === 0) return { affectedCount: 0, affectedRowIds: [] }
 
   logger.info(`[${requestId}] Deleted ${deletedRowIds.length} rows from table ${table.id}`)
 
@@ -2662,6 +2672,7 @@ export async function deleteRowsByIds(
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
   logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
+  dispatchDeleteTriggers(table, deletedRows, requestId)
 
   return {
     deletedCount: deletedIds.length,

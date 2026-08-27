@@ -19,6 +19,11 @@ import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-pro
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
+export interface DeletedTableRow {
+  id: string
+  data: RowData
+}
+
 /**
  * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
  * unlocked, before streaming: the import worker is the table's sole writer, so it can assign
@@ -274,8 +279,8 @@ export async function insertOrderedRow(params: {
 
 /**
  * Deletes a single row by id in its own transaction. Deleting a row never changes
- * another row's `order_key`, so no positional reshift is needed. Returns `false`
- * when no row matched.
+ * another row's `order_key`, so no positional reshift is needed. Returns the
+ * deleted row snapshot, or `null` when no row matched.
  */
 export async function deleteOrderedRow(params: {
   tableId: string
@@ -283,7 +288,7 @@ export async function deleteOrderedRow(params: {
   workspaceId: string
   /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
   proof: MutationProof<'delete'>
-}): Promise<boolean> {
+}): Promise<DeletedTableRow | null> {
   const { tableId, rowId, workspaceId } = params
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
@@ -296,15 +301,15 @@ export async function deleteOrderedRow(params: {
           eq(userTableRows.workspaceId, workspaceId)
         )
       )
-      .returning({ id: userTableRows.id })
-    return Boolean(deleted)
+      .returning({ id: userTableRows.id, data: userTableRows.data })
+    return deleted ? { id: deleted.id, data: deleted.data as RowData } : null
   })
 }
 
 /**
  * Deletes the given row ids in batches within one transaction. Deletes leave
  * `order_key` untouched, so no positional recompaction is needed. Returns the
- * deleted row ids. The caller resolves which ids to delete (used by both
+ * deleted row snapshots. The caller resolves which ids to delete (used by both
  * delete-by-ids and delete-by-filter).
  */
 export async function deleteOrderedRowsByIds(params: {
@@ -313,12 +318,12 @@ export async function deleteOrderedRowsByIds(params: {
   rowIds: string[]
   /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
   proof: MutationProof<'delete'>
-}): Promise<{ id: string }[]> {
+}): Promise<DeletedTableRow[]> {
   const { tableId, workspaceId, rowIds } = params
   if (rowIds.length === 0) return []
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    const deleted: { id: string }[] = []
+    const deleted: DeletedTableRow[] = []
     for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
       const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
       const rows = await trx
@@ -330,8 +335,8 @@ export async function deleteOrderedRowsByIds(params: {
             inArray(userTableRows.id, batch)
           )
         )
-        .returning({ id: userTableRows.id })
-      deleted.push(...rows)
+        .returning({ id: userTableRows.id, data: userTableRows.data })
+      deleted.push(...rows.map((row) => ({ id: row.id, data: row.data as RowData })))
     }
     return deleted
   })
@@ -467,7 +472,9 @@ export async function deletePageByIds(
   /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
   _proof: MutationProof<'delete'>,
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
-  revalidate?: MutationRevalidator
+  revalidate?: MutationRevalidator,
+  /** Called after each batch commits, with snapshots suitable for delete triggers. */
+  onDeleted?: (rows: DeletedTableRow[]) => void
 ): Promise<number> {
   let deleted = 0
   for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
@@ -484,9 +491,11 @@ export async function deletePageByIds(
             inArray(userTableRows.id, batch)
           )
         )
-        .returning({ id: userTableRows.id })
+        .returning({ id: userTableRows.id, data: userTableRows.data })
     })
-    deleted += rows.length
+    const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
+    deleted += deletedRows.length
+    onDeleted?.(deletedRows)
   }
   return deleted
 }

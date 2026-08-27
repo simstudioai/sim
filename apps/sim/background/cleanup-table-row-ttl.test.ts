@@ -15,6 +15,7 @@ const {
   mockSignalTableRowsChanged,
   mockTask,
   mockWithLockedTable,
+  mockFireTableTrigger,
 } = vi.hoisted(() => ({
   mockDeleteExecute: vi.fn(),
   mockListExecute: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockSignalTableRowsChanged: vi.fn(),
   mockTask: vi.fn((config: unknown) => config),
   mockWithLockedTable: vi.fn(),
+  mockFireTableTrigger: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -34,6 +36,7 @@ vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
 vi.mock('@/lib/table/ttl-availability', () => ({
   isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
 }))
+vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: mockFireTableTrigger }))
 
 import { cleanupTableRowTtlTask, runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
 
@@ -41,9 +44,24 @@ const dialect = new PgDialect()
 
 const table = {
   id: 'table-1',
+  name: 'Expiring rows',
   workspaceId: 'workspace-1',
   schema: { columns: [{ id: 'col-ttl', name: 'expires_at', type: 'ttl' }] },
   locks: { insertLocked: false, updateLocked: false, deleteLocked: false, schemaLocked: false },
+}
+
+function deletedRows(count: number, start = 1) {
+  return Array.from({ length: count }, (_, index) => {
+    const number = start + index
+    return { id: `row-${number}`, data: { value: number } }
+  })
+}
+
+function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00.000000') {
+  return deletedRows(count, start).map((row) => ({
+    ...row,
+    createdAt,
+  }))
 }
 
 describe('table row TTL cleanup', () => {
@@ -65,11 +83,10 @@ describe('table row TTL cleanup', () => {
   it('deletes expired rows in locked, created-at keyset batches and signals the table', async () => {
     mockDeleteExecute
       .mockResolvedValueOnce([
-        { count: 500, createdAt: '2026-01-01T00:00:00.123456', lastId: 'row-500' },
+        ...returnedRows(499, 1, '2026-01-01T00:00:00.123455'),
+        ...returnedRows(1, 500, '2026-01-01T00:00:00.123456'),
       ])
-      .mockResolvedValueOnce([
-        { count: 12, createdAt: '2026-01-02T00:00:00.000000', lastId: 'row-512' },
-      ])
+      .mockResolvedValueOnce(returnedRows(12, 501))
 
     await expect(runCleanupTableRowTtl()).resolves.toEqual({
       batches: 2,
@@ -86,13 +103,24 @@ describe('table row TTL cleanup', () => {
       expect.arrayContaining(['2026-01-01T00:00:00.123456', 'row-500'])
     )
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+    expect(mockFireTableTrigger).toHaveBeenNthCalledWith(
+      1,
+      table.id,
+      table.name,
+      'delete',
+      deletedRows(500),
+      null,
+      table.schema,
+      'ttl-cleanup'
+    )
   })
 
   it('compares TTL values with whole Date.now epoch seconds', async () => {
     const nowEpochMilliseconds = 1_700_000_000_999
     const nowEpochSeconds = 1_700_000_000
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(nowEpochMilliseconds)
-    mockDeleteExecute.mockResolvedValue([{ count: 0, createdAt: null, lastId: null }])
+    mockDeleteExecute.mockResolvedValue([])
 
     try {
       await runCleanupTableRowTtl()
@@ -109,7 +137,7 @@ describe('table row TTL cleanup', () => {
   })
 
   it('checks the oldest expired rows first without using creation time as an expiry rule', async () => {
-    mockDeleteExecute.mockResolvedValue([{ count: 0, createdAt: null, lastId: null }])
+    mockDeleteExecute.mockResolvedValue([])
 
     await runCleanupTableRowTtl()
 
@@ -120,12 +148,14 @@ describe('table row TTL cleanup', () => {
       .trim()
     expect(query).toContain('AND (table_row.data->>?)::numeric <= ?')
     expect(query).toContain('ORDER BY table_row.created_at, table_row.id')
-    expect(query).toContain(`to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US')`)
+    expect(query).toContain(
+      `to_char(table_row.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.US') AS "createdAt"`
+    )
     expect(query).not.toContain('table_row.created_by')
   })
 
   it('rejects a batch without a creation-time cursor', async () => {
-    mockDeleteExecute.mockResolvedValue([{ count: 1, lastId: 'row-1' }])
+    mockDeleteExecute.mockResolvedValue([{ id: 'row-1', data: { value: 1 } }])
 
     await expect(runCleanupTableRowTtl()).rejects.toThrow(
       'Table row TTL cleanup did not return a creation-time cursor'
@@ -174,9 +204,7 @@ describe('table row TTL cleanup', () => {
   })
 
   it('stops after one hundred full batches', async () => {
-    mockDeleteExecute.mockResolvedValue([
-      { count: 500, createdAt: '2026-01-01T00:00:00.000000', lastId: 'row-cursor' },
-    ])
+    mockDeleteExecute.mockResolvedValue(returnedRows(500))
 
     await expect(runCleanupTableRowTtl()).resolves.toEqual({
       batches: 100,
@@ -206,12 +234,12 @@ describe('table row TTL cleanup', () => {
           const attempt = (tableAttempts.get(tableId) ?? 0) + 1
           tableAttempts.set(tableId, attempt)
           if (tableId === table.id && attempt === 1) {
-            return [{ count: 500, createdAt: '2026-01-01T00:00:00.000000', lastId: 'row-500' }]
+            return returnedRows(500)
           }
           if (tableId === secondTable.id) {
-            return [{ count: 1, createdAt: '2026-01-01T00:00:00.000000', lastId: 'row-1' }]
+            return returnedRows(1)
           }
-          return [{ count: 0, createdAt: null, lastId: null }]
+          return []
         }),
       })
     })

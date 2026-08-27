@@ -69,7 +69,7 @@ function firedPayloads(): Payload[] {
 }
 
 async function fire(
-  eventType: 'insert' | 'update',
+  eventType: 'insert' | 'update' | 'delete',
   data: RowData,
   oldRows: Map<string, RowData> | null = null
 ) {
@@ -165,6 +165,19 @@ describe('fireTableTrigger — payload shape', () => {
 
     const [payload] = firedPayloads()
     expect(payload.changedColumns).toEqual(['Status'])
+  })
+
+  it('emits the deleted row snapshot as the event row and previous row', async () => {
+    mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ eventType: 'delete' })])
+
+    await fire('delete', { col_title: 'Removed issue', col_status: 'opt_closed' })
+
+    const [payload] = firedPayloads()
+    const deletedRow = { Title: 'Removed issue', Status: 'Closed' }
+    expect(payload.rawRow).toEqual(deletedRow)
+    expect(payload.row).toEqual({ ...deletedRow, Tags: null })
+    expect(payload.previousRow).toEqual(deletedRow)
+    expect(payload.changedColumns).toEqual([])
   })
 })
 

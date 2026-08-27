@@ -15,6 +15,8 @@ import { decodeCursor } from '@/lib/table/rows/cursor'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
+const { mockFireTableTrigger } = vi.hoisted(() => ({ mockFireTableTrigger: vi.fn() }))
+
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
@@ -23,7 +25,7 @@ vi.mock('@/lib/table/sql', () => ({
 }))
 
 vi.mock('@/lib/table/trigger', () => ({
-  fireTableTrigger: vi.fn(),
+  fireTableTrigger: mockFireTableTrigger,
 }))
 
 vi.mock('@/lib/table/workflow-group-deps', () => ({
@@ -64,7 +66,9 @@ vi.mock('@/lib/table/validation', () => ({
 }))
 
 import {
+  deleteRow,
   deleteRowsByFilter,
+  deleteRowsByIds,
   queryRows,
   requireTableRowIds,
   updateRowsByFilter,
@@ -180,6 +184,55 @@ describe('service filter threading', () => {
     await expect(
       requireTableRowIds(TABLE.id, TABLE.workspaceId, ['missing-row'])
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+describe('delete trigger dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('fires with the committed snapshot after deleting one row', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+
+    await deleteRow(TABLE, 'row-1', 'req-delete-one')
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      TABLE.id,
+      TABLE.name,
+      'delete',
+      [{ id: 'row-1', data: { name: 'Ada' } }],
+      null,
+      TABLE.schema,
+      'req-delete-one'
+    )
+  })
+
+  it('fires once with every committed snapshot in an ID batch', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'row-1', data: { name: 'Ada' } },
+      { id: 'row-2', data: { name: 'Grace' } },
+    ])
+
+    await deleteRowsByIds(
+      TABLE,
+      { tableId: TABLE.id, workspaceId: TABLE.workspaceId, rowIds: ['row-1', 'row-2'] },
+      'req-delete-many'
+    )
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      TABLE.id,
+      TABLE.name,
+      'delete',
+      [
+        { id: 'row-1', data: { name: 'Ada' } },
+        { id: 'row-2', data: { name: 'Grace' } },
+      ],
+      null,
+      TABLE.schema,
+      'req-delete-many'
+    )
   })
 })
 
