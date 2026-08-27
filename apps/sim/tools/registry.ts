@@ -520,7 +520,7 @@ import {
   brightDataSnapshotStatusTool,
   brightDataSyncScrapeTool,
 } from '@/tools/brightdata'
-import { browserUseRunTaskTool } from '@/tools/browser_use'
+import { browserUseRunTaskTool, browserUseRunV4Tool } from '@/tools/browser_use'
 import {
   bufferCreateIdeaTool,
   bufferCreatePostTool,
@@ -5927,6 +5927,7 @@ export const tools: Record<string, ToolConfig> = {
   box_sign_cancel_request: boxSignCancelRequestTool,
   box_sign_resend_request: boxSignResendRequestTool,
   browser_use_run_task: browserUseRunTaskTool,
+  browser_use_run_v4: browserUseRunV4Tool,
   buffer_create_idea: bufferCreateIdeaTool,
   buffer_create_post: bufferCreatePostTool,
   buffer_delete_post: bufferDeletePostTool,

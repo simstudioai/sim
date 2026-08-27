@@ -77,4 +77,38 @@ Runs a browser automation task using BrowserUse
 | `shareUrl` | string | Public shareable URL for the recorded session \(post-run\) |
 | `sessionId` | string | Browser Use session identifier |
 
+### Browser Use V4
+
+Runs a Browser Use Cloud agent through the V4 run API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `task` | string | Yes | What the browser agent should do |
+| `model` | string | No | V4 model identifier |
+| `sessionId` | string | No | Existing V4 session ID for a follow-up turn |
+| `workspaceId` | string | No | Existing V4 workspace ID whose files should be restored |
+| `profileId` | string | No | Browser profile ID for stored cookies and browser state |
+| `record` | boolean | No | Record the newly provisioned browser session |
+| `agentmail` | boolean | No | Give the run a temporary AgentMail inbox |
+| `maxCostUsd` | number | No | Maximum run cost in US dollars |
+| `secretBindings` | json | No | Run-scoped secrets with the domains where each may be typed |
+| `apiKey` | string | Yes | Browser Use API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | V4 run identifier |
+| `status` | string | Run status |
+| `result` | string | Final agent result |
+| `error` | string | Run error |
+| `model` | string | Model used by the run |
+| `sessionId` | string | V4 conversation session identifier |
+| `workspaceId` | string | Persistent workspace identifier |
+| `totalCostUsd` | string | Total run cost in US dollars |
+| `totalInputTokens` | number | Total input tokens used |
+| `totalOutputTokens` | number | Total output tokens used |
+
 

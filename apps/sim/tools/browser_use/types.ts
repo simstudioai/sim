@@ -18,6 +18,19 @@ export interface BrowserUseRunTaskParams {
   profile_id?: string
 }
 
+export interface BrowserUseRunV4Params {
+  task: string
+  apiKey: string
+  model?: string
+  sessionId?: string
+  workspaceId?: string
+  profileId?: string
+  record?: boolean
+  agentmail?: boolean
+  maxCostUsd?: number
+  secretBindings?: unknown
+}
+
 interface BrowserUseTaskStep {
   number: number
   memory: string
@@ -39,10 +52,27 @@ interface BrowserUseTaskOutput {
   sessionId: string | null
 }
 
+interface BrowserUseV4Output {
+  id: string
+  status: string
+  result: string | null
+  error: string | null
+  model: string
+  sessionId: string
+  workspaceId: string | null
+  totalCostUsd: string
+  totalInputTokens: number
+  totalOutputTokens: number
+}
+
 export interface BrowserUseRunTaskResponse extends ToolResponse {
   output: BrowserUseTaskOutput
 }
 
+export interface BrowserUseRunV4Response extends ToolResponse {
+  output: BrowserUseV4Output
+}
+
 export interface BrowserUseResponse extends ToolResponse {
-  output: BrowserUseTaskOutput
+  output: BrowserUseTaskOutput | BrowserUseV4Output
 }

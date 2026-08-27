@@ -17,13 +17,26 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   canvasPresentation: {
     defaultTitle: 'Browser Use',
     sentences: {
-      default: [
-        { text: 'Run the browser task', field: 'task', core: true },
-        { text: ', starting at', field: 'startUrl' },
-      ],
+      byOperation: {
+        browser_use_run_task: [
+          { text: 'Run the legacy browser task', field: 'task', core: true },
+          { text: ', starting at', field: 'startUrl' },
+        ],
+        browser_use_run_v4: [{ text: 'Run the V4 browser agent', field: 'task', core: true }],
+      },
     },
   },
   subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Run Task (V2)', id: 'browser_use_run_task' },
+        { label: 'Run Cloud Agent (V4)', id: 'browser_use_run_v4' },
+      ],
+      value: () => 'browser_use_run_task',
+    },
     {
       id: 'task',
       title: 'Task',
@@ -36,6 +49,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       title: 'Start URL',
       type: 'short-input',
       placeholder: 'https://example.com (optional starting URL)',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'variables',
@@ -44,11 +58,13 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       password: true,
       required: false,
       columns: ['Key', 'Value'],
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
       options: [
         { label: 'Browser Use LLM', id: 'browser-use-llm' },
         { label: 'Browser Use 2.0', id: 'browser-use-2.0' },
@@ -77,6 +93,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       title: 'Profile ID',
       type: 'short-input',
       placeholder: 'Enter browser profile ID (optional)',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'maxSteps',
@@ -84,6 +101,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'short-input',
       placeholder: '100',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'allowedDomains',
@@ -91,6 +109,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'short-input',
       placeholder: 'example.com, docs.example.com',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'vision',
@@ -102,6 +121,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
         { label: 'Disabled', id: 'false' },
       ],
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'flashMode',
@@ -109,6 +129,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'switch',
       placeholder: 'Faster but less careful navigation',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'thinking',
@@ -116,6 +137,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'switch',
       placeholder: 'Enable extended reasoning',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'highlightElements',
@@ -123,6 +145,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'switch',
       placeholder: 'Visually mark interactive elements',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'systemPromptExtension',
@@ -130,6 +153,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       type: 'long-input',
       placeholder: 'Append custom instructions to the agent system prompt (max 2000 chars)',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'structuredOutput',
@@ -138,12 +162,87 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       language: 'json',
       placeholder: 'Stringified JSON schema for structured output',
       mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
     },
     {
       id: 'metadata',
       title: 'Metadata',
       type: 'table',
       columns: ['Key', 'Value'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'browser_use_run_task' },
+    },
+    {
+      id: 'v4Model',
+      title: 'Model',
+      type: 'dropdown',
+      options: [
+        { label: 'GPT-5.6 Luna (default)', id: 'gpt-5.6-luna' },
+        { label: 'GPT-5.6 Terra', id: 'gpt-5.6-terra' },
+        { label: 'GPT-5.6 Sol', id: 'gpt-5.6-sol' },
+        { label: 'Claude Sonnet 5', id: 'claude-sonnet-5' },
+        { label: 'Gemini 3.6 Flash', id: 'gemini-3.6-flash' },
+        { label: 'Kimi K3', id: 'kimi-k3' },
+      ],
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4SessionId',
+      title: 'Session ID',
+      type: 'short-input',
+      placeholder: 'Continue an existing V4 conversation',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4WorkspaceId',
+      title: 'Workspace ID',
+      type: 'short-input',
+      placeholder: 'Restore files from an existing V4 workspace',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4ProfileId',
+      title: 'Profile ID',
+      type: 'short-input',
+      placeholder: 'Load saved cookies and browser state',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4Record',
+      title: 'Record Browser',
+      type: 'switch',
+      placeholder: 'Record a newly provisioned browser',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4Agentmail',
+      title: 'AgentMail',
+      type: 'switch',
+      placeholder: 'Give the run a temporary inbox',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4MaxCostUsd',
+      title: 'Max Cost (USD)',
+      type: 'short-input',
+      placeholder: '5.00',
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
+      mode: 'advanced',
+    },
+    {
+      id: 'v4SecretBindings',
+      title: 'Secret Bindings',
+      type: 'table',
+      password: true,
+      required: false,
+      columns: ['Alias', 'Value', 'Allowed Domains'],
+      condition: { field: 'operation', value: 'browser_use_run_v4' },
       mode: 'advanced',
     },
     {
@@ -156,10 +255,30 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     },
   ],
   tools: {
-    access: ['browser_use_run_task'],
+    access: ['browser_use_run_task', 'browser_use_run_v4'],
     config: {
-      tool: () => 'browser_use_run_task',
+      tool: (params) =>
+        params.operation === 'browser_use_run_v4' ? 'browser_use_run_v4' : 'browser_use_run_task',
       params: (params) => {
+        if (params.operation === 'browser_use_run_v4') {
+          const maxCost =
+            typeof params.v4MaxCostUsd === 'string'
+              ? Number(params.v4MaxCostUsd.trim())
+              : params.v4MaxCostUsd
+          return {
+            task: params.task,
+            apiKey: params.apiKey,
+            model: params.v4Model,
+            sessionId: params.v4SessionId,
+            workspaceId: params.v4WorkspaceId,
+            profileId: params.v4ProfileId,
+            record: params.v4Record,
+            agentmail: params.v4Agentmail,
+            maxCostUsd: Number.isFinite(maxCost) ? maxCost : undefined,
+            secretBindings: params.v4SecretBindings,
+          }
+        }
+
         const next: Record<string, any> = { ...params }
         if (typeof next.maxSteps === 'string') {
           const trimmed = next.maxSteps.trim()
@@ -186,6 +305,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     },
   },
   inputs: {
+    operation: { type: 'string', description: 'Browser Use API operation' },
     task: { type: 'string', description: 'Browser automation task' },
     startUrl: { type: 'string', description: 'Starting URL for the agent' },
     apiKey: { type: 'string', description: 'BrowserUse API key' },
@@ -201,6 +321,14 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     systemPromptExtension: { type: 'string', description: 'Custom system prompt extension' },
     structuredOutput: { type: 'string', description: 'Stringified JSON schema' },
     metadata: { type: 'json', description: 'Custom key-value metadata' },
+    v4Model: { type: 'string', description: 'V4 model to use' },
+    v4SessionId: { type: 'string', description: 'Existing V4 session ID' },
+    v4WorkspaceId: { type: 'string', description: 'Existing V4 workspace ID' },
+    v4ProfileId: { type: 'string', description: 'Browser profile ID for the V4 run' },
+    v4Record: { type: 'boolean', description: 'Record the V4 browser session' },
+    v4Agentmail: { type: 'boolean', description: 'Enable a temporary AgentMail inbox' },
+    v4MaxCostUsd: { type: 'number', description: 'Maximum V4 run cost in US dollars' },
+    v4SecretBindings: { type: 'json', description: 'Run-scoped V4 secret bindings' },
   },
   outputs: {
     id: { type: 'string', description: 'Task execution identifier' },
@@ -220,6 +348,14 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       description: 'Public shareable URL for the session (post-run)',
     },
     sessionId: { type: 'string', description: 'Browser Use session identifier' },
+    status: { type: 'string', description: 'V4 run status' },
+    result: { type: 'string', description: 'V4 final agent result' },
+    error: { type: 'string', description: 'V4 run error' },
+    model: { type: 'string', description: 'Model used by the V4 run' },
+    workspaceId: { type: 'string', description: 'V4 persistent workspace identifier' },
+    totalCostUsd: { type: 'string', description: 'Total V4 run cost in US dollars' },
+    totalInputTokens: { type: 'number', description: 'Total V4 input tokens used' },
+    totalOutputTokens: { type: 'number', description: 'Total V4 output tokens used' },
   },
 }
 

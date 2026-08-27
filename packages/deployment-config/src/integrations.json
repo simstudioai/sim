@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-26",
+  "updatedAt": "2026-08-27",
   "integrations": [
     {
       "type": "onepassword",
@@ -3360,8 +3360,17 @@
       "bgColor": "#181C1E",
       "iconName": "BrowserUseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/browser_use",
-      "operations": [],
-      "operationCount": 0,
+      "operations": [
+        {
+          "name": "Run Task (V2)",
+          "description": "Runs a browser automation task using BrowserUse"
+        },
+        {
+          "name": "Run Cloud Agent (V4)",
+          "description": "Runs a Browser Use Cloud agent through the V4 run API"
+        }
+      ],
+      "operationCount": 2,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
