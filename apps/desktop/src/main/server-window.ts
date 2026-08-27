@@ -69,6 +69,8 @@ export interface ServerWindowDeps {
    * failure not hide another's, and lets the caller refuse to move.
    */
   clearDeploymentScopedState: () => Promise<readonly string[]>
+  /** Checks that this server wipe has not been superseded by an account wipe. */
+  canCompleteDeploymentScopedStateChange: () => boolean
   /** Completes this server wipe only when no stronger account wipe is pending. */
   completeDeploymentScopedStateChange: () => boolean
   /**
@@ -217,21 +219,11 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
         }
       }
 
-      try {
-        if (!deps.completeDeploymentScopedStateChange()) {
-          logger.error('Refusing to change server while account-data recovery is active')
-          return {
-            ok: false,
-            error: 'Finish signing out or restart Sim before changing servers.',
-          }
-        }
-      } catch (error) {
-        logger.error('Could not finish deployment-scoped teardown', {
-          error: getErrorMessage(error),
-        })
+      if (!deps.canCompleteDeploymentScopedStateChange()) {
+        logger.error('Refusing to change server while account-data recovery is active')
         return {
           ok: false,
-          error: 'Local account-data recovery is still required. Restart Sim and try again.',
+          error: 'Finish signing out or restart Sim before changing servers.',
         }
       }
 
@@ -249,6 +241,19 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
           ok: false,
           error: 'Could not save the new server URL. Try again.',
         }
+      }
+
+      try {
+        if (!deps.completeDeploymentScopedStateChange()) {
+          logger.error('Server changed while account-data recovery remained active')
+        }
+      } catch (error) {
+        // The origin is already durably committed, so returning without a
+        // relaunch would mix the old process partition with the new origin.
+        // Keep the marker for startup recovery and finish the committed move.
+        logger.error('Server changed but deployment-scoped recovery remains pending', {
+          error: getErrorMessage(error),
+        })
       }
       logger.info('Server origin changed; relaunching', { from: current, to: origin })
       close()

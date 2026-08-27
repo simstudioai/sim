@@ -532,6 +532,7 @@ export function BrowserSession({
         description: 'Access applies only to this page and ends when it navigates.',
         action: { label: 'Allow', onClick: () => respond(true) },
         onDismiss: () => {
+          if (!active) return
           respond(false)
           void closeOverlay('permissions')
         },

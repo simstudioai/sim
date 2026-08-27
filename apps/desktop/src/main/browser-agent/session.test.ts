@@ -2171,6 +2171,18 @@ describe('browser-agent session', () => {
       })
     ).toBe(false)
 
+    const staleGestureCallback = vi.fn()
+    requestHandler(contents, 'media', staleGestureCallback, {
+      isMainFrame: true,
+      mediaTypes: ['audio'],
+      requestingUrl: 'https://example.com/',
+      securityOrigin: 'https://example.com',
+    })
+    expect(staleGestureCallback).toHaveBeenCalledWith(false)
+    expect(
+      session.mediaPermissionRequestForContents(contents as unknown as WebContents)
+    ).toBeUndefined()
+
     // Chromium routes navigator.clipboard.writeText through this one; denying
     // it silently broke every copy button that does not use execCommand.
     const writeCallback = vi.fn()

@@ -304,7 +304,7 @@ describe('SiteDirectory', () => {
     expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub' }])
   })
 
-  it('blocks stored site records with fields outside the persistence contract', async () => {
+  it('blocks stored site records with invalid field values', async () => {
     const payload = [{ hostname: 'github.com', visits: -1 }]
     const original = JSON.stringify({
       version: 2,

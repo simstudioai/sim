@@ -126,6 +126,22 @@ describe('panel chat scope', () => {
     expect(view.setBounds).not.toHaveBeenCalled()
   })
 
+  it('recovers when capturePage throws before returning a promise', async () => {
+    const { win, view } = showPanel(panel)
+    const scopeId = panel.getActivePanelScopeId()
+    const image = await view.webContents.capturePage()
+    vi.mocked(view.webContents.capturePage).mockImplementationOnce(() => {
+      throw new Error('WebContents was destroyed')
+    })
+
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toBeNull()
+
+    vi.mocked(view.webContents.capturePage).mockResolvedValue(image)
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toMatchObject({
+      dataUrl: 'data:image/png;base64,c2lt',
+    })
+  })
+
   it('shares one native capture across concurrent requests for the same frame', async () => {
     const { win, view } = showPanel(panel)
     const scopeId = panel.getActivePanelScopeId()

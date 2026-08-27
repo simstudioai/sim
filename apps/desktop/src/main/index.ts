@@ -151,6 +151,7 @@ function main(): void {
   let resumingQuitAfterTeardown = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
+  let startupReady: Promise<void> | null = null
   const configuredPartitions = new Set<string>()
 
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
@@ -540,6 +541,7 @@ function main(): void {
         return [stores[index].label]
       })
     },
+    canCompleteDeploymentScopedStateChange: () => getAccountDataTeardownKind() === 'deployment',
     completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
     relaunch: relaunchApp,
   })
@@ -557,7 +559,7 @@ function main(): void {
   }
 
   app.on('second-instance', () => {
-    void app.whenReady().then(() => createAndLoadAppWindow())
+    void (startupReady ?? app.whenReady()).then(() => createAndLoadAppWindow())
   })
 
   app.on('window-all-closed', () => {
@@ -606,12 +608,13 @@ function main(): void {
   })
 
   app.on('activate', () => {
-    if (app.isReady() && !getMainWindow()) {
-      void ensureMainWindow()
-    }
+    if (!app.isReady()) return
+    void (startupReady ?? app.whenReady()).then(() => {
+      if (!getMainWindow()) return ensureMainWindow()
+    })
   })
 
-  void app.whenReady().then(async () => {
+  startupReady = app.whenReady().then(async () => {
     // Packaged apps keep their native bundle icon so the Dock appearance does
     // not change when the process starts. Unpackaged runs have no branded
     // bundle, so they still need the channel-specific development icon.

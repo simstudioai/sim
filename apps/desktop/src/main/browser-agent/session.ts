@@ -943,6 +943,7 @@ function settleMediaPermission(tab: AgentTab, allowed: boolean): boolean {
 function revokeTabMediaPermissions(tab: AgentTab, publish = true): void {
   const hadPrompt = settleMediaPermission(tab, false)
   tab.mediaPermissionGrant = undefined
+  tab.lastRealUserGestureAt = undefined
   if (hadPrompt && publish) publishPageIssue(tab)
 }
 

@@ -541,6 +541,7 @@ export class DesktopChatSessionStore {
         v: STORE_VERSION,
         ciphertext: this.encryption.encryptString(JSON.stringify(payload)).toString('base64'),
       }
+      if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > MAX_STORE_BYTES) return false
       writeJsonFileAtomicallySync(this.filePath, envelope)
       this.dirty = false
       return true

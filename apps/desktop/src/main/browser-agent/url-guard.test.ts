@@ -248,6 +248,22 @@ describe('isBlockedSubresourceUrl', () => {
     expect(mockLookup).toHaveBeenCalledTimes(24)
   })
 
+  it('bounds queued requests by the original DNS deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      mockLookup.mockReturnValue(new Promise(() => {}))
+      const verdicts = Array.from({ length: 16 }, (_, index) =>
+        isBlockedSubresourceUrl(`https://slow-${index}.example/app.js`)
+      )
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await expect(Promise.all(verdicts)).resolves.toEqual(Array(16).fill(true))
+      expect(mockLookup).toHaveBeenCalledTimes(8)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('treats a trailing-dot host as the same host', async () => {
     await isBlockedSubresourceUrl('https://example.com/a.js')
     await isBlockedSubresourceUrl('https://example.com./b.js')

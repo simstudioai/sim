@@ -121,6 +121,23 @@ describe('DesktopChatSessionStore', () => {
     expect(statSync(filePath).mode & 0o077).toBe(0)
   })
 
+  it('does not replace the durable store with an oversized encrypted envelope', () => {
+    const provider = encryption()
+    const store = open(provider)
+    store.setTerminal(ORIGIN, 'chat-existing', TERMINAL)
+    expect(store.flush()).toBe(true)
+    const existing = readFileSync(filePath, 'utf8')
+
+    vi.mocked(provider.encryptString).mockReturnValueOnce(Buffer.alloc(8 * 1024 * 1024))
+    store.setTerminal(ORIGIN, 'chat-new', TERMINAL)
+
+    expect(store.flush()).toBe(false)
+    expect(readFileSync(filePath, 'utf8')).toBe(existing)
+
+    expect(store.flush()).toBe(true)
+    expect(readFileSync(filePath, 'utf8')).not.toBe(existing)
+  })
+
   it('keeps a pending chat in memory until migration promotes it to a durable chat id', () => {
     const provider = encryption()
     const pending = open(provider)

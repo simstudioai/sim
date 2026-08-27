@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { resolveHostAddresses } from '@sim/security/dns'
+import { DEFAULT_DNS_TIMEOUT_MS, DnsTimeoutError, resolveHostAddresses } from '@sim/security/dns'
 import {
   isIpLiteral,
   isLoopbackIp,
@@ -157,7 +157,7 @@ const MAX_QUEUED_DNS_LOOKUPS = 64
 let activeDnsLookups = 0
 const dnsLookupWaiters: Array<() => void> = []
 
-async function acquireDnsLookupSlot(): Promise<void> {
+async function acquireDnsLookupSlot(host: string, deadline: number): Promise<void> {
   if (activeDnsLookups < MAX_CONCURRENT_DNS_LOOKUPS) {
     activeDnsLookups++
     return
@@ -165,7 +165,21 @@ async function acquireDnsLookupSlot(): Promise<void> {
   if (dnsLookupWaiters.length >= MAX_QUEUED_DNS_LOOKUPS) {
     throw new Error('DNS lookup queue is full')
   }
-  await new Promise<void>((resolve) => dnsLookupWaiters.push(resolve))
+  const remainingMs = deadline - Date.now()
+  if (remainingMs <= 0) throw new DnsTimeoutError(host)
+
+  await new Promise<void>((resolve, reject) => {
+    const grant = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      const index = dnsLookupWaiters.indexOf(grant)
+      if (index >= 0) dnsLookupWaiters.splice(index, 1)
+      reject(new DnsTimeoutError(host))
+    }, remainingMs)
+    dnsLookupWaiters.push(grant)
+  })
 }
 
 function releaseDnsLookupSlot(): void {
@@ -178,9 +192,12 @@ function releaseDnsLookupSlot(): void {
 }
 
 async function resolveHostAddressesBounded(host: string) {
-  await acquireDnsLookupSlot()
+  const deadline = Date.now() + DEFAULT_DNS_TIMEOUT_MS
+  await acquireDnsLookupSlot(host, deadline)
   try {
-    return await resolveHostAddresses(host)
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) throw new DnsTimeoutError(host)
+    return await resolveHostAddresses(host, { timeoutMs: remainingMs })
   } finally {
     releaseDnsLookupSlot()
   }

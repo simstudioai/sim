@@ -627,8 +627,16 @@ export async function capturePanelSnapshot(
 
   occludableFrame = null
   const generation = ++panelCaptureGeneration
-  const promise = contents
-    .capturePage(undefined, { stayHidden: false })
+  let capture: ReturnType<typeof contents.capturePage>
+  try {
+    capture = contents.capturePage(undefined, { stayHidden: false })
+  } catch (error) {
+    logger.warn('Could not capture browser panel for a toolbar menu', {
+      error: getErrorMessage(error, 'unknown'),
+    })
+    return null
+  }
+  const promise = capture
     .then((image): BrowserPanelSnapshot | null => {
       const imageSize = image.getSize()
       if (

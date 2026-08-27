@@ -300,6 +300,7 @@ describe('initUpdater state machine', () => {
     await vi.advanceTimersByTimeAsync(0)
 
     expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.autoInstallOnAppQuit).toBe(false)
     expect(handle.getState()).toEqual({ status: 'error', version: '2.0.0' })
   })
 

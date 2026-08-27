@@ -406,6 +406,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         .then(() => deps.beforeInstall?.())
         .then(() => autoUpdater.quitAndInstall())
         .catch((error) => {
+          autoUpdater.autoInstallOnAppQuit = false
           installInFlight = false
           logger.error('Pre-install teardown failed', {
             message: getErrorMessage(error, 'unknown'),

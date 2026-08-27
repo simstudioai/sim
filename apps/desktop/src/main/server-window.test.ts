@@ -36,6 +36,7 @@ function makeDeps(overrides: Partial<ServerWindowDeps> = {}): ServerWindowDeps {
     isPackaged: false,
     getParentWindow: () => null,
     clearDeploymentScopedState: vi.fn(async (): Promise<readonly string[]> => []),
+    canCompleteDeploymentScopedStateChange: vi.fn(() => true),
     completeDeploymentScopedStateChange: vi.fn(() => true),
     relaunch: vi.fn(),
     ...overrides,
@@ -109,10 +110,10 @@ describe('server window', () => {
     )
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
-    ).toBeLessThan(vi.mocked(deps.config.set).mock.invocationCallOrder[0])
+    ).toBeGreaterThan(vi.mocked(deps.config.set).mock.invocationCallOrder[0])
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
-    ).toBeLessThan(vi.mocked(deps.config.setOrigin).mock.invocationCallOrder[0])
+    ).toBeGreaterThan(vi.mocked(deps.config.setOrigin).mock.invocationCallOrder[0])
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
     ).toBeLessThan(vi.mocked(deps.relaunch).mock.invocationCallOrder[0])
@@ -204,21 +205,18 @@ describe('server window', () => {
     expect(throwing.config.getOrigin()).toBe(CURRENT)
   })
 
-  it('releases the teardown gate when persisting the new origin fails', async () => {
+  it('keeps teardown recovery pending when persisting the new origin fails', async () => {
     const config = makeConfig(CURRENT, () => ({ ok: false, error: 'disk is read-only' }))
     const failing = makeDeps({ config })
 
     const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
 
     expect(result).toEqual({ ok: false, error: 'disk is read-only' })
-    expect(failing.completeDeploymentScopedStateChange).toHaveBeenCalledOnce()
-    expect(
-      vi.mocked(failing.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
-    ).toBeLessThan(vi.mocked(failing.config.setOrigin).mock.invocationCallOrder[0])
+    expect(failing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
     expect(failing.relaunch).not.toHaveBeenCalled()
   })
 
-  it('does not mutate the configured server when completing teardown fails', async () => {
+  it('relaunches against the committed server when completing teardown fails', async () => {
     const failing = makeDeps({
       completeDeploymentScopedStateChange: vi.fn(() => {
         throw new Error('marker is read-only')
@@ -227,16 +225,31 @@ describe('server window', () => {
 
     const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
 
-    expect(result).toMatchObject({ ok: false })
-    expect(failing.config.set).not.toHaveBeenCalled()
-    expect(failing.config.setOrigin).not.toHaveBeenCalled()
-    expect(failing.config.getOrigin()).toBe(CURRENT)
-    expect(failing.relaunch).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      ok: true,
+      origin: 'https://sim.other.example',
+      unchanged: false,
+    })
+    expect(failing.config.setOrigin).toHaveBeenCalledWith('https://sim.other.example')
+    expect(failing.config.getOrigin()).toBe('https://sim.other.example')
+    expect(failing.relaunch).toHaveBeenCalledOnce()
+  })
+
+  it('relaunches when teardown completion remains pending after the commit', async () => {
+    const pending = makeDeps({
+      completeDeploymentScopedStateChange: vi.fn(() => false),
+    })
+
+    const result = await createServerWindow(pending).setOrigin('https://sim.other.example')
+
+    expect(result).toMatchObject({ ok: true, unchanged: false })
+    expect(pending.config.getOrigin()).toBe('https://sim.other.example')
+    expect(pending.relaunch).toHaveBeenCalledOnce()
   })
 
   it('refuses the change while a stronger account teardown is active', async () => {
     const failing = makeDeps({
-      completeDeploymentScopedStateChange: vi.fn(() => false),
+      canCompleteDeploymentScopedStateChange: vi.fn(() => false),
     })
 
     const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
@@ -244,6 +257,7 @@ describe('server window', () => {
     expect(result).toMatchObject({ ok: false })
     expect(failing.config.set).not.toHaveBeenCalled()
     expect(failing.config.setOrigin).not.toHaveBeenCalled()
+    expect(failing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
     expect(failing.relaunch).not.toHaveBeenCalled()
   })
 
