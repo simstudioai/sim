@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OverflowText } from './overflow-text'
@@ -226,5 +226,23 @@ describe('OverflowText', () => {
     Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 60 })
     act(() => document.fonts.dispatchEvent(new Event('loadingerror')))
     expect(label.className).not.toContain('mask-image:linear-gradient')
+  })
+
+  it('keeps observing mounted labels through Strict Mode effect replay', () => {
+    act(() =>
+      root.render(
+        <StrictMode>
+          <OverflowText label='Workflow name' />
+        </StrictMode>
+      )
+    )
+    const label = host.querySelector<HTMLElement>('span')
+    if (!label) throw new Error('Overflow label did not render')
+
+    setWidths(label, 100, 60)
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 180 })
+    act(() => document.fonts.dispatchEvent(new Event('loadingdone')))
+
+    expect(label.className).toContain('mask-image:linear-gradient')
   })
 })
