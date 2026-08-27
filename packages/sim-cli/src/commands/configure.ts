@@ -70,7 +70,7 @@ export function configureCommand(): Command {
           const value = globals[option]
           if (value === undefined) continue
           throw new SimApiError(
-            `${flag} applies to a single command and is not stored. To save it, run: sim configure ${setFlag} ${value}`,
+            `${flag} applies to a single command and is not stored. To save it, run: sim configure ${setFlag} ${redact(value)}`,
             0
           )
         }

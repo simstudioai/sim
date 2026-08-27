@@ -419,6 +419,19 @@ describe('list columns', () => {
     expect(columns[columns.length - 1]).toBe(unredacted)
   })
 
+  /**
+   * A custom tool has both a `title` and a `schema.function.name`, and they are
+   * different fields — a column headed `name` showing the title named the other
+   * one, while `--search` and `--sort-by title` both speak of the title.
+   */
+  it('heads the custom-tool column with the field it actually shows', () => {
+    const columns = CLI_CONTRACT.listCustomTools?.columns ?? []
+    const titled = columns.find((column) => (column.path ?? column.header) === 'title')
+
+    expect(titled?.header).toBe('title')
+    expect(columns.some((column) => column.header === 'name')).toBe(false)
+  })
+
   it('keeps the workflow-MCP listings scannable', () => {
     const servers = CLI_CONTRACT.listWorkflowMcpServers?.columns ?? []
     const tools = CLI_CONTRACT.listWorkflowMcpTools?.columns ?? []
@@ -725,9 +738,7 @@ describe('the import cancel refuses through commander, not just in the contract'
   })
 
   it('offers --yes in the help of the one it now gates, and not its sibling', () => {
-    expect(flatHelp('tables', 'imports', 'cancel')).toContain(
-      'Confirm this destructive operation (required)'
-    )
+    expect(flatHelp('tables', 'imports', 'cancel')).toContain('Confirm this operation (required)')
     expect(flatHelp('tables', 'exports', 'cancel')).not.toContain('--yes')
   })
 })
