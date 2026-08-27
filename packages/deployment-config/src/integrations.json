@@ -7775,6 +7775,77 @@
       "tags": ["automation", "seo", "agentic"]
     },
     {
+      "type": "forager",
+      "slug": "forager",
+      "name": "Forager",
+      "description": "Search and enrich people, contacts, organizations, roles, jobs, and websites",
+      "longDescription": "Integrate the Forager public API to search organizations, people and roles, and job posts; count matching datasets; retrieve person profiles; find work or personal emails and phone numbers; reverse-resolve contacts; and inspect website technologies and traffic ranks.",
+      "bgColor": "#5A42FF",
+      "iconName": "ForagerIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/forager",
+      "operations": [
+        {
+          "name": "Search Jobs",
+          "description": "Search Forager job posts by source, dates, organization IDs, Boolean title or description, remote and active status, and location IDs."
+        },
+        {
+          "name": "Count Jobs",
+          "description": "Count Forager job posts matching the complete documented job-search filter body."
+        },
+        {
+          "name": "Search Organizations",
+          "description": "Search organizations with Forager firmographic, domain, LinkedIn, technology, funding, hiring, and company-event filters."
+        },
+        {
+          "name": "Count Organizations",
+          "description": "Count organizations matching the complete documented Forager organization-search filter body."
+        },
+        {
+          "name": "Find Personal Emails",
+          "description": "Look up personal email records for a Forager person ID or LinkedIn public identifier. A documented empty success response returns an empty array."
+        },
+        {
+          "name": "Find Phone Numbers",
+          "description": "Look up phone-number records for a Forager person ID or LinkedIn public identifier."
+        },
+        {
+          "name": "Find Work Emails",
+          "description": "Look up work-email records for a Forager person ID or LinkedIn public identifier, optionally requesting contact enrichment."
+        },
+        {
+          "name": "Get Person Details",
+          "description": "Retrieve a complete Forager person profile by person ID or LinkedIn public identifier, including roles, education, skills, and authored work."
+        },
+        {
+          "name": "Reverse Lookup Email",
+          "description": "Resolve a personal email address to a complete Forager person profile."
+        },
+        {
+          "name": "Reverse Lookup Phone",
+          "description": "Resolve a phone number to a complete Forager person profile."
+        },
+        {
+          "name": "Search Person Roles",
+          "description": "Search people and roles using Forager role, person, organization, funding, hiring, and company-event filters."
+        },
+        {
+          "name": "Count Person Roles",
+          "description": "Count matching roles, distinct people, and distinct organizations for the complete documented Forager person-role search filter body."
+        },
+        {
+          "name": "Get Website Details",
+          "description": "Look up a website by domain, Forager organization ID, or LinkedIn company identifier and return ranks, traffic, and technologies."
+        }
+      ],
+      "operationCount": 13,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "gamma",
       "slug": "gamma",
       "name": "Gamma",

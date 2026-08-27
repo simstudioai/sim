@@ -91,6 +91,7 @@ import {
   FirefliesV2BlockMeta,
 } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintBlockMeta } from '@/blocks/blocks/flint'
+import { ForagerBlock, ForagerBlockMeta } from '@/blocks/blocks/forager'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GammaBlock, GammaBlockMeta } from '@/blocks/blocks/gamma'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
@@ -468,6 +469,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
   flint: FlintBlock,
+  forager: ForagerBlock,
   function: FunctionBlock,
   gamma: GammaBlock,
   generic_webhook: GenericWebhookBlock,
@@ -803,6 +805,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   fireflies: FirefliesBlockMeta,
   fireflies_v2: FirefliesV2BlockMeta,
   flint: FlintBlockMeta,
+  forager: ForagerBlockMeta,
   gamma: GammaBlockMeta,
   github: GitHubBlockMeta,
   github_v2: GitHubV2BlockMeta,

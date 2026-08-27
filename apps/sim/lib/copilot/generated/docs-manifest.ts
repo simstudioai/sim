@@ -141,6 +141,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/firecrawl.mdx',
   'integrations/fireflies.mdx',
   'integrations/flint.mdx',
+  'integrations/forager.mdx',
   'integrations/gamma.mdx',
   'integrations/github.mdx',
   'integrations/gitlab.mdx',

@@ -1389,6 +1389,21 @@ import {
   firefliesUploadAudioTool,
 } from '@/tools/fireflies'
 import { flintCreateTaskTool, flintGeneratePagesTool, flintGetTaskTool } from '@/tools/flint'
+import {
+  foragerJobSearchTool,
+  foragerJobSearchTotalsTool,
+  foragerOrganizationSearchTool,
+  foragerOrganizationSearchTotalsTool,
+  foragerPersonDetailTool,
+  foragerPersonPersonalEmailsTool,
+  foragerPersonPhoneNumbersTool,
+  foragerPersonReverseEmailTool,
+  foragerPersonReversePhoneTool,
+  foragerPersonRoleSearchTool,
+  foragerPersonRoleSearchTotalsTool,
+  foragerPersonWorkEmailsTool,
+  foragerWebsiteDetailTool,
+} from '@/tools/forager'
 import { functionExecuteTool } from '@/tools/function'
 import {
   gammaCheckStatusTool,
@@ -5997,6 +6012,19 @@ export const tools: Record<string, ToolConfig> = {
   flint_create_task: flintCreateTaskTool,
   flint_generate_pages: flintGeneratePagesTool,
   flint_get_task: flintGetTaskTool,
+  forager_job_search: foragerJobSearchTool,
+  forager_job_search_totals: foragerJobSearchTotalsTool,
+  forager_organization_search: foragerOrganizationSearchTool,
+  forager_organization_search_totals: foragerOrganizationSearchTotalsTool,
+  forager_person_detail: foragerPersonDetailTool,
+  forager_person_personal_emails: foragerPersonPersonalEmailsTool,
+  forager_person_phone_numbers: foragerPersonPhoneNumbersTool,
+  forager_person_reverse_email: foragerPersonReverseEmailTool,
+  forager_person_reverse_phone: foragerPersonReversePhoneTool,
+  forager_person_role_search: foragerPersonRoleSearchTool,
+  forager_person_role_search_totals: foragerPersonRoleSearchTotalsTool,
+  forager_person_work_emails: foragerPersonWorkEmailsTool,
+  forager_website_detail: foragerWebsiteDetailTool,
   gong_aggregate_activity: gongAggregateActivityTool,
   gong_aggregate_by_period: gongAggregateByPeriodTool,
   gong_answered_scorecards: gongAnsweredScorecardsTool,

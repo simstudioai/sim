@@ -2885,6 +2885,48 @@ export function FindymailIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/**
+ * Forager brand mark adapted from Forager's official public SVG wordmark.
+ * Source: https://cdn.prod.website-files.com/5f3ce7d38b0a42cbcba07bf6/5f3cf834a3374f7acc475e92_Logo.svg
+ */
+export function ForagerIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 30 31' fill='none' role='img' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M0 6L12.5 13.4597V31L8.84615 28.9839V15.6774L0 10.2339V6Z'
+        fill='currentColor'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M30 6L17.5 13.4597V31L21.1538 28.9839V15.6774L30 10.2339V6Z'
+        fill='currentColor'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M4 3.29167L14.5238 9.75L25.25 3.29167L21.8095 1L14.5238 5.16667L7.64286 1L4 3.29167Z'
+        fill='currentColor'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M23.75 17.5698L30 13.5V18.1802L23.75 22.25V17.5698Z'
+        fill='currentColor'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M6.25 17.5698L0 13.5V18.1802L6.25 22.25V17.5698Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function ZeroBounceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 26' fill='none'>

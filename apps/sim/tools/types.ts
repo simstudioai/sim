@@ -32,6 +32,7 @@ export type BYOKProviderId =
   | 'hunter'
   | 'peopledatalabs'
   | 'findymail'
+  | 'forager'
   | 'prospeo'
   | 'wiza'
   | 'zerobounce'
