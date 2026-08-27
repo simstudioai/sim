@@ -589,7 +589,7 @@ function main(): void {
           logger.error('Quit cancelled because account teardown did not finish safely')
           return
         }
-        if (!prepareAccountDataTeardownForQuit()) {
+        if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
           logger.error('Quit cancelled because account-data recovery could not be persisted')
           return
         }
@@ -603,7 +603,13 @@ function main(): void {
       })
       return
     }
-    if (!prepareAccountDataTeardownForQuit()) {
+    /**
+     * A mandatory relaunch is requested only after the server-switch transaction
+     * has cleared deployment-scoped capabilities and committed the replacement
+     * origin. The ordinary quit guard must not strand that committed process on
+     * its old partition; any retained marker is startup retry metadata.
+     */
+    if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
       event.preventDefault()
       logger.error('Quit cancelled because account-data recovery could not be persisted')
       return
