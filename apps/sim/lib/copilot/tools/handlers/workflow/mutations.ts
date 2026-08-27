@@ -15,6 +15,7 @@ import {
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
@@ -171,6 +172,7 @@ function copilotRunLifecycle(context: ExecutionContext) {
 }
 
 import type {
+  CancelWorkflowRunParams,
   CreateWorkflowParams,
   GenerateApiKeyParams,
   MoveWorkflowParams,
@@ -279,6 +281,49 @@ export async function executeRunWorkflow(
     return buildExecutionOutput(result, settledPhase(result.status))
   } catch (error) {
     return buildExecutionError(error)
+  }
+}
+
+export async function executeCancelWorkflowRun(
+  params: CancelWorkflowRunParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    const executionId = resolveInputFromExecutionId(params.executionId)
+    if (!executionId) {
+      return { success: false, error: 'executionId is required' }
+    }
+
+    assertWorkflowMutationNotAborted(
+      context,
+      'Request aborted before workflow run cancellation could be applied.'
+    )
+    const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
+      workflowId,
+      runId: executionId,
+    })
+
+    return {
+      success: result.success,
+      output: {
+        workflowId: result.workflowId,
+        executionId: result.executionId,
+        durablyRecorded: result.durablyRecorded,
+        locallyAborted: result.locallyAborted,
+        pausedCancelled: result.pausedCancelled,
+        reason: result.reason,
+      },
+      error: result.success ? undefined : 'Workflow run cancellation could not be completed',
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to cancel workflow run'),
+    }
   }
 }
 

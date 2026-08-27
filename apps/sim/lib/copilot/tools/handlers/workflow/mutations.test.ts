@@ -37,6 +37,7 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 import {
+  executeCancelWorkflowRun,
   executeCreateWorkflow,
   executeGenerateApiKey,
   executeMoveWorkflow,
@@ -159,6 +160,51 @@ describe('workflow mutation Copilot adapters', () => {
         lifecycle: expect.objectContaining({ billingAttribution: context.billingAttribution }),
       })
     )
+  })
+
+  it('cancels a workflow run through the registered application command', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      executionId: 'execution-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'recorded',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
+
+    const result = await executeCancelWorkflowRun(
+      { workflowId: 'workflow-1', executionId: 'execution-1' },
+      context
+    )
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        durablyRecorded: true,
+        locallyAborted: false,
+        pausedCancelled: false,
+        reason: 'recorded',
+      },
+    })
+    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.runs.cancel' }),
+      }),
+      { workflowId: 'workflow-1', runId: 'execution-1' }
+    )
+  })
+
+  it('requires an execution ID before attempting workflow-run cancellation', async () => {
+    const result = await executeCancelWorkflowRun({ workflowId: 'workflow-1' }, context)
+
+    expect(result).toEqual({ success: false, error: 'executionId is required' })
+    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it.each([
