@@ -46,6 +46,9 @@ const READ_ONLY_RESULT_TOOLS = new Set(['read', 'glob', 'grep'])
 const SERVER_MINTED_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/** Field names the disclosure record owns; an id may not take one. */
+const RESERVED_DISCLOSURE_KEYS = new Set(['resultWithheld', 'effect'])
+
 /** Chooses the withheld-result message a tool's caller should surface. */
 export function toolResultUnavailableError(toolId?: string): string {
   return toolId && READ_ONLY_RESULT_TOOLS.has(toolId)
@@ -102,10 +105,16 @@ function omittedResult(result: ToolExecutionResult, toolId?: string): ToolExecut
   }
 }
 
-/** Returns the disclosure only when every id it carries is a shape this system mints. */
+/**
+ * Returns the disclosure only when every id it carries is a shape this system mints and none
+ * of them would displace the record's own fields. An id named `effect` overwriting the phase
+ * would corrupt exactly the field the retry decision reads, so a collision voids the
+ * disclosure on the same all-or-nothing terms as an unvouchable id.
+ */
 function vouchableEffect(effect: ToolCallEffect | undefined): ToolCallEffect | undefined {
   if (!effect) return undefined
-  for (const value of Object.values(effect.ids ?? {})) {
+  for (const [key, value] of Object.entries(effect.ids ?? {})) {
+    if (RESERVED_DISCLOSURE_KEYS.has(key)) return undefined
     if (typeof value !== 'string' || !SERVER_MINTED_ID_PATTERN.test(value)) return undefined
   }
   return effect

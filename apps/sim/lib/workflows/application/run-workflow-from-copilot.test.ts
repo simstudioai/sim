@@ -308,9 +308,9 @@ describe('Copilot workflow run application commands', () => {
   })
 
   /**
-   * A caller whose result was withheld can only decide about retry from whether a run
-   * exists. Naming it from dispatch onward, and only from there, is what makes the id's
-   * absence the positive statement that nothing was created.
+   * A caller whose result was withheld can only decide about retry from whether a run exists.
+   * `executeWorkflow` owns that boundary and names the run itself once it crosses it; this
+   * layer only covers the window it cannot see — a failure after the run already returned.
    */
   describe('naming the run a failure belongs to', () => {
     const runInput = {
@@ -321,22 +321,53 @@ describe('Copilot workflow run application commands', () => {
       useMockPayload: true,
     }
 
-    it('names the dispatched run when execution itself fails', async () => {
-      mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
+    const failWith = (input = runInput) =>
+      runWorkflowFromCopilot.execute({ principal, input }).catch((thrown) => thrown)
 
-      const error = await runWorkflowFromCopilot
-        .execute({ principal, input: runInput })
-        .catch((thrown) => thrown)
+    it('passes through the id executeWorkflow attached at its dispatch boundary', async () => {
+      mocks.executeWorkflow.mockImplementationOnce(() => {
+        // Exactly what executeWorkflow does once it enters the core.
+        const dispatchFailure = new Error('database unavailable')
+        Object.assign(dispatchFailure, { attemptedExecutionId: 'child-execution-1' })
+        throw dispatchFailure
+      })
+
+      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
+    })
+
+    it('names the run when the crossing threw after it already returned', async () => {
+      // Only the post-run crossing throws; the catch re-enters this same method to
+      // record the failed crossing, and throwing again there would replace the very
+      // error the id was attached to.
+      let crossings = 0
+      const registry = {
+        exportProvenanceForValue: () => undefined,
+        beginPendingActivation: () => () => {},
+        importCrossingProvenance: () => {
+          if (crossings++ === 0) throw new Error('crossing import failed')
+        },
+      }
+
+      const error = await failWith({
+        ...runInput,
+        lifecycle: { resolvedSecretTraceRegistry: registry },
+      } as typeof runInput)
 
       expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
+    })
+
+    it('names nothing when a preflight failure never reached dispatch', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(
+        new Error('Billing attribution is required for workspace execution')
+      )
+
+      expect(readAttemptedExecutionId(await failWith())).toBeUndefined()
     })
 
     it('names nothing when admission refused the run before it could start', async () => {
       mocks.admission.mockRejectedValueOnce(new Error('Usage limit exceeded'))
 
-      const error = await runWorkflowFromCopilot
-        .execute({ principal, input: runInput })
-        .catch((thrown) => thrown)
+      const error = await failWith()
 
       expect(mocks.executeWorkflow).not.toHaveBeenCalled()
       expect(readAttemptedExecutionId(error)).toBeUndefined()
@@ -345,9 +376,7 @@ describe('Copilot workflow run application commands', () => {
     it('names nothing when authorization refused the run', async () => {
       mocks.permission.mockResolvedValue('read')
 
-      const error = await runWorkflowFromCopilot
-        .execute({ principal, input: runInput })
-        .catch((thrown) => thrown)
+      const error = await failWith()
 
       expect(mocks.admission).not.toHaveBeenCalled()
       expect(readAttemptedExecutionId(error)).toBeUndefined()

@@ -246,6 +246,7 @@ async function executeCopilotRun(params: {
     params.executionInput
   )
   const completePendingActivation = registry?.beginPendingActivation()
+  let runReturned = false
   try {
     const result = await executeWorkflow(
       {
@@ -287,6 +288,7 @@ async function executeCopilotRun(params: {
       },
       childExecutionId
     )
+    runReturned = true
     if (registry) {
       await registry.importCrossingProvenance(
         result.executionState?.resolvedSecretTraceProvenance,
@@ -297,11 +299,12 @@ async function executeCopilotRun(params: {
     return result
   } catch (error) {
     /**
-     * Everything above this `try` — authorization, admission, provenance export — fails
-     * before a run can exist, so only failures from here carry the id. That asymmetry is
-     * what lets a caller read its absence as "nothing was created" instead of guessing.
+     * `executeWorkflow` names the run itself once it crosses its own dispatch boundary, so
+     * preflight failures inside it correctly carry nothing. This covers only the window it
+     * cannot see: a failure after the run already returned, where the crossing import is
+     * what threw and an execution certainly exists.
      */
-    attachAttemptedExecutionId(error, childExecutionId)
+    if (runReturned) attachAttemptedExecutionId(error, childExecutionId)
     if (registry) {
       const executionResult =
         typeof error === 'object' &&

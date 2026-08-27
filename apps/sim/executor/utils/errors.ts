@@ -51,16 +51,29 @@ const ATTEMPTED_EXECUTION_ID = 'attemptedExecutionId'
  * result, this says only that it was dispatched.
  */
 export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
-  if (!(error instanceof Error) || !executionId) return
+  if (!isAttachableThrown(error) || !executionId) return
   if (ATTEMPTED_EXECUTION_ID in error) return
   Object.assign(error, { [ATTEMPTED_EXECUTION_ID]: executionId })
 }
 
-/** Reads the dispatched-run id an error carries, if dispatch was reached at all. */
+/** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
 export function readAttemptedExecutionId(error: unknown): string | undefined {
-  if (!(error instanceof Error) || !(ATTEMPTED_EXECUTION_ID in error)) return undefined
-  const value = (error as Error & Record<string, unknown>)[ATTEMPTED_EXECUTION_ID]
+  if (!isAttachableThrown(error) || !(ATTEMPTED_EXECUTION_ID in error)) return undefined
+  const value = (error as Record<string, unknown>)[ATTEMPTED_EXECUTION_ID]
   return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+/**
+ * Any non-null object, not only an `Error`.
+ *
+ * Restricting this to `Error` would silently invert the invariant for a thrown plain object:
+ * the id would not attach, the absence would then read as "nothing was started", and the
+ * caller would retry a run that already exists — the exact duplicate-side-effect outcome
+ * this id exists to prevent. A thrown primitive cannot carry a property at all, so callers
+ * that must not lose the id normalize before attaching.
+ */
+function isAttachableThrown(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 export interface BlockExecutionErrorDetails {
