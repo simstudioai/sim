@@ -28,6 +28,7 @@ import {
 import {
   downloadServableFileFromStorage,
   resolveInternalFileUrl,
+  type ServableFile,
 } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -35,6 +36,16 @@ import { assertToolFileAccess } from '@/app/api/files/authorization'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MistralParseAPI')
+
+function fileSizeLimitResponse() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: `File exceeds Mistral OCR's ${MISTRAL_OCR_REQUEST_POLICY.maxBytes.toLocaleString()}-byte request limit`,
+    },
+    { status: 413 }
+  )
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -159,14 +170,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
-        const { buffer, contentType } = await downloadServableFileFromStorage(
-          userFile,
-          requestId,
-          logger,
-          {
+        let servableFile: ServableFile
+        try {
+          servableFile = await downloadServableFileFromStorage(userFile, requestId, logger, {
             maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
-          }
-        )
+          })
+        } catch (error) {
+          if (!isPayloadSizeLimitError(error)) throw error
+          return fileSizeLimitResponse()
+        }
+        const { buffer, contentType } = servableFile
         base64 = buffer.toString('base64')
         if (contentType && contentType !== 'application/octet-stream') {
           mimeType = contentType
@@ -180,25 +193,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           : Buffer.byteLength(base64, 'base64')
       } catch (error) {
         const status = isFileParserError(error) && error.code === 'complexity_limit' ? 413 : 400
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              status === 413
-                ? `File exceeds Mistral OCR's ${MISTRAL_OCR_REQUEST_POLICY.maxBytes.toLocaleString()}-byte request limit`
-                : getErrorMessage(error, 'Invalid inline file data'),
-          },
-          { status }
-        )
+        return status === 413
+          ? fileSizeLimitResponse()
+          : NextResponse.json(
+              {
+                success: false,
+                error: getErrorMessage(error, 'Invalid inline file data'),
+              },
+              { status }
+            )
       }
       if (inlineBytes > MISTRAL_OCR_REQUEST_POLICY.maxBytes) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `File exceeds Mistral OCR's ${MISTRAL_OCR_REQUEST_POLICY.maxBytes.toLocaleString()}-byte request limit`,
-          },
-          { status: 413 }
-        )
+        return fileSizeLimitResponse()
       }
 
       const base64Payload = base64.startsWith('data:')
@@ -355,12 +361,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (notReady) return notReady
 
     if (isPayloadSizeLimitError(error)) {
+      logger.error(`[${requestId}] Mistral API response exceeded the safe size limit`, {
+        maxBytes: error.maxBytes,
+        observedBytes: error.observedBytes,
+      })
       return NextResponse.json(
         {
           success: false,
-          error: `File exceeds Mistral OCR's ${MISTRAL_OCR_REQUEST_POLICY.maxBytes.toLocaleString()}-byte request limit`,
+          error: 'Mistral API response exceeded the safe size limit',
         },
-        { status: 413 }
+        { status: 502 }
       )
     }
 
