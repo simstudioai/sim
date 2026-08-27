@@ -1221,6 +1221,42 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
 
+  it('finishes workflow-group reconciliation when abort arrives during its durable commit', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        kind: 'already_cancelled',
+        tableId: 'table-1',
+        rowId: 'row-1',
+        groupId: 'group-1',
+      }
+    })
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await cancelWorkflowExecutionPostAuth({
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+      userId: 'user-1',
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, pausedCancelled: true })
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+    expect(mockPublishWorkflowGroupCancellationEvent).toHaveBeenCalledOnce()
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
   it('does not finalize an already-cancelled group retry until exact stop is accepted', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {

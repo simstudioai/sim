@@ -489,7 +489,11 @@ export async function cancelWorkflowExecutionPostAuth({
 
     if (execution.status === 'cancelled') {
       let groupCancellationToPublish: PublishableWorkflowGroupCancellation | null = null
+      let groupCancellationCommitted = false
       if (isWorkflowGroupExecution) {
+        const preGroupCancellationAbort = cancellationAbortedResponse(abortSignal)
+        if (preGroupCancellationAbort) return preGroupCancellationAbort
+
         const workflowGroupCancellation = await cancelWorkflowGroupExecution({
           workspaceId: execution.workspaceId,
           workflowId,
@@ -514,6 +518,7 @@ export async function cancelWorkflowExecutionPostAuth({
           workflowGroupCancellation.kind === 'already_cancelled'
         ) {
           groupCancellationToPublish = workflowGroupCancellation
+          groupCancellationCommitted = true
         }
       }
 
@@ -523,12 +528,14 @@ export async function cancelWorkflowExecutionPostAuth({
         executionId,
         workflowId
       )
-      const postStageAbort = await rollbackPausedCancellationAfterAbort({
-        stage: pausedCancellationStage,
-        workflowId,
-        executionId,
-        abortSignal,
-      })
+      const postStageAbort = groupCancellationCommitted
+        ? null
+        : await rollbackPausedCancellationAfterAbort({
+            stage: pausedCancellationStage,
+            workflowId,
+            executionId,
+            abortSignal,
+          })
       if (postStageAbort) return postStageAbort
 
       const hasPausedCancellation = isPausedCancellationStage(pausedCancellationStage)
