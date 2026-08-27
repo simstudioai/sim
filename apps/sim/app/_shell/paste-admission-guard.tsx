@@ -49,6 +49,7 @@ export function PasteAdmissionGuard() {
       if (handlesImageFiles && clipboardHasImageFile(event.clipboardData)) return
 
       const text = event.clipboardData?.getData('text/plain') ?? ''
+      const projectsTextResult = event.target.closest('[data-paste-projects-text-result="true"]')
       const policyElement = event.target.closest('[data-paste-max-bytes]')
       const maxPastedBytes =
         finitePositiveAttribute(policyElement, 'data-paste-max-bytes') ?? PASTE_LIMITS.DEFAULT_BYTES
@@ -56,13 +57,14 @@ export function PasteAdmissionGuard() {
         policyElement,
         'data-paste-max-characters'
       )
-      const textAdmission = text
-        ? assessTextPaste({
-            pastedText: text,
-            maxPastedBytes,
-            maxPastedCharacters,
-          })
-        : null
+      const textAdmission =
+        text && !projectsTextResult
+          ? assessTextPaste({
+              pastedText: text,
+              maxPastedBytes,
+              maxPastedCharacters,
+            })
+          : null
       const htmlPolicyElement = event.target.closest('[data-paste-max-html-bytes]')
       const maxPastedHtmlBytes = finitePositiveAttribute(
         htmlPolicyElement,

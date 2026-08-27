@@ -90,7 +90,7 @@ export function assessTextEditorPaste(
     : input.pastedText.length * selections.length
   const resultCharacters = input.currentText.length - replacedCharacters + insertedCharacters
 
-  if (input.pastedText.length > maxBytes) {
+  if (!distributedRanges && input.pastedText.length > maxBytes) {
     return {
       accepted: false,
       reason: 'pasted-bytes',
@@ -103,8 +103,8 @@ export function assessTextEditorPaste(
     return { accepted: true, resultCharacters }
   }
 
-  const pastedBytes = utf8ByteLength(input.pastedText, maxBytes)
-  if (pastedBytes > maxBytes) {
+  const pastedBytes = distributedRanges ? undefined : utf8ByteLength(input.pastedText, maxBytes)
+  if (pastedBytes !== undefined && pastedBytes > maxBytes) {
     return { accepted: false, reason: 'pasted-bytes', actual: pastedBytes, limit: maxBytes }
   }
 
@@ -114,7 +114,7 @@ export function assessTextEditorPaste(
           total + utf8ByteLengthRange(input.pastedText, range.start, range.end, maxBytes - total),
         0
       )
-    : pastedBytes * selections.length
+    : (pastedBytes ?? 0) * selections.length
   if (insertedBytes > maxBytes) {
     return { accepted: false, reason: 'result-bytes', actual: insertedBytes, limit: maxBytes }
   }

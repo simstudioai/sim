@@ -100,6 +100,19 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
   })
 
+  it('defers text admission to an editor that projects its exact paste result', () => {
+    const editor = document.createElement('div')
+    editor.setAttribute('contenteditable', 'true')
+    editor.dataset.pasteMaxBytes = '4'
+    editor.dataset.pasteProjectsTextResult = 'true'
+    host.appendChild(editor)
+
+    const targetHandler = vi.fn()
+    editor.addEventListener('paste', targetHandler)
+    expect(dispatchPaste(editor, '12345').defaultPrevented).toBe(false)
+    expect(targetHandler).toHaveBeenCalledOnce()
+  })
+
   it('lets a prompt consume a compact Sim selection reference before its large plain text', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'

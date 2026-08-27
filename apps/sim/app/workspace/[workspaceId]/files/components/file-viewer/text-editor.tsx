@@ -683,6 +683,7 @@ export const TextEditor = memo(function TextEditor({
       {showEditor && (
         <div
           data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+          data-paste-projects-text-result='true'
           onPasteCapture={handleEditorPasteCapture}
           style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
           className={cn(

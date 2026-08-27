@@ -60,6 +60,26 @@ describe('assessTextEditorPaste', () => {
     ).toMatchObject({ accepted: true, resultBytes: 10 })
   })
 
+  it('admits a distributed result when only removed line separators exceed the boundary', () => {
+    expect(
+      assessTextEditorPaste(
+        {
+          pastedText: 'a\nb\nc\nd\ne\nf',
+          currentText: '1234',
+          selections: [
+            { start: 0, end: 0 },
+            { start: 1, end: 1 },
+            { start: 2, end: 2 },
+            { start: 3, end: 3 },
+            { start: 4, end: 4 },
+            { start: 4, end: 4 },
+          ],
+        },
+        10
+      )
+    ).toMatchObject({ accepted: true, resultBytes: 10 })
+  })
+
   it('projects the full clipboard at every cursor when Monaco spread mode is disabled', () => {
     expect(
       assessTextEditorPaste(
