@@ -20,6 +20,10 @@ import { SimApiError } from '../http/client'
  * it did not change, which reads exactly like a confirmation. Refusing and
  * naming the twin is the honest answer; making the global write instead would
  * give one command a persistent side effect the same flag has on no other.
+ *
+ * The suggested command has to carry `--profile` whenever one is selected:
+ * without it, a caller who follows the advice verbatim writes the `default`
+ * profile and leaves the one they were targeting untouched.
  */
 const GLOBAL_FLAG_TWINS = [
   { option: 'endpoint', flag: '--endpoint', setFlag: '--set-endpoint' },
@@ -66,11 +70,13 @@ export function configureCommand(): Command {
         command: Command
       ) => {
         const globals = globalsOf(command)
+        const selectedProfile = globals.profile || process.env.SIM_PROFILE
+        const profileArg = selectedProfile ? ` --profile ${redact(selectedProfile)}` : ''
         for (const { option, flag, setFlag } of GLOBAL_FLAG_TWINS) {
           const value = globals[option]
           if (value === undefined) continue
           throw new SimApiError(
-            `${flag} applies to a single command and is not stored. To save it, run: sim configure ${setFlag} ${redact(value)}`,
+            `${flag} applies to a single command and is not stored. To save it, run: sim configure${profileArg} ${setFlag} ${redact(value)}`,
             0
           )
         }

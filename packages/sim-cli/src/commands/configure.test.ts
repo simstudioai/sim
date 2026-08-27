@@ -42,6 +42,10 @@ function run(...args: string[]): Promise<Command> {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-cli-'))
   process.env.SIM_CONFIG_DIR = dir
+  // The refusal reads SIM_PROFILE the way `resolveProfile` does, so an ambient
+  // one would otherwise decide what these assertions see. Empty rather than
+  // `undefined`: assigning to process.env stringifies, and "undefined" is truthy.
+  process.env.SIM_PROFILE = ''
   mocks.profileName = 'default'
   mocks.profileFrom.mockClear()
   mocks.profileFrom.mockImplementation(() => ({ name: mocks.profileName }))
@@ -52,6 +56,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   rmSync(dir, { recursive: true, force: true })
   process.env.SIM_CONFIG_DIR = undefined
+  process.env.SIM_PROFILE = ''
 })
 
 describe('configure --set-endpoint', () => {
@@ -188,6 +193,50 @@ describe('configure and the root globals', () => {
     await expect(run('-w', 'ws_9')).rejects.toThrow('sim configure --set-workspace ws_9')
     await expect(run('--output', 'json')).rejects.toThrow('sim configure --set-output json')
     expect(readConfigProfile('default')).toEqual({})
+  })
+
+  /**
+   * The suggested command is meant to be pasted verbatim, so omitting the
+   * selected profile made it write `default` and leave the profile the caller
+   * was targeting untouched — silently, and reported as a success.
+   */
+  it('carries the selected profile into the command it suggests', async () => {
+    await expect(run('-P', 'dev', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+    await expect(run('-P', 'dev', '--endpoint', 'https://other.example')).rejects.toThrow(
+      'sim configure --profile dev --set-endpoint https://other.example'
+    )
+    await expect(run('-P', 'dev', '-w', 'ws_9')).rejects.toThrow(
+      'sim configure --profile dev --set-workspace ws_9'
+    )
+  })
+
+  it('carries a SIM_PROFILE-selected profile into the command it suggests', async () => {
+    process.env.SIM_PROFILE = 'dev'
+
+    await expect(run('--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+  })
+
+  /**
+   * `resolveProfile` reads `overrides.profile || process.env.SIM_PROFILE`, so
+   * the suggestion has to name the profile the run would actually resolve to.
+   */
+  it('lets an explicit --profile win over SIM_PROFILE, as resolveProfile does', async () => {
+    process.env.SIM_PROFILE = 'staging'
+
+    await expect(run('-P', 'dev', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev --set-output json'
+    )
+  })
+
+  /** The profile name is caller-supplied, so it is redacted like the value. */
+  it('redacts a control character out of the profile it suggests', async () => {
+    await expect(run('-P', 'dev\u2028sim login', '--output', 'json')).rejects.toThrow(
+      'sim configure --profile dev sim login --set-output json'
+    )
   })
 
   it('does not print a stale stored value as if it had been set', async () => {
