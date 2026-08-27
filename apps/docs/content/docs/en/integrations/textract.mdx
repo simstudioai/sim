@@ -89,6 +89,7 @@ Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 | `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
+| `filePath` | string | No | URL to an invoice or receipt to be processed, if not uploaded directly. |
 | `s3Uri` | string | No | S3 URI for multi-page processing \(s3://bucket/key\). |
 
 #### Output
@@ -117,6 +118,7 @@ Extract identity document fields using AWS Textract AnalyzeID
 | `accessKeyId` | string | Yes | AWS Access Key ID |
 | `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
+| `filePath` | string | No | URL to the front of the identity document, if not uploaded directly. |
 
 #### Output
 

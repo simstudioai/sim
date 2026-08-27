@@ -74,6 +74,7 @@ Write data to a specific sheet in a Google Sheets spreadsheet
 | `sheetName` | string | Yes | The name of the sheet/tab to write to |
 | `cellRange` | string | No | The cell range to write to \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
+| `valueInputOption` | string | No | The format of the data to write |
 
 #### Output
 
@@ -99,6 +100,7 @@ Update data in a specific sheet in a Google Sheets spreadsheet
 | `sheetName` | string | Yes | The name of the sheet/tab to update |
 | `cellRange` | string | No | The cell range to update \(e.g. "A1:D10", "A1"\). Defaults to "A1" if not specified. |
 | `values` | array | Yes | The data to update as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\]\]\) or array of objects. |
+| `valueInputOption` | string | No | The format of the data to update |
 
 #### Output
 
@@ -123,6 +125,8 @@ Append data to the end of a specific sheet in a Google Sheets spreadsheet
 | `spreadsheetId` | string | Yes | Google Sheets spreadsheet ID |
 | `sheetName` | string | Yes | The name of the sheet/tab to append to |
 | `values` | array | Yes | The data to append as a 2D array \(e.g. \[\["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
+| `valueInputOption` | string | No | The format of the data to append |
+| `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
 
 #### Output
 

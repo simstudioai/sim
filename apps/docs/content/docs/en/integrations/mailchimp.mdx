@@ -62,6 +62,7 @@ Retrieve a list of audiences (lists) from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -83,6 +84,7 @@ Retrieve details of a specific audience (list) from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 
 #### Output
@@ -102,6 +104,7 @@ Create a new audience (list) in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `audienceName` | string | Yes | The name of the audience/list \(e.g., "Newsletter Subscribers"\) |
 | `contact` | string | Yes | JSON object of contact information \(e.g., \{"company": "Acme", "address1": "123 Main St", "city": "NYC", "state": "NY", "zip": "10001", "country": "US"\}\) |
 | `permissionReminder` | string | Yes | Permission reminder text shown to subscribers \(e.g., "You signed up for updates on our website"\) |
@@ -126,6 +129,7 @@ Update an existing audience (list) in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `audienceName` | string | No | The name of the audience/list \(e.g., "Newsletter Subscribers"\) |
 | `permissionReminder` | string | No | Permission reminder text shown to subscribers \(e.g., "You signed up for updates on our website"\) |
@@ -150,6 +154,7 @@ Delete an audience (list) from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list to delete \(e.g., "abc123def4"\) |
 
 #### Output
@@ -166,6 +171,7 @@ Retrieve a list of members from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `status` | string | No | Filter by status: "subscribed", "unsubscribed", "cleaned", or "pending" |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
@@ -189,6 +195,7 @@ Retrieve details of a specific member from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 
@@ -209,6 +216,7 @@ Add a new member to a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `emailAddress` | string | Yes | Member email address \(e.g., "user@example.com"\) |
 | `status` | string | Yes | Subscriber status: "subscribed", "unsubscribed", "cleaned", "pending", or "transactional" |
@@ -233,6 +241,7 @@ Add a new member or update an existing member in a Mailchimp audience (upsert)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 | `emailAddress` | string | Yes | Member email address \(e.g., "user@example.com"\) |
@@ -258,6 +267,7 @@ Update an existing member in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 | `emailAddress` | string | No | New member email address \(e.g., "user@example.com"\) |
@@ -283,6 +293,7 @@ Delete a member from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 
@@ -300,6 +311,7 @@ Permanently archive (delete) a member from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 
@@ -319,6 +331,7 @@ Restore an archived member to a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 | `emailAddress` | string | Yes | Member email address \(e.g., "user@example.com"\) |
@@ -342,6 +355,7 @@ Retrieve a list of campaigns from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignType` | string | No | Filter by campaign type: "regular", "plaintext", "absplit", "rss", or "variate" |
 | `status` | string | No | Filter by status: "save", "paused", "schedule", "sending", or "sent" |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
@@ -365,6 +379,7 @@ Retrieve details of a specific campaign from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign \(e.g., "abc123def4"\) |
 
 #### Output
@@ -384,6 +399,7 @@ Create a new campaign in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignType` | string | Yes | Campaign type: "regular", "plaintext", "absplit", "rss", or "variate" |
 | `campaignSettings` | string | Yes | JSON object of campaign settings \(e.g., \{"subject_line": "Newsletter", "from_name": "Acme", "reply_to": "news@acme.com"\}\) |
 | `recipients` | string | No | JSON object of recipients \(e.g., \{"list_id": "abc123"\}\) |
@@ -406,6 +422,7 @@ Update an existing campaign in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign \(e.g., "abc123def4"\) |
 | `campaignSettings` | string | No | JSON object of campaign settings \(e.g., \{"subject_line": "Newsletter", "from_name": "Acme"\}\) |
 | `recipients` | string | No | JSON object of recipients \(e.g., \{"list_id": "abc123"\}\) |
@@ -428,6 +445,7 @@ Delete a campaign from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to delete \(e.g., "abc123def4"\) |
 
 #### Output
@@ -444,6 +462,7 @@ Send a Mailchimp campaign
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to send \(e.g., "abc123def4"\) |
 
 #### Output
@@ -462,6 +481,7 @@ Schedule a Mailchimp campaign to be sent at a specific time
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to schedule \(e.g., "abc123def4"\) |
 | `scheduleTime` | string | Yes | Schedule time in ISO 8601 format \(e.g., "2024-12-25T10:00:00Z"\) |
 
@@ -479,6 +499,7 @@ Unschedule a previously scheduled Mailchimp campaign
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to unschedule \(e.g., "abc123def4"\) |
 
 #### Output
@@ -497,6 +518,7 @@ Create a copy of an existing Mailchimp campaign
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign to replicate \(e.g., "abc123def4"\) |
 
 #### Output
@@ -517,6 +539,7 @@ Retrieve the HTML and plain-text content for a Mailchimp campaign
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign \(e.g., "abc123def4"\) |
 
 #### Output
@@ -535,6 +558,7 @@ Set the content for a Mailchimp campaign
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign \(e.g., "abc123def4"\) |
 | `html` | string | No | The HTML content for the campaign |
 | `plainText` | string | No | The plain-text content for the campaign |
@@ -557,6 +581,7 @@ Retrieve a list of automations from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -578,6 +603,7 @@ Retrieve details of a specific automation from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `workflowId` | string | Yes | The unique ID for the automation workflow \(e.g., "abc123def4"\) |
 
 #### Output
@@ -597,6 +623,7 @@ Start all emails in a Mailchimp automation workflow
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `workflowId` | string | Yes | The unique ID for the automation workflow \(e.g., "abc123def4"\) |
 
 #### Output
@@ -615,6 +642,7 @@ Pause all emails in a Mailchimp automation workflow
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `workflowId` | string | Yes | The unique ID for the automation workflow \(e.g., "abc123def4"\) |
 
 #### Output
@@ -633,6 +661,7 @@ Manually add a subscriber to a workflow email queue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `workflowId` | string | Yes | The unique ID for the automation workflow \(e.g., "abc123def4"\) |
 | `workflowEmailId` | string | Yes | The unique ID for the workflow email \(e.g., "xyz789"\) |
 | `emailAddress` | string | Yes | Email address of the subscriber \(e.g., "user@example.com"\) |
@@ -654,6 +683,7 @@ Retrieve a list of templates from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -675,6 +705,7 @@ Retrieve details of a specific template from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `templateId` | string | Yes | The unique ID for the template \(e.g., "12345"\) |
 
 #### Output
@@ -694,6 +725,7 @@ Create a new template in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `templateName` | string | Yes | The name of the template \(e.g., "Monthly Newsletter"\) |
 | `templateHtml` | string | Yes | The HTML content for the template |
 
@@ -715,6 +747,7 @@ Update an existing template in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `templateId` | string | Yes | The unique ID for the template \(e.g., "12345"\) |
 | `templateName` | string | No | The name of the template \(e.g., "Monthly Newsletter"\) |
 | `templateHtml` | string | No | The HTML content for the template |
@@ -737,6 +770,7 @@ Delete a template from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `templateId` | string | Yes | The unique ID for the template to delete \(e.g., "12345"\) |
 
 #### Output
@@ -753,6 +787,7 @@ Retrieve a list of campaign reports from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -774,6 +809,7 @@ Retrieve the report for a specific campaign from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `campaignId` | string | Yes | The unique ID for the campaign \(e.g., "abc123def4"\) |
 
 #### Output
@@ -793,6 +829,7 @@ Retrieve a list of segments from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
@@ -815,6 +852,7 @@ Retrieve details of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment \(e.g., "12345"\) |
 
@@ -835,6 +873,7 @@ Create a new segment in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentName` | string | Yes | The name of the segment \(e.g., "VIP Customers"\) |
 | `segmentOptions` | string | No | JSON object of segment options for saved segments \(e.g., \{"match": "all", "conditions": \[...\]\}\) |
@@ -857,6 +896,7 @@ Update an existing segment in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment \(e.g., "12345"\) |
 | `segmentName` | string | No | The name of the segment \(e.g., "VIP Customers"\) |
@@ -880,6 +920,7 @@ Delete a segment from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment to delete \(e.g., "12345"\) |
 
@@ -897,6 +938,7 @@ Retrieve members of a specific segment from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment \(e.g., "12345"\) |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
@@ -920,6 +962,7 @@ Add a member to a specific segment in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment \(e.g., "12345"\) |
 | `emailAddress` | string | Yes | Email address of the member \(e.g., "user@example.com"\) |
@@ -941,6 +984,7 @@ Remove a member from a specific segment in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `segmentId` | string | Yes | The unique ID for the segment \(e.g., "12345"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
@@ -961,6 +1005,7 @@ Retrieve tags associated with a member in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 
@@ -982,6 +1027,7 @@ Add tags to a member in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 | `tags` | string | Yes | JSON array of tag objects \(e.g., \[\{"name": "VIP", "status": "active"\}\]\) |
@@ -1002,6 +1048,7 @@ Remove tags from a member in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
 | `tags` | string | Yes | JSON array of tag objects with inactive status \(e.g., \[\{"name": "VIP", "status": "inactive"\}\]\) |
@@ -1022,6 +1069,7 @@ Retrieve a list of merge fields from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
@@ -1044,6 +1092,7 @@ Retrieve details of a specific merge field from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `mergeId` | string | Yes | The unique ID for the merge field \(e.g., "1" or "FNAME"\) |
 
@@ -1064,6 +1113,7 @@ Create a new merge field in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `mergeName` | string | Yes | The name of the merge field \(e.g., "First Name"\) |
 | `mergeType` | string | Yes | The type of the merge field: "text", "number", "address", "phone", "date", "url", "imageurl", "radio", "dropdown", "birthday", or "zip" |
@@ -1086,6 +1136,7 @@ Update an existing merge field in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `mergeId` | string | Yes | The unique ID for the merge field \(e.g., "1" or "FNAME"\) |
 | `mergeName` | string | No | The name of the merge field \(e.g., "First Name"\) |
@@ -1108,6 +1159,7 @@ Delete a merge field from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `mergeId` | string | Yes | The unique ID for the merge field to delete \(e.g., "1" or "FNAME"\) |
 
@@ -1125,6 +1177,7 @@ Retrieve a list of interest categories from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
@@ -1147,6 +1200,7 @@ Retrieve details of a specific interest category from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 
@@ -1167,6 +1221,7 @@ Create a new interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryTitle` | string | Yes | The title of the interest category \(e.g., "Email Preferences"\) |
 | `interestCategoryType` | string | Yes | The type of interest category: "checkboxes", "dropdown", "radio", or "hidden" |
@@ -1189,6 +1244,7 @@ Update an existing interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `interestCategoryTitle` | string | No | The title of the interest category \(e.g., "Email Preferences"\) |
@@ -1211,6 +1267,7 @@ Delete an interest category from a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category to delete \(e.g., "xyz789"\) |
 
@@ -1228,6 +1285,7 @@ Retrieve a list of interests from an interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
@@ -1251,6 +1309,7 @@ Retrieve details of a specific interest from an interest category in a Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `interestId` | string | Yes | The unique ID for the interest \(e.g., "def456"\) |
@@ -1272,6 +1331,7 @@ Create a new interest in an interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `interestName` | string | Yes | The name of the interest \(e.g., "Weekly Updates"\) |
@@ -1294,6 +1354,7 @@ Update an existing interest in an interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `interestId` | string | Yes | The unique ID for the interest \(e.g., "def456"\) |
@@ -1317,6 +1378,7 @@ Delete an interest from an interest category in a Mailchimp audience
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `interestCategoryId` | string | Yes | The unique ID for the interest category \(e.g., "xyz789"\) |
 | `interestId` | string | Yes | The unique ID for the interest to delete \(e.g., "def456"\) |
@@ -1335,6 +1397,7 @@ Retrieve a list of landing pages from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -1356,6 +1419,7 @@ Retrieve details of a specific landing page from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `pageId` | string | Yes | The unique ID for the landing page \(e.g., "abc123def4"\) |
 
 #### Output
@@ -1375,6 +1439,7 @@ Create a new landing page in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `landingPageType` | string | Yes | The type of landing page: "signup" |
 | `landingPageTitle` | string | No | The title of the landing page \(e.g., "Join Our Newsletter"\) |
 
@@ -1396,6 +1461,7 @@ Update an existing landing page in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `pageId` | string | Yes | The unique ID for the landing page \(e.g., "abc123def4"\) |
 | `landingPageTitle` | string | No | The title of the landing page \(e.g., "Join Our Newsletter"\) |
 
@@ -1417,6 +1483,7 @@ Delete a landing page from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `pageId` | string | Yes | The unique ID for the landing page to delete \(e.g., "abc123def4"\) |
 
 #### Output
@@ -1433,6 +1500,7 @@ Publish a landing page in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `pageId` | string | Yes | The unique ID for the landing page \(e.g., "abc123def4"\) |
 
 #### Output
@@ -1451,6 +1519,7 @@ Unpublish a landing page in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `pageId` | string | Yes | The unique ID for the landing page \(e.g., "abc123def4"\) |
 
 #### Output
@@ -1469,6 +1538,7 @@ Retrieve a list of batch operations from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `count` | string | No | Number of results to return \(default: 10, max: 1000\) |
 | `offset` | string | No | Number of results to skip for pagination |
 
@@ -1490,6 +1560,7 @@ Retrieve details of a specific batch operation from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `batchId` | string | Yes | The unique ID for the batch operation \(e.g., "abc123def4"\) |
 
 #### Output
@@ -1509,6 +1580,7 @@ Create a new batch operation in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `operations` | string | Yes | JSON array of batch operations \(e.g., \[\{"method": "POST", "path": "/lists/\{list_id\}/members", "body": "..."\}\]\) |
 
 #### Output
@@ -1529,6 +1601,7 @@ Delete a batch operation from Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Mailchimp API key with server prefix |
 | `batchId` | string | Yes | The unique ID for the batch operation to delete \(e.g., "abc123def4"\) |
 
 #### Output

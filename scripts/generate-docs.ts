@@ -200,6 +200,8 @@ interface BlockConfig {
     access?: string[]
   }
   operations?: OperationInfo[]
+  /** Param names the block exposes to the user via its own `subBlocks` (id or `canonicalParamId`). */
+  userSettableParamIds?: string[]
   docsLink?: string
   [key: string]: any
 }
@@ -644,6 +646,66 @@ ${mappingEntries}
   } catch (error) {
     console.error('Error writing icon mapping:', error)
   }
+}
+
+/**
+ * Collects the param names a block exposes to the user through its own `subBlocks`.
+ *
+ * A subBlock's `id` is the param it writes, unless it declares `canonicalParamId`,
+ * which is how a differently-named field maps onto a tool param. A tool param marked
+ * `visibility: 'hidden'` is not an LLM-settable tool argument, but when the block
+ * declares a matching field the value is still typed by the user (e.g. Mailchimp's
+ * `apiKey`) and must stay documented. Params with no matching field are genuinely
+ * server-derived (Jira's `cloudId`, Salesforce's `idToken`) and stay filtered out.
+ *
+ * Brace matching runs on a blanked copy so braces inside string literals and comments
+ * cannot skew it; only depth-1 properties of each subBlock are read, so `id` fields on
+ * nested `options`/`condition` objects are never mistaken for the subBlock's own id.
+ */
+export function extractUserSettableParamIds(blockContent: string): string[] {
+  const scannable = blankStringsAndComments(blockContent)
+  const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(scannable)
+  if (!subBlocksMatch) return []
+
+  const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
+  const arrayEnd = findMatchingClose(scannable, arrayStart, '[', ']')
+  if (arrayEnd === -1) return []
+
+  const ids = new Set<string>()
+  let i = arrayStart + 1
+  while (i < arrayEnd - 1) {
+    if (scannable[i] !== '{') {
+      i++
+      continue
+    }
+
+    const objectEnd = findMatchingClose(scannable, i)
+    if (objectEnd === -1) break
+
+    let depth = 0
+    let topLevel = ''
+    for (let k = i; k < objectEnd; k++) {
+      const char = scannable[k]
+      if (char === '{' || char === '[') {
+        depth++
+        continue
+      }
+      if (char === '}' || char === ']') {
+        depth--
+        continue
+      }
+      if (depth === 1) topLevel += blockContent[k]
+    }
+
+    const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+    if (idMatch) ids.add(idMatch[1])
+    const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+    if (canonicalMatch) ids.add(canonicalMatch[1])
+
+    i = objectEnd
+  }
+
+  return [...ids]
 }
 
 /**
@@ -1334,6 +1396,12 @@ function extractBlockConfigFromContent(
 
     const operations = extractOperationsFromContent(blockContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
+    const userSettableParamIds = [
+      ...new Set([
+        ...extractUserSettableParamIds(blockContent),
+        ...((baseConfig as any)?.userSettableParamIds ?? []),
+      ]),
+    ]
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -1365,6 +1433,7 @@ function extractBlockConfigFromContent(
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
       operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      userSettableParamIds,
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,
       ...(integrationType ? { integrationType } : {}),
@@ -2169,7 +2238,8 @@ function extractToolInfo(
   fileContent: string,
   factorySource = '',
   toolFilePath = '',
-  rootDir = ''
+  rootDir = '',
+  userSettableParamIdSet: ReadonlySet<string> = new Set()
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2330,12 +2400,18 @@ function extractToolInfo(
         }
 
         /**
-         * `visibility: 'hidden'` means the param is shown to neither the user nor the LLM,
-         * so it is not settable and must not appear in the public Input table. Emitting it
-         * tells integrators they can override a value they cannot reach, and several such
-         * params are credential-shaped (idToken, instanceUrl, apiToken, apiKey).
+         * `visibility: 'hidden'` means the param is not an LLM-settable tool argument, so
+         * it must not appear in the public Input table — emitting it tells integrators they
+         * can override a value they cannot reach, and several such params are credential-
+         * shaped (idToken, instanceUrl, apiToken). The exception is a param the owning block
+         * still exposes as a field the user types: Mailchimp's `apiKey` is hidden on every
+         * tool because the block injects it, yet the block's own `apiKey` subBlock is the
+         * only place the requirement is documented. Keep those; drop the rest.
          */
-        if (/visibility\s*:\s*['"]hidden['"]/.test(paramBlock)) {
+        if (
+          /visibility\s*:\s*['"]hidden['"]/.test(paramBlock) &&
+          !userSettableParamIdSet.has(paramName)
+        ) {
           continue
         }
 
@@ -2940,11 +3016,16 @@ export function parsePropertiesContent(
   return properties
 }
 
-async function getToolInfo(toolName: string): Promise<{
+export async function getToolInfo(
+  toolName: string,
+  userSettableParamIds: readonly string[] = []
+): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null> {
+  const userSettableParamIdSet = new Set(userSettableParamIds)
+
   try {
     const parts = toolName.split('_')
 
@@ -3074,7 +3155,8 @@ async function getToolInfo(toolName: string): Promise<{
       toolFileContent,
       resolveFactorySource(toolFileContent, foundFile, rootDir),
       foundFile,
-      rootDir
+      rootDir,
+      userSettableParamIdSet
     )
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
@@ -3229,6 +3311,7 @@ async function generateMarkdownForBlock(
     bgColor,
     outputs = {},
     tools = { access: [] },
+    userSettableParamIds = [],
   } = blockConfig
 
   let outputsSection = ''
@@ -3291,7 +3374,7 @@ async function generateMarkdownForBlock(
       toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
-      const toolInfo = await getToolInfo(tool)
+      const toolInfo = await getToolInfo(tool, userSettableParamIds)
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {

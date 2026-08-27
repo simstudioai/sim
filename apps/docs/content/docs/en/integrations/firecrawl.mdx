@@ -51,6 +51,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
+| `formats` | json | No | Output formats supplied by existing Firecrawl block configurations |
 | `firecrawlTimeout` | number | No | How long Firecrawl may spend on the scrape, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
 | `apiKey` | string | Yes | Firecrawl API key |
 
@@ -220,6 +221,7 @@ Crawl entire websites and extract structured content from all accessible pages
 | `limit` | number | No | Maximum number of pages to crawl \(e.g., 50, 100, 500\). Default: 100 |
 | `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
 | `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
+| `prompt` | string | No | Natural-language crawl guidance supplied by existing configurations |
 | `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
 | `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
@@ -311,6 +313,7 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
 | `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
 | `firecrawlTimeout` | number | No | How long Firecrawl may spend on the map, in milliseconds. Sent as `timeout` in the request body; it does not bound Sim's own transport deadline. |
+| `location` | json | No | Geographic context for proxying \(country, languages\) |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output

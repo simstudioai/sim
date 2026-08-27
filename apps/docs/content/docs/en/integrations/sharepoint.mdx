@@ -41,6 +41,7 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `pageName` | string | Yes | The name of the page to create. Example: My-New-Page.aspx or Report-2024.aspx |
 | `pageTitle` | string | No | The title of the page \(defaults to page name if not provided\) |
@@ -68,6 +69,7 @@ Read a specific page from a SharePoint site
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `pageId` | string | No | The ID of the page to read. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 | `pageName` | string | No | The name of the page to read \(alternative to pageId\). Example: Home.aspx or About-Us.aspx |
 | `maxPages` | number | No | Maximum number of pages to return when listing all pages \(default: 10, max: 50\) |
@@ -113,6 +115,7 @@ Update the title and/or content of a SharePoint page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `pageId` | string | Yes | The ID of the page to update. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 | `pageTitle` | string | No | The new title of the page |
@@ -140,6 +143,7 @@ Publish the latest version of a SharePoint page, making it available to all user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `pageId` | string | Yes | The ID of the page to publish. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 
 #### Output
@@ -158,6 +162,7 @@ Delete a page from a SharePoint site
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `pageId` | string | Yes | The ID of the page to delete. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 
 #### Output
@@ -176,6 +181,7 @@ List details of all SharePoint sites
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `groupId` | string | No | The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 | `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
@@ -213,6 +219,7 @@ Create a new list in a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `listDisplayName` | string | Yes | Display name of the list to create. Example: Project Tasks or Customer Contacts |
 | `listDescription` | string | No | Description of the list |
@@ -241,6 +248,7 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | No | The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `includeColumns` | boolean | No | Whether to include column definitions when retrieving a specific list |
 | `includeItems` | boolean | No | Whether to include list items when retrieving a specific list |
@@ -277,6 +285,7 @@ Update the properties (fields) on a SharePoint list item
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `itemId` | string | Yes | The ID of the list item to update. Example: 1, 42, or 123 |
 | `listItemFields` | json | Yes | Field values to update on the list item |
@@ -298,6 +307,7 @@ Add a new item to a SharePoint list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list to add the item to. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `listItemFields` | json | Yes | Field values for the new list item |
 
@@ -318,6 +328,7 @@ Get a single item (with field values) from a SharePoint list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `itemId` | string | Yes | The ID of the list item to retrieve. Example: 1, 42, or 123 |
 
@@ -338,6 +349,7 @@ Delete an item from a SharePoint list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `itemId` | string | Yes | The ID of the list item to delete. Example: 1, 42, or 123 |
 
@@ -356,6 +368,7 @@ Upload files to a SharePoint document library
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site |
 | `driveId` | string | No | The ID of the document library \(drive\). If not provided, uses default drive. Example: b!abc123def456 |
 | `folderPath` | string | No | Optional folder path within the document library. Example: /Documents/Subfolder or /Shared Documents/Reports |
 | `fileName` | string | No | Optional: override the uploaded file name. Example: report-2024.pdf |
