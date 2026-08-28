@@ -19,7 +19,7 @@ import {
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isAuditLogsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import {
   ManageCreditsModal,
   type ManageCreditsTarget,
@@ -187,8 +187,21 @@ export function UsageMonitoring({
   // cannot report a different allowance than they do.
   const billing = useOrganizationBilling(organizationId)
 
-  /** The organization audit feed, narrowed to the workspace being drilled into. */
-  const auditLogsHref = serializeAuditLogFilters(auditLogsBaseHref, { workspace })
+  /**
+   * The organization audit feed, narrowed to the workspace being drilled into.
+   *
+   * Only offered where that section exists. Usage and Audit logs carry the same
+   * hosted and enterprise gates, so reaching this panel already proves both — but
+   * their self-hosted overrides are separate flags, and an install with usage
+   * monitoring on and audit logs off would have been handed an action pointing at a
+   * section it had switched off. The window is deliberately not carried across: the
+   * audit feed speaks in rolling ranges (`Past 30 days`) and this panel in billing
+   * periods, so there is no honest mapping for `current-period`.
+   */
+  const auditLogsHref =
+    isHosted || isAuditLogsEnabled
+      ? serializeAuditLogFilters(auditLogsBaseHref, { workspace })
+      : null
 
   /**
    * The drill-down is the same window, in more detail. Without the params it read its
@@ -288,21 +301,25 @@ export function UsageMonitoring({
           onSelect: () => void setState({ workspace: null, expanded: null }),
         }}
         title={workspaceName ?? 'Workspace usage'}
-        actions={[
-          {
-            /*
-              The organization's audit feed, scoped to this workspace — not
-              `/workspace/<id>/logs`. Organization admin is not workspace
-              membership, and `WorkspaceLayout` answers a non-member with
-              `WorkspaceAccessDenied`, so the run-logs route was a one-way trip to
-              a dead end for any workspace the admin had not joined. Audit logs
-              live in the settings section the admin is already inside.
-            */
-            text: 'Open logs',
-            onSelect: () => router.push(auditLogsHref),
-            onPrefetch: () => router.prefetch(auditLogsHref),
-          },
-        ]}
+        actions={
+          auditLogsHref
+            ? [
+                {
+                  /*
+                    The organization's audit feed, scoped to this workspace — not
+                    `/workspace/<id>/logs`. Organization admin is not workspace
+                    membership, and `WorkspaceLayout` answers a non-member with
+                    `WorkspaceAccessDenied`, so the run-logs route was a one-way trip
+                    to a dead end for any workspace the admin had not joined. Audit
+                    logs live in the settings section the admin is already inside.
+                  */
+                  text: 'Open logs',
+                  onSelect: () => router.push(auditLogsHref),
+                  onPrefetch: () => router.prefetch(auditLogsHref),
+                },
+              ]
+            : []
+        }
       >
         {/*
           Sources first, because in most workspaces the majority of usage is Chat
