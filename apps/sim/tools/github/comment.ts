@@ -1,6 +1,81 @@
+import { isRecordLike } from '@sim/utils/object'
+import { readGitHubErrorMessage } from '@/tools/github/response-parsers'
 import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+
+const GITHUB_API_BASE = 'https://api.github.com'
+
+function githubHeaders(apiKey: string): Record<string, string> {
+  return {
+    Accept: 'application/vnd.github.v3+json',
+    Authorization: `Bearer ${apiKey}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+  }
+}
+
+function pullRequestUrl(params: CreateCommentParams): string {
+  return `${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`
+}
+
+/**
+ * GitHub requires `commit_id` on a pull request review comment. When the caller did
+ * not supply one, the pull request is fetched first so its head SHA can be used —
+ * mirroring how Jira resolves a missing `cloudId` from `domain`.
+ */
+function needsCommitLookup(params: CreateCommentParams): boolean {
+  return params.commentType === 'file_comment' && !params.commitId
+}
+
+function fileCommentBody(params: CreateCommentParams, commitId: string): Record<string, any> {
+  return {
+    body: params.body,
+    commit_id: commitId,
+    path: params.path,
+    line: params.line,
+    side: params.side || 'RIGHT',
+  }
+}
+
+function readHeadSha(pullRequest: unknown): string | undefined {
+  if (!isRecordLike(pullRequest) || !isRecordLike(pullRequest.head)) return undefined
+  const sha = pullRequest.head.sha
+  return typeof sha === 'string' && sha ? sha : undefined
+}
+
+/**
+ * Returns the raw GitHub comment payload. For a file comment created without an
+ * explicit `commitId`, `response` holds the pull request lookup instead: its head
+ * SHA is read and the comment is posted in a follow-up request.
+ */
+async function readCommentPayload(
+  response: Response,
+  params?: CreateCommentParams
+): Promise<Record<string, any>> {
+  if (!params || !needsCommitLookup(params)) return response.json()
+
+  const commitId = readHeadSha(await response.json())
+  if (!commitId) {
+    throw new Error(
+      `GitHub returned no head commit SHA for pull request ${params.owner}/${params.repo}#${params.pullNumber}. Set commitId to comment on a specific commit.`
+    )
+  }
+
+  const commentResponse = await fetch(`${pullRequestUrl(params)}/comments`, {
+    method: 'POST',
+    headers: { ...githubHeaders(params.apiKey), 'Content-Type': 'application/json' },
+    body: JSON.stringify(fileCommentBody(params, commitId)),
+  })
+
+  if (!commentResponse.ok) {
+    throw new Error(
+      (await readGitHubErrorMessage(commentResponse)) ??
+        `Failed to create file comment (HTTP ${commentResponse.status})`
+    )
+  }
+
+  return commentResponse.json()
+}
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
   id: 'github_comment',
@@ -39,12 +114,6 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
       visibility: 'user-or-llm',
       description: 'File path for review comment',
     },
-    position: {
-      type: 'number',
-      required: false,
-      visibility: 'hidden',
-      description: 'Line number for review comment',
-    },
     commentType: {
       type: 'string',
       required: false,
@@ -68,7 +137,7 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The SHA of the commit to comment on',
+      description: 'The SHA of the commit to comment on. Defaults to the pull request head commit.',
     },
     apiKey: {
       type: 'string',
@@ -80,26 +149,22 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
 
   request: {
     url: (params) => {
-      if (params.path) {
-        return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
+      if (needsCommitLookup(params)) {
+        return pullRequestUrl(params)
       }
-      return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`
+      if (params.path) {
+        return `${pullRequestUrl(params)}/comments`
+      }
+      return `${pullRequestUrl(params)}/reviews`
     },
-    method: 'POST',
-    headers: (params) => ({
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${params.apiKey}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    }),
+    method: (params) => (needsCommitLookup(params) ? 'GET' : 'POST'),
+    headers: (params) => githubHeaders(params.apiKey),
     body: (params) => {
+      if (needsCommitLookup(params)) {
+        return undefined
+      }
       if (params.commentType === 'file_comment') {
-        return {
-          body: params.body,
-          commit_id: params.commitId,
-          path: params.path,
-          line: params.line || params.position,
-          side: params.side || 'RIGHT',
-        }
+        return fileCommentBody(params, params.commitId as string)
       }
       return {
         body: params.body,
@@ -108,8 +173,8 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     },
   },
 
-  transformResponse: async (response) => {
-    const data = await response.json()
+  transformResponse: async (response, params) => {
+    const data = await readCommentPayload(response, params)
 
     // Create a human-readable content string
     const content = `Comment created: "${data.body}"`
@@ -141,15 +206,15 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
   },
 }
 
-export const commentV2Tool: ToolConfig = {
+export const commentV2Tool: ToolConfig<CreateCommentParams> = {
   id: 'github_comment_v2',
   name: commentTool.name,
   description: commentTool.description,
   version: '2.0.0',
   params: commentTool.params,
   request: commentTool.request,
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
+  transformResponse: async (response: Response, params?: CreateCommentParams) => {
+    const data = await readCommentPayload(response, params)
     return {
       success: true,
       output: {
