@@ -267,6 +267,12 @@ export interface SubBlockConfig {
    */
   canvasNoun?: string
   type: SubBlockType
+  /**
+   * Subblocks copied from the selected logical agent when this field is an
+   * `agent-session-selector`. Keeping this declarative lets the shared picker
+   * work for future stateful agent blocks without knowing their field names.
+   */
+  agentSessionFields?: string[]
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is the advanced side of a trigger field — either a canonical pair member or a standalone field shown under the block-level advanced toggle
   canonicalParamId?: string
   /**

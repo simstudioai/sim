@@ -62,6 +62,7 @@ describe('settings navigation boundaries', () => {
       'apikeys',
       'workflow-mcp-servers',
       'byok',
+      'codex',
       'sandboxes',
       'inbox',
       'recently-deleted',
@@ -98,6 +99,7 @@ describe('settings navigation boundaries', () => {
       'teammates',
       'secrets',
       'byok',
+      'codex',
       'sandboxes',
       'credential-groups',
       'custom-tools',
@@ -418,6 +420,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'byok',
+        'codex',
         'sandboxes',
         'custom-tools',
         'mcp',
@@ -436,6 +439,7 @@ describe('settings navigation boundaries', () => {
         'teammates',
         'secrets',
         'byok',
+        'codex',
         'sandboxes',
         'custom-tools',
         'mcp',
@@ -446,7 +450,14 @@ describe('settings navigation boundaries', () => {
         'custom-blocks',
         'self-host',
       ],
-      mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
+      mutable: [
+        'secrets',
+        'codex',
+        'custom-tools',
+        'mcp',
+        'workflow-mcp-servers',
+        'recently-deleted',
+      ],
     },
     {
       permission: 'admin' as const,
@@ -497,6 +508,7 @@ describe('settings navigation boundaries', () => {
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
       'byok',
+      'codex',
       'sandboxes',
       'credential-groups',
       'workflow-mcp-servers',
@@ -510,6 +522,7 @@ describe('settings navigation boundaries', () => {
   it('uses server-aligned mutation permissions for workspace settings', () => {
     const writer = { canEdit: true, canAdmin: false }
     expect(canMutateWorkspaceSettingsSection('custom-tools', writer)).toBe(true)
+    expect(canMutateWorkspaceSettingsSection('codex', writer)).toBe(true)
     expect(canMutateWorkspaceSettingsSection('mcp', writer)).toBe(true)
     expect(canMutateWorkspaceSettingsSection('recently-deleted', writer)).toBe(true)
     expect(canMutateWorkspaceSettingsSection('workflow-mcp-servers', writer)).toBe(true)

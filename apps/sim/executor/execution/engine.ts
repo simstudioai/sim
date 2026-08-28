@@ -190,11 +190,11 @@ export class ExecutionEngine {
       }
       throw error
     } finally {
-      this.cleanup()
+      await this.cleanup()
     }
   }
 
-  private cleanup(): void {
+  private async cleanup(): Promise<void> {
     if (this.abortSignalListener && this.context.abortSignal) {
       this.context.abortSignal.removeEventListener('abort', this.abortSignalListener)
       this.abortSignalListener = null
@@ -202,6 +202,20 @@ export class ExecutionEngine {
     if (this.cancellationUnsubscribe) {
       this.cancellationUnsubscribe()
       this.cancellationUnsubscribe = null
+    }
+
+    const resources = this.context.runtimeResources
+    if (!resources) return
+    const callbacks = [...resources.cleanupCallbacks]
+    resources.cleanupCallbacks.clear()
+    resources.values.clear()
+    const results = await Promise.allSettled(callbacks.map((callback) => callback()))
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.execLogger.warn('Execution runtime resource cleanup failed', {
+          error: toError(result.reason).message,
+        })
+      }
     }
   }
 

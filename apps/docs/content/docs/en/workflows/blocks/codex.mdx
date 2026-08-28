@@ -1,0 +1,109 @@
+---
+title: Codex Coding Agent
+description: Run OpenAI Codex in an isolated repository sandbox to produce an implementation plan or create a pull request.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { BlockPreview } from '@/components/workflow-preview'
+
+The **Codex Coding Agent** block runs a pinned OpenAI Codex CLI in an isolated E2B or Daytona sandbox. A logical agent can keep its native Codex thread and repository checkout across multiple blocks or loop rounds, inspect a GitHub repository and return a plan, or implement a task and maintain a pull request.
+
+<BlockPreview type="codex" />
+
+## Modes
+
+### Plan
+
+Plan clones the repository into a disposable checkout, removes the authenticated Git remote, and lets Codex read files, search, and run checks. It returns a Markdown plan and performs no commit, push, pull request, or other GitHub write.
+
+Later turns for the same agent continue the native Codex thread in the same checkout, so one step can investigate and another can refine or challenge the plan without rebuilding context.
+
+### Create PR
+
+Create PR clones the selected base branch, asks Codex to edit the checkout, and waits for a successful `turn.completed` event. Sim then performs the credentialed delivery steps separately:
+
+1. Verify that repository-local Git configuration did not change during the Codex turn.
+2. Stage and commit the changes without an OpenAI or GitHub credential in scope.
+3. Capture the changed files and a bounded unified diff.
+4. Push the new branch with the GitHub token.
+5. Create the pull request through Sim's GitHub integration.
+
+If Codex makes no changes, the block returns successfully without pushing a branch or opening a pull request.
+
+Later turns for the same agent continue editing the same local branch. Sim pushes the new commit to the existing branch and returns the existing pull request instead of creating another one.
+
+## Agent instances and session reuse
+
+Each block is its own agent by default. Repeating that block in a loop continues the same sandbox, checkout, and native Codex thread.
+
+Choose an existing **Agent** when multiple Codex blocks should address one logical agent. The picker uses friendly labels such as Agent 1 and Agent 2; internal IDs are generated and managed automatically. Steps with the same agent share the instance and their turns run serially. Different agents create isolated instances and may run concurrently. Stable runtime configuration belongs to that logical Agent, so every step resolves the same mode, model, repository, and base branch.
+
+Choose **New agent** to split a step into an independent sandbox and Codex thread. Copying a block also creates an independent agent by default. When several blocks that share an agent are copied together, the copied group keeps sharing with itself but not with the original group.
+
+Agent instances are execution-scoped: Sim closes all of them when the uninterrupted workflow execution succeeds, fails, pauses, or is cancelled. A later independent workflow execution starts fresh. Durable reuse across independent executions requires a persistent runner and is not inferred from a thread ID alone, because Codex resume also requires its local rollout state.
+
+## Configuration
+
+Codex configuration is a sparse overlay, similar to a Kustomize patch. Resolution runs in this order:
+
+1. Workspace profile
+2. Workflow defaults
+3. Agent settings
+4. Step override
+
+Only keys explicitly set at a layer are stored there; missing keys inherit. A Workspace change therefore reaches every Workflow, Agent, and Step that has not overridden that field. Sim freezes the resolved layers for an uninterrupted execution, so a settings edit cannot change an Agent halfway through a run.
+
+- **Workspace profile** — shared defaults managed under **Settings → Codex**.
+- **Workflow defaults / Agent settings** — opened from **Configure** below the Agent picker.
+- **Task** — what Codex should plan or implement.
+- **Agent** — choose a workflow agent to reuse, or create a new independent one. Sim manages its internal ID.
+- **Mode / Model / Repository / Base Branch / Agent Shell Network** — stable layered settings, normally configured on the Agent or inherited from the Workflow and Workspace.
+- **OpenAI API Key** — your key, entered on the block or stored as OpenAI BYOK. Sim never substitutes a hosted model key for this block.
+- **GitHub Token** — clone access for Plan; clone, push, and pull-request write access for Create PR.
+- **Reasoning Effort (Step Override)** *(advanced)* — `low`, `medium`, `high`, or `xhigh`; leave blank to inherit the Agent/Workflow/Workspace value.
+- **Branch Name / Draft / PR Title / PR Body** *(advanced)* — optional step-local pull-request delivery settings, used in Create PR mode.
+
+## Isolation
+
+Every agent instance receives a private `CODEX_HOME`. Its rollout files are retained only while that workflow execution is active so later turns can use `codex exec resume`. The runtime ignores user config and execpolicy rules, disables hooks, plugins, apps, collaboration, skill discovery, and persisted goals, and runs with the `workspace-write` sandbox. Headless Codex runs never request approval. The shell environment is restricted so model-generated commands do not inherit `OPENAI_API_KEY`.
+
+The GitHub token is present only during clone and push or in the host-side pull-request API call. It is never placed in the Codex process environment.
+
+<Callout type="warn">
+  Repository contents are untrusted instructions. Keep **Agent Shell Network** off unless the task needs it, use narrowly scoped credentials, and review every generated pull request before merging.
+</Callout>
+
+The MVP does not resume Codex threads across independent workflow executions and does not expose Sim tools, MCP servers, plugins, hooks, or mid-turn human approval. Those capabilities require the persistent app-server runner planned for a later phase.
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| `<codex.content>` | Final Codex message or Markdown plan |
+| `<codex.model>` | Model selected for the run |
+| `<codex.runStatus>` | Terminal status (`completed` for returned outputs; failures fail the block) |
+| `<codex.agentId>` | Resolved logical agent instance ID |
+| `<codex.sessionReused>` | Whether this turn continued an existing instance |
+| `<codex.turnNumber>` | One-based turn number within the instance |
+| `<codex.threadId>` | Native Codex thread ID resumed by later turns in this execution |
+| `<codex.commands>` | Bounded command, patch, and tool summaries |
+| `<codex.changedFiles>` | Files changed in Create PR mode |
+| `<codex.diff>` | Bounded unified diff in Create PR mode |
+| `<codex.branch>` | Branch pushed in Create PR mode |
+| `<codex.prUrl>` | Pull request URL in Create PR mode |
+| `<codex.tokens>` | Input, cache, output, and reasoning token counts |
+| `<codex.cost>` | Sim-attributed model cost; zero because this block is BYOK-only |
+| `<codex.providerTiming>` | Start time, end time, and duration |
+
+## Self-hosted setup
+
+Build the dedicated image after setting the provider API key:
+
+```bash
+bun run apps/sim/scripts/build-codex-e2b-template.ts --name sim-codex
+bun run apps/sim/scripts/build-codex-daytona-snapshot.ts --name sim-codex:<tag>
+```
+
+For E2B, set `SANDBOX_PROVIDER=e2b`, `E2B_API_KEY`, and `E2B_CODEX_TEMPLATE_ID`. For Daytona, set `SANDBOX_PROVIDER=daytona`, `DAYTONA_API_KEY`, and `DAYTONA_CODEX_SNAPSHOT_ID`.
+
+The image pins `@openai/codex@0.146.0`. Upgrade the package contract, JSONL fixtures, parser tests, and both provider images together.

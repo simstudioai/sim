@@ -12,6 +12,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
+  AgentSessionSelector,
   CheckboxList,
   Code,
   ComboBox,
@@ -632,6 +633,17 @@ function SubBlockComponent({
    */
   const renderInput = (): JSX.Element => {
     switch (config.type) {
+      case 'agent-session-selector':
+        return (
+          <AgentSessionSelector
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+          />
+        )
+
       case 'short-input':
         return (
           <ShortInput

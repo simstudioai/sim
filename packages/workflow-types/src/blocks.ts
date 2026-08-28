@@ -50,6 +50,7 @@ export type SubBlockType =
   | 'messages-input'
   | 'workflow-selector'
   | 'workflow-input-mapper'
+  | 'agent-session-selector'
   | 'text'
   | 'router-input'
   | 'table-selector'

@@ -125,6 +125,27 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it('adds the hidden Codex Agent configuration mirror idempotently', () => {
+    const input = {
+      codex: makeBlock({
+        type: 'codex',
+        subBlocks: { task: { id: 'task', type: 'long-input', value: 'Plan it' } },
+      }),
+    }
+
+    const first = migrateSubblockIds(input)
+    const second = migrateSubblockIds(first.blocks)
+
+    expect(first.migrated).toBe(true)
+    expect(first.blocks.codex.subBlocks.agentConfig).toEqual({
+      id: 'agentConfig',
+      type: 'short-input',
+      value: null,
+    })
+    expect(second.migrated).toBe(false)
+    expect(second.blocks).toEqual(first.blocks)
+  })
+
   it('should preserve Instagram insight metrics after the subblock rename', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({

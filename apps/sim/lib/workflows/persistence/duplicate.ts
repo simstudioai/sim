@@ -18,6 +18,7 @@ import {
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
+import { remapCodexWorkflowAgentIds } from '@/lib/codex/config'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -213,6 +214,7 @@ export async function duplicateWorkflow(
       isDeployed: false,
       runCount: 0,
       locked: false,
+      codexConfig: source.codexConfig,
       // Duplicate variables with new IDs and new workflowId
       variables: (() => {
         const sourceVars = (source.variables as Record<string, Variable>) || {}
@@ -320,6 +322,11 @@ export async function duplicateWorkflow(
         `[${requestId}] Copied ${sourceBlocks.length} blocks with updated parent relationships`
       )
     }
+
+    await tx
+      .update(workflow)
+      .set({ codexConfig: remapCodexWorkflowAgentIds(source.codexConfig, blockIdMapping) })
+      .where(eq(workflow.id, newWorkflowId))
 
     // Copy all edges from source workflow with updated block references
     const sourceEdges = await tx

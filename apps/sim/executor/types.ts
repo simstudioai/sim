@@ -371,6 +371,19 @@ export interface ExecutorDelegationOrigin {
   currentWorkflow?: WorkflowExecutionAuthority
 }
 
+/**
+ * Process-local resources owned by one uninterrupted workflow execution.
+ *
+ * Values are deliberately opaque to the executor. Block handlers use them for
+ * resources that must survive more than one block invocation (for example a
+ * coding-agent sandbox), while the engine owns deterministic async teardown.
+ * Nothing in this registry is serialized into pause snapshots.
+ */
+export interface ExecutionRuntimeResources {
+  values: Map<string, unknown>
+  cleanupCallbacks: Set<() => Promise<void>>
+}
+
 export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
@@ -402,6 +415,9 @@ export interface ExecutionContext {
    * block execution, so only a shared reference survives; a scalar written here would be lost.
    */
   toolBindingLabelCache?: Map<string, string | null>
+
+  /** Shared by shallow-cloned block contexts for the lifetime of this run. */
+  runtimeResources?: ExecutionRuntimeResources
 
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>

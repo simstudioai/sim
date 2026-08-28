@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"019c9f8d-0bb8-7490-90c5-0514d2b465fe"}
+{"type":"turn.started"}
+{"type":"turn.failed","error":{"message":"The provided API key is invalid"}}

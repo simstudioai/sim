@@ -273,7 +273,7 @@ function templateFor(kind: SandboxKind, imageRef?: string): string {
   }
   if (kind === 'code' || kind === 'shell') functionTemplateReleaseGeneration()
   // A workspace dependency set may only displace the dedicated Function base.
-  // Mothership, doc, and Pi keep their vetted images unconditionally, so a
+  // Mothership, doc, Pi, and Codex keep their vetted images unconditionally, so a
   // user's package list can never land under those server-owned runtimes.
   if (imageRef && (kind === 'code' || kind === 'shell')) {
     return imageRef
@@ -295,6 +295,12 @@ function templateFor(kind: SandboxKind, imageRef?: string): string {
       throw new Error('Pi cloud agent not configured (E2B_PI_TEMPLATE_ID is unset)')
     }
     return env.E2B_PI_TEMPLATE_ID
+  }
+  if (kind === 'codex') {
+    if (!env.E2B_CODEX_TEMPLATE_ID) {
+      throw new Error('Codex cloud agent not configured (E2B_CODEX_TEMPLATE_ID is unset)')
+    }
+    return env.E2B_CODEX_TEMPLATE_ID
   }
   return functionTemplateRef()
 }

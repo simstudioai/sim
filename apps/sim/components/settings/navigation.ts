@@ -26,7 +26,7 @@ import {
   Wrench,
 } from '@sim/emcn/icons'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
-import { CodeIcon, McpIcon } from '@/components/icons'
+import { CodeIcon, McpIcon, OpenAIIcon } from '@/components/icons'
 import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
@@ -69,6 +69,7 @@ export type WorkspaceSettingsSection =
   | 'secrets'
   | 'credential-groups'
   | 'byok'
+  | 'codex'
   | 'sandboxes'
   | 'custom-tools'
   | 'mcp'
@@ -109,6 +110,7 @@ export type UnifiedSettingsSection =
   | 'audit-logs'
   | 'apikeys'
   | 'byok'
+  | 'codex'
   | 'billing'
   | 'teammates'
   | 'organization'
@@ -624,6 +626,19 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
+    label: 'Codex',
+    icon: OpenAIIcon,
+    unified: {
+      id: 'codex',
+      description: 'Set layered Codex defaults shared by workflows and reusable Agents.',
+      group: 'workspace',
+      order: 5,
+    },
+    planes: {
+      workspace: { id: 'codex', group: 'workspace', order: 3 },
+    },
+  },
+  {
     label: 'Sandboxes',
     icon: CodeIcon,
     docsLink: 'https://docs.sim.ai/workflows/blocks/function',
@@ -1018,6 +1033,7 @@ const WORKSPACE_MUTATION_PERMISSION: Record<WorkspaceSettingsSection, Permission
   secrets: 'write',
   'credential-groups': 'admin',
   byok: 'admin',
+  codex: 'write',
   sandboxes: 'admin',
   'custom-tools': 'write',
   mcp: 'write',

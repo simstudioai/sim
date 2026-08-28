@@ -280,6 +280,11 @@ export const workflow = pgTable(
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
+    /**
+     * Sparse Codex workflow overlays. The document contains workflow defaults
+     * plus logical-agent patches; missing keys inherit from the workspace.
+     */
+    codexConfig: jsonb('codex_config').notNull().default('{}'),
     archivedAt: timestamp('archived_at'),
   },
   (table) => ({
@@ -1836,6 +1841,8 @@ export const workspace = pgTable(
     inboxProviderId: text('inbox_provider_id'),
     inboxSecretScope: text('inbox_secret_scope').notNull().default('all'),
     inboxMountedSecrets: jsonb('inbox_mounted_secrets').$type<string[]>().notNull().default([]),
+    /** Shared Codex defaults inherited by every workflow in this workspace. */
+    codexConfig: jsonb('codex_config').notNull().default('{}'),
     archivedAt: timestamp('archived_at'),
     organizationAssignedAt: timestamp('organization_assigned_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(

@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { remapCodexWorkflowAgentIds } from '@/lib/codex/config'
 import type { DbOrTx } from '@/lib/db/types'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -368,6 +369,8 @@ export interface CopyWorkflowStateParams {
     description: string | null
     folderId: string | null
     sortOrder: number
+    /** Sparse workflow/Agent Codex overlays copied with the workflow definition. */
+    codexConfig?: unknown
     /**
      * Whether the source's deployed API is public (unauthenticated). Carried onto sync targets
      * so a public source stays public after push/pull - the target org's own access-control
@@ -680,6 +683,7 @@ export async function copyWorkflowStateIntoTarget(
       runCount: 0,
       locked: false,
       variables: remappedVariables,
+      codexConfig: remapCodexWorkflowAgentIds(sourceMeta.codexConfig, blockIdMapping),
       // Deployment visibility follows the source on sync (a public source stays public in
       // the target); fork-create omits the field, so the child starts private.
       ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
@@ -692,6 +696,7 @@ export async function copyWorkflowStateIntoTarget(
         description: sourceMeta.description,
         folderId: targetFolderId,
         variables: remappedVariables,
+        codexConfig: remapCodexWorkflowAgentIds(sourceMeta.codexConfig, blockIdMapping),
         lastSynced: now,
         updatedAt: now,
         ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),

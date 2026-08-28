@@ -7,6 +7,7 @@
 
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import { CodexBlockHandler } from '@/executor/handlers/codex/codex-handler'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import { CredentialBlockHandler } from '@/executor/handlers/credential/credential-handler'
 import { CredentialGroupBlockHandler } from '@/executor/handlers/credential-group/credential-group-handler'
@@ -42,6 +43,7 @@ export function createBlockHandlers(): BlockHandler[] {
     new AgentBlockHandler(),
     new MothershipBlockHandler(),
     new PiBlockHandler(),
+    new CodexBlockHandler(),
     new VariablesBlockHandler(),
     new WorkflowBlockHandler(),
     new WaitBlockHandler(),

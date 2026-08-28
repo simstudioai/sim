@@ -5,6 +5,7 @@ import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { remapCopiedAgentSessions } from '@/lib/workflows/agent-sessions'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import {
   getDynamicHandleSubblockType,
@@ -602,18 +603,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
         )
         clearClonedWebhookPath(newSubBlocks as Record<string, SubBlockState>, clonedSubBlockValues)
 
+        const duplicatedBlock = {
+          ...block,
+          id: newId,
+          name: newName,
+          position: offsetPosition,
+          subBlocks: newSubBlocks,
+          locked: false,
+          data: newData,
+        }
+        remapCopiedAgentSessions({
+          sourceBlocks: { [id]: block },
+          copiedBlocks: { [newId]: duplicatedBlock },
+          blockIdMap: new Map([[id, newId]]),
+          sourceSubBlockValues: { [id]: clonedSubBlockValues },
+          copiedSubBlockValues: { [newId]: clonedSubBlockValues },
+        })
+
         const newState = {
           blocks: {
             ...get().blocks,
-            [newId]: {
-              ...block,
-              id: newId,
-              name: newName,
-              position: offsetPosition,
-              subBlocks: newSubBlocks,
-              locked: false,
-              data: newData,
-            },
+            [newId]: duplicatedBlock,
           },
           edges: [...get().edges],
           loops: get().generateLoopBlocks(),

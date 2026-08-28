@@ -216,6 +216,7 @@ export const schemaMock = {
     runCount: 'workflow.runCount',
     lastRunAt: 'workflow.lastRunAt',
     variables: 'workflow.variables',
+    codexConfig: 'workflow.codexConfig',
     archivedAt: 'workflow.archivedAt',
   },
   workflowBlocks: {
@@ -672,6 +673,7 @@ export const schemaMock = {
     inboxEnabled: 'workspace.inboxEnabled',
     inboxAddress: 'workspace.inboxAddress',
     inboxProviderId: 'workspace.inboxProviderId',
+    codexConfig: 'workspace.codexConfig',
     archivedAt: 'workspace.archivedAt',
     forkedFromWorkspaceId: 'workspace.forkedFromWorkspaceId',
     createdAt: 'workspace.createdAt',

@@ -32,6 +32,7 @@ export enum BlockType {
   AGENT = 'agent',
   MOTHERSHIP = 'mothership',
   PI = 'pi',
+  CODEX = 'codex',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',

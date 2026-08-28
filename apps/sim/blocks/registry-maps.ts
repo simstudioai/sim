@@ -44,6 +44,7 @@ import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
+import { CodexBlock } from '@/blocks/blocks/codex'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
@@ -414,6 +415,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
   codepipeline: CodePipelineBlock,
+  codex: CodexBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
