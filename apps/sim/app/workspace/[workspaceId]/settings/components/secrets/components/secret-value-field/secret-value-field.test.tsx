@@ -37,13 +37,12 @@ describe('SecretValueField', () => {
     act(() => root.render(<SecretValueField value='visible-secret' canEdit={false} canReveal />))
 
     expect(input().readOnly).toBe(true)
-    expect(input().style.webkitTextSecurity).toBe('disc')
+    expect(input().value).toBe('•'.repeat(10))
 
     act(() => input().focus())
 
     expect(input().value).toBe('visible-secret')
     expect(input().readOnly).toBe(true)
-    expect(input().style.webkitTextSecurity).toBe('')
   })
 
   it('never places a withheld value in the field', () => {
@@ -52,5 +51,11 @@ describe('SecretValueField', () => {
     expect(input().value).toBe('•'.repeat(10))
     act(() => input().focus())
     expect(input().value).toBe('•'.repeat(10))
+  })
+
+  it('keeps an empty editable value empty while unfocused', () => {
+    act(() => root.render(<SecretValueField value='' />))
+
+    expect(input().value).toBe('')
   })
 })

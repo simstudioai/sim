@@ -1,15 +1,12 @@
 'use client'
 
-import type { ComponentProps, CSSProperties } from 'react'
+import type { ComponentProps } from 'react'
 import { useState } from 'react'
 import { ChipInput } from '@sim/emcn'
 
 const BULLET = '\u2022'
 
-/**
- * Viewers without reveal access receive a fixed-length mask so the secret's
- * length is not disclosed.
- */
+/** Fixed-length masks avoid disclosing the secret's length. */
 const VIEWER_MASK_LENGTH = 10
 
 type SecretValueFieldProps = Omit<
@@ -58,11 +55,8 @@ export function SecretValueField({
   const editable = canEdit && !readOnly
   const revealable = canEdit || canReveal
   const maskActive = revealable && !unmasked && !focused
-  const displayValue = revealable ? value : BULLET.repeat(VIEWER_MASK_LENGTH)
-
-  const mergedStyle: CSSProperties | undefined = maskActive
-    ? ({ ...style, WebkitTextSecurity: 'disc' } as CSSProperties)
-    : style
+  const displayValue =
+    !revealable || (maskActive && value.length > 0) ? BULLET.repeat(VIEWER_MASK_LENGTH) : value
 
   return (
     <ChipInput
@@ -71,7 +65,7 @@ export function SecretValueField({
       type='text'
       value={displayValue}
       readOnly
-      style={mergedStyle}
+      style={style}
       onChange={(event) => {
         if (editable) onChange?.(event.target.value)
       }}

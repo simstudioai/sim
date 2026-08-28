@@ -1038,7 +1038,7 @@ export function SecretsManager() {
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
                     const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
-                    const canRevealRow = canEditRow || Boolean(cred?.unredacted)
+                    const canRevealRow = cred?.role === 'admin' || Boolean(cred?.unredacted)
                     return (
                       <WorkspaceVariableRow
                         key={key}
