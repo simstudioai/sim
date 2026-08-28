@@ -807,6 +807,8 @@ export function getToolInputParamConfigs({
     })
   )
   const allToolSubBlocks = blockConfig?.subBlocks ?? subBlocksResult.subBlocks
+  const displayParamConfigs = displayParams.map((param) => buildToolInputSearchConfig(param))
+  const displayConfigById = new Map(displayParamConfigs.map((config) => [config.id, config]))
   const getDependentValuePaths = (changedSubBlockId: string): WorkflowSearchValuePath[] =>
     getTransitiveSubBlockDependents(allToolSubBlocks, [changedSubBlockId]).map((clear) => [
       'params',
@@ -828,6 +830,14 @@ export function getToolInputParamConfigs({
       return ids
     })
   )
+  const toolSubBlockIds = new Set(allToolSubBlocks.map((config) => config.id))
+  const combinedContextConfigs = [
+    ...allToolSubBlocks,
+    ...displayParamConfigs.filter(
+      (config) => !coveredParamIds.has(config.id) && !toolSubBlockIds.has(config.id)
+    ),
+  ]
+  const combinedCanonicalIndex = buildCanonicalIndex(combinedContextConfigs)
 
   const subBlockParams = visibleSubBlocks.map((config) => ({
     paramId: config.id,
@@ -849,7 +859,7 @@ export function getToolInputParamConfigs({
   const uncoveredParams = displayParams
     .filter((param) => !coveredParamIds.has(param.id) && isVisibleToolParameter(param, values))
     .map((param) => {
-      const config = buildToolInputSearchConfig(param)
+      const config = displayConfigById.get(param.id) ?? buildToolInputSearchConfig(param)
       return {
         paramId: param.id,
         authoritative: true,
@@ -860,8 +870,8 @@ export function getToolInputParamConfigs({
             ? buildSelectorContext({
                 subBlockConfig: config,
                 subBlockValues: values,
-                contextConfigs: allToolSubBlocks,
-                canonicalIndex: toolCanonicalIndex,
+                contextConfigs: combinedContextConfigs,
+                canonicalIndex: combinedCanonicalIndex,
                 canonicalModes: scopedCanonicalModes,
               })
             : undefined,

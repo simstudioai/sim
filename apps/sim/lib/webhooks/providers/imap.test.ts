@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockClose,
   mockCreateSecureImapClient,
+  mockDbLimit,
+  mockDbSelect,
   mockDbUpdate,
   mockHasImapEnvironmentReferences,
   mockLogger,
@@ -14,6 +16,8 @@ const {
 } = vi.hoisted(() => ({
   mockClose: vi.fn(),
   mockCreateSecureImapClient: vi.fn(),
+  mockDbLimit: vi.fn(),
+  mockDbSelect: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -22,7 +26,7 @@ const {
 }))
 
 vi.mock('@sim/db', () => ({
-  db: { update: mockDbUpdate },
+  db: { select: mockDbSelect, update: mockDbUpdate },
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -68,6 +72,12 @@ describe('IMAP polling deployment policy', () => {
       password: 'resolved-password',
     })
     mockCreateSecureImapClient.mockResolvedValue({ close: mockClose })
+    mockDbLimit.mockResolvedValue([{ createdBy: 'deployment-actor' }])
+    mockDbSelect.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: mockDbLimit }),
+      }),
+    })
   })
 
   it('validates references JIT but persists the unresolved reference expressions', async () => {
@@ -86,7 +96,7 @@ describe('IMAP polling deployment policy', () => {
 
     expect(mockResolveImapConnectionForActor).toHaveBeenCalledWith({
       connection: referenceConfig,
-      actorUserId: 'actor-1',
+      actorUserId: 'deployment-actor',
       workspaceId: 'workspace-1',
     })
     expect(mockCreateSecureImapClient).toHaveBeenCalledWith(
@@ -100,6 +110,50 @@ describe('IMAP polling deployment policy', () => {
     expect(persisted.port).toBe('{{IMAP_PORT}}')
     expect(JSON.stringify(persisted)).not.toContain('resolved-password')
     expect(mockDbUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects reference-backed legacy setup without a deployment actor', async () => {
+    await expect(
+      imapHandler.configurePolling!({
+        webhook: { id: 'webhook-1', providerConfig: referenceConfig },
+        requestId: 'request-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        deploymentVersionId: null,
+      })
+    ).resolves.toBe(false)
+
+    expect(mockDbSelect).not.toHaveBeenCalled()
+    expect(mockResolveImapConnectionForActor).not.toHaveBeenCalled()
+    expect(mockCreateSecureImapClient).not.toHaveBeenCalled()
+  })
+
+  it('persists legacy defaults when nullable port and secure values are supplied', async () => {
+    const persistProviderConfig = vi.fn().mockResolvedValue(true)
+
+    await expect(
+      imapHandler.configurePolling!({
+        webhook: {
+          id: 'webhook-1',
+          providerConfig: {
+            host: 'imap.example.com',
+            port: null,
+            secure: null,
+            username: 'literal-user',
+            password: 'literal-password',
+          },
+        },
+        requestId: 'request-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        persistProviderConfig,
+      })
+    ).resolves.toBe(true)
+
+    expect(persistProviderConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ port: '993', secure: true })
+    )
+    expect(mockDbSelect).not.toHaveBeenCalled()
   })
 
   it('fails closed without logging raw connection errors or authentication values', async () => {

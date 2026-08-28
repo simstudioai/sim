@@ -141,6 +141,45 @@ describe('sanitizeSelectorResult', () => {
     ).toThrow(SelectorOptionsUnavailableError)
   })
 
+  it('rejects protected plaintext in metadata keys without applying the detail exemption', () => {
+    const protectedValues = createSelectorProtectedValues()
+    protectedValues.add('resolved-id')
+
+    expect(() =>
+      sanitizeSelectorResult(
+        {
+          kind: 'detail',
+          item: {
+            id: 'resolved-id',
+            label: 'resolved-id',
+            meta: { 'prefix-resolved-id-suffix': null },
+          },
+        },
+        protectedValues,
+        { allowedDetailExactProtectedValue: 'resolved-id' }
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+  })
+
+  it('preserves allowed metadata keys that shadow object prototype properties', () => {
+    const meta = Object.create(null) as Record<string, null>
+    meta.__proto__ = null
+
+    const result = sanitizeSelectorResult(
+      {
+        kind: 'list',
+        items: [{ id: 'resource-1', label: 'Resource one', meta }],
+      },
+      createSelectorProtectedValues()
+    )
+
+    expect(result.kind).toBe('list')
+    if (result.kind !== 'list') throw new Error('Expected list selector result')
+    expect(Object.hasOwn(result.items[0].meta ?? {}, '__proto__')).toBe(true)
+    expect(result.items[0].meta?.__proto__).toBeNull()
+    expect(JSON.stringify(result.items[0].meta)).toBe('{"__proto__":null}')
+  })
+
   it('rejects metadata strings larger than the response contract permits', () => {
     expect(() =>
       sanitizeSelectorResult(

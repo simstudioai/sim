@@ -509,6 +509,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             userId,
             workspaceId:
               typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : null,
+            deploymentVersionId: savedWebhook.deploymentVersionId ?? null,
           })
 
           if (!success) {

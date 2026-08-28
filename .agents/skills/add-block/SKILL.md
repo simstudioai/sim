@@ -1080,8 +1080,10 @@ execute through `selectors.execute`; never add a client provider module or selec
 `canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. The
 shared context builder projects only active `dependsOn` values and keys canonical pairs by their
 canonical id. Exact environment references such as `{{GMAIL_CREDENTIAL_ID}}` stay unresolved in the
-browser and are resolved only by the authorized server executor. A credential field is also
-recognized by its `oauth-input` type as a compatibility fallback.
+browser and are resolved only by the authorized server executor. The builder does not infer a
+nonstandard credential id from `type: 'oauth-input'`; give it
+`canonicalParamId: 'oauthCredential'`, or declare an explicit manifest `sourceFields` alias when a
+legacy source id must be retained.
 
 **`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
 

@@ -81,6 +81,7 @@ describe('POST /api/webhooks polling configuration', () => {
       blockId: 'block-1',
       path: 'imap-hook',
       provider: 'imap',
+      deploymentVersionId: 'deployment-1',
       providerConfig: {
         host: '{{IMAP_HOST}}',
         username: '{{IMAP_USERNAME}}',
@@ -115,6 +116,7 @@ describe('POST /api/webhooks polling configuration', () => {
       requestId: 'mock-request-id',
       userId: 'actor-1',
       workspaceId: 'canonical-workspace',
+      deploymentVersionId: 'deployment-1',
     })
   })
 })

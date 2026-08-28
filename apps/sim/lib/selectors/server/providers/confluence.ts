@@ -13,7 +13,6 @@ import {
   listSelectorResult,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
-import { fetchConfluencePage } from '@/tools/confluence/client'
 
 type ConfluenceSelectorKey = Extract<ServerSelectorKey, 'confluence.spaces' | 'confluence.pages'>
 
@@ -160,23 +159,16 @@ async function executePages(args: ExecuteServerSelectorArgs) {
     if (!/^[A-Za-z0-9_-]{1,255}$/.test(pageId)) {
       throw new SelectorContextUnavailableError()
     }
-    let response: Response
-    try {
-      response = await fetchConfluencePage({
-        ...auth,
-        pageId,
+    const page = await fetchProviderJson<ConfluencePage>(
+      `https://api.atlassian.com/ex/confluence/${auth.cloudId}/wiki/api/v2/pages/${pageId}`,
+      {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${auth.accessToken}`,
+        },
         signal: args.signal,
-      })
-    } catch {
-      throw new SelectorOptionsUnavailableError()
-    }
-    if (!response.ok) throw new SelectorOptionsUnavailableError()
-    let page: ConfluencePage
-    try {
-      page = (await response.json()) as ConfluencePage
-    } catch {
-      throw new SelectorOptionsUnavailableError()
-    }
+      }
+    )
     if (!page.id || !page.title) throw new SelectorOptionsUnavailableError()
     return detailSelectorResult({ id: page.id, label: page.title })
   }

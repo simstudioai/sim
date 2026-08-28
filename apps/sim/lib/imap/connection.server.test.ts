@@ -90,6 +90,24 @@ describe('IMAP connection policy', () => {
     )
   })
 
+  it('preserves the legacy TLS defaults for nullable connection values', () => {
+    expect(
+      normalizeLiteralImapConnection({
+        host: 'imap.example.com',
+        port: null,
+        secure: null,
+        username: 'mailbox-user',
+        password: 'literal-password',
+      })
+    ).toEqual({
+      host: 'imap.example.com',
+      port: 993,
+      secure: true,
+      username: 'mailbox-user',
+      password: 'literal-password',
+    })
+  })
+
   it('resolves exact personal and visible shared references for the deployment actor', async () => {
     environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
       PERSONAL_PASSWORD: {
@@ -173,6 +191,21 @@ describe('IMAP connection policy', () => {
         host: 'imap.example.com',
         username: 'mailbox-user',
         password: 'literal{{brace}}secret',
+      })
+    ).toThrowError(
+      expect.objectContaining<Partial<ImapConnectionPolicyError>>({
+        name: 'ImapConnectionPolicyError',
+        code: 'context',
+      })
+    )
+  })
+
+  it('rejects unresolved workflow references in literal IMAP connection fields', () => {
+    expect(() =>
+      normalizeLiteralImapConnection({
+        host: 'imap.example.com',
+        username: '<previous.output>',
+        password: 'literal-password',
       })
     ).toThrowError(
       expect.objectContaining<Partial<ImapConnectionPolicyError>>({

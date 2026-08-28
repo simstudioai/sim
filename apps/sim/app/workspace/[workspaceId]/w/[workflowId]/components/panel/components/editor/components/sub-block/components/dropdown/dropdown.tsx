@@ -207,7 +207,7 @@ export const Dropdown = memo(function Dropdown({
       }
     }
 
-    for (const option of hydratedOptions) {
+    for (const option of [...hydratedOptions].reverse()) {
       const alreadyPresent = opts.some((existing) =>
         typeof existing === 'string' ? existing === option.id : existing.id === option.id
       )

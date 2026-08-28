@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 
 const EXACT_ENVIRONMENT_REFERENCE = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/
 
@@ -27,8 +28,8 @@ export interface ResolvedImapConnection {
   password: string
 }
 
-function containsTemplateDelimiter(value: string): boolean {
-  return value.includes('{{') || value.includes('}}')
+function containsUnresolvedReference(value: string): boolean {
+  return value.includes('{{') || value.includes('}}') || containsReference(value)
 }
 
 export function hasImapEnvironmentReferences(input: ImapConnectionInput): boolean {
@@ -41,9 +42,10 @@ function normalizeConnection(input: ImapConnectionInput): ResolvedImapConnection
   const host = typeof input.host === 'string' ? input.host.trim() : ''
   const username = typeof input.username === 'string' ? input.username : ''
   const password = typeof input.password === 'string' ? input.password : ''
-  const port = input.port === undefined || input.port === '' ? 993 : Number(input.port)
+  const port =
+    input.port === null || input.port === undefined || input.port === '' ? 993 : Number(input.port)
   const secure =
-    input.secure === undefined || input.secure === ''
+    input.secure === null || input.secure === undefined || input.secure === ''
       ? true
       : typeof input.secure === 'string'
         ? input.secure.toLowerCase() === 'true'
@@ -77,7 +79,7 @@ export async function resolveImapConnectionForActor(input: {
         if (typeof value !== 'string') return []
         const match = EXACT_ENVIRONMENT_REFERENCE.exec(value)
         if (match) return [match[1]]
-        if (containsTemplateDelimiter(value)) throw new ImapConnectionPolicyError('context')
+        if (containsUnresolvedReference(value)) throw new ImapConnectionPolicyError('context')
         return []
       })
     ),
@@ -119,7 +121,7 @@ export function normalizeResolvedImapConnection(
 
 export function normalizeLiteralImapConnection(input: ImapConnectionInput): ResolvedImapConnection {
   for (const value of [input.host, input.port, input.secure, input.username, input.password]) {
-    if (typeof value === 'string' && containsTemplateDelimiter(value)) {
+    if (typeof value === 'string' && containsUnresolvedReference(value)) {
       throw new ImapConnectionPolicyError('context')
     }
   }

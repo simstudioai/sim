@@ -44,6 +44,7 @@ function sanitizeMeta(
   const meta: SafeOptionMeta = {}
   for (const [key, entry] of entries) {
     if (!key || key.length > 128) throw new SelectorOptionsUnavailableError()
+    if (protectedValues.contains(key)) throw new SelectorOptionsUnavailableError()
     if (
       entry !== null &&
       typeof entry !== 'string' &&
@@ -61,7 +62,12 @@ function sanitizeMeta(
         throw new SelectorOptionsUnavailableError()
       }
     }
-    meta[key] = entry as SafeOptionMetaValue
+    Object.defineProperty(meta, key, {
+      value: entry as SafeOptionMetaValue,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
   }
   return meta
 }
