@@ -1,9 +1,9 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = {
+export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOutput> = {
   id: 'pulse_parser',
   name: 'Pulse Document Parser',
   description: 'Parse documents (PDF, images, Office docs) using Pulse OCR API',
@@ -72,16 +72,8 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
     },
   },
 
-  request: {
-    url: '/api/tools/pulse/parse',
-    method: 'POST',
-    headers: () => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      }
-    },
-    body: (params) => {
+  operation: {
+    input: (params) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }
@@ -232,12 +224,13 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
     },
     html: {
       type: 'string',
-      description: 'HTML content if requested',
+      description: 'HTML content; returned only when the hidden returnHtml input is enabled',
       optional: true,
     },
     structured_output: {
       type: 'json',
-      description: 'Structured output if schema was provided',
+      description:
+        'Structured output; Sim exposes no input for supplying a schema, so this is always null',
       optional: true,
     },
     chunks: {
@@ -247,13 +240,14 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
     },
     figures: {
       type: 'json',
-      description: 'Extracted figures if figure extraction was enabled',
+      description:
+        'Extracted figures; returned only when the hidden extractFigure input is enabled',
       optional: true,
     },
   },
 }
 
-export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput> = {
+export const pulseParserV2Tool: InternalToolConfig<PulseParserV2Input, PulseParserOutput> = {
   ...pulseParserTool,
   id: 'pulse_parser_v2',
   name: 'Pulse Document Parser',
@@ -278,14 +272,8 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
     chunkSize: pulseParserTool.params.chunkSize,
     apiKey: pulseParserTool.params.apiKey,
   },
-  request: {
-    url: '/api/tools/pulse/parse',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    }),
-    body: (params: PulseParserV2Input) => {
+  operation: {
+    input: (params: PulseParserV2Input) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }

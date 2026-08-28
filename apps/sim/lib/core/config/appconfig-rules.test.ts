@@ -24,6 +24,13 @@ describe('normalizeRule', () => {
       orgIds: ['Org_1', 'org_1', 'org_2'],
     })
   })
+
+  it('normalizes the workspaceIds allowlist', () => {
+    expect(normalizeRule({ workspaceIds: [' ws_1 ', 'ws_1', ''] })).toEqual({
+      workspaceIds: ['ws_1'],
+    })
+    expect(normalizeRule({ workspaceIds: 'ws_1' })).toEqual({})
+  })
 })
 
 describe('parseGateConfig', () => {
@@ -59,6 +66,12 @@ describe('matchesRule', () => {
     expect(matchesRule({ userIds: ['u1'] }, { userId: 'u2' }, false)).toBe(false)
     expect(matchesRule({ orgIds: ['o1'] }, { orgId: 'o1' }, false)).toBe(true)
     expect(matchesRule({ orgIds: ['o1'] }, {}, false)).toBe(false)
+  })
+
+  it('matches the workspaceId allowlist', () => {
+    expect(matchesRule({ workspaceIds: ['w1'] }, { workspaceId: 'w1' }, false)).toBe(true)
+    expect(matchesRule({ workspaceIds: ['w1'] }, { workspaceId: 'w2' }, false)).toBe(false)
+    expect(matchesRule({ workspaceIds: ['w1'] }, {}, false)).toBe(false)
   })
 
   it('matches the admin clause only with the supplied isAdmin', () => {

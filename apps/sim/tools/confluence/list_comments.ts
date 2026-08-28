@@ -1,5 +1,5 @@
 import { COMMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListCommentsParams {
   accessToken: string
@@ -25,7 +25,7 @@ export interface ConfluenceListCommentsResponse {
   }
 }
 
-export const confluenceListCommentsTool: ToolConfig<
+export const confluenceListCommentsTool: InternalToolConfig<
   ConfluenceListCommentsParams,
   ConfluenceListCommentsResponse
 > = {
@@ -80,15 +80,14 @@ export const confluenceListCommentsTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceListCommentsParams) => {
+  operation: {
+    input: (params: ConfluenceListCommentsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -104,14 +103,7 @@ export const confluenceListCommentsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/comments?${query.toString()}`
-    },
-    method: 'GET',
-    headers: (params: ConfluenceListCommentsParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
+      return Object.fromEntries(query)
     },
   },
 

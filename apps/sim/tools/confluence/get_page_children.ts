@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPageChildrenParams {
   accessToken: string
@@ -27,7 +27,7 @@ export interface ConfluenceGetPageChildrenResponse {
   }
 }
 
-export const confluenceGetPageChildrenTool: ToolConfig<
+export const confluenceGetPageChildrenTool: InternalToolConfig<
   ConfluenceGetPageChildrenParams,
   ConfluenceGetPageChildrenResponse
 > = {
@@ -76,22 +76,14 @@ export const confluenceGetPageChildrenTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-children',
-    method: 'POST',
-    headers: (params: ConfluenceGetPageChildrenParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceGetPageChildrenParams) => ({
+  operation: {
+    input: (params: ConfluenceGetPageChildrenParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

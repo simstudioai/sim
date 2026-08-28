@@ -1,7 +1,7 @@
 import type { SftpListParams, SftpListResult } from '@/tools/sftp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sftpListTool: ToolConfig<SftpListParams, SftpListResult> = {
+export const sftpListTool: InternalToolConfig<SftpListParams, SftpListResult> = {
   id: 'sftp_list',
   name: 'SFTP List Directory',
   description: 'List files and directories on a remote SFTP server',
@@ -58,13 +58,8 @@ export const sftpListTool: ToolConfig<SftpListParams, SftpListResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/sftp/list',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

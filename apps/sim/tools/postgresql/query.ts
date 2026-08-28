@@ -1,7 +1,7 @@
 import type { PostgresQueryParams, PostgresQueryResponse } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<PostgresQueryParams, PostgresQueryResponse> = {
+export const queryTool: InternalToolConfig<PostgresQueryParams, PostgresQueryResponse> = {
   id: 'postgresql_query',
   name: 'PostgreSQL Query',
   description: 'Execute a SELECT query on PostgreSQL database',
@@ -52,13 +52,8 @@ export const queryTool: ToolConfig<PostgresQueryParams, PostgresQueryResponse> =
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

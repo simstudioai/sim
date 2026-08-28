@@ -406,7 +406,7 @@ Search for records in an Agiloft table using a query.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name to search in \(e.g., "contracts", "contacts.employees"\) |
-| `query` | string | No | Ad hoc EWSearch query. Combine conditions with && \(and\) or \|\| \(or\) and quote every value — e.g. \"summary~='test'&&priority='High'\". Required unless a saved search is given. |
+| `query` | string | No | Ad hoc EWSearch query. Combine conditions with && \(and\) or \|\| \(or\) and quote every value — e.g. "summary~='test'&&priority='High'". Required unless a saved search is given. |
 | `search` | string | No | Label of a saved search defined on the table \(e.g., "C: Status is Closed"\). Can be combined with a query to narrow it further. |
 | `fields` | string | No | Comma-separated list of field names to include in the results |
 | `page` | string | No | Page number for paginated results \(starting from 0\) |
@@ -435,7 +435,7 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
-| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result. |
+| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like '%new%'" or "assigned_person='John Doe'"\). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result. |
 
 #### Output
 

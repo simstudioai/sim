@@ -1,7 +1,7 @@
 import type { RedisExistsParams, RedisExistsResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisExistsTool: ToolConfig<RedisExistsParams, RedisExistsResponse> = {
+export const redisExistsTool: InternalToolConfig<RedisExistsParams, RedisExistsResponse> = {
   id: 'redis_exists',
   name: 'Redis EXISTS',
   description: 'Check if a key exists in Redis.',
@@ -22,11 +22,8 @@ export const redisExistsTool: ToolConfig<RedisExistsParams, RedisExistsResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'EXISTS',
       args: [params.key],

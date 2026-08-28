@@ -1,8 +1,8 @@
 import type { JsmGetQueuesParams, JsmGetQueuesResponse } from '@/tools/jsm/types'
 import { QUEUE_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesResponse> = {
+export const jsmGetQueuesTool: InternalToolConfig<JsmGetQueuesParams, JsmGetQueuesResponse> = {
   id: 'jsm_get_queues',
   name: 'JSM Get Queues',
   description: 'Get queues for a service desk in Jira Service Management',
@@ -58,13 +58,8 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/queues',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

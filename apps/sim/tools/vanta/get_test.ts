@@ -1,9 +1,9 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_TEST_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type { VantaGetTestParams, VantaGetTestResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaGetTestTool: ToolConfig<VantaGetTestParams, VantaGetTestResponse> = {
+export const vantaGetTestTool: InternalToolConfig<VantaGetTestParams, VantaGetTestResponse> = {
   id: 'vanta_get_test',
   name: 'Vanta Get Test',
   description:
@@ -37,11 +37,8 @@ export const vantaGetTestTool: ToolConfig<VantaGetTestParams, VantaGetTestRespon
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_get_test',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

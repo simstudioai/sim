@@ -43,7 +43,6 @@ Retrieve content from Confluence pages using the Confluence API.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to retrieve \(numeric ID from page URL or API\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -81,7 +80,6 @@ Update a Confluence page using the Confluence API.
 | `pageId` | string | Yes | Confluence page ID to update \(numeric ID from page URL or API\) |
 | `title` | string | No | New title for the page |
 | `content` | string | No | New content for the page in Confluence storage format |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -124,7 +122,6 @@ Create a new page in a Confluence space.
 | `title` | string | Yes | Title of the new page |
 | `content` | string | Yes | Page content in Confluence storage format \(HTML\) |
 | `parentId` | string | No | Parent page ID if creating a child page |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -165,7 +162,6 @@ Delete a Confluence page. By default moves to trash; use purge=true to permanent
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to delete |
 | `purge` | boolean | No | If true, permanently deletes the page instead of moving to trash \(default: false\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -189,7 +185,6 @@ List all pages within a specific Confluence space. Supports pagination and filte
 | `status` | string | No | Filter pages by status: current, archived, trashed, or draft |
 | `bodyFormat` | string | No | Format for page body content: storage, atlas_doc_format, or view. If not specified, body is not included. |
 | `cursor` | string | No | Pagination cursor from previous response to get the next page of results |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -235,7 +230,6 @@ Get all child pages of a specific Confluence page. Useful for navigating page hi
 | `pageId` | string | Yes | The ID of the parent page to get children from |
 | `limit` | number | No | Maximum number of child pages to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response to get the next page of results |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -263,7 +257,6 @@ Get the ancestor (parent) pages of a specific Confluence page. Returns the full 
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | The ID of the page to get ancestors for |
 | `limit` | number | No | Maximum number of ancestors to return \(default: 25, max: 250\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -290,7 +283,6 @@ List all versions (revision history) of a Confluence page.
 | `pageId` | string | Yes | The ID of the page to get versions for |
 | `limit` | number | No | Maximum number of versions to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -317,7 +309,6 @@ Get details about a specific version of a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | The ID of the page |
 | `versionNumber` | number | Yes | The version number to retrieve \(e.g., 1, 2, 3\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -353,7 +344,6 @@ List all custom properties (metadata) attached to a Confluence page.
 | `pageId` | string | Yes | The ID of the page to list properties from |
 | `limit` | number | No | Maximum number of properties to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -385,7 +375,6 @@ Create a new custom property (metadata) on a Confluence page.
 | `pageId` | string | Yes | The ID of the page to add the property to |
 | `key` | string | Yes | The key/name for the property |
 | `value` | json | Yes | The value for the property \(can be any JSON value\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -414,7 +403,6 @@ Delete a content property from a Confluence page by its property ID.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | The ID of the page containing the property |
 | `propertyId` | string | Yes | The ID of the property to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -436,7 +424,6 @@ Search for content across Confluence pages, blog posts, and other content.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `query` | string | Yes | Search query string |
 | `limit` | number | No | Maximum number of results to return \(default: 25\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -471,7 +458,6 @@ Search for content within a specific Confluence space. Optionally filter by text
 | `query` | string | No | Text search query. If not provided, returns all content in the space. |
 | `contentType` | string | No | Filter by content type: page, blogpost, attachment, or comment |
 | `limit` | number | No | Maximum number of results to return \(default: 25, max: 250\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -508,7 +494,6 @@ List all blog posts across all accessible Confluence spaces.
 | `status` | string | No | Filter by status: current, archived, trashed, or draft |
 | `sort` | string | No | Sort order: created-date, -created-date, modified-date, -modified-date, title, -title |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -542,7 +527,6 @@ Get a specific Confluence blog post by ID, including its content.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `blogPostId` | string | Yes | The ID of the blog post to retrieve |
 | `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -586,7 +570,6 @@ Create a new blog post in a Confluence space.
 | `title` | string | Yes | Title of the blog post |
 | `content` | string | Yes | Blog post content in Confluence storage format \(HTML\) |
 | `status` | string | No | Blog post status: current \(default\) or draft |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -630,7 +613,6 @@ List all blog posts within a specific Confluence space.
 | `status` | string | No | Filter by status: current, archived, trashed, or draft |
 | `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -674,7 +656,6 @@ Add a comment to a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to comment on |
 | `comment` | string | Yes | Comment text in Confluence storage format |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -697,7 +678,6 @@ List all comments on a Confluence page.
 | `limit` | number | No | Maximum number of comments to return \(default: 25\) |
 | `bodyFormat` | string | No | Format for the comment body: storage, atlas_doc_format, view, or export_view \(default: storage\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -735,7 +715,6 @@ Update an existing comment on a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `commentId` | string | Yes | Confluence comment ID to update |
 | `comment` | string | Yes | Updated comment text in Confluence storage format |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -755,7 +734,6 @@ Delete a comment from a Confluence page.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `commentId` | string | Yes | Confluence comment ID to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -778,7 +756,6 @@ Upload a file as an attachment to a Confluence page.
 | `file` | file | Yes | The file to upload as an attachment |
 | `fileName` | string | No | Optional custom file name for the attachment |
 | `comment` | string | No | Optional comment to add to the attachment |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -804,7 +781,6 @@ List all attachments on a Confluence page.
 | `pageId` | string | Yes | Confluence page ID to list attachments from |
 | `limit` | number | No | Maximum number of attachments to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -840,7 +816,6 @@ Delete an attachment from a Confluence page (moves to trash).
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `attachmentId` | string | Yes | Confluence attachment ID to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -862,7 +837,6 @@ List all labels on a Confluence page.
 | `pageId` | string | Yes | Confluence page ID to list labels from |
 | `limit` | number | No | Maximum number of labels to return \(default: 25, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -887,7 +861,6 @@ Add a label to a Confluence page for organization and categorization.
 | `pageId` | string | Yes | Confluence page ID to add the label to |
 | `labelName` | string | Yes | Name of the label to add |
 | `prefix` | string | No | Label prefix: global \(default\), my, team, or system |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -909,7 +882,6 @@ Remove a label from a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to remove the label from |
 | `labelName` | string | Yes | Name of the label to remove |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -932,7 +904,6 @@ Retrieve all pages that have a specific label applied.
 | `labelId` | string | Yes | The ID of the label to get pages for |
 | `limit` | number | No | Maximum number of pages to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -968,7 +939,6 @@ List all labels associated with a Confluence space.
 | `spaceId` | string | Yes | The ID of the Confluence space to list labels from |
 | `limit` | number | No | Maximum number of labels to return \(default: 25, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -992,7 +962,6 @@ Get details about a specific Confluence space.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `spaceId` | string | Yes | Confluence space ID to retrieve |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1024,7 +993,6 @@ Create a new Confluence space.
 | `name` | string | Yes | Name for the new space |
 | `key` | string | Yes | Unique key for the space \(uppercase, no spaces\) |
 | `description` | string | No | Description for the new space |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1054,7 +1022,6 @@ Update a Confluence space name or description.
 | `spaceId` | string | Yes | ID of the space to update |
 | `name` | string | No | New name for the space |
 | `description` | string | No | New description for the space |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1081,7 +1048,6 @@ Delete a Confluence space.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `spaceId` | string | Yes | ID of the space to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1104,7 +1070,6 @@ List all Confluence spaces accessible to the user.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `limit` | number | No | Maximum number of spaces to return \(default: 25, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1137,7 +1102,6 @@ List properties on a Confluence space.
 | `spaceId` | string | Yes | Space ID to list properties for |
 | `limit` | number | No | Maximum number of properties to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1163,7 +1127,6 @@ Create a property on a Confluence space.
 | `spaceId` | string | Yes | Space ID to create the property on |
 | `key` | string | Yes | Property key/name |
 | `value` | json | No | Property value \(JSON\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1186,7 +1149,6 @@ Delete a property from a Confluence space.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `spaceId` | string | Yes | Space ID the property belongs to |
 | `propertyId` | string | Yes | Property ID to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1209,7 +1171,6 @@ List permissions for a Confluence space.
 | `spaceId` | string | Yes | Space ID to list permissions for |
 | `limit` | number | No | Maximum number of permissions to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1239,7 +1200,6 @@ Get all descendants of a Confluence page recursively.
 | `pageId` | string | Yes | Page ID to get descendants for |
 | `limit` | number | No | Maximum number of descendants to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1273,7 +1233,6 @@ List inline tasks from Confluence. Optionally filter by page, space, assignee, o
 | `status` | string | No | Filter tasks by status \(complete or incomplete\) |
 | `limit` | number | No | Maximum number of tasks to return \(default: 50, max: 250\) |
 | `cursor` | string | No | Pagination cursor from previous response |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1307,7 +1266,6 @@ Get a specific Confluence inline task by ID.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `taskId` | string | Yes | The ID of the task to retrieve |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1340,7 +1298,6 @@ Update the status of a Confluence inline task (complete or incomplete).
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `taskId` | string | Yes | The ID of the task to update |
 | `status` | string | Yes | New status for the task \(complete or incomplete\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1374,7 +1331,6 @@ Update an existing Confluence blog post title and/or content.
 | `blogPostId` | string | Yes | The ID of the blog post to update |
 | `title` | string | No | New title for the blog post |
 | `content` | string | No | New content for the blog post in storage format |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1398,7 +1354,6 @@ Delete a Confluence blog post.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `blogPostId` | string | Yes | The ID of the blog post to delete |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -1418,7 +1373,6 @@ Get display name and profile info for a Confluence user by account ID.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `accountId` | string | Yes | The Atlassian account ID of the user to look up |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 

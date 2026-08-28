@@ -2,9 +2,9 @@ import type {
   SecretsManagerRestoreSecretParams,
   SecretsManagerRestoreSecretResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const restoreSecretTool: ToolConfig<
+export const restoreSecretTool: InternalToolConfig<
   SecretsManagerRestoreSecretParams,
   SecretsManagerRestoreSecretResponse
 > = {
@@ -41,11 +41,8 @@ export const restoreSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/restore-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

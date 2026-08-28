@@ -121,10 +121,14 @@ export function UsageLimitField({
 
   return (
     <SettingsSection label='Usage limit' headerAccessory={USAGE_LIMIT_INFO}>
+      {/*
+        Text with a numeric input mode rather than `type='number'`: the native stepper
+        is all that type buys and it does not fit the chip chrome. The minimum is
+        enforced on commit below, where it can explain itself, rather than by a `min`
+        attribute the browser enforces silently.
+      */}
       <ChipInput
-        type='number'
         inputMode='numeric'
-        min={dollarsToCredits(minimumLimit)}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={
@@ -135,7 +139,6 @@ export function UsageLimitField({
               : String(dollarsToCredits(currentLimit))
         }
         disabled={!canEdit}
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
     </SettingsSection>
   )

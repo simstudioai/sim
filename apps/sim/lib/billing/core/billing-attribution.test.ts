@@ -44,6 +44,7 @@ import {
   requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingRequestIdHeader,
+  requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
   resolveLegacyV0BillingAttribution,
   resolveSystemBillingAttribution,
@@ -424,6 +425,19 @@ describe('serialized attribution boundaries', () => {
         workspaceId: 'workspace-b',
       })
     ).toThrow('Billing attribution header is required')
+  })
+
+  it('restores an executor snapshot by canonical workspace without making its actor authority', () => {
+    const headers = new Headers({
+      'x-sim-billing-attribution': serializeBillingAttributionHeader(attribution),
+    })
+
+    expect(
+      requireWorkspaceBillingAttributionHeader(headers, { workspaceId: 'workspace-b' })
+    ).toEqual(attribution)
+    expect(() =>
+      requireWorkspaceBillingAttributionHeader(headers, { workspaceId: 'workspace-other' })
+    ).toThrow('does not match the authenticated request scope')
   })
 
   it('rejects inconsistent or cross-scope serialized snapshots', () => {

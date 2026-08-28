@@ -1,7 +1,7 @@
 import type { PostgresExecuteParams, PostgresExecuteResponse } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<PostgresExecuteParams, PostgresExecuteResponse> = {
+export const executeTool: InternalToolConfig<PostgresExecuteParams, PostgresExecuteResponse> = {
   id: 'postgresql_execute',
   name: 'PostgreSQL Execute',
   description: 'Execute raw SQL query on PostgreSQL database',
@@ -52,13 +52,8 @@ export const executeTool: ToolConfig<PostgresExecuteParams, PostgresExecuteRespo
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

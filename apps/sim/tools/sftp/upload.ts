@@ -1,7 +1,7 @@
 import type { SftpUploadParams, SftpUploadResult } from '@/tools/sftp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sftpUploadTool: ToolConfig<SftpUploadParams, SftpUploadResult> = {
+export const sftpUploadTool: InternalToolConfig<SftpUploadParams, SftpUploadResult> = {
   id: 'sftp_upload',
   name: 'SFTP Upload',
   description: 'Upload files to a remote SFTP server',
@@ -82,13 +82,8 @@ export const sftpUploadTool: ToolConfig<SftpUploadParams, SftpUploadResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/sftp/upload',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

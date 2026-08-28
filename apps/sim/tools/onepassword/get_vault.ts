@@ -2,9 +2,12 @@ import type {
   OnePasswordGetVaultParams,
   OnePasswordGetVaultResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getVaultTool: ToolConfig<OnePasswordGetVaultParams, OnePasswordGetVaultResponse> = {
+export const getVaultTool: InternalToolConfig<
+  OnePasswordGetVaultParams,
+  OnePasswordGetVaultResponse
+> = {
   id: 'onepassword_get_vault',
   name: '1Password Get Vault',
   description: 'Get details of a specific vault by ID',
@@ -42,11 +45,8 @@ export const getVaultTool: ToolConfig<OnePasswordGetVaultParams, OnePasswordGetV
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/get-vault',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

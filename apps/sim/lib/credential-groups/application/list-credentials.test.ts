@@ -99,6 +99,11 @@ function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDele
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
     },
   }
 }

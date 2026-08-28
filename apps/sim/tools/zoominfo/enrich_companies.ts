@@ -1,48 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoEnrichCompaniesParams,
   ZoomInfoEnrichCompaniesResponse,
 } from '@/tools/zoominfo/types'
-import {
-  buildProxyBody,
-  extractDataArray,
-  parseCsvOrJson,
-  parseJsonField,
-  transformZoomInfoEnvelope,
-  ZOOMINFO_PROXY_URL,
-} from '@/tools/zoominfo/utils'
+import { extractDataArray, transformZoomInfoResponse } from '@/tools/zoominfo/utils'
 
-/**
- * Default output fields used when the caller does not specify any. ZoomInfo's
- * CompanyEnrich schema requires `outputFields`, so we send a useful firmographic
- * set rather than letting the request fail. All values are valid CompanyEnrich fields.
- */
-const DEFAULT_COMPANY_OUTPUT_FIELDS = [
-  'id',
-  'name',
-  'website',
-  'domainList',
-  'ticker',
-  'revenue',
-  'revenueRange',
-  'employeeCount',
-  'employeeRange',
-  'primaryIndustry',
-  'industries',
-  'street',
-  'city',
-  'state',
-  'zipCode',
-  'country',
-  'phone',
-  'foundedYear',
-  'companyStatus',
-  'socialMediaUrls',
-  'logo',
-  'description',
-]
-
-export const zoominfoEnrichCompaniesTool: ToolConfig<
+export const zoominfoEnrichCompaniesTool: InternalToolConfig<
   ZoomInfoEnrichCompaniesParams,
   ZoomInfoEnrichCompaniesResponse
 > = {
@@ -81,44 +44,12 @@ export const zoominfoEnrichCompaniesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: ZOOMINFO_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const matchCompanyInput = parseJsonField<unknown>(
-        params.matchCompanyInput,
-        'matchCompanyInput'
-      )
-      if (!Array.isArray(matchCompanyInput) || matchCompanyInput.length === 0) {
-        throw new Error('matchCompanyInput must be a non-empty JSON array')
-      }
-      if (matchCompanyInput.length > 25) {
-        throw new Error('matchCompanyInput supports a maximum of 25 entries per request')
-      }
-
-      const outputFields = parseCsvOrJson(params.outputFields, 'outputFields')
-      const attributes: Record<string, unknown> = {
-        matchCompanyInput,
-        outputFields: outputFields ?? DEFAULT_COMPANY_OUTPUT_FIELDS,
-      }
-
-      return {
-        ...buildProxyBody(params),
-        path: '/data/v1/companies/enrich',
-        method: 'POST',
-        body: {
-          data: {
-            type: 'CompanyEnrich',
-            attributes,
-          },
-        },
-      }
-    },
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    const { data } = await transformZoomInfoEnvelope(response)
+    const { data } = await transformZoomInfoResponse(response)
     const results = extractDataArray(data)
     return {
       success: true,

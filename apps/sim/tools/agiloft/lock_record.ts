@@ -1,7 +1,10 @@
 import type { AgiloftLockRecordParams, AgiloftLockResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftLockResponse> = {
+export const agiloftLockRecordTool: InternalToolConfig<
+  AgiloftLockRecordParams,
+  AgiloftLockResponse
+> = {
   id: 'agiloft_lock_record',
   name: 'Agiloft Lock Record',
   description: 'Lock, unlock, or check the lock status of an Agiloft record.',
@@ -58,12 +61,8 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/lock_record',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

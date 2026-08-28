@@ -1,7 +1,7 @@
 import type { SmtpSendMailParams, SmtpSendMailResult } from '@/tools/smtp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const smtpSendMailTool: ToolConfig<SmtpSendMailParams, SmtpSendMailResult> = {
+export const smtpSendMailTool: InternalToolConfig<SmtpSendMailParams, SmtpSendMailResult> = {
   id: 'smtp_send_mail',
   name: 'SMTP Send Mail',
   description: 'Send emails via SMTP server',
@@ -103,13 +103,8 @@ export const smtpSendMailTool: ToolConfig<SmtpSendMailParams, SmtpSendMailResult
     },
   },
 
-  request: {
-    url: '/api/tools/smtp/send',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SmtpSendMailParams) => ({
+  operation: {
+    input: (params: SmtpSendMailParams) => ({
       smtpHost: params.smtpHost,
       smtpPort: params.smtpPort,
       smtpUsername: params.smtpUsername,

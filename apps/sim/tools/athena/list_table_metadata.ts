@@ -2,9 +2,9 @@ import type {
   AthenaListTableMetadataParams,
   AthenaListTableMetadataResponse,
 } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listTableMetadataTool: ToolConfig<
+export const listTableMetadataTool: InternalToolConfig<
   AthenaListTableMetadataParams,
   AthenaListTableMetadataResponse
 > = {
@@ -71,11 +71,8 @@ export const listTableMetadataTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/athena/list-table-metadata',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

@@ -1,7 +1,7 @@
 import type { Neo4jCreateParams, Neo4jResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTool: ToolConfig<Neo4jCreateParams, Neo4jResponse> = {
+export const createTool: InternalToolConfig<Neo4jCreateParams, Neo4jResponse> = {
   id: 'neo4j_create',
   name: 'Neo4j Create',
   description:
@@ -61,13 +61,8 @@ export const createTool: ToolConfig<Neo4jCreateParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/create',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

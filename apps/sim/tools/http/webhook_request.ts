@@ -42,6 +42,7 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
   },
 
   request: {
+    allowSameOrigin: true,
     url: (params: WebhookRequestParams) => params.url,
 
     method: () => 'POST',

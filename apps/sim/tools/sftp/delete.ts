@@ -1,7 +1,7 @@
 import type { SftpDeleteParams, SftpDeleteResult } from '@/tools/sftp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sftpDeleteTool: ToolConfig<SftpDeleteParams, SftpDeleteResult> = {
+export const sftpDeleteTool: InternalToolConfig<SftpDeleteParams, SftpDeleteResult> = {
   id: 'sftp_delete',
   name: 'SFTP Delete',
   description: 'Delete a file or directory on a remote SFTP server',
@@ -58,13 +58,8 @@ export const sftpDeleteTool: ToolConfig<SftpDeleteParams, SftpDeleteResult> = {
     },
   },
 
-  request: {
-    url: '/api/tools/sftp/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

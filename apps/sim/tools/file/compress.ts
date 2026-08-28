@@ -1,14 +1,13 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileCompressParams {
   fileId?: string | string[]
   fileInput?: unknown
   archiveName?: string
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
+export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolResponse> = {
   id: 'file_compress',
   name: 'File Compress',
   description:
@@ -37,16 +36,13 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'compress',
       fileId: params.fileId,
       fileInput: params.fileInput,
       archiveName: params.archiveName,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 
@@ -74,10 +70,9 @@ interface FileDecompressParams {
   fileId?: string
   fileInput?: unknown
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> = {
+export const fileDecompressTool: InternalToolConfig<FileDecompressParams, ToolResponse> = {
   id: 'file_decompress',
   name: 'File Decompress',
   description:
@@ -99,15 +94,12 @@ export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'decompress',
       fileId: params.fileId,
       fileInput: params.fileInput,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 

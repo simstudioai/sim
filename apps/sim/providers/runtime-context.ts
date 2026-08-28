@@ -43,7 +43,17 @@ function toProviderModelResponse(
   rawResponse: ToolResponse,
   projectedResponse: ToolExecutionResult
 ): ToolResponse {
-  const { output: _output, error: _error, ...functionalFields } = rawResponse
+  /**
+   * `effect` is an input to the egress projection, not content — it reaches the model only as
+   * the disclosure record that replaces withheld output. This split spreads every other field
+   * through verbatim, so dropping it here is what keeps that true on the provider path too.
+   */
+  const {
+    output: _output,
+    error: _error,
+    effect: _effect,
+    ...functionalFields
+  } = rawResponse as ToolResponse & { effect?: unknown }
   return {
     ...functionalFields,
     output: Object.hasOwn(projectedResponse, 'output')

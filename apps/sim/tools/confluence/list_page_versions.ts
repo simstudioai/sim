@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListPageVersionsParams {
   accessToken: string
@@ -26,7 +26,7 @@ export interface ConfluenceListPageVersionsResponse {
   }
 }
 
-export const confluenceListPageVersionsTool: ToolConfig<
+export const confluenceListPageVersionsTool: InternalToolConfig<
   ConfluenceListPageVersionsParams,
   ConfluenceListPageVersionsResponse
 > = {
@@ -74,22 +74,14 @@ export const confluenceListPageVersionsTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-versions',
-    method: 'POST',
-    headers: (params: ConfluenceListPageVersionsParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceListPageVersionsParams) => ({
+  operation: {
+    input: (params: ConfluenceListPageVersionsParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

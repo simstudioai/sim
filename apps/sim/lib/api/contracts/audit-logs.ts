@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const auditLogsQuerySchema = z.object({
@@ -11,6 +11,13 @@ export const auditLogsQuerySchema = z.object({
   action: z.string().optional(),
   resourceType: z.string().optional(),
   actorId: z.string().optional(),
+  /**
+   * Narrows the org-scoped feed to one workspace. The use case already refuses an
+   * id outside the caller's organization; this only opens the door the internal
+   * surface had left shut while `buildFilterConditions` and the v1 contract both
+   * supported it.
+   */
+  workspaceId: workspaceIdSchema.optional(),
   startDate: z
     .string()
     .optional()

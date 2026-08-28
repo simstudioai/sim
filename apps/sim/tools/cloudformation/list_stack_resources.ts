@@ -2,9 +2,9 @@ import type {
   CloudFormationListStackResourcesParams,
   CloudFormationListStackResourcesResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listStackResourcesTool: ToolConfig<
+export const listStackResourcesTool: InternalToolConfig<
   CloudFormationListStackResourcesParams,
   CloudFormationListStackResourcesResponse
 > = {
@@ -40,13 +40,8 @@ export const listStackResourcesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/list-stack-resources',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

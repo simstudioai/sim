@@ -1,7 +1,7 @@
 import type { RedisTtlParams, RedisTtlResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisTtlTool: ToolConfig<RedisTtlParams, RedisTtlResponse> = {
+export const redisTtlTool: InternalToolConfig<RedisTtlParams, RedisTtlResponse> = {
   id: 'redis_ttl',
   name: 'Redis TTL',
   description: 'Get the remaining time to live (in seconds) of a key in Redis.',
@@ -22,11 +22,8 @@ export const redisTtlTool: ToolConfig<RedisTtlParams, RedisTtlResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'TTL',
       args: [params.key],

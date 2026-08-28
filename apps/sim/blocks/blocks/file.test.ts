@@ -16,7 +16,7 @@ describe('FileV4Block', () => {
         },
       })
     ).toMatchObject({
-      filePath: 'https://example.com/image.jpg',
+      fileUrl: 'https://example.com/image.jpg',
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
       executionId: 'execution-1',

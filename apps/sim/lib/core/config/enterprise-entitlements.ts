@@ -37,6 +37,7 @@ export type EnterpriseFeature =
   | 'sandboxes'
   | 'sessionPolicies'
   | 'sso'
+  | 'usageMonitoring'
   | 'whitelabeling'
 
 /**
@@ -59,6 +60,9 @@ export type EnterpriseFeature =
  *   was always writable when billing was off and stays that way; only the
  *   delete pass is gated here. Defaulting it on would start expiring logs on
  *   upgrade against plan defaults the operator never chose.
+ * - `usageMonitoring` had no prior behavior at all — it ships with this flag —
+ *   and it discloses every member's spend, so it stays opt-in rather than
+ *   appearing unannounced on upgrade.
  *
  * `sandboxes` is deliberately `false`. A remote Function provider and immutable
  * base are operational prerequisites, so a billing-free deployment must opt in
@@ -80,6 +84,7 @@ export const ENTERPRISE_FEATURE_LEGACY_DEFAULTS: Readonly<Record<EnterpriseFeatu
   sandboxes: false,
   sessionPolicies: true,
   sso: false,
+  usageMonitoring: false,
   whitelabeling: true,
 } as const
 

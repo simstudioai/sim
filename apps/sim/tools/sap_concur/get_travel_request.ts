@@ -1,13 +1,12 @@
-import type { GetTravelRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetTravelRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurProxyResponse> = {
+export const getTravelRequestTool: InternalToolConfig<GetTravelRequestParams, SapConcurResponse> = {
   id: 'sap_concur_get_travel_request',
   name: 'SAP Concur Get Travel Request',
   description: 'Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).',
@@ -69,24 +68,21 @@ export const getTravelRequestTool: ToolConfig<GetTravelRequestParams, SapConcurP
         'The unique identifier of the user getting the content of the Request. If empty when using a Company token the default system user will be assumed to perform the action.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const requestUuid = trimRequired(params.requestUuid, 'requestUuid')
       const query: Record<string, string> = {}
       const userId = params.userId?.trim()
       if (userId) query.userId = userId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests/${encodeURIComponent(requestUuid)}`,
         method: 'GET',
         query: Object.keys(query).length > 0 ? query : undefined,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

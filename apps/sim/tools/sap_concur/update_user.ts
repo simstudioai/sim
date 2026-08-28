@@ -1,14 +1,13 @@
-import type { SapConcurProxyResponse, UpdateUserParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateUserParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
+  baseSapConcurInput,
   scimUserOutputProperties,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateUserTool: ToolConfig<UpdateUserParams, SapConcurProxyResponse> = {
+export const updateUserTool: InternalToolConfig<UpdateUserParams, SapConcurResponse> = {
   id: 'sap_concur_update_user',
   name: 'SAP Concur Update User',
   description: 'Patch a user identity (PATCH /profile/identity/v4.1/Users/{id}).',
@@ -70,21 +69,18 @@ export const updateUserTool: ToolConfig<UpdateUserParams, SapConcurProxyResponse
         'SCIM PATCH payload. Required: schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"] and Operations, an array of { op, path, value } where op is add, replace, or remove. If the target location is a multi-valued attribute and no filter is specified, the attribute and all values are replaced. Example: deactivate a user with { op: "replace", path: "active", value: false }.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userUuid = trimRequired(params.userUuid, 'userUuid')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/profile/identity/v4.1/Users/${encodeURIComponent(userUuid)}`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

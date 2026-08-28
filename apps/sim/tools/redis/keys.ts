@@ -1,7 +1,7 @@
 import type { RedisKeysParams, RedisKeysResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisKeysTool: ToolConfig<RedisKeysParams, RedisKeysResponse> = {
+export const redisKeysTool: InternalToolConfig<RedisKeysParams, RedisKeysResponse> = {
   id: 'redis_keys',
   name: 'Redis Keys',
   description:
@@ -23,11 +23,8 @@ export const redisKeysTool: ToolConfig<RedisKeysParams, RedisKeysResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'KEYS',
       args: [params.pattern || '*'],

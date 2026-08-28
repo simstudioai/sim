@@ -1,7 +1,7 @@
 import type { Neo4jResponse, Neo4jUpdateParams } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
+export const updateTool: InternalToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
   id: 'neo4j_update',
   name: 'Neo4j Update',
   description:
@@ -61,13 +61,8 @@ export const updateTool: ToolConfig<Neo4jUpdateParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

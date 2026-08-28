@@ -2,9 +2,9 @@ import type {
   OnePasswordListVaultsParams,
   OnePasswordListVaultsResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listVaultsTool: ToolConfig<
+export const listVaultsTool: InternalToolConfig<
   OnePasswordListVaultsParams,
   OnePasswordListVaultsResponse
 > = {
@@ -45,11 +45,8 @@ export const listVaultsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/list-vaults',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

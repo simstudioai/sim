@@ -320,15 +320,25 @@ export async function downloadFromGcs(
 
 export async function downloadFromGcs(
   key: string,
+  customConfig: GcsConfig,
+  maxBytes: number | undefined,
+  signal: AbortSignal | undefined
+): Promise<Buffer>
+
+export async function downloadFromGcs(
+  key: string,
   customConfig?: GcsConfig,
-  maxBytes?: number
+  maxBytes?: number,
+  signal?: AbortSignal
 ): Promise<Buffer> {
+  signal?.throwIfAborted()
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
   const file = storage.bucket(config.bucket).file(key)
 
   if (maxBytes !== undefined) {
     const [fileMetadata] = await file.getMetadata()
+    signal?.throwIfAborted()
     const knownSize = Number(fileMetadata.size)
     if (Number.isFinite(knownSize)) {
       assertKnownSizeWithinLimit(knownSize, maxBytes, 'storage download')
@@ -338,6 +348,7 @@ export async function downloadFromGcs(
   return readNodeStreamToBufferWithLimit(file.createReadStream(), {
     maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
     label: 'storage download',
+    signal,
   })
 }
 

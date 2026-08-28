@@ -1,7 +1,7 @@
 import type { PostgresInsertParams, PostgresInsertResponse } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<PostgresInsertParams, PostgresInsertResponse> = {
+export const insertTool: InternalToolConfig<PostgresInsertParams, PostgresInsertResponse> = {
   id: 'postgresql_insert',
   name: 'PostgreSQL Insert',
   description: 'Insert data into PostgreSQL database',
@@ -58,13 +58,8 @@ export const insertTool: ToolConfig<PostgresInsertParams, PostgresInsertResponse
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

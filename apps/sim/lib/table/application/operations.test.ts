@@ -75,6 +75,13 @@ describe('table operation registry', () => {
     // tools run under them, and a policy without `executor` fails every one of
     // those calls with a 403 while every route test still passes.
     const sharedToolOperations = new Set([
+      tableOperations.list.id,
+      tableOperations.read.id,
+      tableOperations.create.id,
+      tableOperations.queryRows.id,
+      tableOperations.createRows.id,
+      tableOperations.updateRows.id,
+      tableOperations.deleteRows.id,
       tableOperations.createGroup.id,
       tableOperations.updateGroup.id,
       tableOperations.deleteGroup.id,

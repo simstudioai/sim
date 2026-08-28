@@ -97,6 +97,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   },
 
   request: {
+    allowSameOrigin: true,
     url: (params: RequestParams) => {
       return processUrl(params.url, params.pathParams, params.params)
     },

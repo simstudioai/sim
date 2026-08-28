@@ -105,7 +105,7 @@ List files and folders in Google Drive with complete metadata
 |   ↳ `isAppAuthorized` | boolean | Whether created by requesting app |
 |   ↳ `contentRestrictions` | json | Content restrictions |
 |   ↳ `linkShareMetadata` | json | Link share metadata |
-| `nextPageToken` | string | Token for fetching the next page of results |
+| `nextPageToken` | string | Page token for the next page of files; absent from the response when the end of the files list has been reached |
 
 ### Get Google Drive File
 
@@ -483,7 +483,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Google Drive query string using advanced search syntax \(e.g., "fullText contains \'budget\'", "mimeType = \'application/pdf\'", "modifiedTime &gt; \'2024-01-01\'"\) |
+| `query` | string | Yes | Google Drive query string using advanced search syntax \(e.g., "fullText contains 'budget'", "mimeType = 'application/pdf'", "modifiedTime &gt; '2024-01-01'"\) |
 | `pageSize` | number | No | Maximum number of files to return \(default: 100\) |
 | `pageToken` | string | No | Token for fetching the next page of results |
 
@@ -518,7 +518,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 |   ↳ `driveId` | string | Shared drive ID |
 |   ↳ `capabilities` | json | User capabilities on file |
 |   ↳ `version` | string | Version number |
-| `nextPageToken` | string | Token for fetching the next page of results |
+| `nextPageToken` | string | Page token for the next page of files; absent from the response when the end of the files list has been reached |
 
 ### Update Google Drive File
 
@@ -692,7 +692,7 @@ List all permissions (who has access) for a file in Google Drive
 |   ↳ `allowFileDiscovery` | boolean | Whether file is discoverable by grantee |
 |   ↳ `pendingOwner` | boolean | Whether ownership transfer is pending |
 |   ↳ `permissionDetails` | json | Details about inherited permissions |
-| `nextPageToken` | string | Token for fetching the next page of permissions |
+| `nextPageToken` | string | Page token for the next page of permissions; absent from the response when the end of the permissions list has been reached |
 
 ### Export Google Drive File
 
@@ -741,7 +741,7 @@ List the revision history of a file in Google Drive
 |   ↳ `md5Checksum` | string | MD5 checksum for binary revisions |
 |   ↳ `size` | string | Size of the revision in bytes |
 |   ↳ `exportLinks` | json | Export format links for the revision |
-| `nextPageToken` | string | Token for fetching the next page of revisions |
+| `nextPageToken` | string | Page token for the next page of revisions; absent from the response when the end of the revisions list has been reached |
 
 ### Get Google Drive Revision
 
@@ -801,7 +801,7 @@ List comments on a file in Google Drive
 |   ↳ `anchor` | string | Region of the document the comment refers to |
 |   ↳ `quotedFileContent` | json | The file content the comment quotes |
 |   ↳ `replies` | json | Threaded replies to the comment |
-| `nextPageToken` | string | Token for fetching the next page of comments |
+| `nextPageToken` | string | Page token for the next page of comments; absent from the response when the end of the comments list has been reached |
 
 ### Create Google Drive Comment
 

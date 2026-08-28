@@ -2,9 +2,9 @@ import type {
   GrafanaDataSourceHealthParams,
   GrafanaDataSourceHealthResponse,
 } from '@/tools/grafana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const checkDataSourceHealthTool: ToolConfig<
+export const checkDataSourceHealthTool: InternalToolConfig<
   GrafanaDataSourceHealthParams,
   GrafanaDataSourceHealthResponse
 > = {
@@ -40,18 +40,8 @@ export const checkDataSourceHealthTool: ToolConfig<
     },
   },
 
-  request: {
-    /**
-     * Routed through Sim rather than called directly: Grafana reports an
-     * unhealthy data source with HTTP 400 carrying the same `{status, message}`
-     * payload as a healthy one, and the tool framework would turn that into an
-     * opaque error — so the check could only ever report health, never
-     * ill-health.
-     */
-    url: '/api/tools/grafana/check_data_source_health',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       baseUrl: params.baseUrl,
       dataSourceUid: params.dataSourceUid,

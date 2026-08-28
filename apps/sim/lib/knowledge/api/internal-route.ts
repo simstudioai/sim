@@ -1,6 +1,7 @@
 import {
   type Principal,
   requirePrincipalSubjectUserId,
+  resolvePrincipalSubject,
   type SessionPrincipal,
 } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
@@ -16,7 +17,7 @@ import { type DocumentData, documentDataSchema } from '@/lib/api/contracts/knowl
 import { type TagDefinitionData, tagDefinitionDataSchema } from '@/lib/api/contracts/knowledge/tags'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import {
-  requireBillingAttributionHeader,
+  requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -34,6 +35,20 @@ export function internalKnowledgeActorUserId(principal: Principal): string {
   return requirePrincipalSubjectUserId(principal)
 }
 
+export function internalKnowledgeProvenanceUserId(
+  headers: Headers,
+  principal: Principal,
+  workspaceId: string | undefined
+): string {
+  if (principal.kind !== 'delegated') return internalKnowledgeActorUserId(principal)
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind === 'sim_user') return subject.userId
+  if (!workspaceId) {
+    throw new Error('Delegated Knowledge provenance requires a workspace scope')
+  }
+  return requireWorkspaceBillingAttributionHeader(headers, { workspaceId }).billedAccountUserId
+}
+
 export function internalKnowledgeAuthType(principal: Principal): AuthTypeValue {
   return principal.kind === 'delegated' ? AuthType.INTERNAL_JWT : AuthType.SESSION
 }
@@ -43,10 +58,18 @@ export async function resolveInternalKnowledgeBillingAttribution(
   principal: Principal,
   workspaceId: string
 ) {
-  const actorUserId = internalKnowledgeActorUserId(principal)
-  return await (principal.kind === 'delegated'
-    ? requireBillingAttributionHeader(request.headers, { actorUserId, workspaceId })
-    : resolveBillingAttribution({ actorUserId, workspaceId }))
+  if (principal.kind === 'delegated') {
+    return requireWorkspaceBillingAttributionHeader(request.headers, { workspaceId })
+  }
+  return await resolveBillingAttribution({
+    actorUserId: internalKnowledgeActorUserId(principal),
+    workspaceId,
+  })
+}
+
+function internalKnowledgeAnalyticsUserId(principal: Principal): string | null {
+  const subject = resolvePrincipalSubject(principal)
+  return subject?.kind === 'sim_user' ? subject.userId : null
 }
 
 function serializeDate(date: Date | string): string {
@@ -243,7 +266,6 @@ export const internalKnowledgeAnalytics = {
         }
       | { kind: 'bulk'; workspaceId?: string; data: { total: number }; knowledgeBaseId?: string }
   }): void {
-    const userId = internalKnowledgeActorUserId(principal)
     const documentCount = result.kind === 'bulk' ? result.data.total : 1
     const knowledgeBaseId =
       result.kind === 'single' ? result.data.knowledgeBaseId : result.knowledgeBaseId
@@ -258,6 +280,8 @@ export const internalKnowledgeAnalytics = {
         ? { mimeType: result.data.mimeType, fileSize: result.data.fileSize }
         : { recipe: input.processingOptions?.recipe }),
     })
+    const userId = internalKnowledgeAnalyticsUserId(principal)
+    if (!userId) return
     captureServerEvent(
       userId,
       'knowledge_base_document_uploaded',
@@ -297,8 +321,10 @@ export const internalKnowledgeAnalytics = {
   }): void {
     const workspaceId = result.workspaceId
     if (!workspaceId) throw new Error('Deleted document result is missing its workspace scope')
+    const userId = internalKnowledgeAnalyticsUserId(principal)
+    if (!userId) return
     captureServerEvent(
-      internalKnowledgeActorUserId(principal),
+      userId,
       'knowledge_base_document_deleted',
       { knowledge_base_id: result.knowledgeBaseId, workspace_id: workspaceId },
       { groups: { workspace: workspaceId } }
@@ -319,8 +345,10 @@ export const internalKnowledgeAnalytics = {
       }
     }
   }): void {
+    const userId = internalKnowledgeAnalyticsUserId(principal)
+    if (!userId) return
     captureServerEvent(
-      internalKnowledgeActorUserId(principal),
+      userId,
       'knowledge_base_connector_added',
       {
         knowledge_base_id: connector.knowledgeBaseId,
@@ -350,8 +378,10 @@ export const internalKnowledgeAnalytics = {
     if (!result.workspaceId) {
       throw new Error('Deleted connector result is missing its workspace analytics scope')
     }
+    const userId = internalKnowledgeAnalyticsUserId(principal)
+    if (!userId) return
     captureServerEvent(
-      internalKnowledgeActorUserId(principal),
+      userId,
       'knowledge_base_connector_removed',
       {
         knowledge_base_id: result.knowledgeBaseId,
@@ -377,8 +407,10 @@ export const internalKnowledgeAnalytics = {
     if (!result.workspaceId) {
       throw new Error('Synced connector result is missing its workspace analytics scope')
     }
+    const userId = internalKnowledgeAnalyticsUserId(principal)
+    if (!userId) return
     captureServerEvent(
-      internalKnowledgeActorUserId(principal),
+      userId,
       'knowledge_base_connector_synced',
       {
         knowledge_base_id: result.knowledgeBaseId,

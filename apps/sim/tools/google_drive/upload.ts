@@ -1,20 +1,7 @@
-import { createLogger } from '@sim/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
-import {
-  ALL_FILE_FIELDS,
-  GOOGLE_WORKSPACE_MIME_TYPES,
-  handleSheetsFormat,
-  SOURCE_MIME_TYPES,
-} from '@/tools/google_drive/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-const logger = createLogger('GoogleDriveUploadTool')
-
-function usesInternalUploadRoute(params: GoogleDriveToolParams): boolean {
-  return Boolean(params.file)
-}
-
-export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
+export const uploadTool: InternalToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_upload',
   name: 'Upload to Google Drive',
   description: 'Upload a file to Google Drive with complete metadata returned',
@@ -70,195 +57,27 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     },
   },
 
-  request: {
-    internal: usesInternalUploadRoute,
-    url: (params) => {
-      // Use custom API route if file is provided, otherwise use Google Drive API directly
-      if (usesInternalUploadRoute(params)) {
-        return '/api/tools/google_drive/upload'
-      }
-      return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
-    },
-    method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      // Google Drive API for text-only uploads needs Authorization
-      if (!params.file) {
-        headers.Authorization = `Bearer ${params.accessToken}`
-      }
-      return headers
-    },
-    body: (params) => {
-      // Custom route handles file uploads
-      if (params.file) {
-        return {
-          accessToken: params.accessToken,
-          fileName: params.fileName,
-          file: params.file,
-          mimeType: params.mimeType,
-          folderId: params.folderSelector || params.folderId,
-        }
-      }
-
-      // Original text-only upload logic
-      const metadata: {
-        name: string | undefined
-        mimeType: string
-        parents?: string[]
-      } = {
-        name: params.fileName, // Important: Always include the filename in metadata
-        mimeType: params.mimeType || 'text/plain',
-      }
-
-      // Add parent folder if specified (prefer folderSelector over folderId)
-      const parentFolderId = params.folderSelector || params.folderId
-      if (parentFolderId && parentFolderId.trim() !== '') {
-        metadata.parents = [parentFolderId]
-      }
-
-      return metadata
-    },
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      fileName: params.fileName,
+      file: params.file,
+      content: params.content,
+      mimeType: params.mimeType,
+      folderId: params.folderSelector || params.folderId,
+    }),
   },
 
-  transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {
-    try {
-      const data = await response.json()
-
-      // Handle custom API route response (for file uploads)
-      if (params?.file && data.success !== undefined) {
-        if (!data.success) {
-          logger.error('Failed to upload file via custom API route', {
-            error: data.error,
-          })
-          throw new Error(data.error || 'Failed to upload file to Google Drive')
-        }
-        return {
-          success: true,
-          output: {
-            file: data.output.file,
-          },
-        }
-      }
-
-      // Handle Google Drive API response (for text-only uploads)
-      if (!response.ok) {
-        logger.error('Failed to create file in Google Drive', {
-          status: response.status,
-          statusText: response.statusText,
-          data,
-        })
-        throw new Error(data.error?.message || 'Failed to create file in Google Drive')
-      }
-
-      const fileId = data.id
-      const requestedMimeType = params?.mimeType || 'text/plain'
-      const authHeader =
-        response.headers.get('Authorization') || `Bearer ${params?.accessToken || ''}`
-
-      let preparedContent: string | undefined =
-        typeof params?.content === 'string' ? (params?.content as string) : undefined
-
-      if (requestedMimeType === 'application/vnd.google-apps.spreadsheet' && params?.content) {
-        const { csv, rowCount, columnCount } = handleSheetsFormat(params.content as unknown)
-        if (csv !== undefined) {
-          preparedContent = csv
-          logger.info('Prepared CSV content for Google Sheets upload', {
-            fileId,
-            fileName: params?.fileName,
-            rowCount,
-            columnCount,
-          })
-        }
-      }
-
-      const uploadMimeType = GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)
-        ? SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'
-        : requestedMimeType
-
-      logger.info('Uploading content to file', {
-        fileId,
-        fileName: params?.fileName,
-        requestedMimeType,
-        uploadMimeType,
-      })
-
-      const uploadResponse = await fetch(
-        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: authHeader,
-            'Content-Type': uploadMimeType,
-          },
-          body: preparedContent !== undefined ? preparedContent : params?.content || '',
-        }
-      )
-
-      if (!uploadResponse.ok) {
-        const uploadError = await uploadResponse.json()
-        logger.error('Failed to upload content to file', {
-          status: uploadResponse.status,
-          statusText: uploadResponse.statusText,
-          error: uploadError,
-        })
-        throw new Error(uploadError.error?.message || 'Failed to upload content to file')
-      }
-
-      if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
-        logger.info('Updating file name to ensure it persists after conversion', {
-          fileId,
-          fileName: params?.fileName,
-        })
-
-        const updateNameResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: params?.fileName,
-            }),
-          }
-        )
-
-        if (!updateNameResponse.ok) {
-          logger.warn('Failed to update filename after conversion, but content was uploaded', {
-            status: updateNameResponse.status,
-            statusText: updateNameResponse.statusText,
-          })
-        }
-      }
-
-      // Fetch complete file metadata with all fields
-      const finalFileResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
-        {
-          headers: {
-            Authorization: authHeader,
-          },
-        }
-      )
-
-      const finalFile = await finalFileResponse.json()
-
-      return {
-        success: true,
-        output: {
-          file: finalFile,
-        },
-      }
-    } catch (error: any) {
-      logger.error('Error in upload transformation', {
-        error: error.message,
-        stack: error.stack,
-      })
-      throw error
+  transformResponse: async (response: Response) => {
+    const data = (await response.json()) as {
+      success?: boolean
+      error?: string
+      output?: GoogleDriveUploadResponse['output']
     }
+    if (!response.ok || !data.success || !data.output) {
+      throw new Error(data.error || 'Failed to upload file to Google Drive')
+    }
+    return { success: true, output: data.output }
   },
 
   outputs: {

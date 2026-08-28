@@ -4,11 +4,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import {
+  describeWithholdingCause,
   inspectToolResultForCopilot,
   projectToolErrorMessageForCopilot,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
@@ -16,6 +18,7 @@ import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources
 import type { ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
 import { executeTool } from '@/lib/copilot/tool-executor/executor'
+import { TOOL_EFFECT_PHASE } from '@/lib/copilot/tool-executor/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -115,16 +118,42 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.UserId]: userId,
       })
 
-      let toolRegistry: ResolvedSecretTraceRegistry | undefined
-      let turnRegistry: ResolvedSecretTraceRegistry | undefined
+      let toolRegistry: ResolvedSecretTraceRegistry
+      let turnRegistry: ResolvedSecretTraceRegistry
       try {
         turnRegistry = await getTurnEgressRegistry(userId, workspaceId, messageId)
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
-        logger.error('In-band egress registry unavailable; results will be withheld', {
+        /**
+         * Without a catalog the projection can vouch for nothing, so every result this call
+         * could produce would be withheld. Running the tool anyway was the worst of both
+         * outcomes: the side effect happened and the caller got an opaque sentinel that named
+         * neither the cause nor whether anything had changed. Refusing before dispatch is
+         * both truthful and the only answer that leaves nothing behind.
+         *
+         * The cause is almost always the workspace itself — a deleted or inaccessible id
+         * reaching this lane — which is actionable, so it is reported rather than swallowed.
+         */
+        logger.error('In-band egress registry unavailable; refusing the call', {
           toolName,
           toolCallId,
+          userId,
+          workspaceId,
           error: getErrorMessage(err),
+        })
+        rootSpan.setAttributes({ [TraceAttr.ToolOutcome]: MothershipStreamV1ToolOutcome.error })
+        /**
+         * The thrown reason stays in the log. It is an environment or database failure that
+         * nothing here can project — the catalog it needed is the very thing that is missing —
+         * so this is the one message on this route that must be fixed text. The workspace id
+         * is echoed because the caller supplied it, and it is what makes this actionable.
+         */
+        return NextResponse.json({
+          success: false,
+          error: workspaceId
+            ? `${toolName} was not run: its workspace (${workspaceId}) could not be resolved. Check that the workspace exists and is accessible before retrying.`
+            : `${toolName} was not run: its execution environment could not be resolved.`,
+          output: { resultWithheld: true, effect: TOOL_EFFECT_PHASE.notAttempted },
         })
       }
 
@@ -148,8 +177,22 @@ export const POST = withRouteHandler((request: NextRequest) =>
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)
         const projected = projection.result
-        if (projection.safe && toolRegistry?.isComplete() && turnRegistry) {
+        if (projection.safe && toolRegistry.isComplete()) {
           turnRegistry.mergeToolCallRegistry(toolRegistry)
+        }
+        if (!projection.safe) {
+          /**
+           * Reported on its own rather than folded into the failure branch below: a withheld
+           * SUCCESS keeps `projected.success` true, so gating on failure meant the one case
+           * that leaves no other trace — the model reads a bare success — was also the one
+           * case whose cause was never written down.
+           */
+          logger.warn('In-band tool result withheld by egress projection', {
+            toolName,
+            toolCallId,
+            runtimeSucceeded: result.success,
+            ...describeWithholdingCause(projection.cause),
+          })
         }
         if (!projected.success) {
           logger.warn('In-band tool execution failed', {

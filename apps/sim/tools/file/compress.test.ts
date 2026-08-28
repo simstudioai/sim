@@ -6,11 +6,11 @@ import { fileCompressTool, fileDecompressTool } from '@/tools/file/compress'
 
 describe('fileCompressTool', () => {
   it('builds a compress request body from file IDs and archive name', () => {
-    const body = fileCompressTool.request.body?.({
+    const body = fileCompressTool.operation.input({
       fileId: ['wf_a', 'wf_b'],
       archiveName: 'documents.zip',
-      _context: { workspaceId: 'ws_1' },
-    } as Parameters<NonNullable<typeof fileCompressTool.request.body>>[0])
+      workspaceId: 'ws_1',
+    })
 
     expect(body).toMatchObject({
       operation: 'compress',
@@ -22,10 +22,10 @@ describe('fileCompressTool', () => {
 
   it('forwards a selected file object when no IDs are provided', () => {
     const fileInput = { id: 'wf_c', name: 'report.pdf' }
-    const body = fileCompressTool.request.body?.({
+    const body = fileCompressTool.operation.input({
       fileInput,
       workspaceId: 'ws_2',
-    } as Parameters<NonNullable<typeof fileCompressTool.request.body>>[0])
+    })
 
     expect(body).toMatchObject({
       operation: 'compress',
@@ -78,10 +78,10 @@ describe('fileCompressTool', () => {
 
 describe('fileDecompressTool', () => {
   it('builds a decompress request body from a file ID', () => {
-    const body = fileDecompressTool.request.body?.({
+    const body = fileDecompressTool.operation.input({
       fileId: 'wf_zip',
-      _context: { workspaceId: 'ws_1' },
-    } as Parameters<NonNullable<typeof fileDecompressTool.request.body>>[0])
+      workspaceId: 'ws_1',
+    })
 
     expect(body).toMatchObject({
       operation: 'decompress',

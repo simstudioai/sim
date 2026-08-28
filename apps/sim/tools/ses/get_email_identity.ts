@@ -1,7 +1,7 @@
 import type { SESGetEmailIdentityParams, SESGetEmailIdentityResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getEmailIdentityTool: ToolConfig<
+export const getEmailIdentityTool: InternalToolConfig<
   SESGetEmailIdentityParams,
   SESGetEmailIdentityResponse
 > = {
@@ -38,11 +38,8 @@ export const getEmailIdentityTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/get-email-identity',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

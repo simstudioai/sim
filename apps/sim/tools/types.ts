@@ -3,6 +3,7 @@ import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
@@ -55,6 +56,7 @@ export type WorkflowToolExecutionContext = {
   workflowId?: string
   executionId?: string
   userId?: string
+  executorDelegationOrigin?: ExecutorDelegationOrigin
 }
 
 export type OutputType =
@@ -183,13 +185,10 @@ export interface ToolConfig<P = any, R = any> {
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
     /**
-     * Trusts a dynamic URL builder to target only Sim API routes. Conditional builders may use a
-     * definition-owned policy. Literal `/api/...` URLs are internal by definition, and every
-     * resolved URL is validated against the declared policy.
+     * Allows the resolved request URL to target this Sim instance. Reserved for generic,
+     * user-directed HTTP capabilities; integration tools must use an in-process operation.
      */
-    internal?: true | ((params: P) => boolean)
-    /** Selects the signed, workflow-scoped identity required by protected internal routes. */
-    internalAuth?: 'executor_delegation'
+    allowSameOrigin?: true
     /** Defines the exact request fields that may become model-visible. */
     modelInput?:
       | {
@@ -212,27 +211,27 @@ export interface ToolConfig<P = any, R = any> {
           /**
            * Selects inline model-bound values that must not be rewritten, such as file bytes or
            * data URLs. Storage keys, paths, signed URLs, and remote URLs are locators rather than
-           * byte provenance. Metadata is delivered only to an authenticated internal route that
-           * owns the final allow/reject decision.
+           * byte provenance. Metadata is delivered only to an in-process operation that owns the
+           * final allow/reject decision.
            */
           privateInputPaths?: (params: P) => readonly ResolvedSecretInputPath[]
         }
       | {
           /**
-           * Sends encrypted provenance out-of-band to an authenticated internal route that owns
-           * the corresponding projection boundary.
+           * Sends encrypted provenance out-of-band to an in-process operation that owns the
+           * corresponding projection boundary.
            */
           mode: 'private-provenance'
           inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
         }
     /**
-     * Transports encrypted secret provenance across an authenticated internal
-     * tool boundary without rewriting the selected value.
+     * Transports encrypted secret provenance across an in-process tool boundary without
+     * rewriting the selected value.
      */
     secretProvenance?: {
-      /** Selects the exact value whose provenance is persisted by the route. */
+      /** Selects the exact value whose provenance is persisted by the operation. */
       request?: (params: P) => PrivateSecretProvenanceSelection[]
-      /** Imports provenance returned for the route's functional response. */
+      /** Imports provenance returned for the operation's functional response. */
       response?: {
         /** Whether a valid incomplete report fails this call or taints later model egress. */
         incomplete: 'reject' | 'propagate'
@@ -249,6 +248,9 @@ export interface ToolConfig<P = any, R = any> {
      */
     stripAuthOnRedirect?: boolean
   }
+
+  /** Internal operations use {@link InternalToolConfig} instead of an HTTP request. */
+  operation?: never
 
   // Post-processing (optional) - allows additional processing after the initial request
   postProcess?: (
@@ -452,4 +454,35 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
   rateLimit: HostedKeyRateLimitConfig
+}
+
+export interface InternalToolOperationConfig<P> {
+  /** Materializes the typed input consumed by the server-side operation handler. */
+  input: (params: P) => unknown
+  /** Defines model-visible fields and private model-input provenance for this operation. */
+  modelInput?: ToolConfig<P>['request']['modelInput']
+  /** Preserves resolved-secret provenance across the in-process operation boundary. */
+  secretProvenance?: ToolConfig<P>['request']['secretProvenance']
+}
+
+/** Tool metadata shared by network-backed and in-process tools. */
+export type ToolDefinition<P = any, R = any> = Omit<
+  ToolConfig<P, R>,
+  'request' | 'directExecution' | 'operation'
+>
+
+/**
+ * In-process tool definition. Internal operations deliberately have no URL, HTTP method, or
+ * request headers; trusted authority and cancellation are supplied by the executor at runtime.
+ */
+export type InternalToolConfig<P = any, R = any> = ToolDefinition<P, R> & {
+  operation: InternalToolOperationConfig<P>
+  request?: never
+  directExecution?: never
+}
+
+export type ExecutableToolConfig<P = any, R = any> = ToolConfig<P, R> | InternalToolConfig<P, R>
+
+export function isInternalToolConfig(tool: ExecutableToolConfig): tool is InternalToolConfig {
+  return tool.operation !== undefined
 }

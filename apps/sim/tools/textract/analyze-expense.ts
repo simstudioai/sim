@@ -4,7 +4,7 @@ import type {
   TextractAnalyzeExpenseOutput,
   TextractAnalyzeExpenseV2Input,
 } from '@/tools/textract/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('TextractAnalyzeExpenseTool')
 
@@ -59,7 +59,7 @@ const expenseFieldOutputProperties = {
   },
 } as const
 
-export const textractAnalyzeExpenseTool: ToolConfig<
+export const textractAnalyzeExpenseTool: InternalToolConfig<
   TextractAnalyzeExpenseV2Input,
   TextractAnalyzeExpenseOutput
 > = {
@@ -113,14 +113,8 @@ export const textractAnalyzeExpenseTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/textract/analyze-expense',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const processingMode = params.processingMode || 'sync'
       const requestBody: Record<string, unknown> = {
         accessKeyId: params.accessKeyId?.trim(),

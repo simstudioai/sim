@@ -1,7 +1,7 @@
 import type { IAMDeleteUserParams, IAMDeleteUserResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteUserTool: ToolConfig<IAMDeleteUserParams, IAMDeleteUserResponse> = {
+export const deleteUserTool: InternalToolConfig<IAMDeleteUserParams, IAMDeleteUserResponse> = {
   id: 'iam_delete_user',
   name: 'IAM Delete User',
   description: 'Delete an IAM user',
@@ -34,11 +34,8 @@ export const deleteUserTool: ToolConfig<IAMDeleteUserParams, IAMDeleteUserRespon
     },
   },
 
-  request: {
-    url: '/api/tools/iam/delete-user',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

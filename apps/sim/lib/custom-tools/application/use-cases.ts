@@ -3,6 +3,7 @@ import {
   type Principal,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
+  resolvePrincipalSubject,
 } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
@@ -20,6 +21,7 @@ import {
   type CustomToolSortBy,
   deleteCustomTool,
   deleteWorkspaceCustomTool,
+  getAvailableCustomTool,
   getCustomToolById,
   getWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle,
@@ -146,6 +148,29 @@ export const getWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ context }) {
     return { tool: context.tool }
+  },
+})
+
+export interface ReadAvailableCustomToolByIdOrTitleInput {
+  workspaceId: string
+  identifier: string
+  lookup: 'id' | 'id_or_title'
+}
+
+export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: customToolOperations.readAvailableByIdOrTitle,
+  resolveContext: ({ input }: { input: ReadAvailableCustomToolByIdOrTitleInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const subject = resolvePrincipalSubject(principal)
+    const tool = await getAvailableCustomTool({
+      identifier: input.identifier,
+      ...(subject?.kind === 'sim_user' ? { userId: subject.userId } : {}),
+      workspaceId: context.workspaceId,
+      lookup: input.lookup,
+    })
+    return { tool }
   },
 })
 

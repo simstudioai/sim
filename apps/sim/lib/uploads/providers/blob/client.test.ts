@@ -302,6 +302,29 @@ describe('Azure Blob Storage Client', () => {
       )
       expect(mockDestroy).toHaveBeenCalledWith(expect.any(Error))
     })
+
+    it('forwards cancellation to Azure and destroys the response stream', async () => {
+      const controller = new AbortController()
+      const mockDestroy = vi.fn()
+      const mockReadableStream = {
+        destroy: mockDestroy,
+        on: vi.fn(() => mockReadableStream),
+        off: vi.fn(() => mockReadableStream),
+      }
+      mockDownload.mockResolvedValueOnce({ readableStreamBody: mockReadableStream })
+
+      const download = downloadFromBlob('test-file-key', undefined, undefined, controller.signal)
+      await vi.waitFor(() => expect(mockReadableStream.on).toHaveBeenCalled())
+      controller.abort(new Error('cancelled'))
+
+      await expect(download).rejects.toThrow('cancelled')
+      expect(mockDownload).toHaveBeenCalledWith(
+        0,
+        undefined,
+        expect.objectContaining({ abortSignal: controller.signal })
+      )
+      expect(mockDestroy).toHaveBeenCalledWith()
+    })
   })
 
   describe('headBlobObject', () => {

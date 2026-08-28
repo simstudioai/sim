@@ -1,14 +1,10 @@
-import type { SapConcurProxyResponse, UploadExchangeRatesParams } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { SapConcurResponse, UploadExchangeRatesParams } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const uploadExchangeRatesTool: ToolConfig<
+export const uploadExchangeRatesTool: InternalToolConfig<
   UploadExchangeRatesParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_upload_exchange_rates',
   name: 'SAP Concur Upload Exchange Rates',
@@ -66,18 +62,15 @@ export const uploadExchangeRatesTool: ToolConfig<
         'Bulk upload body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: "YYYY-MM-DD", rate }] } (max 100 entries)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/exchangerate/v4/rates`,
       method: 'POST',
       body: params.body,
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

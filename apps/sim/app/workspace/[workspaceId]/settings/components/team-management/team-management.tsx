@@ -35,13 +35,14 @@ const logger = createLogger('TeamManagement')
 
 interface TeamManagementProps {
   organizationId: string
-  billingHref?: string
+  /**
+   * Required: organization billing is reached only through a workspace, so the
+   * caller — which knows the workspace — is the only thing that can build it.
+   */
+  billingHref: string
 }
 
-export function TeamManagement({
-  organizationId,
-  billingHref = `/organization/${organizationId}/settings/billing`,
-}: TeamManagementProps) {
+export function TeamManagement({ organizationId, billingHref }: TeamManagementProps) {
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
   const [memberQuery, setMemberQuery] = useSettingsSearch()

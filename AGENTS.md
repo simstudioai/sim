@@ -40,6 +40,14 @@ You are a professional software engineer. All code must follow best practices: a
 - Never substitute a billing owner, uploader, creator, or API-key owner for the acting principal. Fail fast when the identity model or operation policy cannot express the caller.
 - Use the `migrate-application-operation` skill whenever creating or migrating a protected endpoint, tool command, or resource method.
 
+### Tool Execution Boundary
+
+- A tool has exactly one execution boundary. Use `InternalToolConfig.operation` when the executor can call the implementation in the same process and trust/runtime plane. Put the server handler under `apps/sim/lib/internal/<service>/execute-tool.ts` and register it in `apps/sim/lib/internal/tool-operations/registry.server.ts`.
+- `ToolConfig.request` is only for absolute external HTTP(S) provider APIs. A tool definition must never point at `/api/...`, construct an absolute URL back to this Sim app, or declare an `internal` request policy. Do not add a same-origin route merely to reuse code, normalize files, or perform authorization.
+- Real browser/API ingress and real cross-process capability boundaries may remain HTTP. Their route and any in-process tool adapter call the same application/provider operation; neither calls the other, and tool code never imports route modules.
+- Protected Sim resources still enter through authorized application use cases. The internal tool handler is a trusted surface adapter, not an authorization or database bypass.
+- `bun run check:tool-request-boundary` rejects detectable tool self-hops, the external request formatter rejects relative URLs at runtime, and the internal-operation registry test requires every operation-backed tool to have a loadable handler.
+
 ### Root Structure
 
 ```

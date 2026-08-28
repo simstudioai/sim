@@ -2,9 +2,9 @@ import type {
   SESListSuppressedDestinationsParams,
   SESListSuppressedDestinationsResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listSuppressedDestinationsTool: ToolConfig<
+export const listSuppressedDestinationsTool: InternalToolConfig<
   SESListSuppressedDestinationsParams,
   SESListSuppressedDestinationsResponse
 > = {
@@ -64,11 +64,8 @@ export const listSuppressedDestinationsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/list-suppressed-destinations',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

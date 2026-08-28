@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { BaseImageRequestBody } from '@/tools/openai/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -165,46 +164,10 @@ export const imageTool: ToolConfig = {
 
       if (imageUrl && !base64Image) {
         try {
-          logger.info('Fetching image from URL via proxy...')
-          const baseUrl = getInternalApiBaseUrl()
-          const proxyUrl = new URL('/api/tools/image', baseUrl)
-          proxyUrl.searchParams.append('url', imageUrl)
-
-          const headers: Record<string, string> = {
-            Accept: 'image/*, */*',
-          }
-
-          if (typeof window === 'undefined') {
-            const { generateInternalToken } = await import('@/lib/auth/internal')
-            try {
-              const token = await generateInternalToken()
-              headers.Authorization = `Bearer ${token}`
-              logger.info('Added internal auth token for image proxy request')
-            } catch (error) {
-              logger.error('Failed to generate internal token for image proxy:', error)
-            }
-          }
-
-          const imageResponse = await fetch(proxyUrl.toString(), {
-            headers,
-            cache: 'no-store',
-          })
-
-          if (!imageResponse.ok) {
-            logger.error('Failed to fetch image:', imageResponse.status, imageResponse.statusText)
-            throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
-          }
-
-          const imageBlob = await imageResponse.blob()
-
-          if (imageBlob.size === 0) {
-            logger.error('Empty image blob received')
-            throw new Error('Empty image received')
-          }
-
-          const arrayBuffer = await imageBlob.arrayBuffer()
-          const buffer = Buffer.from(arrayBuffer)
-          base64Image = buffer.toString('base64')
+          logger.info('Fetching generated image...')
+          const { fetchRemoteImage } = await import('@/lib/internal/image/fetch')
+          const image = await fetchRemoteImage(imageUrl)
+          base64Image = image.buffer.toString('base64')
         } catch (error) {
           logger.error('Error fetching or processing image:', error)
         }

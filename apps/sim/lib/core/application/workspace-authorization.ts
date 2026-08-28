@@ -212,7 +212,10 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
         return
       }
-      if (principal.serviceId !== 'executor') {
+      if (
+        principal.serviceId !== 'executor' ||
+        principal.delegationContext?.currentWorkflow?.mode !== 'deployment'
+      ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
       return

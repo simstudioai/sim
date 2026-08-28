@@ -1,7 +1,7 @@
 import type { DiscordSendMessageParams, DiscordSendMessageResponse } from '@/tools/discord/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const discordSendMessageTool: ToolConfig<
+export const discordSendMessageTool: InternalToolConfig<
   DiscordSendMessageParams,
   DiscordSendMessageResponse
 > = {
@@ -43,13 +43,8 @@ export const discordSendMessageTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/discord/send-message',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: DiscordSendMessageParams) => {
+  operation: {
+    input: (params: DiscordSendMessageParams) => {
       return {
         botToken: params.botToken.trim(),
         channelId: params.channelId.trim(),

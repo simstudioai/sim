@@ -52,7 +52,6 @@ Extract structured content from web pages with comprehensive metadata support. C
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
 | `formats` | json | No | Output formats supplied by existing Firecrawl block configurations |
-| `scrapeOptions` | json | No | Options for content scraping |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -90,7 +89,6 @@ Scrape multiple URLs in a single batch job and retrieve structured content from 
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
 | `maxConcurrency` | number | No | Maximum number of concurrent scrapes |
 | `ignoreInvalidURLs` | boolean | No | Skip invalid URLs instead of failing the batch \(default: true\) |
-| `scrapeOptions` | json | No | Advanced scraping configuration options |
 | `zeroDataRetention` | boolean | No | Enable zero data retention |
 | `apiKey` | string | Yes | Firecrawl API key |
 
@@ -159,7 +157,6 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
-| `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -170,11 +167,11 @@ Search for information on the web using Firecrawl
 |   ↳ `title` | string | Search result title from search engine |
 |   ↳ `description` | string | Search result description/snippet from search engine |
 |   ↳ `url` | string | URL of the search result |
-|   ↳ `markdown` | string | Page content in markdown \(when scrapeOptions.formats includes "markdown"\) |
-|   ↳ `html` | string | Processed HTML content \(when scrapeOptions.formats includes "html"\) |
-|   ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
-|   ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
-|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|   ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input |
+|   ↳ `html` | string | Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
 |   ↳ `metadata` | object | Metadata about the search result page |
 |     ↳ `title` | string | Page title |
 |     ↳ `description` | string | Page meta description |
@@ -195,7 +192,6 @@ Crawl entire websites and extract structured content from all accessible pages
 | `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
 | `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
 | `prompt` | string | No | Natural-language crawl guidance supplied by existing configurations |
-| `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
 | `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
@@ -287,7 +283,6 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
 | `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
 | `timeout` | number | No | Request timeout in milliseconds |
-| `location` | json | No | Geographic context for proxying \(country, languages\) |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -313,7 +308,6 @@ Extract structured data from entire webpages using natural language prompts and 
 | `includeSubdomains` | boolean | No | Extend scanning to subdomains \(default: true\) |
 | `showSources` | boolean | No | Return data sources in the response \(default: false\) |
 | `ignoreInvalidURLs` | boolean | No | Skip invalid URLs in the array \(default: true\) |
-| `scrapeOptions` | json | No | Advanced scraping configuration options |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output

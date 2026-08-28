@@ -205,7 +205,7 @@ Execute a bound or unbound Dataverse function. Functions are read-only operation
 | `functionName` | string | Yes | Function name \(e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound functions. |
 | `entitySetName` | string | No | Entity set name for bound functions \(e.g., systemusers\). Leave empty for unbound functions. |
 | `recordId` | string | No | Record GUID for bound functions. Leave empty for unbound functions. |
-| `parameters` | string | No | Function parameters for the URL. Simple values can be inlined \(e.g., "LocalizedStandardName=\'Pacific Standard Time\ |
+| `parameters` | string | No | Function parameters for the URL. Simple values can be inlined \(e.g., "LocalizedStandardName='Pacific Standard Time',LocaleId=1033"\), but values with reserved characters \(/ &lt; &gt; * % & : \ ? +\) must use parameter aliases: put the alias assignment in parentheses and the alias-to-value bindings after a "?", e.g. "LocalizedStandardName=@p1,LocaleId=@p2?@p1='Pacific Standard Time'&@p2=1033". Do not include the enclosing parentheses yourself. |
 
 #### Output
 
@@ -387,7 +387,7 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 
 ### Upload File to Microsoft Dataverse
 
-Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string.
+Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
 
 #### Input
 
@@ -399,7 +399,6 @@ Upload a file to a file or image column on a Dataverse record. Supports single-r
 | `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
 | `fileName` | string | Yes | Name of the file being uploaded \(e.g., document.pdf\) |
 | `file` | file | No | File to upload \(UserFile object\) |
-| `fileContent` | string | No | Base64-encoded file content \(legacy\) |
 
 #### Output
 

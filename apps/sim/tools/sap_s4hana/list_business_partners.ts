@@ -1,13 +1,11 @@
-import type { ListBusinessPartnersParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListBusinessPartnersParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listBusinessPartnersTool: ToolConfig<ListBusinessPartnersParams, SapProxyResponse> = {
+export const listBusinessPartnersTool: InternalToolConfig<
+  ListBusinessPartnersParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_list_business_partners',
   name: 'SAP S/4HANA List Business Partners',
   description:
@@ -112,19 +110,15 @@ export const listBusinessPartnersTool: ToolConfig<ListBusinessPartnersParams, Sa
       description: 'Comma-separated navigation properties to expand ($expand)',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_BUSINESS_PARTNER',
       path: '/A_BusinessPartner',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

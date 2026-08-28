@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateSpacePropertyParams {
   accessToken: string
@@ -21,7 +21,7 @@ export interface ConfluenceCreateSpacePropertyResponse {
   }
 }
 
-export const confluenceCreateSpacePropertyTool: ToolConfig<
+export const confluenceCreateSpacePropertyTool: InternalToolConfig<
   ConfluenceCreateSpacePropertyParams,
   ConfluenceCreateSpacePropertyResponse
 > = {
@@ -69,22 +69,14 @@ export const confluenceCreateSpacePropertyTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/space-properties',
-    method: 'POST',
-    headers: (params: ConfluenceCreateSpacePropertyParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceCreateSpacePropertyParams) => ({
+  operation: {
+    input: (params: ConfluenceCreateSpacePropertyParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

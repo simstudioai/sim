@@ -3,9 +3,11 @@ import type {
   MicrosoftWordToolParams,
   MicrosoftWordUpdateResponse,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const appendTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdateResponse> = {
+type AppendToolConfig = InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdateResponse>
+
+export const appendTool: AppendToolConfig = {
   id: 'microsoft_word_append',
   name: 'Append to Microsoft Word Document',
   description:
@@ -47,11 +49,8 @@ export const appendTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdate
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/append',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       documentId: params.documentId,
       content: params.content,

@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
 import {
@@ -16,17 +17,6 @@ import {
   validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
-
-const { mockBuildExecutorDelegationHeaders } = vi.hoisted(() => ({
-  mockBuildExecutorDelegationHeaders: vi
-    .fn()
-    .mockResolvedValue({ Authorization: 'Bearer delegation-token' }),
-}))
-
-vi.mock('@/executor/utils/http', () => ({
-  buildExecutorDelegationHeaders: mockBuildExecutorDelegationHeaders,
-  buildAPIUrl: (path: string) => new URL(path, 'http://localhost:3000'),
-}))
 
 const mockToolConfig = {
   id: 'test_tool',
@@ -644,39 +634,21 @@ describe('Tool Parameters Utils', () => {
     })
 
     describe('createLLMToolSchema - child workflow input enrichment', () => {
-      const childWorkflowPayload = {
-        data: {
-          state: {
-            blocks: {
-              'block-1': {
-                type: 'starter',
-                subBlocks: {
-                  inputFormat: {
-                    value: [
-                      { name: 'email', type: 'string', description: 'Recipient address' },
-                      { name: 'attempts', type: 'number' },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
+      const mockReadWorkflowInputFields = vi.fn()
+      const executorDelegationOrigin: ExecutorDelegationOrigin = {
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow',
+        executionId: 'execution-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
       }
 
-      const mockFetch = vi.fn()
-
       beforeEach(() => {
-        mockBuildExecutorDelegationHeaders.mockClear()
-        mockFetch.mockReset()
-        mockFetch.mockResolvedValue(
-          new Response(JSON.stringify(childWorkflowPayload), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        )
-        // The suite runs with `unstubGlobals`, which restores globals between tests.
-        vi.stubGlobal('fetch', mockFetch)
+        mockReadWorkflowInputFields.mockReset()
+        mockReadWorkflowInputFields.mockResolvedValue([
+          { name: 'email', type: 'string', description: 'Recipient address' },
+          { name: 'attempts', type: 'number' },
+        ])
       })
 
       it('binds the delegation to the execution subject and the target workflow', async () => {
@@ -688,12 +660,17 @@ describe('Tool Parameters Utils', () => {
             workflowId: 'parent-workflow',
             executionId: 'execution-1',
             workspaceId: 'workspace-1',
-          }
+            executorDelegationOrigin,
+          },
+          mockReadWorkflowInputFields
         )
 
-        expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
-          subjectUserId: 'user-1',
-          workflowId: 'child-workflow',
+        expect(mockReadWorkflowInputFields).toHaveBeenCalledWith('child-workflow', {
+          userId: 'user-1',
+          workflowId: 'parent-workflow',
+          executionId: 'execution-1',
+          workspaceId: 'workspace-1',
+          executorDelegationOrigin,
         })
         expect(schema.properties.inputMapping.properties).toEqual({
           email: { type: 'string', description: 'Recipient address' },
@@ -706,37 +683,54 @@ describe('Tool Parameters Utils', () => {
         await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'parent-workflow' },
-          { userId: 'user-1', workflowId: 'parent-workflow', executionId: 'execution-1' }
+          {
+            userId: 'user-1',
+            workflowId: 'parent-workflow',
+            executionId: 'execution-1',
+            executorDelegationOrigin,
+          },
+          mockReadWorkflowInputFields
         )
 
-        expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
-          subjectUserId: 'user-1',
+        expect(mockReadWorkflowInputFields).toHaveBeenCalledWith('parent-workflow', {
+          userId: 'user-1',
           workflowId: 'parent-workflow',
           executionId: 'execution-1',
+          executorDelegationOrigin,
         })
       })
 
-      it('leaves inputMapping untyped and issues no request without an execution subject', async () => {
+      it('leaves inputMapping untyped and issues no request without trusted execution authority', async () => {
         const { schema } = await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'child-workflow' },
-          { workflowId: 'parent-workflow', executionId: 'execution-1' }
+          { workflowId: 'parent-workflow', executionId: 'execution-1' },
+          mockReadWorkflowInputFields
         )
 
-        expect(mockBuildExecutorDelegationHeaders).not.toHaveBeenCalled()
-        expect(mockFetch).not.toHaveBeenCalled()
+        expect(mockReadWorkflowInputFields).not.toHaveBeenCalled()
         expect(schema.properties.inputMapping.properties).toBeUndefined()
       })
 
       it('leaves inputMapping untyped when the workflow read is rejected', async () => {
-        mockFetch.mockResolvedValue(new Response('Unauthorized', { status: 401 }))
+        mockReadWorkflowInputFields.mockRejectedValue(new Error('Unauthorized'))
 
         const { schema } = await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'child-workflow' },
-          { userId: 'user-1', workflowId: 'parent-workflow' }
+          {
+            userId: 'user-1',
+            workflowId: 'parent-workflow',
+            executorDelegationOrigin,
+          },
+          mockReadWorkflowInputFields
         )
 
+        expect(mockReadWorkflowInputFields).toHaveBeenCalledWith('child-workflow', {
+          userId: 'user-1',
+          workflowId: 'parent-workflow',
+          executorDelegationOrigin,
+        })
         expect(schema.properties.inputMapping.properties).toBeUndefined()
       })
     })

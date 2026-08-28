@@ -51,7 +51,6 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `from` | number | No | Pagination start index \(0-based\) |
 | `limit` | number | No | Number of tickets to return \(1-100\) |
@@ -111,7 +110,6 @@ Retrieve a single Zoho Desk ticket by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID to retrieve |
 | `include` | string | No | Comma-separated related data to embed. Allowed: contacts, products, assignee, departments, contract, isRead, team, skills |
@@ -162,7 +160,6 @@ Update fields on an existing Zoho Desk ticket.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID to update |
 | `subject` | string | No | Ticket subject |
@@ -175,7 +172,7 @@ Update fields on an existing Zoho Desk ticket.
 | `dueDate` | string | No | Due date \(ISO 8601\) |
 | `description` | string | No | Ticket description |
 | `resolution` | string | No | Resolution notes recorded on the ticket |
-| `classification` | string | No | Ticket classification. Zoho\'s system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
+| `classification` | string | No | Ticket classification. Zoho's system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
 | `customFields` | json | No | Custom field values as a JSON object, keyed by custom field API name |
 
 #### Output
@@ -224,7 +221,6 @@ List comments on a Zoho Desk ticket.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `from` | number | No | Pagination start index \(0-based\) |
@@ -267,7 +263,6 @@ Add a comment to a Zoho Desk ticket.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `content` | string | Yes | Comment content |
@@ -309,7 +304,6 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `from` | number | No | Pagination start index \(0-based\) |
@@ -367,7 +361,6 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `threadId` | string | Yes | Thread ID |
@@ -423,7 +416,6 @@ Retrieve a Zoho Desk contact by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `contactId` | string | Yes | Contact ID to retrieve |
 | `include` | string | No | Comma-separated related data to embed. Allowed: accounts, owner |
@@ -460,7 +452,6 @@ Download a Zoho Desk ticket attachment (from its href) as a file.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `href` | string | Yes | Attachment download href \(from a thread or comment attachment\) |
 | `fileName` | string | No | Optional file name for the downloaded file |
@@ -479,7 +470,6 @@ List the Zoho Desk organizations (portals) the connected account can access.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiDomain` | string | No | Zoho Desk data-center REST base URL |
 
 #### Output
 

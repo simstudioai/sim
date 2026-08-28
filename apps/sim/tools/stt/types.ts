@@ -61,7 +61,6 @@ export interface SttParams {
   timestamps?: 'none' | 'sentence' | 'word'
   diarization?: boolean
   translateToEnglish?: boolean
-  // AssemblyAI-specific options
   sentiment?: boolean
   entityDetection?: boolean
   piiRedaction?: boolean
@@ -85,9 +84,8 @@ export interface SttResponse extends ToolResponse {
     language?: string
     duration?: number
     confidence?: number
-    // AssemblyAI-specific outputs
-    sentiment?: any[]
-    entities?: any[]
+    sentiment?: Record<string, unknown>[]
+    entities?: Record<string, unknown>[]
     summary?: string
   }
 }
@@ -99,40 +97,8 @@ export interface SttBlockResponse extends ToolResponse {
     language?: string
     duration?: number
     confidence?: number
-    // AssemblyAI-specific outputs
-    sentiment?: any[]
-    entities?: any[]
+    sentiment?: Record<string, unknown>[]
+    entities?: Record<string, unknown>[]
     summary?: string
   }
-}
-
-// Provider-specific types
-
-interface WhisperParams extends Omit<SttParams, 'provider'> {
-  model?: string
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
-  temperature?: number
-}
-
-interface DeepgramParams extends Omit<SttParams, 'provider'> {
-  model?: string
-  punctuate?: boolean
-  paragraphs?: boolean
-  utterances?: boolean
-}
-
-interface ElevenLabsSttParams extends Omit<SttParams, 'provider'> {
-  model?: string
-}
-
-interface AssemblyAIParams extends Omit<SttParams, 'provider'> {
-  model?: string
-  sentiment?: boolean
-  entityDetection?: boolean
-  piiRedaction?: boolean
-  summarization?: boolean
-}
-
-interface GeminiParams extends Omit<SttParams, 'provider'> {
-  model?: string
 }

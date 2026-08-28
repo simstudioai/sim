@@ -1,7 +1,10 @@
 import type { SESListIdentitiesParams, SESListIdentitiesResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listIdentitiesTool: ToolConfig<SESListIdentitiesParams, SESListIdentitiesResponse> = {
+export const listIdentitiesTool: InternalToolConfig<
+  SESListIdentitiesParams,
+  SESListIdentitiesResponse
+> = {
   id: 'ses_list_identities',
   name: 'SES List Identities',
   description:
@@ -41,11 +44,8 @@ export const listIdentitiesTool: ToolConfig<SESListIdentitiesParams, SESListIden
     },
   },
 
-  request: {
-    url: '/api/tools/ses/list-identities',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

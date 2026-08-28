@@ -2,9 +2,9 @@ import type {
   IdentityCenterGetGroupParams,
   IdentityCenterGetGroupResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getGroupTool: ToolConfig<
+export const getGroupTool: InternalToolConfig<
   IdentityCenterGetGroupParams,
   IdentityCenterGetGroupResponse
 > = {
@@ -46,11 +46,8 @@ export const getGroupTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/get-group',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

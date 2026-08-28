@@ -25,7 +25,7 @@ MCP servers group your workflow tools together. Create and manage them in worksp
     src="/static/blocks/mcp-servers-settings.png"
     alt="MCP Servers settings page"
     width={700}
-    height={450}
+    height={303}
     className="my-6"
   />
 </div>
@@ -40,7 +40,7 @@ MCP servers group your workflow tools together. Create and manage them in worksp
     src="/static/blocks/mcp-server-add-modal.png"
     alt="Add New MCP Server modal"
     width={550}
-    height={380}
+    height={371}
     className="my-6"
   />
 </div>
@@ -53,7 +53,7 @@ MCP servers group your workflow tools together. Create and manage them in worksp
     src="/static/blocks/mcp-server-details.png"
     alt="MCP Server details view"
     width={700}
-    height={450}
+    height={491}
     className="my-6"
   />
 </div>
@@ -77,7 +77,7 @@ Once your workflow is deployed, you can expose it as an MCP tool:
     src="/static/blocks/mcp-deploy-modal.png"
     alt="Workflow Deployment MCP tab"
     width={380}
-    height={470}
+    height={487}
     className="my-6"
   />
 </div>
@@ -112,15 +112,15 @@ Sim generates a ready-to-paste configuration for every supported client. To get 
 
 1. Navigate to **Settings → MCP Servers**
 2. Click **Details** on your server
-3. Under **MCP Client**, select your client — **Cursor**, **Claude Code**, **Claude Desktop**, **VS Code**, or **Sim**
-4. Copy the configuration, replacing `$SIM_API_KEY` with your Sim API key
+3. Under **MCP Client**, select your client — **Cursor**, **Codex**, **Claude Code**, **Claude Desktop**, **VS Code**, or **Sim**
+4. Copy the configuration and follow the authentication note below it
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/mcp-client-config.png"
     alt="MCP client configuration panel"
     width={700}
-    height={450}
+    height={517}
     className="my-6"
   />
 </div>
@@ -141,6 +141,18 @@ Cursor supports direct URL configuration. Add to your Cursor MCP settings (`.cur
 ```
 
 Cursor also provides a one-click install button in the server detail view.
+
+### Codex
+
+Add this to your Codex configuration (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers."my-sim-workflows"]
+url = "YOUR_SERVER_URL"
+env_http_headers = { "X-API-Key" = "SIM_API_KEY" }
+```
+
+Set the `SIM_API_KEY` environment variable before starting Codex. The ChatGPT desktop app, Codex CLI, and Codex IDE extension share this configuration.
 
 ### Claude Code
 
@@ -185,7 +197,7 @@ For public servers, omit the `X-API-Key` header and `--header` arguments. Public
 </Callout>
 
 <Callout type="warn">
-`$SIM_API_KEY` is a placeholder. For Claude Desktop and VS Code configs, replace it with your actual API key since these clients don't expand environment variables in JSON config files. Claude Code and Cursor handle variable expansion natively.
+`$SIM_API_KEY` is a placeholder. For Claude Desktop and VS Code configs, replace it with your actual API key since these clients don't expand environment variables in JSON config files. Codex reads `SIM_API_KEY` from the environment, while Claude Code and Cursor handle variable expansion natively.
 </Callout>
 
 ## Server Management
@@ -226,5 +238,3 @@ Workflows execute using the same deployment version as API calls, ensuring consi
   { question: "What naming conventions should I follow for tool names?", answer: "Use lowercase letters, numbers, and underscores only. The name should be descriptive and follow MCP naming conventions, such as search_documents or send_email. This helps AI assistants understand and correctly invoke your tools." },
   { question: "How are workflow inputs mapped to MCP tool parameters?", answer: "Your workflow's input format fields automatically become MCP tool parameters. Each parameter's description defaults to the description set on that input in the Start block, and you can override it per tool in the MCP configuration to help AI assistants understand what values to provide." },
 ]} />
-
-

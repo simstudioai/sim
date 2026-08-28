@@ -2,9 +2,9 @@ import type {
   STSAssumeRoleWithWebIdentityParams,
   STSAssumeRoleWithWebIdentityResponse,
 } from '@/tools/sts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const assumeRoleWithWebIdentityTool: ToolConfig<
+export const assumeRoleWithWebIdentityTool: InternalToolConfig<
   STSAssumeRoleWithWebIdentityParams,
   STSAssumeRoleWithWebIdentityResponse
 > = {
@@ -68,11 +68,8 @@ export const assumeRoleWithWebIdentityTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/sts/assume-role-with-web-identity',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       roleArn: params.roleArn,
       roleSessionName: params.roleSessionName,

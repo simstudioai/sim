@@ -14238,7 +14238,7 @@
         },
         {
           "name": "Upload File",
-          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string."
+          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body."
         },
         {
           "name": "Download File",
@@ -19717,7 +19717,7 @@
         },
         {
           "name": "OData Query (advanced)",
-          "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data."
+          "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The integration handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data."
         }
       ],
       "operationCount": 38,
@@ -23504,7 +23504,7 @@
       "name": "TinyFish",
       "description": "Automate and read the live web",
       "longDescription": "Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.",
-      "bgColor": "#FF6700",
+      "bgColor": "#FFFFFF",
       "iconName": "TinyFishIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinyfish",
       "operations": [

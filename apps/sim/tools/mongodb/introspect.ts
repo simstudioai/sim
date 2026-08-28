@@ -1,7 +1,10 @@
 import type { MongoDBIntrospectParams, MongoDBIntrospectResponse } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<MongoDBIntrospectParams, MongoDBIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<
+  MongoDBIntrospectParams,
+  MongoDBIntrospectResponse
+> = {
   id: 'mongodb_introspect',
   name: 'MongoDB Introspect',
   description: 'Introspect MongoDB database to list databases, collections, and indexes',
@@ -53,13 +56,8 @@ export const introspectTool: ToolConfig<MongoDBIntrospectParams, MongoDBIntrospe
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

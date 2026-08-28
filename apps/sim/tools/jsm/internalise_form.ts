@@ -1,7 +1,7 @@
 import type { JsmInternaliseFormParams, JsmInternaliseFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmInternaliseFormTool: ToolConfig<
+export const jsmInternaliseFormTool: InternalToolConfig<
   JsmInternaliseFormParams,
   JsmInternaliseFormResponse
 > = {
@@ -43,11 +43,8 @@ export const jsmInternaliseFormTool: ToolConfig<
       description: 'Form instance UUID',
     },
   },
-  request: {
-    url: '/api/tools/jsm/forms/internalise',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

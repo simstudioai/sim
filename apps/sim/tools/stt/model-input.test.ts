@@ -17,14 +17,14 @@ const AUDIO_FILE = {
 
 describe('STT model input provenance', () => {
   it('does not attach opaque provenance for server-resolved audio locators', () => {
-    const modelInput = deepgramSttTool.request.modelInput
+    const modelInput = deepgramSttTool.operation.modelInput
     expect(modelInput?.mode).toBe('project')
     if (modelInput?.mode !== 'project') throw new Error('Expected Deepgram to project input')
     expect(modelInput.privateInputPaths).toBeUndefined()
   })
 
   it('projects the Whisper filename while preserving its locator and inline fields', () => {
-    const modelInput = whisperSttTool.request.modelInput
+    const modelInput = whisperSttTool.operation.modelInput
     expect(modelInput?.mode).toBe('project')
     if (modelInput?.mode !== 'project' || !modelInput.applyProjected) {
       throw new Error('Expected Whisper to apply projected input')

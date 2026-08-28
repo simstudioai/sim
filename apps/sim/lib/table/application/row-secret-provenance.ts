@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import { isPrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import { buildIdByName } from '@/lib/table/column-keys'
@@ -124,13 +124,11 @@ export function resolveRowWriteProvenance(options: {
     complete: true,
     columns: {},
   }))
-  const subjectUserId = requirePrincipalSubjectUserId(principal)
   for (const selection of bundle.selections) {
     const touched = touchedBySelectionKey.get(selection.key)
     if (
       !touched ||
       !isPrivateSecretProvenanceScopeCompatible(selection.provenance.scope, {
-        userId: subjectUserId,
         workspaceId: options.workspaceId,
       })
     ) {

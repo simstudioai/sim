@@ -31,6 +31,7 @@ describe('unified settings navigation', () => {
       { id: 'billing', label: 'Subscription', section: 'account' },
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
+      { id: 'usage', label: 'Usage tracking', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
       { id: 'credential-groups', label: 'Credential groups', section: 'workspace' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
@@ -82,6 +83,7 @@ describe('unified settings navigation', () => {
     ])
     expect(idsForSection('organization')).toEqual([
       'organization',
+      'usage',
       'custom-blocks',
       'forks',
       'access-control',

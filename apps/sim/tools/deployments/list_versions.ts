@@ -2,9 +2,9 @@ import type {
   DeploymentsListVersionsParams,
   DeploymentsListVersionsResponse,
 } from '@/tools/deployments/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deploymentsListVersionsTool: ToolConfig<
+export const deploymentsListVersionsTool: InternalToolConfig<
   DeploymentsListVersionsParams,
   DeploymentsListVersionsResponse
 > = {
@@ -23,18 +23,8 @@ export const deploymentsListVersionsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      const qs = new URLSearchParams({ workflowId: params.workflowId, workspaceId })
-      return `/api/tools/deployments/versions?${qs.toString()}`
-    },
-    method: 'GET',
-    headers: () => ({ 'Content-Type': 'application/json' }),
+  operation: {
+    input: (params) => ({ workflowId: params.workflowId }),
   },
 
   transformResponse: async (response) => response.json(),

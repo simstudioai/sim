@@ -1,7 +1,7 @@
 import type { JsmDeleteFormParams, JsmDeleteFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmDeleteFormTool: ToolConfig<JsmDeleteFormParams, JsmDeleteFormResponse> = {
+export const jsmDeleteFormTool: InternalToolConfig<JsmDeleteFormParams, JsmDeleteFormResponse> = {
   id: 'jsm_delete_form',
   name: 'JSM Delete Form',
   description: 'Remove a form from a Jira issue or JSM request',
@@ -39,11 +39,8 @@ export const jsmDeleteFormTool: ToolConfig<JsmDeleteFormParams, JsmDeleteFormRes
       description: 'Form instance UUID to delete',
     },
   },
-  request: {
-    url: '/api/tools/jsm/forms/delete',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

@@ -6,8 +6,8 @@ import { fileAppendTool } from '@/tools/file/append'
 import { fileWriteTool } from '@/tools/file/write'
 
 describe('workspace file mutation provenance', () => {
-  it('delegates append content provenance to the authenticated file route', () => {
-    const select = fileAppendTool.request.secretProvenance?.request
+  it('delegates append content provenance to the authenticated file operation', () => {
+    const select = fileAppendTool.operation.secretProvenance?.request
     expect(select).toBeDefined()
     expect(
       select?.({
@@ -19,7 +19,7 @@ describe('workspace file mutation provenance', () => {
   })
 
   it('tracks file-write content without changing existing filename behavior', () => {
-    const select = fileWriteTool.request.secretProvenance?.request
+    const select = fileWriteTool.operation.secretProvenance?.request
     expect(select).toBeDefined()
     expect(
       select?.({

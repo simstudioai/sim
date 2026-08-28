@@ -8,6 +8,14 @@ const HUMAN_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const DISCOVERY_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+const EXECUTION_PRINCIPAL_POLICY = {
+  principalKinds: ['delegated'],
+  delegatedServices: ['executor'],
+} as const
 
 export const mcpServerOperations = {
   list: defineWorkspaceOperation({
@@ -20,7 +28,13 @@ export const mcpServerOperations = {
     id: 'mcp_servers.tools.discover',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    ...HUMAN_PRINCIPAL_POLICY,
+    ...DISCOVERY_PRINCIPAL_POLICY,
+  }),
+  executeTool: defineWorkspaceOperation({
+    id: 'mcp_servers.tools.execute',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...EXECUTION_PRINCIPAL_POLICY,
   }),
   /**
    * Publishing a workflow as an MCP server was reachable only through Copilot,

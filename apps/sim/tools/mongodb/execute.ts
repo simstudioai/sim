@@ -1,7 +1,7 @@
 import type { MongoDBExecuteParams, MongoDBResponse } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
+export const executeTool: InternalToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
   id: 'mongodb_execute',
   name: 'MongoDB Execute',
   description: 'Execute MongoDB aggregation pipeline',
@@ -64,13 +64,8 @@ export const executeTool: ToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

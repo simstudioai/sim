@@ -1,8 +1,8 @@
 import type { SlackUpdateMessageParams, SlackUpdateMessageResponse } from '@/tools/slack/types'
 import { MESSAGE_METADATA_OUTPUT_PROPERTIES, MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackUpdateMessageTool: ToolConfig<
+export const slackUpdateMessageTool: InternalToolConfig<
   SlackUpdateMessageParams,
   SlackUpdateMessageResponse
 > = {
@@ -62,13 +62,8 @@ export const slackUpdateMessageTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/slack/update-message',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackUpdateMessageParams) => ({
+  operation: {
+    input: (params: SlackUpdateMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel?.trim(),
       timestamp: params.timestamp?.trim(),

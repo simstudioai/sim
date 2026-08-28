@@ -16,19 +16,16 @@ vi.setConfig({ testTimeout: 30_000 })
  * That invariant lives in `hooks/queries/tables.ts` — nothing in the type system ties it to the
  * call site, so a well-meaning extra call would silently strand that client on stale rows.
  *
- * Two lists are pinned, because a migrated single-row route now signals from inside its
- * application use case rather than from the route. The call itself is no longer the decision:
- * that use case is shared with `/api/v2` and Copilot, and it degrades to a broadcast whenever no
- * actor is named. What actually selects the behavior is which surface supplies `actorClientId`,
- * so that is pinned too and is the list to scrutinise.
+ * Two lists are pinned. All row mutations now signal from the shared application use case rather
+ * than duplicating that side effect in their route adapters. The call itself is no longer the
+ * decision: the use case is shared with `/api/v2` and Copilot, and it degrades to a broadcast
+ * whenever no actor is named. What actually selects the behavior is which surface supplies
+ * `actorClientId`, so that is pinned too and is the list to scrutinise.
  *
  * If you are here because it failed: adding a supplier means proving that surface's client hook
  * reconciles the write locally across every cached rows query. Removing one is always safe.
  */
-const ATTRIBUTED_CALL_SITES = [
-  'app/api/table/[tableId]/rows/route.ts',
-  'lib/table/application/rows.ts',
-] as const
+const ATTRIBUTED_CALL_SITES = ['lib/table/application/rows.ts'] as const
 
 /** Surfaces that name the acting tab. See the note above — this is the real allowlist. */
 const ACTOR_SUPPLYING_SURFACES = [

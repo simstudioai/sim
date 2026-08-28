@@ -72,7 +72,7 @@ List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessP
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "BusinessPartnerCategory eq \'1\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "BusinessPartnerCategory eq '1'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -247,7 +247,7 @@ List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with op
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "CustomerAccountGroup eq \'Z001\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "CustomerAccountGroup eq 'Z001'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -259,7 +259,7 @@ List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with op
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | Array of A_Customer entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(proxy unwraps the OData v2 `d` envelope\). Properties below describe each customer item. |
+| `data` | json | Array of A_Customer entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each customer item. |
 |   ↳ `Customer` | string | Customer key \(up to 10 characters\) |
 |   ↳ `CustomerName` | string | Name of customer |
 |   ↳ `CustomerFullName` | string | Full name of the customer |
@@ -391,7 +391,7 @@ List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with op
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "SupplierAccountGroup eq \'BP02\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "SupplierAccountGroup eq 'BP02'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -568,7 +568,7 @@ List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) wit
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "SalesOrganization eq \'1010\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "SalesOrganization eq '1010'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -777,7 +777,7 @@ List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=000
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "OverallDeliveryStatus eq \'C\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "OverallDeliveryStatus eq 'C'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -877,7 +877,7 @@ List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002,
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "ReceivingPlant eq \'1010\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "ReceivingPlant eq '1010'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -973,7 +973,7 @@ List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_D
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "SoldToParty eq \'10100001\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "SoldToParty eq '10100001'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1100,7 +1100,7 @@ List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) wi
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "ProductType eq \'FERT\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "ProductType eq 'FERT'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1243,7 +1243,7 @@ List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., \"Material eq 'TG10' and Plant eq '1010' and InventoryStockType eq '01'\"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "Material eq 'TG10' and Plant eq '1010' and InventoryStockType eq '01'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1288,7 +1288,7 @@ List material document headers (goods movements) from SAP S/4HANA Cloud (API_MAT
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., \"MaterialDocumentYear eq '2024' and PostingDate ge datetime'2024-01-01T00:00:00'\"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "MaterialDocumentYear eq '2024' and PostingDate ge datetime'2024-01-01T00:00:00'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1380,7 +1380,7 @@ List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, 
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "PurchaseRequisitionType eq \'NB\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "PurchaseRequisitionType eq 'NB'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1523,7 +1523,7 @@ List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_Pu
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "CompanyCode eq \'1010\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "CompanyCode eq '1010'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1698,7 +1698,7 @@ List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, 
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "InvoicingParty eq \'17300001\'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "InvoicingParty eq '17300001'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1780,7 +1780,7 @@ Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYea
 
 ### SAP S/4HANA OData Query
 
-Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data.
+Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The integration handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data.
 
 #### Input
 
@@ -1797,9 +1797,9 @@ Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Commun
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
 | `service` | string | Yes | OData service name \(e.g., "API_BUSINESS_PARTNER", "API_SALES_ORDER_SRV"\) |
-| `path` | string | Yes | Path inside the service \(e.g., "/A_BusinessPartner" or "/A_BusinessPartner\(\'1000123\'\)"\) |
+| `path` | string | Yes | Path inside the service \(e.g., "/A_BusinessPartner" or "/A_BusinessPartner\('1000123'\)"\) |
 | `method` | string | No | HTTP method: GET \(default\), POST, PATCH, PUT, DELETE, MERGE |
-| `query` | json | No | OData query parameters as JSON object or query string \(e.g., \{"$filter":"BusinessPartnerCategory eq \'1\'","$top":10\}\). $format=json is added automatically when omitted. |
+| `query` | json | No | OData query parameters as JSON object or query string \(e.g., \{"$filter":"BusinessPartnerCategory eq '1'","$top":10\}\). $format=json is added automatically when omitted. |
 | `body` | json | No | JSON request body for write operations |
 | `ifMatch` | string | No | ETag value for the If-Match header \(required by SAP for PATCH/PUT/DELETE on existing entities\) |
 

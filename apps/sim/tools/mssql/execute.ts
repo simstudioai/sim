@@ -1,7 +1,7 @@
 import type { MSSQLExecuteParams, MSSQLExecuteResponse } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> = {
+export const executeTool: InternalToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> = {
   id: 'mssql_execute',
   name: 'Microsoft SQL Server Execute',
   description: 'Execute a raw T-SQL statement on a Microsoft SQL Server database',
@@ -67,13 +67,8 @@ export const executeTool: ToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> =
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

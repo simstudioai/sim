@@ -1,8 +1,8 @@
 import type { JsmGetServiceDesksParams, JsmGetServiceDesksResponse } from '@/tools/jsm/types'
 import { SERVICE_DESK_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetServiceDesksTool: ToolConfig<
+export const jsmGetServiceDesksTool: InternalToolConfig<
   JsmGetServiceDesksParams,
   JsmGetServiceDesksResponse
 > = {
@@ -55,13 +55,8 @@ export const jsmGetServiceDesksTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/servicedesks',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

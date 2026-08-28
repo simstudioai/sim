@@ -2,9 +2,9 @@ import type {
   ClickUpUploadAttachmentParams,
   ClickUpUploadAttachmentResponse,
 } from '@/tools/clickup/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const clickupUploadAttachmentTool: ToolConfig<
+export const clickupUploadAttachmentTool: InternalToolConfig<
   ClickUpUploadAttachmentParams,
   ClickUpUploadAttachmentResponse
 > = {
@@ -39,13 +39,8 @@ export const clickupUploadAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickup/upload-attachment',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       taskId: params.taskId,
       file: params.file,

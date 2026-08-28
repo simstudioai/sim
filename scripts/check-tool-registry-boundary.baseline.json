@@ -382,16 +382,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/[section]/page.tsx": {
-      "modules": 2083,
+      "modules": 2130,
       "gateways": {
         "apps/sim/triggers/registry.ts": 472,
-        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 451,
-        "apps/sim/blocks/registry.ts": 339,
-        "apps/sim/lib/auth/index.ts": 305,
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx": 470,
+        "apps/sim/blocks/registry.ts": 342,
+        "apps/sim/lib/auth/index.ts": 299,
         "apps/sim/lib/webhooks/providers/index.ts": 109,
         "apps/sim/lib/webhooks/providers/registry.ts": 107,
         "apps/sim/hooks/selectors/registry.ts": 71,
-        "apps/sim/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted.tsx": 45
+        "apps/sim/app/workspace/[workspaceId]/settings/[section]/prefetch.ts": 51
       }
     },
     "app/workspace/[workspaceId]/settings/billing/credit-usage/layout.tsx": {
@@ -455,6 +455,27 @@
         "apps/sim/lib/workflows/comparison/describe.ts": 110,
         "apps/sim/hooks/selectors/registry.ts": 105,
         "apps/sim/app/workspace/[workspaceId]/settings/secrets/[credentialId]/secret-detail.tsx": 77
+      }
+    },
+    "app/workspace/[workspaceId]/settings/usage/events/layout.tsx": {
+      "modules": 4,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/settings/usage/events/loading.tsx": {
+      "modules": 12,
+      "gateways": {}
+    },
+    "app/workspace/[workspaceId]/settings/usage/events/page.tsx": {
+      "modules": 1626,
+      "gateways": {
+        "apps/sim/lib/auth/index.ts": 1482,
+        "apps/sim/blocks/registry.ts": 535,
+        "apps/sim/blocks/registry-maps.ts": 532,
+        "apps/sim/triggers/index.ts": 474,
+        "apps/sim/triggers/registry.ts": 472,
+        "apps/sim/blocks/blocks/credential-group.ts": 187,
+        "apps/sim/stores/workflows/registry/store.ts": 169,
+        "apps/sim/hooks/queries/deployments.ts": 161
       }
     },
     "app/workspace/[workspaceId]/skills/[skillId]/page.tsx": {

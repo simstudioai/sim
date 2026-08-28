@@ -708,9 +708,15 @@ export async function maybeSendUsageThresholdEmail(params: {
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}/workspace`
+    /**
+     * Organization billing is reached through the workspace the usage occurred in
+     * — that is the only plane that serves it. Without a workspace there is no such
+     * link to build, so the account page is the honest fallback rather than a guess
+     * at which workspace the recipient would want.
+     */
     const billingSettingsLink =
-      params.scope === 'organization' && params.organizationId
-        ? `${baseUrl}/organization/${params.organizationId}/settings/billing`
+      params.scope === 'organization' && params.workspaceId
+        ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
         : `${baseUrl}/account/settings/billing`
 
     // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)

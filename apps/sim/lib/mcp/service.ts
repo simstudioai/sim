@@ -5,7 +5,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
@@ -61,6 +61,14 @@ function failureCacheKey(workspaceId: string, serverId: string): string {
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
 
 type ResolvedSecretTraceProvenanceCallback = (provenance: ResolvedSecretTraceProvenanceV1) => void
+
+interface McpRequestOptions {
+  signal?: AbortSignal
+}
+
+interface McpToolExecutionOptions extends McpRequestOptions {
+  timeoutMs?: number
+}
 
 function reportRetainedClientProvenance(
   provenance: unknown,
@@ -392,7 +400,8 @@ class McpService {
     config: McpServerConfig,
     resolvedIP: string | null,
     userId?: string,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    signal?: AbortSignal
   ): Promise<McpClient> {
     const securityPolicy = {
       requireConsent: true,
@@ -408,7 +417,7 @@ class McpService {
         resolvedIP: resolvedIP ?? undefined,
         resolvedSecretTraceProvenance,
       })
-      await client.connect()
+      await client.connect({ signal })
       return client
     }
 
@@ -440,7 +449,7 @@ class McpService {
         resolvedIP: resolvedIP ?? undefined,
         resolvedSecretTraceProvenance,
       })
-      await client.connect()
+      await client.connect({ signal })
       return client
     })
   }
@@ -464,7 +473,8 @@ class McpService {
     userId: string,
     workspaceId: string,
     extraHeaders?: Record<string, string>,
-    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
+    signal?: AbortSignal
   ): () => Promise<McpClient> {
     return async () => {
       const {
@@ -480,7 +490,13 @@ class McpService {
       if (extraHeaders) {
         resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
       }
-      return this.createClient(resolvedConfig, resolvedIP, userId, resolvedSecretTraceProvenance)
+      return this.createClient(
+        resolvedConfig,
+        resolvedIP,
+        userId,
+        resolvedSecretTraceProvenance,
+        signal
+      )
     }
   }
 
@@ -495,9 +511,11 @@ class McpService {
     config: McpServerConfig,
     userId: string,
     workspaceId: string,
-    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
+    signal?: AbortSignal
   ): Promise<McpTool[]> {
     for (let attempt = 0; ; attempt++) {
+      signal?.throwIfAborted()
       try {
         return await this.withServerClient(
           {
@@ -505,7 +523,14 @@ class McpService {
             serverId: config.id,
             allowPool: true,
           },
-          this.buildClient(config, userId, workspaceId, undefined, onResolvedSecretTraceProvenance),
+          this.buildClient(
+            config,
+            userId,
+            workspaceId,
+            undefined,
+            onResolvedSecretTraceProvenance,
+            signal
+          ),
           (client) => {
             reportRetainedClientProvenance(
               client.getResolvedSecretTraceProvenance?.(),
@@ -513,10 +538,11 @@ class McpService {
               workspaceId,
               onResolvedSecretTraceProvenance
             )
-            return client.listTools()
+            return client.listTools(signal)
           }
         )
       } catch (error) {
+        signal?.throwIfAborted()
         if (attempt === 0 && isAuthError(error) && config.authType !== 'oauth') continue
         throw error
       }
@@ -574,13 +600,15 @@ class McpService {
     toolCall: McpToolCall,
     workspaceId: string,
     extraHeaders?: Record<string, string>,
-    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
+    options: McpToolExecutionOptions = {}
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
     const maxRetries = 2
     const reportProvenance = createInvocationProvenanceReporter(onResolvedSecretTraceProvenance)
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      options.signal?.throwIfAborted()
       try {
         logger.info(
           `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
@@ -603,7 +631,8 @@ class McpService {
             userId,
             workspaceId,
             hasExtraHeaders ? extraHeaders : undefined,
-            reportProvenance
+            reportProvenance,
+            options.signal
           ),
           (client) => {
             reportRetainedClientProvenance(
@@ -612,12 +641,13 @@ class McpService {
               workspaceId,
               reportProvenance
             )
-            return client.callTool(toolCall)
+            return client.callTool(toolCall, options)
           }
         )
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
         return result
       } catch (error) {
+        options.signal?.throwIfAborted()
         // A stale session (400/404) or a rotated/revoked credential (401) is rejected
         // before the tool runs, so retrying on a fresh connection is safe and recovers
         // the request. Timeouts/resets are NOT retried — the tool may have executed.
@@ -626,7 +656,8 @@ class McpService {
             `[${requestId}] Retryable connection error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await sleep(100)
+          await interruptibleSleep(100, options.signal)
+          options.signal?.throwIfAborted()
           continue
         }
         throw error
@@ -1007,15 +1038,17 @@ class McpService {
     serverId: string,
     workspaceId: string,
     refresh: McpDiscoveryRefresh = 'cache-aside',
-    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
+    options: McpRequestOptions = {}
   ): Promise<McpTool[]> {
-    if (onResolvedSecretTraceProvenance) {
+    if (onResolvedSecretTraceProvenance || options.signal) {
       return this.discoverServerToolsImpl(
         userId,
         serverId,
         workspaceId,
         refresh,
-        createInvocationProvenanceReporter(onResolvedSecretTraceProvenance)
+        createInvocationProvenanceReporter(onResolvedSecretTraceProvenance),
+        options.signal
       )
     }
 
@@ -1028,6 +1061,7 @@ class McpService {
       serverId,
       workspaceId,
       refresh,
+      undefined,
       undefined
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
@@ -1041,8 +1075,10 @@ class McpService {
     serverId: string,
     workspaceId: string,
     refresh: McpDiscoveryRefresh,
-    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
+    signal?: AbortSignal
   ): Promise<McpTool[]> {
+    signal?.throwIfAborted()
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
     const maxRetries = 2
@@ -1065,6 +1101,7 @@ class McpService {
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      signal?.throwIfAborted()
       let authType: McpServerConfig['authType']
       try {
         logger.info(
@@ -1081,7 +1118,8 @@ class McpService {
           config,
           userId,
           workspaceId,
-          onResolvedSecretTraceProvenance
+          onResolvedSecretTraceProvenance,
+          signal
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
         await Promise.allSettled([
@@ -1099,12 +1137,17 @@ class McpService {
         ])
         return tools
       } catch (error) {
+        signal?.throwIfAborted()
         if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
             `[${requestId}] Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }))
+          await interruptibleSleep(
+            backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }),
+            signal
+          )
+          signal?.throwIfAborted()
           continue
         }
         // Drop positive cache so a follow-up doesn't return stale tools.

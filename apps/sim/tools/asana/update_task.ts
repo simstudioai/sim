@@ -1,7 +1,10 @@
 import type { AsanaUpdateTaskParams, AsanaUpdateTaskResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaUpdateTaskTool: ToolConfig<AsanaUpdateTaskParams, AsanaUpdateTaskResponse> = {
+export const asanaUpdateTaskTool: InternalToolConfig<
+  AsanaUpdateTaskParams,
+  AsanaUpdateTaskResponse
+> = {
   id: 'asana_update_task',
   name: 'Asana Update Task',
   description: 'Update an existing task in Asana',
@@ -57,13 +60,8 @@ export const asanaUpdateTaskTool: ToolConfig<AsanaUpdateTaskParams, AsanaUpdateT
     },
   },
 
-  request: {
-    url: '/api/tools/asana/update-task',
-    method: 'PUT',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       taskGid: params.taskGid,
       name: params.name,
