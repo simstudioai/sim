@@ -26,6 +26,7 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: organizationUsageErrorPolicy,
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
+    workspaceId: query.workspaceId,
     preset: query.preset,
     startDate: query.startDate ? new Date(query.startDate) : undefined,
     endDate: query.endDate ? new Date(query.endDate) : undefined,

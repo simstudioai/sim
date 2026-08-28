@@ -78,8 +78,8 @@ export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUs
       customEnd: input.endDate,
       timezone: input.timezone,
     })
-    const scope = buildUsageAnalyticsScope(context.billingEntity, window)
-    const raw = await readUsageBreakdown(scope, input.dimension, input.workspaceId)
+    const scope = buildUsageAnalyticsScope(context.billingEntity, window, input.workspaceId)
+    const raw = await readUsageBreakdown(scope, input.dimension)
 
     /**
      * Re-key onto what the panel actually displays before ranking.
