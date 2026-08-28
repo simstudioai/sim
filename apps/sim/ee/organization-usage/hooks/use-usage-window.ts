@@ -46,7 +46,13 @@ export function useUsageWindow() {
     window,
     tab: state.tab,
     workspace: state.workspace,
-    preset: state.preset,
+    /**
+     * The *resolved* preset, not the raw URL value. A partial custom deep link
+     * queries the current period, so surfacing `state.preset` left the picker
+     * reading "Custom range" over data that was not custom — and the allowance
+     * gate, which keys on `current-period`, disagreed with the window too.
+     */
+    preset,
     startDate: state.startDate,
     endDate: state.endDate,
     periodLabel,

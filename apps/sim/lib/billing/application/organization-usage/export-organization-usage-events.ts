@@ -6,7 +6,7 @@ import {
   usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 
 /**
@@ -31,6 +31,14 @@ export interface OrganizationUsageExportRow {
   source: string
   description: string
   workflowName: string | null
+  /**
+   * Unrounded, unlike the event list's integer credits.
+   *
+   * A CSV is an analysis surface, and rounding each row to a whole credit printed a
+   * real sub-credit charge as `0` — the charge disappearing rather than reading as
+   * small. Full precision here also makes the column summable, which the previous
+   * `"N credits"` label never was.
+   */
   credits: number
 }
 
@@ -81,7 +89,7 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
           source: log.source,
           description: log.description,
           workflowName: log.workflowName ?? null,
-          credits: dollarsToCredits(log.cost),
+          credits: log.cost * CREDIT_MULTIPLIER,
         })
       }
 

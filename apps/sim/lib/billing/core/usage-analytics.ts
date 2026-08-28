@@ -236,7 +236,12 @@ export function resolveUsageAnalyticsWindow({
     case '30d':
       return { kind: 'range', from: new Date(now.getTime() - 30 * DAY_MS), to: now }
     case 'custom': {
-      if (!customStart || !customEnd) return { kind: 'period', period }
+      // A partial selection is not a range, so it falls back to the current period —
+      // through the same branch, which is what keeps an unbounded period from being
+      // scanned in full here as well.
+      if (!customStart || !customEnd) {
+        return resolveUsageAnalyticsWindow({ preset: 'current-period', period, now })
+      }
       /**
        * The picker offers calendar days and sends `YYYY-MM-DD`, which arrives here
        * parsed as UTC midnight. Anchoring the window on those instants shifted every

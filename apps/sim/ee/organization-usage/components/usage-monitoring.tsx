@@ -280,6 +280,12 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
             options={PERIOD_OPTIONS}
             value={preset}
             onChange={handlePeriodChange}
+            /*
+              The visible layer is masked, so the interactive layer owns the one
+              reachable tooltip — a custom range's label truncates, and without
+              `overlayLabel` its full value was unreadable.
+            */
+            overlayLabel={periodLabel}
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{periodLabel}</span>
             }

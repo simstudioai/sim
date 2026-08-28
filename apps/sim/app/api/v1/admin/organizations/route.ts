@@ -18,18 +18,17 @@
  *   - slug: string - Organization slug (optional, auto-generated from name if not provided)
  *   - ownerId: string - User ID of the organization owner (required)
  *
- * Response: AdminSingleResponse<AdminOrganization & { memberId, attachedWorkspaceIds, workspaceAttachmentFailed }>
- *   `attachedWorkspaceIds` reports which of the owner's workspaces moved under the
- *   organization, and `workspaceAttachmentFailed` distinguishes an owner who had
- *   none from an attachment that threw after the organization was committed — the
- *   latter leaves the organization unreachable and is worth retrying.
+ * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
+ *
+ * Creates the organization and its owner membership, and nothing else. Attaching
+ * or creating a workspace for it is deliberately not done here — see the note on
+ * `adminV1CreateOrganizationContract`.
  */
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { member, organization, organizationColumns, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { slugify } from '@sim/utils/string'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -43,7 +42,6 @@ import {
   OrganizationSlugTakenError,
 } from '@/lib/billing/organizations/create-organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   adminInvalidJsonResponse,
@@ -156,53 +154,6 @@ export const POST = withRouteHandler(
         slug,
       })
 
-      /**
-       * Organization settings are reached only through a workspace the organization
-       * owns, so an organization that owns none leaves its own admin with no route
-       * to administer it. Attaching the owner's existing workspaces is what makes the
-       * organization reachable, and matches what `POST /api/organizations` already
-       * does — this path was the inconsistent one.
-       *
-       * An owner with no workspaces has nothing to attach and stays unreachable until
-       * one exists. Creating a workspace only closes that gap once the organization
-       * carries a usable Team/Enterprise plan; without one the creation policy still
-       * resolves to a personal workspace.
-       *
-       * Attachment is a follow-on effect, not part of creating the organization, and
-       * it is deliberately not folded into the creation transaction: it runs its own,
-       * under a documented lock order (invitation scope, then organization, then
-       * workspace rows) that exists to avoid deadlocking against invitation
-       * acceptance. Re-deriving that ordering in a route is how a deadlock ships.
-       *
-       * So its failure must not be reported as a failure to create: the organization
-       * is already committed, and answering 500 for state that exists left the retry
-       * blocked by the existing-membership check above, with no way to reach the
-       * organization at all.
-       *
-       * It must not be reported as an unqualified success either. Both the ids that
-       * moved and whether the attach threw are on the response contract and on the
-       * audit event, because an empty list alone cannot distinguish an owner who had
-       * no workspaces from provisioning that is genuinely incomplete — only the
-       * second is worth retrying, and only the caller can decide to.
-       */
-      let attachedWorkspaceIds: string[] = []
-      let workspaceAttachmentFailed = false
-      try {
-        ;({ attachedWorkspaceIds } = await attachOwnedWorkspacesToOrganization({
-          ownerUserId: ownerId,
-          organizationId,
-          externalMemberPolicy: 'keep-external',
-          includeArchived: true,
-        }))
-      } catch (attachError) {
-        workspaceAttachmentFailed = true
-        logger.error('Admin API: Created organization but could not attach its workspaces', {
-          organizationId,
-          ownerId,
-          error: getErrorMessage(attachError),
-        })
-      }
-
       const [createdOrg] = await db
         .select(organizationColumns)
         .from(organization)
@@ -214,7 +165,6 @@ export const POST = withRouteHandler(
         slug,
         ownerId,
         memberId,
-        attachedWorkspaceIds,
       })
 
       recordAudit({
@@ -225,21 +175,13 @@ export const POST = withRouteHandler(
         resourceId: organizationId,
         resourceName: name,
         description: `Admin API created organization "${name}"`,
-        metadata: {
-          slug,
-          ownerId,
-          memberId,
-          attachedWorkspaceIds,
-          ...(workspaceAttachmentFailed ? { workspaceAttachmentFailed: true } : {}),
-        },
+        metadata: { slug, ownerId, memberId },
         request,
       })
 
       return singleResponse({
         ...toAdminOrganization(createdOrg),
         memberId,
-        attachedWorkspaceIds,
-        workspaceAttachmentFailed,
       })
     } catch (error) {
       if (error instanceof OrganizationSlugInvalidError) {

@@ -210,30 +210,30 @@ export const adminV1ListOrganizationsContract = defineRouteContract({
 })
 
 /**
- * Creating an organization also attaches the owner's existing workspaces, so that
- * the organization is reachable through the workspace-scoped settings it is
- * administered from. That attachment runs in its own transaction and can fail after
- * the organization is already committed, so the outcome is part of the response
- * rather than something only the logs know.
+ * Creates the organization and its owner membership, and deliberately nothing else.
  *
- * `attachedWorkspaceIds` alone is ambiguous — empty means both "the owner had none"
- * and "the attach threw" — which is why the failure carries its own flag. A caller
- * seeing `workspaceAttachmentFailed` can retry the attachment; a caller seeing an
- * empty list without it has nothing outstanding.
+ * Organization settings are reached through a workspace the organization owns, so a
+ * brand-new organization with none is not yet administrable. Closing that inside
+ * this call was tried and removed: attaching the owner's existing workspaces cannot
+ * join the creation transaction (it runs its own, under a lock order that exists to
+ * avoid deadlocking against invitation acceptance), so it could only ever be
+ * best-effort — leaving a committed organization, a response that could not honestly
+ * report the outcome, and a retry blocked by the existing-membership check.
+ *
+ * This codebase already solves it properly elsewhere. `AdminMemberOperationView`
+ * tracks workspace moves with `pending | processing | dead_letter | applied` and
+ * per-workspace retry, and the enterprise-owner-claim path creates the workspace and
+ * the organization in one transaction and enqueues an outbox event for the rest.
+ * Provisioning a workspace for an organization belongs on one of those paths, not
+ * inline here.
  */
-const adminV1CreatedOrganizationSchema = adminV1OrganizationSchema.extend({
-  memberId: z.string(),
-  attachedWorkspaceIds: z.array(z.string()),
-  workspaceAttachmentFailed: z.boolean(),
-})
-
 export const adminV1CreateOrganizationContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/organizations',
   body: adminV1CreateOrganizationBodySchema,
   response: {
     mode: 'json',
-    schema: adminV1SingleResponseSchema(adminV1CreatedOrganizationSchema),
+    schema: adminV1SingleResponseSchema(adminV1OrganizationSchema.extend({ memberId: z.string() })),
   },
 })
 

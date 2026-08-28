@@ -430,10 +430,9 @@ describe('foldUsageBreakdown', () => {
     expect(fold.rows[0].share).toBe(0)
   })
 
-  it('carries the omitted rows tokens, so a zero-cost dimension still adds up', () => {
-    // BYOK ranks by a cost that is zero for every row, so which rows land in the
-    // visible slice is effectively arbitrary — dropping the tail's tokens would
-    // hide real volume behind an em dash.
+  it('measures share in the ranking unit, so a zero-cost list still draws bars', () => {
+    // BYOK ranks by a cost that is zero for every row, so a cost-based share is 0/0
+    // for all of them and every bar renders at the same minimum width.
     const byokRows = [
       { key: 'gpt-4o', cost: '0', events: 1, inputTokens: 100, outputTokens: 50 },
       { key: 'claude', cost: '0', events: 1, inputTokens: 700, outputTokens: 300 },

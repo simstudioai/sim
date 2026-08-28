@@ -40,12 +40,41 @@ export type UsageBreakdownDimension = z.output<typeof usageBreakdownDimensionSch
  */
 export const MAX_CUSTOM_RANGE_DAYS = 92
 
+/**
+ * A calendar date the window resolver can trust.
+ *
+ * `Date.parse` alone accepts `2026-02-30` and rolls it forward, so a request for
+ * February silently returned a window starting on March 2 — worse than a rejection,
+ * because the response looks authoritative. The round-trip is what makes the check
+ * a calendar one: a date that does not survive re-serialization did not exist.
+ */
 const isoDateSchema = z
   .string()
   .optional()
-  .refine((value) => !value || !Number.isNaN(Date.parse(value)), {
-    message: 'Expected an ISO date such as 2026-08-01',
-  })
+  .refine(
+    (value) => {
+      if (!value) return true
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) return false
+      // Bare `YYYY-MM-DD` parses as UTC, so compare against the UTC serialization.
+      return !/^\d{4}-\d{2}-\d{2}$/.test(value) || parsed.toISOString().slice(0, 10) === value
+    },
+    { message: 'Expected a real calendar date such as 2026-08-01' }
+  )
+
+/**
+ * A page size that treats an empty or absent parameter as omitted.
+ *
+ * `z.coerce.number()` turns `''` into `0`, which then fails `.min(1)` — so a client
+ * that serializes an unset filter as `?limit=` got a 400 instead of the default the
+ * schema declares. Explicit numeric values still validate normally.
+ */
+function usageLimitSchema(max: number, fallback: number) {
+  return z.preprocess(
+    (value) => (value === '' || value === null ? undefined : value),
+    z.coerce.number().int().min(1).max(max).default(fallback)
+  )
+}
 
 /**
  * Shared by all four contracts so the four surfaces cannot describe different
@@ -79,7 +108,7 @@ export const organizationUsageBreakdownQuerySchema = organizationUsageWindowQuer
   dimension: usageBreakdownDimensionSchema,
   /** Narrows the breakdown to one workspace, for the Workspaces drill-down. */
   workspaceId: workspaceIdSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(50).default(10),
+  limit: usageLimitSchema(50, 10),
 })
 export type OrganizationUsageBreakdownQuery = z.input<typeof organizationUsageBreakdownQuerySchema>
 
@@ -100,7 +129,7 @@ const usageLogSourceFilterSchema = z
 
 export const organizationUsageEventsQuerySchema = organizationUsageWindowQuerySchema.extend({
   source: usageLogSourceFilterSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  limit: usageLimitSchema(100, 50),
   cursor: z.string().min(1).optional(),
 })
 export type OrganizationUsageEventsQuery = z.input<typeof organizationUsageEventsQuerySchema>

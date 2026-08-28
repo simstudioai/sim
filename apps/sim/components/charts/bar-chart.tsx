@@ -106,7 +106,19 @@ function BarChartComponent({
         const x = padding.left + slot * index + (slot - barWidth) / 2
         const rawY = padding.top + chartHeight - (point.value / maxValue) * chartHeight
         const y = Math.max(yMin, Math.min(yMax, rawY))
-        return { x, y, height: Math.max(0, height - padding.bottom - y), point }
+        return {
+          x,
+          y,
+          /*
+           * A zero bucket draws nothing. The clamp above keeps a *drawn* bar off the
+           * axis rule, but applied to zero it floored the bar at the 3px band and
+           * every empty day rendered as a small amount of usage — the densified zeros
+           * this chart exists to show honestly. Only the track represents an empty
+           * bucket.
+           */
+          height: point.value > 0 ? Math.max(0, height - padding.bottom - y) : 0,
+          point,
+        }
       }),
     [data, slot, barWidth, maxValue, chartHeight, height, padding.left, padding.top, yMin, yMax]
   )

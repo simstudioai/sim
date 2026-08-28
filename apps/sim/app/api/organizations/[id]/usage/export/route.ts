@@ -12,7 +12,6 @@ import {
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
 } from '@/lib/billing/core/usage-analytics'
-import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -21,6 +20,17 @@ const logger = createLogger('OrganizationUsageExportAPI')
 
 const CSV_HEADER = toCsvRow(['Date', 'Source', 'Description', 'Workflow', 'Credits'])
 
+/**
+ * A bare number, to four decimals, with trailing zeros trimmed.
+ *
+ * Not `formatCreditsLabel`: that renders `"0 credits"` for any charge under half a
+ * credit, so a real cost vanished from the export, and the `"N credits"` text made
+ * the column unsummable in a spreadsheet — which is most of what a CSV is for.
+ */
+function formatExportCredits(credits: number): string {
+  return String(Number(credits.toFixed(4)))
+}
+
 /** `formatCsvValue` neutralizes formula injection — model and workflow names are user-controlled. */
 function toCsvLine(row: OrganizationUsageExportRow): string {
   return toCsvRow([
@@ -28,7 +38,7 @@ function toCsvLine(row: OrganizationUsageExportRow): string {
     formatCsvValue(row.source),
     formatCsvValue(row.description),
     formatCsvValue(row.workflowName ?? ''),
-    formatCsvValue(formatCreditsLabel(row.credits)),
+    formatCsvValue(formatExportCredits(row.credits)),
   ])
 }
 
