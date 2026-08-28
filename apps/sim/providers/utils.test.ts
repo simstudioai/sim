@@ -2,13 +2,13 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const workflowMetadataMocks = vi.hoisted(() => ({
-  buildAPIUrl: vi.fn((path: string) => new URL(path, 'https://sim.local')),
-  buildExecutorDelegationHeaders: vi.fn(),
+  readWorkflowInputFieldsForTool: vi.fn(),
+  readWorkflowMetadataForTool: vi.fn(),
 }))
 
-vi.mock('@/executor/utils/http', () => ({
-  buildAPIUrl: workflowMetadataMocks.buildAPIUrl,
-  buildExecutorDelegationHeaders: workflowMetadataMocks.buildExecutorDelegationHeaders,
+vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
+  readWorkflowInputFieldsForTool: workflowMetadataMocks.readWorkflowInputFieldsForTool,
+  readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
@@ -1946,9 +1946,9 @@ describe('workflow executor metadata delegation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    workflowMetadataMocks.buildExecutorDelegationHeaders.mockResolvedValue({
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer delegated-token',
+    workflowMetadataMocks.readWorkflowMetadataForTool.mockResolvedValue({
+      name: 'Child Workflow',
+      description: 'Child description',
     })
   })
 
@@ -1957,16 +1957,6 @@ describe('workflow executor metadata delegation', () => {
   })
 
   it('binds cross-workflow metadata reads to the target without attaching the parent run', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({ data: { name: 'Child Workflow', description: 'Child description' } }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
     const result = await transformBlockTool(
       { type: 'workflow', params: { workflowId: 'child-workflow' } },
       {
@@ -1977,20 +1967,34 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
+          executorDelegationOrigin: {
+            subjectUserId: 'user-1',
+            workflowId: 'parent-workflow',
+            executionId: 'execution-1',
+            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
+          },
         },
+        readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
     )
 
-    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
-      subjectUserId: 'user-1',
-      workflowId: 'child-workflow',
-    })
-    expect(fetchMock).toHaveBeenCalledWith('https://sim.local/api/workflows/child-workflow', {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer delegated-token',
-      },
-    })
+    expect(workflowMetadataMocks.readWorkflowMetadataForTool).toHaveBeenCalledWith(
+      'child-workflow',
+      {
+        userId: 'user-1',
+        workflowId: 'parent-workflow',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'parent-workflow',
+          executionId: 'execution-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
+        },
+      }
+    )
     expect(result).toMatchObject({
       id: 'workflow_executor',
       description: 'Child description',
@@ -1998,15 +2002,10 @@ describe('workflow executor metadata delegation', () => {
   })
 
   it('includes the run binding when the metadata target is the executing workflow', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: { name: 'Current Workflow', description: null } }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-    )
+    workflowMetadataMocks.readWorkflowMetadataForTool.mockResolvedValue({
+      name: 'Current Workflow',
+      description: null,
+    })
 
     await transformBlockTool(
       { type: 'workflow', params: { workflowId: 'current-workflow' } },
@@ -2018,31 +2017,47 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
+          executorDelegationOrigin: {
+            subjectUserId: 'user-1',
+            workflowId: 'current-workflow',
+            executionId: 'execution-1',
+            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
+          },
         },
+        readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
     )
 
-    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
-      subjectUserId: 'user-1',
-      workflowId: 'current-workflow',
-      executionId: 'execution-1',
-    })
+    expect(workflowMetadataMocks.readWorkflowMetadataForTool).toHaveBeenCalledWith(
+      'current-workflow',
+      {
+        userId: 'user-1',
+        workflowId: 'current-workflow',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'current-workflow',
+          executionId: 'execution-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
+        },
+      }
+    )
   })
 
   it('does not issue an actorless fallback token without a trusted execution subject', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
     const result = await transformBlockTool(
       { type: 'workflow', params: { workflowId: 'child-workflow' } },
       {
         getAllBlocks: () => [workflowBlock],
         getTool: () => workflowTool,
+        readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
     )
 
-    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).not.toHaveBeenCalled()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(workflowMetadataMocks.readWorkflowMetadataForTool).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       id: 'workflow_executor',
       description: 'Execute another workflow',

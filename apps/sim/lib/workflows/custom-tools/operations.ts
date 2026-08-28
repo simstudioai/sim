@@ -275,60 +275,67 @@ export async function deleteWorkspaceCustomTool(params: {
   return deleted.length > 0
 }
 
-export async function getCustomToolById(params: {
-  toolId: string
-  userId: string
-  workspaceId?: string
-}) {
-  const { toolId, userId, workspaceId } = params
+export type AvailableCustomToolLookup = 'id' | 'id_or_title'
 
-  if (workspaceId) {
-    const workspaceTool = await db
-      .select()
-      .from(customTools)
-      .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
-      .limit(1)
-    if (workspaceTool[0]) return workspaceTool[0]
-  }
+export async function getAvailableCustomTool(params: {
+  identifier: string
+  userId?: string
+  workspaceId: string
+  lookup: AvailableCustomToolLookup
+}) {
+  const identifierCondition =
+    params.lookup === 'id'
+      ? eq(customTools.id, params.identifier)
+      : or(eq(customTools.id, params.identifier), eq(customTools.title, params.identifier))
+
+  const workspaceTool = await db
+    .select()
+    .from(customTools)
+    .where(and(eq(customTools.workspaceId, params.workspaceId), identifierCondition))
+    .limit(1)
+  if (workspaceTool[0]) return workspaceTool[0]
+  if (!params.userId) return null
 
   const legacyTool = await db
     .select()
     .from(customTools)
     .where(
       and(
-        eq(customTools.id, toolId),
         isNull(customTools.workspaceId),
-        eq(customTools.userId, userId)
+        eq(customTools.userId, params.userId),
+        identifierCondition
       )
     )
     .limit(1)
   return legacyTool[0] || null
 }
 
-export async function getCustomToolByIdOrTitle(params: {
-  identifier: string
+export async function getCustomToolById(params: {
+  toolId: string
   userId: string
   workspaceId?: string
 }) {
-  const { identifier, userId, workspaceId } = params
-
-  const conditions = [or(eq(customTools.id, identifier), eq(customTools.title, identifier))]
-
-  if (workspaceId) {
-    const workspaceTool = await db
+  if (!params.workspaceId) {
+    const [legacyTool] = await db
       .select()
       .from(customTools)
-      .where(and(eq(customTools.workspaceId, workspaceId), ...conditions))
+      .where(
+        and(
+          eq(customTools.id, params.toolId),
+          isNull(customTools.workspaceId),
+          eq(customTools.userId, params.userId)
+        )
+      )
       .limit(1)
-    if (workspaceTool[0]) return workspaceTool[0]
+    return legacyTool ?? null
   }
 
-  const legacyTool = await db
-    .select()
-    .from(customTools)
-    .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
-    .limit(1)
-  return legacyTool[0] || null
+  return getAvailableCustomTool({
+    identifier: params.toolId,
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    lookup: 'id',
+  })
 }
 
 export async function updateCustomTool(params: {

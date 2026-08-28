@@ -54,6 +54,10 @@
       "types": "./src/retry.ts",
       "default": "./src/retry.ts"
     },
+    "./paste": {
+      "types": "./src/paste.ts",
+      "default": "./src/paste.ts"
+    },
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"

@@ -1,4 +1,8 @@
-import type { Principal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  type BoundWorkflowExecutionDelegatedPrincipal,
+  type Principal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { uploadSession } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
@@ -140,11 +144,11 @@ export class UploadSessionError extends OrchestrationError {
 
 function isExecutorWorkflowExecutionPrincipal(
   principal: Principal
-): principal is WorkflowExecutionDelegatedPrincipal {
+): principal is BoundWorkflowExecutionDelegatedPrincipal {
   if (
     principal.kind !== 'delegated' ||
     principal.serviceId !== 'executor' ||
-    !('delegationContext' in principal)
+    !principal.delegationContext
   ) {
     return false
   }
@@ -456,7 +460,7 @@ export function createUploadSessionAuthBinding(
         principal: {
           kind: principal.kind,
           serviceId: principal.serviceId,
-          subjectUserId: principal.subjectUserId,
+          subjectUserId: requirePrincipalSubjectUserId(principal),
           audience: principal.audience,
           workflowId: principal.delegationContext.workflowId,
           ...(principal.delegationContext.executionId
@@ -470,6 +474,8 @@ export function createUploadSessionAuthBinding(
         'forbidden',
         'Credential Group enrollment principals cannot create uploads'
       )
+    case 'system':
+      throw new UploadSessionError('forbidden', 'System principals cannot create uploads')
   }
 }
 

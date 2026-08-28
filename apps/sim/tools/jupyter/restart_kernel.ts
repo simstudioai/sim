@@ -1,11 +1,11 @@
+import { mapJupyterKernel } from '@/lib/internal/jupyter/protocol'
 import type {
   JupyterRestartKernelParams,
   JupyterRestartKernelResponse,
 } from '@/tools/jupyter/types'
-import { mapJupyterKernel } from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterRestartKernelTool: ToolConfig<
+export const jupyterRestartKernelTool: InternalToolConfig<
   JupyterRestartKernelParams,
   JupyterRestartKernelResponse
 > = {
@@ -35,11 +35,8 @@ export const jupyterRestartKernelTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'POST',

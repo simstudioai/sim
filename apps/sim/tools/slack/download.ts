@@ -1,8 +1,8 @@
 import type { SlackDownloadParams, SlackDownloadResponse } from '@/tools/slack/types'
 import { FILE_DOWNLOAD_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadResponse> = {
+export const slackDownloadTool: InternalToolConfig<SlackDownloadParams, SlackDownloadResponse> = {
   id: 'slack_download',
   name: 'Download File from Slack',
   description: 'Download a file from Slack',
@@ -46,13 +46,8 @@ export const slackDownloadTool: ToolConfig<SlackDownloadParams, SlackDownloadRes
     },
   },
 
-  request: {
-    url: '/api/tools/slack/download',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken || params.botToken,
       fileId: params.fileId,
       fileName: params.fileName,

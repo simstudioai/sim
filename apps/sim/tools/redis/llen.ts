@@ -1,7 +1,7 @@
 import type { RedisLLenParams, RedisLLenResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisLLenTool: ToolConfig<RedisLLenParams, RedisLLenResponse> = {
+export const redisLLenTool: InternalToolConfig<RedisLLenParams, RedisLLenResponse> = {
   id: 'redis_llen',
   name: 'Redis LLEN',
   description: 'Get the length of a list stored at a key in Redis.',
@@ -22,11 +22,8 @@ export const redisLLenTool: ToolConfig<RedisLLenParams, RedisLLenResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'LLEN',
       args: [params.key],

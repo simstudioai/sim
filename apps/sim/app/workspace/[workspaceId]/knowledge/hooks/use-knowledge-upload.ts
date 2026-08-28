@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { V2KnowledgeDocumentSummary } from '@/lib/api/contracts/v2/knowledge'
+import type { KnowledgeDocumentUploadRecipe } from '@/lib/knowledge/upload-metadata'
 import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
@@ -49,7 +50,7 @@ export interface UploadError {
 }
 
 export interface ProcessingOptions {
-  recipe?: string
+  recipe?: KnowledgeDocumentUploadRecipe
 }
 
 export interface UseKnowledgeUploadOptions {

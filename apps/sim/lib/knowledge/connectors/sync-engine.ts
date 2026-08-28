@@ -35,6 +35,7 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
+  CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
@@ -52,6 +53,7 @@ import {
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
+import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -454,6 +456,13 @@ type DocClassification =
   | { type: 'unchanged' }
   | { type: 'drop' }
 
+export function shouldReplaceExistingWithSkippedDocument(
+  existing: { storageKey?: string | null },
+  skipped: Pick<ExternalDocument, 'skippedExistingDisposition'>
+): boolean {
+  return existing.storageKey === null || skipped.skippedExistingDisposition === 'replace'
+}
+
 /**
  * Decides what a listed external document becomes during reconciliation.
  *
@@ -487,7 +496,7 @@ export function classifyExternalDoc(
 ): DocClassification {
   if (extDoc.skippedReason) {
     if (!existing) return { type: 'skip' }
-    return existing.storageKey === null || extDoc.skippedExistingDisposition === 'replace'
+    return shouldReplaceExistingWithSkippedDocument(existing, extDoc)
       ? { type: 'skip', existingId: existing.id }
       : { type: 'unchanged' }
   }
@@ -1314,22 +1323,32 @@ export function buildReconciliationHoldNotice(
  * it applies need to be assertable without standing up the whole sync. The
  * in-process ladder here and the reaper's SQL ladder must agree — they are two
  * writers of one policy, both sourced from
- * {@link connectorFailureBackoffMinutes}.
+ * {@link connectorFailureBackoffMinutes}. A validated provider retry delay is
+ * an additional lower bound, capped at the same one-day ceiling: a short hint
+ * cannot weaken the failure ladder, while an untrusted extreme value cannot
+ * pin the connector indefinitely.
  */
 export function buildSyncFailureUpdate(
   now: Date,
   previousFailures: number | null | undefined,
-  errorMessage: string
+  errorMessage: string,
+  retryAfterMs?: number
 ) {
   const failures = (previousFailures ?? 0) + 1
   const disabled = failures >= MAX_CONSECUTIVE_FAILURES
+  const failureBackoffMs = connectorFailureBackoffMinutes(failures) * 60 * 1000
+  const maximumBackoffMs = CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES * 60 * 1000
+  const providerBackoffMs =
+    typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0
+      ? Math.min(retryAfterMs, maximumBackoffMs)
+      : 0
 
   return {
     status: (disabled ? 'disabled' : 'error') as 'disabled' | 'error',
     lastSyncError: disabled ? CONNECTOR_AUTO_DISABLED_ERROR : errorMessage,
     nextSyncAt: disabled
       ? null
-      : new Date(now.getTime() + connectorFailureBackoffMinutes(failures) * 60 * 1000),
+      : new Date(now.getTime() + Math.max(failureBackoffMs, providerBackoffMs)),
     consecutiveFailures: failures,
     // Releases the lock so a stale token can never match a later run, and closes
     // its lease so the reaper is not left waiting out a TTL on a finished run.
@@ -2377,7 +2396,8 @@ export async function executeSync(
                   extDoc: mergeHydratedSkippedDocument(op.extDoc, fullDoc),
                 })
               } else if (op.type === 'update') {
-                if (fullDoc.skippedExistingDisposition === 'replace') {
+                const existing = priorByExternalId.get(op.extDoc.externalId)
+                if (existing && shouldReplaceExistingWithSkippedDocument(existing, fullDoc)) {
                   skipOps.push({
                     type: 'skip',
                     existingId: op.existingId,
@@ -3152,7 +3172,12 @@ export async function executeSync(
     }
 
     const errorMessage = toError(error).message
-    logger.error('Sync failed', { connectorId, error: errorMessage })
+    const retryAfterMs = getRetryAfterMs(error)
+    logger.error('Sync failed', {
+      connectorId,
+      error: errorMessage,
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+    })
 
     try {
       await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
@@ -3160,7 +3185,12 @@ export async function executeSync(
       const failureUpdate =
         error instanceof ConnectorSyncCapacityError
           ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-          : buildSyncFailureUpdate(new Date(), connector.consecutiveFailures, errorMessage)
+          : buildSyncFailureUpdate(
+              new Date(),
+              connector.consecutiveFailures,
+              errorMessage,
+              retryAfterMs
+            )
 
       if (failureUpdate.status === 'disabled') {
         logger.warn('Connector disabled after repeated failures', {

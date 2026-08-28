@@ -1,7 +1,7 @@
 import type { OutlookMoveParams, OutlookMoveResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookMoveTool: ToolConfig<OutlookMoveParams, OutlookMoveResponse> = {
+export const outlookMoveTool: InternalToolConfig<OutlookMoveParams, OutlookMoveResponse> = {
   id: 'outlook_move',
   name: 'Outlook Move',
   description: 'Move emails between Outlook folders',
@@ -33,13 +33,8 @@ export const outlookMoveTool: ToolConfig<OutlookMoveParams, OutlookMoveResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/move',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookMoveParams) => ({
+  operation: {
+    input: (params: OutlookMoveParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
       destinationId: params.destinationId,

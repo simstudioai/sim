@@ -1,7 +1,10 @@
 import type { SESCreateTemplateParams, SESCreateTemplateResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTemplateTool: ToolConfig<SESCreateTemplateParams, SESCreateTemplateResponse> = {
+export const createTemplateTool: InternalToolConfig<
+  SESCreateTemplateParams,
+  SESCreateTemplateResponse
+> = {
   id: 'ses_create_template',
   name: 'SES Create Template',
   description: 'Create a new SES email template for use with templated email sending',
@@ -52,11 +55,8 @@ export const createTemplateTool: ToolConfig<SESCreateTemplateParams, SESCreateTe
     },
   },
 
-  request: {
-    url: '/api/tools/ses/create-template',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

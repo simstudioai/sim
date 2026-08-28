@@ -1,7 +1,10 @@
 import type { ClickHouseListClustersParams, ClickHouseRowsResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listClustersTool: ToolConfig<ClickHouseListClustersParams, ClickHouseRowsResponse> = {
+export const listClustersTool: InternalToolConfig<
+  ClickHouseListClustersParams,
+  ClickHouseRowsResponse
+> = {
   id: 'clickhouse_list_clusters',
   name: 'ClickHouse List Clusters',
   description: 'List configured clusters, shards, and replicas',
@@ -46,13 +49,8 @@ export const listClustersTool: ToolConfig<ClickHouseListClustersParams, ClickHou
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/list-clusters',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

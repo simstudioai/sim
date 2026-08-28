@@ -31,11 +31,11 @@ vi.mock('@/lib/oauth/credential-service', () => ({
   resolveCredentialAccessToken: mockResolveCredentialAccessToken,
   resolveOAuthAccountId: mockResolveOAuthAccountId,
 }))
-vi.mock('@/tools/netsuite/get_async_status', () => ({
-  netsuiteGetAsyncStatusTool: { directExecution: mockGetAsyncStatus },
+vi.mock('@/lib/internal/netsuite/operations/get-async-status', () => ({
+  executeNetsuiteGetAsyncStatusOperation: mockGetAsyncStatus,
 }))
-vi.mock('@/tools/netsuite/list_record_types', () => ({
-  netsuiteListRecordTypesTool: { directExecution: mockListRecordTypes },
+vi.mock('@/lib/internal/netsuite/operations/list-record-types', () => ({
+  executeNetsuiteListRecordTypesOperation: mockListRecordTypes,
 }))
 
 import { POST } from '@/app/api/tools/netsuite/objects/route'

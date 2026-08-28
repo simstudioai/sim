@@ -60,6 +60,18 @@ apps/sim/tools/{service}/
 
 ### Key Patterns
 
+Choose the tool boundary before writing the declaration:
+
+- Use `InternalToolConfig.operation` for same-process Sim/provider work. Put the handler under
+  `apps/sim/lib/internal/{service}/execute-tool.ts` and register every ID in
+  `apps/sim/lib/internal/tool-operations/registry.server.ts`.
+- Use `ToolConfig.request` only for an absolute external HTTP(S) provider endpoint.
+
+Never point a tool at `/api/...`, construct an absolute URL back to Sim, declare
+`request.internal`, add the retired `directExecution` property, or add an API route merely to reuse code, normalize files, or authorize
+resources. A real external/browser route and an in-process tool may share the same operation, but
+neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
+
 **types.ts:**
 ```typescript
 import type { ToolResponse } from '@/tools/types'
@@ -82,7 +94,7 @@ export interface {Service}Response extends ToolResponse {
 
 **Tool file pattern:**
 ```typescript
-export const {service}{Action}Tool: ToolConfig<Params, Response> = {
+export const {service}{Action}Tool: InternalToolConfig<Params, Response> = {
   id: '{service}_{action}',
   name: '{Service} {Action}',
   description: '...',
@@ -95,16 +107,11 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
     // ... other params
   },
 
-  request: { url, method, headers, body },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: {
-        field: data.field ?? null,  // Always handle nullables
-      },
-    }
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      // Map only the semantic operation input.
+    }),
   },
 
   outputs: { /* ... */ },
@@ -135,7 +142,8 @@ and leave the field unannotated.
   sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
   payload is not model-visible merely because the provider is AI-backed or may process the
   referenced resource later.
-- **Text or structured content consumed by an AI model:** declare `request.modelInput` with
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` for an
+  external provider request or `operation.modelInput` for an in-process operation, with
   `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
   activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
   JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
@@ -144,29 +152,29 @@ and leave the field unannotated.
   top-level param in `request.modelInput`. Project the private copy before the existing request
   formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
   valid in the serialized grammar. Do not introduce a second hard-rejection path.
-- **Opaque model input owned by an authenticated internal route** such as inline audio, image,
-  video, or document bytes: add `privateProvenance` to a projected request, or use
+- **Opaque model input owned by an in-process operation** such as inline audio, image, video, or
+  document bytes: add `privateProvenance` to the operation model-input declaration, or use
   `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
-  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning route must authorize
-  stored bytes independently at model egress. The route must call
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning operation must
+  authorize stored bytes independently at model egress. The operation must call
   `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
   apply the workspace-file provenance guard before reading a persisted workspace file.
 - **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
   (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
-  input): transport encrypted field-scoped provenance with `request.secretProvenance`. The
-  authenticated receiver validates the exact selection and scope, strips the private envelope, and
-  persists, imports, or propagates it at the owning boundary. Preserve shared legacy behavior for
-  headerless internal calls and rows/files whose provenance marker is `NULL`; never invent a
-  tool-local migration rule.
+  input): transport encrypted field-scoped provenance with `operation.secretProvenance`. The
+  operation validates the exact selection and trusted scope, then persists, imports, or propagates
+  it at the owning boundary. Preserve shared legacy behavior for rows/files whose provenance marker
+  is `NULL`; never invent a tool-local migration rule.
 
 Hard rules:
 
 - Never substitute secret plaintext into source or serialize plaintext provenance.
 - Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
   transport and strips private metadata from functional results.
-- Never attach private provenance to an external URL or to `directExecution`. Project proven
+- Never attach private provenance to an external URL. Project proven
   model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
-  semantics. Use an authenticated internal route when encrypted provenance must cross the boundary.
+  semantics. Use a registered in-process operation when encrypted provenance must cross the
+  boundary.
 - Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
   by Sim's resolved-secret provenance for that execution/tool call.
 - Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
@@ -596,6 +604,10 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `tools/{service}/` directory
 - [ ] Created `types.ts` with all interfaces
 - [ ] Created tool file for each operation
+- [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
+      external HTTP(S) `ToolConfig.request`
+- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal`, or
+      `directExecution`, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`
@@ -607,6 +619,8 @@ If creating V2 versions (API-aligned outputs):
       external resource locators and control inputs retain their request semantics
 - [ ] Confirmed ordinary third-party tool results are not generically sanitized
 - [ ] Added provenance compatibility and fail-closed boundary tests where applicable
+- [ ] `bun run check:tool-request-boundary` passes
+- [ ] Internal-operation registry completeness test passes for every operation-backed tool
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
@@ -721,7 +735,8 @@ interface UserFile {
 
 ### File Input Pattern (Uploads)
 
-For tools that accept file uploads, **always route through an internal API endpoint** rather than calling external APIs directly. This ensures proper file content retrieval.
+File authorization, normalization, storage reads, provider upload, and response mapping belong in a
+registered in-process operation. Do not create an internal API route for file tools.
 
 #### 1. Block SubBlocks for File Input
 
@@ -757,137 +772,36 @@ Use the basic/advanced mode pattern:
 
 #### 2. Normalize File Input in Block Config
 
-In `tools.config.tool`, use `normalizeFileInput` to handle all input variants:
+`tools.config.tool` selects the tool before variable resolution and must not mutate or coerce input.
+Use `tools.config.params`, which runs after variable resolution, to normalize all file variants:
 
 ```typescript
 import { normalizeFileInput } from '@/blocks/utils'
 
 tools: {
   config: {
-    tool: (params) => {
-      // Normalize file from basic (uploadFile), advanced (fileRef), or legacy (fileContent)
-      const normalizedFile = normalizeFileInput(
-        params.uploadFile || params.fileRef || params.fileContent,
-        { single: true }
-      )
-      if (normalizedFile) {
-        params.file = normalizedFile
-      }
-      return `{service}_${params.operation}`
+    tool: (params) => `{service}_${params.operation}`,
+    params: (params) => {
+      // Serialization collapses the basic/advanced pair into the canonical `file` key.
+      const normalizedFile = normalizeFileInput(params.file, { single: true })
+      return normalizedFile ? { file: normalizedFile } : {}
     },
   },
 }
 ```
 
-#### 3. Create Special Internal Tool Execution Route
-
-Create `apps/sim/app/api/tools/{service}/{action}/route.ts`. This raw route pattern is only for an integration's provider-execution boundary when it needs special file normalization, large-body handling, or protocol behavior. It is not the pattern for CRUD or other operations on protected Sim resources. For those, use the `migrate-application-operation` skill and an authorized application use case with the ordinary internal/v2 route builders.
-
-Internal tool routes are HTTP boundaries and follow the same contract policy as public routes — define the request/response shape in `apps/sim/lib/api/contracts/tools/{service}.ts` (or an existing aggregate) and validate with canonical helpers from `@/lib/api/server`. Never write a route-local Zod schema. Authenticate and perform cheap admission before parsing or downloading files.
+#### 3. Define and register the in-process operation
 
 ```typescript
-// apps/sim/lib/api/contracts/tools/{service}.ts
-import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
-
-export const {service}UploadBodySchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export const {service}UploadResponseSchema = z.object({
-  success: z.boolean(),
-  output: z.object({ id: z.string(), url: z.string() }).optional(),
-  error: z.string().optional(),
-})
-
-export const {service}UploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/{service}/upload',
-  body: {service}UploadBodySchema,
-  response: { mode: 'json', schema: {service}UploadResponseSchema },
-})
-
-export type {Service}UploadBody = z.input<typeof {service}UploadBodySchema>
-export type {Service}UploadResponse = z.output<typeof {service}UploadResponseSchema>
-```
-
-```typescript
-// apps/sim/app/api/tools/{service}/upload/route.ts
-import { createLogger } from '@sim/logger'
-import { NextResponse, type NextRequest } from 'next/server'
-import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
-import { parseRequest } from '@/lib/api/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-
-const logger = createLogger('{Service}UploadAPI')
-
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
-  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
-  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest({service}UploadContract, request, {})
-  if (!parsed.success) return parsed.response
-  const data = parsed.data.body
-
-  let fileBuffer: Buffer
-  let fileName: string
-
-  // Prefer UserFile input, fall back to legacy base64
-  if (data.file) {
-    const userFiles = processFilesToUserFiles([data.file as RawFileInput], requestId, logger)
-    if (userFiles.length === 0) {
-      return NextResponse.json({ success: false, error: 'Invalid file' }, { status: 400 })
-    }
-    const userFile = userFiles[0]
-    fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-    fileName = userFile.name
-  } else if (data.fileContent) {
-    // Legacy: base64 string (backwards compatibility)
-    fileBuffer = Buffer.from(data.fileContent, 'base64')
-    fileName = 'file'
-  } else {
-    return NextResponse.json({ success: false, error: 'File required' }, { status: 400 })
-  }
-
-  // Now call external API with fileBuffer
-  const response = await fetch('https://api.{service}.com/upload', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${data.accessToken}` },
-    body: new Uint8Array(fileBuffer),  // Convert Buffer for fetch
-  })
-
-  // ... handle response
-})
-```
-
-#### 4. Update Tool to Use Internal Route
-
-```typescript
-export const {service}UploadTool: ToolConfig<Params, Response> = {
+export const {service}UploadTool: InternalToolConfig<Params, Response> = {
   id: '{service}_upload',
   // ...
   params: {
     file: { type: 'file', required: false, visibility: 'user-or-llm' },
     fileContent: { type: 'string', required: false, visibility: 'hidden' }, // Legacy
   },
-  request: {
-    url: '/api/tools/{service}/upload',  // Internal route
-    method: 'POST',
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       file: params.file,
       fileContent: params.fileContent,
@@ -895,6 +809,13 @@ export const {service}UploadTool: ToolConfig<Params, Response> = {
   },
 }
 ```
+
+Implement `apps/sim/lib/internal/{service}/execute-tool.ts` and keep the file/provider work in typed
+operations beside it. The handler validates `request.input`, derives storage authority only from
+trusted `request.context`, authorizes every stored file before reading bytes, forwards
+`request.signal`, enforces declared and actual byte caps, and returns the canonical tool response.
+Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts` and add a
+registry/direct-handler test. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)
 
@@ -923,11 +844,11 @@ transformResponse: async (response, context) => {
 }
 ```
 
-#### In API Route (for complex file handling)
+#### In the operation handler (for complex file handling)
 
 ```typescript
-// Return file data that FileToolProcessor can handle
-return NextResponse.json({
+// Return file data that FileToolProcessor can handle. No API route is involved.
+return Response.json({
   success: true,
   output: {
     file: {

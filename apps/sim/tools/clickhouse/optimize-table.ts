@@ -2,9 +2,9 @@ import type {
   ClickHouseMessageResponse,
   ClickHouseOptimizeTableParams,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const optimizeTableTool: ToolConfig<
+export const optimizeTableTool: InternalToolConfig<
   ClickHouseOptimizeTableParams,
   ClickHouseMessageResponse
 > = {
@@ -64,13 +64,8 @@ export const optimizeTableTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/optimize-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

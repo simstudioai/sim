@@ -11,6 +11,7 @@ import {
   ChipModalField,
   ChipSelect,
   Label,
+  OverflowText,
   Search,
   Switch,
   toast,
@@ -219,8 +220,8 @@ export function Admin() {
 
   const renderUserRow = (u: AdminUser) => (
     <div key={u.id} className='flex items-center gap-3 px-3 py-2 text-small'>
-      <span className='w-[170px] truncate text-[var(--text-primary)]'>{u.name || '—'}</span>
-      <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+      <OverflowText label={u.name || '—'} className='w-[170px] text-[var(--text-primary)]' />
+      <OverflowText label={u.email} className='flex-1 text-[var(--text-secondary)]' />
       <span className='w-[60px]'>
         <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
       </span>

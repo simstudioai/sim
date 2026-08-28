@@ -142,6 +142,7 @@ function ignoreBrokenPipe(stream: NodeJS.WriteStream): () => void {
  * proxies from idling the connection out. The generated `chat` operation is
  * hidden in the CLI contract in favour of this command.
  */
+
 export function attachChat(program: Command): void {
   program
     .command('chat')
@@ -164,6 +165,24 @@ Examples:
 `
     )
     .action(async (message: string, options: ChatOptions, command: Command) => {
+      /**
+       * Refused here so the refusal names what the caller typed: the route
+       * answers in its own field names, and this command builds its request by
+       * hand, so nothing retypes them into `<message>` and `-c/--conversation`.
+       * A blank `-c` was worse than misnamed — it is falsy, so it was dropped
+       * from the body and silently started a NEW conversation instead of
+       * continuing one.
+       */
+      if (message.trim() === '') {
+        throw new SimApiError('<message> cannot be empty', 0)
+      }
+      if (options.conversation !== undefined && options.conversation.trim() === '') {
+        throw new SimApiError(
+          '-c/--conversation cannot be empty — pass the conversation id printed on stderr after each turn',
+          0
+        )
+      }
+
       const { client, profile } = clientFrom(command)
       const workspaceId = client.requireWorkspace()
 

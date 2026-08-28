@@ -137,6 +137,20 @@ describe('downloadFileFromStorage size ceiling', () => {
 
     expect(mockDownloadFile).toHaveBeenCalledWith(expect.objectContaining({ maxBytes: 1024 }))
   })
+
+  it('forwards cancellation to the storage layer', async () => {
+    const controller = new AbortController()
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(512))
+
+    await downloadFileFromStorage(fileOfSize(512), 'req-1', logger, {
+      maxBytes: 1024,
+      signal: controller.signal,
+    })
+
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ maxBytes: 1024, signal: controller.signal })
+    )
+  })
 })
 
 describe('downloadServableFilesWithinBudget', () => {

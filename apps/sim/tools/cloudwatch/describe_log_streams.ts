@@ -2,9 +2,9 @@ import type {
   CloudWatchDescribeLogStreamsParams,
   CloudWatchDescribeLogStreamsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeLogStreamsTool: ToolConfig<
+export const describeLogStreamsTool: InternalToolConfig<
   CloudWatchDescribeLogStreamsParams,
   CloudWatchDescribeLogStreamsResponse
 > = {
@@ -52,13 +52,8 @@ export const describeLogStreamsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/describe-log-streams',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

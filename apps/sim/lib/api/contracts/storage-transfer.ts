@@ -7,11 +7,7 @@ import {
   type ContractQueryInput,
   defineRouteContract,
 } from '@/lib/api/contracts/types'
-import {
-  FileInputSchema,
-  RawFileInputArraySchema,
-  RawFileInputSchema,
-} from '@/lib/uploads/utils/file-schemas'
+import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const jsonResponseSchema = z.unknown()
 
@@ -34,25 +30,6 @@ export function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
   ) as S
 }
 
-export const boxUploadBodySchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  parentFolderId: z.string().min(1, 'Parent folder ID is required'),
-  file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-})
-
-export const dropboxUploadBodySchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  path: z.string().min(1, 'Destination path is required'),
-  file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-  mode: z.enum(['add', 'overwrite']).optional().nullable(),
-  autorename: z.boolean().optional().nullable(),
-  mute: z.boolean().optional().nullable(),
-})
-
 export const jupyterUploadBodySchema = z.object({
   serverUrl: z.string().min(1, 'Server URL is required'),
   token: z.string().min(1, 'Token is required'),
@@ -61,61 +38,6 @@ export const jupyterUploadBodySchema = z.object({
   fileContent: z.string().optional().nullable(),
   fileName: z.string().optional().nullable(),
 })
-
-export const wordpressUploadBodySchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  siteId: z.string().min(1, 'Site ID is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  filename: z.string().optional().nullable(),
-  title: z.string().optional().nullable(),
-  caption: z.string().optional().nullable(),
-  altText: z.string().optional().nullable(),
-  description: z.string().optional().nullable(),
-})
-
-export const sftpListBodySchema = requirePasswordOrPrivateKey(
-  z.object({
-    ...connectionFields,
-    remotePath: z.string().min(1, 'Remote path is required'),
-    detailed: z.boolean().default(false),
-  })
-)
-
-export const sftpDeleteBodySchema = requirePasswordOrPrivateKey(
-  z.object({
-    ...connectionFields,
-    remotePath: z.string().min(1, 'Remote path is required'),
-    recursive: z.boolean().default(false),
-  })
-)
-
-export const sftpMkdirBodySchema = requirePasswordOrPrivateKey(
-  z.object({
-    ...connectionFields,
-    remotePath: z.string().min(1, 'Remote path is required'),
-    recursive: z.boolean().default(false),
-  })
-)
-
-export const sftpDownloadBodySchema = requirePasswordOrPrivateKey(
-  z.object({
-    ...connectionFields,
-    remotePath: z.string().min(1, 'Remote path is required'),
-    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
-  })
-)
-
-export const sftpUploadBodySchema = requirePasswordOrPrivateKey(
-  z.object({
-    ...connectionFields,
-    remotePath: z.string().min(1, 'Remote path is required'),
-    files: RawFileInputArraySchema.optional().nullable(),
-    fileContent: z.string().nullish(),
-    fileName: z.string().nullish(),
-    overwrite: z.boolean().default(true),
-    permissions: z.string().nullish(),
-  })
-)
 
 export const sshCheckCommandExistsBodySchema = requirePasswordOrPrivateKey(
   z.object({
@@ -291,59 +213,10 @@ export const fileExportParamsSchema = z.object({
   id: workspaceFileIdSchema,
 })
 
-export const boxUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/box/upload',
-  body: boxUploadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const dropboxUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/dropbox/upload',
-  body: dropboxUploadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
 export const jupyterUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/jupyter/upload',
   body: jupyterUploadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const wordpressUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/wordpress/upload',
-  body: wordpressUploadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const sftpDeleteContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/delete',
-  body: sftpDeleteBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const sftpMkdirContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/mkdir',
-  body: sftpMkdirBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const sftpDownloadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/download',
-  body: sftpDownloadBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
-export const sftpUploadContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/upload',
-  body: sftpUploadBodySchema,
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
@@ -493,18 +366,8 @@ export const fileStorageStatusContract = defineRouteContract({
 
 export type FileStorageStatusResponse = ContractJsonResponse<typeof fileStorageStatusContract>
 
-export type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
-export type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
-export type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
-export type DropboxUploadResponse = ContractJsonResponse<typeof dropboxUploadContract>
 export type JupyterUploadBody = ContractBodyInput<typeof jupyterUploadContract>
 export type JupyterUploadResponse = ContractJsonResponse<typeof jupyterUploadContract>
-export type WordPressUploadBody = ContractBodyInput<typeof wordpressUploadContract>
-export type WordPressUploadResponse = ContractJsonResponse<typeof wordpressUploadContract>
-export type SftpDownloadBody = ContractBodyInput<typeof sftpDownloadContract>
-export type SftpUploadBody = ContractBodyInput<typeof sftpUploadContract>
-export type SftpDeleteBody = ContractBodyInput<typeof sftpDeleteContract>
-export type SftpMkdirBody = ContractBodyInput<typeof sftpMkdirContract>
 export type SshCheckCommandExistsBody = ContractBodyInput<typeof sshCheckCommandExistsContract>
 export type SshCheckFileExistsBody = ContractBodyInput<typeof sshCheckFileExistsContract>
 export type SshCreateDirectoryBody = ContractBodyInput<typeof sshCreateDirectoryContract>

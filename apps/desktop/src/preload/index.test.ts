@@ -45,4 +45,21 @@ describe('desktop preload bridge', () => {
       ['desktop:settings:set-browser-search-suggestions', false],
     ])
   })
+
+  it('exposes native microphone settings only on supported platforms', async () => {
+    const exposed = exposeInMainWorld.mock.calls.find(([name]) => name === 'simDesktop')?.[1] as
+      | SimDesktopApi
+      | undefined
+    if (!exposed) throw new Error('Expected the desktop preload API to be exposed')
+
+    const isSupportedPlatform = process.platform === 'darwin' || process.platform === 'win32'
+    expect(typeof exposed.openMicrophoneSettings).toBe(
+      isSupportedPlatform ? 'function' : 'undefined'
+    )
+
+    if (isSupportedPlatform) {
+      await exposed.openMicrophoneSettings?.()
+      expect(invoke).toHaveBeenLastCalledWith('desktop:open-microphone-settings')
+    }
+  })
 })

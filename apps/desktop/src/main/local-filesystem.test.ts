@@ -12,6 +12,7 @@ import {
   DEFAULT_READ_LINES,
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { shell } from 'electron'
+import { advanceAccountDataGeneration } from '@/main/account-data-generation'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import type {
   LocalFilesystemGrantStore,
@@ -149,6 +150,74 @@ describe('LocalFilesystemService', () => {
       await service.handle({ operation: 'stat', uri: `${granted.uri}src/index.ts` })
     )
     expect(statData).toMatchObject({ name: 'index.ts', kind: 'file' })
+  })
+
+  it('returns a bounded, explicitly truncated directory listing', async () => {
+    const generatedNames = Array.from(
+      { length: 510 },
+      (_, index) => `generated-${String(509 - index).padStart(3, '0')}.txt`
+    )
+    await Promise.all(generatedNames.map((name) => writeFile(join(root, name), '')))
+    const granted = await mount(service)
+
+    const listing = dataOf(await service.handle({ operation: 'list', uri: granted.uri }))
+    const entries = 'entries' in listing ? listing.entries : []
+
+    expect(listing).toMatchObject({ truncated: true })
+    expect(entries).toHaveLength(500)
+    expect(entries.map((entry) => entry.name)).toEqual(
+      ['README.md', 'src', ...generatedNames]
+        .sort((left, right) => left.localeCompare(right))
+        .slice(0, 500)
+    )
+  })
+
+  it('returns the same capped glob membership regardless of directory enumeration order', async () => {
+    const generatedNames = Array.from(
+      { length: 501 },
+      (_, index) => `glob-${String(500 - index).padStart(3, '0')}.match`
+    )
+    for (const name of generatedNames) {
+      await writeFile(join(root, name), '')
+    }
+    const granted = await mount(service)
+
+    const result = dataOf(
+      await service.handle({ operation: 'glob', uri: granted.uri, pattern: '*.match' })
+    )
+    const entries = 'entries' in result ? result.entries : []
+
+    expect(result).toMatchObject({ truncated: true })
+    expect(entries.map((entry) => entry.name)).toEqual(generatedNames.sort().slice(0, 500))
+  })
+
+  it('returns the same capped grep membership regardless of directory enumeration order', async () => {
+    const generatedNames = Array.from(
+      { length: 5 },
+      (_, index) => `grep-${String(4 - index).padStart(3, '0')}.txt`
+    )
+    for (const name of generatedNames) {
+      await writeFile(join(root, name), 'deterministic match\n')
+    }
+    const granted = await mount(service)
+
+    const result = dataOf(
+      await service.handle({
+        operation: 'grep',
+        uri: granted.uri,
+        pattern: 'deterministic match',
+        outputMode: 'files_with_matches',
+        maxResults: 3,
+      })
+    )
+
+    expect(result).toEqual({
+      files: generatedNames
+        .sort()
+        .slice(0, 3)
+        .map((name) => `${granted.uri}${name}`),
+      truncated: true,
+    })
   })
 
   it('supports the normal VFS grep regex and output modes', async () => {
@@ -454,6 +523,102 @@ describe('LocalFilesystemService', () => {
 
     const response = await service.handle({ operation: 'stat', uri: granted.uri })
     expect(response).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
+  })
+
+  it('does not commit a directory chosen after account teardown starts', async () => {
+    const grantStore = new MemoryGrantStore()
+    let resolveSelection: ((selection: string) => void) | undefined
+    const selection = new Promise<string>((resolve) => {
+      resolveSelection = resolve
+    })
+    const pendingService = new LocalFilesystemService({
+      chooseDirectory: () => selection,
+      grantStore,
+    })
+
+    const pendingMount = pendingService.handle({ operation: 'mount_directory' })
+    await pendingService.forgetAll()
+    resolveSelection?.(root)
+
+    await expect(pendingMount).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(grantStore.grants).toEqual([])
+    expect(dataOf(await pendingService.handle({ operation: 'list_mounts' }))).toEqual({
+      mounts: [],
+    })
+  })
+
+  it('waits for an admitted grant update before forgetAll clears persistence', async () => {
+    let delaySave = false
+    let releaseSave: (() => void) | undefined
+    let signalSaveStarted: (() => void) | undefined
+    const saveStarted = new Promise<void>((resolve) => {
+      signalSaveStarted = resolve
+    })
+    const grantStore = new MemoryGrantStore()
+    const originalSave = grantStore.save.bind(grantStore)
+    grantStore.save = async (grants) => {
+      if (delaySave) {
+        await new Promise<void>((resolve) => {
+          releaseSave = resolve
+          signalSaveStarted?.()
+        })
+      }
+      return originalSave(grants)
+    }
+    const selections = [root, join(root, 'src')]
+    const pendingService = new LocalFilesystemService({
+      chooseDirectory: async () => selections.shift() ?? null,
+      grantStore,
+    })
+    const first = await mount(pendingService)
+    await mount(pendingService)
+    delaySave = true
+
+    const forgettingMount = pendingService.handle({
+      operation: 'forget_mount',
+      uri: first.uri,
+    })
+    await saveStarted
+    const forgettingAll = pendingService.forgetAll()
+    releaseSave?.()
+
+    await Promise.all([forgettingMount, forgettingAll])
+    expect(grantStore.grants).toEqual([])
+  })
+
+  it('releases security-scoped access once when persistence finishes after generation expiry', async () => {
+    let resolveSave: ((remembered: boolean) => void) | undefined
+    let signalSaveStarted: (() => void) | undefined
+    const saveStarted = new Promise<void>((resolve) => {
+      signalSaveStarted = resolve
+    })
+    const grantStore: LocalFilesystemGrantStore = {
+      load: async () => [],
+      save: async () => {
+        signalSaveStarted?.()
+        return new Promise<boolean>((resolve) => {
+          resolveSave = resolve
+        })
+      },
+      clear: vi.fn(async () => {}),
+    }
+    const stopAccessing = vi.fn()
+    const pendingService = new LocalFilesystemService({
+      chooseDirectory: async () => ({ path: root, bookmark: 'bookmark' }),
+      grantStore,
+      startAccessingBookmark: () => stopAccessing,
+    })
+
+    const pendingMount = pendingService.handle({ operation: 'mount_directory' })
+    await saveStarted
+    advanceAccountDataGeneration()
+    resolveSave?.(true)
+
+    await expect(pendingMount).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
+    expect(stopAccessing).toHaveBeenCalledOnce()
+    expect(dataOf(await pendingService.handle({ operation: 'list_mounts' }))).toEqual({
+      mounts: [],
+    })
   })
 
   it('restores an encrypted grant with the same opaque URI after restart', async () => {

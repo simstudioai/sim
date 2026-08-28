@@ -5,12 +5,17 @@ import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import {
+  findActiveFolder,
+  loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
+} from '@/lib/folders/queries'
 import {
   createTable,
   deleteTable,
   getTableById,
   getWorkspaceTableLimits,
+  listTables as listTableDefinitions,
   moveTableToFolder,
   queryTables,
   renameTable,
@@ -26,14 +31,24 @@ import {
   resolveArchivedTableContext,
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
-import { resolveTableFolderPath, tableFolderPathForId } from '@/lib/table/application/folder-paths'
+import {
+  archivableTableFolderPath,
+  resolveTableFolderPath,
+  tableFolderPathForId,
+} from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 
 export interface ListTablesInput {
   workspaceId: string
-  /** Which lifecycle set to list. Omitted means `active`, matching every shipped caller. */
-  scope?: TableScope
+  /**
+   * Which lifecycle set to list. Omitted means `active`, matching every shipped
+   * caller. Deliberately narrower than the `TableScope` the query layer takes:
+   * its third value, `'all'`, would mix archived rows into a page projected by
+   * the strict folder-path resolver, which throws on the dangling `folderId` a
+   * folder archive leaves behind.
+   */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: V2TableSortBy
@@ -68,11 +83,30 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     return {
       tables: tables.map((table) => ({
         table,
-        folderPath: tableFolderPathForId(folderIndex, table.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableTableFolderPath(folderIndex, table.folderId)
+            : tableFolderPathForId(folderIndex, table.folderId),
       })),
       nextKeys,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
+    }
+  },
+})
+
+export interface ListTableDefinitionsInput {
+  workspaceId: string
+  scope?: TableScope
+}
+
+export const listTableDefinitionsUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.list,
+  resolveContext: ({ input }: { input: ListTableDefinitionsInput }) =>
+    resolveTableWorkspaceContext(input.workspaceId),
+  async execute({ input, context }) {
+    return {
+      tables: await listTableDefinitions(context.workspaceId, { scope: input.scope }),
     }
   },
 })
@@ -83,6 +117,7 @@ export interface CreateTableInput {
   description?: string
   schema: TableSchema
   folderPath?: string
+  folderId?: string | null
   initialRowCount?: number
 }
 
@@ -95,8 +130,21 @@ export const createTableUseCase = defineAuthorizedTableUseCase({
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
     const planLimits = await getWorkspaceTableLimits(context.workspaceId)
-    const resolution = await resolveTableFolderPath(context.workspaceId, input.folderPath ?? '/')
-    if (!resolution) throw new OrchestrationError('not_found', 'Folder not found')
+    const resolution =
+      input.folderId !== undefined
+        ? {
+            folderId: input.folderId,
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
+              maxRows: MAX_FOLDERS_PER_WORKSPACE,
+            }),
+          }
+        : await resolveTableFolderPath(context.workspaceId, input.folderPath ?? '/')
+    if (
+      !resolution ||
+      (input.folderId && !(await findActiveFolder(input.folderId, context.workspaceId, 'table')))
+    ) {
+      throw new OrchestrationError('not_found', 'Folder not found in this workspace')
+    }
 
     const table = await createTable(
       {
@@ -149,6 +197,31 @@ export const readTableUseCase = defineAuthorizedTableUseCase({
       table: context.table,
       folderPath: tableFolderPathForId(index, context.table.folderId),
     }
+  },
+})
+
+export const readTableDefinitionUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.read,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    return { table: context.table }
+  },
+})
+
+export const readTableDetailsUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.read,
+  resolveContext: ({ input }: { input: ReadTableInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ context }) {
+    const { maxRowsPerTable } = await getWorkspaceTableLimits(context.workspaceId)
+    return { table: context.table, maxRows: maxRowsPerTable }
   },
 })
 

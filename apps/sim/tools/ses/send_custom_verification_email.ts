@@ -2,9 +2,9 @@ import type {
   SESSendCustomVerificationEmailParams,
   SESSendCustomVerificationEmailResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendCustomVerificationEmailTool: ToolConfig<
+export const sendCustomVerificationEmailTool: InternalToolConfig<
   SESSendCustomVerificationEmailParams,
   SESSendCustomVerificationEmailResponse
 > = {
@@ -53,11 +53,8 @@ export const sendCustomVerificationEmailTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/send-custom-verification-email',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

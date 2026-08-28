@@ -81,6 +81,7 @@ function createDeps(overrides: Partial<ImportServiceDeps> = {}): ImportServiceDe
     readFavicons: async () => new Map<string, string>(),
     readSites: async () => [],
     rememberSites: async () => {},
+    commit: (operation) => operation(),
     vault: {
       isAvailable: () => true,
       importCredentials: async (candidates) => ({
@@ -347,6 +348,31 @@ describe('importChromeCookies', () => {
 })
 
 describe('importChromePasswords', () => {
+  it('does not commit passwords when account teardown begins during the source read', async () => {
+    let releaseRead: ((result: ReadPasswordsResult) => void) | undefined
+    const readResult = new Promise<ReadPasswordsResult>((resolve) => {
+      releaseRead = resolve
+    })
+    let current = true
+    const importCredentials = vi.fn(async () => ({ added: 1, updated: 0, skipped: 0 }))
+    const deps = createDeps({
+      readPasswords: () => readResult,
+      commit: async (operation) => {
+        if (!current) throw new Error('account expired')
+        return operation()
+      },
+      vault: { isAvailable: () => true, importCredentials },
+    })
+
+    const pending = importChromePasswords(undefined, 'keep-existing', deps)
+    await vi.waitFor(() => expect(releaseRead).toBeTypeOf('function'))
+    current = false
+    releaseRead?.(readPasswords())
+
+    await expect(pending).resolves.toMatchObject({ error: 'unknown' })
+    expect(importCredentials).not.toHaveBeenCalled()
+  })
+
   it('stores decrypted passwords in the vault and reports counts', async () => {
     const importCredentials = vi.fn(async () => ({ added: 2, updated: 1, skipped: 0 }))
     const deps = createDeps({

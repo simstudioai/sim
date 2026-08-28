@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { ChipCombobox, ChipConfirmModal, OverflowText, Plus, toast, Upload } from '@sim/emcn'
 import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -692,8 +692,13 @@ export function Tables() {
             multiSelect
             multiSelectValues={rowCountFilter}
             onMultiSelectChange={setRowCountFilter}
+            overlayLabel={rowCountDisplayLabel}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
+              <OverflowText
+                label={rowCountDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             showAllOption
             allOptionLabel='All'
@@ -708,8 +713,13 @@ export function Tables() {
               multiSelect
               multiSelectValues={ownerFilter}
               onMultiSelectChange={setOwnerFilter}
+              overlayLabel={ownerDisplayLabel}
               overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+                <OverflowText
+                  label={ownerDisplayLabel}
+                  className='block w-full text-[var(--text-primary)]'
+                  tooltipEnabled={false}
+                />
               }
               searchable
               searchPlaceholder='Search members...'

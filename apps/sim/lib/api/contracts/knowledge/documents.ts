@@ -17,6 +17,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
+import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 
 export const documentTagFilterSchema = z
   .object({
@@ -136,12 +137,7 @@ export const bulkCreateDocumentsBodySchema = z.object({
       MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
       `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
     ),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   bulk: z.literal(true),
   workflowId: z.string().optional(),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
@@ -173,12 +169,7 @@ export const upsertDocumentBodySchema = z.object({
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),
-  processingOptions: z
-    .object({
-      recipe: z.string().optional(),
-      lang: z.string().optional(),
-    })
-    .optional(),
+  processingOptions: knowledgeDocumentUploadMetadataSchema.shape.processingOptions,
   workflowId: z.string().optional(),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
@@ -328,16 +319,23 @@ export const listKnowledgeDocumentsContract = defineRouteContract({
   },
 })
 
-export const createKnowledgeDocumentsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/[id]/documents',
+/**
+ * Document creation from inline content has no HTTP route: `POST
+ * /api/knowledge/[id]/documents` was retired when tool operations moved
+ * in-process, and the surviving `GET`/`PATCH` on that path would answer a `POST`
+ * with 405. So these stay plain schemas rather than a `defineRouteContract` —
+ * `lib/internal/knowledge/execute-tool.ts` validates `knowledge_create_document`
+ * against them directly. Callers wanting an HTTP upload use v1 or v2, both of
+ * which take multipart file bodies rather than inline content.
+ */
+export const createKnowledgeDocumentsSchemas = {
   params: knowledgeBaseParamsSchema,
   body: createKnowledgeDocumentsBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])),
-  },
-})
+} as const
+
+export const createKnowledgeDocumentsResponseSchema = successResponseSchema(
+  z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])
+)
 
 export const updateKnowledgeDocumentContract = defineRouteContract({
   method: 'PUT',

@@ -1,7 +1,7 @@
 import type { IAMDeleteRoleParams, IAMDeleteRoleResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteRoleTool: ToolConfig<IAMDeleteRoleParams, IAMDeleteRoleResponse> = {
+export const deleteRoleTool: InternalToolConfig<IAMDeleteRoleParams, IAMDeleteRoleResponse> = {
   id: 'iam_delete_role',
   name: 'IAM Delete Role',
   description: 'Delete an IAM role',
@@ -34,11 +34,8 @@ export const deleteRoleTool: ToolConfig<IAMDeleteRoleParams, IAMDeleteRoleRespon
     },
   },
 
-  request: {
-    url: '/api/tools/iam/delete-role',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

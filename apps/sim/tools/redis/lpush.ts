@@ -1,7 +1,7 @@
 import type { RedisLPushParams, RedisLPushResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisLPushTool: ToolConfig<RedisLPushParams, RedisLPushResponse> = {
+export const redisLPushTool: InternalToolConfig<RedisLPushParams, RedisLPushResponse> = {
   id: 'redis_lpush',
   name: 'Redis LPUSH',
   description: 'Prepend a value to a list stored at a key in Redis.',
@@ -28,11 +28,8 @@ export const redisLPushTool: ToolConfig<RedisLPushParams, RedisLPushResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'LPUSH',
       args: [params.key, params.value],

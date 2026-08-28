@@ -68,6 +68,8 @@ interface ResolveManagedOAuthTokenParams {
 
 export interface ManagedOAuthCredentialApplicationContext extends WorkspaceAuthorizationContext {
   credentialId: string
+  credentialGroupId: string
+  credentialGroupEnrollmentId: string
 }
 
 function isManagedOAuthTokenSet(value: unknown): value is ManagedOAuthTokenSet {
@@ -150,6 +152,7 @@ async function getManagedCredential(exec: DbOrTx, credentialId: string, workspac
       accessTokenExpiresAt: credential.accessTokenExpiresAt,
       refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
       credentialGroupId: credentialGroupEnrollment.credentialGroupId,
+      credentialGroupEnrollmentId: credentialGroupEnrollment.id,
     })
     .from(credential)
     .innerJoin(
@@ -176,7 +179,12 @@ export async function loadManagedOAuthCredentialApplicationContext(
 
   const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
   if (!workspaceContext) return null
-  return { ...workspaceContext, credentialId: row.id }
+  return {
+    ...workspaceContext,
+    credentialId: row.id,
+    credentialGroupId: row.credentialGroupId,
+    credentialGroupEnrollmentId: row.credentialGroupEnrollmentId,
+  }
 }
 
 async function assertManagedCredentialUsable(
@@ -282,7 +290,7 @@ export async function resolveManagedOAuthToken(
   }
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(initial.workspaceId)
-  if (!(await isCredentialGroupsAvailable(ownerBilling))) {
+  if (!(await isCredentialGroupsAvailable({ workspaceId: initial.workspaceId, ownerBilling }))) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_UNAVAILABLE',
       'Managed credentials are not available for this workspace',

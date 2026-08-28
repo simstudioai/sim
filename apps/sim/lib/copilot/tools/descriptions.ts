@@ -1,5 +1,5 @@
 import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolDefinition } from '@/tools/types'
 
 const HOSTED_API_KEY_NOTE = '<note>API key is hosted by Sim.</note>'
 const CONDITIONAL_HOSTED_API_KEY_NOTE =
@@ -16,7 +16,7 @@ const EMAIL_TAGLINE_TOOL_IDS = new Set(['gmail_send', 'gmail_send_v2', 'outlook_
  * argument keeps one branch here and lets either source supply it.
  */
 export function getCopilotToolDescription(
-  tool: Pick<ToolConfig, 'description' | 'id' | 'name'>,
+  tool: Pick<ToolDefinition, 'description' | 'id' | 'name'>,
   options?: {
     isHosted?: boolean
     hostedApiKey?: HostedApiKeySupport

@@ -152,7 +152,6 @@ describe('createSSEStream terminal error handling', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: false })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
@@ -406,7 +405,6 @@ describe('requestChatTitle billing protocol', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isHosted: true })
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
     fetchGo.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Billing Protocol' }), {
         status: 200,
@@ -439,18 +437,14 @@ describe('requestChatTitle billing protocol', () => {
     )
   })
 
-  it('sends explicit legacy-v0 during the Sim-first compatibility stage', async () => {
-    setEnvFlags({ isCopilotBillingAttributionV1Enabled: false })
-
-    await requestChatTitle({
-      message: 'explain billing',
-      model: 'claude-opus-4.8',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
-
-    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
-    expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
-    expect(headers['x-sim-billing-request-id']).toBeUndefined()
+  it('fails before hosted title egress without a billing workspace', async () => {
+    await expect(
+      requestChatTitle({
+        message: 'explain billing',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+      })
+    ).resolves.toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
   })
 })

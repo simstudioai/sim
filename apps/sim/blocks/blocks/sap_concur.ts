@@ -2,7 +2,7 @@ import { SapConcurIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SapConcurProxyResponse, UserFileLike } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UserFileLike } from '@/tools/sap_concur/types'
 
 const toBool = (v: unknown): boolean | undefined => {
   if (v === undefined || v === null || v === '') return undefined
@@ -192,7 +192,7 @@ const BODY_OPS = [
 /** Canonical receipt pair: basic upload, advanced file reference. */
 const RECEIPT_FIELD = ['receiptFile', 'receiptFileRef'] as const
 
-export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
+export const SapConcurBlock: BlockConfig<SapConcurResponse> = {
   type: 'sap_concur',
   name: 'SAP Concur',
   description: 'Manage expense reports, travel requests, cash advances, and more in SAP Concur',

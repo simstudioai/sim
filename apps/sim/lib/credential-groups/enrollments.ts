@@ -227,7 +227,8 @@ async function resolvePublicEnrollmentRowByIdentity(
   if (row.enrollment.invitationExpiresAt.getTime() <= Date.now()) return null
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(row.workspaceId)
-  if (!(await isCredentialGroupsAvailable(ownerBilling))) return null
+  if (!(await isCredentialGroupsAvailable({ workspaceId: row.workspaceId, ownerBilling })))
+    return null
   return row
 }
 
@@ -329,7 +330,14 @@ async function getInvitationContext(
 
 async function issueInvitation(
   context: InvitationContext,
-  userId: string,
+  /**
+   * Who to record as the issuer, when there is someone. Attribution only — the
+   * authority to invite comes from the delegation, so an actorless run (a schedule,
+   * or a webhook with no external subject) issues an unattributed invitation rather
+   * than none. `created_by` is nullable and `on delete set null`, so a row with no
+   * issuer is a shape the schema already carries.
+   */
+  userId: string | undefined,
   email: string,
   options: SendInvitationOptions
 ): Promise<IssuedInvitation> {
@@ -386,7 +394,7 @@ async function issueInvitation(
       completedAt: preservesProgress ? current.completedAt : null,
       revokedAt: null,
       lastDeliveryError: null,
-      createdBy: userId,
+      createdBy: userId ?? null,
       updatedAt: now,
     }
     const [next] = current
@@ -663,7 +671,8 @@ export async function inviteCredentialGroupEnrollment(
 export async function createCredentialGroupInvitationLink(
   workspaceId: string,
   groupId: string,
-  userId: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
   email: string
 ): Promise<CredentialGroupInvitationLink> {
   const context = await getInvitationContext(workspaceId, groupId)

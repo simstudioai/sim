@@ -459,6 +459,36 @@ describe('S3 Client', () => {
       expect(mockDestroy).toHaveBeenCalledWith(expect.any(Error))
     })
 
+    it('forwards cancellation to the S3 request and stream reader', async () => {
+      const controller = new AbortController()
+      const mockDestroy = vi.fn()
+      const mockStream = {
+        destroy: mockDestroy,
+        on: vi.fn(() => mockStream),
+        off: vi.fn(() => mockStream),
+      }
+      mockSend.mockResolvedValueOnce({
+        Body: mockStream,
+        $metadata: { httpStatusCode: 200 },
+      })
+
+      const download = downloadFromS3(
+        'test-file.txt',
+        { bucket: 'test-bucket', region: 'test-region' },
+        undefined,
+        controller.signal
+      )
+      await vi.waitFor(() => expect(mockStream.on).toHaveBeenCalled())
+      controller.abort(new Error('cancelled'))
+
+      await expect(download).rejects.toThrow('cancelled')
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ abortSignal: controller.signal })
+      )
+      expect(mockDestroy).toHaveBeenCalledWith()
+    })
+
     it('should handle S3 client errors', async () => {
       const error = new Error('Download failed')
       mockSend.mockRejectedValueOnce(error)

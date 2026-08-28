@@ -4,7 +4,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec } from '../contract/types'
-import { renderPage, renderResult } from './result'
+import { encodeFolderPath } from './request'
+import { decodeFolderPath, renderPage, renderResult } from './result'
 
 let logged: string[]
 
@@ -244,8 +245,206 @@ describe('folder paths are shown by name, but piped in wire form', () => {
     expect(logged).toContain(`web URL\t${webUrl}`)
   })
 
+  /**
+   * `%2F` is the one escape that must survive display: decoding it prints a
+   * root folder named `a/enc` exactly like a folder `enc` nested under `a`, and
+   * the path people paste back then resolves to the other folder.
+   */
+  describe('a folder whose own name contains the separator', () => {
+    const slashNamed = [
+      {
+        path: '/cli-test-a%2Fenc',
+        name: 'cli-test-a/enc',
+        parentPath: '/',
+        updatedAt: '2026-08-17T20:35:38.478Z',
+      },
+    ]
+    const nested = [
+      {
+        path: '/cli-test-a/enc',
+        name: 'enc',
+        parentPath: '/cli-test-a',
+        updatedAt: '2026-08-17T20:35:38.478Z',
+      },
+    ]
+
+    it('keeps it distinguishable from a genuinely nested folder in the table', () => {
+      renderPage('table', slashNamed, spec)
+      const [, slashRow] = tableLines()
+      logged = []
+      renderPage('table', nested, spec)
+      const [, nestedRow] = tableLines()
+
+      expect(slashRow).toContain('%2F')
+      expect(slashRow.split(/\s{2,}/)[0]).not.toBe(nestedRow.split(/\s{2,}/)[0])
+    })
+
+    it('prints the wire form in text, which is what a script pipes back', () => {
+      renderPage('text', slashNamed, spec)
+      expect(logged[0].split('\t')[0]).toBe('/cli-test-a%2Fenc')
+    })
+
+    it('survives a round trip back through the encoder', () => {
+      expect(encodeFolderPath(decodeFolderPath('/cli-test-a%2Fenc'))).toBe('/cli-test-a%2Fenc')
+    })
+  })
+
   it('shows an undecodable path as it arrived rather than dropping it', () => {
     renderPage('text', [{ path: '/100%zz', name: 'x', parentPath: '/', updatedAt: null }], spec)
     expect(logged[0].split('\t')[0]).toBe('/100%zz')
+  })
+})
+
+describe('a truncation note', () => {
+  /** The note is stderr in every format; stdout stays exactly the rows. */
+  it('leaves the machine formats a bare array', () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    renderPage('json', [{ id: 'a' }], {}, { truncated: true }, { truncated: true })
+
+    expect(JSON.parse(logged.join('\n'))).toEqual([{ id: 'a' }])
+    expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain(
+      'more results exist'
+    )
+  })
+})
+
+describe('a truncation the response states inside its payload', () => {
+  /** Every note goes to stderr; stdout is asserted to be untouched by it. */
+  function captureStderr(): () => string {
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    return () => stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+  }
+
+  it('reports a clipped file body, which the envelope says nothing about', () => {
+    const read = captureStderr()
+    const payload = { fileId: 'wf_probe', name: 'a.txt', text: 'abc', truncated: true }
+
+    renderResult('readFileText', 'json', payload, {}, {}, { data: payload })
+
+    expect(read()).toContain('the server clipped this result')
+    expect(JSON.parse(logged.join('\n'))).toEqual(payload)
+  })
+
+  it('reports a clipped row search', () => {
+    const read = captureStderr()
+    const payload = { matches: [{ ordinal: 1, rowId: 'row_1', column: 'name' }], truncated: true }
+
+    renderResult('searchTableRows', 'json', payload, {}, {}, { data: payload })
+
+    expect(read()).toContain('the server clipped this result')
+  })
+
+  it('names the tool names, not the servers, on the server list', () => {
+    const read = captureStderr()
+
+    renderPage('json', [{ id: 'srv_1' }], {}, { data: [], toolNamesTruncated: true })
+
+    expect(read()).toContain('the server clipped the tool names it returned')
+  })
+
+  /**
+   * The subject is the words before the suffix, and `is` is not one of them:
+   * `isTruncated` read as a clip of "the is". Latent — no shipped endpoint
+   * spells it that way — so this is what keeps it harmless if one ever does.
+   */
+  it('reads a copula prefix as no subject rather than as one', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { isTruncated: true } })
+
+    expect(read()).toContain('the server clipped this result')
+    expect(read()).not.toContain('the is')
+  })
+
+  /** The strip stops at the copula: a real subject behind it still names itself. */
+  it('keeps the subject behind a copula prefix', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { isToolNamesTruncated: true } })
+
+    expect(read()).toContain('the server clipped the tool names it returned')
+  })
+
+  /** And a subject that merely begins with those two letters is not a copula. */
+  it('does not eat a subject that begins with is', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { issuesTruncated: true } })
+
+    expect(read()).toContain('the server clipped the issues it returned')
+  })
+
+  it('says nothing when a negated flag reports the answer was whole', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { notTruncated: true } })
+
+    expect(read()).toBe('')
+  })
+
+  it.each(['notTruncated', 'unTruncated', 'nonTruncated', 'neverTruncated', 'isNotTruncated'])(
+    'says nothing for the negated spelling %s',
+    (flag) => {
+      const read = captureStderr()
+
+      renderResult('readFileText', 'json', {}, {}, {}, { data: { [flag]: true } })
+
+      expect(read()).toBe('')
+    }
+  )
+
+  /**
+   * The flag pattern, not the negation veto, is what rejects this: `was not
+   * truncated` carries neither the `Not`/`Un` casing the veto looks for nor the
+   * unbroken `<word>Truncated` shape the pattern demands. Asserted separately
+   * so loosening the pattern to a bare `truncated` substring goes red here
+   * rather than silently leaning on the veto to cover it.
+   */
+  it('says nothing for a key that only resembles the flag', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { 'was not truncated': true } })
+
+    expect(read()).toBe('')
+  })
+
+  /**
+   * The bound the scan is built on: `data` is descended only while it is an
+   * object, because a page's `data` is the rows and a row's keys are the
+   * caller's own. A column literally named `truncated` is a value in somebody's
+   * table, not a statement by the API, and reading it as one would warn about a
+   * clip that never happened on every row that ever holds `true`.
+   */
+  it('ignores a row column named like the flag, because rows are not the envelope', () => {
+    const read = captureStderr()
+    const rows = [{ id: 'a', truncated: true }]
+
+    renderPage('json', rows, {}, { data: rows })
+
+    expect(read()).toBe('')
+    expect(JSON.parse(logged.join('\n'))).toEqual(rows)
+  })
+
+  /**
+   * The other half of the same bound: the scan stops at `data`. A flag nested
+   * below it is not read, so a future "scan deeper" change has to face this
+   * test and the row-column case above together.
+   */
+  it('does not descend past data', () => {
+    const read = captureStderr()
+
+    renderResult('readFileText', 'json', {}, {}, {}, { data: { file: { truncated: true } } })
+
+    expect(read()).toBe('')
+  })
+
+  it('leaves yaml a bare payload, with the note on stderr', () => {
+    const read = captureStderr()
+
+    renderPage('yaml', [{ id: 'a' }], {}, { data: [], truncated: true })
+
+    expect(logged.join('\n')).not.toContain('clipped')
+    expect(read()).toContain('the server clipped this result')
   })
 })

@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_UPLOADED_FILE_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type {
   VantaUploadDocumentFileParams,
@@ -6,7 +6,7 @@ import type {
 } from '@/tools/vanta/types'
 import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaUploadDocumentFileTool: ToolConfig<
+export const vantaUploadDocumentFileTool: InternalToolConfig<
   VantaUploadDocumentFileParams,
   VantaUploadDocumentFileResponse
 > = {
@@ -64,7 +64,7 @@ export const vantaUploadDocumentFileTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'MIME type of the file (e.g., application/pdf); used when uploading base64 content, since uploaded files already carry their own type',
+        'MIME type of the file (e.g., application/pdf). Applies only to the base64 upload path; a file from the File input always sends the content type resolved from storage.',
     },
     description: {
       type: 'string',
@@ -80,11 +80,8 @@ export const vantaUploadDocumentFileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/vanta/upload',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       clientId: params.clientId,
       clientSecret: params.clientSecret,
       region: params.region,

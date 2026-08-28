@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
+import { Button, OverflowText, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
   FileX,
@@ -733,6 +733,7 @@ function EmbeddedFile({
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
         collaborative
+        enableFind
       />
     </div>
   )
@@ -782,7 +783,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
               <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-              <span className='truncate text-[13px] text-[var(--text-primary)]'>{w.name}</span>
+              <OverflowText label={w.name} className='text-[var(--text-primary)] text-small' />
             </button>
           ))}
         </div>

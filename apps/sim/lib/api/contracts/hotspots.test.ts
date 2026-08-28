@@ -2,10 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { functionExecuteContract } from '@/lib/api/contracts/hotspots'
+import { functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 
-describe('function execute contract', () => {
-  const bodySchema = functionExecuteContract.body!
+describe('function execute input', () => {
+  const bodySchema = functionExecuteBodySchema
 
   it.each(['javascript', 'python', 'shell'] as const)('accepts the %s language', (language) => {
     const result = bodySchema.safeParse({ code: 'echo ok', language })
@@ -19,8 +19,39 @@ describe('function execute contract', () => {
     expect(result.language).toBe('javascript')
   })
 
-  it('accepts unknown legacy languages for the route fallback', () => {
+  it('accepts unknown legacy languages for executor compatibility', () => {
     const result = bodySchema.safeParse({ code: 'puts :ok', language: 'ruby' })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('requires a workspace destination for a sandbox file export', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toContainEqual(expect.objectContaining({ path: ['outputPath'] }))
+  })
+
+  it('rejects a whitespace-only workspace destination for a sandbox file export', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+      outputPath: '   ',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toContainEqual(expect.objectContaining({ path: ['outputPath'] }))
+  })
+
+  it('accepts a sandbox file export with its workspace destination', () => {
+    const result = bodySchema.safeParse({
+      code: 'return 1',
+      outputSandboxPath: '/tmp/result.csv',
+      outputPath: 'files/result.csv',
+    })
 
     expect(result.success).toBe(true)
   })

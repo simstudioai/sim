@@ -3,9 +3,12 @@ import type {
   MicrosoftWordExportPdfResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const exportPdfTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordExportPdfResponse> = {
+export const exportPdfTool: InternalToolConfig<
+  MicrosoftWordToolParams,
+  MicrosoftWordExportPdfResponse
+> = {
   id: 'microsoft_word_export_pdf',
   name: 'Export Microsoft Word Document as PDF',
   description:
@@ -47,11 +50,8 @@ export const exportPdfTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordExp
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/export-pdf',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       documentId: params.documentId,
       fileName: params.fileName,

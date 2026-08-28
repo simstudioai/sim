@@ -95,12 +95,26 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     expect(body.error).toBe('File not found: files/a.md')
   })
 
-  it('withholds results when no egress registry can be built', async () => {
-    mockPrepareEnvironmentContext.mockRejectedValue(new Error('env unavailable'))
+  /**
+   * Running the tool without a catalog used to produce the worst pair of outcomes available:
+   * the side effect happened and the caller got a bare `{success: true}` naming neither the
+   * cause nor whether anything had changed.
+   */
+  it('refuses the call, without running the tool, when no egress registry can be built', async () => {
+    mockPrepareEnvironmentContext.mockRejectedValue(new Error('Workspace ws-gone does not exist'))
     mockHandler.mockResolvedValue({ success: true, output: { content: 'sensitive' } })
+
     const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-no-registry' }) as never)
     const body = await res.json()
-    expect(body).toEqual({ success: true })
+
+    expect(mockHandler).not.toHaveBeenCalled()
+    expect(body.success).toBe(false)
+    expect(body.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+    // The thrown reason is an unprojectable environment failure — the catalog that would
+    // vouch for it is the very thing missing — so it stays in the log.
+    expect(body.error).not.toContain('does not exist')
+    expect(body.error).toContain(BASE_BODY.workspaceId)
+    expect(body.error).toContain('could not be resolved')
   })
 
   it('reuses one turn registry across calls that share a messageId', async () => {

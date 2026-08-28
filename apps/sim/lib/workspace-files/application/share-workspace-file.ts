@@ -72,6 +72,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     return { ...canonical, file }
   },
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileShareResult> {
+    // actorless-unsupported: a share link records the person who published it
     const subjectUserId = requirePrincipalSubjectUserId(principal)
 
     const existingShare = await getShareForResource('file', context.fileId)

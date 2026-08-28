@@ -1,6 +1,11 @@
-import { readFile } from 'node:fs/promises'
+import { createLogger } from '@sim/logger'
 import { safeStorage } from 'electron'
-import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json-file'
+import {
+  FileResourceLimitError,
+  readFileWithinLimit,
+  removeFileIfPresent,
+  writeJsonFileAtomically,
+} from '@/main/atomic-json-file'
 
 /**
  * What the sites brought over from another browser are called, and what they
@@ -30,6 +35,13 @@ import { removeFileIfPresent, writeJsonFileAtomically } from '@/main/atomic-json
  * trade for a cache of someone else's data that is now user-visible.
  */
 const DIRECTORY_VERSION = 2
+const MAX_DIRECTORY_FILE_BYTES = 16 * 1024 * 1024
+const MAX_DIRECTORY_PAYLOAD_BYTES = 10 * 1024 * 1024
+const MAX_SITE_HOSTNAME_LENGTH = 253
+const MAX_SITE_NAME_LENGTH = 512
+const MAX_SITE_ICON_LENGTH = 512 * 1024
+const MAX_SITE_TIMESTAMP_LENGTH = 64
+const logger = createLogger('BrowserSiteDirectory')
 
 /**
  * Hosts kept across all imports. Bounded because every record can carry an
@@ -69,11 +81,24 @@ interface EncryptedDirectoryEnvelope {
 }
 
 function isSiteRecord(value: unknown): value is SiteRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as SiteRecord).hostname === 'string' &&
-    (value as SiteRecord).hostname !== ''
+    typeof record.hostname === 'string' &&
+    record.hostname.length > 0 &&
+    record.hostname.length <= MAX_SITE_HOSTNAME_LENGTH &&
+    (record.name === undefined ||
+      (typeof record.name === 'string' && record.name.length <= MAX_SITE_NAME_LENGTH)) &&
+    (record.icon === undefined ||
+      (typeof record.icon === 'string' && record.icon.length <= MAX_SITE_ICON_LENGTH)) &&
+    (record.visits === undefined ||
+      (typeof record.visits === 'number' &&
+        Number.isSafeInteger(record.visits) &&
+        record.visits >= 0)) &&
+    (record.importedAt === undefined ||
+      (typeof record.importedAt === 'string' &&
+        record.importedAt.length <= MAX_SITE_TIMESTAMP_LENGTH &&
+        Number.isFinite(Date.parse(record.importedAt))))
   )
 }
 
@@ -111,6 +136,9 @@ interface EncryptionProvider {
 }
 
 export class SiteDirectory {
+  private persistenceState: 'unknown' | 'writable' | 'blocked' = 'unknown'
+  private mutationTail = Promise.resolve()
+
   constructor(
     private readonly filePath: string,
     private readonly encryption: EncryptionProvider = safeStorage
@@ -123,7 +151,7 @@ export class SiteDirectory {
    */
   isAvailable(): boolean {
     try {
-      return this.encryption.isEncryptionAvailable()
+      return this.persistenceState !== 'blocked' && this.encryption.isEncryptionAvailable()
     } catch {
       return false
     }
@@ -132,30 +160,73 @@ export class SiteDirectory {
   private async read(): Promise<SiteRecord[]> {
     if (!this.isAvailable()) return []
     try {
-      const raw = await readFile(this.filePath)
+      const raw = await readFileWithinLimit(this.filePath, MAX_DIRECTORY_FILE_BYTES)
       const envelope = JSON.parse(raw.toString('utf8')) as EncryptedDirectoryEnvelope
-      if (envelope.version !== DIRECTORY_VERSION) return []
+      const isLegacyEnvelope =
+        envelope.version === 1 &&
+        typeof envelope.payload === 'string' &&
+        Object.keys(envelope).length === 2
+      if (
+        (!isLegacyEnvelope && envelope.version !== DIRECTORY_VERSION) ||
+        typeof envelope.payload !== 'string'
+      ) {
+        this.blockPersistence('invalid-envelope')
+        return []
+      }
       const decrypted = this.encryption.decryptString(Buffer.from(envelope.payload, 'base64'))
-      const records = JSON.parse(decrypted) as SiteRecord[]
-      // Per-record, not just per-array: everything downstream sorts and merges
-      // on `hostname`, so one entry without it is a TypeError in the middle of
-      // an import rather than a record that is quietly skipped.
-      return Array.isArray(records) ? records.filter(isSiteRecord) : []
-    } catch {
-      // A missing, truncated, or foreign-keyed file reads as empty rather than
-      // taking the omnibox down with it.
+      if (Buffer.byteLength(decrypted, 'utf8') > MAX_DIRECTORY_PAYLOAD_BYTES) {
+        this.blockPersistence('resource-limit')
+        return []
+      }
+      const records = JSON.parse(decrypted) as unknown
+      if (!Array.isArray(records) || records.length > MAX_SITES || !records.every(isSiteRecord)) {
+        this.blockPersistence('invalid-payload')
+        return []
+      }
+      this.persistenceState = 'writable'
+      return isLegacyEnvelope ? [] : records
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.persistenceState = 'writable'
+        return []
+      }
+      if (error instanceof FileResourceLimitError) {
+        this.blockPersistence('resource-limit')
+        return []
+      }
+      this.blockPersistence('read-failed')
       return []
     }
   }
 
+  private blockPersistence(
+    reason: 'invalid-envelope' | 'invalid-payload' | 'read-failed' | 'resource-limit'
+  ): void {
+    if (this.persistenceState !== 'blocked') {
+      logger.warn('Browser site directory persistence is unavailable', { reason })
+    }
+    this.persistenceState = 'blocked'
+  }
+
   private async write(records: SiteRecord[]): Promise<boolean> {
     if (!this.isAvailable()) return false
+    const payload = JSON.stringify(records)
+    if (Buffer.byteLength(payload, 'utf8') > MAX_DIRECTORY_PAYLOAD_BYTES) return false
     const envelope: EncryptedDirectoryEnvelope = {
       version: DIRECTORY_VERSION,
-      payload: this.encryption.encryptString(JSON.stringify(records)).toString('base64'),
+      payload: this.encryption.encryptString(payload).toString('base64'),
     }
     await writeJsonFileAtomically(this.filePath, envelope)
     return true
+  }
+
+  private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mutationTail.then(operation)
+    this.mutationTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
   }
 
   async list(): Promise<SiteRecord[]> {
@@ -170,28 +241,34 @@ export class SiteDirectory {
    * importing a second profile should add to what the browser knows, not
    * strip the first profile's sites of their names.
    */
-  async remember(records: readonly SiteRecord[]): Promise<void> {
-    if (records.length === 0 || !this.isAvailable()) return
-    const merged = new Map<string, SiteRecord>()
-    for (const existing of await this.read()) merged.set(existing.hostname, existing)
-    for (const incoming of records) {
-      if (!incoming.hostname) continue
-      const existing = merged.get(incoming.hostname)
-      merged.set(incoming.hostname, {
-        hostname: incoming.hostname,
-        name: incoming.name ?? existing?.name,
-        icon: incoming.icon ?? existing?.icon,
-        // The most-used of the profiles a host was seen in wins, so re-importing
-        // a profile that barely touches a site cannot demote it.
-        visits: maxDefined(incoming.visits, existing?.visits),
-        importedAt: incoming.importedAt ?? existing?.importedAt,
-      })
-    }
-    await this.write(evictExcess([...merged.values()]))
+  remember(records: readonly SiteRecord[]): Promise<void> {
+    if (records.length === 0) return Promise.resolve()
+    return this.enqueueMutation(async () => {
+      if (!this.isAvailable()) return
+      const merged = new Map<string, SiteRecord>()
+      for (const existing of await this.read()) merged.set(existing.hostname, existing)
+      for (const incoming of records) {
+        if (!isSiteRecord(incoming)) continue
+        const existing = merged.get(incoming.hostname)
+        merged.set(incoming.hostname, {
+          hostname: incoming.hostname,
+          name: incoming.name ?? existing?.name,
+          icon: incoming.icon ?? existing?.icon,
+          // The most-used of the profiles a host was seen in wins, so re-importing
+          // a profile that barely touches a site cannot demote it.
+          visits: maxDefined(incoming.visits, existing?.visits),
+          importedAt: incoming.importedAt ?? existing?.importedAt,
+        })
+      }
+      await this.write(evictExcess([...merged.values()]))
+    })
   }
 
   /** Forgets every site. Runs with the rest of the browser teardown. */
-  async clear(): Promise<void> {
-    await removeFileIfPresent(this.filePath)
+  clear(): Promise<void> {
+    return this.enqueueMutation(async () => {
+      await removeFileIfPresent(this.filePath)
+      this.persistenceState = 'writable'
+    })
   }
 }

@@ -199,7 +199,7 @@ Perform multiple index, create, delete, or update operations in a single request
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `index` | string | No | Default index for operations \(e.g., "products", "logs-2024"\) |
-| `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\\n\{"name":"Widget"\}\\n |
+| `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\n\{"name":"Widget"\}\n |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
 #### Output

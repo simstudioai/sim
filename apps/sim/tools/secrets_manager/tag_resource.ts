@@ -2,9 +2,9 @@ import type {
   SecretsManagerTagResourceParams,
   SecretsManagerTagResourceResponse,
 } from '@/tools/secrets_manager/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tagResourceTool: ToolConfig<
+export const tagResourceTool: InternalToolConfig<
   SecretsManagerTagResourceParams,
   SecretsManagerTagResourceResponse
 > = {
@@ -46,11 +46,8 @@ export const tagResourceTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/secrets_manager/tag-resource',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -5,7 +5,11 @@ import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
 import { OUTPUT_FORMATS } from './config/index'
-import { assertNoReservedProgramFlags, buildGeneratedCommands } from './runtime/build'
+import {
+  assertNoReservedProgramFlags,
+  buildGeneratedCommands,
+  refuseHelpAfterUnknownCommand,
+} from './runtime/build'
 import { CLI_VERSION } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
@@ -17,7 +21,9 @@ Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 with -P, --profile, or SIM_PROFILE.
 
 Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
-tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow.
+tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
+or custom-tool ID can open with a dash, which reads as a flag; put -- in front
+of it, as in sim audit-logs get -- -HlDcD1z76nK6R4crsUp0.
 
 Examples:
   $ sim login                          Authorize the default profile
@@ -145,6 +151,7 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.addHelpText('after', HELP_EPILOGUE)
 
+  refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)
 
   return program

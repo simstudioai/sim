@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Checkbox, ChevronDown, cn } from '@sim/emcn'
+import { Checkbox, ChevronDown, cn, OverflowText } from '@sim/emcn'
 
 export interface ForkFileTreeItem {
   id: string
@@ -137,9 +137,10 @@ function ForkFileFolderRow({
           className='flex min-w-0 flex-1 items-center gap-1 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <span className='min-w-0 flex-1 truncate'>
-            {folder.name} ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-          </span>
+          <OverflowText
+            label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+            className='flex-1'
+          />
           <ChevronDown
             className={cn(
               'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
@@ -191,7 +192,7 @@ function ForkFileRow({ file, checked, onToggle, disabled }: ForkFileRowProps) {
         onCheckedChange={(value) => onToggle(file.id, value === true)}
         disabled={disabled}
       />
-      <span className='min-w-0 flex-1 truncate'>{file.label}</span>
+      <OverflowText label={file.label} className='flex-1' />
     </label>
   )
 }

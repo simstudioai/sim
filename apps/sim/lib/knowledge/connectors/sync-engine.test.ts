@@ -515,6 +515,23 @@ describe('classifyExternalDoc', () => {
     ).toEqual({ type: 'update', existingId: 'doc-1' })
   })
 
+  it('uses the same skip replacement rule after deferred hydration', async () => {
+    const { shouldReplaceExistingWithSkippedDocument } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: null }, {})).toBe(true)
+    expect(shouldReplaceExistingWithSkippedDocument({ storageKey: 'kb/indexed.txt' }, {})).toBe(
+      false
+    )
+    expect(
+      shouldReplaceExistingWithSkippedDocument(
+        { storageKey: 'kb/indexed.txt' },
+        { skippedExistingDisposition: 'replace' }
+      )
+    ).toBe(true)
+  })
+
   it('replaces stale indexed content for an authoritative skip', async () => {
     const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
 
@@ -2196,6 +2213,30 @@ describe('buildSyncFailureUpdate', () => {
 
     expect(buildSyncFailureUpdate(now, null, 'boom').consecutiveFailures).toBe(1)
     expect(buildSyncFailureUpdate(now, undefined, 'boom').nextSyncAt).toEqual(minutesAfter(30))
+  })
+
+  it('does not schedule before a longer provider retry deadline', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(buildSyncFailureUpdate(now, 0, 'rate limited', 45 * 60 * 1000).nextSyncAt).toEqual(
+      minutesAfter(45)
+    )
+  })
+
+  it('does not let a shorter provider delay weaken the failure backoff', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(buildSyncFailureUpdate(now, 0, 'rate limited', 5 * 60 * 1000).nextSyncAt).toEqual(
+      minutesAfter(30)
+    )
+  })
+
+  it('caps an unreasonable provider delay at the existing one-day retry ceiling', async () => {
+    const { buildSyncFailureUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(
+      buildSyncFailureUpdate(now, 0, 'rate limited', 30 * 24 * 60 * 60 * 1000).nextSyncAt
+    ).toEqual(minutesAfter(24 * 60))
   })
 
   it('disables exactly at the threshold, not before it', async () => {

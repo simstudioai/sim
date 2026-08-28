@@ -1,6 +1,5 @@
 import type { GoogleDriveFile, GoogleDriveToolParams } from '@/tools/google_drive/types'
-import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface GoogleDriveMoveParams extends GoogleDriveToolParams {
   fileId: string
@@ -14,7 +13,7 @@ interface GoogleDriveMoveResponse extends ToolResponse {
   }
 }
 
-export const moveTool: ToolConfig<GoogleDriveMoveParams, GoogleDriveMoveResponse> = {
+export const moveTool: InternalToolConfig<GoogleDriveMoveParams, GoogleDriveMoveResponse> = {
   id: 'google_drive_move',
   name: 'Move Google Drive File',
   description: 'Move a file or folder to a different folder in Google Drive',
@@ -53,75 +52,13 @@ export const moveTool: ToolConfig<GoogleDriveMoveParams, GoogleDriveMoveResponse
     },
   },
 
-  request: {
-    url: 'https://www.googleapis.com/drive/v3/files',
-    method: 'PATCH',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      fileId: params.fileId,
+      destinationFolderId: params.destinationFolderId,
+      removeFromCurrent: params.removeFromCurrent,
     }),
-  },
-
-  directExecution: async (params) => {
-    const fileId = params.fileId?.trim()
-    const destinationFolderId = params.destinationFolderId?.trim()
-    const removeFromCurrent = params.removeFromCurrent !== false
-
-    if (!fileId) {
-      throw new Error('fileId is required')
-    }
-    if (!destinationFolderId) {
-      throw new Error('destinationFolderId is required')
-    }
-
-    const headers = {
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }
-
-    // Build the PATCH URL with addParents
-    const url = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`)
-    url.searchParams.append('addParents', destinationFolderId)
-    url.searchParams.append('fields', ALL_FILE_FIELDS)
-    url.searchParams.append('supportsAllDrives', 'true')
-
-    if (removeFromCurrent) {
-      // Fetch current parents so we can remove them
-      const metadataUrl = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`)
-      metadataUrl.searchParams.append('fields', 'parents')
-      metadataUrl.searchParams.append('supportsAllDrives', 'true')
-
-      const metadataResponse = await fetch(metadataUrl.toString(), { headers })
-
-      if (!metadataResponse.ok) {
-        const errorData = await metadataResponse.json()
-        throw new Error(errorData.error?.message || 'Failed to retrieve file metadata')
-      }
-
-      const metadata = await metadataResponse.json()
-      if (metadata.parents && metadata.parents.length > 0) {
-        url.searchParams.append('removeParents', metadata.parents.join(','))
-      }
-    }
-
-    const response = await fetch(url.toString(), {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({}),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to move Google Drive file')
-    }
-
-    return {
-      success: true,
-      output: {
-        file: data,
-      },
-    }
   },
 
   outputs: {

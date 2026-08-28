@@ -61,11 +61,11 @@ describe('selectDeletedWorkflowResources', () => {
 })
 
 describe('shouldActivateResourceEvent', () => {
-  it('surfaces browser work even when another resource is selected', () => {
+  it('requests activation for browser work', () => {
     expect(shouldActivateResourceEvent('file-1', 'browser-session')).toBe(true)
   })
 
-  it('surfaces every other resource the agent touches', () => {
+  it('requests activation for every other resource the agent touches', () => {
     expect(shouldActivateResourceEvent('file-1', 'workflow-1')).toBe(true)
     expect(shouldActivateResourceEvent('browser-session', 'terminal-session')).toBe(true)
     expect(shouldActivateResourceEvent(null, 'browser-session')).toBe(true)

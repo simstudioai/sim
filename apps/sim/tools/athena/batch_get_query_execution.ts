@@ -2,9 +2,9 @@ import type {
   AthenaBatchGetQueryExecutionParams,
   AthenaBatchGetQueryExecutionResponse,
 } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const batchGetQueryExecutionTool: ToolConfig<
+export const batchGetQueryExecutionTool: InternalToolConfig<
   AthenaBatchGetQueryExecutionParams,
   AthenaBatchGetQueryExecutionResponse
 > = {
@@ -40,11 +40,8 @@ export const batchGetQueryExecutionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/athena/batch-get-query-execution',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const ids = params.queryExecutionIds
         .split(',')
         .map((id) => id.trim())

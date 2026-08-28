@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
@@ -86,7 +87,7 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     if (!workspace) throw new OrchestrationError('not_found', 'Log not found')
     return { ...workspace, executionId: scope.executionId, workflowId: scope.workflowId }
   },
-  authorizationOptions: {},
+  authorizationOptions: logDelegationAuthorization<PublicLogContext>(),
   execute: async ({ principal, context }): Promise<GetPublicLogResult> => {
     const log = await getPublicWorkflowLog(
       { column: 'executionId', value: context.executionId },

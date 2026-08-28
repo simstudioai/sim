@@ -526,7 +526,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     workflowName: v2WorkflowNameFilterSchema.optional(),
     includeJobRuns: booleanQueryFlagSchema
       .describe(
-        'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set (`workflowIds`, `workflowName`, `folderPaths`, `model`, or `status`), so a filter never means two different things across the union. Accepted only under `sortBy=startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.'
+        'Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings.'
       )
       .optional()
       .default(false),
@@ -570,7 +570,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      * local to this resource.
      */
     sortBy: v2LogSortFieldSchemas.sortBy.describe(
-      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected together with `includeJobRuns=true`.'
+      'Field used to sort the result. `durationMs` and `cost` are null until a run settles; those runs order as though the value were below every recorded one, so they trail an ascending page and lead a descending one. Only `startedAt` can order Chat and Sim-agent job runs, so any other value is rejected when job runs are included.'
     ),
     folderPaths: z
       .string()

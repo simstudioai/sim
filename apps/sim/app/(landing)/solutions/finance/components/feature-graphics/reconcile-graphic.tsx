@@ -56,7 +56,7 @@ export function ReconcileGraphic() {
       >
         <div className='w-full max-w-[312px]'>
           <div className='mb-1.5 flex items-center justify-between gap-2'>
-            <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-base'>
+            <span className='min-w-0 truncate text-[var(--text-primary)] text-base'>
               Reconciliation
             </span>
             <ChipTag variant='mono' className='shrink-0 bg-[var(--surface-6)]'>
@@ -91,7 +91,7 @@ export function ReconcileGraphic() {
           >
             <span className='min-w-0 flex-1'>
               <span className='flex items-center gap-2'>
-                <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-small'>
+                <span className='min-w-0 truncate text-[var(--text-primary)] text-small'>
                   Wire transfer
                 </span>
                 <span className='shrink-0 font-mono text-[var(--text-secondary)] text-caption'>

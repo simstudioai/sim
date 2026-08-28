@@ -372,6 +372,8 @@ export interface SecureFetchOptions {
   stripAuthOnRedirect?: boolean
   /** Omit for the historical behavior used by existing workflows. */
   redirectPolicy?: HttpRedirectPolicy
+  /** Rejects a redirect target before DNS resolution or a follow-up request is attempted. */
+  assertRedirectTarget?: (url: string) => void
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
    * When set, the connection routes through this proxy and target-IP pinning is
@@ -1059,6 +1061,12 @@ export async function secureFetchWithPinnedIP(
         res.resume()
         const redirectUrl = resolveRedirectUrl(url, location)
 
+        try {
+          options.assertRedirectTarget?.(redirectUrl)
+        } catch (error) {
+          settledReject(error)
+          return
+        }
         validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {

@@ -181,6 +181,7 @@ import {
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { LambdaBlock, LambdaBlockMeta } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
 import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
@@ -328,6 +329,7 @@ import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { ThriveBlock, ThriveBlockMeta } from '@/blocks/blocks/thrive'
 import { TikTokBlock, TikTokBlockMeta } from '@/blocks/blocks/tiktok'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
+import { TinyFishBlock, TinyFishBlockMeta } from '@/blocks/blocks/tinyfish'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
 import { TriggerDevBlock, TriggerDevBlockMeta } from '@/blocks/blocks/trigger_dev'
@@ -532,6 +534,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
+  lambda: LambdaBlock,
   langsmith: LangsmithBlock,
   latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
@@ -672,6 +675,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   thrive: ThriveBlock,
   tiktok: TikTokBlock,
   tinybird: TinybirdBlock,
+  tinyfish: TinyFishBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   trigger_dev: TriggerDevBlock,
@@ -857,6 +861,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
+  lambda: LambdaBlockMeta,
   langsmith: LangsmithBlockMeta,
   latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,
@@ -971,6 +976,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   thrive: ThriveBlockMeta,
   tiktok: TikTokBlockMeta,
   tinybird: TinybirdBlockMeta,
+  tinyfish: TinyFishBlockMeta,
   trello: TrelloBlockMeta,
   trigger_dev: TriggerDevBlockMeta,
   twilio_sms: TwilioSMSBlockMeta,

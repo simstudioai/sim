@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  *
  * Menu rows are a fixed height, so a label that wraps overflows its row and paints over its
- * neighbours. Rows are held to one line and their bare text is wrapped in a truncating box so an
- * over-long label ellipsizes instead of being cut mid-word. These tests cover that wrapping:
+ * neighbours. Rows are held to one line and their bare text is wrapped in the shared overflow
+ * treatment so an over-long label fades instead of being cut mid-word. These tests cover that wrapping:
  * that it happens, that adjacent text stays in ONE box (two boxes would be two flex items, and
  * the row's `gap` would open between the words), and that it steps aside for `asChild`, where
  * Radix's `Slot` requires exactly one element child.
@@ -51,13 +51,15 @@ afterEach(() => {
 })
 
 describe('menu row labels', () => {
-  it('wraps a bare text label in a truncating box', () => {
+  it('wraps a bare text label in the shared overflow treatment', () => {
     openMenu(<DropdownMenuItem>Run empty or failed cells on 2 rows</DropdownMenuItem>)
 
     const labels = row().querySelectorAll('span')
     expect(labels).toHaveLength(1)
     expect(labels[0].textContent).toBe('Run empty or failed cells on 2 rows')
-    expect(labels[0].className).toContain('truncate')
+    expect(labels[0].className).toContain('overflow-hidden')
+    expect(labels[0].className).toContain('text-clip')
+    expect(labels[0].className).not.toContain('truncate')
   })
 
   it('keeps the row on one line', () => {
@@ -84,7 +86,7 @@ describe('menu row labels', () => {
     openMenu(<DropdownMenuCheckboxItem checked>Show archived workflows</DropdownMenuCheckboxItem>)
 
     const labels = row('[role="menuitemcheckbox"]').querySelectorAll('span')
-    const label = Array.from(labels).find((node) => node.className.includes('truncate'))
+    const label = Array.from(labels).find((node) => node.className.includes('text-clip'))
     expect(label?.textContent).toBe('Show archived workflows')
   })
 
@@ -108,5 +110,6 @@ describe('menu row labels', () => {
     )
 
     expect(row().querySelectorAll('span')).toHaveLength(1)
+    expect(row().className).toContain('[&>span:not([data-overflow-text])]:truncate')
   })
 })

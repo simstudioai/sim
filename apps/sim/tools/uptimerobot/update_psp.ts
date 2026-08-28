@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   PSP_OUTPUT_PROPERTIES,
   type UptimeRobotPspResponse,
   type UptimeRobotUpdatePspParams,
 } from '@/tools/uptimerobot/types'
 
-export const uptimeRobotUpdatePspTool: ToolConfig<
+export const uptimeRobotUpdatePspTool: InternalToolConfig<
   UptimeRobotUpdatePspParams,
   UptimeRobotPspResponse
 > = {
@@ -84,11 +84,8 @@ export const uptimeRobotUpdatePspTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/uptimerobot/update-psp',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       pspId: params.pspId,
       friendlyName: params.friendlyName,

@@ -12,8 +12,10 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 ## Activate workflow version
 
 ```bash
-sim workflows activate create <workflowId> <version>
+sim workflows activate create <workflowId> <version> [options]
 ```
+
+Activate Workflow Version (personal API key required)
 
 **Arguments**
 
@@ -26,11 +28,23 @@ sim workflows activate create <workflowId> <version>
 
 </CommandTable>
 
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
 ## Apply workflow operations
 
 ```bash
 sim workflows operations apply <workflowId> [options]
 ```
+
+Apply Workflow Operations (personal API key required)
 
 **Arguments**
 
@@ -50,12 +64,12 @@ sim workflows operations apply <workflowId> [options]
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also insert_into_subflow and extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
 | `--set-block-enabled <json\|@file>` | No | Blocks to enable or disable, applied after --operations: [&#123;"block_id":"&lt;uuid&gt;","enabled":false&#125;]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -82,7 +96,7 @@ sim workflows variables update <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--operations <json\|@file>` | Yes | Variable changes to apply in order, keyed by operation: [&#123;"operation":"add","name":"my_var","type":"string","value":"hello"&#125;,&#123;"operation":"edit","name":"my_var","value":"updated"&#125;,&#123;"operation":"delete","name":"my_var"&#125;] (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -138,7 +152,7 @@ Show run status (requested outputs are included in JSON or YAML output)
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -281,7 +295,7 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -347,7 +361,7 @@ sim workflows delete <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -356,6 +370,8 @@ sim workflows delete <workflowId> [options]
 ```bash
 sim workflows chat unpublish <workflowId> [options]
 ```
+
+Take a workflow’s chat deployment offline (personal API key required)
 
 **Arguments**
 
@@ -373,7 +389,7 @@ sim workflows chat unpublish <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -382,6 +398,8 @@ sim workflows chat unpublish <workflowId> [options]
 ```bash
 sim workflows chat status <workflowId>
 ```
+
+Show a workflow’s chat deployment (personal API key required)
 
 **Arguments**
 
@@ -398,6 +416,8 @@ sim workflows chat status <workflowId>
 ```bash
 sim workflows chat publish <workflowId> [options]
 ```
+
+Publish or replace a workflow’s chat deployment (personal API key required)
 
 **Arguments**
 
@@ -427,7 +447,7 @@ sim workflows chat publish <workflowId> [options]
 | `--no-include-thinking` | No | Send --include-thinking as false. |
 | `--include-tool-calls` | No | Allow visitors to receive tool lifecycle events. |
 | `--no-include-tool-calls` | No | Send --include-tool-calls as false. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -436,6 +456,8 @@ sim workflows chat publish <workflowId> [options]
 ```bash
 sim workflows deploy <workflowId> [options]
 ```
+
+Deploy Workflow (personal API key required)
 
 **Arguments**
 
@@ -510,7 +532,7 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
-| `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
+| `--select-output <value...>` | No | Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
@@ -580,6 +602,8 @@ sim workflows deployment status <workflowId>
 sim workflows deployment update <workflowId> [options]
 ```
 
+Update Workflow Public API Access (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -622,6 +646,8 @@ sim workflows state get <workflowId>
 sim workflows state replace <workflowId> [options]
 ```
 
+Replace Workflow State (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -645,7 +671,7 @@ sim workflows state replace <workflowId> [options]
 | `--loops <json\|@file>` | No | Ignored on write: loop containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
-| `-y, --yes` | No | Confirm this destructive operation (required unless --dry-run). |
+| `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
 
@@ -751,7 +777,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. The folder filter resolves against active folders only, so pairing it with `archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
@@ -774,7 +800,7 @@ sim workflows move [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line). |
+| `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
 
 </CommandTable>
@@ -801,6 +827,8 @@ sim workflows restore <workflowId>
 sim workflows revert create <workflowId> <version> [options]
 ```
 
+Revert Workflow To Version (personal API key required)
+
 **Arguments**
 
 <CommandTable>
@@ -818,7 +846,7 @@ sim workflows revert create <workflowId> <version> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -827,6 +855,8 @@ sim workflows revert create <workflowId> <version> [options]
 ```bash
 sim workflows rollback <workflowId> [options]
 ```
+
+Rollback Workflow (personal API key required)
 
 **Arguments**
 
@@ -845,7 +875,7 @@ sim workflows rollback <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--to-version <value>` | No | Deployment version to reactivate. Omit to select the previous active version. |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 
@@ -854,6 +884,8 @@ sim workflows rollback <workflowId> [options]
 ```bash
 sim workflows undeploy <workflowId> [options]
 ```
+
+Take a workflow out of deployment (personal API key required)
 
 **Arguments**
 
@@ -871,7 +903,7 @@ sim workflows undeploy <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this destructive operation. |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 

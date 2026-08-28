@@ -397,6 +397,20 @@ describe('focus-gated shortcuts', () => {
     ).toBe('/alpha')
   })
 
+  it('fails cleanly instead of opening a seventeenth terminal', () => {
+    const terminal = service()
+    terminal.start({ cols: 80, rows: 24 })
+    while (terminal.getTabs().tabs.length < 16) terminal.openTerminal()
+
+    expect(() => terminal.openTerminal()).toThrow(
+      expect.objectContaining({
+        code: 'RESOURCE_LIMIT',
+        message: 'A task can have at most 16 live terminals.',
+      })
+    )
+    expect(terminal.getTabs().tabs).toHaveLength(16)
+  })
+
   it('ignores a blur reported by a renderer that does not hold the claim', () => {
     // Every renderer reports its own blur, so a second window switching away
     // from its terminal sends `false` from a WebContents that never claimed.

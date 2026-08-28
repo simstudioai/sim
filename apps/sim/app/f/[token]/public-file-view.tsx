@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, OverflowText } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -85,7 +85,7 @@ export function PublicFileView({
             </>
           )}
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[14px] text-[var(--text-body)]'>{name}</span>
+            <OverflowText label={name} className='text-[var(--text-body)] text-sm' />
             {provenance ? (
               <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
             ) : null}
@@ -114,6 +114,7 @@ export function PublicFileView({
           contentSource={source}
           canEdit={false}
           readOnly
+          enableFind
         />
       </main>
     </div>

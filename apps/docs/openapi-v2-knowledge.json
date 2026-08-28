@@ -2718,9 +2718,9 @@
             "name": "parentPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to direct children of this parent path.",
+            "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to direct children of this parent path.",
+              "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -3481,7 +3481,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeChunks",
         "summary": "Bulk Update Chunks",
-        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is skipped rather than failing the request, so `processed` is the authoritative count. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in `errors` rather than failing the request. `processed` counts the chunks the operation matched, not the chunks it changed. Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"` — change the content at the source and re-sync, or exclude the document from the connector. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -6838,14 +6838,15 @@
             "type": "object",
             "properties": {
               "recipe": {
-                "description": "Optional document processing recipe.",
+                "description": "Optional document processing recipe. One of: default, plain, markdown, code.",
                 "type": "string",
-                "maxLength": 255
+                "enum": ["default", "plain", "markdown", "code"]
               },
               "lang": {
-                "description": "Optional document language code.",
+                "description": "Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.",
                 "type": "string",
-                "maxLength": 35
+                "maxLength": 35,
+                "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$"
               }
             },
             "additionalProperties": false
@@ -7876,7 +7877,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Number of chunks the operation changed.",
+            "description": "Number of chunks in this document the operation matched. Chunks already in the requested state are counted too, so this is not a count of changes.",
             "examples": [12]
           },
           "errors": {
@@ -7884,7 +7885,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Per-chunk failures. A populated array still answers 200."
+            "description": "Per-chunk failures, including any identifier that named no chunk in the document. A populated array still answers 200."
           }
         },
         "required": ["operation", "processed", "errors"],
@@ -7927,7 +7928,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Chunks to operate on, by identifier. Ids outside the document are ignored."
+            "description": "Chunks to operate on, by identifier. An id naming no chunk in the document is reported in errors and does not fail the request."
           }
         },
         "required": ["workspaceId", "operation", "chunkIds"],

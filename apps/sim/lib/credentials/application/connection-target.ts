@@ -46,6 +46,7 @@ export async function resolveCredentialConnectionTarget(params: {
   }
 
   if (!credentialId) throw new Error('Credential reconnect target is missing its credential ID')
+  // actorless-unsupported: reconnecting rebinds a person's own OAuth grant
   const userId = requirePrincipalSubjectUserId(principal)
   const targetCredentialId = credentialId
   const credential = await getWorkspaceCredential({

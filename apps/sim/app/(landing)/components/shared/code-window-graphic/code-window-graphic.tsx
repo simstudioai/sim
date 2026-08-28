@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import styles from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic.module.css'
+import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 
 /** One inline run of code text inside a {@link CodeWindowGraphic} line. */
@@ -40,7 +41,7 @@ const SEGMENT_TONE_CLASS = {
 } as const
 
 /** Shared hairline ink for the window outline, header rule, and icon box. */
-const OUTLINE_INK = 'border-[color:color-mix(in_srgb,var(--text-muted-inverse)_45%,transparent)]'
+const OUTLINE_INK = colorMixFallbacks.inverseBorder45
 
 /**
  * The dark-tile outlined editor window shared by the platform pages' "from
@@ -76,7 +77,7 @@ export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicPr
           >
             {icon}
           </span>
-          <span className='font-medium text-[var(--text-inverse)] text-base'>{filename}</span>
+          <span className='text-[var(--text-inverse)] text-base'>{filename}</span>
         </div>
 
         <div className='space-y-2 p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7]'>

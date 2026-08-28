@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
+  claimMediaPermissionResponse,
   clearOmniboxSelection,
+  exceededOmniboxDragThreshold,
   hasConfirmedBrowserTabCreation,
   initialUrlSuggestionIndex,
   resolveUrlBarInput,
@@ -14,6 +16,19 @@ import {
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+
+describe('claimMediaPermissionResponse', () => {
+  it('allows one response per request id across effect recreation', () => {
+    const handledRequestId = { current: null as string | null }
+
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(false)
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-2')).toBe(true)
+
+    handledRequestId.current = null
+    expect(claimMediaPermissionResponse(handledRequestId, 'request-1')).toBe(true)
+  })
+})
 
 describe('browserPanelSnapshotStyle', () => {
   const snapshot = {
@@ -153,6 +168,13 @@ describe('clearOmniboxSelection', () => {
 
     expect(input.selectionStart).toBe(input.value.length)
     expect(input.selectionEnd).toBe(input.value.length)
+  })
+})
+
+describe('exceededOmniboxDragThreshold', () => {
+  it('preserves select-all through pointer jitter but cancels it for a drag', () => {
+    expect(exceededOmniboxDragThreshold(100, 100, 103, 102)).toBe(false)
+    expect(exceededOmniboxDragThreshold(100, 100, 105, 100)).toBe(true)
   })
 })
 

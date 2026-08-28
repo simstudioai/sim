@@ -12,6 +12,7 @@ import {
   cn,
   FieldDivider,
   Label,
+  OverflowText,
   Tooltip,
 } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
@@ -482,7 +483,9 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
     <div className='flex flex-col gap-2'>
       <div className='flex flex-col gap-1'>
         <div className='flex items-center justify-between gap-4'>
-          <Label className='min-w-0 truncate'>{entry.sourceLabel}</Label>
+          <Label className='min-w-0'>
+            <OverflowText label={entry.sourceLabel} />
+          </Label>
           <div className={MAPPING_TARGET_TRIGGER_CLASS}>
             <ChipCombobox
               className='w-full'
@@ -613,7 +616,7 @@ function MappingKindRow({ controller, group, summary }: MappingKindRowProps) {
         onClick={() => setOpen((value) => !value)}
         className='flex w-full items-center gap-2 text-left text-[var(--text-body)] text-sm transition-colors hover:text-[var(--text-primary)]'
       >
-        <span className='min-w-0 flex-1 truncate'>{group.label}</span>
+        <OverflowText label={group.label} className='flex-1' />
         <Badge variant={badge.variant} size='sm' dot>
           {badge.label}
         </Badge>
@@ -733,14 +736,11 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
   return (
     <div className='flex flex-col gap-1'>
       <div className='flex items-center justify-between gap-4'>
-        {/* One inner span, so the name and its "in <workflow>" suffix share a normal inline flow:
-            `Label` is inline-flex, and a flex container DISCARDS whitespace-only children, which
-            eats the separating space (and leaves `truncate` with no text run to clip). */}
         <Label className='min-w-0'>
-          <span className='min-w-0 truncate'>
+          <OverflowText label={`${mapping.blockName} in ${mapping.workflowName}`}>
             {mapping.blockName}{' '}
             <span className='text-[var(--text-muted)]'>in {mapping.workflowName}</span>
-          </span>
+          </OverflowText>
         </Label>
         <div className={MAPPING_TARGET_TRIGGER_CLASS}>
           {decidable ? (

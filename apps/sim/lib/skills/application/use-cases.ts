@@ -58,12 +58,15 @@ async function resolveSkillContext(workspaceId: string, skillId: string): Promis
   return { ...workspace, skill: row }
 }
 
-async function resolveSkillEditorContext(
+/**
+ * Resolves a workspace-owned skill for any editor verb, deriving the scope from
+ * the skill's own row when the caller asserted none. Both the mutation and the
+ * list resolver build on it, so neither has to route through the other.
+ */
+async function resolveOwnedSkillEditorContext(
   skillId: string,
   assertedWorkspaceId?: string
 ): Promise<SkillContext> {
-  if (isBuiltinSkillId(skillId)) throw new OrchestrationError('not_found', 'Skill not found')
-
   const [row] = await db.select().from(skill).where(eq(skill.id, skillId)).limit(1)
   if (!row?.workspaceId || (assertedWorkspaceId && row.workspaceId !== assertedWorkspaceId)) {
     throw new OrchestrationError('not_found', 'Skill not found')
@@ -71,6 +74,61 @@ async function resolveSkillEditorContext(
 
   const workspace = await resolveWorkspaceContext(row.workspaceId)
   return { ...workspace, skill: row }
+}
+
+/**
+ * Resolves the skill an editor MUTATION addresses.
+ *
+ * A built-in skill exists — `getSkillById` materializes it from code — so
+ * reporting it as missing would contradict the read verbs. It has no editor
+ * roster to change, which is the same refusal `resolveEditableSkill` gives for
+ * update and delete.
+ */
+async function resolveSkillEditorContext(
+  skillId: string,
+  assertedWorkspaceId?: string
+): Promise<SkillContext> {
+  if (isBuiltinSkillId(skillId)) {
+    throw new OrchestrationError(
+      'validation',
+      'Built-in skills are read-only and cannot be modified'
+    )
+  }
+
+  return resolveOwnedSkillEditorContext(skillId, assertedWorkspaceId)
+}
+
+/**
+ * Resolves the skill an editor LIST addresses.
+ *
+ * Listing is a read, so a built-in id is not a malformed request: the skill is
+ * real and `skills get` returns it. It never falls through to the mutation
+ * resolver, so the read can never answer that the caller tried to modify a
+ * read-only skill.
+ *
+ * A built-in skill owns no row, so there is no workspace to derive scope from
+ * and nothing to authorize the caller against. The read therefore requires the
+ * caller to assert the workspace rather than guessing one: an inferred workspace
+ * would authorize against a scope the caller never asserted.
+ *
+ * The refusal names the missing scope, not a wire field. This use case is shared
+ * by both editor surfaces and neither can act on a field name: v2 takes a
+ * required `workspaceId` query param, so its contract rejects the omission
+ * before this branch runs, while the internal members route maps no workspace id
+ * and has no slot to send one. Naming the field would tell the only caller that
+ * reaches this message to send something it cannot send.
+ */
+async function resolveSkillEditorListContext(input: ListSkillEditorsInput): Promise<SkillContext> {
+  if (isBuiltinSkillId(input.skillId)) {
+    if (!input.workspaceId) {
+      throw new OrchestrationError(
+        'validation',
+        'Listing the editors of a built-in skill requires a workspace scope to authorize against'
+      )
+    }
+    return resolveSkillContext(input.workspaceId, input.skillId)
+  }
+  return resolveOwnedSkillEditorContext(input.skillId, input.workspaceId)
 }
 
 const authorizationOptions = { delegation: skillDelegationPolicy }
@@ -368,15 +426,18 @@ export interface ListSkillEditorsInput {
 export const listSkillEditorsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: skillOperations.listEditors,
   resolveContext: ({ input }: { input: ListSkillEditorsInput }) =>
-    resolveSkillEditorContext(input.skillId, input.workspaceId),
+    resolveSkillEditorListContext(input),
   authorizationOptions,
   async execute({ input, context }) {
+    if (isBuiltinSkillId(input.skillId)) {
+      return { editors: [], hasMore: false, offset: input.offset ?? 0, limit: input.limit ?? 0 }
+    }
     const editors = await listSkillEditors({
       id: context.skill.id,
       workspaceId: context.workspaceId,
     })
     const direction = input.sortOrder === 'asc' ? 1 : -1
-    const sorted = editors.sort((left, right) => {
+    const sorted = [...editors].sort((left, right) => {
       const leftValue = input.sortBy === 'email' ? (left.userEmail ?? '') : (left.userName ?? '')
       const rightValue = input.sortBy === 'email' ? (right.userEmail ?? '') : (right.userName ?? '')
       const primary = leftValue.localeCompare(rightValue)

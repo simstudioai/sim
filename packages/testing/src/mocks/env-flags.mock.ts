@@ -12,8 +12,6 @@ export interface EnvFlagsMockState {
   isDev: boolean
   isTest: boolean
   isHosted: boolean
-  isCopilotBillingAttributionV1Enabled: boolean
-  isCopilotBillingProtocolRequired: boolean
   isChatEnabled: boolean
   isStatusNoticePreviewEnabled: boolean
   isCopilotToolPermissionsEnabled: boolean
@@ -29,6 +27,7 @@ export interface EnvFlagsMockState {
   isTriggerDevEnabled: boolean
   isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
+  isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isInboxEnabled: boolean
@@ -62,8 +61,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isDev: false,
   isTest: true,
   isHosted: false,
-  isCopilotBillingAttributionV1Enabled: false,
-  isCopilotBillingProtocolRequired: false,
   isChatEnabled: true,
   isStatusNoticePreviewEnabled: false,
   isCopilotToolPermissionsEnabled: false,
@@ -79,6 +76,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
   // True with billing off and no flags set — these carry a legacy default of

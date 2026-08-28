@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import {
   environmentUtilsMockFns,
   loggerMock,
@@ -62,6 +63,8 @@ afterAll(resetEnvironmentUtilsMock)
 const loadWorkflowFromNormalizedTablesMock =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const loadWorkflowDeploymentVersionStateMock =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
 const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -153,6 +156,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       userId: 'user-1',
       workflowUserId: 'workflow-owner',
       workspaceId: 'workspace-1',
+      principal: {
+        kind: 'session' as const,
+        userId: 'user-1',
+        sessionId: 'session-1',
+      },
       triggerType: 'api',
       executionId: 'execution-1',
       triggerBlockId: undefined,
@@ -196,6 +204,13 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       loops: {},
       parallels: {},
       deploymentVersionId: 'dep-1',
+    })
+    loadWorkflowDeploymentVersionStateMock.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId: 'dep-historical',
     })
 
     getPersonalAndWorkspaceEnvMock.mockResolvedValue({
@@ -363,6 +378,164 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.any(String)
     )
   })
+
+  it.each([
+    {
+      name: 'personal API key manual draft execution',
+      principal: {
+        kind: 'personal_api_key' as const,
+        userId: 'user-1',
+        keyId: 'personal-key-1',
+      },
+      triggerType: 'manual',
+      useDraftState: true,
+      expectedIsDeployedContext: false,
+    },
+    {
+      name: 'deployed schedule background execution',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'schedule',
+      useDraftState: false,
+      expectedIsDeployedContext: true,
+    },
+  ])(
+    'derives deployed context from canonical state for $name',
+    async ({ principal, triggerType, useDraftState, expectedIsDeployedContext }) => {
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      })
+
+      const snapshot = createSnapshot()
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: {
+            ...snapshot.metadata,
+            principal,
+            triggerType,
+            useDraftState,
+            isClientSession: false,
+          },
+        } as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.isDeployedContext).toBe(
+        expectedIsDeployedContext
+      )
+    }
+  )
+
+  it.each([
+    {
+      name: 'schedule',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'schedule',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'webhook with a verified external subject',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'slack-user-1',
+        },
+      },
+      triggerType: 'webhook',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'workspace API key',
+      principal: {
+        kind: 'workspace_api_key' as const,
+        workspaceId: 'workspace-1',
+        keyId: 'workspace-key-1',
+      },
+      triggerType: 'api',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'anonymous public API',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'public_api' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'api',
+      isPublicApiAccess: true,
+    },
+  ] satisfies Array<{
+    name: string
+    principal: WorkflowExecutionPrincipal
+    triggerType: 'api' | 'schedule' | 'webhook'
+    isPublicApiAccess: boolean
+  }>)(
+    'preserves the exact $name principal and deployed workflow authority in executor delegation',
+    async ({ principal, triggerType, isPublicApiAccess }) => {
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      })
+
+      const snapshot = createSnapshot()
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: {
+            ...snapshot.metadata,
+            userId: 'billing-actor',
+            principal,
+            triggerType,
+            useDraftState: false,
+            isPublicApiAccess,
+          },
+        } as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      expect(contextExtensions.principal).toBe(principal)
+      expect(contextExtensions.executorDelegationOrigin.principal).toBe(principal)
+      expect(contextExtensions.executorDelegationOrigin).toEqual({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal,
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'dep-1',
+        },
+      })
+    }
+  )
 
   it('starts logging with the workflow state that will be executed', async () => {
     const executedWorkflowState = {
@@ -717,6 +890,106 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     const registry = setResolvedSecretTraceRegistryMock.mock.calls[0]?.[0]
     expect(registry.isComplete()).toBe(true)
     expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('resumes a deployed run from its admitted historical version after deployment changes', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      executionId: 'execution-resumed',
+      useDraftState: false,
+      resumeFromSnapshot: true,
+      resumeTerminalNoop: true,
+      workflowStateOverride: {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        deploymentVersionId: 'dep-active-now',
+      },
+    } as any
+    ;(resumedSnapshot as any).state = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+
+    await executeWorkflowCore({
+      snapshot: resumedSnapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      skipLogCreation: true,
+      resumeDeploymentVersionId: 'dep-historical',
+    })
+
+    expect(loadWorkflowDeploymentVersionStateMock).toHaveBeenCalledWith(
+      'workflow-1',
+      'dep-historical',
+      'workspace-1'
+    )
+    expect(loadDeployedWorkflowStateMock).not.toHaveBeenCalled()
+    expect(safeStartMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'dep-historical' })
+    )
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions).toMatchObject({
+      executorDelegationOrigin: {
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'dep-historical',
+        },
+      },
+    })
+  })
+
+  it('fails instead of loading the latest deployment for a deployed resume without authority', async () => {
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      useDraftState: false,
+      resumeFromSnapshot: true,
+    } as any
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+      })
+    ).rejects.toThrow('Deployed resume requires its admitted deployment version')
+    expect(loadDeployedWorkflowStateMock).not.toHaveBeenCalled()
+    expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects deployment authority on a draft resume', async () => {
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      resumeFromSnapshot: true,
+    } as any
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+        resumeDeploymentVersionId: 'dep-historical',
+      })
+    ).rejects.toThrow('Draft resume cannot carry deployment version authority')
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+    expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
   })
 
   it('marks inherited client run-from-block provenance incomplete', async () => {

@@ -75,6 +75,31 @@ describe('runWorkflowTool execution context', () => {
     const [ctxArg] = mockExecute.mock.calls[0]
     expect(ctxArg.environmentVariables).toEqual({ MY_API_KEY: 'trusted' })
   })
+
+  it('accepts the execution principal only through trusted runner options', async () => {
+    const trustedPrincipal = {
+      kind: 'session' as const,
+      userId: 'user-1',
+      sessionId: 'session-1',
+    }
+    const modelSuppliedContext = {
+      workspaceId: 'ws-1',
+      principal: {
+        kind: 'session' as const,
+        userId: 'attacker',
+        sessionId: 'attacker-session',
+      },
+    }
+
+    await runWorkflowTool(
+      { workflowId: 'wf-child', _context: modelSuppliedContext },
+      { environmentVariables: {}, principal: trustedPrincipal }
+    )
+
+    const [ctxArg] = mockExecute.mock.calls[0]
+    expect(ctxArg.principal).toEqual(trustedPrincipal)
+    expect(ctxArg.metadata.principal).toEqual(trustedPrincipal)
+  })
 })
 
 const CHILD_SECRET = 'sk-live-7f2c9a41d8be4055b6c3'

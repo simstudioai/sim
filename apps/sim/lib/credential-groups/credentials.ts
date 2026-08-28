@@ -1,11 +1,17 @@
+import type { PrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   type CredentialGroupOptionConfig,
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  user,
 } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import {
+  getCredentialGroupProviderId,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 
 export const MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE = 100
 
@@ -26,6 +32,11 @@ export interface CredentialGroupCredentialReference {
   providerTenantId: string | null
 }
 
+export interface CredentialGroupEnrollmentAccess {
+  enrollmentId: string
+  email: string
+}
+
 export class CredentialGroupCredentialCursorNotFoundError extends Error {
   constructor() {
     super('Credential group credential cursor not found')
@@ -41,6 +52,65 @@ interface ListCredentialGroupCredentialReferencesInput {
   email?: string
   credentialProviderIds?: string[]
   credentialGroupOptionIds: string[]
+}
+
+/** Resolves a verified Sim user's active enrollment in one Credential Group. */
+export async function loadCredentialGroupEnrollmentAccess(
+  credentialGroupId: string,
+  userId: string
+): Promise<CredentialGroupEnrollmentAccess | null> {
+  const [row] = await db
+    .select({
+      enrollmentId: credentialGroupEnrollment.id,
+      email: credentialGroupEnrollment.email,
+    })
+    .from(credentialGroupEnrollment)
+    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .where(
+      and(
+        eq(user.id, userId),
+        eq(user.emailVerified, true),
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed'])
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/** Resolves a verified Sim or provider subject to exactly one active enrollment. */
+export async function loadCredentialGroupEnrollmentAccessForSubject(
+  credentialGroupId: string,
+  subject: PrincipalSubject
+): Promise<CredentialGroupEnrollmentAccess | null> {
+  if (subject.kind === 'sim_user') {
+    return loadCredentialGroupEnrollmentAccess(credentialGroupId, subject.userId)
+  }
+  if (!isCredentialGroupProvider(subject.provider)) return null
+  const providerId = getCredentialGroupProviderId(subject.provider)
+  const rows = await db
+    .selectDistinct({
+      enrollmentId: credentialGroupEnrollment.id,
+      email: credentialGroupEnrollment.email,
+    })
+    .from(credentialGroupEnrollment)
+    .innerJoin(credential, eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id))
+    .where(
+      and(
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
+        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.managedOauthStatus, 'active'),
+        eq(credential.providerId, providerId),
+        eq(credential.providerTenantId, subject.tenantId),
+        eq(credential.providerSubjectId, subject.subjectId)
+      )
+    )
+    .limit(2)
+  if (rows.length > 1) {
+    throw new Error('External subject resolves to multiple Credential Group enrollments')
+  }
+  return rows[0] ?? null
 }
 
 /** Loads the canonical group ownership needed by the application authorization boundary. */
@@ -95,8 +165,8 @@ export async function listCredentialGroupCredentialReferences({
           eq(credential.type, 'managed_oauth'),
           eq(credential.managedOauthStatus, 'active'),
           eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-          inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
           email ? eq(credentialGroupEnrollment.email, email) : undefined,
+          inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
           credentialProviderIds?.length
             ? inArray(credential.providerId, credentialProviderIds)
             : undefined,
@@ -129,8 +199,8 @@ export async function listCredentialGroupCredentialReferences({
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-        inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
         email ? eq(credentialGroupEnrollment.email, email) : undefined,
+        inArray(credential.credentialGroupOptionId, credentialGroupOptionIds),
         credentialProviderIds?.length
           ? inArray(credential.providerId, credentialProviderIds)
           : undefined,

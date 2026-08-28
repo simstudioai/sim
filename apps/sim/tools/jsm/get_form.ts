@@ -1,7 +1,7 @@
 import type { JsmGetFormParams, JsmGetFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetFormTool: ToolConfig<JsmGetFormParams, JsmGetFormResponse> = {
+export const jsmGetFormTool: InternalToolConfig<JsmGetFormParams, JsmGetFormResponse> = {
   id: 'jsm_get_form',
   name: 'JSM Get Form',
   description: 'Get a single form with full design, state, and answers from a Jira issue',
@@ -45,13 +45,8 @@ export const jsmGetFormTool: ToolConfig<JsmGetFormParams, JsmGetFormResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/get',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

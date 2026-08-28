@@ -57,6 +57,19 @@ afterEach(() => {
 })
 
 describe('Combobox onOpenChange', () => {
+  it('uses the overlay label for the interactive overflow layer', () => {
+    render(
+      <Combobox
+        options={OPTIONS}
+        overlayContent={<span>2 selected</span>}
+        overlayLabel='2 selected'
+      />
+    )
+
+    const overflowLabel = trigger().querySelector('[data-overflow-text]')
+    expect(overflowLabel?.textContent).toBe('2 selected')
+  })
+
   it('reports the open a trigger click causes', () => {
     const onOpenChange = vi.fn()
     render(<Combobox options={OPTIONS} onOpenChange={onOpenChange} />)

@@ -1,7 +1,7 @@
 import type { RdsIntrospectParams, RdsIntrospectResponse } from '@/tools/rds/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<RdsIntrospectParams, RdsIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<RdsIntrospectParams, RdsIntrospectResponse> = {
   id: 'rds_introspect',
   name: 'RDS Introspect',
   description:
@@ -61,13 +61,8 @@ export const introspectTool: ToolConfig<RdsIntrospectParams, RdsIntrospectRespon
     },
   },
 
-  request: {
-    url: '/api/tools/rds/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

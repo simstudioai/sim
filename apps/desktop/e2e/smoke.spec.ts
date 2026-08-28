@@ -14,6 +14,8 @@ const PAGES: Record<string, string> = {
     <h1 id="app">fixture-app</h1>
     <button id="internal-blank" onclick="window.open('/workspace/two', '_blank')">internal</button>
     <button id="external-blank" onclick="window.open('https://docs.sim.ai/x', '_blank')">external</button>
+    <button id="mcp-popup" onclick="window.open('/mcp', 'mcp-oauth-fixture')">mcp</button>
+    <button id="external-navigate" onclick="location.href='https://docs.sim.ai/navigation'">navigate</button>
   </body></html>`,
   '/workspace/two': '<!doctype html><html><body><h1 id="two">second-route</h1></body></html>',
   '/login': '<!doctype html><html><body><h1 id="login">fixture-login</h1></body></html>',
@@ -23,7 +25,16 @@ function startFixtureServer(): Promise<{ server: Server; origin: string }> {
   return new Promise((resolvePromise) => {
     const server = createServer((request, response) => {
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
-      const body = PAGES[path]
+      const sessionCookie = request.headers.cookie
+        ?.split(';')
+        .map((cookie) => cookie.trim())
+        .includes('sim-e2e-session=shared')
+      const body =
+        path === '/mcp'
+          ? sessionCookie
+            ? '<!doctype html><html><body><h1 id="mcp">oauth-popup</h1></body></html>'
+            : '<!doctype html><html><body><h1 id="unauthorized">sign-in-required</h1></body></html>'
+          : PAGES[path]
       if (!body) {
         response.writeHead(404, { 'Content-Type': 'text/html' }).end('<h1>not found</h1>')
         return
@@ -105,6 +116,43 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('#app')).toHaveText('fixture-app')
   })
 
+  test('OAuth popups share the session without inheriting the privileged preload', async () => {
+    app = await launchApp(origin)
+    const window = await app.firstWindow()
+    await window.evaluate(() => {
+      document.cookie = 'sim-e2e-session=shared; Path=/; SameSite=Lax'
+    })
+    const popupPromise = app.waitForEvent('window')
+    await window.locator('#mcp-popup').click()
+    const popup = await popupPromise
+
+    await expect(popup.locator('#mcp')).toHaveText('oauth-popup')
+    await expect
+      .poll(() => popup.evaluate(() => typeof (globalThis as { simDesktop?: unknown }).simDesktop))
+      .toBe('undefined')
+  })
+
+  test('cross-origin same-window navigation opens externally and preserves the app document', async () => {
+    app = await launchApp(origin)
+    const window = await app.firstWindow()
+    await app.evaluate(({ shell }) => {
+      const opened: string[] = []
+      ;(globalThis as { __openedExternal?: string[] }).__openedExternal = opened
+      shell.openExternal = async (url: string) => {
+        opened.push(url)
+      }
+    })
+
+    await window.locator('#external-navigate').click({ noWaitAfter: true })
+
+    await expect
+      .poll(() =>
+        app.evaluate(() => (globalThis as { __openedExternal?: string[] }).__openedExternal)
+      )
+      .toEqual(['https://docs.sim.ai/navigation'])
+    expect(window.url()).toBe(`${origin}/workspace`)
+  })
+
   test('unreachable origin shows the bundled offline page', async () => {
     app = await launchApp('http://127.0.0.1:1')
     const window = await app.firstWindow()
@@ -113,7 +161,15 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('.wordmark')).toBeVisible()
     await expect(window.locator('.wordmark')).toHaveAttribute('aria-label', 'Sim')
     await expect(window.locator('#title')).toHaveText('Can’t connect to Sim')
-    await expect(window.locator('#status')).toHaveText('Check status')
+    // The recovery path for a self-hosted shell pointed at a server it cannot
+    // reach. Exercised end to end here because it is the only coverage of the
+    // `server:` local-page IPC gate: the bundled page reads the configuration
+    // over the real preload bridge, and status.sim.ai is withheld because this
+    // origin is not one of Sim's own. `toBeHidden` is load-bearing — the page's
+    // own `button { display: inline-flex }` outranks the UA `[hidden]` rule, so
+    // the attribute alone does not hide it.
+    await expect(window.locator('#server')).toBeVisible()
+    await expect(window.locator('#status')).toBeHidden()
     await expect
       .poll(() => window.evaluate(() => document.fonts.check('16px "Season Sans"')))
       .toBe(true)
@@ -123,5 +179,8 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('#retry')).toHaveCSS('font-size', '14px')
     await expect(window.locator('#retry')).toHaveCSS('line-height', '20px')
     await expect(window.locator('#retry')).toHaveCSS('text-align', 'left')
+    await window.locator('#retry').focus()
+    await expect(window.locator('#retry')).toHaveCSS('outline-style', 'solid')
+    await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
   })
 })

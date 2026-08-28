@@ -13,7 +13,7 @@ Deploy your workflow as a REST API endpoint that any application can call direct
 
 Open your workflow and click **Deploy**. The **General** tab opens first and shows you the current deployment state:
 
-<Image src="/static/api-deployment/api-versions.png" alt="General tab of the Workflow Deployment modal showing a live workflow preview, a Versions table with v2 (live) and v1, and Undeploy / Update buttons" width={800} height={500} />
+<Image src="/static/api-deployment/api-versions.png" alt="General tab of the Workflow Deployment modal showing a live workflow preview, a Versions table with v2 (live) and v1, and Undeploy / Update buttons" width={800} height={597} />
 
 The **General** tab contains:
 
@@ -37,7 +37,7 @@ POST https://sim.ai/api/v2/workflows/{workflow-id}/execute
 
 When you modify the workflow canvas after deploying, an **Update deployment** badge appears at the bottom of the screen as a reminder that your live version is out of date:
 
-<Image src="/static/api-deployment/api-update-button.png" alt="Canvas toolbar showing the Update and Run buttons with an Update deployment tooltip" width={400} height={200} />
+<Image src="/static/api-deployment/api-update-button.png" alt="Canvas toolbar showing the Update and Run buttons with an Update deployment tooltip" width={400} height={186} />
 
 You can click the **Update** button directly from the canvas toolbar — you don't need to open the Deploy modal every time.
 
@@ -45,7 +45,7 @@ You can click the **Update** button directly from the canvas toolbar — you don
 
 Every time you deploy or update, a new version is recorded in the Versions table. You can manage past versions using the context menu (⋮) next to any row:
 
-<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table showing v2 (live) and v1 with a context menu open offering Rename, Add description, Promote to live, and Load deployment options" width={800} height={400} />
+<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table showing v2 (live) and v1 with a context menu open offering Rename, Add description, Promote to live, and Load deployment options" width={800} height={346} />
 
 | Action | Description |
 |--------|-------------|
@@ -82,7 +82,7 @@ Rollback re-activates an existing deployment version — the same operation as *
 
 Switch to the **API** tab in the Deploy modal to see ready-to-use code for all three execution modes:
 
-<Image src="/static/api-deployment/api-tab.png" alt="API tab showing cURL, Python, JavaScript, and TypeScript language options, with Run workflow, Run workflow (stream response), and Run workflow (async) code sections" width={800} height={500} />
+<Image src="/static/api-deployment/api-tab.png" alt="API tab showing cURL, Python, JavaScript, and TypeScript language options, with Run workflow, Run workflow (stream response), and Run workflow (async) code sections" width={800} height={653} />
 
 The language selector at the top lets you switch between **cURL**, **Python**, **JavaScript**, and **TypeScript**. Each mode — synchronous, streaming, and async — has its own code block that you can copy directly. The code is pre-filled with your workflow ID and a masked version of your API key.
 
@@ -106,7 +106,7 @@ curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 
 Click **Edit API Info** to add a description and change the access mode:
 
-<Image src="/static/api-deployment/api-info.png" alt="Edit API Info modal with a Description textarea and an Access section toggling between API Key and Public modes" width={800} height={400} />
+<Image src="/static/api-deployment/api-info.png" alt="Edit API Info modal with a Description textarea and an Access section toggling between API Key and Public modes" width={800} height={439} />
 
 | Access Mode | Description |
 |-------------|-------------|
@@ -170,7 +170,7 @@ Stream the response token-by-token as it is generated. Add `"stream": true` to y
 
 Use the **Select outputs** dropdown in the API tab to choose which fields to stream:
 
-<Image src="/static/api-deployment/api-select-outputs.png" alt="Select outputs dropdown open showing Agent 1 block with selectable output fields: content, model, tokens, toolCalls, providerTiming, cost" width={800} height={400} />
+<Image src="/static/api-deployment/api-select-outputs.png" alt="Select outputs dropdown open showing Agent 1 block with selectable output fields: content, model, tokens, toolCalls, providerTiming, cost" width={800} height={677} />
 
 The dropdown groups available outputs by block. The most common choice is `content` from an Agent block, which streams the generated text. You can select fields from multiple blocks simultaneously.
 

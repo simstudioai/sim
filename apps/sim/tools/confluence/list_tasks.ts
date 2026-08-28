@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListTasksParams {
   accessToken: string
@@ -37,7 +37,7 @@ export interface ConfluenceListTasksResponse {
   }
 }
 
-export const confluenceListTasksTool: ToolConfig<
+export const confluenceListTasksTool: InternalToolConfig<
   ConfluenceListTasksParams,
   ConfluenceListTasksResponse
 > = {
@@ -104,22 +104,14 @@ export const confluenceListTasksTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/tasks',
-    method: 'POST',
-    headers: (params: ConfluenceListTasksParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceListTasksParams) => ({
+  operation: {
+    input: (params: ConfluenceListTasksParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

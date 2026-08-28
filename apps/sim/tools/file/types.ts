@@ -11,6 +11,14 @@ export interface FileParserInput {
   executionId?: string
 }
 
+export interface FileFetchInput {
+  fileUrl: string
+  headers?: FileParserInput['headers']
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
+}
+
 export interface FileUploadInput {
   path: string
   name?: string

@@ -464,7 +464,13 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. Drop in a follow-up PR after the `cost_total` backfill. */
+    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+    // cost. Same procedure and argless-read lint as the user_stats marker
+    // (scripts/check-pending-drop-tables.ts). Script migration
+    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
+    // whose json still held a numeric total into cost_total before the drop;
+    // the contract PR must ALSO deregister that script (it reads this column).
+    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
     cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
@@ -529,6 +535,12 @@ export const workflowExecutionLogs = pgTable(
       ),
   })
 )
+
+/**
+ * Live columns of `workflow_execution_logs` while the `cost` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const workflowExecutionLogColumns = omit(getTableColumns(workflowExecutionLogs), ['cost'])
 
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
@@ -1177,8 +1189,16 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // Retired usage hot-path counters: no writers/readers; derive from usage_log.
-  // Drop via DROP COLUMN in a follow-up migration.
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // the 19 @deprecated columns in this table. Their last readers/writers were
+  // removed by the ledger cutover (#7078/#7113) and #7134; the declarations
+  // remain ONLY so the app schema keeps matching the deployed database until
+  // the drop. Argless select()/relational reads of this table are forbidden
+  // meanwhile — they would put these columns back into generated SQL and break
+  // the old task set when the contract deploy drops them mid-cutover — enforced
+  // by scripts/check-pending-drop-tables.ts. The follow-up PR deletes the
+  // @deprecated declarations plus this marker and ships the generated DROP
+  // migration in the same change.
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
@@ -1193,7 +1213,7 @@ export const userStats = pgTable('user_stats', {
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   /** @deprecated Retired usage counter; derive from usage_log. */
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written (recordUsage appends to usage_log); legacy/admin reads only. Move readers to ledger aggregation. */
+  /** @deprecated No readers or writers; report cost from usage_log. */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
@@ -1220,19 +1240,19 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated Not written; report Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot cost from usage_log. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated Not written; report Copilot tokens from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot tokens from usage_log. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not written; report Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report Copilot calls from usage_log. */
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot calls from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot calls from usage_log. */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated Not written; report MCP Copilot cost from usage_log. Legacy/admin reads only. */
+  /** @deprecated No readers or writers; report MCP Copilot cost from usage_log. */
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
   /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
@@ -1243,7 +1263,7 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated Not updated by execution (no user_stats write on completion); legacy/admin reads only. */
+  /** @deprecated No readers or writers; not updated since execution stopped writing user_stats. */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -1263,6 +1283,35 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
+
+/**
+ * Live columns of `user_stats` — the selection every read of this table goes
+ * through while the contract-pending drop (see the marker inside the table) is
+ * outstanding, so generated SQL never names the doomed columns. Enforced by
+ * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
+ * together with the deprecated declarations.
+ */
+export const userStatsColumns = omit(getTableColumns(userStats), [
+  'totalManualExecutions',
+  'totalApiCalls',
+  'totalWebhookTriggers',
+  'totalScheduledExecutions',
+  'totalChatExecutions',
+  'totalMcpExecutions',
+  'totalTokensUsed',
+  'totalCost',
+  'currentPeriodCost',
+  'proPeriodCostSnapshot',
+  'proPeriodCostSnapshotAt',
+  'totalCopilotCost',
+  'currentPeriodCopilotCost',
+  'totalCopilotTokens',
+  'totalCopilotCalls',
+  'totalMcpCopilotCalls',
+  'totalMcpCopilotCost',
+  'currentPeriodMcpCopilotCost',
+  'lastActive',
+])
 
 export const customTools = pgTable(
   'custom_tools',
@@ -1606,7 +1655,11 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
-  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. Drop via DROP COLUMN in a follow-up migration. */
+  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
+  // departed_member_usage. The last readers/writers (v1 admin exposure,
+  // cycle-close resets) were removed in #7134; same procedure and argless-read
+  // lint as the user_stats marker (scripts/check-pending-drop-tables.ts).
+  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
@@ -1618,6 +1671,12 @@ export const organization = pgTable('organization', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+/**
+ * Live columns of `organization` while the `departed_member_usage` drop is
+ * outstanding — see `userStatsColumns` for the pattern.
+ */
+export const organizationColumns = omit(getTableColumns(organization), ['departedMemberUsage'])
 
 export const member = pgTable(
   'member',
@@ -3812,7 +3871,22 @@ export const auditLog = pgTable(
   })
 )
 
-export const usageLogCategoryEnum = pgEnum('usage_log_category', ['model', 'fixed', 'tool'])
+/**
+ * `model_unbilled` records model usage Sim does not charge for — a call funded by
+ * the customer's own provider key (BYOK). Its `cost` is always `0` and its value is
+ * the token counts in `metadata`, so the org usage panel can report volume the
+ * billing ledger has no reason to know about.
+ *
+ * It is deliberately a distinct category rather than a `category = 'model'` row with
+ * `cost = 0`: every existing and future `where category = 'model'` billing query
+ * stays blind to these rows unless it opts in.
+ */
+export const usageLogCategoryEnum = pgEnum('usage_log_category', [
+  'model',
+  'fixed',
+  'tool',
+  'model_unbilled',
+])
 export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workflow',
   'wand',
@@ -4316,6 +4390,32 @@ export const permissionGroupMember = pgTable(
       table.organizationId,
       table.userId
     ),
+  })
+)
+
+/** Versioned statement policy attached to one canonical workspace resource. */
+export const resourcePolicy = pgTable(
+  'resource_policy',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    resourceType: text('resource_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    revision: integer('revision').notNull().default(1),
+    document: jsonb('document').$type<unknown>().notNull(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    resourceUnique: uniqueIndex('resource_policy_resource_unique').on(
+      table.resourceType,
+      table.resourceId
+    ),
+    workspaceIdx: index('resource_policy_workspace_id_idx').on(table.workspaceId),
   })
 )
 

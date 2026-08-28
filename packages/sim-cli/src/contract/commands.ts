@@ -22,7 +22,7 @@ const DISPATCH_ROW_LIMIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also insert_into_subflow and extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -151,7 +151,12 @@ export const CLI_CONTRACT: CliContract = {
   listBillingLogs: {
     command: 'billing logs',
     allWorkspaces: true,
-    describe: 'List credit usage events',
+    // Which ledger answered depends on the key, and the counts otherwise read
+    // as a bug next to `billing status`. Said in the describe for the reason
+    // `billing status` says its own caveat. The trailing parenthetical is what
+    // keeps the generated docs heading unchanged.
+    describe:
+      "List credit usage events (a personal API key reports only your own events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
       source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
       period: { describe: 'Billing period' },
@@ -364,15 +369,24 @@ export const CLI_CONTRACT: CliContract = {
         describe: 'Include final output in JSON or YAML output (implies full detail)',
       },
     },
+    // The floors are for `logs follow`, which locks its widths on the first
+    // batch and had nothing to measure at `-n 0`. Each is what the column's own
+    // rendering needs beyond its header label: an ISO timestamp trimmed to
+    // seconds, the longest status and core trigger type, a UUID run id, and a
+    // four-decimal cost above ten credits. `workflow` is free text with no
+    // bound, so its floor is editorial — enough to tell two runs apart.
+    // `duration` carries none: a lock is never narrower than its own header,
+    // and `DURATION` is already the eight characters a floor would have asked
+    // for.
     columns: [
-      { header: 'started', path: 'startedAt', format: 'timestamp' },
-      { header: 'status' },
+      { header: 'started', path: 'startedAt', format: 'timestamp', minWidth: 19 },
+      { header: 'status', minWidth: 9 },
       { header: 'level' },
-      { header: 'trigger' },
-      { header: 'workflow', path: 'workflow.name' },
+      { header: 'trigger', minWidth: 12 },
+      { header: 'workflow', path: 'workflow.name', minWidth: 24 },
       { header: 'duration', path: 'totalDurationMs', format: 'duration' },
-      { header: 'cost', path: 'cost.total', format: 'cost' },
-      { header: 'run', path: 'runId' },
+      { header: 'cost', path: 'cost.total', format: 'cost', minWidth: 8 },
+      { header: 'run', path: 'runId', minWidth: 36 },
     ],
   },
   getLog: {
@@ -409,7 +423,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   getLogStats: {
     command: 'logs stats',
-    describe: 'Summarize run counts, failures, and cost over a window',
+    describe: 'Summarize run counts, failures and latency over a window',
     flags: LOG_LIST_FILTER_FLAGS,
     // Undeclared, the summary fell through to the generic key dump: the whole
     // `workflows` series printed as one truncated line of raw JSON, the window
@@ -514,6 +528,13 @@ export const CLI_CONTRACT: CliContract = {
   // changes which version production serves. Gating the draft write and not the
   // live one had it backwards.
   rollbackWorkflow: {
+    confirm:
+      'This changes which deployed version runs in production for every API and chat consumer.',
+  },
+  // The same application operation as `rollback`, under a different transition:
+  // both switch production away from the version the caller last chose. Gating
+  // one and not the other was an accident of naming, not a policy.
+  activateWorkflowVersion: {
     confirm:
       'This changes which deployed version runs in production for every API and chat consumer.',
   },
@@ -815,7 +836,11 @@ export const CLI_CONTRACT: CliContract = {
   listCustomTools: {
     columns: [
       { header: 'id' },
-      { header: 'name', path: 'title' },
+      // `title` and `schema.function.name` are both real and different fields
+      // on this resource — the flags say `--search` matches the title and
+      // `--sort-by title` orders by it — so a column headed `name` showing the
+      // title named the other one.
+      { header: 'title', path: 'title' },
       { header: 'description', path: 'schema.function.description' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
@@ -1118,7 +1143,15 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Resource-scoped, path-addressed folders ──────────────────────────────
+  /**
+   * None of the four folder lists paginates: the route declares no `cursor` and
+   * answers with the whole set. That is deliberate — a folder tree is bounded
+   * where it loads — but the terminal said nothing about it, and a caller
+   * reading `--limit` on every other `list` had no way to tell whether the
+   * answer was the full set or the first page of one.
+   */
   listFileFolders: {
+    describe: 'List folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1126,6 +1159,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listKnowledgeFolders: {
+    describe: 'List knowledge folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1133,6 +1167,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listTableFolders: {
+    describe: 'List table folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1140,6 +1175,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: FOLDER_LIST_COLUMNS,
   },
   listWorkflowFolders: {
+    describe: 'List workflow folders',
     aliases: ['ls'],
     flags: {
       parentPath: { ...FOLDER_PATH_INPUT, name: 'parent', describe: 'Direct parent folder path' },
@@ -1297,6 +1333,33 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
   },
+  listTableDispatches: {
+    // Column inference drops every object-valued field, so `scope` — the whole
+    // point of the row — was invisible, and `limit` appeared or vanished with
+    // whether the first row happened to be capped. Declared instead, with the
+    // scope broken into the scalars that distinguish a plain dispatch from a
+    // filtered or select-all-minus one. `tableId` and `workspaceId` are gone:
+    // both are already the command's own arguments. The rest keep the order
+    // inference gave them and the scope columns are appended, because
+    // `--output text` is positional and a script may be cutting fields.
+    columns: [
+      { header: 'id' },
+      { header: 'status' },
+      { header: 'mode' },
+      // The cap is `{ type, max } | null`, and only `max` is a value: `type` is
+      // a `z.literal('rows')` that says the same thing on every row.
+      { header: 'max rows', path: 'limit.max' },
+      { header: 'processed', path: 'processedCount' },
+      { header: 'manual', path: 'isManualRun', format: 'bool' },
+      { header: 'requested', path: 'requestedAt', format: 'timestamp' },
+      { header: 'completed', path: 'completedAt', format: 'timestamp' },
+      { header: 'canceled', path: 'canceledAt', format: 'timestamp' },
+      { header: 'groups', path: 'scope.groupIds', format: 'count' },
+      { header: 'rows', path: 'scope.rowIds', format: 'count' },
+      { header: 'filtered', path: 'scope.filtered', format: 'bool' },
+      { header: 'excluded', path: 'scope.excludeRowIds', format: 'count' },
+    ],
+  },
   runRowEnrichment: {
     command: 'tables rows enrich',
     describe: 'Run one row’s enrichment group',
@@ -1317,8 +1380,26 @@ export const CLI_CONTRACT: CliContract = {
   // `resolveTableImportContext` takes when no token is sent — so the flag adds
   // a credential to type and no import it reaches.
   getTableImport: { flags: TRANSFER_TOKEN_OMITTED },
-  cancelTableImport: { command: 'tables imports cancel', flags: TRANSFER_TOKEN_OMITTED },
-  cancelTableExport: { command: 'tables exports cancel' },
+  cancelTableImport: {
+    command: 'tables imports cancel',
+    flags: TRANSFER_TOKEN_OMITTED,
+    describe: 'Stop a running import',
+    // Gated for the reason `tables dispatches cancel` is: the runner commits
+    // rows batch by batch and its ownership gate stops it between batches, so
+    // there is never a state to resume from. The message has to hold for both
+    // modes, and `replace` is the destructive one — it empties the table before
+    // its first batch, so a cancelled replace leaves neither the old rows nor
+    // the whole file.
+    confirm:
+      'This stops the import between row batches, so whatever it already wrote stays and nothing resumes it. A replace import empties the table before its first batch, so cancelling one leaves only part of the new file; an append adds its rows again if you import the file a second time.',
+  },
+  cancelTableExport: {
+    command: 'tables exports cancel',
+    describe: 'Stop a running export',
+    // Not `confirm`-gated: the export only reads the table and writes a file
+    // nobody has yet, so cancelling discards nothing `tables exports create`
+    // cannot redo.
+  },
   tableExportDownload: {
     // GET, but it returns a signed URL rather than a listing.
     command: 'tables exports download',
@@ -1347,11 +1428,14 @@ export const CLI_CONTRACT: CliContract = {
         hidden: true,
         describe: 'Low-level workflow state and entry-point selection',
       },
+      // Stream-only on the wire, so the requirement is stated where the flag
+      // is read rather than left to the 400. The dialect differs from the one
+      // `workflows runs get` takes, which is why both describes name theirs.
       selectedOutputs: {
         name: 'select-output',
         list: true,
         describe:
-          'Return blockName.field values (e.g. agent_1.content); missing fields are omitted',
+          'Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to
@@ -1385,10 +1469,14 @@ export const CLI_CONTRACT: CliContract = {
         boolean: true,
         describe: 'Include the final output in JSON or YAML output',
       },
+      // A finished run is read back without loading the workflow, so the
+      // recorded block ids are all there is to match against — the block names
+      // `workflows run --select-output` accepts are rejected here.
       selectedOutputs: {
         name: 'select-output',
         list: true,
-        describe: 'Include blockName.field values in JSON or YAML output (e.g. agent_1.content)',
+        describe:
+          'Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run',
       },
     },
     fields: [
@@ -1426,8 +1514,15 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows runs cancel',
     pathFlags: WORKFLOW_RUN_SCOPE,
     describe: 'Cancel a running workflow run',
-    // Not `confirm`-gated: cancelling is recoverable (re-run it), and the
-    // whole point is to stop something that is already going wrong.
+    // Not `confirm`-gated: the whole point is to stop something that is
+    // already going wrong, and for an ordinary in-flight run `re-run it` is a
+    // real recovery. It is NOT one for a run paused for input — cancelling
+    // flips the paused row to `cancelled`, and nothing resumes from that
+    // status, so the snapshot is kept but `workflows runs resume` can never
+    // take it again and starting over repeats every side effect the run
+    // already performed. Gating it is a live proposal rather than an
+    // oversight; it is left ungated here because `confirm` is all-or-nothing
+    // and cancel is the command most likely to be automated.
   },
   resumeWorkflow: {
     command: 'workflows runs resume',

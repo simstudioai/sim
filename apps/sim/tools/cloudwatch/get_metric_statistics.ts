@@ -2,9 +2,9 @@ import type {
   CloudWatchGetMetricStatisticsParams,
   CloudWatchGetMetricStatisticsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getMetricStatisticsTool: ToolConfig<
+export const getMetricStatisticsTool: InternalToolConfig<
   CloudWatchGetMetricStatisticsParams,
   CloudWatchGetMetricStatisticsResponse
 > = {
@@ -76,13 +76,8 @@ export const getMetricStatisticsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/get-metric-statistics',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

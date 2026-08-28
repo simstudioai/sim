@@ -2,9 +2,9 @@ import type {
   ElevenLabsAudioResponse,
   ElevenLabsSoundEffectsParams,
 } from '@/tools/elevenlabs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const elevenLabsSoundEffectsTool: ToolConfig<
+export const elevenLabsSoundEffectsTool: InternalToolConfig<
   ElevenLabsSoundEffectsParams,
   ElevenLabsAudioResponse
 > = {
@@ -53,31 +53,18 @@ export const elevenLabsSoundEffectsTool: ToolConfig<
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/elevenlabs/audio',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: ElevenLabsSoundEffectsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      operation: 'sound_effects',
+    input: (params) => ({
       apiKey: params.apiKey,
       text: params.text,
       modelId: params.modelId,
       durationSeconds: params.durationSeconds,
       promptInfluence: params.promptInfluence,
       loop: params.loop,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

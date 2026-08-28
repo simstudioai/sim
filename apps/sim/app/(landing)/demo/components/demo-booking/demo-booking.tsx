@@ -1,10 +1,11 @@
 'use client'
 
-import { type CSSProperties, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react'
 import { chipBorderShadowRing, cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import { preconnect } from 'react-dom'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'
+import { applyLegacyInertFallback } from '@/app/(landing)/demo/components/legacy-inert-fallback'
 
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')
 
@@ -31,6 +32,14 @@ const DemoScheduler = dynamic(() => importScheduler().then((m) => m.DemoSchedule
   ssr: false,
   loading: () => null,
 })
+
+function useLegacyInertFallback(ref: RefObject<HTMLDivElement | null>, inert: boolean) {
+  useEffect(() => {
+    const node = ref.current
+    if (!inert || !node || 'inert' in HTMLElement.prototype) return
+    return applyLegacyInertFallback(node)
+  }, [inert, ref])
+}
 
 interface DemoBookingProps {
   /** Layout/placement classes (grid cell). Never chrome. */
@@ -59,7 +68,12 @@ export function DemoBooking({ className }: DemoBookingProps) {
   const [lead, setLead] = useState<DemoLead | null>(null)
   const [formHeight, setFormHeight] = useState<number>()
   const formRef = useRef<HTMLDivElement>(null)
+  const formPanelRef = useRef<HTMLDivElement>(null)
+  const schedulerPanelRef = useRef<HTMLDivElement>(null)
   const showScheduler = lead !== null
+
+  useLegacyInertFallback(formPanelRef, showScheduler)
+  useLegacyInertFallback(schedulerPanelRef, !showScheduler)
 
   useEffect(() => {
     const node = formRef.current
@@ -87,6 +101,7 @@ export function DemoBooking({ className }: DemoBookingProps) {
         style={{ transform: showScheduler ? 'translateX(-100%)' : undefined }}
       >
         <div
+          ref={formPanelRef}
           className='w-full min-w-0 shrink-0'
           inert={showScheduler}
           onFocusCapture={() => void preloadScheduler()}
@@ -95,7 +110,11 @@ export function DemoBooking({ className }: DemoBookingProps) {
             <DemoForm onComplete={setLead} />
           </div>
         </div>
-        <div className='h-full w-full min-w-0 shrink-0' inert={!showScheduler}>
+        <div
+          ref={schedulerPanelRef}
+          className='h-full w-full min-w-0 shrink-0'
+          inert={!showScheduler}
+        >
           {lead ? <DemoScheduler lead={lead} /> : null}
         </div>
       </div>

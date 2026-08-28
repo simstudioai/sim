@@ -2,9 +2,9 @@ import type {
   AppConfigDeleteConfigurationProfileParams,
   AppConfigDeleteResourceResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteConfigurationProfileTool: ToolConfig<
+export const deleteConfigurationProfileTool: InternalToolConfig<
   AppConfigDeleteConfigurationProfileParams,
   AppConfigDeleteResourceResponse
 > = {
@@ -46,11 +46,8 @@ export const deleteConfigurationProfileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/delete-configuration-profile',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

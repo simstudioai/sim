@@ -1,14 +1,10 @@
-import type { CreateTravelRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreateTravelRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTravelRequestTool: ToolConfig<
+export const createTravelRequestTool: InternalToolConfig<
   CreateTravelRequestParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_travel_request',
   name: 'SAP Concur Create Travel Request',
@@ -72,16 +68,13 @@ export const createTravelRequestTool: ToolConfig<
         'Travel request payload. Supported fields: name, businessPurpose, startDate/endDate (YYYY-MM-DD), startTime/endTime (HH:mm), mainDestination ({ city, countryCode, countrySubDivisionCode, name }), policy ({ id }), and custom1-custom20 ({ value } or { code, value }). An id field is not allowed.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query: Record<string, string> = {}
       const userId = params.userId?.trim()
       if (userId) query.userId = userId
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/travelrequest/v4/requests`,
         method: 'POST',
         body: params.body,
@@ -89,7 +82,7 @@ export const createTravelRequestTool: ToolConfig<
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

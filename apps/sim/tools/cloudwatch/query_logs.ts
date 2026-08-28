@@ -2,9 +2,12 @@ import type {
   CloudWatchQueryLogsParams,
   CloudWatchQueryLogsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryLogsTool: ToolConfig<CloudWatchQueryLogsParams, CloudWatchQueryLogsResponse> = {
+export const queryLogsTool: InternalToolConfig<
+  CloudWatchQueryLogsParams,
+  CloudWatchQueryLogsResponse
+> = {
   id: 'cloudwatch_query_logs',
   name: 'CloudWatch Query Logs',
   description: 'Run a CloudWatch Log Insights query against one or more log groups',
@@ -61,13 +64,8 @@ export const queryLogsTool: ToolConfig<CloudWatchQueryLogsParams, CloudWatchQuer
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/query-logs',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

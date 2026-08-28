@@ -3,9 +3,9 @@ import {
   type SupabaseStorageUploadParams,
   type SupabaseStorageUploadResponse,
 } from '@/tools/supabase/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const storageUploadTool: ToolConfig<
+export const storageUploadTool: InternalToolConfig<
   SupabaseStorageUploadParams,
   SupabaseStorageUploadResponse
 > = {
@@ -73,13 +73,8 @@ export const storageUploadTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/supabase/storage-upload',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       projectId: params.projectId,
       apiKey: params.apiKey,
       bucket: params.bucket,

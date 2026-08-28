@@ -19,8 +19,8 @@ import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  markExecutionStreamTerminal,
   resetExecutionStreamBuffer,
-  setExecutionMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
 import {
@@ -132,6 +132,34 @@ class ResumeAdmissionError extends Error {
     super(message)
     this.name = 'ResumeAdmissionError'
   }
+}
+
+/** Matches the paused execution mode to the deployment recorded on its durable root log. */
+export function requireResumeDeploymentVersion(
+  useDraftState: unknown,
+  deploymentVersionId: string | null
+): string | undefined {
+  if (typeof useDraftState !== 'boolean') {
+    throw new ResumeAdmissionError('Execution mode is missing from the paused run', 409, false)
+  }
+  if (useDraftState) {
+    if (deploymentVersionId !== null) {
+      throw new ResumeAdmissionError(
+        'Paused draft execution cannot resume from a deployment version',
+        409,
+        false
+      )
+    }
+    return undefined
+  }
+  if (!deploymentVersionId) {
+    throw new ResumeAdmissionError(
+      'Paused deployed execution is missing its deployment version',
+      409,
+      false
+    )
+  }
+  return deploymentVersionId
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
@@ -1011,7 +1039,7 @@ export class PauseResumeManager {
     parentExecutionId: string
     workflowId: string
     executionDeadlineAt?: Date
-  }): Promise<void> {
+  }): Promise<{ deploymentVersionId: string | null }> {
     const { parentExecutionId, workflowId, executionDeadlineAt } = args
     const [claimedExecution] = await execDb
       .update(workflowExecutionLogs)
@@ -1023,11 +1051,15 @@ export class PauseResumeManager {
           inArray(workflowExecutionLogs.status, ['pending', 'paused'])
         )
       )
-      .returning({ id: workflowExecutionLogs.id })
+      .returning({
+        id: workflowExecutionLogs.id,
+        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+      })
 
     if (!claimedExecution) {
       throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
     }
+    return { deploymentVersionId: claimedExecution.deploymentVersionId }
   }
 
   private static async runResumeExecution(args: {
@@ -1057,7 +1089,7 @@ export class PauseResumeManager {
     const parentExecutionId = pausedExecution.executionId
     const executionDeadlineAt = getExecutionDeadlineAt(externalAbortSignal)
 
-    await PauseResumeManager.claimResumeExecutionLog({
+    const claimedExecution = await PauseResumeManager.claimResumeExecutionLog({
       parentExecutionId,
       workflowId: pausedExecution.workflowId,
       executionDeadlineAt,
@@ -1072,6 +1104,10 @@ export class PauseResumeManager {
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    const resumeDeploymentVersionId = requireResumeDeploymentVersion(
+      baseSnapshot.metadata.useDraftState,
+      claimedExecution.deploymentVersionId
+    )
     const billingAttribution = assertBillingAttributionSnapshot(
       baseSnapshot.metadata.billingAttribution
     )
@@ -1528,9 +1564,10 @@ export class PauseResumeManager {
           status: terminalStatus,
         })
       )
-      const metaPersisted = await setExecutionMeta(resumeExecutionId, {
-        status: terminalStatus,
-      }).catch(() => false)
+      const metaPersisted = await markExecutionStreamTerminal(
+        resumeExecutionId,
+        terminalStatus
+      ).catch(() => false)
       if (!metaPersisted) {
         logger.warn('Failed to record degraded terminal status on resume stream meta', {
           resumeExecutionId,
@@ -1804,6 +1841,7 @@ export class PauseResumeManager {
         includeFileBase64: true,
         base64MaxBytes: undefined,
         abortSignal: timeoutController.signal,
+        ...(resumeDeploymentVersionId ? { resumeDeploymentVersionId } : {}),
       })
 
       if (resumeSnapshot.metadata.resumeTerminalNoop === true && result.status !== 'cancelled') {

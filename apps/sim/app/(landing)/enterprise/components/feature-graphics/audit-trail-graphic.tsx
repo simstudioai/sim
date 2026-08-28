@@ -69,7 +69,7 @@ const ROW_TONES = [
  * window: a frameless, centered vignette (the access tile's composition,
  * which sits beside it in the row) where each record is a plain row —
  * gradient actor avatar, the action label in the row's regular sans face
- * (`font-medium text-small`, the same treatment the standards tile gives
+ * (`text-small`, the same treatment the standards tile gives
  * its row titles), an "actor · resource" attribution line, and a
  * right-aligned timestamp. The newest record is the selected event: it
  * sits on a solid white card wearing the build tile's window chrome
@@ -120,7 +120,7 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
       >
         <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div className='mb-4 flex items-center justify-between'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Audit log</span>
+            <span className='text-[var(--text-primary)] text-base'>Audit log</span>
             <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
               Append-only
             </ChipTag>
@@ -159,7 +159,7 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
                     />
                   </span>
                   <span className='min-w-0 flex-1'>
-                    <span className={cn('block truncate font-medium text-small', tone.action)}>
+                    <span className={cn('block truncate text-small', tone.action)}>
                       {entry.action}
                     </span>
                     <span className='block truncate text-[var(--text-muted)] text-caption'>

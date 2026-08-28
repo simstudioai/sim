@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_UPLOAD_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillUploadAttachmentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillUploadAttachmentsTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_upload_attachments',
   name: 'Windchill Upload Attachments',
   description: 'Upload one or more files as document attachments',
@@ -47,12 +50,8 @@ export const windchillUploadAttachmentsTool: ToolConfig<WindchillParams, Windchi
       description: 'Attachment files to upload',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_upload_attachments', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_upload_attachments', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_upload_attachments', response),

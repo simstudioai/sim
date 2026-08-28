@@ -1,8 +1,11 @@
 import type { JsmGetApprovalsParams, JsmGetApprovalsResponse } from '@/tools/jsm/types'
 import { APPROVAL_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprovalsResponse> = {
+export const jsmGetApprovalsTool: InternalToolConfig<
+  JsmGetApprovalsParams,
+  JsmGetApprovalsResponse
+> = {
   id: 'jsm_get_approvals',
   name: 'JSM Get Approvals',
   description: 'Get approvals for a request in Jira Service Management',
@@ -52,13 +55,8 @@ export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprov
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/approvals',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

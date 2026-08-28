@@ -179,6 +179,9 @@ describe('buildTrayMenuTemplate', () => {
     const seen = template.find((item) => item.label === 'Seen')
     expect(working?.icon).toBeDefined()
     expect(fresh?.icon).toBeDefined()
+    expect(working?.accessibilityLabel).toBe('Working, running')
+    expect(fresh?.accessibilityLabel).toBe('Fresh, unread')
+    expect(seen?.accessibilityLabel).toBe('Seen')
     // Active (yellow) and unread (green) use distinct images; read chats get none.
     expect(working?.icon).not.toBe(fresh?.icon)
     expect(seen?.icon).toBeUndefined()

@@ -11,7 +11,16 @@ import {
 import { type BrowserWindow, dialog, type WebContents } from 'electron'
 import type { TerminalSessionSnapshot } from '@/main/desktop-chat-session-store'
 import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
-import { TerminalService, type TerminalServiceOptions, type TerminalSink } from '@/main/terminal'
+import {
+  MAX_TERMINALS_PER_SCOPE,
+  TerminalError,
+  TerminalService,
+  type TerminalServiceOptions,
+  type TerminalSink,
+} from '@/main/terminal'
+
+/** Native PTYs and their headless xterm buffers are process-wide resources. */
+export const MAX_TERMINALS_PER_PROCESS = 48
 
 /** Live terminal events tagged with the chat scope that owns their service. */
 export interface ScopedTerminalSink {
@@ -51,6 +60,28 @@ function restorableCwd(cwd: string): string | undefined {
     return statSync(cwd).isDirectory() ? cwd : undefined
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Bounds a saved descriptor while retaining the selected tab when it falls
+ * beyond the ordered prefix. The selected tab replaces the final retained
+ * entry, preserving relative order for every other survivor.
+ */
+function boundSnapshot(
+  snapshot: TerminalSessionSnapshot | undefined
+): TerminalSessionSnapshot | undefined {
+  if (!snapshot) return undefined
+  if (snapshot.tabs.length <= MAX_TERMINALS_PER_SCOPE) return snapshot
+  const activeIndex = Math.min(Math.max(0, snapshot.activeIndex), snapshot.tabs.length - 1)
+  const tabs = snapshot.tabs.slice(0, MAX_TERMINALS_PER_SCOPE)
+  if (activeIndex >= MAX_TERMINALS_PER_SCOPE) {
+    tabs[MAX_TERMINALS_PER_SCOPE - 1] = snapshot.tabs[activeIndex]
+  }
+  return {
+    v: 1,
+    tabs,
+    activeIndex: activeIndex < MAX_TERMINALS_PER_SCOPE ? activeIndex : MAX_TERMINALS_PER_SCOPE - 1,
   }
 }
 
@@ -132,9 +163,26 @@ export class TerminalRegistry {
     return this.serviceFor(scope).closeTerminal(terminalId)
   }
 
+  /** Closes a tab only from the renderer that currently displays its scope. */
+  closeUserTerminal(scope: string, terminalId: string, owner: WebContents): TerminalTabsState {
+    if (this.suspendedScopes.has(scope)) return { tabs: [], activeTerminalId: null }
+    const service = this.entries.get(scope)?.service
+    if (!service?.acceptsUserClose(owner, terminalId)) return this.peekTabs(scope)
+    return service.closeTerminal(terminalId)
+  }
+
   write(scope: string, terminalId: string, data: string): void {
     if (this.suspendedScopes.has(scope)) return
     this.serviceFor(scope).write(terminalId, data)
+  }
+
+  /** Applies user input only to the visible active tab owned by its renderer. */
+  writeUserInput(scope: string, terminalId: string, data: string, owner: WebContents): boolean {
+    if (this.suspendedScopes.has(scope)) return false
+    const service = this.entries.get(scope)?.service
+    if (!service?.acceptsUserInput(owner, terminalId)) return false
+    service.write(terminalId, data)
+    return true
   }
 
   resize(scope: string, terminalId: string, cols: number, rows: number): void {
@@ -321,12 +369,12 @@ export class TerminalRegistry {
     const existing = this.entries.get(scope)
     if (existing) return existing
 
-    const persisted = this.persistence?.load(scope)
-    const rememberedCwd = persisted?.tabs[0]?.cwd
+    const persisted = boundSnapshot(this.persistence?.load(scope))
     const entry: TerminalRegistryEntry = {
       scope,
       service: this.serviceFactory(scope, {
-        loadCwd: () => rememberedCwd,
+        loadCwd: () => this.entries.get(scope)?.persisted?.tabs[0]?.cwd,
+        canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
       }),
       persisted,
       restoreApplied: false,
@@ -348,6 +396,15 @@ export class TerminalRegistry {
   ): TerminalTabsState {
     if (entry.restoreApplied) return entry.service.start(options)
 
+    const requiredSlots = entry.persisted?.tabs.length ?? 1
+    const availableSlots = Math.max(0, MAX_TERMINALS_PER_PROCESS - this.liveTerminalCount())
+    if (requiredSlots > availableSlots) {
+      throw new TerminalError(
+        'RESOURCE_LIMIT',
+        `Sim can have at most ${MAX_TERMINALS_PER_PROCESS} live terminals. Close a terminal before opening another.`
+      )
+    }
+
     entry.restoreApplied = true
     entry.restoring = true
     let tabs: TerminalTabsState
@@ -358,16 +415,42 @@ export class TerminalRegistry {
         for (const tab of persisted.tabs.slice(1)) {
           entry.service.restoreTerminal(restorableCwd(tab.cwd))
         }
-        const restored = entry.service.getTabs()
-        const active = restored.tabs[persisted.activeIndex]
+        const restoredState = entry.service.getTabs()
+        const active = restoredState.tabs[persisted.activeIndex]
         if (active) entry.service.restoreActiveTerminal(active.terminalId)
       }
       tabs = entry.service.getTabs()
+    } catch (error) {
+      const owners = entry.service.getPanelOwners()
+      entry.service.setSink(null)
+      entry.service.dispose()
+      let replacement: TerminalService
+      try {
+        replacement = this.serviceFactory(entry.scope, {
+          loadCwd: () => entry.persisted?.tabs[0]?.cwd,
+          canSpawn: () => this.liveTerminalCount() < MAX_TERMINALS_PER_PROCESS,
+        })
+      } catch {
+        this.entries.delete(entry.scope)
+        throw error
+      }
+      entry.service = replacement
+      try {
+        entry.restoreApplied = false
+        this.bindSink(entry)
+        if (owners.visible) entry.service.setPanelVisible(true, owners.visible)
+        if (owners.focused) entry.service.setPanelFocused(true, owners.focused)
+      } catch {
+        entry.service.setSink(null)
+        entry.service.dispose()
+        this.entries.delete(entry.scope)
+      }
+      throw error
     } finally {
       entry.restoring = false
-      entry.persisted = undefined
     }
-    this.persistTabs(entry, tabs)
+    entry.persisted = undefined
+    this.publishTabs(entry, tabs)
     return tabs
   }
 
@@ -382,14 +465,21 @@ export class TerminalRegistry {
     }
 
     const sink: TerminalSink = {
-      data: (terminalId, data) => this.sink?.data(entry.scope, terminalId, data),
-      tabs: (state) => {
-        this.persistTabs(entry, state)
-        this.sink?.tabs(entry.scope, state)
+      data: (terminalId, data) => {
+        if (!entry.restoring) this.sink?.data(entry.scope, terminalId, data)
       },
-      command: (event) => this.sink?.command(entry.scope, event),
+      tabs: (state) => this.publishTabs(entry, state),
+      command: (event) => {
+        if (!entry.restoring) this.sink?.command(entry.scope, event)
+      },
     }
     entry.service.setSink(sink)
+  }
+
+  private publishTabs(entry: TerminalRegistryEntry, state: TerminalTabsState): void {
+    if (entry.restoring) return
+    this.persistTabs(entry, state)
+    this.sink?.tabs(entry.scope, state)
   }
 
   private persistEntry(entry: TerminalRegistryEntry): boolean {
@@ -407,5 +497,11 @@ export class TerminalRegistry {
       state.tabs.findIndex((tab) => tab.terminalId === state.activeTerminalId)
     )
     return this.persistence.save(entry.scope, { v: 1, tabs, activeIndex })
+  }
+
+  private liveTerminalCount(): number {
+    let count = 0
+    for (const entry of this.entries.values()) count += entry.service.getTabs().tabs.length
+    return count
   }
 }

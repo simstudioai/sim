@@ -85,3 +85,77 @@ describe('the root version flag', () => {
     expect(help).toContain('takes no value')
   })
 })
+
+/**
+ * `sim <group> <unknown> --help` exited 0 printing the group's help, so a probe
+ * that reads the exit code to ask "does this command exist?" was told yes.
+ */
+describe('help typed after a command that does not exist', () => {
+  it('refuses it inside a group', async () => {
+    const { out, code } = await parse(['workspaces', 'zzzz', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+    expect(out).not.toContain('Manage workspaces')
+  })
+
+  it('refuses a command the group never had', async () => {
+    const { code } = await parse(['chat-deployments', 'get', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+  })
+
+  it('refuses it at the root', async () => {
+    const { code } = await parse(['zzzz', '--help'])
+
+    expect(code).toBe('commander.unknownCommand')
+  })
+
+  it('still answers help for a group and for its commands', async () => {
+    const group = await parse(['workspaces', '--help'])
+    expect(group.code).toBe('commander.helpDisplayed')
+    expect(group.out).toContain('Usage: sim workspaces')
+
+    const leaf = await parse(['workspaces', 'get', '--help'])
+    expect(leaf.code).toBe('commander.helpDisplayed')
+    expect(leaf.out).toContain('Usage: sim workspaces get')
+  })
+
+  /**
+   * `files restore <fileId>` is the only command in the tree that hosts a
+   * subcommand and takes an operand of its own, so it is the only one the guard
+   * has to step around — and it earns that with the registered positional, not
+   * by acting on its own.
+   */
+  it('leaves the one command that legitimately takes an operand alone', async () => {
+    expect((await parse(['files', 'restore', 'wf_1', '--help'])).code).toBe(
+      'commander.helpDisplayed'
+    )
+  })
+
+  /**
+   * `profiles` acts on its own but takes no operand, and the exclusion covered
+   * it anyway: `sim profiles zzznope --help` answered `0` where every other
+   * group answers `1`, and without the flag it printed the profile table.
+   */
+  it('refuses an unknown operand under profiles, with and without --help', async () => {
+    expect((await parse(['profiles', 'zzznope', '--help'])).code).toBe('commander.unknownCommand')
+    expect((await parse(['profiles', 'zzznope'])).code).toBe('commander.unknownCommand')
+  })
+
+  it('still answers help for profiles and for its commands', async () => {
+    const group = await parse(['profiles', '--help'])
+    expect(group.code).toBe('commander.helpDisplayed')
+    expect(group.out).toContain('Usage: sim profiles')
+
+    const leaf = await parse(['profiles', 'add', '--help'])
+    expect(leaf.code).toBe('commander.helpDisplayed')
+    expect(leaf.out).toContain('Usage: sim profiles add')
+
+    // `help` is commander's implicit command rather than a registered one, so
+    // it is the operand the unknown-command check is most likely to mistake for
+    // a typo.
+    const implicit = await parse(['profiles', 'help', 'add'])
+    expect(implicit.code).toBe('commander.help')
+    expect(implicit.out).toContain('Usage: sim profiles add')
+  })
+})

@@ -505,6 +505,12 @@ Two rules the checks enforce:
 
 ## Checklist
 
+Webhook and polling routes are legitimate external ingress boundaries. They must not call this
+Sim app's own API routes to reuse provider or business logic. Extract the shared provider operation
+or authorized application use case and call it directly from the trigger handler and any other
+server adapter. HTTP is reserved for an actual cross-process/capability boundary. Tool work uses a
+registered `InternalToolConfig.operation`; the retired `directExecution` property must not return.
+
 ### Trigger Definition
 - [ ] Created `utils.ts` with options, instructions, extra fields, and output builders
 - [ ] Primary trigger has `includeDropdown: true`; secondary triggers do NOT

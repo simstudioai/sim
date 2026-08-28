@@ -94,7 +94,11 @@ describe('TeamManagement organization errors', () => {
       isLoading: false,
     })
 
-    act(() => root.render(<TeamManagement organizationId='org-1' />))
+    act(() =>
+      root.render(
+        <TeamManagement organizationId='org-1' billingHref='/workspace/ws-1/settings/billing' />
+      )
+    )
 
     expect(container.textContent).toContain('Organization request failed')
     expect(container.textContent).not.toContain('no-organization-view')

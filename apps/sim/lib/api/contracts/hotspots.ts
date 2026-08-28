@@ -2,60 +2,12 @@ import { z } from 'zod'
 import {
   customPatternSchema,
   privateSecretProvenanceBundleSchema,
-  resolvedSecretTraceProvenanceSchema,
   stringRecordSchema,
   unknownRecordSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
-import {
-  PRIVATE_SECRET_PROVENANCE_FIELD,
-  RESOLVED_SECRET_PROVENANCE_FIELD,
-} from '@/lib/execution/private-tool-metadata'
-export const guardrailsValidateContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/guardrails/validate',
-  body: z.object({
-    validationType: z.string().optional(),
-    input: z.unknown().optional(),
-    regex: z.string().optional(),
-    knowledgeBaseId: z.string().optional(),
-    threshold: z.string().optional(),
-    topK: z.string().optional(),
-    model: z.string().optional(),
-    apiKey: z.string().optional(),
-    azureEndpoint: z.string().optional(),
-    azureApiVersion: z.string().optional(),
-    vertexProject: z.string().optional(),
-    vertexLocation: z.string().optional(),
-    vertexCredential: z.string().optional(),
-    bedrockAccessKeyId: z.string().optional(),
-    bedrockSecretKey: z.string().optional(),
-    bedrockRegion: z.string().optional(),
-    workflowId: z.string().optional(),
-    piiEntityTypes: z.array(z.string()).optional(),
-    piiMode: z.string().optional(),
-    piiLanguage: z.string().optional(),
-    piiCustomPatterns: z.array(customPatternSchema).max(20).optional(),
-    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
-  }),
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.boolean(),
-      output: z.object({
-        passed: z.boolean(),
-        validationType: z.string(),
-        input: z.unknown().optional(),
-        error: z.string().optional(),
-        score: z.number().optional(),
-        reasoning: z.string().optional(),
-        detectedEntities: z.array(z.unknown()).optional(),
-        maskedText: z.string().optional(),
-      }),
-    }),
-  },
-})
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 const guardrailsMaskBatchBodySchema = z.object({
   texts: z.array(z.string()).max(100_000),
@@ -156,10 +108,8 @@ const functionOutputFileSchema = z
   })
   .strict()
 
-export const functionExecuteContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/function/execute',
-  body: z.object({
+export const functionExecuteBodySchema = z
+  .object({
     code: z.string().min(1, 'Code is required'),
     sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
@@ -232,9 +182,17 @@ export const functionExecuteContract = defineRouteContract({
         ])
       )
       .optional(),
-  }),
-  response: {
-    mode: 'json',
-    schema: unknownRecordSchema,
-  },
-})
+  })
+  .superRefine((body, context) => {
+    if (body.outputSandboxPath && !body.outputPath?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['outputPath'],
+        message:
+          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+      })
+    }
+  })
+
+export type FunctionExecuteBody = z.input<typeof functionExecuteBodySchema>
+export type ParsedFunctionExecuteBody = z.output<typeof functionExecuteBodySchema>

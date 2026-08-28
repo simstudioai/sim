@@ -110,7 +110,7 @@ Return up to 20 candidate person matches with confidence scores. Useful when you
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | People Data Labs API key |
-| `email` | string | No | No description |
+| `email` | string | No | Email |
 | `phone` | string | No | Phone number |
 | `profile` | string | No | LinkedIn profile URL |
 | `email_hash` | string | No | SHA-256 email hash |
@@ -120,7 +120,7 @@ Return up to 20 candidate person matches with confidence scores. Useful when you
 | `middle_name` | string | No | Middle name |
 | `last_name` | string | No | Last name |
 | `company` | string | No | Company name or website |
-| `school` | string | No | No description |
+| `school` | string | No | School |
 | `location` | string | No | Location |
 | `street_address` | string | No | Street address |
 | `locality` | string | No | City |
@@ -147,7 +147,7 @@ Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Retur
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | People Data Labs API key |
-| `sql` | string | No | PDL SQL query \(e.g., \"SELECT * FROM person WHERE job_title='engineer' AND location_country='united states'\"\) |
+| `sql` | string | No | PDL SQL query \(e.g., "SELECT * FROM person WHERE job_title='engineer' AND location_country='united states'"\) |
 | `query` | string | No | Elasticsearch DSL query as JSON string. Use either sql or query, not both. |
 | `size` | number | No | Number of results to return \(1-100, default 1\) |
 | `scroll_token` | string | No | Pagination token returned from a prior response |
@@ -277,7 +277,7 @@ Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Retu
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | People Data Labs API key |
-| `sql` | string | No | PDL SQL query \(e.g., \"SELECT * FROM company WHERE industry='computer software' AND size='51-200'\"\) |
+| `sql` | string | No | PDL SQL query \(e.g., "SELECT * FROM company WHERE industry='computer software' AND size='51-200'"\) |
 | `query` | string | No | Elasticsearch DSL query as JSON string |
 | `size` | number | No | Number of results to return \(1-100, default 1\) |
 | `scroll_token` | string | No | Pagination token returned from a prior response |

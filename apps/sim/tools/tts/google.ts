@@ -1,7 +1,7 @@
 import type { GoogleTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
+export const googleTtsTool: InternalToolConfig<GoogleTtsParams, TtsBlockResponse> = {
   id: 'tts_google',
   name: 'Google Cloud TTS',
   description: 'Convert text to speech using Google Cloud Text-to-Speech',
@@ -79,22 +79,12 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: GoogleTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'google',
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       voiceId: params.voiceId,
@@ -106,9 +96,6 @@ export const googleTtsTool: ToolConfig<GoogleTtsParams, TtsBlockResponse> = {
       volumeGainDb: params.volumeGainDb,
       sampleRateHertz: params.sampleRateHertz,
       effectsProfileId: params.effectsProfileId,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

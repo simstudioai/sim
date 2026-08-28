@@ -2,9 +2,9 @@ import type {
   CloudWatchPutLogGroupRetentionParams,
   CloudWatchPutLogGroupRetentionResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const putLogGroupRetentionTool: ToolConfig<
+export const putLogGroupRetentionTool: InternalToolConfig<
   CloudWatchPutLogGroupRetentionParams,
   CloudWatchPutLogGroupRetentionResponse
 > = {
@@ -47,13 +47,8 @@ export const putLogGroupRetentionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/put-log-group-retention',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

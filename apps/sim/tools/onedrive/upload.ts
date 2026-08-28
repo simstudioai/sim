@@ -1,15 +1,7 @@
-import { createLogger } from '@sim/logger'
 import type { OneDriveToolParams, OneDriveUploadResponse } from '@/tools/onedrive/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-const logger = createLogger('OneDriveUploadTool')
-const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-function usesInternalUploadRoute(params: OneDriveToolParams): boolean {
-  return Boolean(params.file || params.mimeType === EXCEL_MIME_TYPE)
-}
-
-export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> = {
+export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadResponse> = {
   id: 'onedrive_upload',
   name: 'Upload to OneDrive',
   description: 'Upload a file to OneDrive',
@@ -60,95 +52,24 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     },
   },
 
-  request: {
-    internal: usesInternalUploadRoute,
-    url: (params) => {
-      if (usesInternalUploadRoute(params)) {
-        return '/api/tools/onedrive/upload'
+  operation: {
+    input: (params) => {
+      return {
+        accessToken: params.accessToken,
+        fileName: params.fileName,
+        file: params.file ?? null,
+        content: params.content ?? null,
+        folderId: params.folderId ?? null,
+        mimeType: params.mimeType ?? null,
+        values: params.values ?? null,
       }
-
-      let fileName = params.fileName || 'untitled'
-
-      if (!fileName.endsWith('.txt')) {
-        fileName = `${fileName.replace(/\.[^.]*$/, '')}.txt`
-      }
-
-      const parentFolderId = params.folderId?.trim()
-      if (parentFolderId) {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}:/${fileName}:/content`
-      }
-      return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
-    },
-    method: (params) => (usesInternalUploadRoute(params) ? 'POST' : 'PUT'),
-    headers: (params) => {
-      const headers: Record<string, string> = {}
-
-      if (usesInternalUploadRoute(params)) {
-        headers['Content-Type'] = 'application/json'
-      } else {
-        headers.Authorization = `Bearer ${params.accessToken}`
-        headers['Content-Type'] = 'text/plain'
-      }
-      return headers
-    },
-    body: (params) => {
-      if (usesInternalUploadRoute(params)) {
-        return {
-          accessToken: params.accessToken,
-          fileName: params.fileName,
-          file: params.file,
-          folderId: params.folderId,
-          ...(params.mimeType && { mimeType: params.mimeType }),
-          ...(params.values && { values: params.values }),
-        }
-      }
-
-      return params.content || ''
     },
   },
 
-  transformResponse: async (response: Response, params?: OneDriveToolParams) => {
+  transformResponse: async (response) => {
     const data = await response.json()
-
-    if (params && usesInternalUploadRoute(params) && data.success !== undefined) {
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to upload file')
-      }
-
-      logger.info('Successfully uploaded file to OneDrive via custom API', {
-        fileId: data.output?.file?.id,
-        fileName: data.output?.file?.name,
-      })
-
-      return {
-        success: true,
-        output: data.output,
-      }
-    }
-
-    const fileData = data
-
-    logger.info('Successfully uploaded file to OneDrive', {
-      fileId: fileData.id,
-      fileName: fileData.name,
-    })
-
-    return {
-      success: true,
-      output: {
-        file: {
-          id: fileData.id,
-          name: fileData.name,
-          mimeType: fileData.file?.mimeType || params?.mimeType || 'text/plain',
-          webViewLink: fileData.webUrl,
-          webContentLink: fileData['@microsoft.graph.downloadUrl'],
-          size: fileData.size,
-          createdTime: fileData.createdDateTime,
-          modifiedTime: fileData.lastModifiedDateTime,
-          parentReference: fileData.parentReference,
-        },
-      },
-    }
+    if (!data.success) throw new Error(data.error || 'Failed to upload file')
+    return data
   },
 
   outputs: {

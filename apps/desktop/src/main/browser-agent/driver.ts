@@ -264,14 +264,18 @@ function recordNotice(notice: string): void {
  * navigations and tab switches.
  */
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
+  const issue = session.pageIssueForContents(contents)
+  const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
-    url: contents.getURL(),
-    title: contents.getTitle(),
-    loading: contents.isLoadingMainFrame(),
-    canGoBack: contents.navigationHistory.canGoBack(),
-    canGoForward: contents.navigationHistory.canGoForward(),
+    url: issue?.url ?? contents.getURL(),
+    title: issue?.kind === 'load-error' ? '' : contents.getTitle(),
+    loading: issue ? false : contents.isLoadingMainFrame(),
+    canGoBack: session.canGoBack(contents),
+    canGoForward: session.canGoForward(contents),
+    ...(issue ? { issue } : {}),
+    ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
   }
 }
 
@@ -347,6 +351,18 @@ function instrumentTab(contents: WebContents): void {
     })
   )
   contents.on(
+    'did-fail-load',
+    inScope((_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame || errorCode === 0 || errorCode === -3) return
+      session.recordPageLoadFailure(contents, {
+        kind: 'load-error',
+        code: errorCode,
+        description: errorDescription,
+        url: validatedURL || contents.getURL(),
+      })
+    })
+  )
+  contents.on(
     'did-frame-navigate',
     inScope(
       (_event, _url, _httpResponseCode, _httpStatusText, _isMainFrame, processId, routingId) => {
@@ -364,7 +380,6 @@ function instrumentTab(contents: WebContents): void {
   for (const event of [
     'did-navigate-in-page',
     'page-title-updated',
-    'did-start-loading',
     'did-finish-load',
     'did-stop-loading',
   ] as const) {
@@ -376,6 +391,14 @@ function instrumentTab(contents: WebContents): void {
       })
     )
   }
+  contents.on(
+    'did-start-loading',
+    inScope(() => {
+      session.notePageLoadStarted(contents)
+      pushPageState(contents)
+      pushTabsState()
+    })
+  )
   driverCallbacks?.onSessionStatus(true, scopeId)
 }
 
@@ -435,6 +458,7 @@ export function initDriver(
         // The fill affordance belongs to whichever page is in front.
         void fillCoordinator()?.refreshAvailability(true)
       },
+      onPageStateChanged: pushPageState,
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -639,8 +663,9 @@ export async function clearBrowsingData(
 ): Promise<void> {
   // The remembered browsing trail is the local mirror of the cookie jar, so it
   // goes when cookies do and stays when they do not.
-  if (kinds.includes('cookies')) knownSessions?.clear()
+  const settingsCleared = !kinds.includes('cookies') || knownSessions?.clear() !== false
   await session.clearAgentData(kinds)
+  if (!settingsCleared) throw new Error('Browser settings could not be erased')
 }
 
 /**
@@ -649,15 +674,32 @@ export async function clearBrowsingData(
  * in on the same machine must not inherit the previous user's sessions or
  * passwords.
  */
-export async function clearBrowserProfile(): Promise<void> {
-  knownSessions?.clear()
-  await session.clearProfileStorage()
-  await clearCredentials()
+export interface ClearBrowserProfileOptions {
+  /** The server picker will replace the blocked settings file immediately after profile erasure. */
+  settingsPersistence: 'required' | 'server-repair'
+}
+
+export async function clearBrowserProfile(
+  options: ClearBrowserProfileOptions = { settingsPersistence: 'required' }
+): Promise<void> {
+  const settingsCleared = knownSessions?.clear() !== false
+  const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
   // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
-  configStore?.flush()
+  if (
+    (!settingsCleared || configStore?.flush() === false) &&
+    options.settingsPersistence === 'required'
+  ) {
+    outcomes.push({ status: 'rejected', reason: new Error('Browser settings could not be erased') })
+  }
+  const failures = outcomes.flatMap((outcome) =>
+    outcome.status === 'rejected' ? [outcome.reason] : []
+  )
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Browser profile teardown was incomplete.')
+  }
 }
 
 function str(params: Record<string, unknown>, key: string): string | undefined {
@@ -1963,19 +2005,20 @@ async function executeToolInner(
     case 'browser_go_forward': {
       invalidateSnapshot()
       const contents = session.requireAutomationTab().view.webContents
-      const history = contents.navigationHistory
       assertCurrentExecution()
       let completion: Promise<void>
       if (tool === 'browser_go_back') {
-        if (!history.canGoBack()) throw new ToolError('Cannot go back — no earlier history entry.')
+        if (!session.canGoBack(contents)) {
+          throw new ToolError('Cannot go back — no earlier history entry.')
+        }
         completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
-        history.goBack()
+        session.goBack(contents)
       } else {
-        if (!history.canGoForward()) {
+        if (!session.canGoForward(contents)) {
           throw new ToolError('Cannot go forward — no later history entry.')
         }
         completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
-        history.goForward()
+        session.goForward(contents)
       }
       return await navigationResult(contents, completion)
     }
@@ -3775,6 +3818,12 @@ export async function handlePanelAction(
       }
       return
     }
+    if (action.action === 'respond-media-permission') {
+      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
+        await session.respondToMediaPermission(action.requestId, action.allowed)
+      }
+      return
+    }
     // Navigate bootstraps the session: the user can open the panel manually
     // (before the agent ever touched the browser) and drive it from the URL
     // bar. The other chrome actions need an existing page.
@@ -3814,13 +3863,13 @@ export async function handlePanelAction(
     const contents = tab.view.webContents
     switch (action.action) {
       case 'reload':
-        contents.reload()
+        session.reloadPage(contents)
         return
       case 'back':
-        if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack()
+        session.goBack(contents)
         return
       case 'forward':
-        if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward()
+        session.goForward(contents)
         return
       case 'print':
         contents.print({ printBackground: true })

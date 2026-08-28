@@ -36,6 +36,55 @@ export function attachExecutionResult(error: Error, executionResult: ExecutionRe
   Object.assign(error, { executionResult })
 }
 
+/**
+ * Dispatched-run ids, keyed by the thrown value itself.
+ *
+ * A side table rather than a property on the error, for the same reason
+ * {@link markExecutionFinalizedByCore} keeps one: a thrown value is not reliably writable.
+ * `Object.assign` throws on a frozen or sealed failure, and guarding that throw would drop
+ * the marker instead — silently converting "this run exists" into "nothing started", which
+ * is the one direction that duplicates work. Identity keying also means no id can arrive
+ * through a prototype chain, and nothing is added to the error's own surface, so a
+ * serialized error carries no stray field.
+ */
+const attemptedExecutionIds = new WeakMap<object, string>()
+
+/**
+ * Names the run a failure belongs to once dispatch has been attempted.
+ *
+ * A caller that only sees the thrown error cannot tell an authorization refusal — which
+ * created nothing — from a crash after the run was already dispatched, and those need
+ * opposite retry decisions. Recording the id at the point of no return makes its absence
+ * mean "nothing was started" rather than "we do not know", and its presence a key that
+ * resolves to zero or one executions.
+ *
+ * Distinct from {@link attachExecutionResult}: that says the workflow ran and produced a
+ * result, this says only that it was dispatched.
+ */
+export function attachAttemptedExecutionId(error: unknown, executionId: string): void {
+  if (!isRecordedThrown(error) || !executionId) return
+  if (attemptedExecutionIds.has(error)) return
+  attemptedExecutionIds.set(error, executionId)
+}
+
+/** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
+export function readAttemptedExecutionId(error: unknown): string | undefined {
+  return isRecordedThrown(error) ? attemptedExecutionIds.get(error) : undefined
+}
+
+/**
+ * Any non-null object, not only an `Error`.
+ *
+ * Restricting this to `Error` would silently invert the invariant for a thrown plain object:
+ * no id would be recorded, its absence would read as "nothing was started", and the caller
+ * would retry a run that already exists. A thrown primitive cannot be keyed at all, which
+ * costs nothing today because every throw site past the dispatch boundary raises an `Error`.
+ */
+function isRecordedThrown(value: unknown): value is object {
+  /** Functions key a WeakMap as well as objects do, so excluding them would drop the record. */
+  return (typeof value === 'object' || typeof value === 'function') && value !== null
+}
+
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
   error: Error | string

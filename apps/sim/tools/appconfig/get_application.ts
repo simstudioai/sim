@@ -2,9 +2,9 @@ import type {
   AppConfigGetApplicationParams,
   AppConfigGetApplicationResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getApplicationTool: ToolConfig<
+export const getApplicationTool: InternalToolConfig<
   AppConfigGetApplicationParams,
   AppConfigGetApplicationResponse
 > = {
@@ -40,11 +40,8 @@ export const getApplicationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/get-application',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

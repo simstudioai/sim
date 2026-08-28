@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -12,6 +11,12 @@ import {
   projectResolvedModelInput,
   selectModelSchemaInputPaths,
 } from '@/lib/execution/model-input-provenance'
+import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
+import {
+  readWorkflowInputFieldsForTool,
+  readWorkflowMetadataForTool,
+} from '@/lib/internal/workflows/read-tool-enrichment'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import {
@@ -31,7 +36,6 @@ import {
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
-import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
@@ -59,7 +63,6 @@ import type {
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
@@ -984,7 +987,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (!ctx.userId) {
+    if (!ctx.userId && !ctx.executorDelegationOrigin?.subjectUserId) {
       logger.error(
         'Cannot fetch custom tool without userId',
         projectAgentDiagnosticMetadata(
@@ -997,10 +1000,10 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const tool = await getCustomToolById({
-        toolId: customToolId,
-        userId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+      const tool = await readAvailableCustomToolByIdOrTitleAsExecutor({
+        context: ctx,
+        identifier: customToolId,
+        lookup: 'id',
       })
 
       if (!tool) {
@@ -1267,83 +1270,30 @@ export class AgentBlockHandler implements BlockHandler {
     return results
   }
 
-  /**
-   * Discover tools from a single MCP server with retry logic.
-   */
+  /** Discovers one server's tools through the authorized MCP operation. */
   private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string): Promise<any[]> {
+    if (!ctx.userId) {
+      throw new Error('userId is required for MCP tool discovery')
+    }
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for MCP tool discovery')
     }
     if (!ctx.workflowId) {
-      throw new Error('workflowId is required for internal JWT authentication')
+      throw new Error('workflowId is required for MCP tool discovery')
     }
 
-    const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildAPIUrl('/api/mcp/tools/discover', {
-      serverId,
+    return discoverMcpServerToolsAsExecutor({
       workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.userId ? { userId: ctx.userId } : {}),
+      context: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
+      },
+      serverId,
+      signal: ctx.abortSignal,
     })
-
-    const maxAttempts = 2
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch(url.toString(), { method: 'GET', headers })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          if (this.isRetryableError(errorText) && attempt < maxAttempts - 1) {
-            logger.warn(
-              '[AgentHandler] Session error discovering tools, retrying',
-              projectAgentDiagnosticMetadata(
-                ctx,
-                { serverId, attempt: attempt + 1 },
-                { hasServerId: serverId.length > 0, attempt: attempt + 1 }
-              )
-            )
-            await sleep(100)
-            continue
-          }
-          throw new Error(`Failed to discover tools: ${response.status} ${errorText}`)
-        }
-
-        const data = await response.json()
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to discover MCP tools')
-        }
-
-        return data.data.tools
-      } catch (error) {
-        const errorMsg = toError(error).message
-        if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
-          logger.warn(
-            '[AgentHandler] Retryable error discovering tools',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { serverId, attempt: attempt + 1, ...getErrorDiagnosticMetadata(error) },
-              {
-                hasServerId: serverId.length > 0,
-                attempt: attempt + 1,
-                ...getErrorDiagnosticFallback(error),
-              }
-            )
-          )
-          await sleep(100)
-          continue
-        }
-        throw error
-      }
-    }
-
-    throw new Error(
-      `Failed to discover tools from server ${serverId} after ${maxAttempts} attempts`
-    )
-  }
-
-  private isRetryableError(errorMsg: string): boolean {
-    const lowerMsg = errorMsg.toLowerCase()
-    return lowerMsg.includes('session') || lowerMsg.includes('400') || lowerMsg.includes('404')
   }
 
   private async createMcpToolFromDiscoveredData(
@@ -1394,9 +1344,7 @@ export class AgentBlockHandler implements BlockHandler {
       getAllBlocks,
       getToolAsync: (toolId: string) =>
         getToolAsync(toolId, {
-          workflowId: ctx.workflowId,
-          userId: ctx.userId,
-          workspaceId: ctx.workspaceId,
+          executionContext: ctx,
         }),
       getTool,
       canonicalModes,
@@ -1405,10 +1353,13 @@ export class AgentBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
       },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>
         resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
+      readWorkflowInputFields: readWorkflowInputFieldsForTool,
+      readWorkflowMetadata: readWorkflowMetadataForTool,
     })
 
     if (transformedTool) {

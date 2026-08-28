@@ -1,26 +1,27 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
   Calendar,
+  Chip,
   ChipCombobox,
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  Download,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
-  RefreshCw,
-  Search,
   toast,
 } from '@sim/emcn'
+import { Download, RefreshCw, Search, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryStates } from 'nuqs'
+import type { AuditLogPage } from '@/lib/api/contracts/audit-logs'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -32,6 +33,7 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import {
@@ -149,12 +151,15 @@ function renderMetadataValue(value: unknown) {
   )
 }
 
+/** Already rendered as their own labelled rows, so the metadata block would repeat them. */
+const HIDDEN_METADATA_KEYS = new Set(['name', 'description'])
+
 function getMetadataEntries(metadata: unknown) {
   if (!isRecordLike(metadata)) return []
 
   return Object.entries(metadata).filter(([key, value]) => {
     if (value === undefined) return false
-    return !['name', 'description'].includes(key)
+    return !HIDDEN_METADATA_KEYS.has(key)
   })
 }
 
@@ -236,6 +241,24 @@ interface AuditLogsProps {
   organizationId: string
 }
 
+/**
+ * Entries the feed is allowed to present.
+ *
+ * A disabled query still serves whatever is cached under its key, and an unresolved
+ * workspace scope resolves to the same key as the unscoped feed — so an admin looking
+ * at the organization-wide feed who then followed a stale scoped link kept those rows
+ * on screen, with Export still armed against them. The scope a link asks for is a
+ * ceiling, so when it cannot be honoured the feed presents nothing rather than
+ * whatever it happens to be holding.
+ */
+export function presentableAuditEntries(
+  pages: AuditLogPage[] | undefined,
+  isScopeAnswerable: boolean
+): EnterpriseAuditLogEntry[] {
+  if (!isScopeAnswerable || !pages) return []
+  return pages.flatMap((page) => page.data)
+}
+
 export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
   const { types: selectedTypes } = urlFilters
@@ -250,30 +273,83 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
       ? DEFAULT_AUDIT_TIME_RANGE
       : urlFilters.timeRange
+  /**
+   * Resolved, not merely present. Only the id lives in the URL, and the filter is
+   * applied once it matches a workspace the organization actually owns — a stale id
+   * from an old link would otherwise be shown under a chip labelled with a bare uuid.
+   */
+  const workspaceScope = urlFilters.workspace
+  const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
+  const scopedWorkspace = workspaceScope
+    ? orgWorkspaces.data?.find((entry) => entry.id === workspaceScope)
+    : undefined
+
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
-  const refreshTimersRef = useRef(new Set<number>())
+  const refreshTimersRef = useRef<Set<number> | null>(null)
+  refreshTimersRef.current ??= new Set<number>()
+  const refreshTimers = refreshTimersRef.current
   const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
-    const timers = refreshTimersRef.current
     return () => {
-      for (const timerId of timers) window.clearTimeout(timerId)
+      for (const timerId of refreshTimers) window.clearTimeout(timerId)
     }
-  }, [])
+  }, [refreshTimers])
 
-  const filters = useMemo<AuditLogFilters>(() => {
-    return {
-      search: debouncedSearch || undefined,
-      resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
-      startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
-      endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
-    }
-  }, [debouncedSearch, selectedTypes, timeRange, customStartDate, customEndDate])
+  /*
+    Not memoized: this object is only ever hashed, never compared by identity — React
+    Query hashes a query key structurally, and the export handler reads its fields
+    directly. The same rule `useUsageWindow` applies to its window object.
+  */
+  const filters: AuditLogFilters = {
+    search: debouncedSearch || undefined,
+    resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+    workspaceId: scopedWorkspace?.id,
+    startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
+    endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
+  }
 
+  /**
+   * A deep-linked workspace scope is only resolvable once the organization's workspace
+   * list has loaded. Querying before then fetches the whole organization's feed and
+   * immediately refetches it narrowed — two requests, with a flash of rows the link
+   * did not ask for in between.
+   */
+  const isWorkspaceScopePending = Boolean(workspaceScope) && orgWorkspaces.isPending
+
+  /**
+   * The lookup itself failed, so whether the workspace exists is simply unknown.
+   *
+   * Kept apart from {@link isWorkspaceScopeUnresolved}: telling an admin their
+   * workspace is not part of the organization because a request timed out is a wrong
+   * answer, not a cautious one, and it offers nothing to do about it. Refresh retries
+   * this lookup alongside the feed.
+   */
+  const isWorkspaceScopeUnavailable = Boolean(workspaceScope) && orgWorkspaces.isError
+
+  /**
+   * The link named a workspace this organization does not have — deleted since, or
+   * never one of ours.
+   *
+   * The feed stays closed rather than falling back to the organization. Every other
+   * deep-linked id in the app degrades to the unfiltered view, but an audit feed is
+   * the one place where widening is the dangerous direction: dropping the filter
+   * would answer a request for one workspace's history with everybody's, under a URL
+   * that still claims to be scoped, and the CSV export would follow.
+   */
+  const isWorkspaceScopeUnresolved =
+    Boolean(workspaceScope) &&
+    !isWorkspaceScopePending &&
+    !isWorkspaceScopeUnavailable &&
+    !scopedWorkspace
+
+  /** The feed can answer the scope the URL asks for — the gate on reading or exporting. */
+  const isScopeAnswerable =
+    !isWorkspaceScopePending && !isWorkspaceScopeUnresolved && !isWorkspaceScopeUnavailable
   const {
     data,
     isLoading,
@@ -282,12 +358,12 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     hasNextPage,
     fetchNextPage,
     refetch,
-  } = useAuditLogs(organizationId, filters)
+  } = useAuditLogs(organizationId, filters, !isWorkspaceScopePending && !isWorkspaceScopeUnresolved)
 
-  const allEntries = useMemo(() => {
-    if (!data?.pages) return []
-    return data.pages.flatMap((page) => page.data)
-  }, [data])
+  const allEntries = useMemo(
+    () => presentableAuditEntries(data?.pages, isScopeAnswerable),
+    [data, isScopeAnswerable]
+  )
 
   const typeDisplayLabel =
     selectedTypes.length === 0
@@ -323,25 +399,38 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     setDatePickerOpen(false)
   }
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     setIsVisuallyRefreshing(true)
     const timerId = window.setTimeout(() => {
       setIsVisuallyRefreshing(false)
-      refreshTimersRef.current.delete(timerId)
+      refreshTimers.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
-    refreshTimersRef.current.add(timerId)
-    refetch().catch((error: unknown) => {
+    refreshTimers.add(timerId)
+    const pending: Promise<unknown>[] = []
+    /*
+      `refetch` ignores `enabled`, so this has to repeat the gate. While the scope is
+      unanswerable the feed's filter carries no workspace, and refreshing it would
+      issue exactly the organization-wide read the gate exists to prevent.
+    */
+    if (isScopeAnswerable) pending.push(refetch())
+    /*
+      The lookup is what has to succeed for a closed feed to reopen, so it is retried
+      whenever a scope asked for it — and skipped entirely when none did, where it is
+      a disabled query with nothing to say.
+    */
+    if (workspaceScope) pending.push(orgWorkspaces.refetch())
+    Promise.all(pending).catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
-  }, [refetch])
+  }
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage().catch((error: unknown) => {
         logger.error('Failed to load more audit logs', { error })
       })
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }
 
   const handleExportCsv = async () => {
     setIsExporting(true)
@@ -350,6 +439,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       params.set('organizationId', organizationId)
       if (filters.search) params.set('search', filters.search)
       if (filters.resourceType) params.set('resourceType', filters.resourceType)
+      if (filters.workspaceId) params.set('workspaceId', filters.workspaceId)
       if (filters.startDate) params.set('startDate', filters.startDate)
       if (filters.endDate) params.set('endDate', filters.endDate)
 
@@ -384,7 +474,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           text: 'Export',
           icon: Download,
           onSelect: () => void handleExportCsv(),
-          disabled: allEntries.length === 0 || isExporting || isPlaceholderData,
+          /*
+            `isScopeAnswerable` explicitly, not just via the empty `allEntries` it
+            implies: the export is the action that leaves the building, so the
+            condition that makes it safe belongs where it is read.
+          */
+          disabled:
+            !isScopeAnswerable || allEntries.length === 0 || isExporting || isPlaceholderData,
         },
       ]}
     >
@@ -409,6 +505,28 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           allOptionLabel='All types'
           align='start'
         />
+        {workspaceScope && (
+          /*
+            A deep-linked scope, not a picker: the organization can hold hundreds of
+            workspaces, so this narrows the feed only when a link asks it to and
+            offers exactly one action — take it back off. Trailing `X` and a bounded
+            width, matching the app's other removable filter chips; the label names
+            the dimension because a bare workspace name gives no clue what it scopes.
+          */
+          <Chip
+            rightIcon={X}
+            onClick={() => void setUrlFilters({ workspace: null })}
+            aria-label='Clear the workspace filter'
+            className='max-w-[280px] shrink-0'
+          >
+            {/* Rendered for an unresolved scope too, or a bad link would leave the
+                feed closed with no control to reopen it. */}
+            <OverflowText
+              label={`Workspace: ${scopedWorkspace?.name ?? (isWorkspaceScopeUnavailable ? 'unavailable' : 'not found')}`}
+              className='block min-w-0'
+            />
+          </Chip>
+        )}
         <div className='relative'>
           {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
               DropdownMenu, modal by default) — a modal trigger closing in the
@@ -419,8 +537,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
+            overlayLabel={timeDisplayLabel}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+              <OverflowText
+                label={timeDisplayLabel}
+                className='block w-full text-[var(--text-primary)]'
+                tooltipEnabled={false}
+              />
             }
             maxHeight={320}
             align='start'
@@ -463,7 +586,15 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       <ActivityLog
         entries={allEntries.map(toActivityEntry)}
         emptyState={
-          isLoading ? undefined : debouncedSearch ? (
+          isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnavailable ? (
+            <SettingsEmptyState tone='error'>
+              Couldn't check that workspace. Refresh to try again.
+            </SettingsEmptyState>
+          ) : isWorkspaceScopeUnresolved ? (
+            <SettingsEmptyState>
+              That workspace is not part of this organization.
+            </SettingsEmptyState>
+          ) : debouncedSearch ? (
             <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
             </SettingsEmptyState>

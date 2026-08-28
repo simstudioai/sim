@@ -9,6 +9,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { chatPubSub } from '@/lib/copilot/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
@@ -78,7 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workspaceId,
         type: 'mothership',
         title: null,
-        model: 'claude-opus-4-8',
+        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
         updatedAt: now,
         lastSeenAt: now,
       })

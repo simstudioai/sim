@@ -3,15 +3,11 @@ import type {
   MicrosoftAdAddUserAppRoleAssignmentResponse,
 } from '@/tools/microsoft_ad/types'
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import {
-  extractGraphErrorMessage,
-  isGraphObjectId,
-  resolveGraphUserObjectId,
-} from '@/tools/microsoft_ad/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Projects a Microsoft Graph `appRoleAssignment` onto the documented subset of fields. */
-function mapAppRoleAssignment(assignment: Record<string, unknown>): Record<string, unknown> {
+export function mapAppRoleAssignment(assignment: Record<string, unknown>): Record<string, unknown> {
   return {
     id: assignment.id ?? null,
     appRoleId: assignment.appRoleId ?? null,
@@ -25,7 +21,7 @@ function mapAppRoleAssignment(assignment: Record<string, unknown>): Record<strin
 }
 
 /** Reads and validates the three identifiers the grant needs, before any network call. */
-function readIdentifiers(params: MicrosoftAdAddUserAppRoleAssignmentParams) {
+export function readIdentifiers(params: MicrosoftAdAddUserAppRoleAssignmentParams) {
   const userId = params.userId?.trim()
   const resourceId = params.resourceId?.trim()
   const appRoleId = params.appRoleId?.trim()
@@ -35,7 +31,7 @@ function readIdentifiers(params: MicrosoftAdAddUserAppRoleAssignmentParams) {
   return { userId, resourceId, appRoleId }
 }
 
-export const addUserAppRoleAssignmentTool: ToolConfig<
+export const addUserAppRoleAssignmentTool: InternalToolConfig<
   MicrosoftAdAddUserAppRoleAssignmentParams,
   MicrosoftAdAddUserAppRoleAssignmentResponse
 > = {
@@ -85,57 +81,8 @@ export const addUserAppRoleAssignmentTool: ToolConfig<
    * grant, so the UPN is resolved to its object ID first and only the GUID reaches the body.
    * @see https://learn.microsoft.com/en-us/graph/api/user-post-approleassignments
    */
-  directExecution: async (params, signal): Promise<ToolResponse> => {
-    const { userId, resourceId, appRoleId } = readIdentifiers(params)
-    const principalId = await resolveGraphUserObjectId(userId, params.accessToken, signal)
-
-    const response = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${params.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ principalId, resourceId, appRoleId }),
-        signal,
-      }
-    )
-    const body = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(extractGraphErrorMessage(body, 'Failed to grant the app role to the user'))
-    }
-
-    return { success: true, output: { assignment: mapAppRoleAssignment(body) } }
-  },
-  /**
-   * Declarative fallback. `directExecution` is the authoritative path; this cannot perform the
-   * userPrincipalName lookup, so it rejects anything but an object ID rather than sending a
-   * value Graph will refuse.
-   */
-  request: {
-    url: (params) => {
-      const { userId } = readIdentifiers(params)
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments`
-    },
-    method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
-      const { userId, resourceId, appRoleId } = readIdentifiers(params)
-      if (!isGraphObjectId(userId)) {
-        throw new Error(
-          `User ID "${userId}" must be an object ID (GUID) to grant an app role directly. Use Get User to look it up from a user principal name.`
-        )
-      }
-      return { principalId: userId, resourceId, appRoleId }
-    },
-  },
-  transformResponse: async (response: Response) => {
-    const assignment = await response.json()
-    return { success: true, output: { assignment: mapAppRoleAssignment(assignment) } }
+  operation: {
+    input: createInternalToolOperationInput,
   },
   outputs: {
     assignment: {

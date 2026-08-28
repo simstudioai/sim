@@ -1,7 +1,7 @@
 import type { DocuSignGetEnvelopeParams, DocuSignGetEnvelopeResponse } from '@/tools/docusign/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const docusignGetEnvelopeTool: ToolConfig<
+export const docusignGetEnvelopeTool: InternalToolConfig<
   DocuSignGetEnvelopeParams,
   DocuSignGetEnvelopeResponse
 > = {
@@ -30,13 +30,9 @@ export const docusignGetEnvelopeTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/docusign',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
-      operation: 'get_envelope',
       envelopeId: params.envelopeId,
     }),
   },

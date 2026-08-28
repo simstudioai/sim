@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar, AvatarFallback, Chip, ChipDropdown, cn } from '@sim/emcn'
+import { Avatar, AvatarFallback, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
 import { getUserColor } from '@/lib/workspaces/colors'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
@@ -63,12 +63,14 @@ export function MemberRow<TRole extends string = MemberRole>({
           </AvatarFallback>
         </Avatar>
         <div className='flex min-w-0 flex-col'>
-          <span className='truncate text-[var(--text-body)] text-sm'>
-            {member.userName || member.userEmail || member.userId}
-          </span>
-          <span className='truncate text-[var(--text-muted)] text-caption'>
-            {member.userEmail || member.userId}
-          </span>
+          <OverflowText
+            label={member.userName || member.userEmail || member.userId}
+            className='text-[var(--text-body)] text-sm'
+          />
+          <OverflowText
+            label={member.userEmail || member.userId}
+            className='text-[var(--text-muted)] text-caption'
+          />
         </div>
       </div>
       <RoleLockTooltip reason={lockReason}>

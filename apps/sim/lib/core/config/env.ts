@@ -135,10 +135,6 @@ export const env = createEnv({
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
-    /** Enables attributed-v1 only after compatible Copilot instances are deployed. */
-    COPILOT_BILLING_ATTRIBUTION_V1_ENABLED: z.boolean().optional(),
-    /** Rejects markerless old-Go billing traffic only when explicitly enabled. */
-    COPILOT_BILLING_PROTOCOL_REQUIRED:     z.boolean().optional(),
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
@@ -614,6 +610,7 @@ export const env = createEnv({
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    USAGE_MONITORING_ENABLED:              z.boolean().optional(),                 // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
     SSO_PROVIDER_ID:                       z.string().optional(),                  // [REQUIRED] SSO provider ID
     SSO_ISSUER:                            z.string().optional(),                  // [REQUIRED] SSO issuer URL
@@ -698,6 +695,7 @@ export const env = createEnv({
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED:     z.boolean().optional(),                   // Enable custom blocks on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_USAGE_MONITORING_ENABLED:  z.boolean().optional(),                   // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: z.boolean().optional(),                   // Enable org session policies on self-hosted (bypasses hosted requirements)
@@ -742,6 +740,7 @@ export const env = createEnv({
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: process.env.NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED,
+    NEXT_PUBLIC_USAGE_MONITORING_ENABLED: process.env.NEXT_PUBLIC_USAGE_MONITORING_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
     NEXT_PUBLIC_SESSION_POLICIES_ENABLED: process.env.NEXT_PUBLIC_SESSION_POLICIES_ENABLED,

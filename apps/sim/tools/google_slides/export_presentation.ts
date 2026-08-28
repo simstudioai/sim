@@ -1,11 +1,10 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ExportPresentationParams {
   accessToken: string
   presentationId: string
   exportFormat?: 'PDF' | 'PPTX' | 'ODP' | 'TXT' | 'PNG' | 'JPEG' | 'SVG'
-  _context?: Record<string, unknown>
 }
 
 export interface ExportPresentationResponse {
@@ -19,7 +18,7 @@ export interface ExportPresentationResponse {
   }
 }
 
-export const exportPresentationTool: ToolConfig<
+export const exportPresentationTool: InternalToolConfig<
   ExportPresentationParams,
   ExportPresentationResponse
 > = {
@@ -52,20 +51,11 @@ export const exportPresentationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/google_slides/export-presentation',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       presentationId: params.presentationId,
       exportFormat: params.exportFormat,
-      workspaceId:
-        typeof params._context?.workspaceId === 'string' ? params._context.workspaceId : undefined,
-      workflowId:
-        typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
-      executionId:
-        typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
     }),
   },
 

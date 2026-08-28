@@ -1223,10 +1223,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Block User
 
+Block a GitLab user, preventing them from signing in or accessing the instance
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1293,10 +1297,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Unblock User
 
+Unblock a previously blocked GitLab user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1363,10 +1371,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Deactivate User
 
+Deactivate a dormant GitLab user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1433,10 +1445,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Activate User
 
+Reactivate a deactivated GitLab user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1503,10 +1519,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Ban User
 
+Ban a GitLab user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1573,10 +1593,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Unban User
 
+Unban a previously banned GitLab user
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1643,10 +1667,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Approve User
 
+Approve a GitLab user whose signup is pending administrator approval
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 
@@ -1713,10 +1741,14 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 ### GitLab Reject User
 
+Reject a GitLab user whose signup is pending administrator approval
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
+| `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
 

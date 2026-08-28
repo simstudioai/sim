@@ -23,7 +23,7 @@ import { whisperSttTool, whisperSttV2Tool } from '@/tools/stt/whisper'
 import { textractAnalyzeExpenseTool } from '@/tools/textract/analyze-expense'
 import { textractAnalyzeIdTool } from '@/tools/textract/analyze-id'
 import { textractParserTool, textractParserV2Tool } from '@/tools/textract/parser'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { visionTool } from '@/tools/vision/tool'
 
@@ -38,17 +38,21 @@ const FILE = {
 }
 
 function selectPrivateInputPaths(
-  tool: ToolConfig,
+  tool: ExecutableToolConfig,
   params: Record<string, unknown>
 ): readonly (readonly string[])[] {
-  const modelInput = tool.request.modelInput
+  const modelInput = getModelInput(tool)
   if (!modelInput) return []
   if (modelInput.mode === 'private-provenance') return modelInput.inputPaths(params)
   return modelInput.privateInputPaths?.(params) ?? []
 }
 
-function getProjectingModelInput(tool: ToolConfig) {
-  const modelInput = tool.request.modelInput
+function getModelInput(tool: ExecutableToolConfig) {
+  return tool.operation?.modelInput ?? tool.request?.modelInput
+}
+
+function getProjectingModelInput(tool: ExecutableToolConfig) {
+  const modelInput = getModelInput(tool)
   expect(modelInput?.mode).toBe('project')
   if (modelInput?.mode !== 'project' || !modelInput.applyProjected) {
     throw new Error(`Expected ${tool.id} to apply projected model input`)
@@ -69,7 +73,6 @@ describe('file model-input selectors', () => {
     textractAnalyzeExpenseTool,
     textractAnalyzeIdTool,
     firefliesUploadAudioTool,
-    runwayVideoTool,
     deepgramSttTool,
     deepgramSttV2Tool,
     assemblyaiSttTool,
@@ -80,9 +83,18 @@ describe('file model-input selectors', () => {
     geminiSttV2Tool,
   ])('$id does not attach private provenance for server-resolved locators', (tool) => {
     expect(selectPrivateInputPaths(tool, { file: FILE, filePath: FILE.url })).toEqual([])
-    expect(tool.request.modelInput?.mode).not.toBe('private-provenance')
-    if (tool.request.modelInput?.mode === 'project') {
-      expect(tool.request.modelInput.privateInputPaths).toBeUndefined()
+    const modelInput = getModelInput(tool)
+    expect(modelInput?.mode).not.toBe('private-provenance')
+    if (modelInput?.mode === 'project') {
+      expect(modelInput.privateInputPaths).toBeUndefined()
+    }
+  })
+
+  it('does not attach private provenance to the Runway server-resolved locator', () => {
+    const modelInput = runwayVideoTool.operation.modelInput
+    expect(modelInput?.mode).toBe('project')
+    if (modelInput?.mode === 'project') {
+      expect(modelInput.privateInputPaths).toBeUndefined()
     }
   })
 

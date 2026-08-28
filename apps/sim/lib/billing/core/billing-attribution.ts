@@ -406,7 +406,8 @@ export function requireBillingRequestIdHeader(headers: Pick<Headers, 'get'>): st
 
 function parseBillingAttributionHeader(
   headers: Pick<Headers, 'get'>,
-  expected: ResolveBillingAttributionParams
+  expected: Pick<ResolveBillingAttributionParams, 'workspaceId'> &
+    Partial<Pick<ResolveBillingAttributionParams, 'actorUserId'>>
 ): BillingAttributionSnapshot | undefined {
   const encoded = headers.get(BILLING_ATTRIBUTION_HEADER)
   if (!encoded) return undefined
@@ -423,7 +424,7 @@ function parseBillingAttributionHeader(
 
   const attribution = assertBillingAttributionSnapshot(parsed)
   if (
-    attribution.actorUserId !== expected.actorUserId ||
+    (expected.actorUserId !== undefined && attribution.actorUserId !== expected.actorUserId) ||
     attribution.workspaceId !== expected.workspaceId
   ) {
     throw new Error('Billing attribution header does not match the authenticated request scope')
@@ -439,6 +440,22 @@ function parseBillingAttributionHeader(
 export function requireBillingAttributionHeader(
   headers: Pick<Headers, 'get'>,
   expected: ResolveBillingAttributionParams
+): BillingAttributionSnapshot {
+  const attribution = parseBillingAttributionHeader(headers, expected)
+  if (!attribution) {
+    throw new Error('Billing attribution header is required for this internal request')
+  }
+  return attribution
+}
+
+/**
+ * Restores the executor's captured billing decision without treating its actor as authorization.
+ * The authenticated executor is authoritative for the snapshot; the canonical use case supplies
+ * the workspace scope that must still match.
+ */
+export function requireWorkspaceBillingAttributionHeader(
+  headers: Pick<Headers, 'get'>,
+  expected: Pick<ResolveBillingAttributionParams, 'workspaceId'>
 ): BillingAttributionSnapshot {
   const attribution = parseBillingAttributionHeader(headers, expected)
   if (!attribution) {
@@ -669,14 +686,15 @@ export async function resolveBillingAttribution({
 }
 
 /**
- * Resolves markerless old-Go (`legacy-v0`) traffic from the workspace visible
- * at this request boundary, falling back to account billing when the workspace
- * is absent from this Sim deployment.
+ * Resolves legacy-v0 traffic from the workspace visible at this request
+ * boundary, falling back to account billing for markerless local self-hosted
+ * requests when the workspace is absent from this Sim deployment.
  *
  * Unlike modern attributed-v1/direct-v1 envelopes, this decision is mutable:
- * old Go allocates its callback billing ID after admission and returns no payer
- * material, so admission and callback must independently resolve current state.
- * Keep this compatibility semantic confined to markerless legacy-v0 paths.
+ * historical markerless Go allocated its callback billing ID after admission
+ * and returned no payer material, so admission and callback independently
+ * resolve current state. Hosted traffic may use this only for explicit
+ * legacy-v0 replay; markerless use is confined to local self-hosting.
  */
 export async function resolveLegacyV0BillingAttribution({
   actorUserId,

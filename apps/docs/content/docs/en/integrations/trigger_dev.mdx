@@ -1712,7 +1712,7 @@ Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and a
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Trigger.dev secret API key \(starts with tr_\) |
-| `query` | string | Yes | TRQL query to execute \(e.g., "SELECT run_id, status, triggered_at FROM runs WHERE status = \'Failed\' LIMIT 10"\) |
+| `query` | string | Yes | TRQL query to execute \(e.g., "SELECT run_id, status, triggered_at FROM runs WHERE status = 'Failed' LIMIT 10"\) |
 | `scope` | string | No | Scope of data to query: environment \(default\), project, or organization |
 | `period` | string | No | Time period shorthand \(e.g., "1h", "7d", "30d"\). Cannot be combined with from/to |
 | `from` | string | No | Start of the time range as an ISO 8601 timestamp. Must be used with "to" |

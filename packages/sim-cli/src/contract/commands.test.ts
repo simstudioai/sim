@@ -1,14 +1,45 @@
 /**
  * @vitest-environment node
  */
-import type { Command } from 'commander'
-import { describe, expect, it } from 'vitest'
+
+import { Command } from 'commander'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { HELP_EPILOGUE } from '../program'
 import { buildGeneratedCommands } from '../runtime/build'
 import { flagNameFor, flagSpecFor } from '../runtime/request'
+import { renderPage } from '../runtime/result'
 import type { OperationSpec } from '../runtime/types'
 import { CLI_CONTRACT } from './commands'
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
+
+vi.mock('../context', () => ({
+  clientFrom: () => ({
+    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
+    profile: { workspaceId: 'ws_local', output: 'json', name: 'default', apiKey: 'k' },
+  }),
+}))
+
+/**
+ * Runs a leaf through commander, the way the terminal does.
+ *
+ * A `confirm` gate is enforced in `runtime/execute`, not by the contract, so
+ * asserting the string alone would only compare the constant with itself: the
+ * key could be renamed, or the gate could stop reading it, with the test still
+ * green. Parsing real argv is what proves the refusal reaches the caller and
+ * that nothing was sent.
+ */
+async function runLeaf(argv: string[]): Promise<void> {
+  const root = new Command('sim').exitOverride().option('--workspace <id>')
+  for (const group of buildGeneratedCommands()) root.addCommand(group)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
+  await root.parseAsync(['node', 'sim', ...argv])
+}
 
 /** Every leaf command's full path, `tables rows count` style. */
 function leafPaths(options: { includeHidden?: boolean } = {}): string[] {
@@ -291,10 +322,11 @@ describe('folder-path fields', () => {
 })
 
 describe('confirm gates say what is actually at stake', () => {
-  it('gates the two workflow writes that change what production serves', () => {
+  it('gates the three workflow writes that change what production serves', () => {
     // `undeploy` takes the workflow offline for every consumer, its published
-    // MCP tools included. `rollback` changes which version is live, while the
-    // gated `revert` only overwrites the draft.
+    // MCP tools included. `rollback` and `activate` are the same application
+    // operation under two transitions and both change which version is live,
+    // while the gated `revert` only overwrites the draft.
     const undeploy = CLI_CONTRACT.undeployWorkflow?.confirm ?? ''
     expect(undeploy).toContain('offline')
     expect(undeploy).toMatch(/MCP/)
@@ -305,6 +337,7 @@ describe('confirm gates say what is actually at stake', () => {
     expect(undeploy).toContain('until it is deployed again')
     expect(undeploy).not.toMatch(/does not restore|not recoverable|cannot be undone/)
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
+    expect(CLI_CONTRACT.activateWorkflowVersion?.confirm).toBeTruthy()
   })
 
   it('does not promise irreversible loss for a recoverable delete', () => {
@@ -350,6 +383,17 @@ describe('records show what the API actually returns', () => {
     expect(spec?.describe).toContain('personal API key')
   })
 
+  it('says which ledger a billing-logs page answers', () => {
+    // The same workspace, window and flags return a strict subset of rows on a
+    // personal key, which reads as a bug beside `billing status`. Read off the
+    // help the terminal prints, since a describe that never reached a command
+    // would answer nobody.
+    const help = flatHelp('billing', 'logs')
+
+    expect(help).toContain('personal API key reports only your own events')
+    expect(help).toMatch(/workspace API key reports every member/)
+  })
+
   it('describes a workspace with the fields the strict schema has', () => {
     const paths = (CLI_CONTRACT.getWorkspace?.fields ?? []).map(
       (field) => field.path ?? field.header
@@ -377,6 +421,19 @@ describe('list columns', () => {
     expect(columns[columns.length - 1]).toBe(unredacted)
   })
 
+  /**
+   * A custom tool has both a `title` and a `schema.function.name`, and they are
+   * different fields — a column headed `name` showing the title named the other
+   * one, while `--search` and `--sort-by title` both speak of the title.
+   */
+  it('heads the custom-tool column with the field it actually shows', () => {
+    const columns = CLI_CONTRACT.listCustomTools?.columns ?? []
+    const titled = columns.find((column) => (column.path ?? column.header) === 'title')
+
+    expect(titled?.header).toBe('title')
+    expect(columns.some((column) => column.header === 'name')).toBe(false)
+  })
+
   it('keeps the workflow-MCP listings scannable', () => {
     const servers = CLI_CONTRACT.listWorkflowMcpServers?.columns ?? []
     const tools = CLI_CONTRACT.listWorkflowMcpTools?.columns ?? []
@@ -393,6 +450,57 @@ describe('list columns', () => {
     expect(toolPaths).not.toContain('mcpServerUrl')
     expect(toolPaths).not.toContain('apiEndpoint')
     expect(toolPaths).toContain('workflowId')
+  })
+
+  /**
+   * A dispatch's `scope` and `limit` are objects, and column inference drops
+   * those, so the filtered / select-all-minus / explicit-rows distinction the
+   * resource publishes had nowhere to appear — while `tableId` and
+   * `workspaceId`, the command's own arguments, took two columns.
+   */
+  it('renders what a dispatch was asked to run, and drops its own arguments', () => {
+    const dispatch = {
+      id: 'disp-1',
+      tableId: 'tbl-1',
+      workspaceId: 'ws-1',
+      status: 'dispatching',
+      mode: 'incomplete',
+      scope: { groupIds: ['g1'], filtered: true, excludeRowIds: ['r9', 'r8'] },
+      limit: { type: 'rows', max: 500 },
+      processedCount: 12,
+      isManualRun: true,
+      requestedAt: '2026-08-25T10:00:00.000Z',
+      completedAt: null,
+      canceledAt: null,
+    }
+    const lines: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      lines.push(String(line))
+    })
+
+    try {
+      renderPage('table', [dispatch], CLI_CONTRACT.listTableDispatches ?? {})
+    } finally {
+      log.mockRestore()
+    }
+
+    const [header, printed] = lines.join('\n').split('\n')
+    // Split on the two-space column gap, so a cell is compared by the column it
+    // landed under rather than by appearing anywhere in the row.
+    const headers = header.split(/\s{2,}/)
+    const cells = printed.split(/\s{2,}/)
+    const cellUnder = (label: string) => cells[headers.indexOf(label)]
+
+    expect(headers).toContain('FILTERED')
+    expect(headers).toContain('EXCLUDED')
+    expect(headers).not.toContain('WORKSPACE ID')
+    expect(headers).not.toContain('TABLE ID')
+    expect(cellUnder('FILTERED')).toBe('yes')
+    expect(cellUnder('EXCLUDED')).toBe('2')
+    expect(cellUnder('GROUPS')).toBe('1')
+    expect(cellUnder('ROWS')).toBe('—')
+    expect(cellUnder('MAX ROWS')).toBe('500')
+    expect(cellUnder('COMPLETED')).toBe('—')
   })
 
   it('lists the audit-log id its own get command takes', () => {
@@ -570,6 +678,27 @@ describe('help and gates state what is actually true', () => {
     expect(confirm).toContain('--scope')
   })
 
+  it('names the flag its stream requirement, the way its siblings do', () => {
+    // `--include-thinking` and `--include-tool-calls` both say so; the flag
+    // that shares their server-side rule said nothing and spent a 400 to
+    // discover it.
+    const help = flatHelp('workflows', 'run')
+
+    expect(help).toContain('--select-output')
+    expect(help).toContain('requires --follow')
+  })
+
+  it('promises the dialect a finished run actually matches', () => {
+    // The same flag name on two resources: `workflows run` resolves block
+    // names against the live workflow, `workflows runs get` reads a recorded
+    // run and matches ids only. The help used to promise names on both.
+    const help = flatHelp('workflows', 'runs', 'get')
+
+    expect(help).toContain('--select-output <value...>')
+    expect(help).toContain('blockId')
+    expect(help).not.toMatch(/blockName|agent_1\.content/)
+  })
+
   it('offers no negation for the retry that must travel alone', () => {
     // `retryProcessing` is `z.literal(true)`, so `--no-retry-processing` sent
     // `retryProcessing: false` as the entire request — a body that asks for
@@ -578,5 +707,40 @@ describe('help and gates state what is actually true', () => {
 
     expect(help).toContain('--retry-processing')
     expect(help).not.toContain('--no-retry-processing')
+  })
+})
+
+describe('the import cancel refuses through commander, not just in the contract', () => {
+  beforeEach(() => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: {} })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('refuses an import cancellation without --yes, sends nothing, and says why', async () => {
+    // The runner commits rows batch by batch and stops between batches, so a
+    // cancelled import keeps what it wrote; a `replace` has already emptied the
+    // table by then. The refusal is where the caller reads that, so it is
+    // asserted through the error commander actually raises.
+    const refusal = await runLeaf(['tables', 'imports', 'cancel', 'imp-1']).then(
+      () => '',
+      (error: Error) => error.message
+    )
+
+    expect(refusal).toContain('--yes')
+    expect(refusal).toContain('replace')
+    expect(refusal).toMatch(/empties the table/)
+    expect(refusal).not.toMatch(/not recoverable|cannot be undone/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('still lets an export cancellation through, since it discards no work', async () => {
+    await runLeaf(['tables', 'exports', 'cancel', 'tbl-1', 'exp-1'])
+    expect(mockRequest).toHaveBeenCalled()
+  })
+
+  it('offers --yes in the help of the one it now gates, and not its sibling', () => {
+    expect(flatHelp('tables', 'imports', 'cancel')).toContain('Confirm this operation (required)')
+    expect(flatHelp('tables', 'exports', 'cancel')).not.toContain('--yes')
   })
 })

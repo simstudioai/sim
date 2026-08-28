@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
   listCredentials: vi.fn(),
+  loadEnrollmentAccess: vi.fn(),
   loadGroup: vi.fn(),
   loadWorkspace: vi.fn(),
   resolveCredentialGroupsAvailability: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
     }
   },
   listCredentialGroupCredentialReferences: mocks.listCredentials,
+  loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
 }))
@@ -93,7 +95,16 @@ function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDele
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
     resourceScope: { credentialGroupId },
-    delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+    delegationContext: {
+      kind: 'workflow_execution',
+      workflowId: 'workflow-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment',
+        deploymentVersionId: 'deployment-version-1',
+      },
+    },
   }
 }
 
@@ -105,6 +116,10 @@ describe('listCredentialGroupCredentials', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
     mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
+    mocks.loadEnrollmentAccess.mockResolvedValue({
+      enrollmentId: 'enrollment-1',
+      email: 'person@example.com',
+    })
     mocks.listCredentials.mockResolvedValue({
       credentials: [
         {
@@ -141,6 +156,42 @@ describe('listCredentialGroupCredentials', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
+  it('lists credentials when the original principal has no human subject', async () => {
+    const principal = executorPrincipal()
+    principal.subjectUserId = undefined
+    principal.delegationContext.principal = {
+      kind: 'workspace_api_key',
+      workspaceId: 'workspace-1',
+      keyId: 'workspace-key-1',
+    }
+
+    await listCredentialGroupCredentials.execute({ principal, input })
+
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalledWith(
+      expect.not.objectContaining({ credentialGroupEnrollmentId: expect.anything() })
+    )
+  })
+
+  it('lists credentials without requiring the actor to be enrolled', async () => {
+    mocks.loadEnrollmentAccess.mockResolvedValueOnce(null)
+
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalled()
+  })
+
+  it('does not use the executor subject to filter credential references', async () => {
+    const principal = executorPrincipal()
+    principal.subjectUserId = 'different-user'
+
+    await listCredentialGroupCredentials.execute({ principal, input })
+
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
+    expect(mocks.listCredentials).toHaveBeenCalled()
   })
 
   it('returns a bounded page after current workspace and entitlement checks', async () => {
@@ -189,7 +240,7 @@ describe('listCredentialGroupCredentials', () => {
     )
   })
 
-  it('normalizes an exact enrollment email filter', async () => {
+  it('normalizes an optional email filter independently of caller identity', async () => {
     await listCredentialGroupCredentials.execute({
       principal: executorPrincipal(),
       input: { ...input, email: ' Person@Example.COM ' },
@@ -198,6 +249,16 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'person@example.com' })
     )
+  })
+
+  it('rejects an invalid email filter', async () => {
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...input, email: 'not-an-email' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Email must be a valid address' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('rejects providers that are not active in the group before credential access', async () => {

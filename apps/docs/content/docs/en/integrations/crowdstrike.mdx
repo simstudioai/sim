@@ -159,7 +159,7 @@ Run a read-only Real Time Response command in an open CrowdStrike Falcon session
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
 | `sessionId` | string | Yes | RTR session ID returned by Init RTR Session |
 | `baseCommand` | string | Yes | Read-only RTR base command family, one of: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg, users. Subcommands belong in commandString, not here — and only reg query is read-tier, since reg set and reg delete are Active Responder commands. |
-| `commandString` | string | Yes | Full command line to run, such as "ls C:\\Windows" or "reg query HKLM\\Software" |
+| `commandString` | string | Yes | Full command line to run, such as "ls C:\Windows" or "reg query HKLM\Software" |
 
 #### Output
 

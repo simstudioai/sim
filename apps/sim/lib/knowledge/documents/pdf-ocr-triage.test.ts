@@ -8,12 +8,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl } = vi.hoisted(() => ({
-  mockParseBuffer: vi.fn(),
-  mockDownload: vi.fn(),
-  mockToken: vi.fn(),
-  mockBaseUrl: vi.fn(),
-}))
+const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistralParse } =
+  vi.hoisted(() => ({
+    mockParseBuffer: vi.fn(),
+    mockDownload: vi.fn(),
+    mockToken: vi.fn(),
+    mockBaseUrl: vi.fn(),
+    mockExecuteMistralParse: vi.fn(),
+  }))
 
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
 vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
@@ -26,8 +28,12 @@ vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: (extension: string) => ['pdf'].includes(extension),
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+vi.mock('@/lib/internal/mistral/operations', () => ({
+  executeMistralParse: mockExecuteMistralParse,
+}))
 
 import { env } from '@/lib/core/config/env'
+import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -63,6 +69,16 @@ describe('PDF OCR triage', () => {
     mockDownload.mockResolvedValue(Buffer.from('%PDF-1.7'))
     mockToken.mockResolvedValue('internal-token')
     mockBaseUrl.mockReturnValue('http://sim.local')
+    mockExecuteMistralParse.mockImplementation(async () => {
+      const response = await fetch('https://api.mistral.ai/v1/ocr', { method: 'POST' })
+      if (!response.ok) {
+        throw new MistralOperationError(response.status, {
+          success: false,
+          error: `Mistral API error: ${response.statusText}`,
+        })
+      }
+      return { success: true, output: await response.json() }
+    })
   })
 
   afterEach(() => {
@@ -180,6 +196,16 @@ describe('PDF OCR triage', () => {
 
     await expect(parse()).rejects.toThrow('OCR provider returned no page results')
   })
+
+  it('classifies an OCR request-size rejection as a permanent document failure', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 413 })))
+
+    const error = await parse().catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(PermanentDocumentProcessingError)
+    expect(error).toMatchObject({ code: 'document_complexity_limit' })
+  })
 })
 
 describe('Azure OCR chunking', () => {
@@ -215,6 +241,31 @@ describe('Azure OCR chunking', () => {
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
     // 1001 pages against a 1000-page request cap: two chunks, two requests.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the current Azure model 30-page request envelope', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-document-ai-2512',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockDownload.mockResolvedValue(await pdfOfPages(31))
+    let request = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      const pageCount = request++ === 0 ? 30 : 1
+      return new Response(
+        JSON.stringify({ pages: ocrPages(pageCount), usage_info: { pages_processed: pageCount } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await parse()
+
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   /**

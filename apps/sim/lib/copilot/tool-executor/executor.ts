@@ -81,15 +81,24 @@ export async function executeTool(
       ...(context.resolvedSecretTraceRegistry
         ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
         : {}),
-      ...(context.workflowId
-        ? {
-            internalExecutorDelegation: {
-              subjectUserId: context.userId,
-              workflowId: context.workflowId,
-              ...(context.executionId ? { executionId: context.executionId } : {}),
-            },
-          }
-        : {}),
+      ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+      operationContext: {
+        userId: context.userId,
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        executionId: context.executionId,
+        chatId: context.chatId,
+        toolCallId: context.toolCallId,
+        executorDelegationOrigin: {
+          subjectUserId: context.userId,
+          workflowId: context.workflowId,
+          ...(context.executionId ? { executionId: context.executionId } : {}),
+        },
+        copilotToolExecution: context.copilotToolExecution,
+        copilotInteractionMode: context.copilotInteractionMode,
+        billingAttribution: context.billingAttribution,
+        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      },
     }
     try {
       return await (Object.keys(options).length > 0

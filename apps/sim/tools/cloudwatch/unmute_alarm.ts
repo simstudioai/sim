@@ -2,9 +2,9 @@ import type {
   CloudWatchUnmuteAlarmParams,
   CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const unmuteAlarmTool: ToolConfig<
+export const unmuteAlarmTool: InternalToolConfig<
   CloudWatchUnmuteAlarmParams,
   CloudWatchUnmuteAlarmResponse
 > = {
@@ -40,13 +40,8 @@ export const unmuteAlarmTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/unmute-alarm',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

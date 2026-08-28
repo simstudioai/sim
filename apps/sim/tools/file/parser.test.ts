@@ -5,7 +5,20 @@ import { describe, expect, it } from 'vitest'
 import { fileFetchTool, fileParserTool, fileParserV3Tool } from '@/tools/file/parser'
 
 describe('fileParserTool', () => {
-  it('propagates parse route failures as tool failures', async () => {
+  it('maps the public File Fetch URL to the internal parser path', () => {
+    expect(
+      fileFetchTool.operation.input({
+        fileUrl: 'https://example.com/report.pdf',
+        headers: { Authorization: 'Bearer token' },
+      })
+    ).toEqual({
+      filePath: 'https://example.com/report.pdf',
+      headers: { Authorization: 'Bearer token' },
+      workspaceId: undefined,
+    })
+  })
+
+  it('propagates parser operation failures as tool failures', async () => {
     const result = await fileParserTool.transformResponse?.(
       Response.json({
         success: false,

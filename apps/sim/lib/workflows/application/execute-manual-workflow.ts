@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -52,12 +52,13 @@ function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): str
 }
 
 function executionServiceInput(params: {
-  principal: Principal
+  principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
 }) {
   return {
     workflowId: params.context.workflowId,
+    principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
     requestId: params.input.requestId,
     executionId: params.input.executionId,

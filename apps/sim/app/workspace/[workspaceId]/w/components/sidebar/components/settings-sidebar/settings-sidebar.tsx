@@ -7,6 +7,7 @@ import {
   chipIconSlotClass,
   chipVariants,
   cn,
+  OverflowText,
 } from '@sim/emcn'
 import { ChevronLeft } from '@sim/emcn/icons'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
@@ -360,7 +361,7 @@ export function SettingsSidebar({
             <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
               <ChevronLeft className='size-[14px]' />
             </span>
-            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
+            <span className='sidebar-collapse-hide text-[var(--text-body)]'>Back</span>
           </button>
         </SidebarTooltip>
       </div>
@@ -411,9 +412,11 @@ export function SettingsSidebar({
                     const content = (
                       <>
                         <Icon className={chipContentIconClass} />
-                        <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
-                          {item.label}
-                        </span>
+                        <OverflowText
+                          label={item.label}
+                          className='sidebar-collapse-hide text-[var(--text-body)]'
+                          tooltipEnabled={!showCollapsedTooltips}
+                        />
                         {isLocked && (
                           <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
                             Max

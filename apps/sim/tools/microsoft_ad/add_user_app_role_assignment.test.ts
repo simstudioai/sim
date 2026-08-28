@@ -2,18 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { addUserAppRoleAssignmentTool } from '@/tools/microsoft_ad/add_user_app_role_assignment'
+import { executeAddUserAppRoleAssignmentOperation } from '@/lib/internal/microsoft-ad/operations/add-user-app-role-assignment'
 
 const OBJECT_ID = 'cde330e5-2150-4c11-9c5b-14bfdc948c79'
 const RESOURCE_ID = '8e881353-1735-45af-af21-ee1344582a4d'
 const APP_ROLE_ID = '00000000-0000-0000-0000-000000000000'
 const UPN = 'jdoe@contoso.com'
 
-const buildBody = addUserAppRoleAssignmentTool.request.body as (
-  params: Record<string, unknown>
-) => Record<string, unknown>
-
-const run = addUserAppRoleAssignmentTool.directExecution!
+const run = executeAddUserAppRoleAssignmentOperation
 
 function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
   return {
@@ -137,21 +133,26 @@ describe('addUserAppRoleAssignmentTool principalId', () => {
     ).rejects.toThrow('Invalid value specified.')
   })
 
-  /**
-   * The declarative request is only reachable if direct execution is bypassed, and it cannot
-   * perform the lookup — so it must refuse a UPN instead of sending one Graph will reject.
-   */
-  describe('declarative fallback body', () => {
-    it('refuses a user principal name instead of putting it in principalId', () => {
-      expect(() =>
-        buildBody({ userId: UPN, resourceId: RESOURCE_ID, appRoleId: APP_ROLE_ID })
-      ).toThrow(/must be an object ID \(GUID\)/)
-    })
+  it('does not turn an aborted response-body read into a successful assignment', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        controller.abort(new DOMException('cancelled', 'AbortError'))
+        throw controller.signal.reason
+      },
+    } as Response)
 
-    it('accepts an object ID', () => {
-      expect(
-        buildBody({ userId: OBJECT_ID, resourceId: RESOURCE_ID, appRoleId: APP_ROLE_ID })
-      ).toEqual({ principalId: OBJECT_ID, resourceId: RESOURCE_ID, appRoleId: APP_ROLE_ID })
-    })
+    await expect(
+      run(
+        {
+          accessToken: 'token',
+          userId: OBJECT_ID,
+          resourceId: RESOURCE_ID,
+          appRoleId: APP_ROLE_ID,
+        },
+        controller.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

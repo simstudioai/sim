@@ -5,9 +5,9 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
-  internalKnowledgeActorUserId,
   internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
+  internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeDocument,
 } from '@/lib/knowledge/api/internal-route'
@@ -15,6 +15,7 @@ import {
   internalKnowledgeErrorPolicies,
   internalKnowledgeSessionOrExecutorAuth,
 } from '@/lib/knowledge/api/route-policies'
+import { finalizeKnowledgePersistedResponse } from '@/lib/knowledge/api/secret-provenance'
 import {
   deleteKnowledgeDocument,
   readKnowledgeDocument,
@@ -22,7 +23,6 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
-import { finalizeKnowledgePersistedResponse } from '@/app/api/knowledge/secret-provenance'
 
 export const GET = defineInternalJsonRoute({
   contract: getKnowledgeDocumentContract,
@@ -43,9 +43,9 @@ export const GET = defineInternalJsonRoute({
   }),
   finalizeResponse: ({ request, principal, result, body }) =>
     finalizeKnowledgePersistedResponse({
-      request,
+      headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeActorUserId(principal),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       documents: [

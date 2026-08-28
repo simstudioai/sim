@@ -135,3 +135,13 @@ export function toV2ChatDeploymentListItem(
 export const chatDeploymentErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Chat deployment not found',
 })
+
+/**
+ * The list is addressed by workspace, not by deployment, so a concealed
+ * cross-tenant denial must name the workspace the caller asked for. Concealment
+ * itself is unchanged — an unreachable workspace still answers 404 whether or
+ * not it holds any deployment.
+ */
+export const chatDeploymentWorkspaceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Workspace not found',
+})

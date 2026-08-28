@@ -866,7 +866,6 @@ export interface PRV2OperationParams extends PROperationParams {
 export interface CreateCommentParams extends PROperationParams {
   body: string
   path?: string
-  position?: number
   line?: number
   side?: string
   commitId?: string

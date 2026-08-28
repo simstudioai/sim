@@ -17,7 +17,6 @@ function runShell(source: string) {
     .replace(/^<!DOCTYPE html>\n<html lang="en">/, '')
     .replace(/<\/html>$/, '')
   const script = SIM_ARTIFACT_SHELL.replace(/^<script>/, '').replace(/<\/script>$/, '')
-  // biome-ignore lint: test harness executes the shell inline
   new Function(script)()
 }
 

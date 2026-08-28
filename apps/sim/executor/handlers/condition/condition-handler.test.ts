@@ -3,6 +3,7 @@
  */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
 import type { BlockState, ExecutionContext } from '@/executor/types'
@@ -548,6 +549,59 @@ describe('ConditionBlockHandler', () => {
         handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
       ).rejects.toThrow(/Evaluation error in condition "if".*Request timed out/)
       expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('does not replay an indeterminate Function execution', async () => {
+      mockExecuteTool.mockResolvedValue({
+        success: false,
+        error: 'The sandbox may have started this Function',
+        retryable: false,
+      })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        name: 'NonRetryableExecutionError',
+        retryable: false,
+      })
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('does not enter per-branch fallback when the batched Function call throws indeterminate', async () => {
+      mockExecuteTool.mockRejectedValueOnce(
+        new NonRetryableExecutionError('The sandbox may have started this Function')
+      )
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        name: 'NonRetryableExecutionError',
+        retryable: false,
+      })
+      expect(mockExecuteTool).toHaveBeenCalledOnce()
+    })
+
+    it('preserves an indeterminate result during individual fallback', async () => {
+      mockExecuteTool
+        .mockResolvedValueOnce({
+          success: false,
+          error: 'Invalid JavaScript syntax: Unexpected token',
+        })
+        .mockResolvedValueOnce({
+          success: false,
+          error: 'The sandbox may have started this Function',
+          retryable: false,
+        })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(manyConditions) })
+      ).rejects.toMatchObject({
+        cause: expect.objectContaining({
+          name: 'NonRetryableExecutionError',
+          retryable: false,
+        }),
+      })
+      expect(mockExecuteTool).toHaveBeenCalledTimes(2)
     })
 
     it('falls back when the batch reports a branch index outside the list', async () => {

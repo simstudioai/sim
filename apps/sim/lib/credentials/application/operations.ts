@@ -1,5 +1,6 @@
 import type { ApplicationOperation } from '@/lib/core/application'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
+import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
 
 export type CredentialRole = 'member' | 'admin'
 
@@ -148,6 +149,10 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
+    resourcePolicy: {
+      resourceType: 'credential_group',
+      action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+    },
   }),
 } as const
 

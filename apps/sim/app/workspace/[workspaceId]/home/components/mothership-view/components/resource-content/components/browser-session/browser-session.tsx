@@ -73,6 +73,7 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
 import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
+import { BrowserPageIssueView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-page-issue'
 import {
   type BrowserPanelOverlay,
   type BrowserPanelOverlayController,
@@ -104,6 +105,7 @@ import type { ChatContext } from '@/stores/panel'
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
 const SEARCH_SUGGESTIONS_DEBOUNCE_MS = 160
 const NEW_TAB_CONFIRM_TIMEOUT_MS = 10_000
+const OMNIBOX_DRAG_THRESHOLD_PX = 4
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
@@ -168,11 +170,7 @@ export function resolveUrlBarInput(raw: string): string {
   return `${isLocal ? 'http' : 'https'}://${input}`
 }
 
-/**
- * Selects the omnibox after the pointer event that focused it has settled.
- * Selecting synchronously in `focus` lets the remainder of that click collapse
- * the selection to an arbitrary caret position.
- */
+/** Selects after keyboard or programmatic focus has settled. */
 export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number {
   return requestAnimationFrame(() => {
     if (input.ownerDocument.activeElement === input) {
@@ -181,10 +179,30 @@ export function selectFocusedOmniboxOnNextFrame(input: HTMLInputElement): number
   })
 }
 
+/** Chromium cancels focus-click select-all once the pointer becomes a drag. */
+export function exceededOmniboxDragThreshold(
+  originX: number,
+  originY: number,
+  clientX: number,
+  clientY: number
+): boolean {
+  return Math.hypot(clientX - originX, clientY - originY) > OMNIBOX_DRAG_THRESHOLD_PX
+}
+
 /** Removes the selection left behind when focus moves into the native page view. */
 export function clearOmniboxSelection(input: HTMLInputElement): void {
   const caret = input.selectionEnd ?? input.value.length
   input.setSelectionRange(caret, caret)
+}
+
+/** Claims the one renderer response allowed for a native media permission request. */
+export function claimMediaPermissionResponse(
+  handledRequestId: { current: string | null },
+  requestId: string
+): boolean {
+  if (handledRequestId.current === requestId) return false
+  handledRequestId.current = requestId
+  return true
 }
 
 /** Places the replacement on the native view's exact, unclipped viewport rectangle. */
@@ -331,6 +349,12 @@ interface PendingNewTabFocus {
   timeoutId: number
 }
 
+interface OmniboxPointerSelection {
+  pointerId: number
+  originX: number
+  originY: number
+}
+
 export function BrowserSession({
   visible,
   scopeId,
@@ -370,6 +394,8 @@ export function BrowserSession({
     (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
+  const hasPageIssue = Boolean(pageState?.issue)
+  const mediaPermissionRequest = pageState?.mediaPermissionRequest
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   // Lets the occlusion handshake reject a capture taken before a modal's
@@ -380,7 +406,9 @@ export function BrowserSession({
   const fillButtonRef = useRef<HTMLButtonElement>(null)
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
+  const omniboxPointerSelectionRef = useRef<OmniboxPointerSelection | null>(null)
   const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
+  const handledMediaPermissionRequestIdRef = useRef<string | null>(null)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
   const { removeResource } = useMothershipResources()
@@ -455,6 +483,69 @@ export function BrowserSession({
     onSnapshotError,
   } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
+  useEffect(() => {
+    const request = mediaPermissionRequest
+    if (!request) {
+      handledMediaPermissionRequestIdRef.current = null
+      void closeOverlay('permissions')
+      return
+    }
+
+    let active = true
+    let decided = false
+    let toastId: string | null = null
+    const respond = (allowed: boolean) => {
+      if (decided) return
+      decided = true
+      if (!claimMediaPermissionResponse(handledMediaPermissionRequestIdRef, request.requestId))
+        return
+      sendBrowserPanelAction(
+        'respond-media-permission',
+        { requestId: request.requestId, allowed },
+        scopeId
+      )
+    }
+
+    const dismissPrompt = () => {
+      respond(false)
+      if (!toastId) return
+      const id = toastId
+      toastId = null
+      toast.dismiss(id)
+    }
+
+    if (!visible) {
+      respond(false)
+      void closeOverlay('permissions')
+      return
+    }
+
+    void requestOverlay('permissions', () => respond(false), dismissPrompt).then((ready) => {
+      if (!active) return
+      if (!ready) {
+        respond(false)
+        return
+      }
+      const origin = URL.canParse(request.origin) ? new URL(request.origin).host : request.origin
+      const devices = request.devices.join(' and ')
+      toastId = toast.info(`${origin} wants to use your ${devices}`, {
+        description: 'Access applies only to this page and ends when it navigates.',
+        action: { label: 'Allow', onClick: () => respond(true) },
+        onDismiss: () => {
+          if (!active) return
+          respond(false)
+          void closeOverlay('permissions')
+        },
+      })
+    })
+
+    return () => {
+      active = false
+      dismissPrompt()
+      void closeOverlay('permissions')
+    }
+  }, [closeOverlay, mediaPermissionRequest, requestOverlay, scopeId, visible])
+
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
   // as the browser's own menus, without restoring a document-wide observer.
@@ -487,7 +578,11 @@ export function BrowserSession({
     () =>
       onBrowserToolbarCommand((command) => {
         if (command === 'import') {
-          navigateToSettings({ section: 'browser', browserView: 'passwords', browserImport: true })
+          navigateToSettings({
+            section: 'browser',
+            browserView: 'passwords',
+            browserImport: true,
+          })
           return
         }
         navigateToSettings({ section: 'browser' })
@@ -727,6 +822,11 @@ export function BrowserSession({
       reportBrowserPanelBounds(null, null, scopeId)
       return
     }
+    if (hasPageIssue) {
+      setPanelVisible(true)
+      reportBrowserPanelBounds(null, null, scopeId)
+      return
+    }
     // Resolved once: the panel is a stable ancestor for this effect's lifetime,
     // and only its inline width changes.
     const panel = host.closest<HTMLElement>('[data-mothership-panel]')
@@ -888,7 +988,7 @@ export function BrowserSession({
       void geometryOcclusionLease.setDesired(false)
       reportBrowserPanelBounds(null, null, scopeId)
     }
-  }, [visible, suspended, scopeId])
+  }, [hasPageIssue, visible, suspended, scopeId])
 
   /**
    * Programmatic focus on a new tab keeps the omnibox ready for typing without
@@ -911,28 +1011,35 @@ export function BrowserSession({
   // Keep the page's exact captured frame underneath it while it is open so
   // pointer events reach the Sim popover instead of the WebContentsView.
   useEffect(() => {
+    if (mediaPermissionRequest) {
+      void closeOverlay('suggestions')
+      return
+    }
+    if (hasPageIssue) {
+      void closeOverlay('suggestions')
+      return
+    }
     if (suggestions.length > 0) {
       void requestOverlay('suggestions', () => {})
       return
     }
     void closeOverlay('suggestions')
-  }, [closeOverlay, requestOverlay, suggestions.length])
+  }, [closeOverlay, hasPageIssue, mediaPermissionRequest, requestOverlay, suggestions.length])
 
-  const suggestionsOpen = shouldOpenUrlSuggestions(activeOverlay, suggestions.length)
+  const suggestionsOpen = hasPageIssue
+    ? suggestions.length > 0
+    : shouldOpenUrlSuggestions(activeOverlay, suggestions.length)
 
-  const navigateTo = useCallback(
-    (url: string) => {
-      sendBrowserPanelAction('navigate', { url }, scopeId)
-      setSuggestionsVisible(false)
-      setSuggestionQuery(null)
-      setActiveSuggestion(null)
-      setSuggestionOriginUrl('')
-      urlInputRef.current?.blur()
-    },
-    [scopeId]
-  )
+  const navigateTo = (url: string) => {
+    sendBrowserPanelAction('navigate', { url }, scopeId)
+    setSuggestionsVisible(false)
+    setSuggestionQuery(null)
+    setActiveSuggestion(null)
+    setSuggestionOriginUrl('')
+    urlInputRef.current?.blur()
+  }
 
-  const submitUrl = useCallback(() => {
+  const submitUrl = () => {
     // Enter can only take a highlight from a list the user can actually see.
     const highlighted =
       suggestionsOpen && activeSuggestion !== null ? suggestions[activeSuggestion] : undefined
@@ -946,7 +1053,7 @@ export function BrowserSession({
       return
     }
     urlInputRef.current?.blur()
-  }, [activeSuggestion, navigateTo, suggestions, suggestionsOpen, urlDraft])
+  }
 
   const handleNewTab = useCallback(() => {
     setSuggestionsVisible(false)
@@ -1146,11 +1253,50 @@ export function BrowserSession({
                       : undefined
                   }
                   onPointerDown={(event) => {
+                    if (omniboxFocusRafRef.current !== null) {
+                      cancelAnimationFrame(omniboxFocusRafRef.current)
+                      omniboxFocusRafRef.current = null
+                    }
+                    omniboxPointerSelectionRef.current =
+                      event.button === 0 && document.activeElement !== event.currentTarget
+                        ? {
+                            pointerId: event.pointerId,
+                            originX: event.clientX,
+                            originY: event.clientY,
+                          }
+                        : null
                     setSuggestionsVisible(true)
                     if (document.activeElement !== event.currentTarget) {
                       setSuggestionOriginUrl(pageState?.url ?? '')
                       setSuggestionQuery('')
                     }
+                  }}
+                  onPointerMove={(event) => {
+                    const pending = omniboxPointerSelectionRef.current
+                    if (!pending || pending.pointerId !== event.pointerId) return
+                    const hasSelection =
+                      event.currentTarget.selectionStart !== event.currentTarget.selectionEnd
+                    if (
+                      hasSelection ||
+                      exceededOmniboxDragThreshold(
+                        pending.originX,
+                        pending.originY,
+                        event.clientX,
+                        event.clientY
+                      )
+                    ) {
+                      omniboxPointerSelectionRef.current = null
+                    }
+                  }}
+                  onPointerUp={(event) => {
+                    const pending = omniboxPointerSelectionRef.current
+                    omniboxPointerSelectionRef.current = null
+                    if (pending?.pointerId === event.pointerId && event.button === 0) {
+                      event.currentTarget.select()
+                    }
+                  }}
+                  onPointerCancel={() => {
+                    omniboxPointerSelectionRef.current = null
                   }}
                   onChange={(event) => {
                     setSuggestionsVisible(true)
@@ -1165,9 +1311,12 @@ export function BrowserSession({
                     setUrlDraft((current) => current ?? pageState?.url ?? '')
                     setSuggestionOriginUrl(pageState?.url ?? '')
                     setSuggestionQuery('')
-                    selectFocusedOmniboxOnNextFrame(event.currentTarget)
+                    if (!omniboxPointerSelectionRef.current) {
+                      selectFocusedOmniboxOnNextFrame(event.currentTarget)
+                    }
                   }}
                   onBlur={(event) => {
+                    omniboxPointerSelectionRef.current = null
                     clearOmniboxSelection(event.currentTarget)
                     setSuggestionsVisible(false)
                     setSuggestionQuery(null)
@@ -1379,6 +1528,13 @@ export function BrowserSession({
               Waiting for the browser session to start…
             </p>
           </div>
+        )}
+        {pageState?.issue && (
+          <BrowserPageIssueView
+            issue={pageState.issue}
+            focusRecovery={visible}
+            onReload={() => sendBrowserPanelAction('reload', {}, scopeId)}
+          />
         )}
       </div>
     </div>

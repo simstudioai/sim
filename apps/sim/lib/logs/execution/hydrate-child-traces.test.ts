@@ -134,6 +134,35 @@ describe('hydrateChildTraces', () => {
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
   })
 
+  it('joins the same run for an actorless read, which carries no reader at all', async () => {
+    // A scheduled run inspecting its own child has no user on its principal. The
+    // viewer is attribution, never a gate, so its absence must change nothing about
+    // what is joined — and must not throw, which is how this broke in production.
+    mockSelect.mockResolvedValue([
+      {
+        executionId: 'child-exec-1',
+        workspaceId: 'ws-source',
+        workflowId: 'wf-source',
+        stateSnapshotId: 'snap-1',
+        executionData: {},
+      },
+    ])
+    const spans = [boundarySpan('child-exec-1')]
+
+    const result = await hydrateChildTraces(spans, {})
+
+    expect(result.hydrated).toBe(1)
+    expect(spans[0].childTraceAccess).toBe('granted')
+    expect(spans[0].children?.[0].name).toBe('Agent 1')
+    expect(spans[0].childWorkflowSnapshotId).toBe('snap-1')
+    // Pinned rather than left implicit: materialization is told there is no owner,
+    // instead of being handed a stand-in the run never authorized.
+    expect(mockMaterialize).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ workspaceId: 'ws-source', userId: undefined })
+    )
+  })
+
   it('refuses a handle whose block is not opted in, however it got there', async () => {
     // The decisive case: handles persisted before this policy existed meant "a child
     // ran, authorize the reader", not "the publisher consented". Reading presence as

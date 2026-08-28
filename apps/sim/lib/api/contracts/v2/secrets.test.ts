@@ -3,9 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  v2DeleteSecretContract,
   v2SecretSchema,
   v2SecretWithValueSchema,
   v2SetSecretBodySchema,
+  v2SetSecretContract,
 } from '@/lib/api/contracts/v2/secrets'
 
 const secret = {
@@ -68,5 +70,97 @@ describe('v2SecretWithValueSchema value', () => {
         value: 'https://staging.example.com',
       }).success
     ).toBe(true)
+  })
+})
+
+/** Reads the `name` field description off a contract's path-parameter schema. */
+function nameDescription(params: unknown): string | undefined {
+  const shape = (params as { shape: Record<string, { description?: string }> }).shape
+  return shape.name.description
+}
+
+describe('secret path-parameter descriptions', () => {
+  it('does not offer writes on the delete path parameter', () => {
+    const description = nameDescription(v2DeleteSecretContract.params)
+
+    expect(description).toBe('Secret to delete.')
+    expect(description).not.toMatch(/create|replace/i)
+  })
+
+  it('does not offer deletion on the set path parameter', () => {
+    expect(nameDescription(v2SetSecretContract.params)).not.toMatch(/delete/i)
+  })
+
+  it('gives the two operations distinct path-parameter prose', () => {
+    expect(nameDescription(v2SetSecretContract.params)).not.toBe(
+      nameDescription(v2DeleteSecretContract.params)
+    )
+  })
+})
+
+describe('v2SetSecretBodySchema metadata-only write', () => {
+  it('accepts a workspace body carrying only unredacted, so restoring redaction costs no value', () => {
+    const parsed = v2SetSecretBodySchema.safeParse({
+      workspaceId: 'workspace-1',
+      scope: 'workspace',
+      unredacted: false,
+    })
+
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.value).toBeUndefined()
+  })
+
+  it('accepts a workspace body carrying only a description', () => {
+    expect(
+      v2SetSecretBodySchema.safeParse({
+        workspaceId: 'workspace-1',
+        scope: 'workspace',
+        description: 'Prod billing key',
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects a workspace body with nothing to write rather than resolving to an empty update', () => {
+    const parsed = v2SetSecretBodySchema.safeParse({
+      workspaceId: 'workspace-1',
+      scope: 'workspace',
+    })
+
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(parsed.error.issues).toEqual([
+        expect.objectContaining({
+          path: ['value'],
+          message: 'value, description, or unredacted is required',
+        }),
+      ])
+    }
+  })
+
+  it('still requires a value for a personal secret, which has no metadata field to write', () => {
+    const parsed = v2SetSecretBodySchema.safeParse({
+      workspaceId: 'workspace-1',
+      scope: 'personal',
+    })
+
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(parsed.error.issues).toEqual([
+        expect.objectContaining({
+          path: ['value'],
+          message: 'value is required for a personal secret',
+        }),
+      ])
+    }
+  })
+
+  it('keeps rejecting an empty value, which is a write and not an omission', () => {
+    expect(
+      v2SetSecretBodySchema.safeParse({
+        workspaceId: 'workspace-1',
+        scope: 'workspace',
+        value: '',
+      }).success
+    ).toBe(false)
   })
 })

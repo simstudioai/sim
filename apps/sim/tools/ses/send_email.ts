@@ -1,7 +1,7 @@
 import type { SESSendEmailParams, SESSendEmailResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendEmailTool: ToolConfig<SESSendEmailParams, SESSendEmailResponse> = {
+export const sendEmailTool: InternalToolConfig<SESSendEmailParams, SESSendEmailResponse> = {
   id: 'ses_send_email',
   name: 'SES Send Email',
   description: 'Send an email via AWS SES using simple or HTML content',
@@ -82,11 +82,8 @@ export const sendEmailTool: ToolConfig<SESSendEmailParams, SESSendEmailResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/ses/send-email',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

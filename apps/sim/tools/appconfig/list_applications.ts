@@ -2,9 +2,9 @@ import type {
   AppConfigListApplicationsParams,
   AppConfigListApplicationsResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listApplicationsTool: ToolConfig<
+export const listApplicationsTool: InternalToolConfig<
   AppConfigListApplicationsParams,
   AppConfigListApplicationsResponse
 > = {
@@ -46,11 +46,8 @@ export const listApplicationsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/list-applications',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

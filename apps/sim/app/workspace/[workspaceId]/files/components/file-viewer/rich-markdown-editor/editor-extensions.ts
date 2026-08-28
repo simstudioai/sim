@@ -15,11 +15,16 @@ import {
 } from './collaboration/caret-presence'
 import { LinkEmbed } from './embed/link-embed'
 import { createMarkdownContentExtensions } from './extensions'
+import { RichMarkdownFind } from './find'
 import { ResizableImage } from './image'
 import { RichMarkdownKeymap } from './keymap'
 import { MarkdownPaste } from './markdown-paste'
 import { Mention } from './mention/mention'
 import { MentionChip } from './mention/mention-chip'
+import {
+  createRichMarkdownPasteAdmission,
+  type RichMarkdownPasteAdmissionOptions,
+} from './paste-admission'
 import { FootnoteDefWithView, RawHtmlBlockWithView } from './raw-markdown-snippet'
 import { SlashCommand } from './slash-command/slash-command'
 
@@ -37,14 +42,15 @@ interface MarkdownEditorExtensionOptions {
   embeds?: boolean
   /** When set, wires TipTap Collaboration + CollaborationCaret onto the shared document. */
   collaboration?: EditorCollaboration
+  pasteAdmission?: RichMarkdownPasteAdmissionOptions
 }
 
 /**
  * The full extension set for the live editor: the content extensions with their React node-view nodes
  * injected (code-block language picker, resizable image, mention chip) plus the UI-only extensions —
  * `CodeBlockHighlight` (Prism), `SlashCommand` (the `/` block menu), `Mention` (the `@` menu),
- * `RichMarkdownKeymap`, `MarkdownPaste`, `Placeholder`, and — when `embeds` is set — `LinkEmbed`
- * (media players for standalone links).
+ * `RichMarkdownKeymap`, `MarkdownPaste`, `Placeholder`, `RichMarkdownFind` (the Cmd/Ctrl+F match
+ * highlights), and — when `embeds` is set — `LinkEmbed` (media players for standalone links).
  *
  * Kept separate from `extensions.ts` so those node views (and the block registry the mention chip pulls
  * in for brand icons) stay out of the headless round-trip path, which only needs the schema.
@@ -53,6 +59,7 @@ export function createMarkdownEditorExtensions({
   placeholder,
   embeds = false,
   collaboration,
+  pasteAdmission,
 }: MarkdownEditorExtensionOptions): Extensions {
   return [
     ...createMarkdownContentExtensions(
@@ -88,10 +95,12 @@ export function createMarkdownEditorExtensions({
         ]
       : []),
     CodeBlockHighlight,
+    RichMarkdownFind,
     SlashCommand,
     Mention,
     RichMarkdownKeymap,
     BlockMover,
+    ...(pasteAdmission ? [createRichMarkdownPasteAdmission(pasteAdmission)] : []),
     MarkdownPaste,
     Placeholder.configure({ placeholder }),
     ...(embeds ? [LinkEmbed] : []),

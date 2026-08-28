@@ -35,6 +35,8 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 ### File Read
 
+Read workspace file objects from selected files or canonical workspace file IDs.
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -73,8 +75,7 @@ Fetch and parse a file from a URL with optional custom headers.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `request` | string | No | No description |
-| `outputs` | array | No | Array of parsed files with content and metadata |
+| `fileUrl` | string | Yes | URL of the file to fetch and parse. |
 | `headers` | object | No | HTTP headers to include when fetching URL-based files. |
 
 #### Output

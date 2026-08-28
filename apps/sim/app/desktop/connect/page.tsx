@@ -130,6 +130,13 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
     redirect(authorize.toString())
   }
 
+  if (providerId === 'trello' || providerId === 'instagram' || providerId === 'shopify') {
+    const authorize = new URL(`/api/auth/${providerId}/authorize`, getBaseUrl())
+    authorize.searchParams.set('returnUrl', buildConnectCompleteUrl(state, port))
+    if (draftId) authorize.searchParams.set('draftId', draftId)
+    redirect(authorize.toString())
+  }
+
   return (
     <ConnectLauncher
       providerId={providerId}

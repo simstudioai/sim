@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, settings, user, userStats } from '@sim/db/schema'
+import { member, organization, settings, user, userStats, userStatsColumns } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -207,7 +207,7 @@ export async function getResolvedUserUsageData(
       // inserted, which a lagging replica can miss (this path throws on a
       // missing row). Stays on the primary deliberately.
       db
-        .select()
+        .select(userStatsColumns)
         .from(userStats)
         .where(eq(userStats.userId, userId))
         .limit(1),
@@ -324,7 +324,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
   try {
     const [subscription, userStatsRecord] = await Promise.all([
       getHighestPrioritySubscription(userId),
-      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+      db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
     ])
 
     if (userStatsRecord.length === 0) {
@@ -576,7 +576,7 @@ export async function checkUsageStatus(userId: string): Promise<{
 export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
   const [subscription, currentUserStats] = await Promise.all([
     getHighestPrioritySubscription(userId),
-    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+    db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
   ])
 
   if (currentUserStats.length === 0) {
@@ -708,9 +708,15 @@ export async function maybeSendUsageThresholdEmail(params: {
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}/workspace`
+    /**
+     * Organization billing is reached through the workspace the usage occurred in
+     * — that is the only plane that serves it. Without a workspace there is no such
+     * link to build, so the account page is the honest fallback rather than a guess
+     * at which workspace the recipient would want.
+     */
     const billingSettingsLink =
-      params.scope === 'organization' && params.organizationId
-        ? `${baseUrl}/organization/${params.organizationId}/settings/billing`
+      params.scope === 'organization' && params.workspaceId
+        ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
         : `${baseUrl}/account/settings/billing`
 
     // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)

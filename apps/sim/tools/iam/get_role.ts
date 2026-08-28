@@ -1,7 +1,7 @@
 import type { IAMGetRoleParams, IAMGetRoleResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getRoleTool: ToolConfig<IAMGetRoleParams, IAMGetRoleResponse> = {
+export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleResponse> = {
   id: 'iam_get_role',
   name: 'IAM Get Role',
   description: 'Get detailed information about an IAM role',
@@ -34,11 +34,8 @@ export const getRoleTool: ToolConfig<IAMGetRoleParams, IAMGetRoleResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/iam/get-role',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

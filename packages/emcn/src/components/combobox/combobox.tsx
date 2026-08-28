@@ -19,6 +19,7 @@ import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 import { Input } from '../input/input'
+import { OverflowText } from '../overflow-text/overflow-text'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
@@ -93,8 +94,10 @@ export interface ComboboxProps
   disabled?: boolean
   /** Enable free-text input mode (default: false) */
   editable?: boolean
-  /** Custom overlay content for editable mode */
+  /** Visual content rendered over the selected value. */
   overlayContent?: ReactNode
+  /** Plain-text value represented by a visual overlay in non-editable mode. */
+  overlayLabel?: string
   /** Additional input props for editable mode */
   inputProps?: Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -172,6 +175,7 @@ const Combobox = memo(
         disabled,
         editable = false,
         overlayContent,
+        overlayLabel,
         inputProps = {},
         inputRef: externalInputRef,
         filterOptions = editable,
@@ -677,9 +681,10 @@ const Combobox = memo(
                         ) : (
                           <>
                             {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
-                            <span className='truncate text-[var(--text-primary)]'>
-                              {selectedOption?.label}
-                            </span>
+                            <OverflowText
+                              label={selectedOption?.label ?? ''}
+                              className='text-[var(--text-primary)]'
+                            />
                           </>
                         )}
                       </div>
@@ -716,15 +721,18 @@ const Combobox = memo(
                     onClick={handleToggle}
                     onKeyDown={handleKeyDown}
                   >
-                    <span
+                    <OverflowText
+                      label={
+                        overlayLabel ??
+                        multiSelectLabel ??
+                        (selectedOption ? selectedOption.label : placeholder)
+                      }
                       className={cn(
-                        'flex-1 truncate',
+                        'flex-1',
                         !selectedOption && !multiSelectLabel && 'text-[var(--text-muted)]',
                         overlayContent && 'text-transparent'
                       )}
-                    >
-                      {multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)}
-                    </span>
+                    />
                     <ChevronDown
                       className={cn(
                         'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
@@ -899,9 +907,10 @@ const Combobox = memo(
                                   : OptionIcon && (
                                       <OptionIcon className='size-[14px] flex-shrink-0' />
                                     )}
-                                <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                  {option.label}
-                                </span>
+                                <OverflowText
+                                  label={option.label}
+                                  className='flex-1 text-[var(--text-primary)]'
+                                />
                                 {option.suffixElement}
                                 {multiSelect && isSelected && (
                                   <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
@@ -935,9 +944,10 @@ const Combobox = memo(
                               : chipHoverSurfaceClass
                           )}
                         >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
-                            {allOptionLabel}
-                          </span>
+                          <OverflowText
+                            label={allOptionLabel}
+                            className='flex-1 text-[var(--text-primary)]'
+                          />
                         </div>
                       )}
                       {filteredOptions.map((option, index) => {
@@ -973,9 +983,10 @@ const Combobox = memo(
                             {option.iconElement
                               ? option.iconElement
                               : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
-                            <span className='flex-1 truncate text-[var(--text-primary)]'>
-                              {option.label}
-                            </span>
+                            <OverflowText
+                              label={option.label}
+                              className='flex-1 text-[var(--text-primary)]'
+                            />
                             {option.suffixElement}
                             {multiSelect && isSelected && (
                               <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />

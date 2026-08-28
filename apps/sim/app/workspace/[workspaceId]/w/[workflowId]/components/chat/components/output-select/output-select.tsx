@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipCombobox, Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
+import { ChipCombobox, Combobox, type ComboboxOptionGroup, cn, OverflowText } from '@sim/emcn'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type FlattenOutputsBlockInput,
@@ -269,8 +269,13 @@ export function OutputSelect({
       multiSelectValues={normalizedSelectedValues}
       onMultiSelectChange={onOutputSelect}
       placeholder={selectedDisplayText}
+      overlayLabel={selectedDisplayText}
       overlayContent={
-        <span className='truncate text-[var(--text-primary)]'>{selectedDisplayText}</span>
+        <OverflowText
+          label={selectedDisplayText}
+          className='block w-full text-[var(--text-primary)]'
+          tooltipEnabled={false}
+        />
       }
       disabled={disabled || workflowOutputs.length === 0}
       align={align}

@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_BULK_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,46 +9,43 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillCreateDocumentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
-  id: 'windchill_create_documents',
-  name: 'Windchill Create Documents',
-  description: 'Create several documents in one atomic Windchill request',
-  version: '1.0.0',
-  params: {
-    baseUrl: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description:
-        'Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6',
+export const windchillCreateDocumentsTool: InternalToolConfig<WindchillParams, WindchillResponse> =
+  {
+    id: 'windchill_create_documents',
+    name: 'Windchill Create Documents',
+    description: 'Create several documents in one atomic Windchill request',
+    version: '1.0.0',
+    params: {
+      baseUrl: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description:
+          'Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6',
+      },
+      username: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Windchill service-account username',
+      },
+      password: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Windchill service-account password',
+      },
+      documents: {
+        type: 'array',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Document inputs as a JSON array; each item requires name and containerOid',
+      },
     },
-    username: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Windchill service-account username',
+    operation: {
+      input: (params) => buildWindchillInternalBody('windchill_create_documents', params),
     },
-    password: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Windchill service-account password',
-    },
-    documents: {
-      type: 'array',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Document inputs as a JSON array; each item requires name and containerOid',
-    },
-  },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_create_documents', params),
-    internalAuth: 'executor_delegation',
-  },
-  transformResponse: (response) =>
-    transformWindchillInternalResponse('windchill_create_documents', response),
-  outputs: WINDCHILL_BULK_MUTATION_OUTPUTS,
-}
+    transformResponse: (response) =>
+      transformWindchillInternalResponse('windchill_create_documents', response),
+    outputs: WINDCHILL_BULK_MUTATION_OUTPUTS,
+  }

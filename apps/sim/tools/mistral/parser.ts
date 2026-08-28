@@ -12,7 +12,7 @@ import type {
   MistralParserV2Input,
   MistralParserV2Output,
 } from '@/tools/mistral/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('MistralParserTool')
 
@@ -57,7 +57,7 @@ const MISTRAL_OCR_HOSTING = {
   },
 }
 
-export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutput> = {
+export const mistralParserTool: InternalToolConfig<MistralParserInput, MistralParserOutput> = {
   id: 'mistral_parser',
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
@@ -123,7 +123,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'private-provenance',
       inputPaths: (params) =>
@@ -136,16 +136,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           includeInlineBase64: true,
         }),
     },
-    url: '/api/tools/mistral/parse',
-    method: 'POST',
-    headers: (params) => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-    },
-    body: (params) => {
+    input: (params) => {
       if (!params || typeof params !== 'object') {
         throw new Error('Invalid parameters: Parameters must be provided as an object')
       }
@@ -407,7 +398,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
   },
 }
 
-export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2Output> = {
+export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, MistralParserV2Output> = {
   id: 'mistral_parser_v2',
   name: 'Mistral PDF Parser',
   description: 'Parse PDF documents using Mistral OCR API',
@@ -415,7 +406,7 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
   hosting: MISTRAL_OCR_HOSTING,
 
   params: mistralParserTool.params,
-  request: mistralParserTool.request,
+  operation: mistralParserTool.operation,
 
   transformResponse: async (response: Response) => {
     let ocrResult
@@ -475,7 +466,8 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
                 },
                 image_base64: {
                   type: 'string',
-                  description: 'Base64-encoded image data (when include_image_base64=true)',
+                  description:
+                    'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
                   optional: true,
                 },
               },
@@ -493,7 +485,7 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
           tables: {
             type: 'array',
             description:
-              'Extracted tables as HTML/markdown (when table_format is set). Referenced via placeholders like [tbl-0.html]',
+              'Separate table objects, referenced from the markdown via placeholders like [tbl-0.html]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty',
           },
           hyperlinks: {
             type: 'array',
@@ -506,12 +498,14 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
           },
           header: {
             type: 'string',
-            description: 'Page header content (when extract_header=true)',
+            description:
+              'Page header content. Mistral returns it only when extract_header is true (it defaults to false); Sim never sets it, so this is not returned',
             optional: true,
           },
           footer: {
             type: 'string',
-            description: 'Page footer content (when extract_footer=true)',
+            description:
+              'Page footer content. Mistral returns it only when extract_footer is true (it defaults to false); Sim never sets it, so this is not returned',
             optional: true,
           },
         },
@@ -545,76 +539,68 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
  * V3 tool - Updated for new file handling pattern with UserFile normalization
  * Used by MistralParseV3Block which uses fileUpload (basic) and fileReference (advanced) subblocks
  */
-export const mistralParserV3Tool: ToolConfig<MistralParserV2Input, MistralParserV2Output> = {
-  ...mistralParserV2Tool,
-  id: 'mistral_parser_v3',
-  version: '3.0.0',
-  hosting: MISTRAL_OCR_HOSTING,
-  params: {
-    file: {
-      type: 'file',
-      required: true,
-      visibility: 'hidden',
-      description: 'Normalized UserFile from file upload or file reference',
+export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, MistralParserV2Output> =
+  {
+    ...mistralParserV2Tool,
+    id: 'mistral_parser_v3',
+    version: '3.0.0',
+    hosting: MISTRAL_OCR_HOSTING,
+    params: {
+      file: {
+        type: 'file',
+        required: true,
+        visibility: 'hidden',
+        description: 'Normalized UserFile from file upload or file reference',
+      },
+      resultType: mistralParserTool.params.resultType,
+      includeImageBase64: mistralParserTool.params.includeImageBase64,
+      pages: mistralParserTool.params.pages,
+      imageLimit: mistralParserTool.params.imageLimit,
+      imageMinSize: mistralParserTool.params.imageMinSize,
+      apiKey: mistralParserTool.params.apiKey,
     },
-    resultType: mistralParserTool.params.resultType,
-    includeImageBase64: mistralParserTool.params.includeImageBase64,
-    pages: mistralParserTool.params.pages,
-    imageLimit: mistralParserTool.params.imageLimit,
-    imageMinSize: mistralParserTool.params.imageMinSize,
-    apiKey: mistralParserTool.params.apiKey,
-  },
-  request: {
-    modelInput: {
-      mode: 'private-provenance',
-      inputPaths: (params) =>
-        selectModelBoundFileInputPaths(params.file, ['file'], {
-          includeInlineBase64: true,
-        }),
+    operation: {
+      modelInput: {
+        mode: 'private-provenance',
+        inputPaths: (params) =>
+          selectModelBoundFileInputPaths(params.file, ['file'], {
+            includeInlineBase64: true,
+          }),
+      },
+      input: (params) => {
+        if (!params || typeof params !== 'object') {
+          throw new Error('Invalid parameters: Parameters must be provided as an object')
+        }
+        if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
+          throw new Error('Missing or invalid API key: A valid Mistral API key is required')
+        }
+
+        // V3 expects normalized UserFile object via `file` param
+        const file = params.file
+        if (!file || typeof file !== 'object') {
+          throw new Error('File input is required: provide a file upload or file reference')
+        }
+
+        const requestBody: Record<string, unknown> = {
+          apiKey: params.apiKey,
+          resultType: params.resultType || 'markdown',
+          file: file,
+        }
+
+        if (params.pages) {
+          requestBody.pages = params.pages
+        }
+        if (params.includeImageBase64 !== undefined) {
+          requestBody.includeImageBase64 = params.includeImageBase64
+        }
+        if (params.imageLimit !== undefined) {
+          requestBody.imageLimit = params.imageLimit
+        }
+        if (params.imageMinSize !== undefined) {
+          requestBody.imageMinSize = params.imageMinSize
+        }
+
+        return requestBody
+      },
     },
-    url: '/api/tools/mistral/parse',
-    method: 'POST',
-    headers: (params) => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-    },
-    body: (params) => {
-      if (!params || typeof params !== 'object') {
-        throw new Error('Invalid parameters: Parameters must be provided as an object')
-      }
-      if (!params.apiKey || typeof params.apiKey !== 'string' || params.apiKey.trim() === '') {
-        throw new Error('Missing or invalid API key: A valid Mistral API key is required')
-      }
-
-      // V3 expects normalized UserFile object via `file` param
-      const file = params.file
-      if (!file || typeof file !== 'object') {
-        throw new Error('File input is required: provide a file upload or file reference')
-      }
-
-      const requestBody: Record<string, unknown> = {
-        apiKey: params.apiKey,
-        resultType: params.resultType || 'markdown',
-        file: file,
-      }
-
-      if (params.pages) {
-        requestBody.pages = params.pages
-      }
-      if (params.includeImageBase64 !== undefined) {
-        requestBody.includeImageBase64 = params.includeImageBase64
-      }
-      if (params.imageLimit !== undefined) {
-        requestBody.imageLimit = params.imageLimit
-      }
-      if (params.imageMinSize !== undefined) {
-        requestBody.imageMinSize = params.imageMinSize
-      }
-
-      return requestBody
-    },
-  },
-}
+  }
