@@ -12,7 +12,6 @@ import {
   logIdParamsSchema,
 } from '@/lib/api/contracts/logs'
 import { serializeZodIssues } from '@/lib/api/server/validation'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   executeLogsGet,
@@ -22,6 +21,11 @@ import {
   type LogsToolOperationContext,
 } from '@/lib/internal/logs/operations'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { LOGS_DELEGATION_AUDIENCE } from '@/lib/logs/application/authorization'
 
@@ -137,11 +141,12 @@ export const executeLogsTool: InternalToolOperationHandler = async (request) => 
     return Response.json(dispatched.contract.response.schema.parse(dispatched.body))
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 })
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
+      return Response.json(
+        { error: internalToolIdentityFaultMessage(identityFault) },
+        { status: internalToolIdentityFaultStatus(identityFault) }
+      )
     }
     return errorResponse(request.toolId, error)
   }

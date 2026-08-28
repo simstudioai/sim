@@ -115,10 +115,25 @@ export class PrincipalSubjectUserRequiredError extends Error {
   }
 }
 
+/**
+ * The Sim user a principal represents, or `undefined` when it represents none.
+ *
+ * Actorless callers are ordinary, not exceptional: a scheduled or webhook run, a
+ * workspace API key, and a Credential Group enrollment all act with real authority
+ * and no human behind them. Use this wherever the user is attribution — a name to
+ * record a read or write under — and {@link requirePrincipalSubjectUserId} only
+ * where the operation's meaning genuinely collapses without one, so that choice is
+ * visible at the call site instead of hidden in a ternary.
+ */
+export function resolvePrincipalSubjectUserId(principal: Principal): string | undefined {
+  const subject = resolvePrincipalSubject(principal)
+  return subject?.kind === 'sim_user' ? subject.userId : undefined
+}
+
 /** Resolves the real human subject represented by a principal or fails fast. */
 export function requirePrincipalSubjectUserId(principal: Principal): string {
-  const subject = resolvePrincipalSubject(principal)
-  if (subject?.kind === 'sim_user') return subject.userId
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (userId !== undefined) return userId
   throw new PrincipalSubjectUserRequiredError(principal.kind)
 }
 

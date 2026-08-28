@@ -13,7 +13,6 @@ import {
   memoryPostBodySchema,
 } from '@/lib/api/contracts/memory'
 import { serializeZodIssues } from '@/lib/api/server/validation'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   executeMemoryAdd,
@@ -25,6 +24,11 @@ import {
 } from '@/lib/internal/memory/operations'
 import { createMemoryToolResponse, MemoryProvenanceError } from '@/lib/internal/memory/provenance'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { MEMORY_DELEGATION_AUDIENCE } from '@/lib/memory/application/authorization'
 
@@ -142,13 +146,11 @@ export const executeMemoryTool: InternalToolOperationHandler = async (request) =
     )
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
       return Response.json(
-        { success: false, error: { message: 'Authentication required' } },
-        { status: 401 }
+        { success: false, error: { message: internalToolIdentityFaultMessage(identityFault) } },
+        { status: internalToolIdentityFaultStatus(identityFault) }
       )
     }
     return failureResponse(request.toolId, error)

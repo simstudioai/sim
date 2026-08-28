@@ -482,6 +482,7 @@ async function storeDownloadedFile({
       buffer,
       fileName,
       contentType,
+      // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
       requirePrincipalSubjectUserId(principal)
     )
     signal?.throwIfAborted()
@@ -491,6 +492,7 @@ async function storeDownloadedFile({
     buffer,
     fileName,
     contentType,
+    // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
     userId: requirePrincipalSubjectUserId(principal),
   })
   signal?.throwIfAborted()
@@ -575,6 +577,7 @@ export async function executeWindchillOperation(
         : body.attachmentFiles
     const files = await loadUploadFiles(
       inputs,
+      // actorless-unsupported: reads the acting user's own files; attributing it to the workflow's user is a follow-up
       requirePrincipalSubjectUserId(principal),
       requestId,
       signal

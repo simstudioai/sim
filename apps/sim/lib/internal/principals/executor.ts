@@ -1,6 +1,7 @@
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
+import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
@@ -70,6 +71,6 @@ export async function createExecutorPrincipalFromExecutionContext({
   expiresAt,
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
-  if (!origin) throw new Error('Executor delegation origin is required')
+  if (!origin) throw new ExecutorDelegationOriginRequiredError()
   return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt)
 }

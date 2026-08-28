@@ -29,7 +29,13 @@ export function jobCostTotal(raw: unknown): { total: number } | null {
 }
 
 interface FetchLogDetailArgs {
-  viewerUserId: string
+  /**
+   * The user reading the log, when there is one. Attribution only — workspace
+   * authorization already happened upstream, and the display path never writes.
+   * An actorless run (a schedule, or a webhook with no external subject) has no
+   * user to name and passes none.
+   */
+  viewerUserId?: string
   workspaceId: string
   lookupColumn: LookupColumn
   lookupValue: string

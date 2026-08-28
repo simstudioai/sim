@@ -184,9 +184,7 @@ export default function EnterpriseOwnerClaim({ registrationDisabled }: Enterpris
             apiErrorMessage(detailsQuery.error) ??
             (queryErrorCode === 'email-mismatch'
               ? 'This invitation was sent to a different email address.'
-              : queryErrorCode === 'email-unverified'
-                ? 'Verify the invited email, then return to this owner invitation.'
-                : 'This Enterprise invitation is invalid or unavailable.'),
+              : 'This Enterprise invitation is invalid or unavailable.'),
         }
       : null)
   if (error) {

@@ -3,7 +3,6 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { ZodError, ZodType } from 'zod'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { concealCrossTenantResourceError } from '@/lib/api/server/routes'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deploymentsDeployBodySchema,
@@ -20,6 +19,11 @@ import {
   executeDeploymentsUndeploy,
 } from '@/lib/internal/deployments/operations'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
@@ -52,11 +56,12 @@ function parseInput<T>(schema: ZodType<T>, request: InternalToolOperationCall) {
 }
 
 function errorResponse(request: InternalToolOperationCall, error: unknown): Response {
-  if (
-    error instanceof InvalidInternalDelegationBindingError ||
-    (error instanceof Error && error.message === 'Authentication required')
-  ) {
-    return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
+  const identityFault = classifyInternalToolIdentityFault(error)
+  if (identityFault) {
+    return Response.json(
+      { success: false, error: internalToolIdentityFaultMessage(identityFault) },
+      { status: internalToolIdentityFaultStatus(identityFault) }
+    )
   }
 
   const classified = asOrchestrationError(

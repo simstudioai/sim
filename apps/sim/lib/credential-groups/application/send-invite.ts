@@ -1,5 +1,4 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -41,7 +40,7 @@ export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
     }
     await requireCredentialGroupsAvailable(context.workspaceId)
 
-    const userId = requirePrincipalSubjectUserId(principal)
+    const userId = requireCredentialGroupWorkflowSubject(principal)
     const inviter = await loadCredentialGroupInviterIdentity(userId)
     const inviterName = inviter?.name?.trim() || inviter?.email
     if (!inviterName) {

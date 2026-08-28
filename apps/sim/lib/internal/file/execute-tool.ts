@@ -1,16 +1,16 @@
-import {
-  PrincipalSubjectUserRequiredError,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubject,
-} from '@sim/auth/principal'
+import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { executeFileManageOperation } from '@/lib/internal/file/operations'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
@@ -104,12 +104,12 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     return response
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      error instanceof PrincipalSubjectUserRequiredError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
-      return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
+      return Response.json(
+        { success: false, error: internalToolIdentityFaultMessage(identityFault) },
+        { status: internalToolIdentityFaultStatus(identityFault) }
+      )
     }
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation dispatch failed', {

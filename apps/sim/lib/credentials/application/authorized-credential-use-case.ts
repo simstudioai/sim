@@ -88,6 +88,7 @@ export function defineAuthorizedCredentialUseCase<
     async authorizeResource({ principal, context }) {
       const actor = await getCredentialActorContext(
         context.credential.id,
+        // actorless-unsupported: credential access is decided per person; an actorless run has no credential grants
         requirePrincipalSubjectUserId(principal)
       )
       if (

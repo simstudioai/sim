@@ -37,11 +37,13 @@ export interface ChildTraceDropCounts {
 
 export interface HydrateChildTracesOptions {
   /**
-   * The user reading the log. NOT an authorization input — the only policy is the
-   * publisher's, and it is the same answer for every reader. Carried so large-value
-   * materialization and secret projection have an owner to attribute their reads to.
+   * The user reading the log, when there is one. NOT an authorization input — the
+   * only policy is the publisher's, and it is the same answer for every reader.
+   * Carried so large-value materialization and secret projection have an owner to
+   * attribute their reads to; an actorless run has none, and needs none, because
+   * the display path only ever reads.
    */
-  viewerUserId: string
+  viewerUserId?: string
   maxDepth?: number
   maxRows?: number
 }

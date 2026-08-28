@@ -3,7 +3,6 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import {
   capExecutionTimeoutMs,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -11,6 +10,11 @@ import {
 } from '@/lib/core/execution-limits'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { executeMcpToolUseCase, McpToolsNotAllowedError } from '@/lib/mcp/application/execute-tool'
@@ -145,6 +149,9 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       input: {
         workspaceId: request.context.workspaceId,
         serverId,
+        // The run's execution actor, exactly what the pre-in-process path minted its
+        // internal token from. Keeps unattended MCP workflows working as before.
+        executionActorUserId: request.context.userId,
         toolName,
         arguments: args,
         callChain: request.context.callChain,
@@ -168,11 +175,12 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
     )
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
-      return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
+      return Response.json(
+        { success: false, error: internalToolIdentityFaultMessage(identityFault) },
+        { status: internalToolIdentityFaultStatus(identityFault) }
+      )
     }
     if (error instanceof McpToolsNotAllowedError) {
       return createResponse(
