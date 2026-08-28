@@ -697,3 +697,27 @@ describe('mapper param shapes', () => {
     expect(ids).not.toContain('ghostString')
   })
 })
+
+describe('the generated catalog ordering is locale-independent', () => {
+  /**
+   * `localeCompare` with no locale argument uses the runtime default, which varies with `LANG`
+   * and the ICU build. Against the real catalog names, `tr-TR` (dotted/dotless I), `lt-LT`,
+   * `cs-CZ` (the `ch` digraph) and `et-EE` each reorder the array, so a contributor on one of
+   * those locales would regenerate a different `integrations.json` and fail CI with no obvious
+   * cause. The generator pins `en-US`; this asserts the committed artifact matches that order.
+   */
+  it('sorts integrations.json the way an explicit en-US comparator would', () => {
+    const catalogPath = path.join(__dirname, '../packages/deployment-config/src/integrations.json')
+    const names = (
+      JSON.parse(fs.readFileSync(catalogPath, 'utf-8')).integrations as Array<{ name: string }>
+    ).map(({ name }) => name)
+
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-US')))
+  })
+
+  it('leaves no unpinned localeCompare in the generator', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'generate-docs.ts'), 'utf-8')
+
+    expect(source).not.toMatch(/localeCompare\(\s*[A-Za-z_$][\w$.]*\s*\)/)
+  })
+})

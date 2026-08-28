@@ -652,7 +652,7 @@ function writeIconMapping(iconMapping: Record<string, IconRef>): void {
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(withAliases)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => a.localeCompare(b, 'en-US'))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -1433,7 +1433,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): voi
 
     const imports = renderIconImports(Object.values(iconMapping))
     const mappingEntries = Object.entries(iconMapping)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => a.localeCompare(b, 'en-US'))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -1608,7 +1608,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
       }
     }
 
-    integrations.sort((a, b) => a.name.localeCompare(b.name))
+    integrations.sort((a, b) => a.name.localeCompare(b.name, 'en-US'))
 
     const jsonPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integrations.json')
     // `JSON.stringify` always expands every array across multiple lines, but Biome's
@@ -4322,7 +4322,7 @@ function groupTriggersByProvider(
     }
     groups.set(
       provider,
-      [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
+      [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, 'en-US'))
     )
   }
   return groups
