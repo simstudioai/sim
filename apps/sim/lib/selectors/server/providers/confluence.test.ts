@@ -37,6 +37,15 @@ function pageDetailArgs(): ExecuteServerSelectorArgs {
   }
 }
 
+function spaceDetailArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
+  return {
+    ...pageDetailArgs(),
+    selectorKey: 'confluence.spaces',
+    request: { kind: 'detail', id: 'ENG' },
+    signal,
+  }
+}
+
 describe('Confluence server selector adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -77,5 +86,16 @@ describe('Confluence server selector adapters', () => {
     await expect(
       confluenceSelectorAttachments['confluence.pages'].execute(pageDetailArgs())
     ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+  })
+
+  it('preserves caller cancellation while hydrating space details', async () => {
+    const controller = new AbortController()
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    controller.abort(abortError)
+    mockFetch.mockRejectedValue(abortError)
+
+    await expect(
+      confluenceSelectorAttachments['confluence.spaces'].execute(spaceDetailArgs(controller.signal))
+    ).rejects.toBe(abortError)
   })
 })

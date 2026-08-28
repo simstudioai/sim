@@ -53,7 +53,10 @@ function sanitizeMeta(
     ) {
       throw new SelectorOptionsUnavailableError()
     }
-    if (typeof entry === 'number' && !Number.isFinite(entry)) {
+    if (
+      typeof entry === 'number' &&
+      (!Number.isFinite(entry) || protectedValues.contains(String(entry)))
+    ) {
       throw new SelectorOptionsUnavailableError()
     }
     if (typeof entry === 'string') {

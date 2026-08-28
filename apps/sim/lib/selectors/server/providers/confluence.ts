@@ -111,6 +111,7 @@ async function executeSpaces(args: ExecuteServerSelectorArgs) {
       requestSpaces({ ...auth, params: paramsFor('current'), signal: args.signal }),
       requestSpaces({ ...auth, params: paramsFor('archived'), signal: args.signal }),
     ])
+    args.signal?.throwIfAborted()
     if (current.status === 'rejected' && archived.status === 'rejected') {
       throw new SelectorOptionsUnavailableError()
     }

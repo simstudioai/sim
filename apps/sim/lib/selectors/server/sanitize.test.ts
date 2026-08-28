@@ -161,6 +161,22 @@ describe('sanitizeSelectorResult', () => {
     ).toThrow(SelectorOptionsUnavailableError)
   })
 
+  it('rejects protected numeric metadata without applying the detail exemption', () => {
+    const protectedValues = createSelectorProtectedValues()
+    protectedValues.add('1234')
+
+    expect(() =>
+      sanitizeSelectorResult(
+        {
+          kind: 'detail',
+          item: { id: '1234', label: '1234', meta: { resourceId: 1234 } },
+        },
+        protectedValues,
+        { allowedDetailExactProtectedValue: '1234' }
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+  })
+
   it('preserves allowed metadata keys that shadow object prototype properties', () => {
     const meta = Object.create(null) as Record<string, null>
     meta.__proto__ = null

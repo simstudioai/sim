@@ -90,10 +90,25 @@ describe('POST /api/webhooks polling configuration', () => {
       isActive: true,
     }
     queueTableRows(workflow, [
-      { id: 'workflow-1', userId: 'owner-1', workspaceId: 'canonical-workspace' },
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
     ])
     queueTableRows(webhook, [])
-    dbChainMockFns.returning.mockResolvedValueOnce([savedWebhook])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const insertedValues = dbChainMockFns.values.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...savedWebhook,
+          deploymentVersionId: insertedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
 
     const response = await POST(
       createMockRequest(
@@ -111,6 +126,9 @@ describe('POST /api/webhooks polling configuration', () => {
     )
 
     expect(response.status).toBe(201)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
     expect(mocks.configurePolling).toHaveBeenCalledWith({
       webhook: savedWebhook,
       requestId: 'mock-request-id',

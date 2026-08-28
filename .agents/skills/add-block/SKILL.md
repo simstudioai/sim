@@ -1066,8 +1066,9 @@ After creating the block, you MUST validate it against every tool it references:
 A sub-block gets its choices from exactly one of two places. There is no third.
 
 **`selectorKey` — every remote list.** Use the `add-selector` skill to add browser-safe metadata in
-`apps/sim/lib/selectors/manifest.ts` and a server attachment under
-`apps/sim/lib/selectors/server/providers/`. Point the sub-block at that key. All remote selectors
+`apps/sim/lib/selectors/manifest.ts`. Attach `provider-server` selectors under
+`apps/sim/lib/selectors/server/providers/` and `internal-server` selectors in
+`apps/sim/lib/selectors/server/internal.ts`. Point the sub-block at that key. All remote selectors
 execute through `selectors.execute`; never add a client provider module or selector-only fetch route.
 
 ```ts

@@ -51,8 +51,11 @@ explicitly on each relevant manifest entry. Never send a full block or connector
 
 ## Add the server attachment
 
-Add the service's attachment map under `apps/sim/lib/selectors/server/providers/` and include it in
-the exhaustive server registry. A provider attachment declares:
+For `provider-server`, add the service's attachment map under
+`apps/sim/lib/selectors/server/providers/` and include it in the exhaustive server registry. For
+`internal-server`, add the attachment in `apps/sim/lib/selectors/server/internal.ts`. Local keys use
+the exhaustive browser-safe registry in `apps/sim/lib/selectors/client/local.ts` and never enter the
+server registry. A provider attachment declares:
 
 - Credential policy, including the exact context field and trusted `serviceIds`.
 - Destination policy: `fixed`, `credential-bound`, or `user-controlled`.

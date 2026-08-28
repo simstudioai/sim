@@ -267,8 +267,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: workflow.id,
         userId: workflow.userId,
         workspaceId: workflow.workspaceId,
+        deploymentVersionId: workflowDeploymentVersion.id,
       })
       .from(workflow)
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(eq(workflow.id, workflowId))
       .limit(1)
 
@@ -455,6 +463,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .values({
             id: webhookId,
             workflowId,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             blockId,
             path: finalPath,
             provider,
