@@ -714,6 +714,7 @@ export function extractUserSettableParamIds(
   blockName = 'block'
 ): string[] | null {
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return null
   const keyMatch = /\bsubBlocks\s*:/.exec(scannable)
   if (!keyMatch) return []
 
@@ -997,6 +998,7 @@ function collectShorthandPropertyNames(body: string, into: Set<string>): void {
  */
 export function extractMapperWrittenParamIds(blockContent: string): string[] {
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return []
   const ids = new Set<string>()
 
   for (const [start, end] of findMapperBodyRanges(scannable)) {
@@ -1253,27 +1255,156 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
   return 'none'
 }
 
+/** Characters after which a `/` begins a regex literal rather than a division. */
+const REGEX_ALLOWED_AFTER = new Set([
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '%',
+  '~',
+  '^',
+  '<',
+  '>',
+  '\n',
+])
+
 /**
- * Length-preserving copy of `content` with string-literal and comment
- * interiors blanked out, so delimiter scans cannot be tripped by braces or
- * quotes inside them. Indices into the result line up with indices into
- * `content`.
+ * Blank out string literals, template literals, comments and regex literals so a structural
+ * scan sees only code punctuation. Length and newlines are preserved, which the `readLiteral`
+ * index-mapping call sites depend on.
+ *
+ * Quoted strings keep their delimiters so callers can still see where one began; comments and
+ * regex literals are blanked whole, because their final character is arbitrary source text —
+ * commented-out code ending in `[`, or a character class like `/[}]/`, otherwise leaves an
+ * unbalanced bracket that derails every downstream scan.
+ *
+ * Returns `null` when the scan ends inside an unterminated construct, which means the input
+ * was not what we assumed and no structural conclusion drawn from it can be trusted.
  */
-function blankStringsAndComments(content: string): string {
-  return content.replace(
-    /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
-    (match: string, quote: string | undefined) => {
-      const blanked = match.replace(/[^\n]/g, ' ')
-      /**
-       * A comment has no delimiters worth preserving, so it is blanked whole. Keeping
-       * its final character would leak arbitrary source text — commented-out code ending
-       * in `[` or `{` leaves an unbalanced bracket that derails every scan downstream.
-       * A quoted string keeps its own quotes so callers can still see where it began.
-       */
-      if (quote === undefined) return blanked
-      return quote + blanked.slice(1, -1) + quote
+function blankStringsAndComments(content: string): string | null {
+  const out = content.split('')
+  const blank = (start: number, end: number) => {
+    for (let k = start; k < end && k < out.length; k++) if (out[k] !== '\n') out[k] = ' '
+  }
+
+  let i = 0
+  let prevSignificant = ''
+  while (i < content.length) {
+    const char = content[i]
+
+    if (char === '/' && content[i + 1] === '/') {
+      const nl = content.indexOf('\n', i)
+      const end = nl === -1 ? content.length : nl
+      blank(i, end)
+      i = end
+      continue
     }
-  )
+
+    if (char === '/' && content[i + 1] === '*') {
+      const close = content.indexOf('*/', i + 2)
+      if (close === -1) return null
+      blank(i, close + 2)
+      i = close + 2
+      continue
+    }
+
+    if (char === '/' && (prevSignificant === '' || REGEX_ALLOWED_AFTER.has(prevSignificant))) {
+      let j = i + 1
+      let inClass = false
+      let closed = false
+      while (j < content.length) {
+        const c = content[j]
+        if (c === '\\') {
+          j += 2
+          continue
+        }
+        if (c === '\n') break
+        if (c === '[') inClass = true
+        else if (c === ']') inClass = false
+        else if (c === '/' && !inClass) {
+          closed = true
+          break
+        }
+        j++
+      }
+      if (!closed) return null
+      j++
+      while (j < content.length && /[a-z]/.test(content[j])) j++
+      blank(i, j)
+      prevSignificant = ')'
+      i = j
+      continue
+    }
+
+    if (char === "'" || char === '"') {
+      let j = i + 1
+      let closed = false
+      while (j < content.length) {
+        if (content[j] === '\\') {
+          j += 2
+          continue
+        }
+        if (content[j] === '\n') break
+        if (content[j] === char) {
+          closed = true
+          break
+        }
+        j++
+      }
+      if (!closed) return null
+      blank(i + 1, j)
+      prevSignificant = char
+      i = j + 1
+      continue
+    }
+
+    if (char === '`') {
+      let j = i + 1
+      let depth = 0
+      let closed = false
+      while (j < content.length) {
+        if (content[j] === '\\') {
+          j += 2
+          continue
+        }
+        if (depth === 0 && content[j] === '`') {
+          closed = true
+          break
+        }
+        if (content[j] === '$' && content[j + 1] === '{') {
+          depth++
+          j += 2
+          continue
+        }
+        if (depth > 0 && content[j] === '{') depth++
+        else if (depth > 0 && content[j] === '}') depth--
+        j++
+      }
+      if (!closed) return null
+      blank(i + 1, j)
+      prevSignificant = '`'
+      i = j + 1
+      continue
+    }
+
+    if (!/\s/.test(char)) prevSignificant = char
+    else if (char === '\n') prevSignificant = '\n'
+    i++
+  }
+
+  return out.join('')
 }
 
 /**
@@ -1288,6 +1419,7 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
   if (!typeMatch) return undefined
 
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return undefined
   let depth = 0
   let objectStart = -1
   for (let i = typeMatch.index; i >= 0; i--) {

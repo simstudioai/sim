@@ -721,3 +721,43 @@ describe('the generated catalog ordering is locale-independent', () => {
     expect(source).not.toMatch(/localeCompare\(\s*[A-Za-z_$][\w$.]*\s*\)/)
   })
 })
+
+describe('the scanner survives regex literals in a block config', () => {
+  /**
+   * `blankStringsAndComments` used to be a single regex with no concept of a regex literal, so
+   * `/don't/` opened a phantom string that swallowed the following subBlocks, and a character
+   * class like `/[}]/` closed the enclosing object early. Both returned a short list with no
+   * warning — a confident wrong answer, which is the one outcome the filter must never produce.
+   */
+  it('does not let an apostrophe inside a regex swallow later subBlocks', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', condition: (v) => /don't/.test(v) }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not let a brace inside a character class close the object early', () => {
+    const ids = extractUserSettableParamIds("subBlocks: [{ id: 'a', v: /[}]/ }, { id: 'b' }],")
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('still reads a division as arithmetic rather than a regex', () => {
+    const ids = extractUserSettableParamIds('subBlocks: [{ id: "a", n: total / 2 }, { id: "b" }],')
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not mistake a protocol slash inside a string for a comment', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', url: 'https://example.com/x' }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('reports UNKNOWN rather than guessing when a literal never terminates', () => {
+    expect(extractUserSettableParamIds("subBlocks: [{ id: 'a }],")).toBeNull()
+  })
+})
