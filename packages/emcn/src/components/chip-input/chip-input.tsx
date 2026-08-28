@@ -30,21 +30,6 @@ import * as React from 'react'
 import { cn } from '../../lib/cn'
 import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
 
-/**
- * Suppresses the native number spinner.
- *
- * A `type='number'` field is still a chip field: it owns a flat 30px surface with
- * no focus ring, and the browser's stepper paints its own chrome inside it —
- * a bordered double-arrow that belongs to no design token and shifts the value's
- * right edge on hover. Removing it belongs to the component rather than to every
- * caller, or each one re-derives the same three vendor rules by hand.
- *
- * `appearance: textfield` covers Firefox; the WebKit pseudo-elements cover
- * Chrome and Safari, which ignore it.
- */
-const NUMBER_SPINNER_RESET =
-  '[appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none'
-
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
@@ -96,7 +81,6 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         className={cn(
           '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
           chipFieldTextClass,
-          type === 'number' && NUMBER_SPINNER_RESET,
           inputClassName
         )}
         {...props}

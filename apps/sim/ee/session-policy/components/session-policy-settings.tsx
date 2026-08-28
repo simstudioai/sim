@@ -40,7 +40,6 @@ function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
       </Label>
       <ChipInput
         id={id}
-        type='number'
         inputMode='numeric'
         value={value}
         onChange={(event) => onChange(event.target.value)}
