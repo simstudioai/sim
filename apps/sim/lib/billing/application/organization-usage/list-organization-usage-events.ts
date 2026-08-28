@@ -3,7 +3,7 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import {
   resolveUsageAnalyticsWindow,
   type UsageWindowPreset,
-  usageWindowBounds,
+  usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -57,13 +57,10 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
       customEnd: input.endDate,
       timezone: input.timezone,
     })
-    const bounds = usageWindowBounds(window)
-
     const result = await getBillingEntityUsageLogs(context.billingEntity, {
-      startDate: bounds.start,
-      endDate: bounds.end,
-      // Half-open, matching the summary and breakdowns — see `endDateExclusive`.
-      endDateExclusive: true,
+      // One derivation for both predicates, so this list covers exactly the rows the
+      // summary and breakdowns aggregate over.
+      ...usageWindowLedgerFilter(window),
       ...(input.source?.length ? { source: input.source } : {}),
       limit: input.limit,
       ...(input.cursor ? { cursor: input.cursor } : {}),

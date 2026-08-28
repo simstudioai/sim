@@ -93,13 +93,15 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
   const isOverview = tab === USAGE_OVERVIEW_TAB
-  /** A selected workspace turns the Workspaces tab into that workspace's workflows. */
-  const isWorkspaceDetail = tab === 'workspace' && Boolean(workspace)
-  const dimension: UsageBreakdownDimension = isOverview
-    ? 'source'
-    : isWorkspaceDetail
-      ? 'workflow'
-      : (tab as UsageBreakdownDimension)
+  /**
+   * A selected workspace turns the Workspaces tab into that workspace's workflows —
+   * but only once the id resolves against the loaded list. A bookmarked id for a
+   * deleted workspace, or one belonging to another organization, would otherwise open
+   * a detail view with an untitled header and empty sections. Falling back to the
+   * list is the rule for every deep-linked entity id (`sim-url-state.md`); the
+   * lingering param is harmless.
+   */
+  const isWorkspaceSelected = tab === 'workspace' && Boolean(workspace)
 
   /**
    * Per-member caps are hosted-only: the usage-limit route 404s where Sim does not
@@ -111,18 +113,31 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   const canManageCredits = tab === 'member' && isHosted
 
   const summary = useOrganizationUsageSummary(organizationId, window)
-  const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
-    ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
-  })
   /**
    * Kept alive in the drill-down purely to name it. The rule is to store the id and
    * derive the entity from the loaded list; arriving by click serves this from cache,
    * and arriving by deep link fetches it once.
    */
   const workspaceList = useOrganizationUsageBreakdown(organizationId, window, 'workspace', {
-    enabled: isWorkspaceDetail,
+    enabled: isWorkspaceSelected,
   })
   const workspaceName = workspaceList.data?.rows.find((row) => row.id === workspace)?.label
+  /**
+   * Resolved, not merely present — and only once the list has actually loaded, so a
+   * deep link does not flash the Workspaces tab before its own detail view.
+   */
+  const isWorkspaceDetail =
+    isWorkspaceSelected && (workspaceList.isLoading || workspaceName !== undefined)
+
+  const dimension: UsageBreakdownDimension = isOverview
+    ? 'source'
+    : isWorkspaceDetail
+      ? 'workflow'
+      : (tab as UsageBreakdownDimension)
+
+  const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
+    ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
+  })
   const workspaceSources = useOrganizationUsageBreakdown(organizationId, window, 'source', {
     enabled: isWorkspaceDetail,
     ...(workspace ? { workspaceId: workspace } : {}),
@@ -247,7 +262,6 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
           text: 'Export',
           icon: Download,
           onSelect: () => void handleExport(),
-          disabled: summary.isLoading || summary.isError,
         },
       ]}
     >

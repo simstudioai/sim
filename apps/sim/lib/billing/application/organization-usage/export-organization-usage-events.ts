@@ -3,7 +3,7 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import {
   resolveUsageAnalyticsWindow,
   type UsageWindowPreset,
-  usageWindowBounds,
+  usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -56,7 +56,7 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
       customEnd: input.endDate,
       timezone: input.timezone,
     })
-    const bounds = usageWindowBounds(window)
+    const ledgerFilter = usageWindowLedgerFilter(window)
 
     const rows: OrganizationUsageExportRow[] = []
     let cursor: string | undefined
@@ -64,10 +64,9 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
 
     while (rows.length < USAGE_EXPORT_SAFETY_CAP) {
       const page = await getBillingEntityUsageLogs(context.billingEntity, {
-        startDate: bounds.start,
-        endDate: bounds.end,
-        // Half-open, matching the summary and breakdowns — see `endDateExclusive`.
-        endDateExclusive: true,
+        // One derivation for both predicates, so the CSV covers exactly the rows the
+        // summary and breakdowns aggregate over.
+        ...ledgerFilter,
         ...(input.source?.length ? { source: input.source } : {}),
         limit: EXPORT_PAGE_SIZE,
         ...(cursor ? { cursor } : {}),

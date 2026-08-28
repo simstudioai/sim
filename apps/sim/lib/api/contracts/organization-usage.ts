@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { INTERNAL_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
+import { isValidTimezone } from '@/lib/core/utils/timezone'
 
 /**
  * Organization usage monitoring (enterprise).
@@ -55,8 +56,20 @@ const organizationUsageWindowQuerySchema = z.object({
   preset: usageWindowPresetSchema,
   startDate: isoDateSchema,
   endDate: isoDateSchema,
-  /** IANA name; bucket boundaries are the viewer's calendar days. */
-  timezone: z.string().min(1, 'timezone cannot be empty').default('UTC'),
+  /**
+   * IANA name; bucket boundaries are the viewer's calendar days.
+   *
+   * Validated here rather than only at the SQL boundary. `assertValidTimezone` is a
+   * hard gate — the value reaches `AT TIME ZONE`, which takes an identifier and not
+   * a bound parameter — but it throws a plain `Error`, which surfaced as a 500 for
+   * what is an ordinary bad query param. Rejecting it as a contract violation makes
+   * it a 400 with a usable message and leaves that gate as the backstop it is.
+   */
+  timezone: z
+    .string()
+    .min(1, 'timezone cannot be empty')
+    .refine(isValidTimezone, 'Expected an IANA timezone such as America/Los_Angeles')
+    .default('UTC'),
 })
 
 export const organizationUsageSummaryQuerySchema = organizationUsageWindowQuerySchema

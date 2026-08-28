@@ -99,6 +99,36 @@ export function usageWindowBounds(window: UsageAnalyticsWindow): { start: Date; 
     : { start: window.period.start, end: window.period.end }
 }
 
+export interface UsageWindowLedgerFilter {
+  startDate?: Date
+  endDate?: Date
+  endDateExclusive?: boolean
+  billingPeriod?: { start: Date; end: Date }
+}
+
+/**
+ * The same window, expressed for the ledger listing query.
+ *
+ * `getBillingEntityUsageLogs` filters rows while {@link buildUsageAnalyticsScope}
+ * aggregates them, and the two must select the same set or the event list and CSV
+ * describe different rows than the totals above them. That is not hypothetical for a
+ * stripe or default period: those are matched on the *stamps* rows carry, and
+ * filtering the same window on `created_at` picks up rows created inside it but
+ * stamped to another period, while missing the reverse.
+ *
+ * Deriving both from one function is what keeps the predicates in step — the branches
+ * below mirror `buildUsageAnalyticsScope` case for case.
+ */
+export function usageWindowLedgerFilter(window: UsageAnalyticsWindow): UsageWindowLedgerFilter {
+  if (window.kind === 'range' || window.period.source === 'reporting') {
+    const { start, end } = usageWindowBounds(window)
+    // Half-open, so a row on the boundary belongs to the next window — as it does
+    // for the aggregate, whose `lt` says the same thing.
+    return { startDate: start, endDate: end, endDateExclusive: true }
+  }
+  return { billingPeriod: { start: window.period.start, end: window.period.end } }
+}
+
 export class UsageWindowRangeTooLargeError extends Error {
   constructor(days: number) {
     super(`Custom range spans ${days} days; the maximum is ${MAX_CUSTOM_RANGE_DAYS}.`)

@@ -209,13 +209,31 @@ export const adminV1ListOrganizationsContract = defineRouteContract({
   },
 })
 
+/**
+ * Creating an organization also attaches the owner's existing workspaces, so that
+ * the organization is reachable through the workspace-scoped settings it is
+ * administered from. That attachment runs in its own transaction and can fail after
+ * the organization is already committed, so the outcome is part of the response
+ * rather than something only the logs know.
+ *
+ * `attachedWorkspaceIds` alone is ambiguous — empty means both "the owner had none"
+ * and "the attach threw" — which is why the failure carries its own flag. A caller
+ * seeing `workspaceAttachmentFailed` can retry the attachment; a caller seeing an
+ * empty list without it has nothing outstanding.
+ */
+const adminV1CreatedOrganizationSchema = adminV1OrganizationSchema.extend({
+  memberId: z.string(),
+  attachedWorkspaceIds: z.array(z.string()),
+  workspaceAttachmentFailed: z.boolean(),
+})
+
 export const adminV1CreateOrganizationContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/organizations',
   body: adminV1CreateOrganizationBodySchema,
   response: {
     mode: 'json',
-    schema: adminV1SingleResponseSchema(adminV1OrganizationSchema.extend({ memberId: z.string() })),
+    schema: adminV1SingleResponseSchema(adminV1CreatedOrganizationSchema),
   },
 })
 

@@ -4,7 +4,7 @@ import { usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -256,8 +256,15 @@ export async function getBillingPeriodWorkflowRunCount(
 ): Promise<number> {
   const [row] = await executor
     .select({
+      /**
+       * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
+       * a JavaScript array into a `sql` template emits parenthesized scalar binds —
+       * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
+       * requires array on right side". Unit tests cannot catch it, because `@sim/db`
+       * is mocked and no statement is ever rendered.
+       */
       workflowRuns:
-        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${usageLog.category} <> ALL(${UNBILLED_USAGE_CATEGORIES}))`.mapWith(
+        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
           Number
         ),
     })
@@ -770,6 +777,18 @@ interface UsageLogFilter {
    * disagreed by one row at exactly the moment a period rolls over.
    */
   endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range.
+   *
+   * A stripe or default period is what rows are *stamped* with, and that is the
+   * predicate every analytics read uses for it. Filtering the same window on
+   * `created_at` selects a different set — a row created inside the period but
+   * stamped to another, or the reverse — so the event list and the CSV covered
+   * different rows than the totals above them. Mutually exclusive with
+   * {@link startDate}/{@link endDate}; a reporting period and a plain range still
+   * use those, exactly as `buildUsageAnalyticsScope` does.
+   */
+  billingPeriod?: { start: Date; end: Date }
 }
 
 type UsageLogScope =
@@ -797,6 +816,13 @@ function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
     )
   }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
+  if (filter.billingPeriod) {
+    conditions.push(
+      eq(usageLog.billingPeriodStart, filter.billingPeriod.start),
+      eq(usageLog.billingPeriodEnd, filter.billingPeriod.end)
+    )
+    return conditions
+  }
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
   if (filter.endDate) {
     conditions.push(
@@ -893,6 +919,12 @@ export interface GetUsageLogsOptions {
    * See {@link UsageLogFilter.endDateExclusive}.
    */
   endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range, so a
+   * ledger listing covers the same rows an analytics read of the same window
+   * does. See {@link UsageLogFilter.billingPeriod}.
+   */
+  billingPeriod?: { start: Date; end: Date }
   /** Maximum number of results */
   limit?: number
   /** Cursor for pagination (log ID) */
@@ -960,6 +992,7 @@ async function getUsageLogs(
     startDate,
     endDate,
     endDateExclusive,
+    billingPeriod,
     limit = 50,
     cursor,
     cursorCreatedAt,
@@ -973,6 +1006,7 @@ async function getUsageLogs(
       startDate,
       endDate,
       endDateExclusive,
+      billingPeriod,
     })
 
     if (cursor) {
@@ -1048,6 +1082,7 @@ async function getUsageLogs(
         startDate,
         endDate,
         endDateExclusive,
+        billingPeriod,
       })
 
       const summaryResult = await dbReplica

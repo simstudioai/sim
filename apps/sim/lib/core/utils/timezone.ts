@@ -28,17 +28,29 @@ export function getBrowserTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
+/** Whether the runtime recognizes `timezone` as an IANA name. */
+export function isValidTimezone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Rejects a timezone that is not an IANA name.
  *
  * Timezones reach SQL through `AT TIME ZONE`, which takes an identifier rather than
  * a bound parameter, so an unvalidated value off a query string would be
  * interpolated into the statement. Every bucketed aggregate calls this first.
+ *
+ * Request boundaries should reject the value earlier, through {@link isValidTimezone}
+ * in their contract, so a bad query param is a 400 rather than the 500 this throw
+ * projects to. This stays as the backstop for every non-HTTP caller.
  */
 export function assertValidTimezone(timezone: string): void {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
-  } catch {
+  if (!isValidTimezone(timezone)) {
     // Echoed back trimmed and stripped of line breaks: the rejected value came off
     // a query string, and a raw one carrying newlines or U+2028/U+2029 would forge
     // extra lines in whatever log or error surface renders the message.

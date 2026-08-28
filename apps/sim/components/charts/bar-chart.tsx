@@ -133,7 +133,11 @@ function BarChartComponent({
 
   if (data.length === 0) {
     return (
+      // Keeps the measurement ref: dropping it here left the observer watching a
+      // detached node, so a resize while empty was never seen and the next non-empty
+      // render laid out at the stale width.
       <div
+        ref={containerRef}
         className={cn(
           'flex items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-card p-4'

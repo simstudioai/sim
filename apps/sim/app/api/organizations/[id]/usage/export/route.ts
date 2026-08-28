@@ -71,6 +71,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context) => {
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
+        // Every member's spend for one organization, behind session auth. Without
+        // this a browser or shared intermediary may serve it again after the
+        // viewer's access to that organization has been revoked.
+        'Cache-Control': 'no-store',
         'Content-Disposition': `attachment; filename="organization-usage-${params.id}.csv"`,
         ...(result.truncated ? { 'X-Export-Truncated': '1' } : {}),
       },

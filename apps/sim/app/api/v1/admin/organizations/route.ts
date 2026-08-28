@@ -18,10 +18,11 @@
  *   - slug: string - Organization slug (optional, auto-generated from name if not provided)
  *   - ownerId: string - User ID of the organization owner (required)
  *
- * Response: AdminSingleResponse<AdminOrganization & { memberId: string; attachedWorkspaceIds: string[] }>
+ * Response: AdminSingleResponse<AdminOrganization & { memberId, attachedWorkspaceIds, workspaceAttachmentFailed }>
  *   `attachedWorkspaceIds` reports which of the owner's workspaces moved under the
- *   organization. Empty means none did — either the owner had none, or attachment
- *   failed after the organization was already committed.
+ *   organization, and `workspaceAttachmentFailed` distinguishes an owner who had
+ *   none from an attachment that threw after the organization was committed — the
+ *   latter leaves the organization unreachable and is worth retrying.
  */
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
@@ -178,11 +179,11 @@ export const POST = withRouteHandler(
        * blocked by the existing-membership check above, with no way to reach the
        * organization at all.
        *
-       * It must not be reported as an unqualified success either. The outcome is
-       * returned as `attachedWorkspaceIds` and recorded on the audit event, so a
-       * caller sees which workspaces moved — an empty array after a failure is the
-       * explicit incomplete state, and attaching afterwards is a normal repeatable
-       * operation rather than something only the logs know is outstanding.
+       * It must not be reported as an unqualified success either. Both the ids that
+       * moved and whether the attach threw are on the response contract and on the
+       * audit event, because an empty list alone cannot distinguish an owner who had
+       * no workspaces from provisioning that is genuinely incomplete — only the
+       * second is worth retrying, and only the caller can decide to.
        */
       let attachedWorkspaceIds: string[] = []
       let workspaceAttachmentFailed = false
@@ -238,6 +239,7 @@ export const POST = withRouteHandler(
         ...toAdminOrganization(createdOrg),
         memberId,
         attachedWorkspaceIds,
+        workspaceAttachmentFailed,
       })
     } catch (error) {
       if (error instanceof OrganizationSlugInvalidError) {

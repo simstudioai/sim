@@ -14,6 +14,7 @@ import {
   resolveUsageBucket,
   UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
+  usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 
 const ENTITY = { type: 'organization', id: 'org-1' } as const
@@ -66,6 +67,49 @@ describe('buildUsageAnalyticsScope', () => {
     const shape = scopeShape({ kind: 'period', period: period() })
     expect(shape).toContain('usageLog.billingEntityType')
     expect(shape).toContain('usageLog.billingEntityId')
+  })
+})
+
+describe('usageWindowLedgerFilter', () => {
+  it('matches a stripe period on the stamps, as the aggregate does', () => {
+    // Filtering this window on `created_at` instead selects a different set — rows
+    // created inside the period but stamped to another, and vice versa — so the event
+    // list and the CSV covered different rows than the totals above them.
+    const filter = usageWindowLedgerFilter({ kind: 'period', period: period({ source: 'stripe' }) })
+    expect(filter).toEqual({
+      billingPeriod: {
+        start: new Date('2026-08-01T00:00:00.000Z'),
+        end: new Date('2026-09-01T00:00:00.000Z'),
+      },
+    })
+  })
+
+  it('matches a reporting period on created_at, as the aggregate does', () => {
+    const filter = usageWindowLedgerFilter({
+      kind: 'period',
+      period: period({ source: 'reporting', anchorDate: '2026-08-01', interval: 'month' }),
+    })
+    expect(filter.billingPeriod).toBeUndefined()
+    expect(filter.endDateExclusive).toBe(true)
+  })
+
+  it('keeps a plain range half-open', () => {
+    const from = new Date('2026-08-01T00:00:00.000Z')
+    const to = new Date('2026-08-08T00:00:00.000Z')
+    expect(usageWindowLedgerFilter({ kind: 'range', from, to })).toEqual({
+      startDate: from,
+      endDate: to,
+      endDateExclusive: true,
+    })
+  })
+
+  it('branches on the same condition the scope builder does', () => {
+    // The two predicates are only in step because they read the same discriminant.
+    for (const source of ['reporting', 'stripe', 'default'] as const) {
+      const window = { kind: 'period' as const, period: period({ source }) }
+      const usesStamps = scopeShape(window).includes('usageLog.billingPeriodStart')
+      expect(usageWindowLedgerFilter(window).billingPeriod !== undefined).toBe(usesStamps)
+    }
   })
 })
 
