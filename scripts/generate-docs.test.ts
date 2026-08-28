@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 import {
+  compareCatalogNames,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractToolInfo,
@@ -698,27 +699,72 @@ describe('mapper param shapes', () => {
   })
 })
 
+describe('a source the scanner cannot get through is reported, not swallowed', () => {
+  /**
+   * When `blankStringsAndComments` bails, both the `subBlocks` scan and the mapper scan come
+   * back empty for the same reason. Reported as a plain `ids: null` that is indistinguishable
+   * from a spread-only `subBlocks` array, the block's mapper renames are dropped in silence.
+   */
+  const unterminated = `subBlocks: [{ id: 'a' }],
+    tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },
+    longDescription: 'never closed`
+
+  it('sets parseError so the caller warns', () => {
+    const supplied = extractBlockSuppliedParamIds(unterminated, 'GhostBlock')
+
+    expect(supplied.parseError).not.toBeNull()
+    expect(supplied.parseError).toMatch(/GhostBlock: source ends inside an unterminated/)
+    expect(supplied.ids).toBeNull()
+  })
+
+  it('still reports null with no parseError for a spread-only subBlocks array', () => {
+    const supplied = extractBlockSuppliedParamIds(
+      "subBlocks: [...NotionBlock.subBlocks], tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },",
+      'SpreadBlock'
+    )
+
+    expect(supplied.parseError).toBeNull()
+    expect(supplied.ids).toBeNull()
+    expect(supplied.mapperIds).toContain('renamedByMapper')
+  })
+})
+
 describe('the generated catalog ordering is locale-independent', () => {
   /**
    * `localeCompare` with no locale argument uses the runtime default, which varies with `LANG`
    * and the ICU build. Against the real catalog names, `tr-TR` (dotted/dotless I), `lt-LT`,
    * `cs-CZ` (the `ch` digraph) and `et-EE` each reorder the array, so a contributor on one of
    * those locales would regenerate a different `integrations.json` and fail CI with no obvious
-   * cause. The generator pins `en-US`; this asserts the committed artifact matches that order.
+   * cause.
    */
-  it('sorts integrations.json the way an explicit en-US comparator would', () => {
+  it('pins the generator comparator to en-US regardless of the runtime default', () => {
+    /** `I` sorts after `i` in `en-US` but before it in `tr-TR`, which has a dotless `ı`. */
+    expect(compareCatalogNames('Intercom', 'incident.io')).toBeGreaterThan(0)
+    /** `ch` is a single letter after `h` in `cs-CZ`; in `en-US` it stays under `c`. */
+    expect(compareCatalogNames('Chargebee', 'HubSpot')).toBeLessThan(0)
+  })
+
+  it('sorts integrations.json with the generator comparator', () => {
     const catalogPath = path.join(__dirname, '../packages/deployment-config/src/integrations.json')
     const names = (
       JSON.parse(fs.readFileSync(catalogPath, 'utf-8')).integrations as Array<{ name: string }>
     ).map(({ name }) => name)
 
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-US')))
+    expect(names).toEqual([...names].sort(compareCatalogNames))
   })
 
+  /**
+   * Every `localeCompare` in the generator must name its locale as a literal. A bare
+   * `localeCompare()`, `localeCompare(b)` or a locale read from a variable all fall back to
+   * the runtime default, so the arguments are matched whole rather than pattern-matched.
+   */
   it('leaves no unpinned localeCompare in the generator', () => {
     const source = fs.readFileSync(path.join(__dirname, 'generate-docs.ts'), 'utf-8')
 
-    expect(source).not.toMatch(/localeCompare\(\s*[A-Za-z_$][\w$.]*\s*\)/)
+    const calls = [...source.matchAll(/\blocaleCompare\(([^)]*)\)/g)].map(([, args]) => args)
+
+    expect(calls.length).toBeGreaterThan(0)
+    for (const args of calls) expect(args).toMatch(/,\s*'[a-zA-Z-]+'\s*$/)
   })
 })
 

@@ -652,7 +652,7 @@ function writeIconMapping(iconMapping: Record<string, IconRef>): void {
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(withAliases)
-      .sort(([a], [b]) => a.localeCompare(b, 'en-US'))
+      .sort(([a], [b]) => compareCatalogNames(a, b))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -1078,6 +1078,21 @@ export function extractBlockSuppliedParamIds(
   blockContent: string,
   blockName = 'block'
 ): BlockSuppliedParams {
+  /**
+   * A source the blanking scanner cannot get through — it ends inside an unterminated string,
+   * template literal or comment — makes both scans below report "nothing found" for the same
+   * reason. It is caught here so it is reported as a parse failure. Left to the branches below
+   * it would be indistinguishable from a spread-only `subBlocks` array whose block has no
+   * mapper, and the block's renames would be dropped without a word.
+   */
+  if (blankStringsAndComments(blockContent) === null) {
+    return {
+      ids: null,
+      mapperIds: [],
+      parseError: `${blockName}: source ends inside an unterminated string, template literal or comment, so neither its subBlocks array nor its params mapper could be read`,
+    }
+  }
+
   const mapperIds = extractMapperWrittenParamIds(blockContent)
 
   try {
@@ -1255,7 +1270,29 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
   return 'none'
 }
 
-/** Characters after which a `/` begins a regex literal rather than a division. */
+/**
+ * The catalog and every generated mapping are sorted with an explicit `en-US` collation.
+ * `localeCompare` with no locale uses the runtime default, which varies with `LANG` and the
+ * ICU build: `tr-TR`, `lt-LT`, `cs-CZ` and `et-EE` each reorder the real integration names, so
+ * a contributor on one of those locales would regenerate a different artifact and fail CI with
+ * no obvious cause.
+ */
+export function compareCatalogNames(a: string, b: string): number {
+  return a.localeCompare(b, 'en-US')
+}
+
+/**
+ * Characters after which a `/` begins a regex literal rather than a division.
+ *
+ * `'\n'` is deliberate and load-bearing: a line-leading `/` is treated as opening a regex.
+ * Prettier and Biome both emit a binary `/` at end-of-line, never at the start of the next
+ * one, so in this repo's formatted sources every line-leading `/` really is a regex — all 17
+ * occurrences across `apps/sim/blocks/blocks/*.ts` are, including the ones at
+ * `blocks/table.ts:31` and `blocks/table_v2.ts:37` that this set exists to get right. Removing
+ * `'\n'` makes those two blocks lex as division and silently mis-scan. It is a deliberate
+ * trade: a hand-wrapped `b` newline `/ c / d` would be blanked as a regex body, which no
+ * formatted file in this repo produces.
+ */
 const REGEX_ALLOWED_AFTER = new Set([
   '(',
   ',',
@@ -1565,7 +1602,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): voi
 
     const imports = renderIconImports(Object.values(iconMapping))
     const mappingEntries = Object.entries(iconMapping)
-      .sort(([a], [b]) => a.localeCompare(b, 'en-US'))
+      .sort(([a], [b]) => compareCatalogNames(a, b))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -1740,7 +1777,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
       }
     }
 
-    integrations.sort((a, b) => a.name.localeCompare(b.name, 'en-US'))
+    integrations.sort((a, b) => compareCatalogNames(a.name, b.name))
 
     const jsonPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integrations.json')
     // `JSON.stringify` always expands every array across multiple lines, but Biome's
@@ -1961,12 +1998,13 @@ function extractBlockConfigFromContent(
       userSettableParamIds = null
     } else if (supplied.ids === null) {
       /**
-       * The block's `subBlocks` array holds only spreads of fields arrays this scanner cannot
-       * follow. A config-level spread base still contributes its readable fields, so the filter
-       * stays on against those plus the mapper's renames; with no base there is nothing to
-       * filter against and the filter is switched off. No warning: unlike the `parseError`
-       * cases the array itself parsed fine, and every field it names is documented through the
-       * spread source's own page.
+       * With `parseError` null, the only remaining cause is a `subBlocks` array holding just
+       * spreads of fields arrays this scanner cannot follow — a source the scanner could not
+       * get through at all is reported as a `parseError` by `extractBlockSuppliedParamIds` and
+       * handled above. A config-level spread base still contributes its readable fields, so the
+       * filter stays on against those plus the mapper's renames; with no base there is nothing
+       * to filter against and the filter is switched off. No warning: the array itself parsed
+       * fine, and every field it names is documented through the spread source's own page.
        */
       userSettableParamIds =
         baseSettableParamIds.length > 0
@@ -4454,7 +4492,7 @@ function groupTriggersByProvider(
     }
     groups.set(
       provider,
-      [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, 'en-US'))
+      [...byName.values()].sort((a, b) => compareCatalogNames(a.name, b.name))
     )
   }
   return groups
