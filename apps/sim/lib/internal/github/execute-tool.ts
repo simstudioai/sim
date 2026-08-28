@@ -2,10 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { GitHubOperationError } from '@/lib/internal/github/errors'
-import { getGitHubLatestCommit } from '@/lib/internal/github/operations'
+import {
+  executeGitHubCommentOperation,
+  executeGitHubCommentV2Operation,
+  getGitHubLatestCommit,
+} from '@/lib/internal/github/operations'
+import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
-
-const TOOL_IDS = new Set(['github_latest_commit', 'github_latest_commit_v2'])
 
 const inputSchema = z.object({
   owner: z.string().min(1, 'Owner is required'),
@@ -16,23 +19,31 @@ const inputSchema = z.object({
 
 export const executeGitHubTool: InternalToolOperationHandler = async (request) => {
   request.signal?.throwIfAborted()
-  if (!TOOL_IDS.has(request.toolId)) {
-    return Response.json(
-      { success: false, error: `Unsupported GitHub tool: ${request.toolId}` },
-      { status: 500 }
-    )
-  }
-  const parsed = inputSchema.safeParse(request.input)
-  if (!parsed.success) {
-    return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
-  }
   try {
-    return Response.json(
-      await getGitHubLatestCommit(parsed.data, {
-        requestId: request.requestId,
-        signal: request.signal,
-      })
-    )
+    switch (request.toolId) {
+      case 'github_comment':
+        return executeToolOperationImplementation(executeGitHubCommentOperation, request)
+      case 'github_comment_v2':
+        return executeToolOperationImplementation(executeGitHubCommentV2Operation, request)
+      case 'github_latest_commit':
+      case 'github_latest_commit_v2': {
+        const parsed = inputSchema.safeParse(request.input)
+        if (!parsed.success) {
+          return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
+        }
+        return Response.json(
+          await getGitHubLatestCommit(parsed.data, {
+            requestId: request.requestId,
+            signal: request.signal,
+          })
+        )
+      }
+      default:
+        return Response.json(
+          { success: false, error: `Unsupported GitHub tool: ${request.toolId}` },
+          { status: 500 }
+        )
+    }
   } catch (error) {
     request.signal?.throwIfAborted()
     const status = isPayloadSizeLimitError(error)

@@ -1,8 +1,12 @@
 import type { NetSuiteResponse, NetSuiteSystemParams } from '@/tools/netsuite/types'
-import { executeNetSuiteRequest, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteGetGovernanceLimitsTool: ToolConfig<NetSuiteSystemParams, NetSuiteResponse> = {
+export const netsuiteGetGovernanceLimitsTool: InternalToolConfig<
+  NetSuiteSystemParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_get_governance_limits',
   name: 'NetSuite Get Governance Limits',
   description:
@@ -11,17 +15,9 @@ export const netsuiteGetGovernanceLimitsTool: ToolConfig<NetSuiteSystemParams, N
   params: {
     ...netsuiteAuthParamFields,
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'GET',
-        path: '/services/rest/system/v1/governanceLimits',
-        success: { status: 200, body: 'object', validator: 'governance-limits' },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

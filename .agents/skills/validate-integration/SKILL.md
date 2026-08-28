@@ -163,8 +163,9 @@ search, extraction, or "AI-powered" marketing terminology.
 - [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
       field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
       and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
-- [ ] Private provenance is never attached to external URLs or `directExecution`; proven
-      model-visible external fields use projection, while other external inputs remain unchanged
+- [ ] Private provenance is never attached to external URLs; registered in-process operations
+      preserve it through `operation.modelInput` / `operation.secretProvenance`, while proven
+      model-visible external fields use request projection and other external inputs remain unchanged
 - [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
 - [ ] No `transformResponse` or tool-local helper blanket-sanitizes ordinary third-party results;
       only execution-scoped, activated Sim provenance is projected at shared model/log boundaries

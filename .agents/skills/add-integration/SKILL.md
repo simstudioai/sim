@@ -68,7 +68,7 @@ Choose the tool boundary before writing the declaration:
 - Use `ToolConfig.request` only for an absolute external HTTP(S) provider endpoint.
 
 Never point a tool at `/api/...`, construct an absolute URL back to Sim, declare
-`request.internal`, or add an API route merely to reuse code, normalize files, or authorize
+`request.internal`, add the retired `directExecution` property, or add an API route merely to reuse code, normalize files, or authorize
 resources. A real external/browser route and an in-process tool may share the same operation, but
 neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
 
@@ -171,7 +171,7 @@ Hard rules:
 - Never substitute secret plaintext into source or serialize plaintext provenance.
 - Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
   transport and strips private metadata from functional results.
-- Never attach private provenance to an external URL or to `directExecution`. Project proven
+- Never attach private provenance to an external URL. Project proven
   model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
   semantics. Use a registered in-process operation when encrypted provenance must cross the
   boundary.
@@ -616,7 +616,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
       external HTTP(S) `ToolConfig.request`
 - [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal`, or
-      has an HTTP fallback for an in-process operation
+      `directExecution`, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`

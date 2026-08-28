@@ -1,5 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { executeNetsuiteGetAsyncStatusOperation } from '@/lib/internal/netsuite/operations/get-async-status'
+import { executeNetsuiteListRecordTypesOperation } from '@/lib/internal/netsuite/operations/list-record-types'
 import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -14,8 +16,6 @@ import type {
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
-import { netsuiteGetAsyncStatusTool } from '@/tools/netsuite/get_async_status'
-import { netsuiteListRecordTypesTool } from '@/tools/netsuite/list_record_types'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { normalizeSuiteTalkUrl } from '@/tools/netsuite/utils'
 import type { ToolResponse } from '@/tools/types'
@@ -176,13 +176,10 @@ async function executeDiscoveryTool(
 ): Promise<ToolResponse> {
   if (args.signal?.aborted) throw args.signal.reason
   if (kind === 'record_types') {
-    const execute = netsuiteListRecordTypesTool.directExecution
-    if (!execute) throw new SelectorOptionsUnavailableError()
-    return execute(auth, args.signal)
+    return executeNetsuiteListRecordTypesOperation(auth, args.signal)
   }
-  const execute = netsuiteGetAsyncStatusTool.directExecution
-  if (!execute || !jobId) throw new SelectorOptionsUnavailableError()
-  return execute({ ...auth, jobId, view: 'tasks' }, args.signal)
+  if (!jobId) throw new SelectorOptionsUnavailableError()
+  return executeNetsuiteGetAsyncStatusOperation({ ...auth, jobId, view: 'tasks' }, args.signal)
 }
 
 function toOptions(objects: NetSuiteSelectorObject[]): SafeSelectorOption[] {

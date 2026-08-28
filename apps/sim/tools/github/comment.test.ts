@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  executeGitHubCommentOperation,
+  executeGitHubCommentV2Operation,
+} from '@/lib/internal/github/operations'
 import { commentTool, commentV2Tool } from '@/tools/github/comment'
 import type { CreateCommentParams } from '@/tools/github/types'
 
@@ -44,6 +48,15 @@ function createdCommentResponse(): Response {
   })
 }
 
+function createdReviewResponse(): Response {
+  return Response.json({
+    id: 100,
+    body: 'Nice',
+    html_url: 'https://github.com/octo/demo/pull/7#pullrequestreview-100',
+    submitted_at: '2026-01-02T00:00:00Z',
+  })
+}
+
 interface RecordedCall {
   url: string
   method: string
@@ -75,7 +88,7 @@ describe('github_comment routing', () => {
       apiKey: 'ghp_test',
     }
 
-    await commentTool.directExecution!(params)
+    await executeGitHubCommentOperation(params)
 
     expect(calls()).toEqual([
       {
@@ -90,7 +103,7 @@ describe('github_comment routing', () => {
   it('leaves a general PR comment on the reviews endpoint', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       owner: 'octo',
       repo: 'demo',
       pullNumber: 7,
@@ -117,7 +130,7 @@ describe('github_comment routing', () => {
   it('keeps a general PR comment carrying a path on the reviews endpoint', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       owner: 'octo',
       repo: 'demo',
       pullNumber: 7,
@@ -140,7 +153,7 @@ describe('github_comment routing', () => {
   it('keeps a comment with no type carrying a path on the reviews endpoint', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       owner: 'octo',
       repo: 'demo',
       pullNumber: 7,
@@ -163,13 +176,13 @@ describe('github_comment routing', () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
     const { path, ...params } = FILE_COMMENT_PARAMS
 
-    await commentTool.directExecution!(params)
+    await executeGitHubCommentOperation(params)
 
     expect(calls()).toEqual([
       {
         url: 'https://api.github.com/repos/octo/demo/pulls/7/reviews',
         method: 'POST',
-        body: { body: 'Looks good', line: 42, side: 'RIGHT' },
+        body: { body: 'Looks good', event: 'COMMENT' },
         signal: undefined,
       },
     ])
@@ -180,7 +193,7 @@ describe('github_comment routing', () => {
       .mockResolvedValueOnce(pullRequestResponse())
       .mockResolvedValueOnce(createdCommentResponse())
 
-    const result = await commentTool.directExecution!(FILE_COMMENT_PARAMS)
+    const result = await executeGitHubCommentOperation(FILE_COMMENT_PARAMS)
 
     expect(calls()).toEqual([
       {
@@ -208,7 +221,7 @@ describe('github_comment routing', () => {
   it('posts directly when commitId is supplied', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({ ...FILE_COMMENT_PARAMS, commitId: OTHER_SHA })
+    await executeGitHubCommentOperation({ ...FILE_COMMENT_PARAMS, commitId: OTHER_SHA })
 
     expect(calls()).toEqual([
       {
@@ -226,12 +239,46 @@ describe('github_comment routing', () => {
     ])
   })
 
+  it('creates a file-level comment when no diff line is supplied', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await executeGitHubCommentOperation({
+      ...FILE_COMMENT_PARAMS,
+      commitId: OTHER_SHA,
+      line: undefined,
+    })
+
+    expect(calls()[0].body).toEqual({
+      body: 'Looks good',
+      commit_id: OTHER_SHA,
+      path: 'src/main.ts',
+      subject_type: 'file',
+    })
+  })
+
+  it('normalizes review submitted_at into the documented timestamps', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdReviewResponse())
+
+    const result = await executeGitHubCommentV2Operation({
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 7,
+      body: 'Nice',
+      apiKey: 'ghp_test',
+    })
+
+    expect(result.output).toMatchObject({
+      created_at: '2026-01-02T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    })
+  })
+
   it('resolves the head SHA for the v2 tool as well', async () => {
     secureGitHubRequest
       .mockResolvedValueOnce(pullRequestResponse())
       .mockResolvedValueOnce(createdCommentResponse())
 
-    const result = await commentV2Tool.directExecution!(FILE_COMMENT_PARAMS)
+    const result = await executeGitHubCommentV2Operation(FILE_COMMENT_PARAMS)
 
     expect(calls()[1].body).toMatchObject({ commit_id: HEAD_SHA })
     expect(result.output.commit_id).toBe(HEAD_SHA)
@@ -241,31 +288,11 @@ describe('github_comment routing', () => {
     expect(commentTool.params.position).toBeUndefined()
   })
 
-  it('routes every comment type / path combination to the endpoint that accepts it', () => {
-    const url = commentTool.request.url as (params: CreateCommentParams) => string
-    const base = { owner: 'octo', repo: 'demo', pullNumber: 7, body: 'Nice', apiKey: 'ghp_test' }
-    const reviews = 'https://api.github.com/repos/octo/demo/pulls/7/reviews'
-    const comments = 'https://api.github.com/repos/octo/demo/pulls/7/comments'
-
-    expect(url({ ...base, commitId: OTHER_SHA })).toBe(reviews)
-    expect(url({ ...base, commitId: OTHER_SHA, path: 'src/main.ts' })).toBe(reviews)
-    expect(url({ ...base, commitId: OTHER_SHA, commentType: 'pr_comment' })).toBe(reviews)
-    expect(
-      url({ ...base, commitId: OTHER_SHA, commentType: 'pr_comment', path: 'src/main.ts' })
-    ).toBe(reviews)
-    expect(url({ ...base, commitId: OTHER_SHA, commentType: 'file_comment' })).toBe(reviews)
-    expect(
-      url({ ...base, commitId: OTHER_SHA, commentType: 'file_comment', path: 'src/main.ts' })
-    ).toBe(comments)
-  })
-
-  it('keeps the declarative request in step with the executed routing', () => {
-    const url = commentTool.request.url as (params: CreateCommentParams) => string
-    const method = commentTool.request.method as (params: CreateCommentParams) => string
-
-    expect(url(FILE_COMMENT_PARAMS)).toBe('https://api.github.com/repos/octo/demo/pulls/7')
-    expect(method(FILE_COMMENT_PARAMS)).toBe('GET')
-    expect(commentTool.request.body?.(FILE_COMMENT_PARAMS)).toBeUndefined()
+  it('declares both versions as registered operations without request transport metadata', () => {
+    expect(commentTool.operation.input(FILE_COMMENT_PARAMS)).toEqual(FILE_COMMENT_PARAMS)
+    expect(commentV2Tool.operation.input(FILE_COMMENT_PARAMS)).toEqual(FILE_COMMENT_PARAMS)
+    expect(commentTool).not.toHaveProperty('request')
+    expect(commentV2Tool).not.toHaveProperty('request')
   })
 })
 
@@ -280,7 +307,7 @@ describe('github_comment cancellation', () => {
       .mockResolvedValueOnce(createdCommentResponse())
     const controller = new AbortController()
 
-    await commentTool.directExecution!(FILE_COMMENT_PARAMS, controller.signal)
+    await executeGitHubCommentOperation(FILE_COMMENT_PARAMS, controller.signal)
 
     const recorded = calls()
     expect(recorded).toHaveLength(2)
@@ -292,7 +319,7 @@ describe('github_comment cancellation', () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
     const controller = new AbortController()
 
-    await commentTool.directExecution!(
+    await executeGitHubCommentOperation(
       { ...FILE_COMMENT_PARAMS, commitId: OTHER_SHA },
       controller.signal
     )
@@ -309,7 +336,7 @@ describe('github_comment line coercion', () => {
   it('coerces a line number typed into the short input to an integer', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       ...FILE_COMMENT_PARAMS,
       commitId: OTHER_SHA,
       line: '42' as unknown as number,
@@ -323,7 +350,7 @@ describe('github_comment line coercion', () => {
       .mockResolvedValueOnce(pullRequestResponse())
       .mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       ...FILE_COMMENT_PARAMS,
       line: '42' as unknown as number,
     })
@@ -334,7 +361,7 @@ describe('github_comment line coercion', () => {
   it('keeps an integer line typed with surrounding whitespace', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-    await commentTool.directExecution!({
+    await executeGitHubCommentOperation({
       ...FILE_COMMENT_PARAMS,
       commitId: OTHER_SHA,
       line: '  42  ' as unknown as number,
@@ -347,7 +374,7 @@ describe('github_comment line coercion', () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
     await expect(
-      commentTool.directExecution!({
+      executeGitHubCommentOperation({
         ...FILE_COMMENT_PARAMS,
         commitId: OTHER_SHA,
         line: 3.9,
@@ -360,7 +387,7 @@ describe('github_comment line coercion', () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
     await expect(
-      commentTool.directExecution!({
+      executeGitHubCommentOperation({
         ...FILE_COMMENT_PARAMS,
         commitId: OTHER_SHA,
         line: '3.9' as unknown as number,
@@ -369,19 +396,42 @@ describe('github_comment line coercion', () => {
     expect(secureGitHubRequest).not.toHaveBeenCalled()
   })
 
-  it('omits a blank or unparseable line rather than sending NaN', async () => {
-    for (const line of ['', '   ', 'abc', undefined, null]) {
+  it('creates a file-level comment for an omitted or blank line', async () => {
+    for (const line of ['', '   ', undefined, null]) {
       secureGitHubRequest.mockReset()
       secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
-      await commentTool.directExecution!({
+      await executeGitHubCommentOperation({
         ...FILE_COMMENT_PARAMS,
         commitId: OTHER_SHA,
         line: line as unknown as number,
       })
 
+      expect(calls()[0].body).toMatchObject({ subject_type: 'file' })
       expect(calls()[0].body).not.toHaveProperty('line')
     }
+  })
+
+  it('rejects an invalid nonnumeric line instead of changing it to a file-level comment', async () => {
+    await expect(
+      executeGitHubCommentOperation({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: 'abc' as unknown as number,
+      })
+    ).rejects.toThrow('GitHub line must be a valid number, but line was abc')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-positive line before provider work', async () => {
+    await expect(
+      executeGitHubCommentOperation({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: 0,
+      })
+    ).rejects.toThrow('GitHub line numbers must be positive integers')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
   })
 })
 
@@ -393,7 +443,7 @@ describe('github_comment errors', () => {
   it('fails with an actionable error when the pull request has no head SHA', async () => {
     secureGitHubRequest.mockResolvedValueOnce(Response.json({ number: 7 }))
 
-    await expect(commentTool.directExecution!(FILE_COMMENT_PARAMS)).rejects.toThrow(
+    await expect(executeGitHubCommentOperation(FILE_COMMENT_PARAMS)).rejects.toThrow(
       /no head commit SHA for pull request octo\/demo#7/
     )
     expect(secureGitHubRequest).toHaveBeenCalledTimes(1)
@@ -411,7 +461,7 @@ describe('github_comment errors', () => {
     )
 
     await expect(
-      commentTool.directExecution!({ ...FILE_COMMENT_PARAMS, commitId: OTHER_SHA })
+      executeGitHubCommentOperation({ ...FILE_COMMENT_PARAMS, commitId: OTHER_SHA })
     ).rejects.toThrow('Validation Failed: line: line must be part of the diff')
   })
 
@@ -420,7 +470,7 @@ describe('github_comment errors', () => {
       Response.json({ message: 'Not Found' }, { status: 404 })
     )
 
-    await expect(commentTool.directExecution!(FILE_COMMENT_PARAMS)).rejects.toMatchObject({
+    await expect(executeGitHubCommentOperation(FILE_COMMENT_PARAMS)).rejects.toMatchObject({
       message: 'Not Found',
       status: 404,
     })

@@ -10,9 +10,7 @@ vi.unmock('@/tools/registry')
 const requestTools = Object.entries(tools).filter(
   (entry): entry is [string, ToolConfig] => !isInternalToolConfig(entry[1])
 )
-const dynamicRouteTools = requestTools.filter(
-  ([, tool]) => typeof tool.request.url === 'function' && !tool.directExecution
-)
+const dynamicRouteTools = requestTools.filter(([, tool]) => typeof tool.request.url === 'function')
 const PROBE_CONTEXT = {
   workflowId: 'workflow-probe',
   workspaceId: 'workspace-probe',

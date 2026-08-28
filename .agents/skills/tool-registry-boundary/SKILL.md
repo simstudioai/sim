@@ -11,7 +11,12 @@ You keep the 4,300-tool executable registry out of module graphs that don't exec
 
 > Client-reachable code reads tool **metadata**. Only code that actually executes a tool imports the **registry**.
 
-`@/tools/registry` is a ~9,000-line barrel importing every tool. Each `ToolConfig` mixes plain data (`params`, `outputs`, `name`) with closures — `request.url`, `request.headers`, `transformResponse`, `directExecution`, `postProcess`. Those closures reach the SDK clients, API helpers and parsers each integration needs, and that is what makes the barrel expensive: reaching it costs ~4,700 additional modules.
+`@/tools/registry` is a ~9,000-line barrel importing every tool. External `ToolConfig` entries mix
+plain data (`params`, `outputs`, `name`) with request/response closures, while
+`InternalToolConfig` entries contain semantic input projection and load their server implementation
+through `lib/internal/tool-operations/registry.server.ts`. Request closures can still reach SDK
+clients, API helpers, and parsers, which is what makes the executable barrel expensive: reaching it
+costs ~4,700 additional modules.
 
 `getTool()` returns the whole `ToolConfig`, so a single `getTool` import anywhere in a client-reachable file drags all of it in.
 
@@ -95,4 +100,5 @@ The canvas route reached the registry through **four** redundant edges — `prov
 
 Ask what the caller does with the config. If it reads `params`, `outputs`, `name`, `description` or just checks existence, it belongs on `@/tools/metadata` — no exceptions, even on a path you believe is server-only today, because a future client import will silently re-attach the registry to the graph.
 
-If it genuinely executes — builds a request, transforms a response, runs `directExecution` — use `getTool`, and keep that file off client-reachable paths.
+If it genuinely executes — builds an external request, transforms a response, or dispatches a
+registered internal operation — use `getTool`, and keep that file off client-reachable paths.

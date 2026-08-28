@@ -4,7 +4,7 @@
  * entry's module graph grows past its recorded baseline.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s hold
- * closures (`request.headers`, `transformResponse`, `directExecution`). Those
+ * closures (`request.headers`, `transformResponse`). Those
  * closures reach every integration's SDK client and parser, so reaching the
  * barrel costs ~4,700 modules — it was 71-82% of every workspace route's module
  * graph until those edges were cut.

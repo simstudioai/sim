@@ -2,14 +2,14 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeBitbucketGetPullRequestDiffOperation } from '@/lib/internal/bitbucket/operations/get-pull-request-diff'
+import { executeBitbucketGetPullRequestDiffstatOperation } from '@/lib/internal/bitbucket/operations/get-pull-request-diffstat'
 import { bitbucketApprovePullRequestTool } from '@/tools/bitbucket/approve_pull_request'
 import { bitbucketCreatePullRequestTool } from '@/tools/bitbucket/create_pull_request'
 import { bitbucketCreatePullRequestCommentTool } from '@/tools/bitbucket/create_pull_request_comment'
 import { bitbucketDeclinePullRequestTool } from '@/tools/bitbucket/decline_pull_request'
 import { bitbucketGetMergeTaskStatusTool } from '@/tools/bitbucket/get_merge_task_status'
 import { bitbucketGetPullRequestTool } from '@/tools/bitbucket/get_pull_request'
-import { bitbucketGetPullRequestDiffTool } from '@/tools/bitbucket/get_pull_request_diff'
-import { bitbucketGetPullRequestDiffstatTool } from '@/tools/bitbucket/get_pull_request_diffstat'
 import { bitbucketListPullRequestCommentsTool } from '@/tools/bitbucket/list_pull_request_comments'
 import { bitbucketListPullRequestCommitStatusesTool } from '@/tools/bitbucket/list_pull_request_commit_statuses'
 import { bitbucketListPullRequestsTool } from '@/tools/bitbucket/list_pull_requests'
@@ -631,7 +631,7 @@ describe('Bitbucket pull request diff safety', () => {
       maxCharacters: 100,
     } satisfies BitbucketGetPullRequestDiffParams
 
-    const result = await bitbucketGetPullRequestDiffTool.directExecution!(params)
+    const result = await executeBitbucketGetPullRequestDiffOperation(params)
 
     expect(result).toMatchObject({
       success: true,
@@ -654,12 +654,11 @@ describe('Bitbucket pull request diff safety', () => {
       10 * 1024 * 1024,
       { signal: undefined, targetQuery: { path: 'src/my file.ts', binary: 'false' } }
     )
-    expect(requestUrl(bitbucketGetPullRequestDiffTool, params)).not.toContain('path=')
   })
 
   it('rejects hostile repository-relative paths before making a redirect request', async () => {
     await expect(
-      bitbucketGetPullRequestDiffTool.directExecution!({
+      executeBitbucketGetPullRequestDiffOperation({
         ...PULL_REQUEST_PARAMS,
         path: '../secret',
       })
@@ -668,10 +667,14 @@ describe('Bitbucket pull request diff safety', () => {
   })
 
   it('locally caps raw diff text when a Range response is ignored', async () => {
-    const result = await bitbucketGetPullRequestDiffTool.transformResponse!(
-      new Response('0123456789', { headers: { 'Content-Length': '10' } }),
-      { ...PULL_REQUEST_PARAMS, path: 'src/index.ts', maxCharacters: 4 }
+    serverMocks.secureBitbucketPullRequestRedirect.mockResolvedValueOnce(
+      new Response('0123456789', { headers: { 'Content-Length': '10' } })
     )
+    const result = await executeBitbucketGetPullRequestDiffOperation({
+      ...PULL_REQUEST_PARAMS,
+      path: 'src/index.ts',
+      maxCharacters: 4,
+    })
     expect(result.output).toEqual({
       diff: '0123',
       decodingLossy: false,
@@ -682,12 +685,16 @@ describe('Bitbucket pull request diff safety', () => {
   })
 
   it('lossily decodes invalid UTF-8 only for pull request diffs', async () => {
-    const result = await bitbucketGetPullRequestDiffTool.transformResponse!(
+    serverMocks.secureBitbucketPullRequestRedirect.mockResolvedValueOnce(
       new Response(new Uint8Array([0x41, 0x80]), {
         headers: { 'Content-Length': '2', 'Content-Type': 'text/plain' },
-      }),
-      { ...PULL_REQUEST_PARAMS, path: 'src/index.ts', maxCharacters: 100 }
+      })
     )
+    const result = await executeBitbucketGetPullRequestDiffOperation({
+      ...PULL_REQUEST_PARAMS,
+      path: 'src/index.ts',
+      maxCharacters: 100,
+    })
 
     expect(result.output).toEqual({
       diff: 'A�',
@@ -707,7 +714,7 @@ describe('Bitbucket pull request diff safety', () => {
       pageLen: 25,
     } satisfies BitbucketPaginatedPullRequestParams
 
-    const result = await bitbucketGetPullRequestDiffstatTool.directExecution!(params)
+    const result = await executeBitbucketGetPullRequestDiffstatOperation(params)
 
     expect(result.output.items[0]).toEqual({
       type: 'diffstat',
@@ -741,7 +748,7 @@ describe('Bitbucket pull request diff safety', () => {
       Response.json({ values: [RAW_DIFFSTAT], page: 2 })
     )
 
-    const result = await bitbucketGetPullRequestDiffstatTool.directExecution!({
+    const result = await executeBitbucketGetPullRequestDiffstatOperation({
       ...PULL_REQUEST_PARAMS,
       nextUrl,
       pageLen: 99,
@@ -763,7 +770,7 @@ describe('Bitbucket pull request diff safety', () => {
     )
 
     await expect(
-      bitbucketGetPullRequestDiffstatTool.directExecution!({
+      executeBitbucketGetPullRequestDiffstatOperation({
         ...PULL_REQUEST_PARAMS,
         nextUrl:
           'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/diffstat/source-team/source-repo:6315b3bac849%0Dunrelated?page=2',
@@ -780,7 +787,7 @@ describe('Bitbucket pull request diff safety', () => {
     ]
     for (const nextUrl of invalid) {
       await expect(
-        bitbucketGetPullRequestDiffstatTool.directExecution!({
+        executeBitbucketGetPullRequestDiffstatOperation({
           ...PULL_REQUEST_PARAMS,
           nextUrl,
         })
@@ -791,9 +798,10 @@ describe('Bitbucket pull request diff safety', () => {
   })
 
   it('normalizes executor-provided diffstat JSON through the same transform', async () => {
-    const result = await bitbucketGetPullRequestDiffstatTool.transformResponse!(
+    serverMocks.secureBitbucketPullRequestRedirect.mockResolvedValueOnce(
       Response.json({ values: [RAW_DIFFSTAT], page: 3, pagelen: 20 })
     )
+    const result = await executeBitbucketGetPullRequestDiffstatOperation(PULL_REQUEST_PARAMS)
     expect(result.output).toMatchObject({
       items: [{ newPath: 'src/new.ts', linesAdded: 12 }],
       page: { page: 3, pageLen: 20 },

@@ -1,13 +1,12 @@
 import type { NetSuiteRelationshipParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  normalizeRelatedType,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteDetachRecordTool: ToolConfig<NetSuiteRelationshipParams, NetSuiteResponse> = {
+export const netsuiteDetachRecordTool: InternalToolConfig<
+  NetSuiteRelationshipParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_detach_record',
   name: 'NetSuite Detach Record or File',
   description: 'Detach a contact or file from another NetSuite record.',
@@ -39,23 +38,9 @@ export const netsuiteDetachRecordTool: ToolConfig<NetSuiteRelationshipParams, Ne
       description: 'Internal ID, or external ID prefixed with eid:, of the contact or file',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'POST',
-        path: buildRecordPath(
-          { value: params.recordType, label: 'Record type' },
-          { value: params.recordId, label: 'Record ID' },
-          { value: '!detach', label: 'Detach operation' },
-          { value: normalizeRelatedType(params.relatedType), label: 'Related type' },
-          { value: params.relatedId, label: 'Related ID' }
-        ),
-        success: { status: 204, body: 'none' },
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

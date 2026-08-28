@@ -24,7 +24,9 @@ describe('internal tool operation registry', () => {
       expect(canonicalIds.has(toolId), `Missing canonical tool definition for ${toolId}`).toBe(true)
       expect(await getInternalToolOperationHandler(toolId)).toBeTypeOf('function')
     }
-  }, 30_000)
+    // Cost scales with the number of registered internal tools, so this budget has to grow
+    // with the registry rather than sit just above the current total.
+  }, 90_000)
 
   it('registers every operation-backed tool and keeps it free of HTTP request metadata', async () => {
     const operationTools = Object.entries(tools).filter(([, tool]) => isInternalToolConfig(tool))

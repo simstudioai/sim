@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeBitbucketGetPipelineStepLogOperation } from '@/lib/internal/bitbucket/operations/get-pipeline-step-log'
 import { bitbucketGetPipelineTool } from '@/tools/bitbucket/get_pipeline'
-import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { bitbucketListPipelineStepsTool } from '@/tools/bitbucket/list_pipeline_steps'
 import { bitbucketListPipelinesTool } from '@/tools/bitbucket/list_pipelines'
 import { bitbucketStopPipelineTool } from '@/tools/bitbucket/stop_pipeline'
@@ -41,7 +41,7 @@ async function runStepLog(
   params: BitbucketGetPipelineStepLogParams
 ): Promise<{ output: { log: string; truncated: boolean; totalBytes: number | null } }> {
   serverMocks.secureBitbucketRead.mockResolvedValueOnce(response)
-  return (await bitbucketGetPipelineStepLogTool.directExecution!(params)) as {
+  return (await executeBitbucketGetPipelineStepLogOperation(params)) as {
     output: { log: string; truncated: boolean; totalBytes: number | null }
   }
 }
@@ -201,7 +201,7 @@ describe('Bitbucket pipeline request builders', () => {
     ).toThrow(/does not belong/)
   })
 
-  it('encodes pipeline and step UUID path segments', () => {
+  it('encodes pipeline and step UUID path segments', async () => {
     const pipelineParams = {
       ...REPOSITORY_PARAMS,
       pipelineUuid: '{pipeline/one ?#}',
@@ -212,13 +212,15 @@ describe('Bitbucket pipeline request builders', () => {
     expect(requestUrl(bitbucketStopPipelineTool, pipelineParams)).toBe(
       'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/pipelines/%7Bpipeline%2Fone%20%3F%23%7D/stopPipeline'
     )
-    expect(
-      requestUrl(bitbucketGetPipelineStepLogTool, {
-        ...pipelineParams,
-        stepUuid: '{step/one ?#}',
-      } satisfies BitbucketGetPipelineStepLogParams)
-    ).toBe(
-      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/pipelines/%7Bpipeline%2Fone%20%3F%23%7D/steps/%7Bstep%2Fone%20%3F%23%7D/log'
+    await runStepLog(new Response(''), {
+      ...pipelineParams,
+      stepUuid: '{step/one ?#}',
+    } satisfies BitbucketGetPipelineStepLogParams)
+    expect(serverMocks.secureBitbucketRead).toHaveBeenCalledWith(
+      'https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/pipelines/%7Bpipeline%2Fone%20%3F%23%7D/steps/%7Bstep%2Fone%20%3F%23%7D/log',
+      expect.any(Object),
+      expect.any(Number),
+      expect.any(Object)
     )
   })
 
@@ -415,27 +417,27 @@ describe('Bitbucket pipeline response normalization', () => {
 })
 
 describe('Bitbucket pipeline step logs', () => {
-  it('requests a bounded byte tail and drops authorization on redirects', () => {
+  it('requests a bounded byte tail and drops authorization on redirects', async () => {
     const params = {
       ...REPOSITORY_PARAMS,
       pipelineUuid: '{pipeline-1}',
       stepUuid: '{step-1}',
       maxCharacters: 4_096,
     } satisfies BitbucketGetPipelineStepLogParams
-    expect(bitbucketGetPipelineStepLogTool.request.headers(params)).toMatchObject({
-      Accept: '*/*',
-      Authorization: 'Bearer oauth-token',
-      Range: 'bytes=-16384',
-    })
-    expect(bitbucketGetPipelineStepLogTool.request.stripAuthOnRedirect).toBe(true)
-    expect(bitbucketGetPipelineStepLogTool.request.retry).toMatchObject({
-      enabled: true,
-      maxRetries: 2,
-      retryIdempotentOnly: true,
-    })
+    await runStepLog(new Response(''), params)
+    expect(serverMocks.secureBitbucketRead).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        Accept: '*/*',
+        Authorization: 'Bearer oauth-token',
+        Range: 'bytes=-16384',
+      }),
+      expect.any(Number),
+      expect.objectContaining({ stripAuthOnRedirect: true })
+    )
   })
 
-  it('overfetches a provider-compatible minimum for small log tails', () => {
+  it('overfetches a provider-compatible minimum for small log tails', async () => {
     const params = {
       ...REPOSITORY_PARAMS,
       pipelineUuid: '{pipeline-1}',
@@ -443,9 +445,13 @@ describe('Bitbucket pipeline step logs', () => {
       maxCharacters: 100,
     } satisfies BitbucketGetPipelineStepLogParams
 
-    expect(bitbucketGetPipelineStepLogTool.request.headers(params)).toMatchObject({
-      Range: 'bytes=-4096',
-    })
+    await runStepLog(new Response(''), params)
+    expect(serverMocks.secureBitbucketRead).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ Range: 'bytes=-4096' }),
+      expect.any(Number),
+      expect.any(Object)
+    )
   })
 
   it('trims the partial leading line of a ranged log and reports total bytes', async () => {
@@ -509,7 +515,7 @@ describe('Bitbucket pipeline step log transfer boundary', () => {
   it('reads through the capped server path instead of the buffered tool request', async () => {
     serverMocks.secureBitbucketRead.mockResolvedValue(new Response('done\n'))
 
-    await bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)
+    await executeBitbucketGetPipelineStepLogOperation(LOG_PARAMS)
 
     const [url, headers, maxBytes, options] = serverMocks.secureBitbucketRead.mock.calls[0]
     expect(url).toContain('/pipelines/%7Bpipeline-1%7D/steps/%7Bstep-1%7D/log')
@@ -523,7 +529,7 @@ describe('Bitbucket pipeline step log transfer boundary', () => {
       new Response('', { status: 416, headers: { 'Content-Range': 'bytes */0' } })
     )
 
-    const result = await bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)
+    const result = await executeBitbucketGetPipelineStepLogOperation(LOG_PARAMS)
 
     expect(result).toEqual({
       success: true,
@@ -536,7 +542,7 @@ describe('Bitbucket pipeline step log transfer boundary', () => {
       Response.json({ error: { message: 'No such step' } }, { status: 404 })
     )
 
-    await expect(bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)).rejects.toThrow(
+    await expect(executeBitbucketGetPipelineStepLogOperation(LOG_PARAMS)).rejects.toThrow(
       /No such step/
     )
   })
@@ -549,7 +555,7 @@ describe('Bitbucket pipeline step log transfer boundary', () => {
       )
     )
 
-    await expect(bitbucketGetPipelineStepLogTool.directExecution!(LOG_PARAMS)).rejects.toThrow(
+    await expect(executeBitbucketGetPipelineStepLogOperation(LOG_PARAMS)).rejects.toThrow(
       /Range rejected: proxy does not support ranges/
     )
   })

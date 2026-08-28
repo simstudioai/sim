@@ -7,7 +7,7 @@ import type { OAuthConfig, ToolConfig } from '@/tools/types'
  * Serializable tool metadata, read without importing the executable registry.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s carry
- * closures (`request.headers`, `transformResponse`, `directExecution`), and
+ * closures (`request.headers`, `transformResponse`), and
  * those closures drag ~4,700 modules into any graph that reaches them. Callers
  * that only need to know a tool's shape — its params, its outputs, or whether it
  * exists — read it from here instead, and stay off the registry entirely.

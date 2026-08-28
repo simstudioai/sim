@@ -76,11 +76,11 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     title: 'Credits & pricing',
     rows: [
       {
-        label: 'Monthly credits',
+        label: 'Included credits',
         values: [
-          formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR),
-          formatCredits(PRO_TIER.credits),
-          formatCredits(MAX_TIER.credits),
+          `${formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR)} one-time`,
+          `${formatCredits(PRO_TIER.credits)}/month`,
+          `${formatCredits(MAX_TIER.credits)}/month`,
           'Custom',
         ],
       },
@@ -88,8 +88,8 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         label: 'Weekly refresh',
         values: [
           false,
-          `+${formatCredits(PRO_TIER.weeklyRefreshCredits)}`,
-          `+${formatCredits(MAX_TIER.weeklyRefreshCredits)}`,
+          `+${formatCredits(PRO_TIER.weeklyRefreshCredits)}/week`,
+          `+${formatCredits(MAX_TIER.weeklyRefreshCredits)}/week`,
           'Custom',
         ],
       },

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
 import { createEventTool } from '@/tools/datadog/create_event'
@@ -19,7 +20,6 @@ import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
 import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
-import { updateSloTool } from '@/tools/datadog/update_slo'
 import {
   buildSloPayload,
   datadogErrorMessage,
@@ -168,7 +168,7 @@ describe('update_slo read-modify-write', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ data: [{ id: 'slo-1', name: 'New' }] }))
 
-    const result = await updateSloTool.directExecution!(
+    const result = await executeUpdateSloOperation(
       { ...auth, sloId: 'slo-1', name: 'New' } as any,
       undefined
     )
@@ -187,7 +187,7 @@ describe('update_slo read-modify-write', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(jsonResponse({ errors: ['SLO not found'] }, { status: 404 }))
 
-    const result = await updateSloTool.directExecution!(
+    const result = await executeUpdateSloOperation(
       { ...auth, sloId: 'missing', name: 'New' } as any,
       undefined
     )

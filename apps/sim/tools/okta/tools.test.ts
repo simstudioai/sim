@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
 import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
 import { oktaAssignUserRoleTool } from '@/tools/okta/assign_user_role'
@@ -123,7 +124,7 @@ describe('okta update_group profile merge', () => {
         )
       )
 
-    const result = await oktaUpdateGroupTool.directExecution!({
+    const result = await executeOktaUpdateGroupOperation({
       ...AUTH,
       groupId: '00g1',
       name: 'Engineering EMEA',
@@ -429,17 +430,10 @@ describe('okta query-string flags are coerced rather than interpolated raw', () 
   })
 })
 
-describe('okta update_group declarative fallback', () => {
-  /**
-   * `PUT /api/v1/groups/{groupId}` replaces an extensible profile wholesale, so
-   * a body built without first reading the stored profile would erase the
-   * description on a rename plus every org-defined custom attribute. Unreachable
-   * today, but it must fail loudly rather than truncate silently.
-   */
-  it('refuses to build a body instead of sending a truncated profile', () => {
-    expect(() =>
-      oktaUpdateGroupTool.request.body!({ ...AUTH, groupId: '00g1', name: 'Engineering EMEA' })
-    ).toThrow(/direct execution/i)
+describe('okta update_group operation boundary', () => {
+  it('has no declarative HTTP fallback that could truncate the stored profile', () => {
+    expect(oktaUpdateGroupTool.operation).toBeDefined()
+    expect('request' in oktaUpdateGroupTool).toBe(false)
   })
 })
 

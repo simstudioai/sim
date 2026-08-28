@@ -1,12 +1,9 @@
 import type { NetSuiteResponse, NetSuiteTransformRecordParams } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteTransformRecordTool: ToolConfig<
+export const netsuiteTransformRecordTool: InternalToolConfig<
   NetSuiteTransformRecordParams,
   NetSuiteResponse
 > = {
@@ -41,24 +38,9 @@ export const netsuiteTransformRecordTool: ToolConfig<
       description: 'Record fields matching the account-specific NetSuite metadata schema',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => ({
-        method: 'POST',
-        path: buildRecordPath(
-          { value: params.recordType, label: 'Source record type' },
-          { value: params.recordId, label: 'Record ID' },
-          { value: '!transform', label: 'Transform operation' },
-          { value: params.targetRecordType, label: 'Target record type' }
-        ),
-        success: { status: 204, body: 'none' },
-        responseLocation: 'resource-optional',
-        body: params.body ?? {},
-      }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

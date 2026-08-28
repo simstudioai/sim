@@ -210,6 +210,59 @@ const CLOUDFORMATION_TOOL_IDS = [
   'cloudformation_validate_template',
 ] as const
 
+const LAMBDA_TOOL_IDS = [
+  'lambda_add_permission',
+  'lambda_create_alias',
+  'lambda_create_event_source_mapping',
+  'lambda_create_function',
+  'lambda_create_function_url_config',
+  'lambda_delete_alias',
+  'lambda_delete_event_source_mapping',
+  'lambda_delete_function',
+  'lambda_delete_function_concurrency',
+  'lambda_delete_function_event_invoke_config',
+  'lambda_delete_function_url_config',
+  'lambda_delete_provisioned_concurrency_config',
+  'lambda_get_account_settings',
+  'lambda_get_alias',
+  'lambda_get_event_source_mapping',
+  'lambda_get_function',
+  'lambda_get_function_concurrency',
+  'lambda_get_function_configuration',
+  'lambda_get_function_event_invoke_config',
+  'lambda_get_function_recursion_config',
+  'lambda_get_function_url_config',
+  'lambda_get_layer_version',
+  'lambda_get_policy',
+  'lambda_get_provisioned_concurrency_config',
+  'lambda_get_runtime_management_config',
+  'lambda_invoke',
+  'lambda_list_aliases',
+  'lambda_list_event_source_mappings',
+  'lambda_list_function_event_invoke_configs',
+  'lambda_list_function_url_configs',
+  'lambda_list_functions',
+  'lambda_list_layer_versions',
+  'lambda_list_layers',
+  'lambda_list_provisioned_concurrency_configs',
+  'lambda_list_tags',
+  'lambda_list_versions_by_function',
+  'lambda_publish_version',
+  'lambda_put_function_concurrency',
+  'lambda_put_function_event_invoke_config',
+  'lambda_put_function_recursion_config',
+  'lambda_put_provisioned_concurrency_config',
+  'lambda_put_runtime_management_config',
+  'lambda_remove_permission',
+  'lambda_tag_resource',
+  'lambda_untag_resource',
+  'lambda_update_alias',
+  'lambda_update_event_source_mapping',
+  'lambda_update_function_code',
+  'lambda_update_function_configuration',
+  'lambda_update_function_url_config',
+] as const
+
 const CODEPIPELINE_TOOL_IDS = [
   'codepipeline_disable_stage_transition',
   'codepipeline_enable_stage_transition',
@@ -643,10 +696,101 @@ const DOCUSIGN_TOOL_IDS = [
 
 const THINKING_TOOL_IDS = ['thinking_tool'] as const
 
+const BITBUCKET_TOOL_IDS = [
+  'bitbucket_get_file',
+  'bitbucket_get_pipeline_step_log',
+  'bitbucket_get_pull_request_diff',
+  'bitbucket_get_pull_request_diffstat',
+] as const
+
+const BROWSER_USE_TOOL_IDS = ['browser_use_run_task'] as const
+
+const CBINSIGHTS_TOOL_IDS = [
+  'cbinsights_chat',
+  'cbinsights_get_commercial_maturity_history',
+  'cbinsights_get_exit_probability_history',
+  'cbinsights_get_mosaic_history',
+  'cbinsights_get_org_business_relationships',
+  'cbinsights_get_org_funding_window',
+  'cbinsights_get_org_fundings',
+  'cbinsights_get_org_investments',
+  'cbinsights_get_org_management_and_board',
+  'cbinsights_get_org_outlook',
+  'cbinsights_get_org_portfolio_exits',
+  'cbinsights_get_org_revenue',
+  'cbinsights_get_scouting_report',
+  'cbinsights_get_strategy_map',
+  'cbinsights_list_business_relationships',
+  'cbinsights_list_funding_window',
+  'cbinsights_list_fundings',
+  'cbinsights_list_investments',
+  'cbinsights_list_management_and_board',
+  'cbinsights_list_outlook',
+  'cbinsights_list_portfolio_exits',
+  'cbinsights_list_revenue',
+  'cbinsights_lookup_organizations',
+  'cbinsights_rag',
+  'cbinsights_search_firmographics',
+] as const
+
+const CLOUDFLARE_TOOL_IDS = ['cloudflare_get_zone_settings'] as const
+const DATADOG_TOOL_IDS = ['datadog_update_slo'] as const
+
+const MANAGED_AGENT_TOOL_IDS = [
+  'managed_agent_archive_session',
+  'managed_agent_create_session',
+  'managed_agent_delete_session',
+  'managed_agent_get_session',
+  'managed_agent_interrupt_session',
+  'managed_agent_list_events',
+  'managed_agent_respond_custom_tool',
+  'managed_agent_respond_tool_confirmation',
+  'managed_agent_run_session',
+  'managed_agent_send_message',
+  'managed_agent_update_session',
+] as const
+
+const MICROSOFT_AD_TOOL_IDS = ['microsoft_ad_add_user_app_role_assignment'] as const
+
+const NETSUITE_TOOL_IDS = [
+  'netsuite_attach_record',
+  'netsuite_batch_create_records',
+  'netsuite_batch_delete_records',
+  'netsuite_batch_get_records',
+  'netsuite_batch_update_records',
+  'netsuite_batch_upsert_records',
+  'netsuite_create_record',
+  'netsuite_delete_record',
+  'netsuite_detach_record',
+  'netsuite_execute_action',
+  'netsuite_execute_dataset',
+  'netsuite_execute_suiteql',
+  'netsuite_get_async_result',
+  'netsuite_get_async_status',
+  'netsuite_get_governance_limits',
+  'netsuite_get_record',
+  'netsuite_get_record_form',
+  'netsuite_get_record_metadata',
+  'netsuite_get_select_options',
+  'netsuite_get_server_time',
+  'netsuite_get_subresource',
+  'netsuite_list_datasets',
+  'netsuite_list_record_types',
+  'netsuite_list_records',
+  'netsuite_transform_record',
+  'netsuite_update_record',
+  'netsuite_upsert_record',
+] as const
+
+const OKTA_TOOL_IDS = ['okta_update_group'] as const
+const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
+
 const SLACK_TOOL_IDS = [
   'slack_add_reaction',
   'slack_delete_message',
   'slack_download',
+  'slack_get_channel_history',
+  'slack_get_thread_replies',
   'slack_ephemeral_message',
   'slack_message',
   'slack_message_reader',
@@ -791,6 +935,7 @@ const GOOGLE_VAULT_TOOL_IDS = ['google_vault_download_export_file'] as const
 const GOOGLE_DRIVE_TOOL_IDS = [
   'google_drive_download',
   'google_drive_export',
+  'google_drive_move',
   'google_drive_upload',
 ] as const
 
@@ -798,7 +943,12 @@ const STAGEHAND_TOOL_IDS = ['stagehand_agent', 'stagehand_extract'] as const
 
 const VISION_TOOL_IDS = ['vision_tool', 'vision_tool_v2'] as const
 
-const GITHUB_TOOL_IDS = ['github_latest_commit', 'github_latest_commit_v2'] as const
+const GITHUB_TOOL_IDS = [
+  'github_comment',
+  'github_comment_v2',
+  'github_latest_commit',
+  'github_latest_commit_v2',
+] as const
 
 const TWILIO_VOICE_TOOL_IDS = ['twilio_voice_get_recording'] as const
 
@@ -1006,7 +1156,11 @@ const DROPBOX_TOOL_IDS = ['dropbox_upload'] as const
 
 const FIREFLIES_TOOL_IDS = ['fireflies_upload_audio'] as const
 
-const SUPABASE_TOOL_IDS = ['supabase_storage_upload'] as const
+const SUPABASE_TOOL_IDS = [
+  'supabase_storage_get_public_url',
+  'supabase_storage_update_bucket',
+  'supabase_storage_upload',
+] as const
 
 const SQUARE_TOOL_IDS = ['square_create_catalog_image'] as const
 
@@ -1118,6 +1272,9 @@ registerFamily(handlerLoaders, REDIS_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, CLOUDFORMATION_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudformation/execute-tool')).executeCloudformationTool
 })
+registerFamily(handlerLoaders, LAMBDA_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/lambda/execute-tool')).executeLambdaTool
+})
 registerFamily(handlerLoaders, CODEPIPELINE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool
 })
@@ -1189,6 +1346,36 @@ registerFamily(handlerLoaders, DOCUSIGN_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, THINKING_TOOL_IDS, async () => {
   return (await import('@/lib/internal/thinking/execute-tool')).executeThinkingTool
+})
+registerFamily(handlerLoaders, BITBUCKET_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/bitbucket/execute-tool')).executeBitbucketTool
+})
+registerFamily(handlerLoaders, BROWSER_USE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/browser-use/execute-tool')).executeBrowserUseTool
+})
+registerFamily(handlerLoaders, CBINSIGHTS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/cbinsights/execute-tool')).executeCbinsightsTool
+})
+registerFamily(handlerLoaders, CLOUDFLARE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/cloudflare/execute-tool')).executeCloudflareTool
+})
+registerFamily(handlerLoaders, DATADOG_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/datadog/execute-tool')).executeDatadogTool
+})
+registerFamily(handlerLoaders, MANAGED_AGENT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/managed-agent/execute-tool')).executeManagedAgentTool
+})
+registerFamily(handlerLoaders, MICROSOFT_AD_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/microsoft-ad/execute-tool')).executeMicrosoftAdTool
+})
+registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/netsuite/execute-tool')).executeNetsuiteTool
+})
+registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool
 })
 registerFamily(handlerLoaders, SLACK_TOOL_IDS, async () => {
   return (await import('@/lib/internal/slack/execute-tool')).executeSlackTool
