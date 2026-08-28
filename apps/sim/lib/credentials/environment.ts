@@ -78,8 +78,9 @@ export async function getCredentialCreationWorkspaceContext(params: {
     })
     .from(workspace)
     .where(and(eq(workspace.id, params.workspaceId), isNull(workspace.archivedAt)))
+  /** `FOR NO KEY UPDATE`: see the module header of `lib/billing/storage/tracking.ts`. */
   const [workspaceRow] = params.forUpdate
-    ? await workspaceQuery.for('update').limit(1)
+    ? await workspaceQuery.for('no key update').limit(1)
     : await workspaceQuery.limit(1)
   if (!workspaceRow) return null
 
