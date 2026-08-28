@@ -68,6 +68,33 @@ describe('buildUsageAnalyticsScope', () => {
     expect(shape).toContain('usageLog.billingEntityType')
     expect(shape).toContain('usageLog.billingEntityId')
   })
+
+  it('narrows to a workspace in every window shape', () => {
+    // Each branch returns its own array, so a narrowing added to only one of them is a
+    // drill-down that quietly reports the whole organization under the other two.
+    const windows = [
+      { kind: 'period', period: period({ source: 'stripe' }) },
+      {
+        kind: 'period',
+        period: period({ source: 'reporting', anchorDate: '2026-08-01', interval: 'month' }),
+      },
+      {
+        kind: 'range',
+        from: new Date('2026-08-01T00:00:00.000Z'),
+        to: new Date('2026-08-08T00:00:00.000Z'),
+      },
+    ] as const
+
+    for (const window of windows) {
+      expect(JSON.stringify(buildUsageAnalyticsScope(ENTITY, window, 'ws-1'))).toContain(
+        'usageLog.workspaceId'
+      )
+    }
+  })
+
+  it('leaves the scope organization-wide when no workspace is given', () => {
+    expect(scopeShape({ kind: 'period', period: period() })).not.toContain('usageLog.workspaceId')
+  })
 })
 
 describe('usageWindowLedgerFilter', () => {

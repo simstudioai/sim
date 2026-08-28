@@ -120,13 +120,10 @@ function breakdownColumn(dimension: UsageBreakdownDimension) {
 export async function readUsageBreakdown(
   scope: SQL[],
   dimension: UsageBreakdownDimension,
-  /** Narrows to one workspace, for the Workspaces drill-down. */
-  workspaceId: string | undefined,
   executor: DbClient = dbReplica
 ): Promise<UsageBreakdownRow[]> {
   const column = breakdownColumn(dimension)
   const conditions = [...scope]
-  if (workspaceId) conditions.push(eq(usageLog.workspaceId, workspaceId))
   /**
    * `description` holds a model name only for the model categories; a tool or fixed
    * row would otherwise appear as a phantom "model". The two model dimensions split

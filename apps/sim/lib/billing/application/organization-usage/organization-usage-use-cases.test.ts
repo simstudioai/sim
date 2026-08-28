@@ -125,4 +125,30 @@ describe('organization usage authorization', () => {
     expect(JSON.stringify(totalsScope)).toContain(ORG)
     expect(JSON.stringify(seriesScope)).toBe(JSON.stringify(totalsScope))
   })
+
+  it('narrows the drill-down’s chart and its comparison window to the same workspace', async () => {
+    /*
+      A reporting period, so the delta's read actually happens: `resolvePreviousPeriod`
+      returns null for a stripe period, and against the default subscription above this
+      test would assert the narrowing of a query that was never issued.
+    */
+    mocks.getOrganizationSubscription.mockResolvedValue({
+      plan: 'enterprise',
+      metadata: { reportingPeriodAnchorDate: '2026-01-01', reportingPeriodInterval: 'month' },
+    })
+
+    await getOrganizationUsageSummary.execute({
+      principal: session,
+      input: { ...input, workspaceId: 'ws-1' },
+    })
+
+    // The current window and the previous one, both narrowed. Narrowing only the
+    // current window measures one workspace against the whole organization and
+    // renders the difference as that workspace's own trend.
+    expect(mocks.readUsageTotals).toHaveBeenCalledTimes(2)
+    for (const [scope] of mocks.readUsageTotals.mock.calls) {
+      expect(JSON.stringify(scope)).toContain('ws-1')
+    }
+    expect(JSON.stringify(mocks.readUsageTimeSeries.mock.calls[0][0])).toContain('ws-1')
+  })
 })

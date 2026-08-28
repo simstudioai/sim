@@ -183,6 +183,18 @@ export function UsageMonitoring({
     limit: rowLimitFor('source'),
     ...(workspace ? { workspaceId: workspace } : {}),
   })
+  /**
+   * The same headline and trend the Overview draws, narrowed to this workspace.
+   *
+   * A second summary rather than a figure derived from the lists below it: they carry
+   * totals but no time series, and the shape of the period is the question the chart
+   * answers. It is also the only place the drill-down states its window, which is why
+   * its section is labelled with the period rather than with the word "Usage".
+   */
+  const workspaceSummary = useOrganizationUsageSummary(organizationId, window, {
+    enabled: isWorkspaceDetail,
+    ...(workspace ? { workspaceId: workspace } : {}),
+  })
   // Already cached by Members and Billing, so the meter costs nothing extra and
   // cannot report a different allowance than they do.
   const billing = useOrganizationBilling(organizationId)
@@ -322,6 +334,24 @@ export function UsageMonitoring({
         }
       >
         {/*
+          Labelled with the period, not "Usage": the picker lives on the list behind
+          this view, so once you are in here the window is carried but invisible — and
+          a total with no stated period is a number people read as all-time. The
+          heading the chart already needs is where that belongs.
+
+          No allowance passed, unlike the Overview: the limit is pooled across the
+          whole organization, and printing it under one workspace's figure would read
+          as that workspace's own cap.
+        */}
+        <SettingsSection label={periodLabel}>
+          <UsageSummary
+            summary={workspaceSummary.data}
+            isLoading={workspaceSummary.isLoading}
+            isError={workspaceSummary.isError}
+            isPlaceholderData={workspaceSummary.isPlaceholderData}
+          />
+        </SettingsSection>
+        {/*
           Sources first, because in most workspaces the majority of usage is Chat
           rather than workflow runs — and a workflow list alone hid that behind a
           single unexplained row. Sources reconciles to the workspace total; Workflows
@@ -452,6 +482,7 @@ export function UsageMonitoring({
                 }
                 isLoading={summary.isLoading}
                 isError={summary.isError}
+                isPlaceholderData={summary.isPlaceholderData}
               />
             </SettingsSection>
             {/*

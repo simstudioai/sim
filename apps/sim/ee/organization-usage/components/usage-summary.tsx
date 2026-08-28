@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Badge } from '@sim/emcn'
+import { Badge, cn } from '@sim/emcn'
 import { BarChart } from '@/components/charts'
 import type { OrganizationUsageSummary } from '@/lib/api/contracts/organization-usage'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
@@ -16,6 +16,12 @@ interface UsageSummaryProps {
   limitCredits?: number | null
   isLoading: boolean
   isError: boolean
+  /**
+   * Dims the figures while a re-keyed fetch resolves, rather than blanking them — the
+   * same treatment `UsageConsumers` gives a retained list. Without it the headline and
+   * chart present the previous period's numbers as though they were the new period's.
+   */
+  isPlaceholderData?: boolean
 }
 
 function percentDelta(current: number, previous: number): number | null {
@@ -23,7 +29,13 @@ function percentDelta(current: number, previous: number): number | null {
   return ((current - previous) / previous) * 100
 }
 
-export function UsageSummary({ summary, limitCredits, isLoading, isError }: UsageSummaryProps) {
+export function UsageSummary({
+  summary,
+  limitCredits,
+  isLoading,
+  isError,
+  isPlaceholderData,
+}: UsageSummaryProps) {
   /*
     Stabilized so `BarChart`'s `memo()` can actually pass. Built inline it was a new
     array on every render of the panel — a date-picker toggle or an export click
@@ -52,7 +64,9 @@ export function UsageSummary({ summary, limitCredits, isLoading, isError }: Usag
   const isOverLimit = hasLimit && used > limitCredits
 
   return (
-    <div className='flex flex-col gap-3'>
+    <div
+      className={cn('flex flex-col gap-3', isPlaceholderData && 'opacity-50 transition-opacity')}
+    >
       {/*
         One line, and the allowance sits beside the figure rather than under it —
         restating "4,958 credits used" below a "4,958 credits" headline said the same
