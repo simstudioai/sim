@@ -7,6 +7,7 @@ import {
   authMockFns,
   createMockRequest,
   dbChainMockFns,
+  flattenMockConditions,
   posthogServerMock,
   queueTableRows,
   resetDbChainMock,
@@ -138,14 +139,14 @@ describe('POST /api/webhooks polling configuration', () => {
     })
   })
 
-  it('repairs an existing IMAP webhook deployment binding before polling setup', async () => {
+  it('updates only the current-deployment IMAP webhook before polling setup', async () => {
     const existingWebhook = {
       id: 'webhook-1',
       workflowId: 'workflow-1',
       blockId: 'block-1',
       path: 'imap-hook',
       provider: 'imap',
-      deploymentVersionId: null,
+      deploymentVersionId: 'deployment-1',
       providerConfig: {
         host: '{{IMAP_HOST}}',
         username: '{{IMAP_USERNAME}}',
@@ -195,11 +196,87 @@ describe('POST /api/webhooks polling configuration', () => {
       deploymentVersionId: 'deployment-1',
     }
     expect(response.status).toBe(200)
+    const pathLookupConditions = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenMockConditions(condition))
+      .find((conditions) =>
+        conditions.some((condition) => condition.type === 'eq' && condition.right === 'imap-hook')
+      )
+    expect(pathLookupConditions).toContainEqual({
+      type: 'eq',
+      left: 'webhook.deploymentVersionId',
+      right: 'deployment-1',
+    })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ deploymentVersionId: 'deployment-1' })
     )
     expect(mocks.configurePolling).toHaveBeenCalledWith({
       webhook: repairedWebhook,
+      requestId: 'mock-request-id',
+      userId: 'actor-1',
+      workspaceId: 'canonical-workspace',
+      deploymentVersionId: 'deployment-1',
+    })
+  })
+
+  it('creates an active IMAP webhook instead of rebinding a historical row', async () => {
+    const savedWebhook = {
+      id: 'webhook-active',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'imap-hook',
+      provider: 'imap',
+      deploymentVersionId: 'deployment-1',
+      providerConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
+    ])
+    // A historical row may exist, but the current-deployment lookup correctly returns none.
+    queueTableRows(webhook, [])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const insertedValues = dbChainMockFns.values.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...savedWebhook,
+          deploymentVersionId: insertedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'imap-hook',
+          provider: 'imap',
+          providerConfig: savedWebhook.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+
+    expect(response.status).toBe(201)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+    expect(mocks.configurePolling).toHaveBeenCalledWith({
+      webhook: savedWebhook,
       requestId: 'mock-request-id',
       userId: 'actor-1',
       workspaceId: 'canonical-workspace',
@@ -214,7 +291,7 @@ describe('POST /api/webhooks polling configuration', () => {
       blockId: 'block-1',
       path: 'imap-hook',
       provider: 'imap',
-      deploymentVersionId: null,
+      deploymentVersionId: 'deployment-1',
       providerConfig: {
         host: '{{IMAP_HOST}}',
         username: '{{IMAP_USERNAME}}',
@@ -267,7 +344,7 @@ describe('POST /api/webhooks polling configuration', () => {
     )
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ deploymentVersionId: null })
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
     )
   })
 })
