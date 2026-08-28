@@ -1,21 +1,33 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { cn } from '@sim/emcn'
-import { ChevronRight } from '@sim/emcn/icons'
+import { chipHoverSurfaceClass, cn } from '@sim/emcn'
+import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import { formatChartCompactNumber } from '@/components/charts'
 import {
   AnthropicIcon,
   AzureIcon,
+  BasetenIcon,
+  BedrockIcon,
   CerebrasIcon,
   DeepseekIcon,
-  GoogleIcon,
+  FireworksIcon,
+  GeminiIcon,
   GroqIcon,
+  KimiIcon,
+  LitellmIcon,
+  MetaIcon,
   MistralIcon,
+  NvidiaIcon,
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
+  SakanaIcon,
+  TogetherIcon,
+  VertexIcon,
+  VllmIcon,
   xAIIcon,
+  ZaiIcon,
 } from '@/components/icons'
 import type {
   OrganizationUsageBreakdown,
@@ -27,27 +39,52 @@ import {
   RowActionsMenu,
 } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { USAGE_TAB_EMPTY_COPY } from '@/ee/organization-usage/constants'
 
 /**
  * Provider brand marks, keyed by the `providerId` the server resolves.
  *
- * Kept here rather than read from `providers/models.ts`: that module carries the
+ * Kept here rather than read from `PROVIDER_DEFINITIONS`: that module carries the
  * whole model registry and would land in this settings chunk for two dozen glyphs.
+ * The icons themselves come from the same `@/components/icons` module the registry
+ * imports, so this is a re-keying, never a second set of artwork.
+ *
+ * It must list every provider the registry defines, or a model resolving to a
+ * missing one renders an unexplained blank where every neighbouring row has a mark
+ * — which is how `zai` (GLM) shipped iconless. `usage-consumers.test.ts` fails when
+ * the two drift, so the coverage is checked rather than remembered.
  */
 const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>> = {
-  openai: OpenAIIcon,
   anthropic: AnthropicIcon,
-  google: GoogleIcon,
-  'azure-openai': AzureIcon,
-  deepseek: DeepseekIcon,
-  xai: xAIIcon,
-  groq: GroqIcon,
+  baseten: BasetenIcon,
+  bedrock: BedrockIcon,
   cerebras: CerebrasIcon,
-  ollama: OllamaIcon,
-  openrouter: OpenRouterIcon,
+  deepseek: DeepseekIcon,
+  fireworks: FireworksIcon,
+  google: GeminiIcon,
+  groq: GroqIcon,
+  kimi: KimiIcon,
+  litellm: LitellmIcon,
+  meta: MetaIcon,
   mistral: MistralIcon,
+  nvidia: NvidiaIcon,
+  ollama: OllamaIcon,
+  'ollama-cloud': OllamaIcon,
+  openai: OpenAIIcon,
+  openrouter: OpenRouterIcon,
+  sakana: SakanaIcon,
+  together: TogetherIcon,
+  vertex: VertexIcon,
+  vllm: VllmIcon,
+  xai: xAIIcon,
+  zai: ZaiIcon,
+  'azure-anthropic': AzureIcon,
+  /** Not a registry provider — a BYOK credential kind the breakdown can also emit. */
+  'azure-openai': AzureIcon,
 }
+
+export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
@@ -62,8 +99,8 @@ interface UsageConsumerRowProps {
  * same slot on its `Other` row and keep every figure in one column.
  */
 const TRAILING_SLOT_CLASSES = {
-  /** `ChevronRight` at the platform icon size. */
-  chevron: 'size-[14px]',
+  /** The canonical resource-row arrow, at its own size. */
+  arrow: 'size-4',
   /** `RowActionsMenu`'s trigger: a 14px glyph in a `chipVariants()` pill. */
   menu: 'size-[30px]',
 } as const
@@ -87,7 +124,7 @@ function UsageConsumerRow({ row, showTokensOnly, onSelect, actions }: UsageConsu
         : {})}
       className={cn(
         'flex w-full items-center gap-2.5 rounded-lg p-2 text-left',
-        onSelect && 'transition-colors hover:bg-[var(--surface-active)]'
+        onSelect && cn('transition-colors', chipHoverSurfaceClass)
       )}
     >
       {ProviderIcon && (
@@ -106,11 +143,9 @@ function UsageConsumerRow({ row, showTokensOnly, onSelect, actions }: UsageConsu
       <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
         {showTokensOnly ? formatChartCompactNumber(row.tokens ?? 0) : row.credits.toLocaleString()}
       </span>
-      {/* A chevron or a menu, never both — `sim-settings-pages.md`. */}
+      {/* An arrow or a menu, never both — `sim-settings-pages.md`. */}
       {onSelect ? (
-        <ChevronRight
-          className={cn(TRAILING_SLOT_CLASSES.chevron, 'flex-shrink-0 text-[var(--text-icon)]')}
-        />
+        <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />
       ) : actions?.length ? (
         <RowActionsMenu label={`${row.label} actions`} actions={actions} />
       ) : null}
@@ -127,6 +162,11 @@ interface UsageConsumersProps {
   onSelectRow?: (row: OrganizationUsageBreakdownRow) => void
   /** Set on Members, where a row can open the shared manage-credits modal. */
   rowActions?: (row: OrganizationUsageBreakdownRow) => RowAction[]
+  /**
+   * Opens the truncated tail. Omitted when the list is already showing everything the
+   * API will return, which is the one case where the `Other` row has nothing to open.
+   */
+  onExpandOther?: () => void
 }
 
 export function UsageConsumers({
@@ -136,6 +176,7 @@ export function UsageConsumers({
   isError,
   onSelectRow,
   rowActions,
+  onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
     return (
@@ -155,7 +196,7 @@ export function UsageConsumers({
 
   const showTokensOnly = dimension === 'byok'
   const trailingSlot = onSelectRow
-    ? TRAILING_SLOT_CLASSES.chevron
+    ? TRAILING_SLOT_CLASSES.arrow
     : rowActions
       ? TRAILING_SLOT_CLASSES.menu
       : null
@@ -174,22 +215,46 @@ export function UsageConsumers({
       {/*
         The truncated tail, named rather than dropped: a ranked list that does not add
         up to the headline figure is how "the numbers are wrong" reports start.
+
+        A button when there is more the API can return, so the tail opens in place.
+        Past the API's ceiling it stays a plain row — a control that cannot change
+        what you see is worse than no control.
       */}
-      {breakdown.other.rowCount > 0 && (
-        <div className='flex items-center gap-2.5 rounded-lg p-2 text-left'>
-          <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-sm'>
-            {`Other (${breakdown.other.rowCount} more)`}
-          </span>
-          <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
-            {showTokensOnly
-              ? formatChartCompactNumber(breakdown.other.tokens)
-              : breakdown.other.credits.toLocaleString()}
-          </span>
-          {trailingSlot && (
-            <span className={cn(trailingSlot, 'flex-shrink-0')} aria-hidden='true' />
-          )}
-        </div>
-      )}
+      {breakdown.other.rowCount > 0 &&
+        (() => {
+          const OtherRow = onExpandOther ? 'button' : 'div'
+          return (
+            <OtherRow
+              {...(onExpandOther
+                ? {
+                    type: 'button' as const,
+                    onClick: onExpandOther,
+                    'aria-label': `Show the remaining ${breakdown.other.rowCount}`,
+                  }
+                : {})}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-lg p-2 text-left',
+                onExpandOther && cn('transition-colors', chipHoverSurfaceClass)
+              )}
+            >
+              <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-sm'>
+                {`Other (${breakdown.other.rowCount} more)`}
+              </span>
+              <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+                {showTokensOnly
+                  ? formatChartCompactNumber(breakdown.other.tokens)
+                  : breakdown.other.credits.toLocaleString()}
+              </span>
+              {onExpandOther ? (
+                <ChevronDown className={RESOURCE_ROW_ARROW_CLASSES} />
+              ) : (
+                trailingSlot && (
+                  <span className={cn(trailingSlot, 'flex-shrink-0')} aria-hidden='true' />
+                )
+              )}
+            </OtherRow>
+          )
+        })()}
     </div>
   )
 }

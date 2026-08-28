@@ -1,6 +1,6 @@
 'use client'
 
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { hashKey, keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationUsageBreakdownContract,
@@ -53,6 +53,15 @@ interface UseBreakdownOptions {
   workspaceId?: string
 }
 
+/**
+ * A breakdown key with its row limit removed. The key ends `dimension, limit,
+ * workspaceId`, so dropping the second-to-last element leaves the identity of the
+ * list — which is what "the same list, more rows" has to compare on.
+ */
+function breakdownKeyWithoutLimit(key: readonly unknown[]): unknown[] {
+  return key.filter((_, index) => index !== key.length - 2)
+}
+
 export function useOrganizationUsageBreakdown(
   organizationId: string | undefined,
   window: OrganizationUsageWindowKey,
@@ -61,14 +70,15 @@ export function useOrganizationUsageBreakdown(
 ) {
   const limit = options.limit ?? 10
   const { workspaceId } = options
+  const queryKey = organizationUsageKeys.breakdown(
+    organizationId ?? '',
+    window,
+    dimension,
+    limit,
+    workspaceId
+  )
   return useQuery({
-    queryKey: organizationUsageKeys.breakdown(
-      organizationId ?? '',
-      window,
-      dimension,
-      limit,
-      workspaceId
-    ),
+    queryKey,
     queryFn: ({ signal }): Promise<OrganizationUsageBreakdown> =>
       requestJson(getOrganizationUsageBreakdownContract, {
         params: { id: organizationId as string },
@@ -82,8 +92,20 @@ export function useOrganizationUsageBreakdown(
       }),
     enabled: Boolean(organizationId) && (options.enabled ?? true),
     staleTime: ORGANIZATION_USAGE_BREAKDOWN_STALE_TIME,
-    // Deliberately no keepPreviousData: a stale ranking under a new group label reads
-    // as wrong data, which is worse than a brief skeleton.
+    /**
+     * Kept only across a row-limit change — opening the `Other` row asks the same
+     * question of the same list, and the visible rows are a prefix of the answer, so
+     * dimming beats blanking. Any other key change (dimension, window, workspace)
+     * would put a stale ranking under a new label, which reads as wrong data and is
+     * worse than a brief skeleton.
+     */
+    placeholderData: (previous, previousQuery) =>
+      previous &&
+      previousQuery &&
+      hashKey(breakdownKeyWithoutLimit(previousQuery.queryKey)) ===
+        hashKey(breakdownKeyWithoutLimit(queryKey))
+        ? previous
+        : undefined,
   })
 }
 

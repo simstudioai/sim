@@ -1,6 +1,6 @@
 'use client'
 
-import { chipVariants, cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
@@ -74,7 +74,7 @@ export function UsageEventsView({ organizationId, backHref }: UsageEventsViewPro
     <SettingsPanel
       back={{ text: 'Usage', icon: ArrowLeft, onSelect: () => router.push(backHref) }}
       title='Usage events'
-      description='Every credit-consuming event behind your usage.'
+      description="Every credit-consuming event across your organization's workspaces."
     >
       <div
         className={cn(
@@ -96,18 +96,14 @@ export function UsageEventsView({ organizationId, backHref }: UsageEventsViewPro
               <UsageEventRow key={event.id} event={event} />
             ))}
             {hasNextPage && (
-              <button
-                type='button'
+              <Chip
+                fullWidth
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
                 aria-label='Load more usage events'
-                className={cn(
-                  chipVariants({ fullWidth: true }),
-                  'text-[var(--text-muted)] text-small'
-                )}
               >
                 {isFetchingNextPage ? 'Loading…' : 'Load more'}
-              </button>
+              </Chip>
             )}
           </>
         )}

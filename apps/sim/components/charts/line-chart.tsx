@@ -8,19 +8,21 @@ import {
   formatChartTimestamp,
 } from '@/components/charts/chart-format'
 import {
+  CHART_AXIS_LABEL_GAP,
   CHART_DEFAULT_HEIGHT,
   CHART_GRID_FRACTIONS,
-  CHART_PADDING,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
   chartPlotBand,
   formatTimeTick,
+  resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
 } from '@/components/charts/chart-geometry'
 import {
   ChartTooltip,
   ChartTooltipRow,
+  estimateTooltipHeight,
   estimateTooltipWidth,
   positionChartTooltip,
 } from '@/components/charts/chart-tooltip'
@@ -53,6 +55,38 @@ interface LineChartProps {
   height?: number
 }
 
+/**
+ * Smoothed path through `points`, with every control point clamped into the plot
+ * band so a curve between two near-axis samples cannot bow over an axis rule.
+ *
+ * At module scope because the base line and each extra series need the identical
+ * curve: the two copies had drifted apart before, and a clamp fixed in one drew a
+ * different shape from the other.
+ */
+function buildSmoothPath(
+  points: ReadonlyArray<{ x: number; y: number }>,
+  yMin: number,
+  yMax: number
+): string {
+  if (points.length <= 1) return ''
+  const tension = 0.2
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] || points[i + 1]
+    const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
+    let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
+    const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
+    let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
+    cp1y = Math.max(yMin, Math.min(yMax, cp1y))
+    cp2y = Math.max(yMin, Math.min(yMax, cp2y))
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+  }
+  return d
+}
+
 function LineChartComponent({
   data,
   label,
@@ -69,23 +103,16 @@ function LineChartComponent({
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
-  const padding = CHART_PADDING
-  const chartWidth = width - padding.left - padding.right
-  const chartHeight = height - padding.top - padding.bottom
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const isDark = useIsDarkTheme()
   const [hoverSeriesId, setHoverSeriesId] = useState<string | null>(null)
   const [activeSeriesId, setActiveSeriesId] = useState<string | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
 
-  const colorTokens = useMemo(() => {
-    const tokens: Record<string, string> = { base: color }
-    for (const s of series ?? []) {
-      const id = s.id || s.label || ''
-      if (id) tokens[id] = s.color
-    }
-    return tokens
-  }, [color, series])
+  const colorTokens: Record<string, string> = { base: color }
+  for (const s of series ?? []) {
+    const id = s.id || s.label || ''
+    if (id) colorTokens[id] = s.color
+  }
   const resolvedColors = useResolvedChartColors(colorTokens)
 
   const hasExternalWrapper = !label || label === ''
@@ -129,6 +156,25 @@ function LineChartComponent({
     }
   }, [allSeries, unit])
 
+  /**
+   * The two y-axis tick labels, resolved once so the gutter that has to hold them is
+   * measured from the same strings the axis draws.
+   */
+  const yAxisLabels = useMemo(() => {
+    const unitSuffix = (unit || '').trim()
+    const isLatency = unitSuffix.toLowerCase() === 'latency'
+    const suffix = unitSuffix === '%' && !isLatency ? unitSuffix : ''
+    const compact = (value: number) => {
+      if (isLatency) return value === 0 ? '0' : formatChartLatency(value)
+      return `${formatChartCompactNumber(value)}${suffix}`
+    }
+    return [compact(maxValue), compact(minValue)] as const
+  }, [maxValue, minValue, unit])
+
+  const padding = resolveChartPadding(yAxisLabels)
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
   const { yMin, yMax } = chartPlotBand(height)
 
   const scaledPoints = useMemo(
@@ -142,6 +188,18 @@ function LineChartComponent({
       }),
     [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax, padding.left, padding.top]
   )
+
+  /**
+   * The hovered sample, derived from the stored cursor rather than stored beside it.
+   *
+   * The x written on hover is the same clamped x the index was resolved from, so a
+   * second piece of state could only ever agree with this — or go stale after a
+   * resize, once the width it was measured against had changed.
+   */
+  const hoverIndex =
+    hoverPos === null || scaledPoints.length === 0
+      ? null
+      : Math.round(((hoverPos.x - padding.left) / (chartWidth || 1)) * (scaledPoints.length - 1))
 
   const scaledSeries = useMemo(
     () =>
@@ -169,31 +227,11 @@ function LineChartComponent({
   )
 
   const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
-  const visibleSeries = useMemo(
-    () => (activeSeriesId ? scaledSeries.filter((s) => s.id === activeSeriesId) : scaledSeries),
-    [activeSeriesId, scaledSeries]
-  )
+  const visibleSeries = activeSeriesId
+    ? scaledSeries.filter((s) => s.id === activeSeriesId)
+    : scaledSeries
 
-  const pathD = useMemo(() => {
-    if (scaledPoints.length <= 1) return ''
-    const p = scaledPoints
-    const tension = 0.2
-    let d = `M ${p[0].x} ${p[0].y}`
-    for (let i = 0; i < p.length - 1; i++) {
-      const p0 = p[i - 1] || p[i]
-      const p1 = p[i]
-      const p2 = p[i + 1]
-      const p3 = p[i + 2] || p[i + 1]
-      const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
-      let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
-      const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
-      let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
-      cp1y = Math.max(yMin, Math.min(yMax, cp1y))
-      cp2y = Math.max(yMin, Math.min(yMax, cp2y))
-      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
-    }
-    return d
-  }, [scaledPoints, yMin, yMax])
+  const pathD = useMemo(() => buildSmoothPath(scaledPoints, yMin, yMax), [scaledPoints, yMin, yMax])
 
   const currentHoverDate =
     hoverIndex !== null && data[hoverIndex] ? formatChartTimestamp(data[hoverIndex].timestamp) : ''
@@ -202,7 +240,10 @@ function LineChartComponent({
     return (
       <div
         ref={containerRef}
-        className={cn('w-full', !hasExternalWrapper && 'rounded-lg border bg-card p-4')}
+        className={cn(
+          'w-full',
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
+        )}
         style={{ height }}
       />
     )
@@ -213,7 +254,7 @@ function LineChartComponent({
       <div
         className={cn(
           'flex w-full items-center justify-center',
-          !hasExternalWrapper && 'rounded-lg border bg-card p-4'
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
         )}
         /*
           Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
@@ -239,8 +280,14 @@ function LineChartComponent({
           contradicted the constant's own note that the chart "scrolls rather than
           compresses". At or above the floor there is no overflow and nothing changes.
         */
-        'w-full overflow-x-auto',
-        !hasExternalWrapper && 'rounded-[11px] border bg-card p-4 shadow-sm'
+        /*
+          `overflow-y-hidden` is not redundant with `overflow-x-auto`: a computed
+          `overflow-x` other than `visible` promotes `overflow-y: visible` to `auto`,
+          so the tooltip's shadow reaching the foot of the box raised a vertical
+          scrollbar over the chart whenever the cursor neared the axis.
+        */
+        'w-full overflow-x-auto overflow-y-hidden',
+        !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'
       )}
     >
       {!hasExternalWrapper && (
@@ -259,11 +306,11 @@ function LineChartComponent({
                     variant='ghost'
                     aria-pressed={activeSeriesId === s.id}
                     aria-label={`Toggle ${s.label}`}
-                    className='inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-micro'
-                    style={{
-                      color: resolvedColors[s.id || ''] || s.color,
-                      opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
-                    }}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-micro',
+                      dimmed ? 'opacity-40' : isHovered ? 'opacity-100' : 'opacity-90'
+                    )}
+                    style={{ color: resolvedColors[s.id || ''] || s.color }}
                     onMouseEnter={() => setHoverSeriesId(s.id || null)}
                     onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
                     onKeyDown={(e) => {
@@ -301,7 +348,6 @@ function LineChartComponent({
             const clamped = Math.max(padding.left, Math.min(width - padding.right, x))
             const ratio = (clamped - padding.left) / (chartWidth || 1)
             const i = Math.round(ratio * (scaledPoints.length - 1))
-            setHoverIndex(i)
             setHoverPos({ x: clamped, y: e.clientY - rect.top })
             const cursorY = e.clientY - rect.top
             if (activeSeriesId) {
@@ -321,7 +367,6 @@ function LineChartComponent({
             }
           }}
           onMouseLeave={() => {
-            setHoverIndex(null)
             setHoverPos(null)
             setHoverSeriesId(null)
           }}
@@ -355,7 +400,7 @@ function LineChartComponent({
             y1={padding.top}
             x2={padding.left}
             y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
+            stroke='var(--border)'
             strokeWidth='1'
           />
 
@@ -366,7 +411,7 @@ function LineChartComponent({
               y1={padding.top + chartHeight * p}
               x2={width - padding.right}
               y2={padding.top + chartHeight * p}
-              stroke='hsl(var(--muted))'
+              stroke='var(--border)'
               strokeOpacity='0.35'
               strokeWidth='1'
             />
@@ -433,25 +478,7 @@ function LineChartComponent({
                 />
               )
             }
-            const p = (() => {
-              const p = s.pts
-              const tension = 0.2
-              let d = `M ${p[0].x} ${p[0].y}`
-              for (let i = 0; i < p.length - 1; i++) {
-                const p0 = p[i - 1] || p[i]
-                const p1 = p[i]
-                const p2 = p[i + 1]
-                const p3 = p[i + 2] || p[i + 1]
-                const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
-                let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
-                const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
-                let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
-                cp1y = Math.max(yMin, Math.min(yMax, cp1y))
-                cp2y = Math.max(yMin, Math.min(yMax, cp2y))
-                d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
-              }
-              return d
-            })()
+            const p = buildSmoothPath(s.pts, yMin, yMax)
             return (
               <path
                 key={s.id}
@@ -533,46 +560,31 @@ function LineChartComponent({
             })
           })()}
 
-          {(() => {
-            const unitSuffix = (unit || '').trim()
-            const showInTicks = unitSuffix === '%'
-            const isLatency = unitSuffix.toLowerCase() === 'latency'
-            const fmtCompact = (v: number) => {
-              if (isLatency) return v === 0 ? '0' : formatChartLatency(v)
-              return formatChartCompactNumber(v)
-            }
-            return (
-              <>
-                <text
-                  x={padding.left - 8}
-                  y={padding.top}
-                  textAnchor='end'
-                  fontSize={CHART_TICK_FONT_SIZE}
-                  fill={CHART_TICK_FILL}
-                >
-                  {fmtCompact(maxValue)}
-                  {showInTicks && !isLatency ? unit : ''}
-                </text>
-                <text
-                  x={padding.left - 8}
-                  y={height - padding.bottom}
-                  textAnchor='end'
-                  fontSize={CHART_TICK_FONT_SIZE}
-                  fill={CHART_TICK_FILL}
-                >
-                  {fmtCompact(minValue)}
-                  {showInTicks && !isLatency ? unit : ''}
-                </text>
-              </>
-            )
-          })()}
+          <text
+            x={padding.left - CHART_AXIS_LABEL_GAP}
+            y={padding.top}
+            textAnchor='end'
+            fontSize={CHART_TICK_FONT_SIZE}
+            fill={CHART_TICK_FILL}
+          >
+            {yAxisLabels[0]}
+          </text>
+          <text
+            x={padding.left - CHART_AXIS_LABEL_GAP}
+            y={height - padding.bottom}
+            textAnchor='end'
+            fontSize={CHART_TICK_FONT_SIZE}
+            fill={CHART_TICK_FILL}
+          >
+            {yAxisLabels[1]}
+          </text>
 
           <line
             x1={padding.left}
             y1={height - padding.bottom}
             x2={width - padding.right}
             y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
+            stroke='var(--border)'
             strokeWidth='1'
           />
         </svg>
@@ -613,6 +625,8 @@ function LineChartComponent({
               width,
               height,
               tooltipMaxWidth: estimateTooltipWidth(longest),
+              tooltipHeight: estimateTooltipHeight(toDisplay.length, Boolean(currentHoverDate)),
+              padding,
             })
             return (
               <ChartTooltip left={left} top={top} date={currentHoverDate || undefined}>
@@ -639,7 +653,4 @@ function LineChartComponent({
   )
 }
 
-/**
- * Memoized LineChart component to prevent re-renders when parent updates.
- */
 export const LineChart = memo(LineChartComponent)

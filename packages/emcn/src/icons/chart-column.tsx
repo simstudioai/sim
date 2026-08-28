@@ -20,9 +20,9 @@ export function ChartColumn(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <path d='M2.51 2.01V15.77C2.51 16.72 3.28 17.49 4.23 17.49H17.99' />
-      <rect x='12.83' y='3.73' width='3.44' height='10.32' rx='0.86' />
-      <rect x='5.95' y='6.31' width='3.44' height='7.74' rx='0.86' />
+      <path d='M1.25 0.75V16.75C1.25 17.855 2.145 18.75 3.25 18.75H19.25' />
+      <rect x='13.25' y='2.75' width='4' height='12' rx='1' />
+      <rect x='5.25' y='5.75' width='4' height='9' rx='1' />
     </svg>
   )
 }

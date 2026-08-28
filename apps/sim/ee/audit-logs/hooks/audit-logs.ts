@@ -11,11 +11,16 @@ export const auditLogKeys = {
     [...auditLogKeys.lists(), organizationId, filters] as const,
 }
 
+/** Position of the organization id in a key built by {@link auditLogKeys.list}. */
+const AUDIT_LOG_KEY_ORGANIZATION_INDEX = 2
+
 export interface AuditLogFilters {
   search?: string
   action?: string
   resourceType?: string
   actorId?: string
+  /** Narrows the feed to one workspace in the organization. */
+  workspaceId?: string
   startDate?: string
   endDate?: string
 }
@@ -34,6 +39,7 @@ async function fetchAuditLogs(
       action: filters.action,
       resourceType: filters.resourceType,
       actorId: filters.actorId,
+      workspaceId: filters.workspaceId,
       startDate: filters.startDate,
       endDate: filters.endDate,
       cursor,
@@ -50,5 +56,18 @@ export function useAuditLogs(organizationId: string, filters: AuditLogFilters, e
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(organizationId) && enabled,
     staleTime: AUDIT_LOG_LIST_STALE_TIME,
+    /**
+     * Held across a filter change, never across an organization change.
+     *
+     * Every filter — search, types, window, workspace — is part of the key, so
+     * without a placeholder the feed blanks to its empty state on each keystroke, and
+     * the Export action's `isPlaceholderData` guard was dead. But the organization is
+     * in the key too, and `keepPreviousData` alone would paint one tenant's audit
+     * entries under another tenant's heading while the new page loaded.
+     */
+    placeholderData: (previous, previousQuery) =>
+      previous && previousQuery?.queryKey[AUDIT_LOG_KEY_ORGANIZATION_INDEX] === organizationId
+        ? previous
+        : undefined,
   })
 }

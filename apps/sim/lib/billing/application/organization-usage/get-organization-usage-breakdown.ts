@@ -20,7 +20,7 @@ import {
   type InternalUsageLogSource,
   toBillingUsageLogSource,
 } from '@/lib/billing/usage-sources'
-import { getProviderFromModel } from '@/providers/models'
+import { getProviderFromModel, PROVIDER_DEFINITIONS } from '@/providers/models'
 
 export interface OrganizationUsageBreakdownInput {
   organizationId: string
@@ -56,22 +56,15 @@ export interface OrganizationUsageBreakdownResult {
 const NAMED_DIMENSIONS = new Set<UsageBreakdownDimension>(['member', 'workspace', 'workflow'])
 
 /** Provider ids that read better with their conventional casing. */
-const PROVIDER_LABELS: Readonly<Record<string, string>> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  'azure-openai': 'Azure OpenAI',
-  deepseek: 'DeepSeek',
-  xai: 'xAI',
-  groq: 'Groq',
-  cerebras: 'Cerebras',
-  ollama: 'Ollama',
-  openrouter: 'OpenRouter',
-  mistral: 'Mistral',
-}
-
+/**
+ * The registry's own display name, not a second hand-written table.
+ *
+ * A local map had eleven of the registry's twenty-two providers, so anything newer
+ * — `zai`, `kimi`, `vertex` — surfaced as a raw lowercase id. This is a server
+ * module, so reading the registry costs nothing a client bundle would pay for.
+ */
 function providerLabel(providerId: string): string {
-  return PROVIDER_LABELS[providerId] ?? providerId
+  return PROVIDER_DEFINITIONS[providerId]?.name ?? providerId
 }
 
 export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUseCase({

@@ -50,8 +50,14 @@ let container: HTMLDivElement
 let root: Root
 let queryClient: QueryClient
 
-function AuditProbe({ organizationId }: { organizationId: string }) {
-  const auditLogs = useAuditLogs(organizationId, {})
+function AuditProbe({
+  organizationId,
+  workspaceId,
+}: {
+  organizationId: string
+  workspaceId?: string
+}) {
+  const auditLogs = useAuditLogs(organizationId, { workspaceId })
   const entries = auditLogs.data?.pages.flatMap((page) => page.data) ?? []
 
   return (
@@ -62,11 +68,11 @@ function AuditProbe({ organizationId }: { organizationId: string }) {
   )
 }
 
-function renderAuditLogs(organizationId: string) {
+function renderAuditLogs(organizationId: string, workspaceId?: string) {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <AuditProbe organizationId={organizationId} />
+        <AuditProbe organizationId={organizationId} workspaceId={workspaceId} />
       </QueryClientProvider>
     )
   })
@@ -129,5 +135,29 @@ describe('useAuditLogs identity transitions', () => {
         query: expect.objectContaining({ organizationId: 'org-b' }),
       })
     )
+  })
+
+  /**
+   * The other half of the same rule. Blanking the feed on every filter change is what
+   * the placeholder exists to stop — and it is why the Export action's
+   * `isPlaceholderData` guard means anything.
+   */
+  it('holds the current entries while a filter change loads, within one organization', async () => {
+    const filteredPage = createDeferred<AuditLogPage>()
+    mockRequestJson.mockImplementation(
+      (contract: unknown, input: { query?: { workspaceId?: string } }) => {
+        if (contract !== listAuditLogsContract) throw new Error('Unexpected contract')
+        return input.query?.workspaceId ? filteredPage.promise : Promise.resolve(AUDIT_PAGE_A)
+      }
+    )
+
+    renderAuditLogs('org-a')
+    await flushQueries()
+    expect(container).toHaveTextContent('Updated Organization A')
+
+    renderAuditLogs('org-a', 'workspace-a')
+    await flushQueries()
+
+    expect(container).toHaveTextContent('Updated Organization A')
   })
 })

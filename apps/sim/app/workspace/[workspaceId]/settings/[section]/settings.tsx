@@ -176,7 +176,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <AuditLogs organizationId={organizationId} />
       )}
       {effectiveSection === 'usage' && organizationId && (
-        <UsageMonitoring organizationId={organizationId} workspaceId={hostContext.workspace.id} />
+        <UsageMonitoring
+          organizationId={organizationId}
+          eventsHref={`/workspace/${hostContext.workspace.id}/settings/usage/events`}
+          auditLogsHref={`/workspace/${hostContext.workspace.id}/settings/audit-logs`}
+        />
       )}
       {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
       {isBillingEnabled && effectiveSection === 'billing' && (

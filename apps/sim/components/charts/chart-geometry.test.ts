@@ -3,9 +3,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  CHART_AXIS_LABEL_GAP,
   CHART_PADDING,
   chartPlotBand,
+  estimateAxisLabelWidth,
   formatTimeTick,
+  resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
 } from '@/components/charts/chart-geometry'
@@ -76,5 +79,35 @@ describe('chartPlotBand', () => {
 
   it('tracks a caller-supplied height', () => {
     expect(chartPlotBand(240).yMax).toBeGreaterThan(chartPlotBand(166).yMax)
+  })
+})
+
+describe('resolveChartPadding', () => {
+  /**
+   * The bug this exists for: a fixed 26px gutter left 18px of drawable width once
+   * `CHART_AXIS_LABEL_GAP` was taken out, and a right-anchored `7.3k` at 9px is wider
+   * than that — so its first glyph was cut off at the container's left edge.
+   */
+  it('widens the gutter until the longest label fits beside the axis', () => {
+    const { left } = resolveChartPadding(['7.3k', '0'])
+    expect(left).toBeGreaterThanOrEqual(estimateAxisLabelWidth('7.3k') + CHART_AXIS_LABEL_GAP)
+  })
+
+  it('never narrows below the shared padding, so short labels stay aligned', () => {
+    expect(resolveChartPadding(['0', '0']).left).toBe(CHART_PADDING.left)
+    expect(resolveChartPadding([]).left).toBe(CHART_PADDING.left)
+  })
+
+  it('leaves the other three sides on the shared constant', () => {
+    const padding = resolveChartPadding(['123.4m'])
+    expect(padding.top).toBe(CHART_PADDING.top)
+    expect(padding.right).toBe(CHART_PADDING.right)
+    expect(padding.bottom).toBe(CHART_PADDING.bottom)
+  })
+
+  it('grows monotonically with label length', () => {
+    const short = resolveChartPadding(['1.2k']).left
+    const long = resolveChartPadding(['123456.7m']).left
+    expect(long).toBeGreaterThan(short)
   })
 })

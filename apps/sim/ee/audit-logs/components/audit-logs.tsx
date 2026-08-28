@@ -1,23 +1,22 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
   Calendar,
+  Chip,
   ChipCombobox,
   ChipInput,
   ChipSelect,
   type ComboboxOption,
-  Download,
   OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
-  RefreshCw,
-  Search,
   toast,
 } from '@sim/emcn'
+import { Download, RefreshCw, Search, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
@@ -33,6 +32,7 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useOrganizationWorkspaces } from '@/ee/access-control/hooks/permission-groups'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import {
@@ -150,12 +150,15 @@ function renderMetadataValue(value: unknown) {
   )
 }
 
+/** Already rendered as their own labelled rows, so the metadata block would repeat them. */
+const HIDDEN_METADATA_KEYS = new Set(['name', 'description'])
+
 function getMetadataEntries(metadata: unknown) {
   if (!isRecordLike(metadata)) return []
 
   return Object.entries(metadata).filter(([key, value]) => {
     if (value === undefined) return false
-    return !['name', 'description'].includes(key)
+    return !HIDDEN_METADATA_KEYS.has(key)
   })
 }
 
@@ -251,30 +254,61 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     urlFilters.timeRange === 'Custom range' && (!customStartDate || !customEndDate)
       ? DEFAULT_AUDIT_TIME_RANGE
       : urlFilters.timeRange
+  /**
+   * Resolved, not merely present. Only the id lives in the URL, and the filter is
+   * applied once it matches a workspace the organization actually owns — a stale id
+   * from an old link would otherwise silently narrow the feed to nothing under a
+   * chip labelled with the bare uuid.
+   */
+  const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(urlFilters.workspace))
+  const filteredWorkspace = urlFilters.workspace
+    ? orgWorkspaces.data?.find((entry) => entry.id === urlFilters.workspace)
+    : undefined
+
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
-  const refreshTimersRef = useRef(new Set<number>())
+  /*
+    Lazy-init: `useRef(new Set())` allocates a fresh Set on every render and throws
+    all but the first away.
+  */
+  const refreshTimersRef = useRef<Set<number> | null>(null)
+  refreshTimersRef.current ??= new Set<number>()
+  const refreshTimers = refreshTimersRef.current
   const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
-    const timers = refreshTimersRef.current
     return () => {
-      for (const timerId of timers) window.clearTimeout(timerId)
+      for (const timerId of refreshTimers) window.clearTimeout(timerId)
     }
-  }, [])
+  }, [refreshTimers])
 
   const filters = useMemo<AuditLogFilters>(() => {
     return {
       search: debouncedSearch || undefined,
       resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+      workspaceId: filteredWorkspace?.id,
       startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
       endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
     }
-  }, [debouncedSearch, selectedTypes, timeRange, customStartDate, customEndDate])
+  }, [
+    debouncedSearch,
+    selectedTypes,
+    filteredWorkspace?.id,
+    timeRange,
+    customStartDate,
+    customEndDate,
+  ])
 
+  /**
+   * A deep-linked workspace scope is only resolvable once the organization's workspace
+   * list has loaded. Querying before then fetches the whole organization's feed and
+   * immediately refetches it narrowed — two requests, with a flash of rows the link
+   * did not ask for in between.
+   */
+  const isWorkspaceFilterPending = Boolean(urlFilters.workspace) && orgWorkspaces.isPending
   const {
     data,
     isLoading,
@@ -283,7 +317,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     hasNextPage,
     fetchNextPage,
     refetch,
-  } = useAuditLogs(organizationId, filters)
+  } = useAuditLogs(organizationId, filters, !isWorkspaceFilterPending)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -324,25 +358,25 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     setDatePickerOpen(false)
   }
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     setIsVisuallyRefreshing(true)
     const timerId = window.setTimeout(() => {
       setIsVisuallyRefreshing(false)
-      refreshTimersRef.current.delete(timerId)
+      refreshTimers.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
-    refreshTimersRef.current.add(timerId)
+    refreshTimers.add(timerId)
     refetch().catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
-  }, [refetch])
+  }
 
-  const handleLoadMore = useCallback(() => {
+  const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage().catch((error: unknown) => {
         logger.error('Failed to load more audit logs', { error })
       })
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }
 
   const handleExportCsv = async () => {
     setIsExporting(true)
@@ -351,6 +385,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       params.set('organizationId', organizationId)
       if (filters.search) params.set('search', filters.search)
       if (filters.resourceType) params.set('resourceType', filters.resourceType)
+      if (filters.workspaceId) params.set('workspaceId', filters.workspaceId)
       if (filters.startDate) params.set('startDate', filters.startDate)
       if (filters.endDate) params.set('endDate', filters.endDate)
 
@@ -410,6 +445,20 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           allOptionLabel='All types'
           align='start'
         />
+        {filteredWorkspace && (
+          /*
+            A deep-linked scope, not a picker: the organization can hold hundreds of
+            workspaces, so this narrows the feed only when a link asks it to and
+            offers exactly one action — take it back off.
+          */
+          <Chip
+            leftIcon={X}
+            onClick={() => void setUrlFilters({ workspace: null })}
+            aria-label={`Clear the ${filteredWorkspace.name} workspace filter`}
+          >
+            {filteredWorkspace.name}
+          </Chip>
+        )}
         <div className='relative'>
           {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
               DropdownMenu, modal by default) — a modal trigger closing in the
@@ -469,7 +518,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       <ActivityLog
         entries={allEntries.map(toActivityEntry)}
         emptyState={
-          isLoading ? undefined : debouncedSearch ? (
+          isLoading || isWorkspaceFilterPending ? undefined : debouncedSearch ? (
             <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
             </SettingsEmptyState>
