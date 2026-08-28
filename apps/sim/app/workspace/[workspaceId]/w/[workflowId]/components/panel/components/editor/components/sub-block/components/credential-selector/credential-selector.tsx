@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { Chip, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -209,9 +209,10 @@ export function CredentialSelector({
     ? getMissingRequiredScopes(selectedCredential!, requiredScopes || [])
     : []
   const needsUpdate =
-    hasOAuthSelection &&
     !isServiceAccount &&
-    (missingRequiredScopes.length > 0 || dataversePolicy.requiresSeparateCredential) &&
+    (dataversePolicy.hasInvalidEnvironment ||
+      (hasOAuthSelection &&
+        (missingRequiredScopes.length > 0 || dataversePolicy.requiresSeparateCredential))) &&
     !effectiveDisabled &&
     !isPreview &&
     !credentialsLoading
@@ -474,29 +475,31 @@ export function CredentialSelector({
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             {dataversePolicy.message}
           </div>
-          <Button
-            variant='active'
-            onClick={() => {
-              if (dataversePolicy.requiresSeparateCredential) {
-                setShowConnectModal(true)
-                return
-              }
-              writeOAuthReturnContext({
-                origin: 'workflow',
-                workflowId: activeWorkflowId || '',
-                displayName: selectedCredential?.name ?? getProviderName(provider),
-                providerId: effectiveProviderId,
-                preCount: credentials.filter((c) => c.type !== 'service_account').length,
-                workspaceId,
-                reconnect: true,
-                requestedAt: Date.now(),
-              })
-              setShowOAuthModal(true)
-            }}
-            className='w-full px-2 py-1 text-caption'
-          >
-            {dataversePolicy.actionLabel}
-          </Button>
+          {!dataversePolicy.hasInvalidEnvironment && (
+            <Chip
+              variant='primary'
+              fullWidth
+              onClick={() => {
+                if (dataversePolicy.requiresSeparateCredential) {
+                  setShowConnectModal(true)
+                  return
+                }
+                writeOAuthReturnContext({
+                  origin: 'workflow',
+                  workflowId: activeWorkflowId || '',
+                  displayName: selectedCredential?.name ?? getProviderName(provider),
+                  providerId: effectiveProviderId,
+                  preCount: credentials.filter((c) => c.type !== 'service_account').length,
+                  workspaceId,
+                  reconnect: true,
+                  requestedAt: Date.now(),
+                })
+                setShowOAuthModal(true)
+              }}
+            >
+              {dataversePolicy.actionLabel}
+            </Chip>
+          )}
         </div>
       )}
 

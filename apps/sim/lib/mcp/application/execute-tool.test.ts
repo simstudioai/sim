@@ -85,6 +85,16 @@ const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
     },
   },
 }
+const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
+  ...ACTORLESS_PRINCIPAL,
+  delegationContext: {
+    ...ACTORLESS_PRINCIPAL.delegationContext,
+    compatibilityActor: {
+      kind: 'legacy_execution_user',
+      userId: 'execution-actor',
+    },
+  },
+}
 
 describe('executeMcpToolUseCase', () => {
   beforeEach(() => {
@@ -173,13 +183,12 @@ describe('executeMcpToolUseCase', () => {
     // ExecutionContext.userId and MCP ran as that user. Preserved deliberately —
     // see requireMcpCredentialUserId for why that actor is the payer, not the author.
     await executeMcpToolUseCase.execute({
-      principal: ACTORLESS_PRINCIPAL,
+      principal: COMPATIBILITY_ACTOR_PRINCIPAL,
       input: {
         workspaceId: WORKSPACE.workspaceId,
         serverId: SERVER.id,
         toolName: 'lookup',
         arguments: { count: '2', enabled: 'true', tags: 'a,b' },
-        executionActorUserId: 'execution-actor',
       },
     })
 
@@ -189,17 +198,23 @@ describe('executeMcpToolUseCase', () => {
     expect(mocks.discoverServerTools.mock.calls[0][0]).toBe('execution-actor')
   })
 
-  it('lets an authenticated subject win over the execution actor', async () => {
-    // The property that keeps the fallback from becoming an impersonation handle:
-    // it is consulted only when the principal names nobody.
+  it('lets an authenticated subject win over a principal-bound compatibility actor', async () => {
     await executeMcpToolUseCase.execute({
-      principal: PRINCIPAL,
+      principal: {
+        ...PRINCIPAL,
+        delegationContext: {
+          ...PRINCIPAL.delegationContext,
+          compatibilityActor: {
+            kind: 'legacy_execution_user',
+            userId: 'someone-else',
+          },
+        },
+      },
       input: {
         workspaceId: WORKSPACE.workspaceId,
         serverId: SERVER.id,
         toolName: 'lookup',
         arguments: { count: '2', enabled: 'true', tags: 'a,b' },
-        executionActorUserId: 'someone-else',
       },
     })
 
@@ -214,9 +229,9 @@ describe('executeMcpToolUseCase', () => {
     // the actor. Refusing here would break workflows that worked before the tools
     // moved in-process, so the fallback deliberately covers this case.
     const externalSubjectPrincipal = {
-      ...ACTORLESS_PRINCIPAL,
+      ...COMPATIBILITY_ACTOR_PRINCIPAL,
       delegationContext: {
-        ...ACTORLESS_PRINCIPAL.delegationContext,
+        ...COMPATIBILITY_ACTOR_PRINCIPAL.delegationContext,
         principal: {
           kind: 'system' as const,
           serviceId: 'webhook' as const,
@@ -241,7 +256,6 @@ describe('executeMcpToolUseCase', () => {
         serverId: SERVER.id,
         toolName: 'lookup',
         arguments: { count: '2', enabled: 'true', tags: 'a,b' },
-        executionActorUserId: 'execution-actor',
       },
     })
 

@@ -36,25 +36,26 @@ import {
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
 /**
- * Restricts decrypted workspace env values to administrators. Members (including
- * read-only) receive the variable names with empty values so editor autocomplete
- * and conflict detection keep working without leaking secret values. A value is
- * revealed when the caller is a workspace admin (which includes organization
- * admins) or a per-secret credential admin of that key. Mirrors the per-key edit
- * gating in PUT/DELETE: if you can administer a secret, you can read it.
+ * Reveals a workspace secret only to a workspace administrator, that secret's
+ * credential administrator, or a caller allowed to use a secret explicitly
+ * marked visible. The environment snapshot has already limited
+ * `workspaceUnredactedKeys` to secrets the caller may use.
  */
 async function maskWorkspaceEnvForViewer({
   workspaceDecrypted,
   workspaceId,
   userId,
   permission,
+  workspaceUnredactedKeys,
 }: {
   workspaceDecrypted: Record<string, string>
   workspaceId: string
   userId: string
   permission: PermissionType
+  workspaceUnredactedKeys: readonly string[]
 }): Promise<Record<string, string>> {
   const workspaceKeys = Object.keys(workspaceDecrypted)
+  const unredactedKeys = new Set(workspaceUnredactedKeys)
   const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
     workspaceId,
     envKeys: workspaceKeys,
@@ -63,7 +64,7 @@ async function maskWorkspaceEnvForViewer({
 
   const masked: Record<string, string> = {}
   for (const key of workspaceKeys) {
-    const canViewValue = permission === 'admin' || adminKeys.has(key)
+    const canViewValue = permission === 'admin' || adminKeys.has(key) || unredactedKeys.has(key)
     masked[key] = canViewValue ? workspaceDecrypted[key] : ''
   }
   return masked
@@ -119,14 +120,20 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { workspaceDecrypted, personalDecrypted, personalOwners, conflicts } =
-        await getPersonalAndWorkspaceEnv(userId, workspaceId)
+      const {
+        workspaceDecrypted,
+        personalDecrypted,
+        personalOwners,
+        conflicts,
+        workspaceUnredactedKeys,
+      } = await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
       const workspace = await maskWorkspaceEnvForViewer({
         workspaceDecrypted,
         workspaceId,
         userId,
         permission,
+        workspaceUnredactedKeys,
       })
       const personal = await maskPersonalEnvForViewer({
         personalDecrypted,

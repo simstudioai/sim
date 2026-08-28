@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ContractBodyInput,
@@ -54,7 +54,6 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
     queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
-    placeholderData: keepPreviousData,
     // See usePersonalEnvironment: seeds an editable form, so a focus refetch
     // during a concurrent workspace-env edit must not clobber unsaved rows.
     refetchOnWindowFocus: false,

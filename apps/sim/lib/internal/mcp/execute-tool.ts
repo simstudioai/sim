@@ -149,9 +149,6 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       input: {
         workspaceId: request.context.workspaceId,
         serverId,
-        // The run's execution actor, exactly what the pre-in-process path minted its
-        // internal token from. Keeps unattended MCP workflows working as before.
-        executionActorUserId: request.context.userId,
         toolName,
         arguments: args,
         callChain: request.context.callChain,

@@ -45,6 +45,7 @@ import {
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
 import {
+  assertMicrosoftDataverseReconnectAvailable,
   useConnectMicrosoftDataverseOAuthService,
   useMicrosoftDataverseCredentialBinding,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
@@ -128,19 +129,11 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
-      if (
-        isDataverseCredential &&
-        dataverseCredentialQuery.isError &&
-        !dataverseCredentialQuery.data?.[0]
-      ) {
-        throw new Error(
-          'Could not verify this Dataverse credential’s environment binding. Please try again.'
-        )
-      }
-      if (dataverseBinding.state === 'invalid') {
-        throw new Error(
-          'This Dataverse credential has an invalid environment binding and cannot be reconnected in place.'
-        )
+      if (isDataverseCredential) {
+        assertMicrosoftDataverseReconnectAvailable({
+          bindingState: dataverseBinding.state,
+          credentialQueryFailed: dataverseCredentialQuery.isError,
+        })
       }
 
       const draft = await createDraft.mutateAsync({

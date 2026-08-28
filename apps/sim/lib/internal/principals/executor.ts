@@ -33,7 +33,8 @@ async function bindExecutorPrincipal(
   origin: ExecutorDelegationOrigin,
   audience: string,
   resourceScope?: DelegatedPrincipal['resourceScope'],
-  expiresAt?: Date
+  expiresAt?: Date,
+  compatibilityActorUserId?: string
 ) {
   if (!origin.workflowId.trim()) throw new Error('Authentication required')
   const subjectUserId = resolveExecutorOriginSubject(origin)
@@ -53,6 +54,7 @@ async function bindExecutorPrincipal(
     {
       audience,
       ...(resourceScope ? { resourceScope } : {}),
+      ...(!subjectUserId && compatibilityActorUserId ? { compatibilityActorUserId } : {}),
     }
   )
 }
@@ -72,5 +74,5 @@ export async function createExecutorPrincipalFromExecutionContext({
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
   if (!origin) throw new ExecutorDelegationOriginRequiredError()
-  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt)
+  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt, context.userId)
 }

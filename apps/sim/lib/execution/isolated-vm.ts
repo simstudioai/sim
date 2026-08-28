@@ -140,7 +140,22 @@ const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WOR
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
 const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
-const LEASE_REDIS_DEADLINE_MS = 200
+/**
+ * Deadline for a single lease round trip, kept below the shared Redis client's
+ * `commandTimeout` so this race still resolves first.
+ *
+ * Both this deadline and `commandTimeout` are plain `setTimeout`s, so what they
+ * actually measure is event-loop scheduling, not Redis. A value near normal loop
+ * latency therefore reports a healthy Redis as unreachable whenever a garbage
+ * collection pause lands on the call. Keep it well clear of that floor.
+ *
+ * A non-positive configured value is treated as unconfigured rather than
+ * honored: a timer of zero or less fires immediately, which would leave every
+ * acquisition undetermined and silently drop cross-replica enforcement.
+ */
+const CONFIGURED_LEASE_REDIS_DEADLINE_MS = Number.parseInt(env.IVM_LEASE_REDIS_DEADLINE_MS)
+const LEASE_REDIS_DEADLINE_MS =
+  CONFIGURED_LEASE_REDIS_DEADLINE_MS > 0 ? CONFIGURED_LEASE_REDIS_DEADLINE_MS : 1000
 const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
@@ -347,7 +362,16 @@ function ownerRedisKey(ownerKey: string): string {
   return `${DISTRIBUTED_KEY_PREFIX}:${ownerKey}`
 }
 
-type LeaseAcquireResult = 'acquired' | 'limit_exceeded' | 'unavailable'
+/**
+ * Outcome of one distributed lease acquisition.
+ *
+ * `limit_exceeded` is an answer from Redis — the owner is genuinely over its
+ * share — and is the only outcome that denies an execution. `undetermined`
+ * means no answer arrived before the deadline, which is not a denial and must
+ * never be projected as one: the local admission limits below still bound the
+ * work, so the caller falls back to them.
+ */
+type LeaseAcquireResult = 'acquired' | 'limit_exceeded' | 'undetermined'
 
 async function tryAcquireDistributedLease(
   ownerKey: string,
@@ -358,10 +382,10 @@ async function tryAcquireDistributedLease(
 
   const redis = getRedisClient()
   if (!redis) {
-    logger.error('Redis is configured but unavailable for distributed lease acquisition', {
+    logger.warn('No Redis client for distributed lease acquisition; using local limits', {
       ownerKey,
     })
-    return 'unavailable'
+    return 'undetermined'
   }
 
   const now = Date.now()
@@ -407,11 +431,12 @@ async function tryAcquireDistributedLease(
     ])
     return Number(result) === 1 ? 'acquired' : 'limit_exceeded'
   } catch (error) {
-    logger.error('Failed to acquire distributed owner lease; execution will be rejected', {
+    logger.warn('Distributed owner lease undetermined; using local limits', {
       ownerKey,
+      deadlineMs: LEASE_REDIS_DEADLINE_MS,
       error,
     })
-    return 'unavailable'
+    return 'undetermined'
   } finally {
     clearTimeout(deadlineTimer)
   }
@@ -1390,7 +1415,29 @@ export async function executeInIsolatedVM(
     distributedLeaseId,
     req.timeoutMs
   )
+  let settled = false
+  /**
+   * Released even when the acquisition was undetermined. The deadline abandons
+   * the local wait but cannot cancel the script, so a late completion still
+   * registers this lease id — and unreleased it would count against the owner
+   * for the whole TTL, denying later executions that do have capacity. The
+   * lease id is unique to this execution, so removing one that was never
+   * registered is a no-op.
+   *
+   * Declared before the early returns below so every exit path that can leave a
+   * registration behind reaches it, not just the ones that run the execution.
+   */
+  const releaseLease = () => {
+    if (settled) return
+    settled = true
+    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
+      logger.error('Failed to release distributed lease', { ownerKey, error })
+    })
+  }
+
   if (leaseAcquireResult !== 'acquired' && signal?.aborted) {
+    // Only an undetermined result can have registered; see the over-limit branch below.
+    if (leaseAcquireResult === 'undetermined') releaseLease()
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1405,6 +1452,7 @@ export async function executeInIsolatedVM(
       ownerKey,
       max: DISTRIBUTED_MAX_INFLIGHT_PER_OWNER,
     })
+    // No release: the script returns this before its ZADD, so nothing was registered.
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1416,30 +1464,8 @@ export async function executeInIsolatedVM(
       },
     }
   }
-  if (leaseAcquireResult === 'unavailable') {
-    logger.error('Isolated-vm execution rejected because its distributed lease is unavailable', {
-      ownerKey,
-    })
-    maybeCleanupOwner(ownerKey)
-    return {
-      result: null,
-      stdout: '',
-      error: {
-        message: 'Code execution coordination is temporarily unavailable. Please try again later.',
-        name: 'Error',
-        isSystemError: true,
-      },
-    }
-  }
-
-  let settled = false
-  const releaseLease = () => {
-    if (settled) return
-    settled = true
-    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
-      logger.error('Failed to release distributed lease', { ownerKey, error })
-    })
-  }
+  // An undetermined lease cannot reject the execution: the per-process pool and
+  // the per-owner active/queued limits above still bound this work.
 
   const state: ExecutionState = { cancelled: false }
 

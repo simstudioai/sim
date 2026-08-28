@@ -88,9 +88,21 @@ describe('resolveMicrosoftDataverseCredentialPolicy', () => {
     expect(policy).toMatchObject({
       applies: true,
       bindingState: null,
+      hasInvalidEnvironment: true,
       requiredScopes: [],
       requiresSeparateCredential: false,
     })
     expect(policy.environmentUrl).toBeUndefined()
+  })
+
+  it('surfaces an invalid requested environment when a credential is already selected', () => {
+    expect(resolve([], 'https://evil.example')).toMatchObject({
+      applies: true,
+      bindingState: 'invalid',
+      hasInvalidEnvironment: true,
+      message: 'Enter a valid Dynamics environment before selecting a credential',
+      requiredScopes: [],
+      requiresSeparateCredential: false,
+    })
   })
 })

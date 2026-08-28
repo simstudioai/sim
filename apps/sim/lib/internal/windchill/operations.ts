@@ -1,6 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
-  requirePrincipalSubjectUserId,
+  resolvePrincipalExecutionActorUserId,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -440,6 +440,16 @@ async function loadUploadFiles(
   return files
 }
 
+function requireWindchillExecutionUserId(
+  principal: BoundWorkflowExecutionDelegatedPrincipal
+): string {
+  const userId = resolvePrincipalExecutionActorUserId(principal)
+  if (!userId) {
+    throw new WindchillOperationError('Windchill file operations require an execution actor', 403)
+  }
+  return userId
+}
+
 function contentDispositionFileName(value: string | null): string | null {
   if (!value) return null
   const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
@@ -472,6 +482,7 @@ async function storeDownloadedFile({
 }): Promise<UserFile> {
   signal?.throwIfAborted()
   const { workflowId, executionId } = principal.delegationContext
+  const userId = requireWindchillExecutionUserId(principal)
   if (executionId) {
     const file = await uploadExecutionFile(
       {
@@ -482,8 +493,7 @@ async function storeDownloadedFile({
       buffer,
       fileName,
       contentType,
-      // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
-      requirePrincipalSubjectUserId(principal)
+      userId
     )
     signal?.throwIfAborted()
     return file
@@ -492,8 +502,7 @@ async function storeDownloadedFile({
     buffer,
     fileName,
     contentType,
-    // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
-    userId: requirePrincipalSubjectUserId(principal),
+    userId,
   })
   signal?.throwIfAborted()
   return file
@@ -577,8 +586,7 @@ export async function executeWindchillOperation(
         : body.attachmentFiles
     const files = await loadUploadFiles(
       inputs,
-      // actorless-unsupported: reads the acting user's own files; attributing it to the workflow's user is a follow-up
-      requirePrincipalSubjectUserId(principal),
+      requireWindchillExecutionUserId(principal),
       requestId,
       signal
     )

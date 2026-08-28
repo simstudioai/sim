@@ -615,8 +615,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created tool file for each operation
 - [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
       external HTTP(S) `ToolConfig.request`
-- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal`, or
-      `directExecution`, or has an HTTP fallback for an in-process operation
+- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal` or the
+      retired `directExecution` property, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`
