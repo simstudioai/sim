@@ -357,14 +357,22 @@ export const updateCredentialGroupBodySchema = z
 
 export type UpdateCredentialGroupBody = z.input<typeof updateCredentialGroupBodySchema>
 
+const listCredentialGroupsResponseSchema = z.object({
+  credentialGroups: z.array(credentialGroupSchema),
+  /**
+   * The providers this deployment has an OAuth client for. The settings picker offers only these,
+   * so an admin is never shown an account type nobody could finish connecting.
+   */
+  availableProviders: z.array(credentialGroupProviderSchema),
+})
+
+export type CredentialGroupSettingsList = z.output<typeof listCredentialGroupsResponseSchema>
+
 export const listCredentialGroupsContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/credential-groups',
   params: credentialGroupWorkspaceParamsSchema,
-  response: {
-    mode: 'json',
-    schema: z.object({ credentialGroups: z.array(credentialGroupSchema) }),
-  },
+  response: { mode: 'json', schema: listCredentialGroupsResponseSchema },
 })
 
 export const createCredentialGroupContract = defineRouteContract({

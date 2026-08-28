@@ -17,6 +17,7 @@ import {
   CredentialGroupEnrollmentError,
   listCredentialGroupEnrollments,
 } from '@/lib/credential-groups/enrollments'
+import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import {
   createCredentialGroup,
   deleteCredentialGroup,
@@ -47,7 +48,10 @@ export const listCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   async execute({ context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
-    return { credentialGroups: await listCredentialGroups(context.workspaceId) }
+    return {
+      credentialGroups: await listCredentialGroups(context.workspaceId),
+      availableProviders: listConfiguredCredentialGroupProviders(),
+    }
   },
 })
 
