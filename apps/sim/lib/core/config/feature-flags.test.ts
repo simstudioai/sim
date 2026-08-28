@@ -130,10 +130,24 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('uses only the global AppConfig clause', async () => {
+    it('uses the global AppConfig clause', async () => {
       withAppConfig({ 'credential-groups': { enabled: true } })
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
+
+    it('opens for an allowlisted workspace only', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+      expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+  })
+
+  it('matches the workspaceIds clause', async () => {
+    withAppConfig({ f: { workspaceIds: ['ws-1'] } })
+    expect(await enabled('f', { workspaceId: 'ws-1' })).toBe(true)
+    expect(await enabled('f', { workspaceId: 'ws-2' })).toBe(false)
+    expect(await enabled('f', { userId: 'ws-1' })).toBe(false)
   })
 
   it('returns false for an unknown flag', async () => {

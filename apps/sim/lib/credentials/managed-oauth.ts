@@ -290,7 +290,7 @@ export async function resolveManagedOAuthToken(
   }
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(initial.workspaceId)
-  if (!(await isCredentialGroupsAvailable(ownerBilling))) {
+  if (!(await isCredentialGroupsAvailable({ workspaceId: initial.workspaceId, ownerBilling }))) {
     throw new ManagedOAuthCredentialError(
       'MANAGED_CREDENTIAL_UNAVAILABLE',
       'Managed credentials are not available for this workspace',

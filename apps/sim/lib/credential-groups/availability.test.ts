@@ -25,7 +25,12 @@ describe('resolveCredentialGroupsAvailability', () => {
   it('attributes a disabled feature flag before considering the plan', async () => {
     mockIsFeatureEnabled.mockResolvedValue(false)
 
-    await expect(resolveCredentialGroupsAvailability({ isEnterprise: false })).resolves.toEqual({
+    await expect(
+      resolveCredentialGroupsAvailability({
+        workspaceId: 'ws-1',
+        ownerBilling: { isEnterprise: false },
+      })
+    ).resolves.toEqual({
       available: false,
       reason: 'feature_disabled',
     })
@@ -34,16 +39,37 @@ describe('resolveCredentialGroupsAvailability', () => {
   it('requires Enterprise when the hosted feature is enabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
 
-    await expect(resolveCredentialGroupsAvailability({ isEnterprise: false })).resolves.toEqual({
+    await expect(
+      resolveCredentialGroupsAvailability({
+        workspaceId: 'ws-1',
+        ownerBilling: { isEnterprise: false },
+      })
+    ).resolves.toEqual({
       available: false,
       reason: 'enterprise_plan_required',
     })
   })
 
+  it('evaluates the flag against the workspace id', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(true)
+
+    await resolveCredentialGroupsAvailability({
+      workspaceId: 'ws-1',
+      ownerBilling: { isEnterprise: true },
+    })
+
+    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('credential-groups', { workspaceId: 'ws-1' })
+  })
+
   it('allows Enterprise workspaces when the hosted feature is enabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
 
-    await expect(resolveCredentialGroupsAvailability({ isEnterprise: true })).resolves.toEqual({
+    await expect(
+      resolveCredentialGroupsAvailability({
+        workspaceId: 'ws-1',
+        ownerBilling: { isEnterprise: true },
+      })
+    ).resolves.toEqual({
       available: true,
     })
   })
