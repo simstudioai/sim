@@ -331,6 +331,7 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 | `documentId` | string | Yes | Unique ID of the document to attach the file to |
 | `file` | file | No | The evidence file to upload |
 | `fileName` | string | No | Optional file name override |
+| `mimeType` | string | No | MIME type of the file \(e.g., application/pdf\). Applies only to the base64 upload path; a file from the File input always sends the content type resolved from storage. |
 | `description` | string | No | Description of the uploaded evidence \(e.g., "Q3 access review evidence"\) |
 | `effectiveAtDate` | string | No | ISO 8601 date indicating when the document is effective from |
 
