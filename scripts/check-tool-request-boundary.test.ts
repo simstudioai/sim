@@ -592,6 +592,46 @@ describe('tool self-hop audit', () => {
     ])
   })
 
+  it('rejects same-origin opt-in on an integration tool', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        request: {
+          allowSameOrigin: true,
+          url: (params) => params.url,
+          method: 'POST',
+          headers: () => ({}),
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unapproved-same-origin-policy',
+      }),
+    ])
+  })
+
+  it.each(['http_request', 'webhook_request'])(
+    'allows the intentional same-origin policy on %s',
+    (toolId) => {
+      const audit = auditToolSelfHops(`
+        const tool = {
+          id: '${toolId}',
+          request: {
+            allowSameOrigin: true,
+            url: (params) => params.url,
+            method: 'POST',
+            headers: () => ({}),
+          },
+        }
+      `)
+
+      expect(audit.violations).toEqual([])
+    }
+  )
+
   it('rejects request.internal even when the URL comes only from a spread', () => {
     const audit = auditToolSelfHops(`
       const externalRequest = { url: 'https://api.example.com/v1/items' }

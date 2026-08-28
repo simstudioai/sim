@@ -985,6 +985,8 @@ const BODY_SIZE_LIMIT_ERROR_MESSAGE =
 
 const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
   'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
+const SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE =
+  'External integration tools cannot target this Sim instance; use an internal operation'
 
 /**
  * Validates request body size and throws a user-friendly error if exceeded
@@ -2627,8 +2629,13 @@ async function executeToolRequest(
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const { headers } = requestParams
     const fullUrl = new URL(requestParams.url).toString()
+    const targetsThisSimInstance = isSelfOriginUrl(fullUrl)
 
-    if (isSelfOriginUrl(fullUrl)) {
+    if (targetsThisSimInstance && tool.request.allowSameOrigin !== true) {
+      throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+    }
+
+    if (targetsThisSimInstance) {
       const callChain = params._context?.callChain as string[] | undefined
       if (callChain && callChain.length > 0) {
         headers.set(SIM_VIA_HEADER, serializeCallChain(callChain))

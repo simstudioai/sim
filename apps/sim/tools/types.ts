@@ -184,6 +184,11 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /**
+     * Allows the resolved request URL to target this Sim instance. Reserved for generic,
+     * user-directed HTTP capabilities; integration tools must use an in-process operation.
+     */
+    allowSameOrigin?: true
     /** Defines the exact request fields that may become model-visible. */
     modelInput?:
       | {

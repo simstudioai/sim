@@ -193,6 +193,7 @@ const mockRegistryTools: Record<string, any> = {
       retryNonIdempotent: { type: 'boolean' },
     },
     request: {
+      allowSameOrigin: true,
       url: (p: any) => p.url || '/api/test',
       method: (p: any) => p.method || 'GET',
       headers: (p: any) => p.headers || { 'Content-Type': 'application/json' },
@@ -2660,6 +2661,48 @@ describe('Internal Route Trust', () => {
     expect(result.error).toContain('External tool requests require an absolute HTTP(S) URL')
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('allows the generic HTTP tool to target this Sim instance', async () => {
+    const result = await executeTool('http_request', {
+      url: 'http://localhost:3000/api/v1/workflows/test',
+      method: 'GET',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/workflows/test',
+      'toolUrl'
+    )
+  })
+
+  it('rejects an integration request that resolves back to this Sim instance', async () => {
+    const mockTool = {
+      id: 'test_same_origin_integration',
+      name: 'Same Origin Integration',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'http://localhost:3000/api/tools/test',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_same_origin_integration = mockTool
+
+    try {
+      const result = await executeTool('test_same_origin_integration', {})
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain(
+        'External integration tools cannot target this Sim instance; use an internal operation'
+      )
+      expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_same_origin_integration')
+    }
   })
 
   it('transports only active provenance selected for an internal model input', async () => {

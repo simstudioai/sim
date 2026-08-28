@@ -3,7 +3,8 @@
  * Enforces the two tool execution boundaries: external ToolConfig requests are materialized only
  * by request-transport.ts, while same-process work uses registered InternalToolConfig operations.
  * Tool definitions may not point back to Sim API routes or revive the retired request.internal
- * escape hatch.
+ * escape hatch. Dynamic provider origins remain supported because the executor rejects their
+ * resolved URL when it targets Sim; only the two generic user-directed HTTP tools may opt out.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
@@ -28,6 +29,7 @@ const FUNCTION_NODE_TYPES = new Set([
   'ObjectMethod',
 ])
 const URL_VALUE_WRAPPER_CALLS = new Set(['String', 'encodeURI', 'encodeURIComponent'])
+const APPROVED_SAME_ORIGIN_TOOL_IDS = new Set(['http_request', 'webhook_request'])
 
 interface Violation {
   file: string
@@ -39,7 +41,11 @@ export interface ToolSelfHopViolation {
   file: string
   line: number
   toolId?: string
-  reason: 'same-origin-tool-request' | 'legacy-internal-policy' | 'unresolved-request-policy'
+  reason:
+    | 'same-origin-tool-request'
+    | 'legacy-internal-policy'
+    | 'unresolved-request-policy'
+    | 'unapproved-same-origin-policy'
 }
 
 export interface ToolSelfHopAudit {
@@ -1619,8 +1625,16 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
           for (const request of requests.requests) {
             const urlProperties = getResolvedObjectProperties(request, 'url')
             const internalProperties = getResolvedObjectProperties(request, 'internal')
+            const allowSameOriginProperties = getResolvedObjectProperties(
+              request,
+              'allowSameOrigin'
+            )
             let hasLegacyInternalPolicy = false
-            if (!urlProperties.complete || !internalProperties.complete) {
+            if (
+              !urlProperties.complete ||
+              !internalProperties.complete ||
+              !allowSameOriginProperties.complete
+            ) {
               reportUnresolved(requestProperty.loc?.start.line ?? 1)
             }
             for (const resolvedInternal of internalProperties.properties) {
@@ -1634,6 +1648,28 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
                 toolId,
                 reason: 'legacy-internal-policy',
               })
+            }
+            for (const resolvedPolicy of allowSameOriginProperties.properties) {
+              if (!resolvedPolicy) continue
+              const policyProperty = resolvedPolicy.property
+              const policyValue =
+                policyProperty.type === 'ObjectProperty' && isSyntaxNode(policyProperty.value)
+                  ? unwrapExpression(policyProperty.value)
+                  : undefined
+              if (!policyValue || policyValue.type !== 'BooleanLiteral') {
+                reportUnresolved(
+                  policyProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1
+                )
+                continue
+              }
+              if (policyValue.value === true && !APPROVED_SAME_ORIGIN_TOOL_IDS.has(toolId)) {
+                violations.push({
+                  file,
+                  line: policyProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+                  toolId,
+                  reason: 'unapproved-same-origin-policy',
+                })
+              }
             }
             for (const resolvedUrl of urlProperties.properties) {
               if (!resolvedUrl) continue
