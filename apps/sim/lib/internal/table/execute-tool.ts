@@ -16,7 +16,6 @@ import {
   upsertTableRowContract,
 } from '@/lib/api/contracts/tables'
 import { type InternalErrorPolicy, internalOrchestrationErrorPolicy } from '@/lib/api/server/routes'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import {
   executeTableCreate,
@@ -35,6 +34,11 @@ import {
   type TableToolOperationResult,
 } from '@/lib/internal/table/operations'
 import { createTableToolResponse } from '@/lib/internal/table/provenance'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import { parseInternalContractInput } from '@/lib/internal/tool-operations/parse-contract-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { internalTableErrorPolicies } from '@/lib/table/api/route-policies'
@@ -292,11 +296,12 @@ export const executeTableTool: InternalToolOperationHandler = async (request) =>
     return createTableToolResponse(validatedBody, result.result.provenance)
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
-      return Response.json({ error: 'Authentication required' }, { status: 401 })
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
+      return Response.json(
+        { error: internalToolIdentityFaultMessage(identityFault) },
+        { status: internalToolIdentityFaultStatus(identityFault) }
+      )
     }
     return errorResponse(
       request.toolId,

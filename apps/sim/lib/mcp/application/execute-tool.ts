@@ -1,10 +1,12 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
-import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
+import {
+  mcpServerDelegationPolicy,
+  requireMcpCredentialUserId,
+} from '@/lib/mcp/application/authorization'
 import { resolveMcpServerContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { mcpService } from '@/lib/mcp/service'
@@ -24,6 +26,11 @@ interface SchemaProperty {
 export interface ExecuteMcpToolInput {
   workspaceId: string
   serverId: string
+  /**
+   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
+   * the pre-in-process behavior for runs whose principal names no Sim user.
+   */
+  executionActorUserId?: string
   toolName: string
   arguments?: Record<string, unknown>
   callChain?: string[]
@@ -132,7 +139,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: mcpServerDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
-    const userId = requirePrincipalSubjectUserId(principal)
+    const userId = requireMcpCredentialUserId(principal, input.executionActorUserId)
     await assertPermissionsAllowed({
       userId,
       workspaceId: context.workspaceId,

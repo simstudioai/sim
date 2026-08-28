@@ -8,6 +8,7 @@ import {
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
   resolvePrincipalSubject,
+  resolvePrincipalSubjectUserId,
   serializePrincipal,
   toPrincipalActor,
 } from '@sim/auth/principal'
@@ -41,6 +42,70 @@ describe('principal subject users', () => {
         expiresAt: new Date('2026-01-01T00:05:00Z'),
       })
     ).toBe('delegated-user')
+  })
+
+  it('resolves the same subject without demanding one', () => {
+    expect(
+      resolvePrincipalSubjectUserId({
+        kind: 'session',
+        userId: 'session-user',
+        sessionId: 'session-1',
+      })
+    ).toBe('session-user')
+    expect(
+      resolvePrincipalSubjectUserId({
+        kind: 'delegated',
+        serviceId: 'executor',
+        subjectUserId: 'delegated-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'sim:test',
+        issuedAt: new Date('2026-01-01T00:00:00Z'),
+        expiresAt: new Date('2026-01-01T00:05:00Z'),
+      })
+    ).toBe('delegated-user')
+  })
+
+  it('answers undefined for an actorless caller rather than throwing', () => {
+    // The distinction the two helpers exist to make visible: a schedule, a webhook
+    // with no external subject, and a workspace key are all authorized callers that
+    // simply have no person. Attribution-only reads take this branch.
+    expect(
+      resolvePrincipalSubjectUserId({
+        kind: 'system',
+        serviceId: 'schedule',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      })
+    ).toBeUndefined()
+    expect(
+      resolvePrincipalSubjectUserId({
+        kind: 'delegated',
+        serviceId: 'executor',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'sim:test',
+        issuedAt: new Date('2026-01-01T00:00:00Z'),
+        expiresAt: new Date('2026-01-01T00:05:00Z'),
+        delegationContext: {
+          kind: 'workflow_execution',
+          workflowId: 'workflow-1',
+          principal: {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: 'workspace-1',
+            workflowId: 'workflow-1',
+          },
+        },
+      })
+    ).toBeUndefined()
+    expect(
+      resolvePrincipalSubjectUserId({
+        kind: 'workspace_api_key',
+        keyId: 'key-1',
+        workspaceId: 'workspace-1',
+      })
+    ).toBeUndefined()
   })
 
   it('fails fast instead of fabricating a workspace-key subject', () => {

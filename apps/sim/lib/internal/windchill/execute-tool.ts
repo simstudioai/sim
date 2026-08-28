@@ -7,9 +7,13 @@ import type {
 import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchill'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { WindchillProviderError } from '@/lib/internal/windchill/client'
 import { WindchillOperationError } from '@/lib/internal/windchill/errors'
@@ -90,11 +94,12 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
     return Response.json({ success: true, output } satisfies WindchillOperationResponse)
   } catch (error) {
     signal?.throwIfAborted()
-    if (
-      error instanceof InvalidInternalDelegationBindingError ||
-      (error instanceof Error && error.message === 'Authentication required')
-    ) {
-      return failureResponse('Authentication required', 401)
+    const identityFault = classifyInternalToolIdentityFault(error)
+    if (identityFault) {
+      return failureResponse(
+        internalToolIdentityFaultMessage(identityFault),
+        internalToolIdentityFaultStatus(identityFault)
+      )
     }
     logger.error(`[${requestId}] Windchill operation failed`, {
       operation: toolId,

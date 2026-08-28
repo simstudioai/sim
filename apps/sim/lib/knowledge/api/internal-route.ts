@@ -32,6 +32,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
 export function internalKnowledgeActorUserId(principal: Principal): string {
+  // actorless-unsupported: knowledge writes are attributed to a person; the actorless path is a follow-up
   return requirePrincipalSubjectUserId(principal)
 }
 

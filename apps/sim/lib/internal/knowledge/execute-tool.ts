@@ -18,7 +18,6 @@ import {
   upsertKnowledgeDocumentContract,
 } from '@/lib/api/contracts/knowledge'
 import type { JsonErrorResponseDescriptor } from '@/lib/api/server/routes/types'
-import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import {
   createChunkOperation,
   createDocumentsOperation,
@@ -37,6 +36,11 @@ import {
   upsertDocumentOperation,
 } from '@/lib/internal/knowledge/operations'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import {
+  classifyInternalToolIdentityFault,
+  internalToolIdentityFaultMessage,
+  internalToolIdentityFaultStatus,
+} from '@/lib/internal/tool-operations/identity-faults'
 import {
   parseInternalContractInput,
   parseInternalOperationInput,
@@ -125,11 +129,12 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
         audience: KNOWLEDGE_DELEGATION_AUDIENCE,
       })
     } catch (error) {
-      if (
-        error instanceof InvalidInternalDelegationBindingError ||
-        (error instanceof Error && error.message === 'Authentication required')
-      ) {
-        return Response.json({ error: 'Authentication required' }, { status: 401 })
+      const identityFault = classifyInternalToolIdentityFault(error)
+      if (identityFault) {
+        return Response.json(
+          { error: internalToolIdentityFaultMessage(identityFault) },
+          { status: internalToolIdentityFaultStatus(identityFault) }
+        )
       }
       throw error
     }

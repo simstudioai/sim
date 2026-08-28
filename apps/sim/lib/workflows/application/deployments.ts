@@ -243,6 +243,7 @@ export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.revertVersion,
   resolveContext: resolveWorkflowContext<RevertWorkflowVersionInput>,
   async execute({ principal, input, context }) {
+    // actorless-unsupported: reverting a version is an authored edit and records who made it; no tool exposes it to a run
     const userId = requirePrincipalSubjectUserId(principal)
     await requireMutableWorkflow(context.workflowId)
     const result = await performRevertToVersion({
