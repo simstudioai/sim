@@ -19,6 +19,7 @@ export interface MicrosoftDataverseCredentialPolicy {
   applies: boolean
   bindingState: MicrosoftDataverseCredentialEnvironmentState | null
   environmentUrl?: string
+  hasInvalidEnvironment: boolean
   message: string
   requiredScopes: string[]
   requiresSeparateCredential: boolean
@@ -28,6 +29,7 @@ const DEFAULT_POLICY: MicrosoftDataverseCredentialPolicy = {
   actionLabel: 'Update access',
   applies: false,
   bindingState: null,
+  hasInvalidEnvironment: false,
   message: 'Additional permissions required',
   requiredScopes: [],
   requiresSeparateCredential: false,
@@ -52,6 +54,7 @@ export function resolveMicrosoftDataverseCredentialPolicy({
       ...DEFAULT_POLICY,
       applies: true,
       bindingState: hasSelectedCredential ? 'invalid' : null,
+      hasInvalidEnvironment: true,
       message: 'Enter a valid Dynamics environment before selecting a credential',
     }
   }
@@ -71,6 +74,7 @@ export function resolveMicrosoftDataverseCredentialPolicy({
     applies: true,
     bindingState,
     environmentUrl: normalizedEnvironmentUrl,
+    hasInvalidEnvironment: false,
     message: requiresSeparateCredential
       ? 'This credential is not connected to this Dynamics environment'
       : 'Additional permissions required',
