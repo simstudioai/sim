@@ -17,7 +17,11 @@ vi.mock('@/lib/api/client/request', () => ({
 
 import { ApiClientError } from '@/lib/api/client/errors'
 import { createPinnedItemContract, deletePinnedItemContract } from '@/lib/api/contracts'
-import { useToggleWorkspacePin, workspaceKeys } from '@/hooks/queries/workspace'
+import {
+  useToggleWorkspacePin,
+  useWorkspacePermissionsQuery,
+  workspaceKeys,
+} from '@/hooks/queries/workspace'
 
 /** Trees rendered by a test, torn down in afterEach so observers do not leak across tests. */
 const mountedRoots: Root[] = []
@@ -90,6 +94,46 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('useWorkspacePermissionsQuery', () => {
+  it('does not retain admin access while a different workspace loads', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    mountedRoots.push(root)
+
+    queryClient.setQueryData(workspaceKeys.permissions('ws-a'), {
+      users: [],
+      total: 0,
+      viewer: { userId: 'user-1', isAdmin: true, permissionType: 'admin' },
+    })
+    mockRequestJson.mockReturnValueOnce(new Promise<never>(() => {}))
+
+    function Probe({ workspaceId }: { workspaceId: string }) {
+      const { data } = useWorkspacePermissionsQuery(workspaceId)
+      return <span>{data ? (data.viewer?.isAdmin ? 'admin' : 'member') : 'loading'}</span>
+    }
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe workspaceId='ws-a' />
+        </QueryClientProvider>
+      )
+    })
+    expect(container.textContent).toBe('admin')
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe workspaceId='ws-b' />
+        </QueryClientProvider>
+      )
+    })
+
+    expect(container.textContent).toBe('loading')
+  })
 })
 
 describe('useToggleWorkspacePin', () => {
