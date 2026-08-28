@@ -16,7 +16,7 @@ export default function UsageEventsLoading() {
         onSelect: () => router.push(`/workspace/${workspaceId}/settings/usage`),
       }}
       title='Usage events'
-      description='Every credit-consuming event behind your usage.'
+      description="Every credit-consuming event across your organization's workspaces."
     />
   )
 }

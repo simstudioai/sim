@@ -10,3 +10,4 @@ export {
   type LineChartMultiSeries,
   type LineChartPoint,
 } from '@/components/charts/line-chart'
+export { RadarChart, type RadarChartAxis } from '@/components/charts/radar-chart'

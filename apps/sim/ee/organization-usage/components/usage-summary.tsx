@@ -1,13 +1,22 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Badge } from '@sim/emcn'
 import { BarChart } from '@/components/charts'
 import type { OrganizationUsageSummary } from '@/lib/api/contracts/organization-usage'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 /** Consumption, matching the seat meter's indicator rather than an outcome colour. */
 const USAGE_SERIES_COLOR = 'var(--indicator-seat-filled)'
+
+/**
+ * A credit allowance runs to the millions, so the meter cannot be countable the way
+ * the seat meter is — a fixed count reads as a percentage instead. Matches the seat
+ * overview's own fallback.
+ */
+const ALLOWANCE_SEGMENTS = 24
 
 interface UsageSummaryProps {
   summary?: OrganizationUsageSummary
@@ -23,6 +32,17 @@ function percentDelta(current: number, previous: number): number | null {
 }
 
 export function UsageSummary({ summary, limitCredits, isLoading, isError }: UsageSummaryProps) {
+  /*
+    Stabilized so `BarChart`'s `memo()` can actually pass. Built inline it was a new
+    array on every render of the panel — a date-picker toggle or an export click
+    re-rendered ninety bars for nothing.
+  */
+  const series = useMemo(
+    () =>
+      summary?.series.map((point) => ({ timestamp: point.timestamp, value: point.credits })) ?? [],
+    [summary]
+  )
+
   if (isError) {
     return (
       <SettingsEmptyState variant='inline' tone='error'>
@@ -47,7 +67,11 @@ export function UsageSummary({ summary, limitCredits, isLoading, isError }: Usag
         number twice and read as a rendering bug.
       */}
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1'>
-        <span className='text-[var(--text-body)] text-lg tabular-nums'>
+        {/*
+          `text-base`, not `text-lg`: the shell's page title is `text-lg`, and a
+          metric drawn at the same size competed with the header for the first read.
+        */}
+        <span className='text-[var(--text-body)] text-base tabular-nums'>
           {formatCreditsLabel(used)}
         </span>
         {hasLimit && (
@@ -63,22 +87,24 @@ export function UsageSummary({ summary, limitCredits, isLoading, isError }: Usag
           </Badge>
         )}
         {isOverLimit && (
-          <Badge variant='amber' size='sm'>
+          // `red`, not `amber`: past the pooled allowance is a violation, and the
+          // trend badge sitting immediately beside it is already amber.
+          <Badge variant='red' size='sm'>
             Over limit
           </Badge>
         )}
       </div>
 
-      <BarChart
-        data={summary.series.map((point) => ({
-          timestamp: point.timestamp,
-          value: point.credits,
-        }))}
-        label=''
-        color={USAGE_SERIES_COLOR}
-        unit='credits'
-        height={160}
-      />
+      {/*
+        The shared allowance meter, not a second bar drawn from the same token.
+        `SegmentedMeter` already owns the overage tone, and it is the affordance the
+        seat overview uses for exactly this question.
+      */}
+      {hasLimit && (
+        <SegmentedMeter used={used} total={limitCredits} segments={ALLOWANCE_SEGMENTS} />
+      )}
+
+      <BarChart data={series} label='' color={USAGE_SERIES_COLOR} unit='credits' height={160} />
     </div>
   )
 }
