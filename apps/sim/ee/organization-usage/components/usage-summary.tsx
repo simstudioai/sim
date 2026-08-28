@@ -5,18 +5,10 @@ import { Badge } from '@sim/emcn'
 import { BarChart } from '@/components/charts'
 import type { OrganizationUsageSummary } from '@/lib/api/contracts/organization-usage'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
-import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 /** Consumption, matching the seat meter's indicator rather than an outcome colour. */
 const USAGE_SERIES_COLOR = 'var(--indicator-seat-filled)'
-
-/**
- * A credit allowance runs to the millions, so the meter cannot be countable the way
- * the seat meter is — a fixed count reads as a percentage instead. Matches the seat
- * overview's own fallback.
- */
-const ALLOWANCE_SEGMENTS = 24
 
 interface UsageSummaryProps {
   summary?: OrganizationUsageSummary
@@ -94,15 +86,6 @@ export function UsageSummary({ summary, limitCredits, isLoading, isError }: Usag
           </Badge>
         )}
       </div>
-
-      {/*
-        The shared allowance meter, not a second bar drawn from the same token.
-        `SegmentedMeter` already owns the overage tone, and it is the affordance the
-        seat overview uses for exactly this question.
-      */}
-      {hasLimit && (
-        <SegmentedMeter used={used} total={limitCredits} segments={ALLOWANCE_SEGMENTS} />
-      )}
 
       <BarChart data={series} label='' color={USAGE_SERIES_COLOR} unit='credits' height={160} />
     </div>
