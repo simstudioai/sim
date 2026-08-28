@@ -287,4 +287,13 @@ describe('getDisplayValue', () => {
     ).toBe('one, two +1')
     expect(getDisplayValue(['a', 'b'])).toBe('a, b')
   })
+
+  it('keeps the full first message for renderer-owned clipping and tooltips', () => {
+    const content = `You are a research assistant. ${'Keep every instruction. '.repeat(4)}`.trim()
+    const messages = [{ role: 'system', content }]
+    const serializedMessages = JSON.stringify(messages)
+
+    expect(getDisplayValue(messages)).toBe(content)
+    expect(getDisplayValue(serializedMessages)).toBe(content)
+  })
 })
