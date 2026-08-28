@@ -1667,6 +1667,9 @@ async function executeToolImplementation(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
+      contextParams[paramId] = undefined
+    }
     if (scope.billingAttribution) {
       contextParams._context = {
         ...(contextParams._context as Record<string, unknown> | undefined),

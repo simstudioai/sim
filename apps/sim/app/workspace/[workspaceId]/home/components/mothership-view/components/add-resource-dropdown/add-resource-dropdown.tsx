@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuSearchInput,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -387,7 +388,7 @@ export function ResourceFolderTreeItems({
           <DropdownMenuSub key={node.id}>
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
-              <span>{node.name}</span>
+              <DropdownMenuItemLabel label={node.name} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {folderType && (
@@ -395,7 +396,7 @@ export function ResourceFolderTreeItems({
                   onClick={() => onSelect({ type: folderType, id: node.id, title: node.name })}
                 >
                   <Folder className='size-[14px]' />
-                  <span>{node.name}</span>
+                  <DropdownMenuItemLabel label={node.name} />
                 </DropdownMenuItem>
               )}
               <ResourceFolderTreeItems
@@ -535,7 +536,7 @@ export function ResourceMenuSections({
           return (
             <DropdownMenuItem key={type} onClick={() => onSelect(resourceFromItem(type, item))}>
               <Icon className='size-[14px]' />
-              <span>{config.label}</span>
+              <DropdownMenuItemLabel label={config.label} />
             </DropdownMenuItem>
           )
         }
@@ -544,7 +545,7 @@ export function ResourceMenuSections({
           <DropdownMenuSub key={type}>
             <DropdownMenuSubTrigger>
               <Icon className='size-[14px]' />
-              <span>{config.label}</span>
+              <DropdownMenuItemLabel label={config.label} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={subContentClassName}>
               {section ? (

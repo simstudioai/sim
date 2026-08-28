@@ -1,14 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import {
-  Badge,
-  ChipCombobox,
-  ChipConfirmModal,
-  chipContentLabelClass,
-  cn,
-  OverflowText,
-} from '@sim/emcn'
+import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn'
 import {
   ChevronDown,
   ChevronUp,
@@ -754,13 +747,7 @@ export function Document({
               setSelectedChunks(new Set())
             }}
             overlayLabel={enabledDisplayLabel}
-            overlayContent={
-              <OverflowText
-                label={enabledDisplayLabel}
-                className='block w-full text-[var(--text-primary)]'
-                tooltipEnabled={false}
-              />
-            }
+            overlayContent={enabledDisplayLabel}
             showAllOption
             allOptionLabel='All'
             className='w-full'

@@ -10,10 +10,12 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '../dropdown-menu/dropdown-menu'
+import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
 /** A selectable option in a {@link ChipSelect}. */
 export interface ChipSelectOption {
@@ -191,6 +193,7 @@ export function ChipSelect({
   }, [searchable, query, sections])
 
   const hasResults = filteredSections.some((g) => g.items.length > 0)
+  const visibleLabel = displayLabel ?? triggerLabel
 
   const toggleValue = (val: string) => {
     if (selectedValues.includes(val)) {
@@ -241,7 +244,7 @@ export function ChipSelect({
         onSelect={() => onChange?.(opt.value)}
       >
         {Icon ? <Icon /> : null}
-        <span>{opt.label}</span>
+        <DropdownMenuItemLabel label={opt.label} />
       </DropdownMenuItem>
     )
   }
@@ -268,9 +271,17 @@ export function ChipSelect({
             className
           )}
         >
-          <span className='min-w-0 truncate text-[var(--text-body)]'>
-            {displayLabel ?? triggerLabel}
-          </span>
+          {typeof visibleLabel === 'string' || typeof visibleLabel === 'number' ? (
+            <OverflowText
+              label={String(visibleLabel)}
+              className='flex-1 text-[var(--text-body)]'
+              focusTarget='nearest-interactive'
+            />
+          ) : (
+            <span className={cn(overflowTextClipClass, 'flex-1 text-[var(--text-body)]')}>
+              {visibleLabel}
+            </span>
+          )}
           <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
             <ChevronDown className='size-[14px]' />
           </span>

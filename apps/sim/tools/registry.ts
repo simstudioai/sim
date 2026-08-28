@@ -3017,6 +3017,16 @@ import {
   dataverseWhoAmITool,
 } from '@/tools/microsoft_dataverse'
 import {
+  microsoftDynamics365CloseCaseTool,
+  microsoftDynamics365CloseOpportunityTool,
+  microsoftDynamics365CreateRecordTool,
+  microsoftDynamics365GetRecordTool,
+  microsoftDynamics365ListRecordsTool,
+  microsoftDynamics365QualifyLeadTool,
+  microsoftDynamics365SearchRecordsTool,
+  microsoftDynamics365UpdateRecordTool,
+} from '@/tools/microsoft_dynamics_365'
+import {
   microsoftExcelClearRangeTool,
   microsoftExcelCreateTableTool,
   microsoftExcelDeleteWorksheetTool,
@@ -9874,6 +9884,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   microsoft_dataverse_upload_file: dataverseUploadFileTool,
   microsoft_dataverse_upsert_record: dataverseUpsertRecordTool,
   microsoft_dataverse_whoami: dataverseWhoAmITool,
+  microsoft_dynamics_365_close_case: microsoftDynamics365CloseCaseTool,
+  microsoft_dynamics_365_close_opportunity: microsoftDynamics365CloseOpportunityTool,
+  microsoft_dynamics_365_create_record: microsoftDynamics365CreateRecordTool,
+  microsoft_dynamics_365_get_record: microsoftDynamics365GetRecordTool,
+  microsoft_dynamics_365_list_records: microsoftDynamics365ListRecordsTool,
+  microsoft_dynamics_365_qualify_lead: microsoftDynamics365QualifyLeadTool,
+  microsoft_dynamics_365_search_records: microsoftDynamics365SearchRecordsTool,
+  microsoft_dynamics_365_update_record: microsoftDynamics365UpdateRecordTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,

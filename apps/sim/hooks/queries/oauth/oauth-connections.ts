@@ -11,6 +11,7 @@ import { client } from '@/lib/auth/auth-client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
@@ -193,9 +194,11 @@ export function useConnectOAuthService() {
         stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
       }
 
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
         callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
       })
 
       return { success: true }

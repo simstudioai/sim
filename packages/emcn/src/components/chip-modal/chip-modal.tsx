@@ -53,6 +53,7 @@ import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
 import { focusFirstTextInputIn, isElementVisible } from '../modal/auto-focus'
 import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
+import { OverflowText } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -302,7 +303,11 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
         <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
           <div className='flex min-w-0 items-center gap-2'>
             {Icon ? <Icon className={chipContentIconClass} /> : null}
-            <span className={chipContentLabelClass}>{children}</span>
+            {typeof children === 'string' || typeof children === 'number' ? (
+              <OverflowText label={String(children)} className={chipContentLabelClass} />
+            ) : (
+              <span className={chipContentLabelClass}>{children}</span>
+            )}
           </div>
           <Button
             type='button'

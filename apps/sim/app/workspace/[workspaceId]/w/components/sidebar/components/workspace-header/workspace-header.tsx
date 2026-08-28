@@ -548,7 +548,11 @@ function WorkspaceHeaderImpl({
               )}
               {!isCollapsed && activeWorkspace?.name && (
                 <>
-                  <span className={chipContentLabelClass}>{activeWorkspace.name}</span>
+                  <OverflowText
+                    label={activeWorkspace.name}
+                    className={cn('flex-1', chipContentLabelClass)}
+                    focusTarget='nearest-interactive'
+                  />
                   <ChipChevronDown />
                 </>
               )}
@@ -888,7 +892,11 @@ function WorkspaceHeaderImpl({
           )}
           {!isCollapsed && activeWorkspace?.name && (
             <>
-              <span className={chipContentLabelClass}>{activeWorkspace.name}</span>
+              <OverflowText
+                label={activeWorkspace.name}
+                className={cn('flex-1', chipContentLabelClass)}
+                focusTarget='nearest-interactive'
+              />
               <ChipChevronDown />
             </>
           )}

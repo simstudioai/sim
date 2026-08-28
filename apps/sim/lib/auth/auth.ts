@@ -4,7 +4,7 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
@@ -112,6 +112,10 @@ import {
   isMicrosoftProvider,
   mapMicrosoftProfileToUser,
 } from '@/lib/oauth/microsoft'
+import {
+  assertMicrosoftDataverseOAuthLinkRequest,
+  MICROSOFT_DATAVERSE_PROVIDER_ID,
+} from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import {
   isSalesforceLoginOrigin,
@@ -935,6 +939,20 @@ export const auth = betterAuth({
           throw new APIError('FORBIDDEN', {
             message:
               'This provider can only be connected from a signed-in account and cannot be used to sign in.',
+          })
+        }
+      }
+
+      if (ctx.path === '/oauth2/link' && ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID) {
+        try {
+          assertMicrosoftDataverseOAuthLinkRequest(
+            ctx.body.callbackURL,
+            ctx.body.scopes,
+            getCanonicalScopesForProvider(MICROSOFT_DATAVERSE_PROVIDER_ID)
+          )
+        } catch (error) {
+          throw new APIError('BAD_REQUEST', {
+            message: getErrorMessage(error, 'Invalid Dataverse OAuth request'),
           })
         }
       }

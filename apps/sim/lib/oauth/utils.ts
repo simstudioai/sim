@@ -1,3 +1,4 @@
+import { MICROSOFT_DATAVERSE_PROVIDER_ID } from './microsoft-dataverse'
 import { OAUTH_PROVIDERS } from './oauth'
 import type {
   OAuthProvider,
@@ -689,6 +690,17 @@ export function canonicalizeServiceProviderId(
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []
+}
+
+/**
+ * Returns scopes that must be supplied on the link request instead of inherited from the static
+ * Better Auth connector. Dataverse has both a legacy grant and an environment-specific grant;
+ * leaving either on the connector makes Better Auth append it to the other resource audience.
+ */
+export function getPerRequestOAuthLinkScopes(providerId: string): string[] | undefined {
+  return providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
+    ? getCanonicalScopesForProvider(providerId)
+    : undefined
 }
 
 /**

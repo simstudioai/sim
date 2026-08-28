@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { client } from '@/lib/auth/auth-client'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 interface ConnectLauncherProps {
@@ -31,9 +32,11 @@ export function ConnectLauncher({ providerId, completeUrl }: ConnectLauncherProp
   const start = useCallback(async () => {
     setError(null)
     try {
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
         callbackURL: completeUrl,
+        ...(scopes && { scopes }),
         // Failed flows bounce to the same complete page (which forwards the
         // failure to the loopback) instead of waiting out the handoff TTL.
         // Do NOT bake in a query param here: better-auth appends its own

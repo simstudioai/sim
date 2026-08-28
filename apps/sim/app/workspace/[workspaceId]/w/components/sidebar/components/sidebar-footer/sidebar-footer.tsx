@@ -11,8 +11,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  OverflowText,
   Skeleton,
 } from '@sim/emcn'
 import { BookOpen, Credit, Download, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
@@ -250,7 +252,12 @@ export function SidebarFooter({
           >
             {avatar}
             {profile ? (
-              <span className={cn('sidebar-collapse-hide', chipContentLabelClass)}>{name}</span>
+              <OverflowText
+                label={name}
+                className={cn('sidebar-collapse-hide flex-1', chipContentLabelClass)}
+                tooltipEnabled={!isCollapsed}
+                focusTarget='nearest-interactive'
+              />
             ) : (
               /* Fixed width — the chip hugs its content, so a flexible bar would collapse to nothing. */
               <Skeleton className='sidebar-collapse-hide h-[14px] w-[96px] rounded-sm' />
@@ -280,7 +287,7 @@ export function SidebarFooter({
                 }}
               >
                 <Icon className='size-[14px]' />
-                <span>{label}</span>
+                <DropdownMenuItemLabel label={label} />
               </SettingsIntentLink>
             </DropdownMenuItem>
           )
