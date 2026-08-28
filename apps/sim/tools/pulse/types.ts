@@ -101,7 +101,7 @@ interface PulseParserOutputData {
   /** HTML content if requested */
   html?: string
 
-  /** Structured output if schema was provided */
+  /** Structured output; Sim exposes no input for supplying a schema, so this is always null. */
   structured_output?: Record<string, unknown>
 
   /** Chunked content if chunking was enabled */
