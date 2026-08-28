@@ -2,7 +2,10 @@
 
 import { useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
-import type { UsageWindowPreset } from '@/lib/api/contracts/organization-usage'
+import {
+  MAX_CUSTOM_RANGE_DAYS,
+  type UsageWindowPreset,
+} from '@/lib/api/contracts/organization-usage'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import { DEFAULT_USAGE_PRESET, PERIOD_LABELS } from '@/ee/organization-usage/constants'
@@ -12,12 +15,31 @@ import {
 } from '@/ee/organization-usage/search-params'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 /** A `YYYY-MM-DD` that survives a calendar round-trip, matching the contract's rule. */
 function isCalendarDate(value: string | null): value is string {
   if (!value) return false
   const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
   if (!datePart) return false
   return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
+}
+
+/**
+ * Every rule the window resolver enforces, checked here too.
+ *
+ * The server refuses an unreal date, an inverted pair, and a span past the cap — each
+ * as a 400. A deep link carrying any of them would otherwise be marked "resolved" and
+ * fail all four queries on the page, which is a worse outcome than the fallback this
+ * guard exists to provide. Duplicated deliberately, and narrowly: these are the three
+ * conditions that turn a link into an error rather than into different data.
+ */
+function isUsableCustomRange(start: string | null, end: string | null): boolean {
+  if (!isCalendarDate(start) || !isCalendarDate(end)) return false
+  const from = new Date(`${start.slice(0, 10)}T00:00:00.000Z`).getTime()
+  const to = new Date(`${end.slice(0, 10)}T00:00:00.000Z`).getTime()
+  if (to < from) return false
+  return Math.round((to - from) / DAY_MS) + 1 <= MAX_CUSTOM_RANGE_DAYS
 }
 
 /**

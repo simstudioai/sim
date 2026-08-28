@@ -208,10 +208,16 @@ function LineChartComponent({
     return (
       <div
         className={cn(
-          'flex items-center justify-center',
+          'flex w-full items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-card p-4'
         )}
-        style={{ width, height }}
+        /*
+          Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
+          and pinning the empty state to it pushed a narrow container into horizontal
+          overflow to centre two words — this branch draws no axes, so it has nothing
+          to protect from compressing.
+        */
+        style={{ height }}
       >
         <p className='text-[var(--text-muted)] text-sm'>No data</p>
       </div>

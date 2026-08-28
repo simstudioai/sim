@@ -83,7 +83,13 @@ function usageLimitSchema(max: number, fallback: number) {
  * windows — a mismatch here is how the tiles and the event log would disagree.
  */
 const organizationUsageWindowQuerySchema = z.object({
-  organizationId: organizationIdSchema,
+  /*
+    No `organizationId` here. The organization is the path parameter, and that is the
+    one every handler authorizes and reads. Accepting a second copy in the query meant
+    a request could name one organization and be answered about another — not an
+    authorization hole, since `params.id` is what gets checked, but an API that reads
+    as though the query mattered.
+  */
   preset: usageWindowPresetSchema,
   startDate: isoDateSchema,
   endDate: isoDateSchema,

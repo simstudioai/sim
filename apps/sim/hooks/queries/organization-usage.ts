@@ -35,7 +35,7 @@ export function useOrganizationUsageSummary(
     queryFn: ({ signal }): Promise<OrganizationUsageSummary> =>
       requestJson(getOrganizationUsageSummaryContract, {
         params: { id: organizationId as string },
-        query: { organizationId: organizationId as string, ...window },
+        query: { ...window },
         signal,
       }),
     enabled: Boolean(organizationId),
@@ -73,7 +73,6 @@ export function useOrganizationUsageBreakdown(
       requestJson(getOrganizationUsageBreakdownContract, {
         params: { id: organizationId as string },
         query: {
-          organizationId: organizationId as string,
           ...window,
           dimension,
           limit,
@@ -99,7 +98,6 @@ export function useOrganizationUsageEvents(
       requestJson(listOrganizationUsageEventsContract, {
         params: { id: organizationId as string },
         query: {
-          organizationId: organizationId as string,
           ...window,
           ...(sources.length ? { source: sources } : {}),
           limit: EVENTS_PAGE_SIZE,

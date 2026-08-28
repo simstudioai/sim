@@ -173,8 +173,9 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   }
 
   const handleExport = async () => {
+    // The organization is the path segment below; the query no longer carries a
+    // second copy of it.
     const params = new URLSearchParams({
-      organizationId,
       preset: window.preset,
       timezone: window.timezone,
     })
