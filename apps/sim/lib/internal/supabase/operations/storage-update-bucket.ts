@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SupabaseStorageUpdateBucketParams,
@@ -20,23 +21,6 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }
-    const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
-      method: 'GET',
-      headers,
-      signal,
-    })
-
-    if (!currentResponse.ok) {
-      const errorText = await currentResponse.text()
-      throw new Error(`Failed to read current bucket configuration: ${errorText}`)
-    }
-
-    const current = await currentResponse.json()
-
-    // Block subBlocks for a shared field can forward an empty string
-    // (e.g. an untouched short-input) rather than omitting the key
-    // entirely — treat that the same as "not provided" so it falls
-    // back to the bucket's current value instead of coercing to 0/false.
     const hasValue = (value: unknown): boolean =>
       value !== undefined && value !== null && (typeof value !== 'string' || value.trim() !== '')
     const rawFileSizeLimit: unknown = params.fileSizeLimit
@@ -52,20 +36,40 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       throw new Error('File size limit must be a finite number')
     }
 
-    const payload: Record<string, unknown> = {
-      id: params.bucket,
-      name: params.bucket,
-      public: hasValue(params.isPublic) ? params.isPublic : Boolean(current.public),
-      file_size_limit: fileSizeLimit ?? current.file_size_limit ?? null,
-      allowed_mime_types: hasValue(params.allowedMimeTypes)
-        ? params.allowedMimeTypes
-        : (current.allowed_mime_types ?? null),
+    const payload = filterUndefined({
+      public: hasValue(params.isPublic) ? params.isPublic : undefined,
+      file_size_limit: fileSizeLimit,
+      allowed_mime_types: hasValue(params.allowedMimeTypes) ? params.allowedMimeTypes : undefined,
+    })
+
+    if (Object.keys(payload).length === 0) {
+      const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+        method: 'GET',
+        headers,
+        redirect: 'error',
+        signal,
+      })
+      if (!currentResponse.ok) {
+        const errorText = await currentResponse.text()
+        throw new Error(`Failed to read current bucket configuration: ${errorText}`)
+      }
+      await currentResponse.body?.cancel()
+      signal?.throwIfAborted()
+      return {
+        success: true,
+        output: {
+          message: 'Successfully updated storage bucket',
+          results: { message: 'Successfully updated' },
+        },
+        error: undefined,
+      }
     }
 
     const updateResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),
+      redirect: 'error',
       signal,
     })
 
