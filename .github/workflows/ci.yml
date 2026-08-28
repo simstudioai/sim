@@ -76,7 +76,7 @@ jobs:
   # (/api/desktop/update) starts offering automatically.
   detect-desktop-changes:
     name: Detect Desktop Changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')
     outputs:
@@ -165,7 +165,15 @@ jobs:
           # build` ~260s). The same `next build` runs on 16 vCPU in the separate
           # Build App verification job, which does not gate anything; this one
           # was doing comparable work on half the cores.
+          #
+          # cache_mb is the layer cache the post-job prune retains, and it is the
+          # only reason the sticky disks stay bounded — see docker-build's
+          # action.yml. Rows that omit it take the small-image default there. The
+          # app image overrides because it carries ~34 layers plus apt and bun
+          # cache mounts for the whole monorepo; 100 GB is several builds' worth
+          # of headroom over that working set.
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
@@ -176,11 +184,11 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -214,6 +222,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
   # Gated after migrate-dev for the same reason as build-dev — the new task
@@ -280,6 +289,7 @@ jobs:
       matrix:
         include:
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
@@ -293,12 +303,12 @@ jobs:
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           # No ECR repo is provisioned for cron, so it publishes to GHCR only.
           # The tag step below omits the ECR tag when the repo name is empty.
           - dockerfile: ./docker/cron.Dockerfile
@@ -382,6 +392,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Promote the sha-tagged ECR images to the deploy tags once tests and
   # migrations pass. Pushing the ECR latest/staging tag is what triggers
@@ -484,6 +495,7 @@ jobs:
         # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
             bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
@@ -522,6 +534,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
           tags: ${{ matrix.image }}:${{ github.sha }}-arm64
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
   # and the multi-arch manifests from the immutable sha tags — only on main,
@@ -675,7 +688,7 @@ jobs:
   # Job-level `if:` cannot read the secrets context, hence the probe job.
   check-desktop-signing:
     name: Check Desktop Signing Secrets
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 2
     needs: [detect-version, detect-desktop-changes]
     # !cancelled(): detect-desktop-changes is skipped on main (and
@@ -724,7 +737,7 @@ jobs:
   # remains testable end to end with a manual download.
   create-desktop-prerelease:
     name: Create Desktop Prerelease
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     needs: [detect-desktop-changes, check-desktop-signing]
     # Requires the signing probe to have actually succeeded (not just "not
@@ -813,7 +826,7 @@ jobs:
   # point of view.
   publish-desktop-prerelease:
     name: Publish Desktop Prerelease
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     needs: [create-desktop-prerelease, desktop-prerelease]
     permissions:
@@ -837,7 +850,7 @@ jobs:
   # are always garbage by this point — the current run's release is published.
   prune-desktop-prereleases:
     name: Prune Desktop Prereleases
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     needs: [publish-desktop-prerelease]
     permissions:
