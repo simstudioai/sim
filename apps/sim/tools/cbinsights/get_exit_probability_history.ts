@@ -1,19 +1,13 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  asString,
-  cbInsightsRequest,
-  compactBody,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-interface CbInsightsExitProbabilityHistoryParams extends CbInsightsOrgParams {
+export interface CbInsightsExitProbabilityHistoryParams extends CbInsightsOrgParams {
   startDate?: string
   endDate?: string
 }
 
-export const cbinsightsGetExitProbabilityHistoryTool: ToolConfig<
+export const cbinsightsGetExitProbabilityHistoryTool: InternalToolConfig<
   CbInsightsExitProbabilityHistoryParams,
   ToolResponse
 > = {
@@ -59,26 +53,8 @@ export const cbinsightsGetExitProbabilityHistoryTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ ipo?: unknown; mna?: unknown; incompleteRoundType?: unknown }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/exitprobabilityhistory`,
-        body: compactBody({
-          startDate: params.startDate?.trim(),
-          endDate: params.endDate?.trim(),
-        }),
-      },
-      (data) => ({
-        ipo: asArray(data.ipo),
-        mna: asArray(data.mna),
-        incompleteRoundType: asString(data.incompleteRoundType),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

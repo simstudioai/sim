@@ -10,11 +10,13 @@ import { GoogleDriveOperationError } from '@/lib/internal/google-drive/errors'
 import {
   googleDriveDownloadInputSchema,
   googleDriveExportInputSchema,
+  googleDriveMoveInputSchema,
   googleDriveUploadInputSchema,
 } from '@/lib/internal/google-drive/input'
 import {
   executeGoogleDriveDownload,
   executeGoogleDriveExport,
+  executeGoogleDriveMove,
   executeGoogleDriveUpload,
   type GoogleDriveOperationContext,
 } from '@/lib/internal/google-drive/operations'
@@ -55,6 +57,10 @@ async function dispatch(
     case 'google_drive_export': {
       const input = parseInput(googleDriveExportInputSchema, request.input)
       return input instanceof Response ? input : executeGoogleDriveExport(input, context)
+    }
+    case 'google_drive_move': {
+      const input = parseInput(googleDriveMoveInputSchema, request.input)
+      return input instanceof Response ? input : executeGoogleDriveMove(input, context)
     }
     case 'google_drive_upload': {
       const input = parseInput(googleDriveUploadInputSchema, request.input)

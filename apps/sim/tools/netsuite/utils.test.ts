@@ -2,10 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { netsuiteBatchCreateRecordsTool } from '@/tools/netsuite/batch_create_records'
-import { netsuiteCreateRecordTool } from '@/tools/netsuite/create_record'
-import { netsuiteGetRecordTool } from '@/tools/netsuite/get_record'
-import { netsuiteGetServerTimeTool } from '@/tools/netsuite/get_server_time'
+import { executeNetsuiteBatchCreateRecordsOperation } from '@/lib/internal/netsuite/operations/batch-create-records'
+import { executeNetsuiteCreateRecordOperation } from '@/lib/internal/netsuite/operations/create-record'
+import { executeNetsuiteGetRecordOperation } from '@/lib/internal/netsuite/operations/get-record'
+import { executeNetsuiteGetServerTimeOperation } from '@/lib/internal/netsuite/operations/get-server-time'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import {
   buildBatchWriteRequest,
@@ -50,7 +50,7 @@ function installFetch(
 }
 
 async function executeServerTime(auth: NetSuiteAuthParams = AUTH, signal?: AbortSignal) {
-  const execute = netsuiteGetServerTimeTool.directExecution
+  const execute = executeNetsuiteGetServerTimeOperation
   if (!execute) throw new Error('NetSuite tool is missing direct execution')
   return execute(auth, signal)
 }
@@ -96,7 +96,7 @@ describe('NetSuite shared executor', () => {
         headers: { Location: '/services/rest/record/v1/customer/647' },
       }),
     ])
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({
@@ -217,7 +217,7 @@ describe('NetSuite shared executor', () => {
       'https://1234567-sb1.suitetalk.api.netsuite.com/services/rest/record/v1/job/456'
     installFetch([new Response(null, { status: 204, headers: { Location: location } })])
 
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -240,7 +240,7 @@ describe('NetSuite shared executor', () => {
         headers: { Location: 'https://evil.example/services/rest/record/v1/customer/648' },
       }),
     ])
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const relative = await execute({
@@ -267,7 +267,7 @@ describe('NetSuite shared executor', () => {
   it('accepts the documented replacement-create 201 post-state with Location', async () => {
     const location = '/services/rest/record/v1/customer/647'
     installFetch([jsonResponse({ id: '647', companyName: 'Acme' }, 201, { Location: location })])
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({
@@ -304,7 +304,7 @@ describe('NetSuite shared executor', () => {
 
   it('rejects oversized request bodies before SuiteTalk traffic', async () => {
     const { calls } = installFetch()
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({
@@ -330,7 +330,7 @@ describe('NetSuite shared executor', () => {
         return 'Acme'
       },
     })
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const accessorResult = await execute({
@@ -358,7 +358,7 @@ describe('NetSuite shared executor', () => {
     const cyclic: Record<string, unknown> = {}
     cyclic.self = cyclic
     const custom = { companyName: 'Acme', toJSON: () => ({ companyName: 'Other' }) }
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const cyclicResult = await execute({ ...AUTH, recordType: 'customer', body: cyclic })
@@ -387,7 +387,7 @@ describe('NetSuite shared executor', () => {
       left: shared,
       right: shared,
     }
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({ ...AUTH, recordType: 'customer', body })
@@ -403,7 +403,7 @@ describe('NetSuite shared executor', () => {
         headers: { Location: '/services/rest/record/v1/customer/647' },
       }),
     ])
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
     const admittedBody = { values: Array.from({ length: 99_998 }, () => null) }
     const rejectedBody = { values: Array.from({ length: 99_999 }, () => null) }
@@ -424,7 +424,7 @@ describe('NetSuite shared executor', () => {
         headers: { Location: '/services/rest/record/v1/customer/647' },
       }),
     ])
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
     const nested = (depth: number): Record<string, unknown> => {
       let value: Record<string, unknown> = {}
@@ -453,7 +453,7 @@ describe('NetSuite shared executor', () => {
         return 'too late'
       },
     })
-    const execute = netsuiteCreateRecordTool.directExecution
+    const execute = executeNetsuiteCreateRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({ ...AUTH, recordType: 'customer', body })
@@ -570,7 +570,7 @@ describe('NetSuite shared executor', () => {
       ),
     ])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -609,7 +609,7 @@ describe('NetSuite shared executor', () => {
       ),
     ])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -635,7 +635,7 @@ describe('NetSuite shared executor', () => {
     const location = '/services/rest/async/v1/job/job-relative'
     installFetch([new Response(null, { status: 202, headers: { Location: location } })])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -667,7 +667,7 @@ describe('NetSuite shared executor', () => {
       ),
     ])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -692,7 +692,7 @@ describe('NetSuite shared executor', () => {
       }),
     ])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -710,7 +710,7 @@ describe('NetSuite shared executor', () => {
   it('rejects async batch responses that do not include a pollable job location', async () => {
     installFetch([new Response(null, { status: 202 })])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -729,7 +729,7 @@ describe('NetSuite shared executor', () => {
     const location = '/services/rest/async/v1/job/job-wrong-status'
     installFetch([new Response(null, { status: 204, headers: { Location: location } })])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -763,7 +763,7 @@ describe('NetSuite shared executor', () => {
       ),
     ])
 
-    const execute = netsuiteBatchCreateRecordsTool.directExecution
+    const execute = executeNetsuiteBatchCreateRecordsOperation
     if (!execute) throw new Error('NetSuite batch tool is missing direct execution')
     const result = await execute({
       ...AUTH,
@@ -831,7 +831,7 @@ describe('NetSuite shared executor', () => {
 
   it('omits null optional booleans and rejects other direct boolean values', async () => {
     const valid = installFetch([jsonResponse({ id: '7' })])
-    const execute = netsuiteGetRecordTool.directExecution
+    const execute = executeNetsuiteGetRecordOperation
     if (!execute) throw new Error('NetSuite get-record tool is missing direct execution')
 
     const omitted = await execute({

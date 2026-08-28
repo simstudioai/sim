@@ -14,6 +14,7 @@ import { resolveGoogleDriveUploadFile } from '@/lib/internal/google-drive/file-i
 import type {
   GoogleDriveDownloadInput,
   GoogleDriveExportInput,
+  GoogleDriveMoveInput,
   GoogleDriveUploadInput,
 } from '@/lib/internal/google-drive/input'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -290,6 +291,64 @@ export async function executeGoogleDriveExport(
       exportedMimeType: input.mimeType,
     },
   }
+}
+
+export async function executeGoogleDriveMove(
+  input: GoogleDriveMoveInput,
+  context: GoogleDriveOperationContext
+) {
+  context.signal?.throwIfAborted()
+  const query = new URLSearchParams({
+    addParents: input.destinationFolderId,
+    fields: ALL_FILE_FIELDS,
+    supportsAllDrives: 'true',
+  })
+
+  if (input.removeFromCurrent) {
+    const metadataResponse = await requestGoogleDrive({
+      accessToken: input.accessToken,
+      label: 'moveMetadataUrl',
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      signal: context.signal,
+      url: `${DRIVE_FILES_URL}/${encodeURIComponent(input.fileId)}?fields=parents&supportsAllDrives=true`,
+    })
+    if (!metadataResponse.ok) {
+      await providerJsonError(
+        metadataResponse,
+        'Failed to retrieve file metadata',
+        metadataResponse.status,
+        context.signal
+      )
+    }
+    const metadata = await responseObject(metadataResponse)
+    if (Array.isArray(metadata.parents) && metadata.parents.length > 0) {
+      query.set(
+        'removeParents',
+        metadata.parents.filter((parent): parent is string => typeof parent === 'string').join(',')
+      )
+    }
+  }
+
+  const response = await requestGoogleDrive({
+    accessToken: input.accessToken,
+    body: JSON.stringify({}),
+    headers: { 'Content-Type': 'application/json' },
+    label: 'moveFileUrl',
+    maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+    method: 'PATCH',
+    signal: context.signal,
+    url: `${DRIVE_FILES_URL}/${encodeURIComponent(input.fileId)}?${query.toString()}`,
+  })
+  if (!response.ok) {
+    await providerJsonError(
+      response,
+      'Failed to move Google Drive file',
+      response.status,
+      context.signal
+    )
+  }
+  const file = await responseObject(response)
+  return { success: true, output: { file } }
 }
 
 function uploadMetadata(input: GoogleDriveUploadInput, requestedMimeType: string) {

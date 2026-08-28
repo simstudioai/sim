@@ -179,7 +179,6 @@ export const reductoParserV2Tool: InternalToolConfig<ReductoParserV2Input, Reduc
   id: 'reducto_parser_v2',
   name: 'Reducto PDF Parser',
   postProcess: undefined,
-  directExecution: undefined,
   transformResponse: reductoParserTool.transformResponse
     ? (response: Response, params?: ReductoParserV2Input) =>
         reductoParserTool.transformResponse!(response, params)

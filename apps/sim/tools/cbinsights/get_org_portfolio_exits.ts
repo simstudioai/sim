@@ -1,8 +1,11 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetOrgPortfolioExitsTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetOrgPortfolioExitsTool: InternalToolConfig<
+  CbInsightsOrgParams,
+  ToolResponse
+> = {
   id: 'cbinsights_get_org_portfolio_exits',
   name: 'CB Insights Get Organization Portfolio Exits',
   description:
@@ -31,16 +34,8 @@ export const cbinsightsGetOrgPortfolioExitsTool: ToolConfig<CbInsightsOrgParams,
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ portfolioExits?: unknown }>(
-      params,
-      { path: `/v2/organizations/${orgId}/financialtransactions/portfolioexits` },
-      (data) => ({ portfolioExits: asArray(data.portfolioExits) }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

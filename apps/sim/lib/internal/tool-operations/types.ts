@@ -1,6 +1,14 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import type { ToolResponse } from '@/tools/types'
+
+/** Typed implementation used by a registered internal tool operation handler. */
+export type InternalToolOperationImplementation<P> = (
+  params: P,
+  signal?: AbortSignal,
+  context?: InternalToolOperationContext
+) => Promise<ToolResponse> | ToolResponse
 
 /** Trusted runtime scope shared by every in-process tool operation. */
 export interface InternalToolOperationContext {

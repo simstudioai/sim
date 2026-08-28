@@ -183,7 +183,6 @@ export const extendParserV2Tool: InternalToolConfig<ExtendParserV2Input, ExtendP
   id: 'extend_parser_v2',
   name: 'Extend Document Parser',
   postProcess: undefined,
-  directExecution: undefined,
   transformResponse: extendParserTool.transformResponse
     ? (response: Response, params?: ExtendParserV2Input) =>
         extendParserTool.transformResponse!(response, params)

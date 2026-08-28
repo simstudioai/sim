@@ -15,6 +15,30 @@ function auditRequest(request: string) {
 }
 
 describe('tool self-hop audit', () => {
+  it('rejects the retired direct execution property', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        directExecution: async () => ({ success: true, output: {} }),
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({ reason: 'retired-direct-execution' }),
+    ])
+  })
+
+  it('allows ordinary operation implementations', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        operation: { input: (params) => params },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
   it('allows an absolute external provider URL', () => {
     const audit = auditRequest(
       "url: 'https://api.example.com/v1/items', method: 'GET', headers: () => ({})"

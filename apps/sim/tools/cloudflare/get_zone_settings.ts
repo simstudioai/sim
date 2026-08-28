@@ -1,21 +1,14 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import type {
-  CloudflareEnvelope,
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse,
   CloudflareRawZoneSetting,
 } from '@/tools/cloudflare/types'
-import {
-  cloudflareErrorMessage,
-  cloudflareHeaders,
-  DEFAULT_ZONE_SETTING_IDS,
-  MAX_ZONE_SETTING_IDS,
-  requestedZoneSettingIds,
-} from '@/tools/cloudflare/utils'
-import type { ToolConfig } from '@/tools/types'
+import { DEFAULT_ZONE_SETTING_IDS, MAX_ZONE_SETTING_IDS } from '@/tools/cloudflare/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Builds the per-setting endpoint Cloudflare directs integrations at. */
-function zoneSettingUrl(zoneId: string, settingId: string): string {
+export function zoneSettingUrl(zoneId: string, settingId: string): string {
   return `https://api.cloudflare.com/client/v4/zones/${zoneId}/settings/${encodeURIComponent(settingId)}`
 }
 
@@ -24,7 +17,7 @@ function zoneSettingUrl(zoneId: string, settingId: string): string {
  * (minify, security header, NEL) as objects, so those are JSON-stringified to
  * keep every entry in the list a string.
  */
-function mapZoneSetting(settingId: string, setting: CloudflareRawZoneSetting | undefined) {
+export function mapZoneSetting(settingId: string, setting: CloudflareRawZoneSetting | undefined) {
   return {
     id: setting?.id ?? settingId,
     value:
@@ -37,7 +30,7 @@ function mapZoneSetting(settingId: string, setting: CloudflareRawZoneSetting | u
   }
 }
 
-export const getZoneSettingsTool: ToolConfig<
+export const getZoneSettingsTool: InternalToolConfig<
   CloudflareGetZoneSettingsParams,
   CloudflareGetZoneSettingsResponse
 > = {
@@ -67,77 +60,8 @@ export const getZoneSettingsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: (params) =>
-      zoneSettingUrl(params.zoneId.trim(), requestedZoneSettingIds(params.settingIds)[0]),
-    method: 'GET',
-    headers: (params) => cloudflareHeaders(params.apiKey),
-  },
-
-  /**
-   * Cloudflare deprecated the batch `GET /zones/{zone_id}/settings` endpoint,
-   * which reaches end of life on 2027-03-31, in favour of one request per
-   * setting. The reads are fanned out and gathered back into the single list
-   * this tool has always returned.
-   *
-   * A setting the zone's plan does not expose answers with an error rather than
-   * a value, so one refusal must not lose the settings that did come back. Those
-   * ids are reported in `unreadable` instead, and only a read where nothing at
-   * all was readable fails.
-   * https://developers.cloudflare.com/fundamentals/api/reference/deprecations/
-   */
-  directExecution: async (params, signal) => {
-    const settingIds = requestedZoneSettingIds(params.settingIds)
-    if (settingIds.length > MAX_ZONE_SETTING_IDS) {
-      return {
-        success: false,
-        output: { settings: [], unreadable: [] },
-        error: `Too many settings requested: ${settingIds.length}. Cloudflare reads one setting per request, so at most ${MAX_ZONE_SETTING_IDS} can be read in a single call.`,
-      }
-    }
-
-    const zoneId = params.zoneId.trim()
-    const headers = cloudflareHeaders(params.apiKey)
-
-    const reads = await Promise.all(
-      settingIds.map(async (settingId) => {
-        try {
-          const response = await fetch(zoneSettingUrl(zoneId, settingId), {
-            method: 'GET',
-            headers,
-            signal,
-          })
-          const data = (await response.json()) as CloudflareEnvelope<CloudflareRawZoneSetting>
-          if (!data.success) {
-            return {
-              settingId,
-              error: cloudflareErrorMessage(data, `Failed to read zone setting ${settingId}`),
-            }
-          }
-          return { settingId, setting: mapZoneSetting(settingId, data.result) }
-        } catch (error) {
-          return {
-            settingId,
-            error: getErrorMessage(error, `Failed to read zone setting ${settingId}`),
-          }
-        }
-      })
-    )
-
-    const settings = reads.flatMap((read) => (read.setting ? [read.setting] : []))
-    const unreadable = reads.flatMap((read) =>
-      read.error ? [{ id: read.settingId, error: read.error }] : []
-    )
-
-    if (settings.length === 0) {
-      return {
-        success: false,
-        output: { settings, unreadable },
-        error: unreadable[0]?.error ?? 'Failed to get zone settings',
-      }
-    }
-
-    return { success: true, output: { settings, unreadable } }
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

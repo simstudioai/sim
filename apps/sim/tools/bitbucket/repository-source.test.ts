@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeBitbucketGetFileOperation } from '@/lib/internal/bitbucket/operations/get-file'
 import { bitbucketCreateBranchTool } from '@/tools/bitbucket/create_branch'
 import { bitbucketDeleteBranchTool } from '@/tools/bitbucket/delete_branch'
 import { bitbucketGetCommitTool } from '@/tools/bitbucket/get_commit'
@@ -170,6 +171,10 @@ describe('Bitbucket action tool contracts', () => {
 
   it('enables bounded retry only on safe reads, never on mutations', () => {
     for (const tool of bitbucketTools) {
+      if ('operation' in tool) {
+        expect('request' in tool, tool.id).toBe(false)
+        continue
+      }
       const method = typeof tool.request.method === 'function' ? null : tool.request.method
       if (method !== 'GET') {
         expect(tool.request.retry, tool.id).toBeUndefined()
@@ -328,7 +333,7 @@ describe('Bitbucket workspace and repository tools', () => {
 })
 
 describe('Bitbucket source tools', () => {
-  it('builds encoded branch, commit, directory, and file URLs', () => {
+  it('builds encoded branch, commit, directory, and file URLs', async () => {
     expect(
       requestUrl(bitbucketListBranchesTool, {
         ...REPOSITORY_PARAMS,
@@ -381,13 +386,13 @@ describe('Bitbucket source tools', () => {
         path: 'README.md',
       } satisfies BitbucketFileParams)
     ).toThrow(/commit must be a full 40-character SHA-1/)
-    expect(() =>
-      requestUrl(bitbucketGetFileTool, {
+    await expect(
+      executeBitbucketGetFileOperation({
         ...REPOSITORY_PARAMS,
         commit: true,
         path: 'README.md',
       } as unknown as BitbucketGetFileParams)
-    ).toThrow(/commit must be a full 40-character SHA-1/)
+    ).rejects.toThrow(/commit must be a full 40-character SHA-1/)
   })
 
   it('keeps directory listing shallow and binds its cursor to the selected path', () => {
@@ -653,7 +658,7 @@ describe('Bitbucket source tools', () => {
       path: 'assets/logo.png',
     } satisfies BitbucketGetFileParams
 
-    const result = await bitbucketGetFileTool.directExecution!(params)
+    const result = await executeBitbucketGetFileOperation(params)
 
     expect(result).toEqual({
       success: true,
@@ -691,7 +696,7 @@ describe('Bitbucket source tools', () => {
         })
       )
 
-      const result = await bitbucketGetFileTool.directExecution!({
+      const result = await executeBitbucketGetFileOperation({
         ...REPOSITORY_PARAMS,
         commit: COMMIT_SHA,
         path: 'assets/logo.png',
@@ -715,7 +720,7 @@ describe('Bitbucket source tools', () => {
     )
 
     await expect(
-      bitbucketGetFileTool.directExecution!({
+      executeBitbucketGetFileOperation({
         ...REPOSITORY_PARAMS,
         commit: COMMIT_SHA,
         path: 'src',
@@ -726,7 +731,7 @@ describe('Bitbucket source tools', () => {
 
   it('validates maxCharacters before the metadata preflight', async () => {
     await expect(
-      bitbucketGetFileTool.directExecution!({
+      executeBitbucketGetFileOperation({
         ...REPOSITORY_PARAMS,
         commit: COMMIT_SHA,
         path: 'README.md',
@@ -735,7 +740,7 @@ describe('Bitbucket source tools', () => {
     ).rejects.toThrow(/maxCharacters must be an integer between 1 and 500000/)
     expect(serverMocks.secureBitbucketRead).not.toHaveBeenCalled()
     await expect(
-      bitbucketGetFileTool.directExecution!({
+      executeBitbucketGetFileOperation({
         ...REPOSITORY_PARAMS,
         commit: 'main',
         path: 'README.md',
@@ -770,7 +775,7 @@ describe('Bitbucket source tools', () => {
       maxCharacters: 4,
     } satisfies BitbucketGetFileParams
 
-    const result = await bitbucketGetFileTool.directExecution!(params)
+    const result = await executeBitbucketGetFileOperation(params)
 
     expect(result).toEqual({
       success: true,
@@ -813,7 +818,7 @@ describe('Bitbucket source tools', () => {
         })
       )
 
-    const result = await bitbucketGetFileTool.directExecution!({
+    const result = await executeBitbucketGetFileOperation({
       ...REPOSITORY_PARAMS,
       commit: COMMIT_SHA,
       path: 'unknown.bin',
@@ -828,15 +833,9 @@ describe('Bitbucket source tools', () => {
     })
   })
 
-  it('uses the normal HTTP path only as a guarded executor fallback', async () => {
-    expect(bitbucketGetFileTool.request.stripAuthOnRedirect).toBe(true)
-    await expect(
-      bitbucketGetFileTool.transformResponse!(new Response('content'), {
-        ...REPOSITORY_PARAMS,
-        commit: COMMIT_SHA,
-        path: 'README.md',
-      })
-    ).rejects.toThrow(/metadata preflight direct execution path/)
+  it('uses only the registered operation path', () => {
+    expect(bitbucketGetFileTool.operation).toBeDefined()
+    expect('request' in bitbucketGetFileTool).toBe(false)
   })
 
   it('builds the list-commits endpoint with its opaque cursor bound', () => {

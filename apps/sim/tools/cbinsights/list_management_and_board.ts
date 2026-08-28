@@ -1,18 +1,12 @@
 import type { CbInsightsOrgListParams, CbInsightsOrgListResponse } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  cbInsightsRequest,
-  compactBody,
-  parseIdListParam,
-  requireOrgIds,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsListManagementAndBoardParams extends CbInsightsOrgListParams {
+export interface CbInsightsListManagementAndBoardParams extends CbInsightsOrgListParams {
   titleIds?: number[] | string
 }
 
-export const cbinsightsListManagementAndBoardTool: ToolConfig<
+export const cbinsightsListManagementAndBoardTool: InternalToolConfig<
   CbInsightsListManagementAndBoardParams,
   CbInsightsOrgListResponse
 > = {
@@ -49,21 +43,9 @@ export const cbinsightsListManagementAndBoardTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) =>
-    cbInsightsRequest<{ orgs?: unknown }>(
-      params,
-      {
-        path: '/v2/managementandboard',
-        body: compactBody({
-          orgIds: requireOrgIds(params.orgIds),
-          titleIds: parseIdListParam(params.titleIds, 'titleIds'),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs) }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
 
   outputs: {
     orgs: {

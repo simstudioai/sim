@@ -1,8 +1,8 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asRecord, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetOrgOutlookTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetOrgOutlookTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
   id: 'cbinsights_get_org_outlook',
   name: 'CB Insights Get Organization Outlook',
   description:
@@ -31,24 +31,8 @@ export const cbinsightsGetOrgOutlookTool: ToolConfig<CbInsightsOrgParams, ToolRe
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      mosaicScore?: unknown
-      commercialMaturity?: unknown
-      exitProbability?: unknown
-    }>(
-      params,
-      { path: `/v2/organizations/${orgId}/outlook` },
-      (data) => ({
-        mosaicScore: asRecord(data.mosaicScore),
-        commercialMaturity: asRecord(data.commercialMaturity),
-        exitProbability: asRecord(data.exitProbability),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

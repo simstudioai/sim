@@ -13,7 +13,6 @@ describe('Function Execute Tool', () => {
   it('declares an in-process operation without HTTP-shaped configuration', () => {
     expect(functionExecuteTool.operation).toBeDefined()
     expect('request' in functionExecuteTool).toBe(false)
-    expect('directExecution' in functionExecuteTool).toBe(false)
   })
 
   it('materializes the canonical operation input', () => {
