@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  forEachSearchOccurrence,
   formatQuotedNameList,
   isVersionedType,
   normalizeEmail,
@@ -203,5 +204,45 @@ describe('projectEscapedMarkdownForSearch', () => {
       expect(source.slice(starts[i], starts[i + 1]).endsWith(text[i])).toBe(true)
     }
     expect(starts[text.length]).toBe(source.length)
+  })
+})
+
+describe('forEachSearchOccurrence', () => {
+  const spans = (text: string, query: string, caseSensitive?: boolean) => {
+    const found: string[] = []
+    forEachSearchOccurrence(
+      text,
+      query,
+      (start, end) => found.push(text.slice(start, end)),
+      caseSensitive
+    )
+    return found
+  }
+
+  it('visits every non-overlapping occurrence, case-insensitively by default', () => {
+    expect(spans('Ab ab AB', 'ab')).toEqual(['Ab', 'ab', 'AB'])
+    expect(spans('aaaa', 'aa')).toEqual(['aa', 'aa'])
+    expect(spans('Ab', 'ab', true)).toEqual([])
+  })
+
+  it('folds whitespace so a typed space matches a non-breaking one', () => {
+    expect(spans('a\u00a0b', 'a b')).toEqual(['a\u00a0b'])
+  })
+
+  it('visits nothing for an empty query', () => {
+    expect(spans('abc', '')).toEqual([])
+  })
+
+  it('keeps context-sensitive lowercasing in the length-preserving fallback', () => {
+    // '\u0130' expands, so the whole-string fast path is unavailable. Folding the rest character by
+    // character would lowercase the word-final '\u03a3' to '\u03c3' instead of '\u03c2', making one
+    // unrelated code point change how every sigma in the string matches.
+    expect(spans('\u0130\u03a3', '\u0130\u03c2')).toEqual(['\u0130\u03a3'])
+  })
+
+  it('reports bounds into the caller\u2019s own string after a length-changing lowercase', () => {
+    // '\u0130'.toLowerCase() is TWO characters. A plain lowercase would slide every later index by
+    // one, so the caller would slice the wrong span out of the string it passed in.
+    expect(spans('\u0130xyz target', 'target')).toEqual(['target'])
   })
 })
