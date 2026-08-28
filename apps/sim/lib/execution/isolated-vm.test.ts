@@ -185,6 +185,7 @@ const { mockSpawn, mockExecSync, mockEnv } = vi.hoisted(() => ({
     IVM_MAX_OWNER_WEIGHT: '5',
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_LEASE_REDIS_DEADLINE_MS: '1000',
     IVM_QUEUE_TIMEOUT_MS: '1000',
     IVM_MAX_FETCH_RESPONSE_BYTES: '',
     IVM_MAX_FETCH_RESPONSE_CHARS: '',
@@ -246,6 +247,7 @@ async function loadExecutionModule(options: {
     IVM_MAX_OWNER_WEIGHT: '5',
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_LEASE_REDIS_DEADLINE_MS: '1000',
     IVM_QUEUE_TIMEOUT_MS: '1000',
     IVM_MAX_FETCH_RESPONSE_BYTES: '',
     IVM_MAX_FETCH_RESPONSE_CHARS: '',
@@ -497,6 +499,7 @@ describe('isolated-vm scheduler', () => {
     })
 
     expect(result.error?.message).toContain('Too many concurrent')
+    expect(result.result).toBeNull()
   })
 
   it('falls back to local limits when no Redis client is available', async () => {
@@ -649,36 +652,6 @@ describe('isolated-vm scheduler', () => {
     })
 
     expect(result.error?.message).toContain('Too many concurrent')
-  })
-
-  it('still rejects when Redis answers that the owner is over its lease limit', async () => {
-    const { executeInIsolatedVM } = await loadExecutionModule({
-      envOverrides: {
-        IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
-        REDIS_URL: 'redis://localhost:6379',
-      },
-      spawns: [() => createReadyProc('ok')],
-      redisEvalImpl: (...args: unknown[]) => {
-        const script = String(args[0] ?? '')
-        if (script.includes('ZREMRANGEBYSCORE')) {
-          return 0
-        }
-        return 1
-      },
-    })
-
-    const result = await executeInIsolatedVM({
-      code: 'return "ok"',
-      params: {},
-      envVars: {},
-      contextVariables: {},
-      timeoutMs: 100,
-      requestId: 'req-10',
-      ownerKey: 'user:over-limit',
-    })
-
-    expect(result.error?.message).toContain('Too many concurrent')
-    expect(result.result).toBeNull()
   })
 
   it('reports cancellation when abort races a rejected distributed lease', async () => {
