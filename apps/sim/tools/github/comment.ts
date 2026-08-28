@@ -1,10 +1,40 @@
 import { isRecordLike } from '@sim/utils/object'
-import { readGitHubErrorMessage } from '@/tools/github/response-parsers'
+import { formatGitHubErrorMessage } from '@/tools/github/response-parsers'
 import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
 const GITHUB_API_BASE = 'https://api.github.com'
+
+/** Body GitHub accepts on `POST /pulls/{n}/reviews`. */
+interface ReviewCommentBody {
+  body: string
+  event: 'COMMENT'
+}
+
+/** Body GitHub accepts on `POST /pulls/{n}/comments`. */
+interface FileCommentBody {
+  body: string
+  commit_id: string | undefined
+  path: string | undefined
+  line: number | undefined
+  side: string
+}
+
+/** The subset of a GitHub comment payload this tool reports. */
+interface GitHubCommentPayload {
+  id?: number
+  body?: string
+  html_url?: string
+  user?: unknown
+  path?: string
+  line?: number
+  position?: number
+  side?: string
+  commit_id?: string
+  created_at?: string
+  updated_at?: string
+}
 
 function githubHeaders(apiKey: string): Record<string, string> {
   return {
@@ -44,7 +74,10 @@ function toLineNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
 }
 
-function fileCommentBody(params: CreateCommentParams, commitId: string): Record<string, any> {
+function fileCommentBody(
+  params: CreateCommentParams,
+  commitId: string | undefined
+): FileCommentBody {
   return {
     body: params.body,
     commit_id: commitId,
@@ -54,45 +87,119 @@ function fileCommentBody(params: CreateCommentParams, commitId: string): Record<
   }
 }
 
+/**
+ * The endpoint the comment itself is posted to. `path` selects the review-comment
+ * endpoint; everything else lands on the reviews endpoint, where GitHub creates a
+ * pending review whose `commit_id` is optional.
+ */
+function commentEndpointUrl(params: CreateCommentParams): string {
+  return params.path ? `${pullRequestUrl(params)}/comments` : `${pullRequestUrl(params)}/reviews`
+}
+
+function commentRequestBody(
+  params: CreateCommentParams,
+  commitId: string | undefined
+): FileCommentBody | ReviewCommentBody {
+  if (params.commentType === 'file_comment') return fileCommentBody(params, commitId)
+  return { body: params.body, event: 'COMMENT' }
+}
+
 function readHeadSha(pullRequest: unknown): string | undefined {
   if (!isRecordLike(pullRequest) || !isRecordLike(pullRequest.head)) return undefined
   const sha = pullRequest.head.sha
   return typeof sha === 'string' && sha ? sha : undefined
 }
 
-/**
- * Returns the raw GitHub comment payload. For a file comment created without an
- * explicit `commitId`, `response` holds the pull request lookup instead: its head
- * SHA is read and the comment is posted in a follow-up request.
- */
-async function readCommentPayload(
-  response: Response,
-  params?: CreateCommentParams
-): Promise<Record<string, any>> {
-  if (!params || !needsCommitLookup(params)) return response.json()
-
-  const commitId = readHeadSha(await response.json())
-  if (!commitId) {
-    throw new Error(
-      `GitHub returned no head commit SHA for pull request ${params.owner}/${params.repo}#${params.pullNumber}. Set commitId to comment on a specific commit.`
-    )
-  }
-
-  const commentResponse = await fetch(`${pullRequestUrl(params)}/comments`, {
-    method: 'POST',
-    headers: { ...githubHeaders(params.apiKey), 'Content-Type': 'application/json' },
-    body: JSON.stringify(fileCommentBody(params, commitId)),
-  })
-
-  if (!commentResponse.ok) {
-    throw new Error(
-      (await readGitHubErrorMessage(commentResponse)) ??
-        `Failed to create file comment (HTTP ${commentResponse.status})`
-    )
-  }
-
-  return commentResponse.json()
+function readString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
 }
+
+function readNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key]
+  return typeof value === 'number' ? value : undefined
+}
+
+function readCommentPayload(value: unknown): GitHubCommentPayload {
+  if (!isRecordLike(value)) return {}
+  return {
+    id: readNumber(value, 'id'),
+    body: readString(value, 'body'),
+    html_url: readString(value, 'html_url'),
+    user: value.user,
+    path: readString(value, 'path'),
+    line: readNumber(value, 'line'),
+    position: readNumber(value, 'position'),
+    side: readString(value, 'side'),
+    commit_id: readString(value, 'commit_id'),
+    created_at: readString(value, 'created_at'),
+    updated_at: readString(value, 'updated_at'),
+  }
+}
+
+/**
+ * Projects a failed GitHub response the way the tool transport does: the thrown error
+ * carries `status`, `statusText`, and the parsed body on `data`, so callers that branch
+ * on a status (a 404 treated as a clean no-match, for one) keep working off this path.
+ */
+async function assertGitHubResponseOk(response: Response, fallback: string): Promise<void> {
+  if (response.ok) return
+
+  const text = await response.text().catch(() => '')
+  let data: unknown = text
+  try {
+    data = JSON.parse(text)
+  } catch {
+    data = text
+  }
+
+  const error = new Error(formatGitHubErrorMessage(data) ?? `${fallback} (HTTP ${response.status})`)
+  Object.assign(error, { status: response.status, statusText: response.statusText, data })
+  throw error
+}
+
+/**
+ * Creates the comment, resolving the pull request head SHA first when a file comment
+ * needs one. Both requests run on the DNS-validated, IP-pinned GitHub transport and
+ * carry the execution's abort signal, so cancelling a workflow cancels the POST.
+ */
+async function createComment(
+  params: CreateCommentParams,
+  signal?: AbortSignal
+): Promise<GitHubCommentPayload> {
+  const { secureGitHubRequest } = await import('@/tools/github/utils.server')
+  const headers = githubHeaders(params.apiKey)
+
+  let commitId = params.commitId
+  if (needsCommitLookup(params)) {
+    const pullRequestResponse = await secureGitHubRequest(pullRequestUrl(params), {
+      headers,
+      signal,
+    })
+    await assertGitHubResponseOk(
+      pullRequestResponse,
+      `Failed to load pull request ${params.owner}/${params.repo}#${params.pullNumber}`
+    )
+    commitId = readHeadSha(await pullRequestResponse.json())
+    if (!commitId) {
+      throw new Error(
+        `GitHub returned no head commit SHA for pull request ${params.owner}/${params.repo}#${params.pullNumber}. Set commitId to comment on a specific commit.`
+      )
+    }
+  }
+
+  const response = await secureGitHubRequest(commentEndpointUrl(params), {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(commentRequestBody(params, commitId)),
+    signal,
+  })
+  await assertGitHubResponseOk(response, 'Failed to create comment')
+
+  return readCommentPayload(await response.json())
+}
+
+const DIRECT_EXECUTION_ONLY_ERROR = 'GitHub comments require the two-phase direct execution path'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
   id: 'github_comment',
@@ -164,42 +271,13 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     },
   },
 
-  request: {
-    url: (params) => {
-      if (needsCommitLookup(params)) {
-        return pullRequestUrl(params)
-      }
-      if (params.path) {
-        return `${pullRequestUrl(params)}/comments`
-      }
-      return `${pullRequestUrl(params)}/reviews`
-    },
-    method: (params) => (needsCommitLookup(params) ? 'GET' : 'POST'),
-    headers: (params) => githubHeaders(params.apiKey),
-    body: (params) => {
-      if (needsCommitLookup(params)) {
-        return undefined
-      }
-      if (params.commentType === 'file_comment') {
-        return fileCommentBody(params, params.commitId as string)
-      }
-      return {
-        body: params.body,
-        event: 'COMMENT',
-      }
-    },
-  },
-
-  transformResponse: async (response, params) => {
-    const data = await readCommentPayload(response, params)
-
-    // Create a human-readable content string
-    const content = `Comment created: "${data.body}"`
+  directExecution: async (params, signal) => {
+    const data = await createComment(params, signal)
 
     return {
       success: true,
       output: {
-        content,
+        content: `Comment created: "${data.body}"`,
         metadata: {
           id: data.id,
           html_url: data.html_url,
@@ -212,6 +290,27 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
         },
       },
     }
+  },
+
+  request: {
+    url: (params) => {
+      if (needsCommitLookup(params)) {
+        return pullRequestUrl(params)
+      }
+      return commentEndpointUrl(params)
+    },
+    method: (params) => (needsCommitLookup(params) ? 'GET' : 'POST'),
+    headers: (params) => githubHeaders(params.apiKey),
+    body: (params) => {
+      if (needsCommitLookup(params)) {
+        return undefined
+      }
+      return commentRequestBody(params, params.commitId)
+    },
+  },
+
+  transformResponse: async () => {
+    throw new Error(DIRECT_EXECUTION_ONLY_ERROR)
   },
 
   outputs: {
@@ -230,8 +329,8 @@ export const commentV2Tool: ToolConfig<CreateCommentParams> = {
   version: '2.0.0',
   params: commentTool.params,
   request: commentTool.request,
-  transformResponse: async (response: Response, params?: CreateCommentParams) => {
-    const data = await readCommentPayload(response, params)
+  directExecution: async (params, signal) => {
+    const data = await createComment(params, signal)
     return {
       success: true,
       output: {
@@ -247,6 +346,9 @@ export const commentV2Tool: ToolConfig<CreateCommentParams> = {
         updated_at: data.updated_at,
       },
     }
+  },
+  transformResponse: async () => {
+    throw new Error(DIRECT_EXECUTION_ONLY_ERROR)
   },
   outputs: {
     ...COMMENT_OUTPUT_PROPERTIES,

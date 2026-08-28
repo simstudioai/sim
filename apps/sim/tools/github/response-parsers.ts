@@ -158,17 +158,21 @@ function readGitHubErrorEntry(entry: unknown): string | undefined {
  * can tell which input was rejected. Responses without an `errors[]` array, and
  * responses without a top-level `message` at all, are unchanged.
  */
+export function formatGitHubErrorMessage(value: unknown): string | undefined {
+  if (!isRecordLike(value)) return undefined
+  const message = value.message
+  if (typeof message !== 'string' || !message.trim()) return undefined
+  if (!Array.isArray(value.errors)) return message
+  const details = value.errors
+    .map(readGitHubErrorEntry)
+    .filter((detail): detail is string => Boolean(detail))
+  return details.length ? `${message}: ${details.join('; ')}` : message
+}
+
+/** Reads a failed GitHub response body and renders it with {@link formatGitHubErrorMessage}. */
 export async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
   try {
-    const value: unknown = await response.json()
-    if (!isRecordLike(value)) return undefined
-    const message = value.message
-    if (typeof message !== 'string' || !message.trim()) return undefined
-    if (!Array.isArray(value.errors)) return message
-    const details = value.errors
-      .map(readGitHubErrorEntry)
-      .filter((detail): detail is string => Boolean(detail))
-    return details.length ? `${message}: ${details.join('; ')}` : message
+    return formatGitHubErrorMessage(await response.json())
   } catch {
     return undefined
   }
