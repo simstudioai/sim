@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, desc, eq } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
@@ -20,13 +21,14 @@ import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
-import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
-  getMicrosoftRefreshTokenExpiry,
-  isMicrosoftProvider,
-  PROACTIVE_REFRESH_THRESHOLD_DAYS,
-} from '@/lib/oauth/microsoft'
+  type DecryptedAccount,
+  decryptAccountTokenColumns,
+  encryptAccountTokenColumns,
+} from '@/lib/oauth/account-tokens'
+import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { decideTokenRefresh } from '@/lib/oauth/refresh-policy'
 import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
@@ -645,6 +647,50 @@ export async function resolveServiceAccountToken(
 }
 
 /**
+ * Everything a credential consumer needs, and nothing else — notably not `password`, which
+ * a bare `select()` would carry into every object built from one of these rows.
+ */
+const OAUTH_CREDENTIAL_COLUMNS = {
+  id: account.id,
+  userId: account.userId,
+  providerId: account.providerId,
+  accountId: account.accountId,
+  scope: account.scope,
+  accessToken: account.accessToken,
+  refreshToken: account.refreshToken,
+  idToken: account.idToken,
+  accessTokenExpiresAt: account.accessTokenExpiresAt,
+  refreshTokenExpiresAt: account.refreshTokenExpiresAt,
+  updatedAt: account.updatedAt,
+} as const
+
+/**
+ * Finds the account row a provider's external identity maps to, projecting only its id.
+ *
+ * The connect flows that bypass Better Auth (Shopify, Instagram, Trello) each need this
+ * before deciding between update and insert, and again to resolve the persisted row. They
+ * must not select the whole row: that pulls the encrypted token columns for no reason.
+ */
+export async function findAccountIdByProviderAccount(params: {
+  userId: string
+  providerId: string
+  externalAccountId: string
+}): Promise<{ id: string } | undefined> {
+  const [row] = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(
+      and(
+        eq(account.userId, params.userId),
+        eq(account.providerId, params.providerId),
+        eq(account.accountId, params.externalAccountId)
+      )
+    )
+    .limit(1)
+  return row
+}
+
+/**
  * Safely inserts an account record, handling duplicate constraint violations gracefully.
  * If a duplicate is detected (unique constraint violation), logs a warning and returns success.
  */
@@ -653,7 +699,7 @@ export async function safeAccountInsert(
   context: { provider: string; identifier?: string }
 ): Promise<void> {
   try {
-    await db.insert(account).values(data)
+    await db.insert(account).values(await encryptAccountTokenColumns(data))
     logger.info(`Created new ${context.provider} account for user`, { userId: data.userId })
   } catch (error: any) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -668,22 +714,87 @@ export async function safeAccountInsert(
 }
 
 /**
+ * The single write path for the connect flows that bypass Better Auth — Shopify, Instagram
+ * and Trello, which mint tokens themselves rather than going through an OAuth callback the
+ * `databaseHooks` can intercept.
+ *
+ * Routing them through here is what keeps encryption from being something each new provider
+ * has to remember: `scripts/check-account-token-access.ts` refuses a direct
+ * `db.insert(account)` / `db.update(account)` outside this module, so the next connect flow
+ * cannot quietly store a plaintext token.
+ */
+export async function upsertProviderAccountTokens(params: {
+  userId: string
+  providerId: string
+  externalAccountId: string
+  scope: string
+  tokens: { accessToken: string; refreshToken?: string; idToken?: string }
+  accessTokenExpiresAt?: Date
+  /** Human-readable identifier for log lines, when the external id is not recognisable. */
+  logIdentifier?: string
+}): Promise<{ accountId: string }> {
+  const { userId, providerId, externalAccountId, scope, tokens, accessTokenExpiresAt } = params
+  const identifier = params.logIdentifier ?? externalAccountId
+  const now = new Date()
+  const existing = await findAccountIdByProviderAccount({ userId, providerId, externalAccountId })
+
+  if (existing) {
+    await db
+      .update(account)
+      .set({
+        ...(await encryptAccountTokenColumns(tokens)),
+        accountId: externalAccountId,
+        scope,
+        ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
+        updatedAt: now,
+      })
+      .where(eq(account.id, existing.id))
+    logger.info(`Updated existing ${providerId} account`, { accountId: existing.id, identifier })
+    return { accountId: existing.id }
+  }
+
+  await safeAccountInsert(
+    {
+      id: generateId(),
+      userId,
+      providerId,
+      accountId: externalAccountId,
+      scope,
+      ...tokens,
+      ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
+      createdAt: now,
+      updatedAt: now,
+    },
+    { provider: providerId, identifier }
+  )
+
+  /** `safeAccountInsert` swallows a duplicate-key race, so the row may be someone else's insert. */
+  const persisted = await findAccountIdByProviderAccount({ userId, providerId, externalAccountId })
+  if (!persisted) {
+    throw new Error(`${providerId} OAuth account ${externalAccountId} was not persisted`)
+  }
+  return { accountId: persisted.id }
+}
+
+/**
  * Get a credential by resolved account ID and verify it belongs to the user.
  */
 async function getCredentialByAccountId(requestId: string, accountId: string, userId: string) {
-  const credentials = await db
-    .select()
+  const rows = await db
+    .select(OAUTH_CREDENTIAL_COLUMNS)
     .from(account)
     .where(and(eq(account.id, accountId), eq(account.userId, userId)))
     .limit(1)
 
-  if (!credentials.length) {
+  if (!rows.length) {
     logger.warn(`[${requestId}] Credential not found`)
     return undefined
   }
 
+  const credential = await decryptAccountTokenColumns(rows[0])
+
   return {
-    ...credentials[0],
+    ...credential,
     resolvedCredentialId: accountId,
   }
 }
@@ -836,13 +947,23 @@ async function performCoalescedRefresh({
               { ifChainUnchangedSince: slackChainVersion ?? undefined }
             )
           } else {
+            /**
+             * Compare plaintext to plaintext. If either side became ciphertext they would
+             * never match, so every refresh would write and perturb `updated_at` — which
+             * Slack's fan-out guard and Instagram's minimum-token-age gate both read.
+             */
+            const rotatedRefreshToken =
+              result.refreshToken && result.refreshToken !== refreshToken
+                ? result.refreshToken
+                : undefined
+
             const updateData: Record<string, unknown> = {
-              accessToken: result.accessToken,
+              ...(await encryptAccountTokenColumns({
+                accessToken: result.accessToken,
+                ...(rotatedRefreshToken ? { refreshToken: rotatedRefreshToken } : {}),
+              })),
               accessTokenExpiresAt,
               updatedAt: new Date(),
-            }
-            if (result.refreshToken && result.refreshToken !== refreshToken) {
-              updateData.refreshToken = result.refreshToken
             }
             if (isMicrosoftProvider(providerId)) {
               updateData.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
@@ -863,7 +984,7 @@ async function performCoalescedRefresh({
       },
       onFollower: async () => {
         try {
-          const [row] = await db
+          const [stored] = await db
             .select({
               accessToken: account.accessToken,
               accessTokenExpiresAt: account.accessTokenExpiresAt,
@@ -871,8 +992,12 @@ async function performCoalescedRefresh({
             .from(account)
             .where(eq(account.id, accountId))
             .limit(1)
+          if (!stored) return null
+
+          /** The leader may have written ciphertext while this follower polled. */
+          const row = await decryptAccountTokenColumns(stored)
           if (
-            row?.accessToken &&
+            row.accessToken &&
             row.accessTokenExpiresAt &&
             row.accessTokenExpiresAt > new Date()
           ) {
@@ -910,8 +1035,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       accessTokenExpiresAt: account.accessTokenExpiresAt,
-      idToken: account.idToken,
-      scope: account.scope,
+      refreshTokenExpiresAt: account.refreshTokenExpiresAt,
       updatedAt: account.updatedAt,
     })
     .from(account)
@@ -924,24 +1048,18 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     return null
   }
 
-  const credential = connections[0]
+  const credential = await decryptAccountTokenColumns(connections[0])
 
-  // Determine whether we should refresh: missing/expired token, or Instagram
-  // long-lived token nearing expiry (Meta cannot refresh after expiry).
-  const now = new Date()
-  const tokenExpiry = credential.accessTokenExpiresAt
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt: credential.accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
-    })
+  const decision = decideTokenRefresh({
+    providerId,
+    hasAccessToken: !!credential.accessToken,
+    hasRefreshToken: !!credential.refreshToken,
+    accessTokenExpiresAt: credential.accessTokenExpiresAt,
+    refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
+    updatedAt: credential.updatedAt,
+  })
 
-  if (accessTokenNeedsRefresh || instagramNeedsProactiveRefresh) {
+  if (decision.shouldRefresh) {
     const fresh = await performCoalescedRefresh({
       accountId: credential.id,
       providerId,
@@ -950,7 +1068,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       userId,
     })
     if (fresh) return fresh
-    if (!accessTokenNeedsRefresh && credential.accessToken) {
+    if (!decision.accessTokenRequired && credential.accessToken) {
       return credential.accessToken
     }
     return null
@@ -1005,72 +1123,15 @@ export async function resolveCredentialAccessToken(
     return null
   }
 
-  // Decide if we should refresh: token missing OR expired
-  const accessTokenExpiresAt = credential.accessTokenExpiresAt
-  const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
-  const now = new Date()
-
-  // Check if access token needs refresh (missing or expired)
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
-
-  // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
-  const proactiveRefreshThreshold = new Date(
-    now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
-  )
-  const refreshTokenNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
-    refreshTokenExpiresAt &&
-    refreshTokenExpiresAt <= proactiveRefreshThreshold
-
-  // Instagram long-lived tokens can only be refreshed while still valid.
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(credential.providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
+  try {
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
+    return { accessToken }
+  } catch (error) {
+    logger.error(`[${requestId}] Could not resolve an access token for credential`, {
+      error: toError(error).message,
     })
-
-  const shouldRefresh =
-    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
-
-  const accessToken = credential.accessToken
-
-  if (shouldRefresh) {
-    const resolvedCredentialId =
-      (credential as { resolvedCredentialId?: string }).resolvedCredentialId ?? credentialId
-
-    const fresh = await performCoalescedRefresh({
-      accountId: resolvedCredentialId,
-      providerId: credential.providerId,
-      refreshToken: credential.refreshToken!,
-      providerAccountId: credential.accountId,
-      requestId,
-      userId: credential.userId,
-    })
-    if (fresh) return { accessToken: fresh }
-
-    // If refresh was only triggered proactively (Microsoft refresh-token aging /
-    // Instagram long-lived nearing expiry), the still-valid access token is fine.
-    if (!accessTokenNeedsRefresh && accessToken) {
-      logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
-      return { accessToken }
-    }
     return null
   }
-  if (!accessToken) {
-    // We have no access token and either no refresh token or not eligible to refresh
-    logger.error(`[${requestId}] Missing access token for credential`)
-    return null
-  }
-
-  logger.info(`[${requestId}] Access token is valid for credential`)
-  return { accessToken }
 }
 
 /**
@@ -1100,52 +1161,73 @@ export async function refreshAccessTokenIfNeeded(
   return result?.accessToken ?? null
 }
 
+/** A loaded `account` row whose tokens are already decrypted. The brand rejects a raw row. */
+export type LoadedOAuthCredential = DecryptedAccount<{
+  providerId: string
+  accountId: string
+  userId: string
+  accessToken: string | null
+  refreshToken: string | null
+  idToken: string | null
+  accessTokenExpiresAt: Date | null
+  refreshTokenExpiresAt: Date | null
+  updatedAt: Date
+  resolvedCredentialId?: string
+}>
+
+/** Loads an account row, decrypts it, and resolves its access token per the shared policy. */
+export async function resolveAccessTokenForAccount(
+  requestId: string,
+  accountId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select(OAUTH_CREDENTIAL_COLUMNS)
+    .from(account)
+    .where(eq(account.id, accountId))
+    .limit(1)
+  if (!row) {
+    logger.warn(`[${requestId}] Account not found`, { accountId })
+    return null
+  }
+
+  const credential = await decryptAccountTokenColumns(row)
+  try {
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, accountId)
+    return accessToken
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to resolve access token`, {
+      accountId,
+      error: toError(error).message,
+    })
+    return null
+  }
+}
+
 /**
- * Enhanced version that returns additional information about the refresh operation
+ * Refreshes if the shared policy says so, reporting whether it did. See
+ * {@link resolveAccessTokenForAccount} when you only have an account id.
  */
 export async function refreshTokenIfNeeded(
   requestId: string,
-  credential: any,
+  credential: LoadedOAuthCredential,
   credentialId: string
 ): Promise<{ accessToken: string; refreshed: boolean }> {
   const resolvedCredentialId = credential.resolvedCredentialId ?? credentialId
 
-  // Decide if we should refresh: token missing OR expired
-  const accessTokenExpiresAt = credential.accessTokenExpiresAt
-  const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
-  const now = new Date()
+  const decision = decideTokenRefresh({
+    providerId: credential.providerId,
+    hasAccessToken: !!credential.accessToken,
+    hasRefreshToken: !!credential.refreshToken,
+    accessTokenExpiresAt: credential.accessTokenExpiresAt,
+    refreshTokenExpiresAt: credential.refreshTokenExpiresAt,
+    updatedAt: credential.updatedAt,
+  })
 
-  // Check if access token needs refresh (missing or expired)
-  const accessTokenNeedsRefresh =
-    !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
-
-  // Check if we should proactively refresh to prevent refresh token expiry
-  // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
-  const proactiveRefreshThreshold = new Date(
-    now.getTime() + PROACTIVE_REFRESH_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
-  )
-  const refreshTokenNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isMicrosoftProvider(credential.providerId) &&
-    refreshTokenExpiresAt &&
-    refreshTokenExpiresAt <= proactiveRefreshThreshold
-
-  // Instagram long-lived tokens can only be refreshed while still valid.
-  const instagramNeedsProactiveRefresh =
-    !!credential.refreshToken &&
-    isInstagramProvider(credential.providerId) &&
-    shouldProactivelyRefreshInstagramToken({
-      accessTokenExpiresAt,
-      updatedAt: credential.updatedAt,
-      now,
-    })
-
-  const shouldRefresh =
-    accessTokenNeedsRefresh || refreshTokenNeedsProactiveRefresh || instagramNeedsProactiveRefresh
-
-  // If token appears valid and present, return it directly
-  if (!shouldRefresh) {
+  if (!decision.shouldRefresh) {
+    /** Previously returned `{ accessToken: null }` — the parameter was `any` — and callers passed it to a provider. */
+    if (!credential.accessToken) {
+      throw new Error('Credential has no access token and cannot be refreshed')
+    }
     logger.info(`[${requestId}] Access token is valid`)
     return { accessToken: credential.accessToken, refreshed: false }
   }
@@ -1160,7 +1242,7 @@ export async function refreshTokenIfNeeded(
   })
   if (fresh) return { accessToken: fresh, refreshed: true }
 
-  if (!accessTokenNeedsRefresh && credential.accessToken) {
+  if (!decision.accessTokenRequired && credential.accessToken) {
     logger.info(`[${requestId}] Refresh unavailable; reusing still-valid access token`)
     return { accessToken: credential.accessToken, refreshed: false }
   }

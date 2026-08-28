@@ -71,6 +71,17 @@ function isBlockedSsoMutationPath(path: string): boolean {
   return path.startsWith('sso/') && !path.startsWith(SAML_PROTOCOL_POST_PREFIX)
 }
 
+/**
+ * Better Auth's own account-token endpoints read `account` through the adapter with no
+ * `databaseHooks` pass, so they would return the stored column verbatim — ciphertext.
+ * Nothing here calls them; token reads go through `@/lib/oauth/credential-service`.
+ */
+const BLOCKED_ACCOUNT_TOKEN_POST_PATHS = new Set(['get-access-token', 'refresh-token'])
+
+function isBlockedAccountTokenPath(path: string): boolean {
+  return BLOCKED_ACCOUNT_TOKEN_POST_PATHS.has(path)
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const path = getAuthPath(request)
   const credentialGroupProviderId = getCredentialGroupCallbackProviderId(request, path)
@@ -122,6 +133,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBlockedSsoMutationPath(path)) {
     return NextResponse.json(
       { error: 'SSO provider mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  if (isBlockedAccountTokenPath(path)) {
+    return NextResponse.json(
+      { error: 'Account token access is handled by application API routes.' },
       { status: 404 }
     )
   }

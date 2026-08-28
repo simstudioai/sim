@@ -1,10 +1,6 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { safeAccountInsert } from '@/lib/oauth/credential-service'
+import { upsertProviderAccountTokens } from '@/lib/oauth/credential-service'
 import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const logger = createLogger('ShopifyOAuth')
@@ -54,61 +50,21 @@ export async function completeShopifyOAuthConnection(
   }
 
   const stableAccountId = getShopifyAccountId(await shopResponse.json())
-  const existing = await db.query.account.findFirst({
-    where: and(
-      eq(account.userId, params.userId),
-      eq(account.providerId, 'shopify'),
-      eq(account.accountId, stableAccountId)
-    ),
-  })
 
-  const now = new Date()
-  const accountData = {
-    accessToken: params.accessToken,
-    accountId: stableAccountId,
+  const { accountId } = await upsertProviderAccountTokens({
+    userId: params.userId,
+    providerId: 'shopify',
+    externalAccountId: stableAccountId,
     scope: params.scope ?? '',
-    updatedAt: now,
-    idToken: params.shopDomain,
-  }
-
-  if (existing) {
-    await db.update(account).set(accountData).where(eq(account.id, existing.id))
-    logger.info('Updated existing Shopify account', { accountId: existing.id })
-  } else {
-    await safeAccountInsert(
-      {
-        id: generateId(),
-        userId: params.userId,
-        providerId: 'shopify',
-        accountId: accountData.accountId,
-        accessToken: accountData.accessToken,
-        scope: accountData.scope,
-        idToken: accountData.idToken,
-        createdAt: now,
-        updatedAt: now,
-      },
-      { provider: 'Shopify', identifier: params.shopDomain }
-    )
-  }
-
-  const persisted =
-    existing ??
-    (await db.query.account.findFirst({
-      where: and(
-        eq(account.userId, params.userId),
-        eq(account.providerId, 'shopify'),
-        eq(account.accountId, stableAccountId)
-      ),
-    }))
-
-  if (!persisted) {
-    throw new Error(`Shopify OAuth account ${stableAccountId} was not persisted`)
-  }
+    /** Shopify has no refresh token; `idToken` carries the shop domain, not a JWT. */
+    tokens: { accessToken: params.accessToken, idToken: params.shopDomain },
+    logIdentifier: params.shopDomain,
+  })
 
   await processCredentialDraft({
     draftId: params.draftId,
     userId: params.userId,
     providerId: 'shopify',
-    accountId: persisted.id,
+    accountId,
   })
 }

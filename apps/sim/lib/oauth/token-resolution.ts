@@ -9,6 +9,7 @@ import type { AuthResult } from '@/lib/auth/hybrid'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getCredential,
+  type LoadedOAuthCredential,
   type ResolvedCredential,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
@@ -125,7 +126,12 @@ function buildOAuthTokenPayload(
  */
 export async function completeOAuthCredentialToken(params: {
   requestId: string
-  credential: { providerId: string; scope?: string | null; idToken?: string | null }
+  /**
+   * The decrypted row from `getCredential`. Previously declared as a narrow
+   * `{ providerId, scope?, idToken? }`, which only type-checked because
+   * `refreshTokenIfNeeded` took `any` — every caller has always passed the full row.
+   */
+  credential: LoadedOAuthCredential & { scope?: string | null }
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null

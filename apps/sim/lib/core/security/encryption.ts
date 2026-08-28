@@ -6,12 +6,24 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('Encryption')
 
-function getEncryptionKey(): Buffer {
+/**
+ * Whether `ENCRYPTION_KEY` is usable, without throwing.
+ *
+ * `env.ts` only validates it as `min(32)`, so a deployment can boot with a key this module
+ * will reject on first use. Callers that must degrade rather than fail — writing plaintext
+ * instead of losing a user's OAuth connect — check this first. Non-hex is rejected here
+ * because `Buffer.from(key, 'hex')` would silently produce a short buffer.
+ */
+export function hasUsableEncryptionKey(): boolean {
   const key = env.ENCRYPTION_KEY
-  if (!key || key.length !== 64) {
+  return typeof key === 'string' && key.length === 64 && /^[0-9a-f]+$/i.test(key)
+}
+
+function getEncryptionKey(): Buffer {
+  if (!hasUsableEncryptionKey()) {
     throw new Error('ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)')
   }
-  return Buffer.from(key, 'hex')
+  return Buffer.from(env.ENCRYPTION_KEY as string, 'hex')
 }
 
 /**

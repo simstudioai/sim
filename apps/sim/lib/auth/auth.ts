@@ -107,6 +107,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { decryptAccountTokenColumns, encryptAccountTokenColumns } from '@/lib/oauth/account-tokens'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -388,16 +389,6 @@ export const auth = betterAuth({
             }
           }
 
-          if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
-            const instanceUrl = await fetchSalesforceInstanceUrl(
-              account.providerId,
-              account.accessToken
-            )
-            if (instanceUrl) {
-              modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
-            }
-          }
-
           if (isMicrosoftProvider(account.providerId)) {
             modifiedAccount.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
           }
@@ -412,9 +403,16 @@ export const auth = betterAuth({
             }
           }
 
-          return { data: modifiedAccount }
+          return { data: await encryptAccountTokenColumns(modifiedAccount) }
         },
+        /**
+         * Better Auth hands after-hooks the row AS WRITTEN, so the Slack fan-out and the
+         * Salesforce instance-URL fetch below must use the decrypted copy — a live provider
+         * call with ciphertext 401s silently and leaves the credential unusable.
+         */
         after: async (account, context) => {
+          const tokens = await decryptAccountTokenColumns(account)
+
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
@@ -479,7 +477,7 @@ export const auth = betterAuth({
            * Propagate the new chain so every sibling is valid again, and clear
            * the installation's dead flag.
            */
-          if (account.providerId === 'slack' && account.accessToken) {
+          if (account.providerId === 'slack' && tokens.accessToken) {
             try {
               const teamId = extractSlackTeamId(account.accountId)
               if (teamId) {
@@ -488,8 +486,8 @@ export const auth = betterAuth({
                 // failure must not leave the hour-long flag blocking refreshes.
                 await clearDeadFlag(`slack:${teamId}`)
                 await fanOutSlackTokenChain(teamId, {
-                  accessToken: account.accessToken,
-                  refreshToken: account.refreshToken ?? null,
+                  accessToken: tokens.accessToken,
+                  refreshToken: tokens.refreshToken ?? null,
                   accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
                 })
                 logger.info('[account.create.after] Propagated Slack installation token chain', {
@@ -582,6 +580,11 @@ export const auth = betterAuth({
             )
           }
 
+          /**
+           * The only place the instance-URL marker is written. `create.before` used to
+           * make the same call and set `scope` too, which left the marker written twice
+           * over — `withSalesforceInstanceScope` prepends unconditionally.
+           */
           if (isSalesforceOAuthProviderId(account.providerId)) {
             const updates: {
               accessTokenExpiresAt?: Date
@@ -592,10 +595,10 @@ export const auth = betterAuth({
               updates.accessTokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
             }
 
-            if (account.accessToken) {
+            if (tokens.accessToken) {
               const instanceUrl = await fetchSalesforceInstanceUrl(
                 account.providerId,
-                account.accessToken
+                tokens.accessToken
               )
               if (instanceUrl) {
                 updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
@@ -603,12 +606,14 @@ export const auth = betterAuth({
             }
 
             if (Object.keys(updates).length > 0) {
+              // account-token-access-allow: writes only accessTokenExpiresAt and scope
               await db.update(schema.account).set(updates).where(eq(schema.account.id, account.id))
             }
           }
 
           if (isMicrosoftProvider(account.providerId)) {
             await db
+              // account-token-access-allow: writes only refreshTokenExpiresAt
               .update(schema.account)
               .set({ refreshTokenExpiresAt: getMicrosoftRefreshTokenExpiry() })
               .where(eq(schema.account.id, account.id))
@@ -623,6 +628,17 @@ export const auth = betterAuth({
             // Telemetry should not fail the operation
           }
         },
+      },
+      /**
+       * Catches token writes that are not creates — above all `updateAccountOnSignIn`,
+       * which would otherwise revert a row to plaintext on every repeat sign-in.
+       *
+       * Not OAuth-only: `updatePassword` reaches the same hook through `updateManyWithHooks`
+       * with a `{ password }`-only payload. The encryption is field-local for that reason,
+       * and this payload holds a password hash, so it must never be logged.
+       */
+      update: {
+        before: async (data) => ({ data: await encryptAccountTokenColumns(data) }),
       },
     },
     session: {
