@@ -224,7 +224,7 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     },
     html: {
       type: 'string',
-      description: 'HTML content if requested',
+      description: 'HTML content; returned only when the hidden returnHtml input is enabled',
       optional: true,
     },
     structured_output: {
@@ -239,7 +239,8 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     },
     figures: {
       type: 'json',
-      description: 'Extracted figures if figure extraction was enabled',
+      description:
+        'Extracted figures; returned only when the hidden extractFigure input is enabled',
       optional: true,
     },
   },
