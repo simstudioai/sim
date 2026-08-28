@@ -30,7 +30,7 @@ const selectorErrorPolicy = extendInternalErrorPolicy(internalOrchestrationError
   return null
 })
 
-const executeSelectorRoute = defineInternalJsonRoute({
+export const POST = defineInternalJsonRoute({
   contract: executeSelectorContract,
   auth: internalSessionAuth,
   operation: selectorOperations.execute,
@@ -41,12 +41,5 @@ const executeSelectorRoute = defineInternalJsonRoute({
   parseOptions: { maxBodyBytes: 256 * 1024 },
   mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal }),
   useCase: executeSelector,
-  responseHeaders: () => PRIVATE_NO_STORE,
+  staticResponseHeaders: PRIVATE_NO_STORE,
 })
-
-/** Applies the privacy header to authentication, parse, and unhandled failures too. */
-export async function POST(...args: Parameters<typeof executeSelectorRoute>): Promise<Response> {
-  const response = await executeSelectorRoute(...args)
-  response.headers.set('Cache-Control', PRIVATE_NO_STORE['Cache-Control'])
-  return response
-}

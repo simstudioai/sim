@@ -215,6 +215,75 @@ describe('defineInternalJsonRoute', () => {
     expect(body.requestId).toBe('req-parse')
   })
 
+  it('applies static response headers to success and every failure stage', async () => {
+    const staticHeaderContract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/internal-json-route',
+      body: z.object({ outcome: z.enum(['success', 'failure']) }),
+      response: { mode: 'json', schema: z.object({ value: z.string() }) },
+    })
+    const handler = defineInternalJsonRoute({
+      contract: staticHeaderContract,
+      auth: {
+        async authenticate(request) {
+          if (request.headers.get('x-reject-auth') === 'true') {
+            throw new InternalUnauthenticatedError('Unauthorized')
+          }
+          return { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+        },
+      },
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: ({ body }) => body.outcome,
+      useCase: {
+        operation,
+        async execute({ input }) {
+          if (input === 'failure') throw new Error('Unhandled')
+          return { value: 'ok' }
+        },
+      },
+      staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
+    })
+
+    const cases: Array<[NextRequest, number]> = [
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: JSON.stringify({ outcome: 'success' }),
+        }),
+        200,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          headers: { 'x-reject-auth': 'true' },
+        }),
+        401,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: '{',
+        }),
+        400,
+      ],
+      [
+        new NextRequest('http://localhost/api/test/internal-json-route', {
+          method: 'POST',
+          body: JSON.stringify({ outcome: 'failure' }),
+        }),
+        500,
+      ],
+    ]
+
+    for (const [request, expectedStatus] of cases) {
+      const response = await handler(request)
+      expect(response.status).toBe(expectedStatus)
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    }
+  })
+
   it('orders auth, rate limiting, parsing, async mapping, and application execution', async () => {
     const events: string[] = []
     const orderedContract = defineRouteContract({

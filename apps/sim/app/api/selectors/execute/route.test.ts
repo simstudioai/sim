@@ -8,10 +8,10 @@ const mocks = vi.hoisted(() => ({ status: 200 }))
 
 vi.mock('@/lib/api/server/routes', () => ({
   defineInternalJsonRoute: vi.fn(
-    () => async () =>
+    (options: { staticResponseHeaders?: HeadersInit }) => async () =>
       new Response(JSON.stringify({ ok: mocks.status < 400 }), {
         status: mocks.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: options.staticResponseHeaders,
       })
   ),
   extendInternalErrorPolicy: vi.fn(() => ({})),

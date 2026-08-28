@@ -256,6 +256,8 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /** Headers applied last to every response path, including authentication and parse failures. */
+  staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -408,5 +410,13 @@ export function defineInternalJsonRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (options.staticResponseHeaders) {
+      new Headers(options.staticResponseHeaders).forEach((value, key) => {
+        response.headers.set(key, value)
+      })
+    }
+    return response
+  }
 }
