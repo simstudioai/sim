@@ -191,8 +191,7 @@ export const getDisplayValue = (value: unknown): string => {
   if (isMessagesArray(parsedValue)) {
     const firstMessage = parsedValue[0]
     if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
-    const content = firstMessage.content.trim()
-    return truncate(content, 50)
+    return firstMessage.content.trim()
   }
 
   if (isVariableAssignmentsArray(parsedValue)) {
