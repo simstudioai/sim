@@ -74,7 +74,10 @@ describe('credential-groups prefetch', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     }
-    mockExecute.mockResolvedValue({ credentialGroups: [{ ...credentialGroup, internal: true }] })
+    mockExecute.mockResolvedValue({
+      credentialGroups: [{ ...credentialGroup, internal: true }],
+      availableProviders: ['gmail'],
+    })
     const queryClient = new QueryClient()
 
     await SECTION_PREFETCHERS['credential-groups']?.(queryClient, {
@@ -86,7 +89,15 @@ describe('credential-groups prefetch', () => {
       principal: { kind: 'session', userId: 'u1', sessionId: 's1' },
       input: { workspaceId: 'w1' },
     })
-    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toEqual([credentialGroup])
+    /**
+     * The whole response envelope, not just the groups array: this key is shared with
+     * `fetchCredentialGroupSettings`, and seeding it with a narrower shape would leave every
+     * consumer reading an empty list for as long as the hydrated value stayed fresh.
+     */
+    expect(queryClient.getQueryData(credentialGroupKeys.list('w1'))).toEqual({
+      credentialGroups: [credentialGroup],
+      availableProviders: ['gmail'],
+    })
   })
 
   it('leaves the cache empty when the use case denies the viewer', async () => {

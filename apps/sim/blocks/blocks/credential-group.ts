@@ -8,7 +8,7 @@ import type { BlockConfig } from '@/blocks/types'
 import {
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupList,
+  fetchCredentialGroupSettings,
 } from '@/hooks/queries/utils/credential-group-queries'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -30,11 +30,12 @@ async function fetchCachedCredentialGroups() {
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
   if (!workspaceId) return []
 
-  return getQueryClient().fetchQuery({
+  const settings = await getQueryClient().fetchQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchCredentialGroupList(workspaceId, signal),
+    queryFn: ({ signal }) => fetchCredentialGroupSettings(workspaceId, signal),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
+  return settings.credentialGroups
 }
 
 function resolveCredentialGroupIdForBlock(blockId: string): string | null {
