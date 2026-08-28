@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-27",
+  "updatedAt": "2026-08-28",
   "integrations": [
     {
       "type": "onepassword",
@@ -12618,6 +12618,225 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity"]
+    },
+    {
+      "type": "lambda",
+      "slug": "lambda",
+      "name": "Lambda",
+      "description": "Invoke, deploy, and manage AWS Lambda functions",
+      "longDescription": "Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.",
+      "bgColor": "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)",
+      "iconName": "LambdaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/lambda",
+      "operations": [
+        {
+          "name": "Invoke Function",
+          "description": "Invoke a Lambda function synchronously or asynchronously and return its response"
+        },
+        {
+          "name": "List Functions",
+          "description": "List Lambda functions with the version-specific configuration of each"
+        },
+        {
+          "name": "Get Function",
+          "description": "Get a function's configuration, code location, tags, and reserved concurrency"
+        },
+        {
+          "name": "Get Function Configuration",
+          "description": "Get a function's version-specific configuration"
+        },
+        {
+          "name": "Create Function",
+          "description": "Create a Lambda function from a deployment package in Amazon S3 or a container image"
+        },
+        {
+          "name": "Update Function Code",
+          "description": "Update a function's deployment package from Amazon S3 or a container image"
+        },
+        {
+          "name": "Update Function Configuration",
+          "description": "Update a function's settings such as memory, timeout, role, and environment variables"
+        },
+        {
+          "name": "Delete Function",
+          "description": "Delete a Lambda function, or a single published version of it"
+        },
+        {
+          "name": "Publish Version",
+          "description": "Publish an immutable version from the current code and configuration of a function"
+        },
+        {
+          "name": "List Function Versions",
+          "description": "List the published versions of a Lambda function, plus $LATEST"
+        },
+        {
+          "name": "Create Alias",
+          "description": "Create an alias that points to a published function version"
+        },
+        {
+          "name": "Get Alias",
+          "description": "Get details about a Lambda function alias"
+        },
+        {
+          "name": "Update Alias",
+          "description": "Update the target version, description, or traffic weights of an alias"
+        },
+        {
+          "name": "Delete Alias",
+          "description": "Delete a Lambda function alias"
+        },
+        {
+          "name": "List Aliases",
+          "description": "List the aliases of a Lambda function"
+        },
+        {
+          "name": "Add Permission",
+          "description": "Grant an AWS service, account, or organization permission to use a function"
+        },
+        {
+          "name": "Remove Permission",
+          "description": "Remove a statement from a function's resource-based policy"
+        },
+        {
+          "name": "Get Policy",
+          "description": "Get the resource-based IAM policy attached to a function, version, or alias"
+        },
+        {
+          "name": "Create Event Source Mapping",
+          "description": "Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function"
+        },
+        {
+          "name": "Get Event Source Mapping",
+          "description": "Get details about an event source mapping"
+        },
+        {
+          "name": "Update Event Source Mapping",
+          "description": "Update the batching, retry, filtering, or enabled state of an event source mapping"
+        },
+        {
+          "name": "Delete Event Source Mapping",
+          "description": "Delete an event source mapping"
+        },
+        {
+          "name": "List Event Source Mappings",
+          "description": "List event source mappings, optionally filtered by function or event source"
+        },
+        {
+          "name": "Get Function Concurrency",
+          "description": "Get the reserved concurrency configured for a function"
+        },
+        {
+          "name": "Set Function Concurrency",
+          "description": "Reserve a share of the account concurrency limit for a function"
+        },
+        {
+          "name": "Delete Function Concurrency",
+          "description": "Remove the reserved concurrency configuration from a function"
+        },
+        {
+          "name": "Get Provisioned Concurrency",
+          "description": "Get the provisioned concurrency configuration of a function version or alias"
+        },
+        {
+          "name": "Set Provisioned Concurrency",
+          "description": "Allocate provisioned concurrency to a function version or alias"
+        },
+        {
+          "name": "Delete Provisioned Concurrency",
+          "description": "Remove the provisioned concurrency configuration from a function version or alias"
+        },
+        {
+          "name": "List Provisioned Concurrency",
+          "description": "List the provisioned concurrency configurations of a function"
+        },
+        {
+          "name": "Create Function URL",
+          "description": "Create a dedicated HTTPS endpoint for a function"
+        },
+        {
+          "name": "Get Function URL",
+          "description": "Get details about a function URL"
+        },
+        {
+          "name": "Update Function URL",
+          "description": "Update the auth type, invoke mode, or CORS settings of a function URL"
+        },
+        {
+          "name": "Delete Function URL",
+          "description": "Delete the URL configuration of a function"
+        },
+        {
+          "name": "List Function URLs",
+          "description": "List the URL configurations of a function"
+        },
+        {
+          "name": "Get Async Invoke Config",
+          "description": "Get the asynchronous invocation retry and destination settings of a function"
+        },
+        {
+          "name": "Set Async Invoke Config",
+          "description": "Configure retry limits and destinations for asynchronous invocations of a function"
+        },
+        {
+          "name": "Delete Async Invoke Config",
+          "description": "Remove the asynchronous invocation configuration of a function"
+        },
+        {
+          "name": "List Async Invoke Configs",
+          "description": "List the asynchronous invocation configurations of a function"
+        },
+        {
+          "name": "List Layers",
+          "description": "List Lambda layers and the latest version of each"
+        },
+        {
+          "name": "List Layer Versions",
+          "description": "List the versions of a Lambda layer"
+        },
+        {
+          "name": "Get Layer Version",
+          "description": "Get details and a download link for a specific layer version"
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags applied to a Lambda function"
+        },
+        {
+          "name": "Tag Resource",
+          "description": "Add tags to a Lambda function"
+        },
+        {
+          "name": "Untag Resource",
+          "description": "Remove tags from a Lambda function"
+        },
+        {
+          "name": "Get Account Settings",
+          "description": "Get the Lambda limits and usage of the current AWS account and region"
+        },
+        {
+          "name": "Get Recursion Config",
+          "description": "Get the recursive loop detection setting of a function"
+        },
+        {
+          "name": "Set Recursion Config",
+          "description": "Set whether Lambda stops a function that invokes itself recursively"
+        },
+        {
+          "name": "Get Runtime Management Config",
+          "description": "Get the runtime update policy of a function version"
+        },
+        {
+          "name": "Set Runtime Management Config",
+          "description": "Set how and when Lambda applies runtime updates to a function version"
+        }
+      ],
+      "operationCount": 50,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud"]
     },
     {
       "type": "langsmith",
