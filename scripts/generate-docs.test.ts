@@ -807,3 +807,83 @@ describe('the scanner survives regex literals in a block config', () => {
     expect(extractUserSettableParamIds("subBlocks: [{ id: 'a }],")).toBeNull()
   })
 })
+
+describe('the scanner reads a regex that opens in keyword position', () => {
+  /**
+   * The scanner chose regex-vs-division from the previous significant character alone, so a
+   * regex in operand position was lexed as a division off the keyword's last letter and its
+   * body was left in the structural view — a brace inside it then closed the object early.
+   */
+  it('does not let a brace inside a regex after return close the object early', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', condition: (v) => { return /}/.test(v) } }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('treats every operand-position keyword as opening a regex', () => {
+    const keywords = [
+      'return',
+      'typeof',
+      'case',
+      'in',
+      'of',
+      'new',
+      'delete',
+      'void',
+      'instanceof',
+      'do',
+      'else',
+      'yield',
+      'await',
+    ]
+
+    for (const keyword of keywords) {
+      const ids = extractUserSettableParamIds(
+        `subBlocks: [{ id: 'a', v: (x) => ${keyword} /}/.source }, { id: 'b' }],`
+      )
+
+      expect(ids, keyword).toEqual(['a', 'b'])
+    }
+  })
+
+  it('still reads a division after a property or an identifier that merely ends in a keyword', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', n: counts.in / 2, m: preturn / 2 }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('template interpolation is lexed rather than brace-counted', () => {
+  /**
+   * The `${}` depth counter was not string-aware, so a brace inside a quoted expression
+   * miscounted, the closing backtick was never found and the whole block was reported
+   * unreadable — which silently stops filtering resolver-derived hidden params for it.
+   */
+  it('does not lose the closing backtick to an opening brace inside a quoted expression', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', label: `${format('{')}` }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not let a closing brace inside a quoted expression end the interpolation', () => {
+    const ids = extractUserSettableParamIds(
+      'subBlocks: [{ id: \'a\', label: `${format("}") + "{"}` }, { id: \'b\' }],'
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('lexes a regex, a comment and a nested template inside the expression', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', label: `${/[{]/.source /* { */ + `${'{'}`}` }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+})

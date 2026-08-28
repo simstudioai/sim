@@ -1318,6 +1318,184 @@ const REGEX_ALLOWED_AFTER = new Set([
 ])
 
 /**
+ * Keywords after which a `/` begins a regex literal rather than a division. In every one of
+ * these positions an operand is expected, so `return /x/`, `typeof /x/` or `case /x/` opens a
+ * regex — a check on the previous character alone reads the keyword's last letter as an
+ * identifier and lexes the `/` as division.
+ */
+const REGEX_START_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'case',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'instanceof',
+  'do',
+  'else',
+  'yield',
+  'await',
+])
+
+/**
+ * Whether the word immediately before `index` is a {@link REGEX_START_KEYWORDS} keyword.
+ * A property access (`counts.in / 2`) is excluded, since there the word is an identifier
+ * and the `/` really is a division.
+ */
+function precededByRegexStartKeyword(content: string, index: number): boolean {
+  let j = index - 1
+  while (j >= 0 && /\s/.test(content[j])) j--
+  const wordEnd = j + 1
+  while (j >= 0 && /[A-Za-z0-9_$]/.test(content[j])) j--
+  if (!REGEX_START_KEYWORDS.has(content.slice(j + 1, wordEnd))) return false
+  return content[j] !== '.' && content[j] !== '#'
+}
+
+/** Index just past a `//` comment opening at `start`. */
+function scanLineComment(content: string, start: number): number {
+  const newline = content.indexOf('\n', start)
+  return newline === -1 ? content.length : newline
+}
+
+/** Index just past the block comment opening at `start`, or null when it never closes. */
+function scanBlockComment(content: string, start: number): number | null {
+  const close = content.indexOf('*/', start + 2)
+  return close === -1 ? null : close + 2
+}
+
+/** Index just past a regex literal (and its flags) opening at `start`, or null when unterminated. */
+function scanRegexLiteral(content: string, start: number): number | null {
+  let j = start + 1
+  let inClass = false
+  let closed = false
+  while (j < content.length) {
+    const c = content[j]
+    if (c === '\\') {
+      j += 2
+      continue
+    }
+    if (c === '\n') break
+    if (c === '[') inClass = true
+    else if (c === ']') inClass = false
+    else if (c === '/' && !inClass) {
+      closed = true
+      break
+    }
+    j++
+  }
+  if (!closed) return null
+  j++
+  while (j < content.length && /[a-z]/.test(content[j])) j++
+  return j
+}
+
+/** Index OF the closing quote of the string opening at `start`, or null when unterminated. */
+function scanQuoted(content: string, start: number): number | null {
+  const quote = content[start]
+  let j = start + 1
+  while (j < content.length) {
+    if (content[j] === '\\') {
+      j += 2
+      continue
+    }
+    if (content[j] === '\n') break
+    if (content[j] === quote) return j
+    j++
+  }
+  return null
+}
+
+/** Index OF the closing backtick of the template literal opening at `start`, or null. */
+function scanTemplateLiteral(content: string, start: number): number | null {
+  let j = start + 1
+  while (j < content.length) {
+    const c = content[j]
+    if (c === '\\') {
+      j += 2
+      continue
+    }
+    if (c === '`') return j
+    if (c === '$' && content[j + 1] === '{') {
+      const end = scanTemplateExpression(content, j + 2)
+      if (end === null) return null
+      j = end
+      continue
+    }
+    j++
+  }
+  return null
+}
+
+/**
+ * Index just past the `}` that closes the `${` expression starting at `start`, or null.
+ *
+ * The expression is lexed with the same primitives as top-level code, so a brace inside a
+ * nested string, comment, regex or template never counts toward the depth — a plain counter
+ * loses the closing backtick of `` `${ f("}") }` `` and reports the whole block unreadable.
+ */
+function scanTemplateExpression(content: string, start: number): number | null {
+  let j = start
+  let depth = 0
+  let prevSignificant = ''
+  while (j < content.length) {
+    const c = content[j]
+
+    if (c === '/' && content[j + 1] === '/') {
+      j = scanLineComment(content, j)
+      continue
+    }
+    if (c === '/' && content[j + 1] === '*') {
+      const end = scanBlockComment(content, j)
+      if (end === null) return null
+      j = end
+      continue
+    }
+    if (c === '/' && startsRegexLiteral(content, j, prevSignificant)) {
+      const end = scanRegexLiteral(content, j)
+      if (end === null) return null
+      prevSignificant = ')'
+      j = end
+      continue
+    }
+    if (c === "'" || c === '"') {
+      const close = scanQuoted(content, j)
+      if (close === null) return null
+      prevSignificant = c
+      j = close + 1
+      continue
+    }
+    if (c === '`') {
+      const close = scanTemplateLiteral(content, j)
+      if (close === null) return null
+      prevSignificant = '`'
+      j = close + 1
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}') {
+      if (depth === 0) return j + 1
+      depth--
+    }
+
+    if (!/\s/.test(c)) prevSignificant = c
+    else if (c === '\n') prevSignificant = '\n'
+    j++
+  }
+  return null
+}
+
+/** Whether the `/` at `index` opens a regex literal rather than a division. */
+function startsRegexLiteral(content: string, index: number, prevSignificant: string): boolean {
+  return (
+    prevSignificant === '' ||
+    REGEX_ALLOWED_AFTER.has(prevSignificant) ||
+    precededByRegexStartKeyword(content, index)
+  )
+}
+
+/**
  * Blank out string literals, template literals, comments and regex literals so a structural
  * scan sees only code punctuation. Length and newlines are preserved, which the `readLiteral`
  * index-mapping call sites depend on.
@@ -1342,97 +1520,44 @@ function blankStringsAndComments(content: string): string | null {
     const char = content[i]
 
     if (char === '/' && content[i + 1] === '/') {
-      const nl = content.indexOf('\n', i)
-      const end = nl === -1 ? content.length : nl
+      const end = scanLineComment(content, i)
       blank(i, end)
       i = end
       continue
     }
 
     if (char === '/' && content[i + 1] === '*') {
-      const close = content.indexOf('*/', i + 2)
-      if (close === -1) return null
-      blank(i, close + 2)
-      i = close + 2
+      const end = scanBlockComment(content, i)
+      if (end === null) return null
+      blank(i, end)
+      i = end
       continue
     }
 
-    if (char === '/' && (prevSignificant === '' || REGEX_ALLOWED_AFTER.has(prevSignificant))) {
-      let j = i + 1
-      let inClass = false
-      let closed = false
-      while (j < content.length) {
-        const c = content[j]
-        if (c === '\\') {
-          j += 2
-          continue
-        }
-        if (c === '\n') break
-        if (c === '[') inClass = true
-        else if (c === ']') inClass = false
-        else if (c === '/' && !inClass) {
-          closed = true
-          break
-        }
-        j++
-      }
-      if (!closed) return null
-      j++
-      while (j < content.length && /[a-z]/.test(content[j])) j++
-      blank(i, j)
+    if (char === '/' && startsRegexLiteral(content, i, prevSignificant)) {
+      const end = scanRegexLiteral(content, i)
+      if (end === null) return null
+      blank(i, end)
       prevSignificant = ')'
-      i = j
+      i = end
       continue
     }
 
     if (char === "'" || char === '"') {
-      let j = i + 1
-      let closed = false
-      while (j < content.length) {
-        if (content[j] === '\\') {
-          j += 2
-          continue
-        }
-        if (content[j] === '\n') break
-        if (content[j] === char) {
-          closed = true
-          break
-        }
-        j++
-      }
-      if (!closed) return null
-      blank(i + 1, j)
+      const close = scanQuoted(content, i)
+      if (close === null) return null
+      blank(i + 1, close)
       prevSignificant = char
-      i = j + 1
+      i = close + 1
       continue
     }
 
     if (char === '`') {
-      let j = i + 1
-      let depth = 0
-      let closed = false
-      while (j < content.length) {
-        if (content[j] === '\\') {
-          j += 2
-          continue
-        }
-        if (depth === 0 && content[j] === '`') {
-          closed = true
-          break
-        }
-        if (content[j] === '$' && content[j + 1] === '{') {
-          depth++
-          j += 2
-          continue
-        }
-        if (depth > 0 && content[j] === '{') depth++
-        else if (depth > 0 && content[j] === '}') depth--
-        j++
-      }
-      if (!closed) return null
-      blank(i + 1, j)
+      const close = scanTemplateLiteral(content, i)
+      if (close === null) return null
+      blank(i + 1, close)
       prevSignificant = '`'
-      i = j + 1
+      i = close + 1
       continue
     }
 
