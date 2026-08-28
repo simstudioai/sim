@@ -222,7 +222,14 @@ function LineChartComponent({
     <div
       ref={containerRef}
       className={cn(
-        'w-full overflow-hidden',
+        /*
+          `overflow-x-auto`, not `overflow-hidden`: `useChartWidth` floors the SVG at
+          CHART_MIN_WIDTH, so in a narrower container the chart is wider than its box.
+          Hiding that silently cut off the rightmost bars and axis labels — and
+          contradicted the constant's own note that the chart "scrolls rather than
+          compresses". At or above the floor there is no overflow and nothing changes.
+        */
+        'w-full overflow-x-auto',
         !hasExternalWrapper && 'rounded-[11px] border bg-card p-4 shadow-sm'
       )}
     >

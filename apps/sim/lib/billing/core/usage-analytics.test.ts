@@ -296,6 +296,22 @@ describe('resolveUsageBucket', () => {
     expect(resolveUsageBucket({ kind: 'range', from, to: days(200) })).toBe('week')
     expect(resolveUsageBucket({ kind: 'range', from, to: days(500) })).toBe('month')
   })
+
+  it('keeps daily bars for the maximum range across a DST transition', () => {
+    // 92 calendar days spanning the autumn fall-back is 92 days and one hour. Ceiling
+    // that called it 93 and silently demoted the longest legal custom range to weekly
+    // bars — a granularity change with no cause the reader could see.
+    const dstSpan = {
+      kind: 'range' as const,
+      from,
+      to: new Date(from.getTime() + 92 * 86_400_000 + 3_600_000),
+    }
+    expect(resolveUsageBucket(dstSpan)).toBe('day')
+    // A genuinely longer range still steps up.
+    expect(
+      resolveUsageBucket({ kind: 'range', from, to: new Date(from.getTime() + 93 * 86_400_000) })
+    ).toBe('week')
+  })
 })
 
 describe('densifyUsageSeries', () => {

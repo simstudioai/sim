@@ -54,10 +54,12 @@ const isoDateSchema = z
   .refine(
     (value) => {
       if (!value) return true
-      const parsed = new Date(value)
-      if (Number.isNaN(parsed.getTime())) return false
-      // Bare `YYYY-MM-DD` parses as UTC, so compare against the UTC serialization.
-      return !/^\d{4}-\d{2}-\d{2}$/.test(value) || parsed.toISOString().slice(0, 10) === value
+      if (Number.isNaN(Date.parse(value))) return false
+      // The leading `YYYY-MM-DD` of either form, so `2026-02-30T00:00:00` is rejected
+      // rather than only the bare `2026-02-30`.
+      const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
+      if (!datePart) return true
+      return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
     },
     { message: 'Expected a real calendar date such as 2026-08-01' }
   )

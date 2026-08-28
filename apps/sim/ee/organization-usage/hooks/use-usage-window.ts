@@ -12,6 +12,14 @@ import {
 } from '@/ee/organization-usage/search-params'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 
+/** A `YYYY-MM-DD` that survives a calendar round-trip, matching the contract's rule. */
+function isCalendarDate(value: string | null): value is string {
+  if (!value) return false
+  const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
+  if (!datePart) return false
+  return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
+}
+
 /**
  * The panel's URL state, resolved into the window every query is keyed on.
  *
@@ -22,8 +30,17 @@ export function useUsageWindow() {
   const [state, setState] = useQueryStates(organizationUsageParsers, organizationUsageUrlKeys)
   const timezone = getBrowserTimezone()
 
+  /**
+   * Both bounds present *and* real calendar dates.
+   *
+   * The contract rejects a date that does not exist (`2026-02-30` parses and rolls
+   * forward, so it has to be refused rather than silently shifted). Without the same
+   * check here, a deep link carrying one satisfied this guard and every query on the
+   * page answered 400 — the partial-link fallback exists precisely so a bad link
+   * degrades to the default window instead.
+   */
   const isResolvedCustom =
-    state.preset === 'custom' && Boolean(state.startDate) && Boolean(state.endDate)
+    state.preset === 'custom' && isCalendarDate(state.startDate) && isCalendarDate(state.endDate)
   const preset: UsageWindowPreset =
     state.preset === 'custom' && !isResolvedCustom ? DEFAULT_USAGE_PRESET : state.preset
 

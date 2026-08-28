@@ -68,6 +68,14 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
 
     const rows: OrganizationUsageExportRow[] = []
     let cursor: string | undefined
+    /**
+     * The cursor row's timestamp, carried forward from the page that produced it.
+     *
+     * Without it `getUsageLogs` resolves the cursor with a lookup on the primary
+     * before it can read the replica — once per page, up to a hundred times for a
+     * capped export. This loop is the exact case that option was added for.
+     */
+    let cursorCreatedAt: Date | undefined
     let truncated = false
 
     while (rows.length < USAGE_EXPORT_SAFETY_CAP) {
@@ -78,6 +86,7 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
         ...(input.source?.length ? { source: input.source } : {}),
         limit: EXPORT_PAGE_SIZE,
         ...(cursor ? { cursor } : {}),
+        ...(cursorCreatedAt ? { cursorCreatedAt } : {}),
         // Each page would otherwise repeat the same cursor-independent aggregate
         // for a total this export never reads.
         includeSummary: false,
@@ -94,7 +103,9 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
       }
 
       if (!page.pagination.hasMore || !page.pagination.nextCursor) break
+      const cursorRow = page.logs.find((log) => log.id === page.pagination.nextCursor)
       cursor = page.pagination.nextCursor
+      cursorCreatedAt = cursorRow ? new Date(cursorRow.createdAt) : undefined
       if (rows.length >= USAGE_EXPORT_SAFETY_CAP) {
         truncated = true
         break

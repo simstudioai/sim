@@ -300,7 +300,10 @@ export function resolvePreviousPeriod(period: ResolvedUsagePeriod): ResolvedUsag
  */
 export function resolveUsageBucket(window: UsageAnalyticsWindow): UsageBucket {
   const { start, end } = usageWindowBounds(window)
-  const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / DAY_MS))
+  // Rounded, not ceiled: a 92-day range spanning the autumn transition is 92 days and
+  // one hour, which `ceil` called 93 — quietly demoting the longest legal custom range
+  // from daily bars to weekly ones.
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS))
   if (days <= 92) return 'day'
   if (days <= 400) return 'week'
   return 'month'

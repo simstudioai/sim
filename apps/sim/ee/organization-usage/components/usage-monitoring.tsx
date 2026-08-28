@@ -181,27 +181,36 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
     if (window.startDate) params.set('startDate', window.startDate)
     if (window.endDate) params.set('endDate', window.endDate)
 
-    // boundary-raw-fetch: downloads a CSV blob and reads X-Export-Truncated before saving — a plain anchor navigation can do neither
-    const response = await fetch(
-      `/api/organizations/${organizationId}/usage/export?${params.toString()}`
-    )
-    if (!response.ok) {
-      toast.error('Failed to export usage')
-      return
-    }
-    if (response.headers.get('X-Export-Truncated') === '1') {
-      toast.info('Export truncated — narrow the date range to see everything')
-    }
+    /**
+     * Wrapped because the action is fire-and-forget: `onSelect` cannot await this, so
+     * a rejection — a dropped connection, a blob read that fails — became an unhandled
+     * promise and the button appeared to do nothing at all.
+     */
+    try {
+      // boundary-raw-fetch: downloads a CSV blob and reads X-Export-Truncated before saving — a plain anchor navigation can do neither
+      const response = await fetch(
+        `/api/organizations/${organizationId}/usage/export?${params.toString()}`
+      )
+      if (!response.ok) {
+        toast.error('Failed to export usage')
+        return
+      }
+      if (response.headers.get('X-Export-Truncated') === '1') {
+        toast.info('Export truncated — narrow the date range to see everything')
+      }
 
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `organization-usage-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to export usage')
+    }
   }
 
   /**
