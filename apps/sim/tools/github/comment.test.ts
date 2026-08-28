@@ -286,6 +286,44 @@ describe('github_comment line coercion', () => {
     expect(calls()[1].body).toMatchObject({ line: 42 })
   })
 
+  it('keeps an integer line typed with surrounding whitespace', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await commentTool.directExecution!({
+      ...FILE_COMMENT_PARAMS,
+      commitId: OTHER_SHA,
+      line: '  42  ' as unknown as number,
+    })
+
+    expect(calls()[0].body).toMatchObject({ line: 42 })
+  })
+
+  it('rejects a fractional line rather than silently moving the comment', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await expect(
+      commentTool.directExecution!({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: 3.9,
+      })
+    ).rejects.toThrow('GitHub line numbers are whole numbers, but line was 3.9')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a fractional line typed into the short input', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await expect(
+      commentTool.directExecution!({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: '3.9' as unknown as number,
+      })
+    ).rejects.toThrow('GitHub line numbers are whole numbers, but line was 3.9')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
+  })
+
   it('omits a blank or unparseable line rather than sending NaN', async () => {
     for (const line of ['', '   ', 'abc', undefined, null]) {
       secureGitHubRequest.mockReset()

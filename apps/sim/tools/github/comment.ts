@@ -64,14 +64,30 @@ function needsCommitLookup(params: CreateCommentParams): boolean {
 
 /**
  * The block renders `line` as a short input, so a typed line number reaches the tool
- * as a string while GitHub types the field as an integer. Anything that is not a
- * finite number is omitted rather than sent as `NaN`.
+ * as a string while GitHub types the field as an integer. Blank and unparseable input
+ * is omitted rather than sent as `NaN` — `line` is optional, and nothing usable was
+ * supplied.
+ *
+ * A fractional value is rejected instead of truncated. `3.9` is not the caller asking
+ * for line 3, and quietly posting the review comment on a different line of the diff
+ * than the one they named is the failure they would never think to look for. This
+ * fails the way a missing head commit SHA does: loudly, naming what to set.
  */
 function toLineNumber(value: unknown): number | undefined {
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : undefined
-  if (typeof value !== 'string' || !value.trim()) return undefined
-  const parsed = Number(value.trim())
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = value
+  } else {
+    if (typeof value !== 'string' || !value.trim()) return undefined
+    parsed = Number(value.trim())
+  }
+  if (!Number.isFinite(parsed)) return undefined
+  if (!Number.isInteger(parsed)) {
+    throw new Error(
+      `GitHub line numbers are whole numbers, but line was ${parsed}. Set line to the integer line number in the diff.`
+    )
+  }
+  return parsed
 }
 
 function fileCommentBody(
