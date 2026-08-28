@@ -140,7 +140,8 @@ async function executeSave(
 
     try {
       transition = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+        /** `FOR NO KEY UPDATE`: see the module header of `lib/billing/storage/tracking.ts`. */
+        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR NO KEY UPDATE`)
 
         const [updated] = await tx
           .update(workspaceFiles)

@@ -125,7 +125,9 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
 /**
  * Locks a payer row and returns its current aggregate. A missing source can be
  * historical drift and is represented as `null`; callers must reject a
- * missing destination.
+ * missing destination. `FOR NO KEY UPDATE` avoids upgrading the implicit
+ * foreign-key `FOR KEY SHARE` this transaction may already hold; see the
+ * module header of `lib/billing/storage/tracking.ts`.
  */
 async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<number | null> {
   if (payer.type === 'organization') {
@@ -133,7 +135,7 @@ async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<numbe
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, payer.id))
-      .for('update')
+      .for('no key update')
       .limit(1)
     return row?.storageUsedBytes ?? null
   }
@@ -142,7 +144,7 @@ async function lockStoragePayer(tx: DbOrTx, payer: BillingEntity): Promise<numbe
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, payer.id))
-    .for('update')
+    .for('no key update')
     .limit(1)
   return row?.storageUsedBytes ?? null
 }
@@ -257,7 +259,7 @@ async function lockStoragePayers(
       .from(userStats)
       .where(inArray(userStats.userId, userIds))
       .orderBy(asc(userStats.userId))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       usageByKey.set(getPayerKey({ type: 'user', id: row.id }), row.storageUsedBytes)
     }
@@ -269,7 +271,7 @@ async function lockStoragePayers(
       .from(organization)
       .where(inArray(organization.id, organizationIds))
       .orderBy(asc(organization.id))
-      .for('update')
+      .for('no key update')
     for (const row of rows) {
       usageByKey.set(getPayerKey({ type: 'organization', id: row.id }), row.storageUsedBytes)
     }
@@ -371,7 +373,7 @@ export async function changeWorkspaceStoragePayersInTx(
     .from(workspace)
     .where(inArray(workspace.id, workspaceIds))
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   const workspaceById = new Map(lockedWorkspaces.map((row) => [row.id, row]))
   for (const workspaceId of workspaceIds) {
@@ -562,7 +564,7 @@ export async function changeOrganizationWorkspaceBilledAccountsInTx(
       )
     )
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   const rows = await tx
     .update(workspace)
@@ -604,7 +606,7 @@ export async function changeWorkspaceStoragePayerInTx(
     })
     .from(workspace)
     .where(eq(workspace.id, params.workspaceId))
-    .for('update')
+    .for('no key update')
     .limit(1)
 
   if (!lockedWorkspace) {

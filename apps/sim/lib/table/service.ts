@@ -613,12 +613,16 @@ export async function createTable(
     })
   }
 
-  // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
-  // to prevent TOCTOU race on the table count limit
+  // Wrap count check, duplicate check, and insert in a transaction with FOR NO KEY UPDATE
+  // to prevent TOCTOU race on the table count limit. The weaker lock still conflicts with
+  // itself, so table creations stay serialized, but it does not block unrelated inserts
+  // into the workspace's other child tables. See lib/billing/storage/tracking.ts.
   try {
     await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx)
-      await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+      await trx.execute(
+        sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR NO KEY UPDATE`
+      )
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })
