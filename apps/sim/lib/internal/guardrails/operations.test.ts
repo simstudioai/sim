@@ -180,6 +180,30 @@ describe('executeGuardrailsValidation', () => {
     )
   })
 
+  it('preserves PII verdict metadata when the capability fails', async () => {
+    mocks.validatePIIViaHttp.mockRejectedValueOnce(new Error('capability unavailable'))
+
+    const result = await executeGuardrailsValidation(
+      {
+        validationType: 'pii',
+        input: 'email a@b.com',
+      },
+      {
+        actorUserId: 'user-1',
+        headers: new Headers(),
+        requestId: 'request-1',
+      }
+    )
+
+    expect(result.output).toMatchObject({
+      passed: false,
+      validationType: 'pii',
+      input: 'email a@b.com',
+      error: 'PII validation failed: capability unavailable',
+      detectedEntities: [],
+    })
+  })
+
   it('conceals inaccessible workflow validation as a failed verdict without provider work', async () => {
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
       allowed: false,

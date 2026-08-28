@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
 import {
@@ -249,16 +250,25 @@ async function executeValidation(
     })
   }
   if (input.validationType === 'pii') {
-    return validatePIIViaHttp(
-      {
-        text: inputString,
-        entityTypes: input.piiEntityTypes || [],
-        mode: input.piiMode === 'mask' ? 'mask' : 'block',
-        language: input.piiLanguage || 'en',
-        customPatterns: input.piiCustomPatterns,
-      },
-      context.signal
-    )
+    try {
+      return await validatePIIViaHttp(
+        {
+          text: inputString,
+          entityTypes: input.piiEntityTypes || [],
+          mode: input.piiMode === 'mask' ? 'mask' : 'block',
+          language: input.piiLanguage || 'en',
+          customPatterns: input.piiCustomPatterns,
+        },
+        context.signal
+      )
+    } catch (error) {
+      if (isAbortError(error) || context.signal?.aborted) throw error
+      return {
+        passed: false,
+        error: `PII validation failed: ${truncate(getErrorMessage(error), 950)}`,
+        detectedEntities: [],
+      }
+    }
   }
   return { passed: false, error: 'Unknown validation type' }
 }

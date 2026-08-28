@@ -1,9 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
+import {
+  MAX_PII_VALIDATION_DETECTED_ENTITIES,
+  MAX_PII_VALIDATION_RESPONSE_BYTES,
+  MAX_PII_VALIDATION_TEXT_CHARACTERS,
+} from '@/lib/guardrails/pii-limits'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 
 const logger = createLogger('PIIValidator')
@@ -79,6 +90,77 @@ interface AnalyzerSpan {
   score: number
 }
 
+function parseAnalyzerSpans(value: unknown, textLength: number): AnalyzerSpan[] {
+  if (!Array.isArray(value)) throw new Error('PII analyzer returned an invalid result')
+  if (value.length > MAX_PII_VALIDATION_DETECTED_ENTITIES) {
+    throw new Error(
+      `PII analyzer returned more than ${MAX_PII_VALIDATION_DETECTED_ENTITIES} detected entities`
+    )
+  }
+
+  return value.map((span, index) => {
+    if (!span || typeof span !== 'object' || Array.isArray(span)) {
+      throw new Error(`PII analyzer returned an invalid entity at index ${index}`)
+    }
+    const record = span as Record<string, unknown>
+    if (
+      typeof record.entity_type !== 'string' ||
+      !record.entity_type ||
+      record.entity_type.length > 100 ||
+      typeof record.start !== 'number' ||
+      typeof record.end !== 'number' ||
+      !Number.isInteger(record.start) ||
+      !Number.isInteger(record.end) ||
+      record.start < 0 ||
+      record.end < record.start ||
+      record.end > textLength ||
+      typeof record.score !== 'number' ||
+      record.score < 0 ||
+      record.score > 1
+    ) {
+      throw new Error(`PII analyzer returned an invalid entity at index ${index}`)
+    }
+    return {
+      entity_type: record.entity_type,
+      start: record.start,
+      end: record.end,
+      score: record.score,
+    }
+  })
+}
+
+function assertDetectedEntityBudget(
+  text: string,
+  spans: AnalyzerSpan[],
+  patterns?: CustomPiiPattern[]
+): void {
+  let estimatedBytes = 2
+  for (const span of spans) {
+    const type = displayEntityType(span.entity_type, patterns)
+    estimatedBytes +=
+      128 +
+      Buffer.byteLength(type, 'utf8') +
+      Buffer.byteLength(text.slice(span.start, span.end), 'utf8')
+    if (estimatedBytes > MAX_PII_VALIDATION_RESPONSE_BYTES) {
+      throw new Error('PII detected entities exceed the validation response size limit')
+    }
+  }
+}
+
+function assertValidationResultBudget(result: PIIValidationResult): PIIValidationResult {
+  if (
+    result.maskedText !== undefined &&
+    result.maskedText.length > MAX_PII_VALIDATION_TEXT_CHARACTERS
+  ) {
+    throw new Error('PII masked text exceeds the validation response size limit')
+  }
+  const responseBytes = Buffer.byteLength(JSON.stringify(result), 'utf8')
+  if (responseBytes > MAX_PII_VALIDATION_RESPONSE_BYTES) {
+    throw new Error('PII validation result exceeds the response size limit')
+  }
+  return result
+}
+
 /**
  * Detect PII spans via the Presidio analyzer. An empty `entityTypes` ⇒ detect all.
  * Throws on transport/HTTP failure so callers can apply their own fail-safe.
@@ -109,10 +191,19 @@ async function analyze(
     signal,
   })
   if (!response.ok) {
-    const detail = await response.text().catch(() => '')
+    const detail = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'PII analyzer error response',
+      signal,
+    }).catch(() => '')
     throw new Error(`Presidio analyze failed (${response.status}): ${detail.slice(0, 200)}`)
   }
-  return (await response.json()) as AnalyzerSpan[]
+  const result = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_PII_VALIDATION_RESPONSE_BYTES,
+    label: 'PII analyzer response',
+    signal,
+  })
+  return parseAnalyzerSpans(result, text.length)
 }
 
 /**
@@ -251,11 +342,26 @@ async function anonymize(
     signal,
   })
   if (!response.ok) {
-    const detail = await response.text().catch(() => '')
+    const detail = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'PII anonymizer error response',
+      signal,
+    }).catch(() => '')
     throw new Error(`Presidio anonymize failed (${response.status}): ${detail.slice(0, 200)}`)
   }
-  const data = (await response.json()) as { text: string }
-  return data.text
+  const data = await readResponseJsonWithLimit<unknown>(response, {
+    maxBytes: MAX_PII_VALIDATION_RESPONSE_BYTES,
+    label: 'PII anonymizer response',
+    signal,
+  })
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('PII anonymizer returned an invalid result')
+  }
+  const maskedText = (data as Record<string, unknown>).text
+  if (typeof maskedText !== 'string') {
+    throw new Error('PII anonymizer returned an invalid result')
+  }
+  return maskedText
 }
 
 /**
@@ -279,6 +385,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
     abortSignal?.throwIfAborted()
     const spans = await analyze(text, entityTypes, language, customPatterns, abortSignal)
     abortSignal?.throwIfAborted()
+    assertDetectedEntityBudget(text, spans, customPatterns)
 
     const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
       type: displayEntityType(s.entity_type, customPatterns),
@@ -290,7 +397,11 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 
     if (spans.length === 0) {
       logger.info(`[${requestId}] PII validation completed`, { passed: true, detectedCount: 0 })
-      return { passed: true, detectedEntities: [], maskedText: mode === 'mask' ? text : undefined }
+      return assertValidationResultBudget({
+        passed: true,
+        detectedEntities: [],
+        maskedText: mode === 'mask' ? text : undefined,
+      })
     }
 
     if (mode === 'block') {
@@ -303,7 +414,11 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
         passed: false,
         detectedCount: detectedEntities.length,
       })
-      return { passed: false, error: `PII detected: ${summary}`, detectedEntities }
+      return assertValidationResultBudget({
+        passed: false,
+        error: `PII detected: ${summary}`,
+        detectedEntities,
+      })
     }
 
     // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>` (or the
@@ -315,13 +430,14 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
       detectedCount: detectedEntities.length,
       hasMaskedText: true,
     })
-    return { passed: true, detectedEntities, maskedText }
+    return assertValidationResultBudget({ passed: true, detectedEntities, maskedText })
   } catch (error) {
     if (isAbortError(error) || abortSignal?.aborted) throw error
-    logger.error(`[${requestId}] PII validation failed`, { error: getErrorMessage(error) })
+    const errorMessage = truncate(getErrorMessage(error), 950)
+    logger.error(`[${requestId}] PII validation failed`, { error: errorMessage })
     return {
       passed: false,
-      error: `PII validation failed: ${getErrorMessage(error)}`,
+      error: `PII validation failed: ${errorMessage}`,
       detectedEntities: [],
     }
   }

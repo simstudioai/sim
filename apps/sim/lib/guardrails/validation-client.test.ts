@@ -12,6 +12,7 @@ const { mockToken } = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
 
+import { MAX_PII_VALIDATION_RESPONSE_BYTES } from '@/lib/guardrails/pii-limits'
 import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
 
 describe('validatePIIViaHttp', () => {
@@ -75,6 +76,19 @@ describe('validatePIIViaHttp', () => {
     await expect(
       validatePIIViaHttp({ text: 'claim', entityTypes: [], mode: 'block' })
     ).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('fails before parsing an oversized success body', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"passed":true}', {
+        headers: { 'content-length': String(MAX_PII_VALIDATION_RESPONSE_BYTES + 1) },
+      })
+    )
+
+    await expect(
+      validatePIIViaHttp({ text: 'claim', entityTypes: [], mode: 'block' })
+    ).rejects.toThrow('PII validation response exceeds maximum size')
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 })

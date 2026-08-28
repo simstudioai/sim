@@ -5,7 +5,13 @@ import {
   guardrailsPiiValidateResponseSchema,
 } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { MAX_PII_VALIDATION_RESPONSE_BYTES } from '@/lib/guardrails/pii-limits'
 
 /**
  * Validates one string through the app-container PII capability boundary.
@@ -35,9 +41,18 @@ export async function validatePIIViaHttp(
   })
 
   if (!response.ok) {
-    const detail = await response.text().catch(() => '')
+    const detail = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'PII validation error response',
+      signal,
+    }).catch(() => '')
     throw new Error(`PII validation request failed (${response.status}): ${detail.slice(0, 200)}`)
   }
 
-  return guardrailsPiiValidateResponseSchema.parse(await response.json())
+  const result = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_PII_VALIDATION_RESPONSE_BYTES,
+    label: 'PII validation response',
+    signal,
+  })
+  return guardrailsPiiValidateResponseSchema.parse(result)
 }

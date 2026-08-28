@@ -8,6 +8,10 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import {
+  MAX_PII_VALIDATION_DETECTED_ENTITIES,
+  MAX_PII_VALIDATION_TEXT_CHARACTERS,
+} from '@/lib/guardrails/pii-limits'
 
 const guardrailsMaskBatchBodySchema = z.object({
   texts: z.array(z.string()).max(100_000),
@@ -22,7 +26,7 @@ const guardrailsMaskBatchResponseSchema = z.object({
 
 export const guardrailsPiiValidateBodySchema = z
   .object({
-    text: z.string().max(10_000_000, 'Text is too long'),
+    text: z.string().max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Text is too long'),
     entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(200),
     mode: z.enum(['block', 'mask']),
     language: z.string().min(1, 'Language cannot be empty').max(20).optional(),
@@ -36,7 +40,7 @@ export const detectedPiiEntitySchema = z
     start: z.number().int().nonnegative(),
     end: z.number().int().nonnegative(),
     score: z.number().min(0).max(1),
-    text: z.string().max(10_000_000, 'Detected text is too long'),
+    text: z.string().max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Detected text is too long'),
   })
   .strict()
 
@@ -44,8 +48,11 @@ export const guardrailsPiiValidateResponseSchema = z
   .object({
     passed: z.boolean(),
     error: z.string().max(1_000).optional(),
-    detectedEntities: z.array(detectedPiiEntitySchema),
-    maskedText: z.string().max(10_000_000, 'Masked text is too long').optional(),
+    detectedEntities: z.array(detectedPiiEntitySchema).max(MAX_PII_VALIDATION_DETECTED_ENTITIES),
+    maskedText: z
+      .string()
+      .max(MAX_PII_VALIDATION_TEXT_CHARACTERS, 'Masked text is too long')
+      .optional(),
   })
   .strict()
 
