@@ -1,7 +1,7 @@
 import type { SESGetAccountParams, SESGetAccountResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getAccountTool: ToolConfig<SESGetAccountParams, SESGetAccountResponse> = {
+export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccountResponse> = {
   id: 'ses_get_account',
   name: 'SES Get Account',
   description: 'Get SES account sending quota and status information',
@@ -28,11 +28,8 @@ export const getAccountTool: ToolConfig<SESGetAccountParams, SESGetAccountRespon
     },
   },
 
-  request: {
-    url: '/api/tools/ses/get-account',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -53,6 +53,21 @@ vi.mock('ssh2', () => {
       return this
     }
 
+    once(event: string, handler: (arg?: unknown) => void) {
+      const wrapped = (arg?: unknown) => {
+        this.off(event, wrapped)
+        handler(arg)
+      }
+      return this.on(event, wrapped)
+    }
+
+    off(event: string, handler: (arg?: unknown) => void) {
+      this.handlers[event] = (this.handlers[event] ?? []).filter(
+        (registered) => registered !== handler
+      )
+      return this
+    }
+
     private emit(event: string, arg?: unknown) {
       for (const handler of this.handlers[event] ?? []) handler(arg)
     }
@@ -74,8 +89,13 @@ vi.mock('ssh2', () => {
       cb(null, fakeSftp)
     }
 
-    end() {}
-    destroy() {}
+    end() {
+      this.emit('close')
+    }
+
+    destroy() {
+      this.emit('close')
+    }
   }
 
   return {

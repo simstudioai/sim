@@ -2,9 +2,9 @@ import type {
   IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listAccountAssignmentsTool: ToolConfig<
+export const listAccountAssignmentsTool: InternalToolConfig<
   IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse
 > = {
@@ -64,11 +64,8 @@ export const listAccountAssignmentsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-account-assignments',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

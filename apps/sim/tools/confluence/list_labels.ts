@@ -1,5 +1,5 @@
 import { LABEL_ITEM_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListLabelsParams {
   accessToken: string
@@ -23,7 +23,7 @@ export interface ConfluenceListLabelsResponse {
   }
 }
 
-export const confluenceListLabelsTool: ToolConfig<
+export const confluenceListLabelsTool: InternalToolConfig<
   ConfluenceListLabelsParams,
   ConfluenceListLabelsResponse
 > = {
@@ -77,9 +77,8 @@ export const confluenceListLabelsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceListLabelsParams) => {
+  operation: {
+    input: (params: ConfluenceListLabelsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -92,14 +91,7 @@ export const confluenceListLabelsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/labels?${query.toString()}`
-    },
-    method: 'GET',
-    headers: (params: ConfluenceListLabelsParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
+      return Object.fromEntries(query)
     },
   },
 

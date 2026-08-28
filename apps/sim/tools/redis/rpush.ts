@@ -1,7 +1,7 @@
 import type { RedisRPushParams, RedisRPushResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisRPushTool: ToolConfig<RedisRPushParams, RedisRPushResponse> = {
+export const redisRPushTool: InternalToolConfig<RedisRPushParams, RedisRPushResponse> = {
   id: 'redis_rpush',
   name: 'Redis RPUSH',
   description: 'Append a value to the end of a list stored at a key in Redis.',
@@ -28,11 +28,8 @@ export const redisRPushTool: ToolConfig<RedisRPushParams, RedisRPushResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'RPUSH',
       args: [params.key, params.value],

@@ -1,5 +1,5 @@
 import { SPACES_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListSpacesParams {
   accessToken: string
@@ -24,7 +24,7 @@ export interface ConfluenceListSpacesResponse {
   }
 }
 
-export const confluenceListSpacesTool: ToolConfig<
+export const confluenceListSpacesTool: InternalToolConfig<
   ConfluenceListSpacesParams,
   ConfluenceListSpacesResponse
 > = {
@@ -72,9 +72,8 @@ export const confluenceListSpacesTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceListSpacesParams) => {
+  operation: {
+    input: (params: ConfluenceListSpacesParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -86,14 +85,7 @@ export const confluenceListSpacesTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/spaces?${query.toString()}`
-    },
-    method: 'GET',
-    headers: (params: ConfluenceListSpacesParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
+      return Object.fromEntries(query)
     },
   },
 

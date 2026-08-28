@@ -2,9 +2,9 @@ import type {
   ClickHouseCreateDatabaseParams,
   ClickHouseMessageResponse,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createDatabaseTool: ToolConfig<
+export const createDatabaseTool: InternalToolConfig<
   ClickHouseCreateDatabaseParams,
   ClickHouseMessageResponse
 > = {
@@ -58,13 +58,8 @@ export const createDatabaseTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/create-database',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

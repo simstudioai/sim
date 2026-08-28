@@ -482,7 +482,8 @@ export async function createMultipartUpload(options: {
  * Download a file from the configured storage provider
  */
 export async function downloadFile(options: DownloadFileOptions): Promise<Buffer> {
-  const { key, context, maxBytes } = options
+  const { key, context, maxBytes, signal } = options
+  signal?.throwIfAborted()
 
   if (context) {
     const config = getStorageConfig(context)
@@ -490,25 +491,19 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     if (USE_BLOB_STORAGE) {
       const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
       const blobConfig = createBlobConfig(config)
-      return maxBytes === undefined
-        ? downloadFromBlob(key, blobConfig)
-        : downloadFromBlob(key, blobConfig, maxBytes)
+      return downloadFromBlob(key, blobConfig, maxBytes, signal)
     }
 
     if (USE_S3_STORAGE) {
       const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
       const s3Config = createS3Config(config)
-      return maxBytes === undefined
-        ? downloadFromS3(key, s3Config)
-        : downloadFromS3(key, s3Config, maxBytes)
+      return downloadFromS3(key, s3Config, maxBytes, signal)
     }
 
     if (USE_GCS_STORAGE) {
       const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client')
       const gcsConfig = createGcsConfig(config)
-      return maxBytes === undefined
-        ? downloadFromGcs(key, gcsConfig)
-        : downloadFromGcs(key, gcsConfig, maxBytes)
+      return downloadFromGcs(key, gcsConfig, maxBytes, signal)
     }
   }
 
@@ -524,7 +519,7 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     assertKnownSizeWithinLimit(fileStats.size, maxBytes, 'storage download')
   }
 
-  return readFile(filePath)
+  return readFile(filePath, signal ? { signal } : undefined)
 }
 
 /**

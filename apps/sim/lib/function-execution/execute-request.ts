@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
 import {
   FORMAT_TO_CONTENT_TYPE,
@@ -1326,8 +1326,13 @@ async function appendPrivateResolvedSecretNames(
   )
 }
 
+export interface FunctionExecutionRequestContext {
+  headers: Headers
+  signal: AbortSignal
+}
+
 export function projectFunctionValidationResponse(
-  req: NextRequest,
+  req: Pick<FunctionExecutionRequestContext, 'headers'>,
   response: NextResponse
 ): Promise<NextResponse> {
   const metadataType = getRequestedResolvedSecretNamesMetadataType(req.headers)
@@ -1864,7 +1869,7 @@ export interface TrustedFunctionExecutionAuth {
  * second Sim-to-Sim HTTP request.
  */
 export async function executeFunctionRequest(
-  req: NextRequest,
+  req: FunctionExecutionRequestContext,
   body: ParsedFunctionExecuteBody,
   auth: TrustedFunctionExecutionAuth
 ): Promise<NextResponse> {

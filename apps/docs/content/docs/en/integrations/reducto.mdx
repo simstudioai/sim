@@ -37,11 +37,16 @@ Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF do
 
 ### Reducto PDF Parser
 
+Parse PDF documents using Reducto OCR API
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | PDF document to be processed |
+| `pages` | array | No | Specific pages to process \(1-indexed page numbers\) |
+| `tableOutputFormat` | string | No | Table output format \(`md` for Markdown or `html` for HTML\). Defaults to `md`. |
+| `apiKey` | string | Yes | Reducto API key \(REDUCTO_API_KEY\) |
 
 #### Output
 

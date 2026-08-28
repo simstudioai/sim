@@ -2,9 +2,9 @@ import type {
   CloudWatchDescribeLogGroupsParams,
   CloudWatchDescribeLogGroupsResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeLogGroupsTool: ToolConfig<
+export const describeLogGroupsTool: InternalToolConfig<
   CloudWatchDescribeLogGroupsParams,
   CloudWatchDescribeLogGroupsResponse
 > = {
@@ -46,13 +46,8 @@ export const describeLogGroupsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/describe-log-groups',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

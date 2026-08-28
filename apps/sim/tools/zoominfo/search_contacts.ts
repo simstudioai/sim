@@ -1,20 +1,16 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoSearchContactsParams,
   ZoomInfoSearchContactsResponse,
 } from '@/tools/zoominfo/types'
 import {
-  buildProxyBody,
   extractDataArray,
   extractPagination,
   paginationOutputProperties,
-  toCsvStringOrUndefined,
-  toNumberOrUndefined,
-  transformZoomInfoEnvelope,
-  ZOOMINFO_PROXY_URL,
+  transformZoomInfoResponse,
 } from '@/tools/zoominfo/utils'
 
-export const zoominfoSearchContactsTool: ToolConfig<
+export const zoominfoSearchContactsTool: InternalToolConfig<
   ZoomInfoSearchContactsParams,
   ZoomInfoSearchContactsResponse
 > = {
@@ -138,58 +134,12 @@ export const zoominfoSearchContactsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: ZOOMINFO_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const attributes: Record<string, unknown> = {}
-      if (params.firstName) attributes.firstName = params.firstName
-      if (params.lastName) attributes.lastName = params.lastName
-      if (params.fullName) attributes.fullName = params.fullName
-      if (params.emailAddress) attributes.emailAddress = params.emailAddress
-      if (params.jobTitle) attributes.jobTitle = params.jobTitle
-      const managementLevel = toCsvStringOrUndefined(params.managementLevel, 'managementLevel')
-      if (managementLevel) attributes.managementLevel = managementLevel
-      const department = toCsvStringOrUndefined(params.department, 'department')
-      if (department) attributes.department = department
-      if (params.companyId) attributes.companyId = params.companyId
-      if (params.companyName) attributes.companyName = params.companyName
-      const minScore = toNumberOrUndefined(params.contactAccuracyScoreMin)
-      if (minScore !== undefined) attributes.contactAccuracyScoreMin = String(minScore)
-      const required = toCsvStringOrUndefined(params.requiredFields, 'requiredFields')
-      if (required) attributes.requiredFields = required
-      if (params.excludePartialProfiles !== undefined) {
-        attributes.excludePartialProfiles = params.excludePartialProfiles
-      }
-
-      const query: Record<string, string | number> = {}
-      const page = toNumberOrUndefined(params.page)
-      const rpp = toNumberOrUndefined(params.rpp)
-      if (page !== undefined) query['page[number]'] = page
-      if (rpp !== undefined) query['page[size]'] = rpp
-      if (params.sortBy) {
-        const order = params.sortOrder === 'desc' ? '-' : ''
-        query.sort = `${order}${params.sortBy}`
-      }
-
-      return {
-        ...buildProxyBody(params),
-        path: '/data/v1/contacts/search',
-        method: 'POST',
-        query: Object.keys(query).length > 0 ? query : undefined,
-        body: {
-          data: {
-            type: 'ContactSearch',
-            attributes,
-          },
-        },
-      }
-    },
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {
-    const { data } = await transformZoomInfoEnvelope(response)
+    const { data } = await transformZoomInfoResponse(response)
     const contacts = extractDataArray(data)
     const pagination = extractPagination(data)
     return {

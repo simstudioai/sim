@@ -325,7 +325,7 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 | --------- | ---- | -------- | ----------- |
 | `organization` | string | Yes | Azure DevOps organization name |
 | `project` | string | Yes | Azure DevOps project name |
-| `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = \'Doing\' ORDER BY \[System.Id\] ASC"\). Use TOP N to limit results. |
+| `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = 'Doing' ORDER BY \[System.Id\] ASC"\). Use TOP N to limit results. |
 
 #### Output
 
@@ -421,8 +421,8 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 | `activity` | string | No | Activity \(Microsoft.VSTS.Common.Activity\). One of Deployment, Design, Development, Documentation, Requirements, Testing. Basic process: Task only. |
 | `remainingWork` | number | No | Remaining work hours \(Microsoft.VSTS.Scheduling.RemainingWork\). Basic process: Task only. |
 | `completedWork` | number | No | Completed work hours \(Microsoft.VSTS.Scheduling.CompletedWork\). Basic process: Task only. |
-| `areaPath` | string | No | Area path for the work item, e.g. "MyProject\\\\Team" \(optional\) |
-| `iterationPath` | string | No | Iteration path for the work item, e.g. "MyProject\\\\Sprint 1" \(optional\) |
+| `areaPath` | string | No | Area path for the work item, e.g. "MyProject\\Team" \(optional\) |
+| `iterationPath` | string | No | Iteration path for the work item, e.g. "MyProject\\Sprint 1" \(optional\) |
 | `tags` | string | No | Semicolon-separated tags, e.g. "issue; p1; auth" \(optional\) |
 
 #### Output

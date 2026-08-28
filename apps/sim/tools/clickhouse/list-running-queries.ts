@@ -2,9 +2,9 @@ import type {
   ClickHouseListRunningQueriesParams,
   ClickHouseRowsResponse,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listRunningQueriesTool: ToolConfig<
+export const listRunningQueriesTool: InternalToolConfig<
   ClickHouseListRunningQueriesParams,
   ClickHouseRowsResponse
 > = {
@@ -52,13 +52,8 @@ export const listRunningQueriesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/list-running-queries',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

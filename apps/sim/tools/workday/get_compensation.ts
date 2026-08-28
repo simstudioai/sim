@@ -1,10 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   WorkdayGetCompensationParams,
   WorkdayGetCompensationResponse,
 } from '@/tools/workday/types'
 
-export const getCompensationTool: ToolConfig<
+export const getCompensationTool: InternalToolConfig<
   WorkdayGetCompensationParams,
   WorkdayGetCompensationResponse
 > = {
@@ -46,13 +46,8 @@ export const getCompensationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/workday/get-compensation',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

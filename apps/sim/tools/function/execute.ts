@@ -7,13 +7,9 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
-import {
-  PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
-  PRIVATE_SECRET_PROVENANCE_FIELD,
-  PRIVATE_SECRET_PROVENANCE_HEADER,
-} from '@/lib/execution/private-tool-metadata'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Builds the canonical Function protocol body for both HTTP compatibility and in-process calls. */
 export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionExecuteBody {
@@ -61,7 +57,7 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
   }
 }
 
-export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
+export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
   name: 'Function Execute',
   description:
@@ -192,16 +188,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
     },
   },
 
-  request: {
-    url: '/api/function/execute',
-    method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      ...(params[PRIVATE_SECRET_PROVENANCE_FIELD]
-        ? { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
-        : {}),
-    }),
-    body: buildFunctionExecuteBody,
+  operation: {
+    input: buildFunctionExecuteBody,
   },
 
   transformResponse: async (response: Response): Promise<CodeExecutionOutput> => {

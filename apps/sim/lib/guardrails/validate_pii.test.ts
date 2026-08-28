@@ -125,6 +125,25 @@ describe('validate_pii (Presidio service)', () => {
   })
 
   describe('validatePII', () => {
+    it('forwards cancellation to Presidio and does not reshape it into a verdict', async () => {
+      const controller = new AbortController()
+      fetchMock.mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        expect(init.signal).toBe(controller.signal)
+        controller.abort(new DOMException('cancelled', 'AbortError'))
+        throw controller.signal.reason
+      })
+
+      await expect(
+        validatePII({
+          text: 'claim',
+          entityTypes: [],
+          mode: 'block',
+          requestId: 'cancelled-request',
+          abortSignal: controller.signal,
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
     it('block mode fails with a summary when PII is detected', async () => {
       const res = await validatePII({
         text: 'reach me at a@b.com',

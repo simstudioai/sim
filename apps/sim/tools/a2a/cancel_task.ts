@@ -1,7 +1,7 @@
 import type { A2ACancelTaskParams, A2ACancelTaskResponse } from '@/tools/a2a/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskResponse> = {
+export const a2aCancelTaskTool: InternalToolConfig<A2ACancelTaskParams, A2ACancelTaskResponse> = {
   id: 'a2a_cancel_task',
   name: 'A2A Cancel Task',
   description: 'Request cancellation of an in-progress A2A task.',
@@ -28,11 +28,8 @@ export const a2aCancelTaskTool: ToolConfig<A2ACancelTaskParams, A2ACancelTaskRes
     },
   },
 
-  request: {
-    url: '/api/tools/a2a/cancel-task',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const body: Record<string, unknown> = {
         agentUrl: params.agentUrl,
         taskId: params.taskId,

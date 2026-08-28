@@ -3,6 +3,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
+  FileFetchInput,
   FileParseResult,
   FileParserInput,
   FileParserOutput,
@@ -12,7 +13,7 @@ import type {
   FileUploadInput,
 } from '@/tools/file/types'
 import { transformTable } from '@/tools/shared/table'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
 
@@ -74,11 +75,6 @@ const normalizeFileParseResult = (value: unknown): FileParseResult => {
 
 interface ToolBodyParams extends Partial<FileParserInput> {
   files?: FileUploadInput[]
-  _context?: {
-    workspaceId?: string
-    workflowId?: string
-    executionId?: string
-  }
 }
 
 const parseFileParserResponse = async (response: Response): Promise<FileParserOutput> => {
@@ -173,7 +169,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
   }
 }
 
-export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
+export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutput> = {
   id: 'file_parser',
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
@@ -200,13 +196,8 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     },
   },
 
-  request: {
-    url: '/api/files/parse',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: ToolBodyParams) => {
+  operation: {
+    input: (params: ToolBodyParams) => {
       logger.info('Request parameters received by tool body:', params)
 
       if (!params) {
@@ -293,9 +284,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         filePath: determinedFilePath,
         fileType: determinedFileType,
         ...(Object.keys(headers).length > 0 && { headers }),
-        workspaceId: params.workspaceId || params._context?.workspaceId,
-        workflowId: params._context?.workflowId,
-        executionId: params._context?.executionId,
+        workspaceId: params.workspaceId,
       }
     },
   },
@@ -309,14 +298,14 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
   },
 }
 
-export const fileParserV2Tool: ToolConfig<FileParserInput, FileParserOutput> = {
+export const fileParserV2Tool: InternalToolConfig<FileParserInput, FileParserOutput> = {
   id: 'file_parser_v2',
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '2.0.0',
 
   params: fileParserTool.params,
-  request: fileParserTool.request,
+  operation: fileParserTool.operation,
   transformResponse: parseFileParserResponse,
 
   outputs: {
@@ -361,13 +350,13 @@ const parseFileParserV3Response = async (response: Response): Promise<FileParser
   }
 }
 
-export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> = {
+export const fileParserV3Tool: InternalToolConfig<FileParserInput, FileParserV3Output> = {
   id: 'file_parser_v3',
   name: 'File Parser',
   description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '3.0.0',
   params: fileParserTool.params,
-  request: fileParserTool.request,
+  operation: fileParserTool.operation,
   transformResponse: parseFileParserV3Response,
   outputs: {
     files: { type: 'file[]', description: 'Parsed files as UserFile objects' },
@@ -375,13 +364,18 @@ export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> =
   },
 }
 
-export const fileFetchTool: ToolConfig<FileParserInput, FileParserV3Output> = {
+export const fileFetchTool: InternalToolConfig<FileFetchInput, FileParserV3Output> = {
   id: 'file_fetch',
   name: 'File Fetch',
   description: 'Fetch and parse a file from a URL with optional custom headers.',
   version: '1.0.0',
   params: {
-    ...fileParserTool.params,
+    fileUrl: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'URL of the file to fetch and parse.',
+    },
     headers: {
       type: 'object',
       required: false,
@@ -389,7 +383,13 @@ export const fileFetchTool: ToolConfig<FileParserInput, FileParserV3Output> = {
       description: 'HTTP headers to include when fetching URL-based files.',
     },
   },
-  request: fileParserTool.request,
+  operation: {
+    input: ({ fileUrl, ...params }) =>
+      fileParserTool.operation.input({
+        ...params,
+        filePath: fileUrl,
+      }),
+  },
   transformResponse: parseFileParserV3Response,
   outputs: {
     files: { type: 'file[]', description: 'Fetched files as UserFile objects' },

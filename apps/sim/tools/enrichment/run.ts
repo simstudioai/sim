@@ -1,7 +1,7 @@
 import { ALL_ENRICHMENTS } from '@/enrichments'
 import { mapFieldType } from '@/enrichments/providers'
 import type { EnrichmentRunParams, EnrichmentRunResponse } from '@/tools/enrichment/types'
-import type { OutputProperty, ToolConfig } from '@/tools/types'
+import type { InternalToolConfig, OutputProperty } from '@/tools/types'
 
 /** Union of every distinct output across all registry enrichments. */
 const enrichmentOutputs: Record<string, OutputProperty> = {}
@@ -18,11 +18,9 @@ for (const enrichment of ALL_ENRICHMENTS) {
 }
 
 /**
- * Runs a registry enrichment via `/api/tools/enrichment/run`. Selected and fed
- * by the Enrichment block; the route runs the provider cascade with the
- * workspace's hosted / BYOK key.
+ * Runs a registry enrichment's provider cascade with the workspace's hosted or BYOK key.
  */
-export const enrichmentRunTool: ToolConfig<EnrichmentRunParams, EnrichmentRunResponse> = {
+export const enrichmentRunTool: InternalToolConfig<EnrichmentRunParams, EnrichmentRunResponse> = {
   id: 'enrichment_run',
   name: 'Run Enrichment',
   description: 'Run a Sim enrichment (e.g. Work Email, Phone Number) and return its outputs',
@@ -43,14 +41,14 @@ export const enrichmentRunTool: ToolConfig<EnrichmentRunParams, EnrichmentRunRes
     },
   },
 
-  request: {
-    url: '/api/tools/enrichment/run',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params: EnrichmentRunParams & { _context?: { workspaceId?: string } }) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ enrichmentId: params.enrichmentId, inputs: params.inputs }),
+    },
+    input: (params) => ({
       enrichmentId: params.enrichmentId,
       inputs: params.inputs ?? {},
-      workspaceId: params._context?.workspaceId,
     }),
   },
 
@@ -72,15 +70,11 @@ export const enrichmentRunTool: ToolConfig<EnrichmentRunParams, EnrichmentRunRes
         ...result,
         matched: Boolean(data.matched),
         provider,
-        // Surface hosted-key cost so the workflow logging session bills it,
-        // matching the convention used by hosted-key tools.
         ...(cost > 0 ? { cost: { total: cost } } : {}),
       },
     }
   },
 
-  // Reserved keys go LAST so they always win if an enrichment ever declares an
-  // output id of `matched` or `provider` (later spread / assignment wins in JS).
   outputs: {
     ...enrichmentOutputs,
     matched: { type: 'boolean', description: 'Whether the enrichment found a result' },

@@ -1,24 +1,22 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileGetParams {
   fileId?: string
   fileInput?: unknown
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
 interface FileReadParams {
   fileId?: string | string[]
   fileInput?: unknown
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
 const createFileReadTool = (config: {
   id: 'file_read'
   name: string
   description: string
-}): ToolConfig<FileReadParams, ToolResponse> => ({
+}): InternalToolConfig<FileReadParams, ToolResponse> => ({
   id: config.id,
   name: config.name,
   description: config.description,
@@ -39,15 +37,12 @@ const createFileReadTool = (config: {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'read',
       fileId: params.fileId,
       fileInput: params.fileInput,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 
@@ -64,7 +59,7 @@ const createFileReadTool = (config: {
   },
 })
 
-export const fileGetTool: ToolConfig<FileGetParams, ToolResponse> = {
+export const fileGetTool: InternalToolConfig<FileGetParams, ToolResponse> = {
   id: 'file_get',
   name: 'File Get',
   description: 'Get a workspace file object from a selected file or canonical workspace file ID.',
@@ -85,15 +80,12 @@ export const fileGetTool: ToolConfig<FileGetParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'get',
       fileId: params.fileId,
       fileInput: params.fileInput,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 
@@ -120,10 +112,9 @@ interface FileGetContentParams {
   fileId?: string | string[]
   fileInput?: unknown
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileGetContentTool: ToolConfig<FileGetContentParams, ToolResponse> = {
+export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolResponse> = {
   id: 'file_get_content',
   name: 'File Get Content',
   description:
@@ -145,15 +136,12 @@ export const fileGetContentTool: ToolConfig<FileGetContentParams, ToolResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'content',
       fileId: params.fileId,
       fileInput: params.fileInput,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 

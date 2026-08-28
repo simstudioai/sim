@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeletePageParams {
   accessToken: string
@@ -17,7 +17,7 @@ export interface ConfluenceDeletePageResponse {
   }
 }
 
-export const confluenceDeletePageTool: ToolConfig<
+export const confluenceDeletePageTool: InternalToolConfig<
   ConfluenceDeletePageParams,
   ConfluenceDeletePageResponse
 > = {
@@ -67,17 +67,8 @@ export const confluenceDeletePageTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceDeletePageParams) => '/api/tools/confluence/page',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeletePageParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceDeletePageParams) => {
+  operation: {
+    input: (params: ConfluenceDeletePageParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

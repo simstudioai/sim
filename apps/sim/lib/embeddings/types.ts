@@ -78,6 +78,8 @@ export type EmbeddingAdapterFactory<Ctx extends EmbeddingAdapterContext = Embedd
   (context: Ctx) => EmbeddingProviderAdapter
 
 export interface EmbedOptions {
+  /** Cancels provider requests, retry waits, and remaining batches. */
+  signal?: AbortSignal
   /** Catalog model id. Defaults to the platform default when omitted. */
   model?: string
   /** Transport override for catalog models exposed through another provider. */
@@ -121,6 +123,8 @@ export interface EmbedResult {
 }
 
 export interface OpenRouterEmbedOptions {
+  /** Cancels provider requests, retry waits, and remaining batches. */
+  signal?: AbortSignal
   apiKey: string
   model?: string
   /** Per-input ceiling reported by OpenRouter's embedding model catalog. */

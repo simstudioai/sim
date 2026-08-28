@@ -1,7 +1,7 @@
 import type { MSSQLDeleteParams, MSSQLDeleteResponse } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
+export const deleteTool: InternalToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
   id: 'mssql_delete',
   name: 'Microsoft SQL Server Delete',
   description: 'Delete rows from a Microsoft SQL Server table',
@@ -73,13 +73,8 @@ export const deleteTool: ToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

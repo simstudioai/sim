@@ -3,7 +3,7 @@ import {
   PAGE_ITEM_PROPERTIES,
   TIMESTAMP_OUTPUT,
 } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListPagesInSpaceParams {
   accessToken: string
@@ -42,7 +42,7 @@ export interface ConfluenceListPagesInSpaceResponse {
   }
 }
 
-export const confluenceListPagesInSpaceTool: ToolConfig<
+export const confluenceListPagesInSpaceTool: InternalToolConfig<
   ConfluenceListPagesInSpaceParams,
   ConfluenceListPagesInSpaceResponse
 > = {
@@ -110,16 +110,8 @@ export const confluenceListPagesInSpaceTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/space-pages',
-    method: 'POST',
-    headers: (params: ConfluenceListPagesInSpaceParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceListPagesInSpaceParams) => ({
+  operation: {
+    input: (params: ConfluenceListPagesInSpaceParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       spaceId: params.spaceId?.trim(),

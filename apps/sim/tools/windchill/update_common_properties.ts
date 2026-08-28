@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_SINGLE_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillUpdateCommonPropertiesTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillUpdateCommonPropertiesTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_update_common_properties',
   name: 'Windchill Update Common Properties',
   description: "Update a document's Name, Number, and other common properties",
@@ -49,12 +52,8 @@ export const windchillUpdateCommonPropertiesTool: ToolConfig<WindchillParams, Wi
         'Common properties as a JSON object, for example {"Name":"New name","Number":"NEW-001"}. Enumerated properties take a value/display pair.',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_update_common_properties', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_update_common_properties', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_update_common_properties', response),

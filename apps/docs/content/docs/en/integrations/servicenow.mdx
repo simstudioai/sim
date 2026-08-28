@@ -1230,7 +1230,7 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
 | `username` | string | Yes | ServiceNow username |
 | `password` | string | Yes | ServiceNow password |
-| `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to $\{SERVICENOW_TABLES.CI\}, which covers every CI class. |
+| `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to cmdb_ci, which covers every CI class. |
 | `name` | string | No | Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |

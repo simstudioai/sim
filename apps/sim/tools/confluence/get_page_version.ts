@@ -3,7 +3,7 @@ import {
   DETAILED_VERSION_OUTPUT_PROPERTIES,
   TIMESTAMP_OUTPUT,
 } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPageVersionParams {
   accessToken: string
@@ -40,7 +40,7 @@ export interface ConfluenceGetPageVersionResponse {
   }
 }
 
-export const confluenceGetPageVersionTool: ToolConfig<
+export const confluenceGetPageVersionTool: InternalToolConfig<
   ConfluenceGetPageVersionParams,
   ConfluenceGetPageVersionResponse
 > = {
@@ -88,16 +88,8 @@ export const confluenceGetPageVersionTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-versions',
-    method: 'POST',
-    headers: (params: ConfluenceGetPageVersionParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceGetPageVersionParams) => ({
+  operation: {
+    input: (params: ConfluenceGetPageVersionParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

@@ -2,9 +2,9 @@ import type {
   JupyterListKernelspecsParams,
   JupyterListKernelspecsResponse,
 } from '@/tools/jupyter/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterListKernelspecsTool: ToolConfig<
+export const jupyterListKernelspecsTool: InternalToolConfig<
   JupyterListKernelspecsParams,
   JupyterListKernelspecsResponse
 > = {
@@ -28,11 +28,8 @@ export const jupyterListKernelspecsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'GET',

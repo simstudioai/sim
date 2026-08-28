@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceUpdateCommentParams {
   accessToken: string
@@ -17,7 +17,7 @@ export interface ConfluenceUpdateCommentResponse {
   }
 }
 
-export const confluenceUpdateCommentTool: ToolConfig<
+export const confluenceUpdateCommentTool: InternalToolConfig<
   ConfluenceUpdateCommentParams,
   ConfluenceUpdateCommentResponse
 > = {
@@ -65,18 +65,8 @@ export const confluenceUpdateCommentTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/comment',
-    method: 'PUT',
-    headers: (params: ConfluenceUpdateCommentParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceUpdateCommentParams) => {
+  operation: {
+    input: (params: ConfluenceUpdateCommentParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

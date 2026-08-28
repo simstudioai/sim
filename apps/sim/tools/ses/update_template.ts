@@ -1,7 +1,10 @@
 import type { SESUpdateTemplateParams, SESUpdateTemplateResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTemplateTool: ToolConfig<SESUpdateTemplateParams, SESUpdateTemplateResponse> = {
+export const updateTemplateTool: InternalToolConfig<
+  SESUpdateTemplateParams,
+  SESUpdateTemplateResponse
+> = {
   id: 'ses_update_template',
   name: 'SES Update Template',
   description: 'Update the subject, HTML, and text content of an existing SES email template',
@@ -52,11 +55,8 @@ export const updateTemplateTool: ToolConfig<SESUpdateTemplateParams, SESUpdateTe
     },
   },
 
-  request: {
-    url: '/api/tools/ses/update-template',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

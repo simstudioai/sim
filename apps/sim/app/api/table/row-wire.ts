@@ -121,6 +121,24 @@ export function presentRowForPrincipal(
   }
 }
 
+export function presentQueryRowForPrincipal(
+  row: TableRow,
+  schema: TableSchema,
+  principal: TableRowRoutePrincipal
+) {
+  const dataOut =
+    rowKeyingForPrincipal(principal) === 'names' ? namedRowMapper(schema.columns) : identity
+  return {
+    id: row.id,
+    data: dataOut(row.data),
+    executions: row.executions,
+    position: row.position,
+    orderKey: row.orderKey ?? undefined,
+    createdAt: toWireTimestamp(row.createdAt),
+    updatedAt: toWireTimestamp(row.updatedAt),
+  }
+}
+
 function identity<T>(value: T): T {
   return value
 }

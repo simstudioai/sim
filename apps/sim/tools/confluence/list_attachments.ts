@@ -1,5 +1,5 @@
 import { ATTACHMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListAttachmentsParams {
   accessToken: string
@@ -25,7 +25,7 @@ export interface ConfluenceListAttachmentsResponse {
   }
 }
 
-export const confluenceListAttachmentsTool: ToolConfig<
+export const confluenceListAttachmentsTool: InternalToolConfig<
   ConfluenceListAttachmentsParams,
   ConfluenceListAttachmentsResponse
 > = {
@@ -79,9 +79,8 @@ export const confluenceListAttachmentsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceListAttachmentsParams) => {
+  operation: {
+    input: (params: ConfluenceListAttachmentsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -94,14 +93,7 @@ export const confluenceListAttachmentsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/attachments?${query.toString()}`
-    },
-    method: 'GET',
-    headers: (params: ConfluenceListAttachmentsParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
+      return Object.fromEntries(query)
     },
   },
 

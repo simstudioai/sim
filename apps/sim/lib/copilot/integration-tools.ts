@@ -3,7 +3,7 @@ import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { tools as toolRegistry } from '@/tools/registry'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 export interface ExposedIntegrationToolOwner {
@@ -19,7 +19,7 @@ export interface ExposedIntegrationTool extends ExposedIntegrationToolOwner {
    * callable id are all this exact value, matching the block's tools.access.
    */
   toolId: string
-  config: ToolConfig
+  config: ExecutableToolConfig
   /** Service directory name, e.g. "gmail". */
   service: string
   /** Operation stem within the service (used for the VFS path filename), e.g. "read". */

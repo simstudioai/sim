@@ -205,7 +205,7 @@ Execute a bound or unbound Dataverse function. Functions are read-only operation
 | `functionName` | string | Yes | Function name \(e.g., RetrievePrincipalAccess, RetrieveTotalRecordCount\). Do not include the Microsoft.Dynamics.CRM. namespace prefix for unbound functions. |
 | `entitySetName` | string | No | Entity set name for bound functions \(e.g., systemusers\). Leave empty for unbound functions. |
 | `recordId` | string | No | Record GUID for bound functions. Leave empty for unbound functions. |
-| `parameters` | string | No | Function parameters for the URL. Simple values can be inlined \(e.g., "LocalizedStandardName=\'Pacific Standard Time\ |
+| `parameters` | string | No | Function parameters for the URL. Simple values can be inlined \(e.g., "LocalizedStandardName='Pacific Standard Time',LocaleId=1033"\), but values with reserved characters \(/ &lt; &gt; * % & : \ ? +\) must use parameter aliases: put the alias assignment in parentheses and the alias-to-value bindings after a "?", e.g. "LocalizedStandardName=@p1,LocaleId=@p2?@p1='Pacific Standard Time'&@p2=1033". Do not include the enclosing parentheses yourself. |
 
 #### Output
 

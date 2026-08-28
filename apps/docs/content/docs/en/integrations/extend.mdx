@@ -27,11 +27,17 @@ Integrate Extend AI into the workflow. Parse and extract structured content from
 
 ### Extend Document Parser
 
+Parse and extract content from documents using Extend AI
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Document to be processed |
+| `outputFormat` | string | No | Target output format \(markdown or spatial\). Defaults to markdown. |
+| `chunking` | string | No | Chunking strategy \(page, document, or section\). Defaults to page. |
+| `engine` | string | No | Parsing engine \(parse_performance or parse_light\). Defaults to parse_performance. |
+| `apiKey` | string | Yes | Extend API key |
 
 #### Output
 

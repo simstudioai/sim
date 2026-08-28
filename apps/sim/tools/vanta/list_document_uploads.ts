@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
   VANTA_UPLOADED_FILE_OUTPUT_PROPERTIES,
@@ -7,9 +7,9 @@ import type {
   VantaListDocumentUploadsParams,
   VantaListDocumentUploadsResponse,
 } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaListDocumentUploadsTool: ToolConfig<
+export const vantaListDocumentUploadsTool: InternalToolConfig<
   VantaListDocumentUploadsParams,
   VantaListDocumentUploadsResponse
 > = {
@@ -58,11 +58,8 @@ export const vantaListDocumentUploadsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_list_document_uploads',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

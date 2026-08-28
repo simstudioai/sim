@@ -1,7 +1,7 @@
 import type { IAMListGroupsParams, IAMListGroupsResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listGroupsTool: ToolConfig<IAMListGroupsParams, IAMListGroupsResponse> = {
+export const listGroupsTool: InternalToolConfig<IAMListGroupsParams, IAMListGroupsResponse> = {
   id: 'iam_list_groups',
   name: 'IAM List Groups',
   description: 'List IAM groups in your AWS account',
@@ -46,11 +46,8 @@ export const listGroupsTool: ToolConfig<IAMListGroupsParams, IAMListGroupsRespon
     },
   },
 
-  request: {
-    url: '/api/tools/iam/list-groups',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

@@ -2,9 +2,9 @@ import type {
   IdentityCenterListAccountsParams,
   IdentityCenterListAccountsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listAccountsTool: ToolConfig<
+export const listAccountsTool: InternalToolConfig<
   IdentityCenterListAccountsParams,
   IdentityCenterListAccountsResponse
 > = {
@@ -46,11 +46,8 @@ export const listAccountsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-accounts',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

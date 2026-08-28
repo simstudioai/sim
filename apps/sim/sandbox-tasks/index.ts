@@ -20,7 +20,7 @@
  *   call `executeInIsolatedVM` directly rather than going through
  *   `runSandboxTask`. If you add a new Tier 2 caller, record it here so the
  *   set of sandbox entry points stays grep-able from one place.
- *     - `apps/sim/app/api/function/execute/route.ts` — user function blocks
+ *     - `apps/sim/lib/function-execution/execute-request.ts` — user function blocks
  *     - `apps/sim/executor/orchestrators/loop.ts`    — loop-condition eval
  *
  * E2B-routed executions (untrusted workflow runs) are a separate runtime

@@ -1,7 +1,7 @@
 import type { JsmCopyFormsParams, JsmCopyFormsResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmCopyFormsTool: ToolConfig<JsmCopyFormsParams, JsmCopyFormsResponse> = {
+export const jsmCopyFormsTool: InternalToolConfig<JsmCopyFormsParams, JsmCopyFormsResponse> = {
   id: 'jsm_copy_forms',
   name: 'JSM Copy Forms',
   description: 'Copy forms from one Jira issue to another',
@@ -46,11 +46,8 @@ export const jsmCopyFormsTool: ToolConfig<JsmCopyFormsParams, JsmCopyFormsRespon
         'Optional JSON array of form UUIDs to copy (e.g., ["uuid1", "uuid2"]). If omitted, copies all forms.',
     },
   },
-  request: {
-    url: '/api/tools/jsm/forms/copy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

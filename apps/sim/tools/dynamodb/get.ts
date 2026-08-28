@@ -1,7 +1,7 @@
 import type { DynamoDBGetParams, DynamoDBGetResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
+export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
   id: 'dynamodb_get',
   name: 'DynamoDB Get',
   description: 'Get an item from a DynamoDB table by primary key',
@@ -47,13 +47,8 @@ export const getTool: ToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/get',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

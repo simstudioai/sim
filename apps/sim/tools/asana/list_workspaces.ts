@@ -1,7 +1,7 @@
 import type { AsanaListWorkspacesParams, AsanaListWorkspacesResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaListWorkspacesTool: ToolConfig<
+export const asanaListWorkspacesTool: InternalToolConfig<
   AsanaListWorkspacesParams,
   AsanaListWorkspacesResponse
 > = {
@@ -24,13 +24,8 @@ export const asanaListWorkspacesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/asana/list-workspaces',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
     }),
   },

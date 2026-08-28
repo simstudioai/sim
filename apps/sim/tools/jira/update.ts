@@ -1,8 +1,14 @@
 import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
+interface JiraUpdateOperationEnvelope {
+  success?: boolean
+  output?: JiraUpdateResponse['output']
+  error?: string
+}
+
+export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
   id: 'jira_update',
   name: 'Jira Update',
   description: 'Update a Jira issue',
@@ -114,13 +120,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/jira/update',
-    method: 'PUT',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,
@@ -157,17 +158,17 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       }
     }
 
-    let data: any
+    let data: JiraUpdateOperationEnvelope
     try {
-      data = JSON.parse(responseText)
+      data = JSON.parse(responseText) as JiraUpdateOperationEnvelope
     } catch {
       throw new Error(
-        `Jira update failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/update`
+        `Jira update failed (${response.status} ${response.statusText}): non-JSON response from Jira operation`
       )
     }
 
     if (data.success && data.output) {
-      return data
+      return { success: true, output: data.output }
     }
 
     return {

@@ -13,6 +13,7 @@ const {
   mockMaybeNotifyLimit,
   mockOrderedLockRows,
   mockSql,
+  mockTxFor,
   mockTxFrom,
   mockTxLimit,
   mockTxOrderBy,
@@ -32,6 +33,7 @@ const {
   mockMaybeNotifyLimit: vi.fn(),
   mockOrderedLockRows: { queue: [] as unknown[][] },
   mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+  mockTxFor: vi.fn(),
   mockTxFrom: vi.fn(),
   mockTxLimit: vi.fn(),
   mockTxOrderBy: vi.fn(),
@@ -120,6 +122,42 @@ const ORG_CONTEXT: StorageBillingContext = {
   customStorageLimitGB: null,
 }
 
+const USER_CONTEXT: StorageBillingContext = {
+  workspaceId: 'workspace-1',
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'user', id: 'workspace-owner' },
+  plan: 'pro',
+  customStorageLimitGB: null,
+}
+
+/**
+ * Both payer kinds. The workspace lock is shared, but the payer lock branches
+ * to a different table per kind, so a lock-mode regression on only one of them
+ * has to fail a test.
+ */
+const PAYER_CASES = [
+  {
+    label: 'organization',
+    context: ORG_CONTEXT,
+    workspaceRow: {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: 'workspace-org' as string | null,
+      storageUsedBytes: 1_000,
+    },
+    payerLockRows: [{ id: 'workspace-org', storageUsedBytes: 1_000 }],
+  },
+  {
+    label: 'user',
+    context: USER_CONTEXT,
+    workspaceRow: {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: null as string | null,
+      storageUsedBytes: 1_000,
+    },
+    payerLockRows: [{ id: 'workspace-owner', storageUsedBytes: 1_000 }],
+  },
+] as const
+
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true })
 })
@@ -138,9 +176,10 @@ describe('workspace storage counter mutations', () => {
 
     mockOrderedLockRows.queue = []
     mockTxSelect.mockReturnValue({ from: mockTxFrom })
+    mockTxFor.mockReturnValue({ limit: mockTxLimit })
     mockTxFrom.mockReturnValue({
       where: vi.fn(() => ({
-        for: vi.fn(() => ({ limit: mockTxLimit })),
+        for: mockTxFor,
         limit: mockTxLimit,
         orderBy: mockTxOrderBy,
       })),
@@ -182,6 +221,39 @@ describe('workspace storage counter mutations', () => {
     )
     expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
   })
+
+  /**
+   * `FOR UPDATE` on these rows deadlocked in production: `workspace`,
+   * `organization`, and `user_stats` are foreign-key parents, so the calling
+   * transaction already holds an implicit `FOR KEY SHARE` on them from the
+   * billable child row it just wrote, and the stronger lock is an upgrade that
+   * two concurrent uploads take on each other. `FOR NO KEY UPDATE` still
+   * conflicts with itself, so the ledgers stay serialized.
+   */
+  it.each(PAYER_CASES)(
+    'locks the workspace and its $label payer as FOR NO KEY UPDATE',
+    async ({ context, workspaceRow }) => {
+      mockWorkspaceRow.current = { ...workspaceRow }
+
+      await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, context, 100)
+
+      expect(mockTxFor.mock.calls).toEqual([['no key update'], ['no key update']])
+    }
+  )
+
+  it.each(PAYER_CASES)(
+    'locks batched workspace and $label payer ledgers as FOR NO KEY UPDATE',
+    async ({ context, workspaceRow, payerLockRows }) => {
+      mockOrderedLockRows.queue = [[{ id: 'workspace-1', ...workspaceRow }], [...payerLockRows]]
+
+      await applyStorageUsageDeltasInTx(mockTx as unknown as DbOrTx, {
+        workspaceDeltas: [{ context, deltaBytes: 100 }],
+        legacyDeltas: [],
+      })
+
+      expect(mockTxOrderedFor.mock.calls).toEqual([['no key update'], ['no key update']])
+    }
+  )
 
   it('serializes quota admission on the locked payer ledger', async () => {
     mockGetStorageLimitForBillingContext.mockReturnValue(1_050)

@@ -140,14 +140,60 @@ describe('copilot tool executor fallback', () => {
           enforceCredentialAccess: true,
         }),
       }),
-      {
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          workspaceId: 'ws-1',
+        }),
+      })
     )
     expect(result).toEqual({ success: true, output: { emails: [] } })
+  })
+
+  it('forwards trusted authority and cancellation to dynamic custom tools', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { result: 'custom output' } })
+    const abortController = new AbortController()
+
+    const result = await executeTool(
+      'custom_weather-tool',
+      {
+        location: 'San Francisco',
+        _context: { userId: 'attacker', workspaceId: 'evil-workspace' },
+      },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'ws-1',
+        executionId: 'execution-1',
+        abortSignal: abortController.signal,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'custom_weather-tool',
+      expect.objectContaining({
+        location: 'San Francisco',
+        _context: expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }),
+      expect.objectContaining({
+        signal: abortController.signal,
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      })
+    )
+    expect(result).toEqual({ success: true, output: { result: 'custom output' } })
   })
 
   it('threads billing attribution into _context for dynamic tools (MCP)', async () => {
@@ -180,6 +226,13 @@ describe('copilot tool executor fallback', () => {
       'mcp-server-1-web_search_exa',
       expect.objectContaining({
         _context: expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          billingAttribution,
+        }),
+      }),
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
           userId: 'user-1',
           workspaceId: 'ws-1',
           billingAttribution,
@@ -221,13 +274,14 @@ describe('copilot tool executor fallback', () => {
         query: 'hello',
         _context: expect.not.objectContaining({ resolvedSecretTraceRegistry: expect.anything() }),
       }),
-      {
+      expect.objectContaining({
         resolvedSecretTraceRegistry: registry,
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          resolvedSecretTraceRegistry: registry,
+        }),
+      })
     )
     const appParams = executeAppTool.mock.calls[0]?.[1]
     expect(JSON.stringify(appParams)).not.toContain('resolvedSecretTraceRegistry')
@@ -295,7 +349,11 @@ describe('copilot tool executor fallback', () => {
 
     await executeTool('unknown_client_tool', {}, { userId: 'user-1' })
 
-    expect(executeAppTool).toHaveBeenCalledWith('unknown_client_tool', expect.any(Object))
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'unknown_client_tool',
+      expect.any(Object),
+      expect.objectContaining({ operationContext: expect.any(Object) })
+    )
   })
 
   it('converts run_function timeout from seconds to milliseconds for copilot calls', async () => {
@@ -322,12 +380,14 @@ describe('copilot tool executor fallback', () => {
           copilotToolExecution: true,
         }),
       }),
-      {
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          workspaceId: 'ws-1',
+          copilotToolExecution: true,
+        }),
+      })
     )
   })
 
@@ -377,12 +437,14 @@ describe('copilot tool executor fallback', () => {
       expect.objectContaining({
         timeout: 10_000,
       }),
-      {
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          workspaceId: 'ws-1',
+          copilotToolExecution: true,
+        }),
+      })
     )
   })
 
@@ -407,12 +469,14 @@ describe('copilot tool executor fallback', () => {
       expect.objectContaining({
         timeout: 10_000,
       }),
-      {
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          workspaceId: 'ws-1',
+          copilotToolExecution: true,
+        }),
+      })
     )
   })
 
@@ -437,12 +501,14 @@ describe('copilot tool executor fallback', () => {
       expect.objectContaining({
         timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
       }),
-      {
-        internalExecutorDelegation: {
-          subjectUserId: 'user-1',
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          userId: 'user-1',
           workflowId: 'workflow-1',
-        },
-      }
+          workspaceId: 'ws-1',
+          copilotToolExecution: true,
+        }),
+      })
     )
   })
 

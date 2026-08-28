@@ -1524,6 +1524,23 @@ export const batchUpdateTableRowsContract = defineRouteContract({
   },
 })
 
+export const updateTableRowsByFilterContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/table/[tableId]/rows',
+  params: tableIdParamsSchema,
+  body: updateRowsByFilterBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        message: z.string(),
+        updatedCount: z.number(),
+        updatedRowIds: z.array(z.string()).optional(),
+      })
+    ),
+  },
+})
+
 export const deleteTableRowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/table/[tableId]/rows/[rowId]',

@@ -1,7 +1,7 @@
 import type { STSGetCallerIdentityParams, STSGetCallerIdentityResponse } from '@/tools/sts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getCallerIdentityTool: ToolConfig<
+export const getCallerIdentityTool: InternalToolConfig<
   STSGetCallerIdentityParams,
   STSGetCallerIdentityResponse
 > = {
@@ -31,11 +31,8 @@ export const getCallerIdentityTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/sts/get-caller-identity',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

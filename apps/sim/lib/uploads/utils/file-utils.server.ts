@@ -273,7 +273,7 @@ export async function downloadFileFromUrl(
     }
 
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
-    return downloadFile({ key, context, maxBytes })
+    return downloadFile({ key, context, maxBytes, signal })
   }
 
   const urlValidation = await validateUrlWithDNS(fileUrl, 'fileUrl')
@@ -357,9 +357,10 @@ export async function downloadFileFromStorage(
   userFile: UserFile,
   requestId: string,
   logger: Logger,
-  options: { maxBytes: number }
+  options: { maxBytes: number; signal?: AbortSignal }
 ): Promise<Buffer> {
-  const { maxBytes } = options
+  const { maxBytes, signal } = options
+  signal?.throwIfAborted()
   let buffer: Buffer
   assertKnownSizeWithinLimit(userFile.size, maxBytes, 'storage file download')
 
@@ -368,7 +369,7 @@ export async function downloadFileFromStorage(
     const { downloadExecutionFile } = await import(
       '@/lib/uploads/contexts/execution/execution-file-manager'
     )
-    buffer = await downloadExecutionFile(userFile, { maxBytes })
+    buffer = await downloadExecutionFile(userFile, { maxBytes, signal })
   } else if (userFile.key) {
     const context = resolveTrustedFileContext(userFile.key, userFile.context)
     logger.info(`[${requestId}] Downloading from ${context} storage: ${userFile.key}`)
@@ -378,12 +379,14 @@ export async function downloadFileFromStorage(
       key: userFile.key,
       context,
       maxBytes,
+      signal,
     })
   } else {
     throw new Error('File has no key - cannot download')
   }
 
   assertKnownSizeWithinLimit(buffer.length, maxBytes, 'storage file download')
+  signal?.throwIfAborted()
 
   return buffer
 }
@@ -431,6 +434,7 @@ export async function downloadServableFileFromStorage(
 ): Promise<ServableFile> {
   const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
     maxBytes: options.maxBytes,
+    signal: options.signal,
   })
 
   // The pdf model for pages: a page file stores its source and downloads

@@ -2,9 +2,9 @@ import type {
   AppConfigGetDeploymentParams,
   AppConfigGetDeploymentResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getDeploymentTool: ToolConfig<
+export const getDeploymentTool: InternalToolConfig<
   AppConfigGetDeploymentParams,
   AppConfigGetDeploymentResponse
 > = {
@@ -52,11 +52,8 @@ export const getDeploymentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/get-deployment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

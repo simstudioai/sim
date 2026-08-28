@@ -769,7 +769,7 @@ describe('changeOrganizationWorkspaceBilledAccountsInTx', () => {
     expect(returning).toHaveBeenCalledWith({ id: 'workspace.id' })
     expect(select).toHaveBeenCalledWith({ id: 'workspace.id' })
     expect(orderBy).toHaveBeenCalledTimes(1)
-    expect(lock).toHaveBeenCalledWith('update')
+    expect(lock).toHaveBeenCalledWith('no key update')
     expect(lock.mock.invocationCallOrder[0]).toBeLessThan(update.mock.invocationCallOrder[0])
     expect(execute).not.toHaveBeenCalled()
   })

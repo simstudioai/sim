@@ -717,6 +717,20 @@ export async function executeFunctionExecute(
        */
       const result = await executeAppTool('function_execute', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
+        operationContext: {
+          userId: context.userId,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          executionId: context.executionId,
+          executorDelegationOrigin: {
+            subjectUserId: context.userId,
+            workflowId: context.workflowId,
+            ...(context.executionId ? { executionId: context.executionId } : {}),
+          },
+          copilotToolExecution: context.copilotToolExecution,
+          billingAttribution: context.billingAttribution,
+          resolvedSecretTraceRegistry: mountedRegistry,
+        },
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
         ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
       })

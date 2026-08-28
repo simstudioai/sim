@@ -239,7 +239,10 @@ describe('executeFunctionExecute trace-secret provenance', () => {
         mountedSecrets: ['API_KEY'],
         _context: expect.not.objectContaining({ resolvedSecretTraceRegistry: expect.anything() }),
       }),
-      { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        operationContext: expect.objectContaining({ userId: 'u1', workspaceId: 'ws_1' }),
+      })
     )
     const appParams = mockExecuteTool.mock.calls[0]?.[1] as Record<string, unknown>
     expect(JSON.stringify(appParams)).not.toContain('resolvedSecretTraceRegistry')
@@ -259,7 +262,10 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expect.objectContaining({ envVars: {}, secretScope: 'selected', mountedSecrets: [] }),
-      { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        operationContext: expect.objectContaining({ userId: 'u1', workspaceId: 'ws_1' }),
+      })
     )
   })
 
@@ -292,7 +298,10 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({ code, language, mountedSecrets: names }),
-        { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
+        expect.objectContaining({
+          resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+          operationContext: expect.objectContaining({ userId: 'u1', workspaceId: 'ws_1' }),
+        })
       )
     }
   )
@@ -319,11 +328,12 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'function_execute',
       expect.objectContaining({ code, language: 'shell', mountedSecrets: ['CLI_TOKEN'] }),
-      {
+      expect.objectContaining({
         resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        operationContext: expect.objectContaining({ userId: 'u1', workspaceId: 'ws_1' }),
         internalSandboxProfile: 'mothership',
         signal: abortController.signal,
-      }
+      })
     )
   })
 
@@ -342,10 +352,11 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       expect.objectContaining({
         _context: expect.not.objectContaining({ sandboxProfile: expect.anything() }),
       }),
-      {
+      expect.objectContaining({
         resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+        operationContext: expect.objectContaining({ userId: 'u1', workspaceId: 'ws_1' }),
         internalSandboxProfile: 'mothership',
-      }
+      })
     )
     expect(mockExecuteTool.mock.calls[0]?.[1]).not.toHaveProperty('sandboxProfile')
   })

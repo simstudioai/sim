@@ -54,7 +54,6 @@ Open a Claude Platform Managed Agent session and return the assistant response a
 | `memoryInstructions` | string | No | Per-attachment guidance for how the agent should use the memory store. |
 | `files` | array | No | File attachments \(cloud envs only\), as \[\{fileId, mountPath?\}\]. |
 | `sessionParameters` | object | No | Key/value session metadata forwarded to the session. |
-| `modelInput` | string | No | No description |
 
 #### Output
 
@@ -73,6 +72,7 @@ Create a Claude Platform Managed Agent session and return its id without waiting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
 | `agent` | string | Yes | Managed-agent id inside the linked Claude workspace. |
 | `environment` | string | Yes | Environment id inside the linked Claude workspace. |
 | `environmentType` | string | No | Environment execution model hint \('cloud' \| 'self_hosted'\). |
@@ -100,6 +100,8 @@ Send a user message to an existing Claude Platform Managed Agent session.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 | `userMessage` | string | Yes | The user message to send to the session. |
 
 #### Output
@@ -117,6 +119,8 @@ Read a Managed Agent session: status, stop reason, token usage, metadata, and an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 
 #### Output
 
@@ -140,6 +144,8 @@ Read a Managed Agent session's event history and the agent's reply text.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 | `eventTypes` | array | No | Optional event-type filter, e.g. \['agent.message'\]. Omit to return every event. |
 | `limit` | number | No | Maximum events to return, keeping the most recent \(default 500\). |
 
@@ -161,6 +167,8 @@ Update a Managed Agent session's title or metadata.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 | `title` | string | No | New session title. |
 | `sessionParameters` | object | No | Replacement metadata map \(replaces all stored metadata, not merged\). Leaving it empty leaves the stored metadata unchanged — use clearMetadata to remove it. |
 | `clearMetadata` | boolean | No | Removes all of the session's stored metadata. Overrides any map supplied above. |
@@ -182,6 +190,8 @@ Stop a running Managed Agent session; it stays usable afterwards.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 
 #### Output
 
@@ -198,6 +208,8 @@ Allow or deny the tool calls a Managed Agent session is waiting on before it can
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 | `toolUseIds` | array | Yes | Blocking tool-use EVENT ids, from Get Session pendingTools\[\].id where kind is 'confirmation' \(not toolu_ ids\). |
 | `decision` | string | Yes | 'allow' to let the tools run, or 'deny' to reject them. |
 | `denyMessage` | string | No | Reason surfaced to the agent. Only sent when the decision is deny. |
@@ -218,6 +230,8 @@ Return the result of a custom tool a Managed Agent session is waiting on so it c
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 | `customToolUseId` | string | Yes | The custom tool-use EVENT id being answered, from Get Session pendingTools\[\].id where kind is 'custom_tool_result'. |
 | `result` | string | Yes | The tool's output, returned to the agent as text. |
 | `isError` | boolean | No | Mark the result as a failure so the agent can adjust its approach. |
@@ -237,6 +251,8 @@ Archive a Managed Agent session, preserving its history. Not reversible.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 
 #### Output
 
@@ -253,6 +269,8 @@ Permanently delete a Managed Agent session, its events, and its sandbox. Not rev
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `credential` | string | Yes | Claude Platform credential \(Anthropic workspace API key\) to act with. |
+| `sessionId` | string | Yes | Anthropic session id \(sesn_...\) to act on. |
 
 #### Output
 

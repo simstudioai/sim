@@ -771,7 +771,7 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
-| `warehouseSize` | string | No | New warehouse size, one of $\{SNOWFLAKE_WAREHOUSE_SIZES.join\(', '\)\} |
+| `warehouseSize` | string | No | New warehouse size, one of XSMALL, SMALL, MEDIUM, LARGE, XLARGE, XXLARGE, XXXLARGE, X4LARGE, X5LARGE, X6LARGE |
 | `autoSuspendSeconds` | number | No | Seconds of inactivity before the warehouse suspends. Snowflake polls every 30 seconds, so values under 30 or not a multiple of 30 may not behave as expected. 0 means the warehouse never suspends and keeps consuming credits |
 | `autoResume` | boolean | No | Whether the warehouse resumes automatically when a statement is submitted |
 

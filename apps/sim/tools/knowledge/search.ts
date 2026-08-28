@@ -2,9 +2,9 @@ import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import type { KnowledgeSearchResponse } from '@/tools/knowledge/types'
 import { enrichKBTagFiltersSchema } from '@/tools/schema-enrichers'
 import { parseTagFilters } from '@/tools/shared/tags'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
+export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchResponse> = {
   id: 'knowledge_search',
   name: 'Knowledge Search',
   description: 'Search for similar content in a knowledge base using vector similarity',
@@ -84,20 +84,13 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: () => '/api/knowledge/search',
-    method: 'POST',
+  operation: {
     modelInput: {
       mode: 'private-provenance',
       inputPaths: () => [['query']],
     },
     secretProvenance: { response: { incomplete: 'reject' } },
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+    input: (params) => {
       const workflowId = params._context?.workflowId
 
       // Use single knowledge base ID

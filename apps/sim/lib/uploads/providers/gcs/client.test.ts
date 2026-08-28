@@ -303,6 +303,27 @@ describe('GCS Client', () => {
 
       await expect(downloadFromGcs('test-file.txt')).rejects.toThrow('Stream error')
     })
+
+    it('destroys the response stream when cancelled', async () => {
+      const controller = new AbortController()
+      const stream = new Readable({
+        read() {},
+      })
+      const destroy = vi.spyOn(stream, 'destroy')
+      mockFile.createReadStream.mockReturnValueOnce(stream)
+
+      const download = downloadFromGcs(
+        'test-file.txt',
+        { bucket: 'test-bucket' },
+        undefined,
+        controller.signal
+      )
+      await vi.waitFor(() => expect(mockFile.createReadStream).toHaveBeenCalled())
+      controller.abort(new Error('cancelled'))
+
+      await expect(download).rejects.toThrow('cancelled')
+      expect(destroy).toHaveBeenCalledWith()
+    })
   })
 
   describe('headGcsObject', () => {

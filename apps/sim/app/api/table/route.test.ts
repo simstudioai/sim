@@ -1,154 +1,185 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateTable, mockGetLimits, mockListTables, mockFindActiveFolder } = vi.hoisted(() => ({
-  mockCreateTable: vi.fn(),
-  mockGetLimits: vi.fn(),
-  mockListTables: vi.fn(),
-  mockFindActiveFolder: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  createTable: vi.fn(),
+  listTables: vi.fn(),
+  capture: vi.fn(),
 }))
 
-vi.mock('@/lib/table', () => ({
-  createTable: mockCreateTable,
-  getWorkspaceTableLimits: mockGetLimits,
-  listTables: mockListTables,
+vi.mock('@/lib/table/api', () => ({
+  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
 }))
-vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_CREATED: 'table.created' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: vi.fn(),
+
+vi.mock('@/lib/table/application/tables', () => ({
+  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.createTable },
+  listTableDefinitionsUseCase: { operation: { id: 'tables.list' }, execute: mocks.listTables },
 }))
+
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 import { GET, POST } from '@/app/api/table/route'
 
-const CREATED_TABLE = {
-  id: 'tbl_1',
+const TABLE = {
+  id: 'table-1',
   name: 'people',
   description: null,
-  schema: { columns: [{ name: 'name', type: 'string' }] },
+  schema: { columns: [{ id: 'column-1', name: 'name', type: 'string' as const }] },
   rowCount: 0,
   maxRows: 10_000,
-  folderId: null as string | null,
+  workspaceId: 'workspace-1',
+  folderId: null,
+  createdBy: 'user-1',
   locks: {
     schemaLocked: false,
     insertLocked: false,
     updateLocked: false,
     deleteLocked: false,
   },
+  archivedAt: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
 
-function postRequest(body: unknown): NextRequest {
-  return new NextRequest('http://localhost:3000/api/table', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+function sessionPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'session',
+    userId: 'user-1',
+    sessionId: 'session-1',
   })
 }
 
-const createBody = {
-  workspaceId: 'workspace-1',
-  name: 'people',
-  schema: { columns: [{ name: 'name', type: 'string' }] },
+function executorPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'delegated',
+    serviceId: 'executor',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-canonical',
+    delegationId: 'delegation-1',
+    audience: 'sim:tables',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2026-01-02'),
+  })
 }
 
-describe('POST /api/table folder assignment', () => {
+function actorlessExecutorPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'delegated',
+    serviceId: 'executor',
+    workspaceId: 'workspace-canonical',
+    delegationId: 'delegation-1',
+    audience: 'sim:tables',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2026-01-02'),
+    delegationContext: {
+      kind: 'workflow_execution',
+      workflowId: 'parent-workflow',
+      principal: {
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: 'workspace-canonical',
+        workflowId: 'parent-workflow',
+      },
+    },
+  })
+}
+
+function post(body: unknown) {
+  return POST(
+    new NextRequest('http://localhost/api/table', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    {}
+  )
+}
+
+describe('/api/table application adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'session',
+    sessionPrincipal()
+    mocks.createTable.mockResolvedValue({ table: TABLE, folderPath: '/' })
+    mocks.listTables.mockResolvedValue({
+      tables: [TABLE],
     })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1_000_000, maxTables: 50 })
-    mockCreateTable.mockResolvedValue(CREATED_TABLE)
-    mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
   })
 
-  it('creates the table at the workspace root when no folder is given', async () => {
-    const response = await POST(postRequest(createBody))
+  it('passes the session workspace and folder id into the shared create use case', async () => {
+    const response = await post({
+      workspaceId: 'workspace-1',
+      name: 'people',
+      folderId: 'folder-1',
+      schema: { columns: [{ name: 'name', type: 'string' }] },
+    })
 
     expect(response.status).toBe(200)
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(mockCreateTable).toHaveBeenCalledWith(
-      expect.objectContaining({ folderId: null }),
-      expect.any(String)
-    )
+    expect(mocks.createTable.mock.calls[0][0].input).toMatchObject({
+      workspaceId: 'workspace-1',
+      folderId: 'folder-1',
+    })
+    expect((await response.json()).data.table.folderId).toBeNull()
   })
 
-  it('creates the table inside the requested folder', async () => {
-    mockCreateTable.mockResolvedValue({ ...CREATED_TABLE, folderId: 'folder-1' })
+  it('uses canonical delegated workspace instead of the body assertion', async () => {
+    executorPrincipal()
+    await post({
+      workspaceId: 'workspace-forged',
+      name: 'people',
+      schema: { columns: [{ name: 'name', type: 'string' }] },
+    })
 
-    const response = await POST(postRequest({ ...createBody, folderId: 'folder-1' }))
-    const json = await response.json()
+    expect(mocks.createTable.mock.calls[0][0].input.workspaceId).toBe('workspace-canonical')
+  })
+
+  it('creates for an actorless executor without attributing user analytics', async () => {
+    actorlessExecutorPrincipal()
+
+    const response = await post({
+      workspaceId: 'workspace-forged',
+      name: 'people',
+      schema: { columns: [{ name: 'name', type: 'string' }] },
+    })
 
     expect(response.status).toBe(200)
-    expect(mockCreateTable).toHaveBeenCalledWith(
-      expect.objectContaining({ folderId: 'folder-1' }),
-      expect.any(String)
-    )
-    expect(json.data.table.folderId).toBe('folder-1')
+    expect(mocks.createTable.mock.calls[0][0]).toMatchObject({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'executor',
+        workspaceId: 'workspace-canonical',
+      },
+      input: { workspaceId: 'workspace-canonical' },
+    })
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
-  it('scopes the folder lookup to the workspace and the table folder tree', async () => {
-    await POST(postRequest({ ...createBody, folderId: 'folder-1' }))
-
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'workspace-1', 'table')
-  })
-
-  it('rejects a folder id that does not resolve in this workspace or tree', async () => {
-    mockFindActiveFolder.mockResolvedValue(null)
-
-    const response = await POST(postRequest({ ...createBody, folderId: 'kb-folder' }))
-
-    expect(response.status).toBe(404)
-    expect(mockCreateTable).not.toHaveBeenCalled()
-  })
-
-  it('rejects an empty folder id before touching the database', async () => {
-    const response = await POST(postRequest({ ...createBody, folderId: '' }))
+  it('validates the contract before executing the create use case', async () => {
+    const response = await post({
+      workspaceId: 'workspace-1',
+      name: 'people',
+      folderId: '',
+      schema: { columns: [{ name: 'name', type: 'string' }] },
+    })
 
     expect(response.status).toBe(400)
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(mockCreateTable).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/table folder placement', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'session',
-    })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
+    expect(mocks.createTable).not.toHaveBeenCalled()
   })
 
-  it('emits each table folderId so the list can group rows by folder', async () => {
-    mockListTables.mockResolvedValue([
-      { ...CREATED_TABLE, id: 'tbl_1', folderId: 'folder-1', workspaceId: 'ws', createdBy: 'u' },
-      { ...CREATED_TABLE, id: 'tbl_2', folderId: null, workspaceId: 'ws', createdBy: 'u' },
-    ])
-
+  it('lists through the shared use case and preserves the table list projection', async () => {
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/table?workspaceId=workspace-1')
+      new NextRequest('http://localhost/api/table?workspaceId=workspace-1'),
+      {}
     )
-    const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json.data.tables.map((t: { folderId: string | null }) => t.folderId)).toEqual([
-      'folder-1',
-      null,
-    ])
+    expect(mocks.listTables.mock.calls[0][0].input).toMatchObject({
+      workspaceId: 'workspace-1',
+    })
+    expect((await response.json()).data).toMatchObject({ totalCount: 1 })
   })
 })

@@ -1,7 +1,7 @@
 import type { JsmListObjectTypesParams, JsmListObjectTypesResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmListObjectTypesTool: ToolConfig<
+export const jsmListObjectTypesTool: InternalToolConfig<
   JsmListObjectTypesParams,
   JsmListObjectTypesResponse
 > = {
@@ -54,11 +54,8 @@ export const jsmListObjectTypesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/object-types',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

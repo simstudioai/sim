@@ -211,7 +211,7 @@ import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/linea
 import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -441,11 +441,11 @@ function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
  * process. Shared by the one-time static build and the per-viewer re-projection
  * of a block whose operations are partly denied.
  */
-let staticToolConfigs: ReadonlyMap<string, ToolConfig> | null = null
+let staticToolConfigs: ReadonlyMap<string, ExecutableToolConfig> | null = null
 
-function getStaticToolConfigs(): ReadonlyMap<string, ToolConfig> {
+function getStaticToolConfigs(): ReadonlyMap<string, ExecutableToolConfig> {
   if (staticToolConfigs) return staticToolConfigs
-  const configs = new Map<string, ToolConfig>()
+  const configs = new Map<string, ExecutableToolConfig>()
   for (const { toolId, config } of getExposedIntegrationTools()) {
     configs.set(toolId, config)
     configs.set(config.id, config)

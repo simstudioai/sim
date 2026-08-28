@@ -1,8 +1,8 @@
 import type { JsmGetObjectParams, JsmGetObjectResponse } from '@/tools/jsm/types'
 import { ASSET_OBJECT_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetObjectTool: ToolConfig<JsmGetObjectParams, JsmGetObjectResponse> = {
+export const jsmGetObjectTool: InternalToolConfig<JsmGetObjectParams, JsmGetObjectResponse> = {
   id: 'jsm_get_object',
   name: 'JSM Get Asset Object',
   description: 'Get a single Assets (Insight/CMDB) object by ID, including its attribute values',
@@ -46,11 +46,8 @@ export const jsmGetObjectTool: ToolConfig<JsmGetObjectParams, JsmGetObjectRespon
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/object/get',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

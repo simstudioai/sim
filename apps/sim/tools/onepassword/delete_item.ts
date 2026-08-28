@@ -2,9 +2,9 @@ import type {
   OnePasswordDeleteItemParams,
   OnePasswordDeleteItemResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteItemTool: ToolConfig<
+export const deleteItemTool: InternalToolConfig<
   OnePasswordDeleteItemParams,
   OnePasswordDeleteItemResponse
 > = {
@@ -51,11 +51,8 @@ export const deleteItemTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/delete-item',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

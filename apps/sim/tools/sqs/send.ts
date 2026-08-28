@@ -1,7 +1,7 @@
 import type { SqsSendMessageParams, SqsSendMessageResponse } from '@/tools/sqs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendTool: ToolConfig<SqsSendMessageParams, SqsSendMessageResponse> = {
+export const sendTool: InternalToolConfig<SqsSendMessageParams, SqsSendMessageResponse> = {
   id: 'sqs_send',
   name: 'SQS Send Message',
   description: 'Send a message to an Amazon SQS queue',
@@ -54,11 +54,8 @@ export const sendTool: ToolConfig<SqsSendMessageParams, SqsSendMessageResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/sqs/send',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

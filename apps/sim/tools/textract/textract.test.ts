@@ -9,11 +9,11 @@ import { textractParserTool, textractParserV2Tool } from '@/tools/textract/parse
 const respond = (body: unknown) => new Response(JSON.stringify(body))
 
 describe('textract_parser', () => {
-  const body = textractParserTool.request.body!
+  const input = textractParserTool.operation.input
 
   it('builds a sync body from filePath', () => {
     expect(
-      body({
+      input({
         accessKeyId: ' key ',
         secretAccessKey: ' secret ',
         region: ' us-east-1 ',
@@ -32,7 +32,7 @@ describe('textract_parser', () => {
 
   it('requires s3Uri for async mode', () => {
     expect(() =>
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -40,7 +40,7 @@ describe('textract_parser', () => {
       } as never)
     ).not.toThrow()
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -52,7 +52,7 @@ describe('textract_parser', () => {
 
   it('throws when no document is provided for sync mode', () => {
     expect(() =>
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -86,11 +86,11 @@ describe('textract_parser', () => {
 })
 
 describe('textract_parser_v2', () => {
-  const body = textractParserV2Tool.request.body!
+  const input = textractParserV2Tool.operation.input
 
   it('throws when no file is provided for sync mode', () => {
     expect(() =>
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -101,7 +101,7 @@ describe('textract_parser_v2', () => {
   it('builds a sync body from a UserFile', () => {
     const file = { key: 'file-key', name: 'doc.pdf' } as never
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -112,11 +112,11 @@ describe('textract_parser_v2', () => {
 })
 
 describe('textract_analyze_expense', () => {
-  const body = textractAnalyzeExpenseTool.request.body!
+  const input = textractAnalyzeExpenseTool.operation.input
 
   it('throws when neither file nor filePath is provided for sync mode', () => {
     expect(() =>
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -126,7 +126,7 @@ describe('textract_analyze_expense', () => {
 
   it('falls back to filePath when no file object is provided', () => {
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -137,7 +137,7 @@ describe('textract_analyze_expense', () => {
 
   it('builds an async body requiring s3Uri', () => {
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -165,18 +165,18 @@ describe('textract_analyze_expense', () => {
 })
 
 describe('textract_analyze_id', () => {
-  const body = textractAnalyzeIdTool.request.body!
+  const input = textractAnalyzeIdTool.operation.input
 
   it('throws when no front-of-ID file is provided', () => {
     expect(() =>
-      body({ accessKeyId: 'key', secretAccessKey: 'secret', region: 'us-east-1' } as never)
+      input({ accessKeyId: 'key', secretAccessKey: 'secret', region: 'us-east-1' } as never)
     ).toThrow('Identity document is required')
   })
 
   it('includes fileBack only when provided', () => {
     const file = { key: 'front-key' } as never
     expect(
-      body({ accessKeyId: 'key', secretAccessKey: 'secret', region: 'us-east-1', file } as never)
+      input({ accessKeyId: 'key', secretAccessKey: 'secret', region: 'us-east-1', file } as never)
     ).toEqual({
       accessKeyId: 'key',
       secretAccessKey: 'secret',
@@ -186,7 +186,7 @@ describe('textract_analyze_id', () => {
 
     const fileBack = { key: 'back-key' } as never
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',
@@ -204,7 +204,7 @@ describe('textract_analyze_id', () => {
 
   it('falls back to filePath/filePathBack when no file objects are provided', () => {
     expect(
-      body({
+      input({
         accessKeyId: 'key',
         secretAccessKey: 'secret',
         region: 'us-east-1',

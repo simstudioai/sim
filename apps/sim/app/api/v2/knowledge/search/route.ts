@@ -7,11 +7,7 @@ import { searchKnowledge } from '@/lib/knowledge/application/search'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/**
- * Mirrors the internal Knowledge-search cap in `app/api/knowledge/search/route.ts`
- * so the public surface is never more permissive than the internal one. Kept as a
- * literal because the internal route declares the same literal inline.
- */
+/** Keeps public Knowledge search request materialization bounded to 2 MiB. */
 export const V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES = 2 * 1024 * 1024
 
 /** POST /api/v2/knowledge/search — Vector / tag search across knowledge bases. */

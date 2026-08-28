@@ -1,8 +1,11 @@
 import type { PostgresIntrospectParams, PostgresIntrospectResponse } from '@/tools/postgresql/types'
 import { POSTGRES_TABLE_OUTPUT_PROPERTIES } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<PostgresIntrospectParams, PostgresIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<
+  PostgresIntrospectParams,
+  PostgresIntrospectResponse
+> = {
   id: 'postgresql_introspect',
   name: 'PostgreSQL Introspect',
   description:
@@ -54,13 +57,8 @@ export const introspectTool: ToolConfig<PostgresIntrospectParams, PostgresIntros
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

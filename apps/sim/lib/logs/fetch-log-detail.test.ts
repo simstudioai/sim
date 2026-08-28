@@ -7,12 +7,7 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkWorkspaceAccess: vi.fn(),
   materializeExecutionData: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
 }))
 
 vi.mock('@/lib/logs/execution/trace-store', () => ({
@@ -23,13 +18,12 @@ vi.mock('@/lib/logs/execution-origin', () => ({
   workflowExecutionOriginSql: () => ({ as: () => ({}) }),
 }))
 
-import { fetchLogDetail } from '@/lib/logs/fetch-log-detail'
+import { readLogDetail } from '@/lib/logs/fetch-log-detail'
 
-describe('fetchLogDetail', () => {
+describe('readLogDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.materializeExecutionData.mockResolvedValue({})
   })
 
@@ -69,8 +63,8 @@ describe('fetchLogDetail', () => {
     ])
     queueTableRows(usageLog, [])
 
-    const result = await fetchLogDetail({
-      userId: 'user-1',
+    const result = await readLogDetail({
+      viewerUserId: 'user-1',
       workspaceId: 'workspace-1',
       lookupColumn: 'id',
       lookupValue: 'log-1',

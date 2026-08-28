@@ -1,8 +1,8 @@
+import { mapJupyterSession } from '@/lib/internal/jupyter/protocol'
 import type { JupyterListSessionsParams, JupyterListSessionsResponse } from '@/tools/jupyter/types'
-import { mapJupyterSession } from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterListSessionsTool: ToolConfig<
+export const jupyterListSessionsTool: InternalToolConfig<
   JupyterListSessionsParams,
   JupyterListSessionsResponse
 > = {
@@ -26,11 +26,8 @@ export const jupyterListSessionsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'GET',

@@ -1,7 +1,10 @@
 import type { SESSendBulkEmailParams, SESSendBulkEmailResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendBulkEmailTool: ToolConfig<SESSendBulkEmailParams, SESSendBulkEmailResponse> = {
+export const sendBulkEmailTool: InternalToolConfig<
+  SESSendBulkEmailParams,
+  SESSendBulkEmailResponse
+> = {
   id: 'ses_send_bulk_email',
   name: 'SES Send Bulk Email',
   description: 'Send emails to multiple recipients using an SES template with per-recipient data',
@@ -59,11 +62,8 @@ export const sendBulkEmailTool: ToolConfig<SESSendBulkEmailParams, SESSendBulkEm
     },
   },
 
-  request: {
-    url: '/api/tools/ses/send-bulk-email',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

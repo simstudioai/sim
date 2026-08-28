@@ -1,7 +1,7 @@
-import type { MemoryResponse } from '@/tools/memory/types'
-import type { ToolConfig } from '@/tools/types'
+import type { MemoryIdentifierParams, MemoryResponse } from '@/tools/memory/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
+export const memoryDeleteTool: InternalToolConfig<MemoryIdentifierParams, MemoryResponse> = {
   id: 'memory_delete',
   name: 'Delete Memory',
   description: 'Delete memories by conversationId.',
@@ -24,29 +24,12 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
     },
   },
 
-  request: {
-    internal: true,
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-
+  operation: {
+    input: (params) => {
       const conversationId = params.conversationId || params.id
-      if (!conversationId) {
-        throw new Error('conversationId or id is required')
-      }
-
-      const url = new URL('/api/memory', 'http://dummy')
-      url.searchParams.set('workspaceId', workspaceId)
-      url.searchParams.set('conversationId', conversationId)
-
-      return url.pathname + url.search
+      if (!conversationId) throw new Error('conversationId or id is required')
+      return { conversationId }
     },
-    method: 'DELETE',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
   },
 
   transformResponse: async (response): Promise<MemoryResponse> => {
