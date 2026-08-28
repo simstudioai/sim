@@ -167,11 +167,11 @@ Search for information on the web using Firecrawl
 |   ↳ `title` | string | Search result title from search engine |
 |   ↳ `description` | string | Search result description/snippet from search engine |
 |   ↳ `url` | string | URL of the search result |
-|   ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested, for which the Search operation exposes no visible input |
-|   ↳ `html` | string | Processed HTML content; returned only when "html" is among the requested scrape formats, for which the Search operation exposes no visible input |
-|   ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats, for which the Search operation exposes no visible input |
-|   ↳ `links` | array | Links found on the page; returned only when "links" is among the requested scrape formats, for which the Search operation exposes no visible input |
-|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the requested scrape formats, for which the Search operation exposes no visible input |
+|   ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input |
+|   ↳ `html` | string | Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
+|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
 |   ↳ `metadata` | object | Metadata about the search result page |
 |     ↳ `title` | string | Page title |
 |     ↳ `description` | string | Page meta description |
