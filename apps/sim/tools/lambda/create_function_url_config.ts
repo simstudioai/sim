@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaCreateFunctionUrlConfigParams,
   LambdaCreateFunctionUrlConfigResponse,
@@ -49,7 +50,7 @@ export const createFunctionUrlConfigTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
     invokeMode: {
       type: 'string',
@@ -106,27 +107,21 @@ export const createFunctionUrlConfigTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
       authType: params.authType,
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
-      ...(params.invokeMode !== undefined && { invokeMode: params.invokeMode }),
-      ...(params.corsAllowCredentials !== undefined && {
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.invokeMode) && { invokeMode: params.invokeMode }),
+      ...(isSupplied(params.corsAllowCredentials) && {
         corsAllowCredentials: params.corsAllowCredentials,
       }),
-      ...(params.corsAllowOrigins !== undefined && { corsAllowOrigins: params.corsAllowOrigins }),
-      ...(params.corsAllowMethods !== undefined && { corsAllowMethods: params.corsAllowMethods }),
-      ...(params.corsAllowHeaders !== undefined && { corsAllowHeaders: params.corsAllowHeaders }),
-      ...(params.corsExposeHeaders !== undefined && {
-        corsExposeHeaders: params.corsExposeHeaders,
-      }),
-      ...(params.corsMaxAge !== undefined && { corsMaxAge: params.corsMaxAge }),
+      ...(isSupplied(params.corsAllowOrigins) && { corsAllowOrigins: params.corsAllowOrigins }),
+      ...(isSupplied(params.corsAllowMethods) && { corsAllowMethods: params.corsAllowMethods }),
+      ...(isSupplied(params.corsAllowHeaders) && { corsAllowHeaders: params.corsAllowHeaders }),
+      ...(isSupplied(params.corsExposeHeaders) && { corsExposeHeaders: params.corsExposeHeaders }),
+      ...(isSupplied(params.corsMaxAge) && { corsMaxAge: params.corsMaxAge }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create Lambda function URL configuration')
-    }
 
     return {
       success: true,

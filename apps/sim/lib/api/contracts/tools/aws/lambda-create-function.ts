@@ -13,7 +13,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const CreateFunctionSchema = z
   .object({
     ...lambdaConnectionFields,
-    functionName: z.string().min(1, 'functionName is required'),
+    functionName: z
+      .string()
+      .min(1, 'functionName is required')
+      .max(256, 'functionName cannot exceed 256 characters'),
     role: z.string().min(1, 'role is required'),
     runtime: z.string().optional(),
     handler: z.string().optional(),
@@ -24,13 +27,16 @@ const CreateFunctionSchema = z
     imageUri: z.string().optional(),
     sourceKmsKeyArn: z.string().optional(),
     description: z.string().optional(),
-    timeout: z.number().int().min(1).max(900).optional(),
+    functionTimeout: z.number().int().min(1).max(900).optional(),
     memorySize: z.number().int().min(128).max(32768).optional(),
     ephemeralStorageSize: z.number().int().min(512).max(10240).optional(),
     publish: z.boolean().optional(),
     environment: z.record(z.string(), z.string()).optional(),
     tags: z.record(z.string(), z.string()).optional(),
-    architectures: z.array(z.enum(['x86_64', 'arm64'])).optional(),
+    architectures: z
+      .array(z.enum(['x86_64', 'arm64']))
+      .length(1, 'architectures takes exactly one value')
+      .optional(),
     layers: z.array(z.string()).optional(),
     vpcSubnetIds: z.array(z.string()).optional(),
     vpcSecurityGroupIds: z.array(z.string()).optional(),
@@ -50,6 +56,45 @@ const CreateFunctionSchema = z
         message:
           'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
       })
+      return
+    }
+    if (hasS3 && value.imageUri) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['imageUri'],
+        message: 'Provide either an S3 package or imageUri, not both',
+      })
+      return
+    }
+    if (value.packageType === 'Image' && hasS3) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['imageUri'],
+        message: 'packageType Image requires imageUri, not an S3 package',
+      })
+    }
+    if (value.packageType === 'Zip' && value.imageUri) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['s3Bucket'],
+        message: 'packageType Zip requires an S3 package, not imageUri',
+      })
+    }
+    if (hasS3) {
+      if (!value.runtime) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['runtime'],
+          message: 'runtime is required for a .zip deployment package',
+        })
+      }
+      if (!value.handler) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['handler'],
+          message: 'handler is required for a .zip deployment package',
+        })
+      }
     }
   })
 

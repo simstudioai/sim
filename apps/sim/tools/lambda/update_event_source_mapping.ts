@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaUpdateEventSourceMappingParams,
   LambdaUpdateEventSourceMappingResponse,
@@ -178,57 +179,57 @@ export const updateEventSourceMappingTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       uuid: params.uuid,
-      ...(params.functionName !== undefined && { functionName: params.functionName }),
-      ...(params.enabled !== undefined && { enabled: params.enabled }),
-      ...(params.batchSize !== undefined && { batchSize: params.batchSize }),
-      ...(params.maximumBatchingWindowInSeconds !== undefined && {
+      ...(isSupplied(params.functionName) && { functionName: params.functionName }),
+      ...(isSupplied(params.enabled) && { enabled: params.enabled }),
+      ...(isSupplied(params.batchSize) && { batchSize: params.batchSize }),
+      ...(isSupplied(params.maximumBatchingWindowInSeconds) && {
         maximumBatchingWindowInSeconds: params.maximumBatchingWindowInSeconds,
       }),
-      ...(params.parallelizationFactor !== undefined && {
+      ...(isSupplied(params.parallelizationFactor) && {
         parallelizationFactor: params.parallelizationFactor,
       }),
-      ...(params.maximumRecordAgeInSeconds !== undefined && {
+      ...(isSupplied(params.maximumRecordAgeInSeconds) && {
         maximumRecordAgeInSeconds: params.maximumRecordAgeInSeconds,
       }),
-      ...(params.maximumRetryAttempts !== undefined && {
+      ...(isSupplied(params.maximumRetryAttempts) && {
         maximumRetryAttempts: params.maximumRetryAttempts,
       }),
-      ...(params.bisectBatchOnFunctionError !== undefined && {
+      ...(isSupplied(params.bisectBatchOnFunctionError) && {
         bisectBatchOnFunctionError: params.bisectBatchOnFunctionError,
       }),
-      ...(params.tumblingWindowInSeconds !== undefined && {
+      ...(isSupplied(params.tumblingWindowInSeconds) && {
         tumblingWindowInSeconds: params.tumblingWindowInSeconds,
       }),
-      ...(params.maximumConcurrency !== undefined && {
+      ...(isSupplied(params.maximumConcurrency) && {
         maximumConcurrency: params.maximumConcurrency,
       }),
-      ...(params.functionResponseTypes !== undefined && {
+      ...(isSupplied(params.functionResponseTypes) && {
         functionResponseTypes: params.functionResponseTypes,
       }),
-      ...(params.filterPatterns !== undefined && { filterPatterns: params.filterPatterns }),
-      ...(params.onSuccessDestination !== undefined && {
+      ...(isSupplied(params.filterPatterns) && { filterPatterns: params.filterPatterns }),
+      ...(isSupplied(params.onSuccessDestination) && {
         onSuccessDestination: params.onSuccessDestination,
       }),
-      ...(params.onFailureDestination !== undefined && {
+      ...(isSupplied(params.onFailureDestination) && {
         onFailureDestination: params.onFailureDestination,
       }),
-      ...(params.kmsKeyArn !== undefined && { kmsKeyArn: params.kmsKeyArn }),
-      ...(params.sourceAccessConfigurations !== undefined && {
+      ...(isSupplied(params.kmsKeyArn) && { kmsKeyArn: params.kmsKeyArn }),
+      ...(isSupplied(params.sourceAccessConfigurations) && {
         sourceAccessConfigurations: params.sourceAccessConfigurations,
       }),
-      ...(params.documentDbDatabaseName !== undefined && {
+      ...(isSupplied(params.documentDbDatabaseName) && {
         documentDbDatabaseName: params.documentDbDatabaseName,
       }),
-      ...(params.documentDbCollectionName !== undefined && {
+      ...(isSupplied(params.documentDbCollectionName) && {
         documentDbCollectionName: params.documentDbCollectionName,
       }),
-      ...(params.documentDbFullDocument !== undefined && {
+      ...(isSupplied(params.documentDbFullDocument) && {
         documentDbFullDocument: params.documentDbFullDocument,
       }),
-      ...(params.amazonManagedKafkaConsumerGroupId !== undefined && {
+      ...(isSupplied(params.amazonManagedKafkaConsumerGroupId) && {
         amazonManagedKafkaConsumerGroupId: params.amazonManagedKafkaConsumerGroupId,
       }),
-      ...(params.selfManagedKafkaConsumerGroupId !== undefined && {
+      ...(isSupplied(params.selfManagedKafkaConsumerGroupId) && {
         selfManagedKafkaConsumerGroupId: params.selfManagedKafkaConsumerGroupId,
       }),
     }),
@@ -236,10 +237,6 @@ export const updateEventSourceMappingTool: InternalToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update Lambda event source mapping')
-    }
 
     return {
       success: true,

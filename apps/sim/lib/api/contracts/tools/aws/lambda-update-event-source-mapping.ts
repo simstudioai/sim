@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   lambdaConnectionFields,
   lambdaEventSourceMappingSchema,
+  updateSourceAccessTypeSchema,
 } from '@/lib/api/contracts/tools/aws/lambda-shared'
 import type {
   ContractBody,
@@ -31,7 +32,7 @@ const UpdateEventSourceMappingSchema = z.object({
   sourceAccessConfigurations: z
     .array(
       z.object({
-        type: z.string().min(1, 'sourceAccessConfigurations[].type is required'),
+        type: updateSourceAccessTypeSchema,
         uri: z.string().min(1, 'sourceAccessConfigurations[].uri is required'),
       })
     )

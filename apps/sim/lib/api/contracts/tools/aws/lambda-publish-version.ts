@@ -12,7 +12,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const PublishVersionSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
   codeSha256: z.string().optional(),
   description: z.string().optional(),
   revisionId: z.string().optional(),

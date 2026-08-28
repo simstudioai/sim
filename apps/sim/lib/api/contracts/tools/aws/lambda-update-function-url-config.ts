@@ -12,9 +12,16 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const UpdateFunctionUrlConfigSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
   authType: z.enum(['NONE', 'AWS_IAM']).optional(),
-  qualifier: z.string().optional(),
+  qualifier: z
+    .string()
+    .min(1, 'qualifier cannot be empty')
+    .max(128, 'qualifier cannot exceed 128 characters')
+    .optional(),
   invokeMode: z.enum(['BUFFERED', 'RESPONSE_STREAM']).optional(),
   corsAllowCredentials: z.boolean().optional(),
   corsAllowOrigins: z.array(z.string()).optional(),

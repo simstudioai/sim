@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaRemovePermissionParams,
   LambdaRemovePermissionResponse,
@@ -49,7 +50,7 @@ export const removePermissionTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
     revisionId: {
       type: 'string',
@@ -66,17 +67,13 @@ export const removePermissionTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
       statementId: params.statementId,
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to remove Lambda permission')
-    }
 
     return {
       success: true,

@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaCreateEventSourceMappingParams,
   LambdaCreateEventSourceMappingResponse,
@@ -221,67 +222,67 @@ export const createEventSourceMappingTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.eventSourceArn !== undefined && { eventSourceArn: params.eventSourceArn }),
-      ...(params.enabled !== undefined && { enabled: params.enabled }),
-      ...(params.batchSize !== undefined && { batchSize: params.batchSize }),
-      ...(params.maximumBatchingWindowInSeconds !== undefined && {
+      ...(isSupplied(params.eventSourceArn) && { eventSourceArn: params.eventSourceArn }),
+      ...(isSupplied(params.enabled) && { enabled: params.enabled }),
+      ...(isSupplied(params.batchSize) && { batchSize: params.batchSize }),
+      ...(isSupplied(params.maximumBatchingWindowInSeconds) && {
         maximumBatchingWindowInSeconds: params.maximumBatchingWindowInSeconds,
       }),
-      ...(params.startingPosition !== undefined && { startingPosition: params.startingPosition }),
-      ...(params.startingPositionTimestamp !== undefined && {
+      ...(isSupplied(params.startingPosition) && { startingPosition: params.startingPosition }),
+      ...(isSupplied(params.startingPositionTimestamp) && {
         startingPositionTimestamp: params.startingPositionTimestamp,
       }),
-      ...(params.parallelizationFactor !== undefined && {
+      ...(isSupplied(params.parallelizationFactor) && {
         parallelizationFactor: params.parallelizationFactor,
       }),
-      ...(params.maximumRecordAgeInSeconds !== undefined && {
+      ...(isSupplied(params.maximumRecordAgeInSeconds) && {
         maximumRecordAgeInSeconds: params.maximumRecordAgeInSeconds,
       }),
-      ...(params.maximumRetryAttempts !== undefined && {
+      ...(isSupplied(params.maximumRetryAttempts) && {
         maximumRetryAttempts: params.maximumRetryAttempts,
       }),
-      ...(params.bisectBatchOnFunctionError !== undefined && {
+      ...(isSupplied(params.bisectBatchOnFunctionError) && {
         bisectBatchOnFunctionError: params.bisectBatchOnFunctionError,
       }),
-      ...(params.tumblingWindowInSeconds !== undefined && {
+      ...(isSupplied(params.tumblingWindowInSeconds) && {
         tumblingWindowInSeconds: params.tumblingWindowInSeconds,
       }),
-      ...(params.maximumConcurrency !== undefined && {
+      ...(isSupplied(params.maximumConcurrency) && {
         maximumConcurrency: params.maximumConcurrency,
       }),
-      ...(params.topics !== undefined && { topics: params.topics }),
-      ...(params.queues !== undefined && { queues: params.queues }),
-      ...(params.functionResponseTypes !== undefined && {
+      ...(isSupplied(params.topics) && { topics: params.topics }),
+      ...(isSupplied(params.queues) && { queues: params.queues }),
+      ...(isSupplied(params.functionResponseTypes) && {
         functionResponseTypes: params.functionResponseTypes,
       }),
-      ...(params.filterPatterns !== undefined && { filterPatterns: params.filterPatterns }),
-      ...(params.onSuccessDestination !== undefined && {
+      ...(isSupplied(params.filterPatterns) && { filterPatterns: params.filterPatterns }),
+      ...(isSupplied(params.onSuccessDestination) && {
         onSuccessDestination: params.onSuccessDestination,
       }),
-      ...(params.onFailureDestination !== undefined && {
+      ...(isSupplied(params.onFailureDestination) && {
         onFailureDestination: params.onFailureDestination,
       }),
-      ...(params.kmsKeyArn !== undefined && { kmsKeyArn: params.kmsKeyArn }),
-      ...(params.tags !== undefined && { tags: params.tags }),
-      ...(params.sourceAccessConfigurations !== undefined && {
+      ...(isSupplied(params.kmsKeyArn) && { kmsKeyArn: params.kmsKeyArn }),
+      ...(isSupplied(params.tags) && { tags: params.tags }),
+      ...(isSupplied(params.sourceAccessConfigurations) && {
         sourceAccessConfigurations: params.sourceAccessConfigurations,
       }),
-      ...(params.documentDbDatabaseName !== undefined && {
+      ...(isSupplied(params.documentDbDatabaseName) && {
         documentDbDatabaseName: params.documentDbDatabaseName,
       }),
-      ...(params.documentDbCollectionName !== undefined && {
+      ...(isSupplied(params.documentDbCollectionName) && {
         documentDbCollectionName: params.documentDbCollectionName,
       }),
-      ...(params.documentDbFullDocument !== undefined && {
+      ...(isSupplied(params.documentDbFullDocument) && {
         documentDbFullDocument: params.documentDbFullDocument,
       }),
-      ...(params.amazonManagedKafkaConsumerGroupId !== undefined && {
+      ...(isSupplied(params.amazonManagedKafkaConsumerGroupId) && {
         amazonManagedKafkaConsumerGroupId: params.amazonManagedKafkaConsumerGroupId,
       }),
-      ...(params.selfManagedKafkaConsumerGroupId !== undefined && {
+      ...(isSupplied(params.selfManagedKafkaConsumerGroupId) && {
         selfManagedKafkaConsumerGroupId: params.selfManagedKafkaConsumerGroupId,
       }),
-      ...(params.selfManagedKafkaBootstrapServers !== undefined && {
+      ...(isSupplied(params.selfManagedKafkaBootstrapServers) && {
         selfManagedKafkaBootstrapServers: params.selfManagedKafkaBootstrapServers,
       }),
     }),
@@ -289,10 +290,6 @@ export const createEventSourceMappingTool: InternalToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create Lambda event source mapping')
-    }
 
     return {
       success: true,

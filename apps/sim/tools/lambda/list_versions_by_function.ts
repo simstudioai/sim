@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaListVersionsByFunctionParams,
   LambdaListVersionsByFunctionResponse,
@@ -59,17 +60,13 @@ export const listVersionsByFunctionTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.marker !== undefined && { marker: params.marker }),
-      ...(params.maxItems !== undefined && { maxItems: params.maxItems }),
+      ...(isSupplied(params.marker) && { marker: params.marker }),
+      ...(isSupplied(params.maxItems) && { maxItems: params.maxItems }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to list Lambda function versions')
-    }
 
     return {
       success: true,

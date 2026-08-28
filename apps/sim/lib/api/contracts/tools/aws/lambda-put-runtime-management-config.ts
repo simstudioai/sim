@@ -10,10 +10,17 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const PutRuntimeManagementConfigSchema = z
   .object({
     ...lambdaConnectionFields,
-    functionName: z.string().min(1, 'functionName is required'),
+    functionName: z
+      .string()
+      .min(1, 'functionName is required')
+      .max(256, 'functionName cannot exceed 256 characters'),
     updateRuntimeOn: z.enum(['Auto', 'FunctionUpdate', 'Manual']),
     runtimeVersionArn: z.string().optional(),
-    qualifier: z.string().optional(),
+    qualifier: z
+      .string()
+      .min(1, 'qualifier cannot be empty')
+      .max(128, 'qualifier cannot exceed 128 characters')
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.updateRuntimeOn === 'Manual' && !value.runtimeVersionArn) {

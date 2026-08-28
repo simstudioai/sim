@@ -60,8 +60,8 @@ Invoke a Lambda function synchronously or asynchronously and return its response
 | `payload` | json | No | JSON event payload passed to the function handler |
 | `invocationType` | string | No | RequestResponse waits for the result, Event queues the invocation, DryRun only validates permissions |
 | `logType` | string | No | Set to Tail to return the last 4 KB of the execution log |
-| `clientContext` | string | No | Base64-encoded JSON passed to the function in the client context object |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `clientContext` | string | No | Base64-encoded JSON passed to the function in the client context object \(max 3,583 bytes\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -108,7 +108,7 @@ Get a function's configuration, code location, tags, and reserved concurrency
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -131,7 +131,7 @@ Get a function's version-specific configuration
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -161,13 +161,13 @@ Create a Lambda function from a deployment package in Amazon S3 or a container i
 | `imageUri` | string | No | Amazon ECR URI of the container image to deploy |
 | `sourceKmsKeyArn` | string | No | ARN of the KMS customer managed key that encrypts the function's .zip deployment package |
 | `description` | string | No | Description of the function |
-| `timeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\) |
+| `functionTimeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\). Named functionTimeout because the shared tool executor reserves `timeout` for its own request deadline |
 | `memorySize` | number | No | Memory available to the function at runtime in MB \(128-32768\) |
 | `ephemeralStorageSize` | number | No | Size of the /tmp directory in MB \(512-10240\) |
 | `publish` | boolean | No | Publish the first version of the function atomically with creation |
 | `environment` | json | No | Environment variables as a flat key/value JSON object |
 | `tags` | json | No | Tags to apply to the function, as a flat key/value JSON object |
-| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 Pass \[\] to remove all of them on an update. |
+| `architectures` | array | No | Instruction set architecture: exactly one of x86_64 or arm64 |
 | `layers` | array | No | ARNs of layer versions to add to the function execution environment Pass \[\] to remove all of them on an update. |
 | `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to Pass \[\] to remove all of them on an update. |
 | `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use Pass \[\] to remove all of them on an update. |
@@ -201,7 +201,7 @@ Update a function's deployment package from Amazon S3 or a container image
 | `s3ObjectVersion` | string | No | Version of the Amazon S3 object to use |
 | `imageUri` | string | No | Amazon ECR URI of the container image to deploy |
 | `sourceKmsKeyArn` | string | No | ARN of the KMS customer managed key that encrypts the function's .zip deployment package |
-| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 Pass \[\] to remove all of them on an update. |
+| `architectures` | array | No | Instruction set architecture: exactly one of x86_64 or arm64 |
 | `publish` | boolean | No | Publish a new version after updating the code |
 | `dryRun` | boolean | No | Validate the request without updating the function |
 | `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
@@ -228,7 +228,7 @@ Update a function's settings such as memory, timeout, role, and environment vari
 | `runtime` | string | No | Runtime identifier such as nodejs22.x or python3.13 |
 | `handler` | string | No | Entry point in your code, such as index.handler |
 | `description` | string | No | Description of the function |
-| `timeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\) |
+| `functionTimeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\). Named functionTimeout because the shared tool executor reserves `timeout` for its own request deadline |
 | `memorySize` | number | No | Memory available to the function at runtime in MB \(128-32768\) |
 | `ephemeralStorageSize` | number | No | Size of the /tmp directory in MB \(512-10240\) |
 | `environment` | json | No | Environment variables as a flat key/value JSON object. Replaces the existing set |
@@ -435,7 +435,7 @@ Grant an AWS service, account, or organization permission to use a function
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `statementId` | string | Yes | Unique identifier for the policy statement |
+| `statementId` | string | Yes | Unique identifier for the policy statement \(letters, numbers, hyphens, and underscores\) |
 | `action` | string | Yes | Action the principal is granted, such as lambda:InvokeFunction |
 | `principal` | string | Yes | AWS service principal or account ID granted the permission, such as s3.amazonaws.com |
 | `sourceArn` | string | No | ARN of the AWS resource allowed to invoke the function |
@@ -443,7 +443,7 @@ Grant an AWS service, account, or organization permission to use a function
 | `principalOrgId` | string | No | AWS Organizations ID to grant permission to every account in the organization |
 | `eventSourceToken` | string | No | Token that must be supplied by the invoker \(Alexa Smart Home functions only\) |
 | `functionUrlAuthType` | string | No | Auth type of the function URL this permission applies to |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 | `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
 
 #### Output
@@ -465,7 +465,7 @@ Remove a statement from a function's resource-based policy
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
 | `statementId` | string | Yes | Identifier of the policy statement to remove |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 | `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
 
 #### Output
@@ -486,7 +486,7 @@ Get the resource-based IAM policy attached to a function, version, or alias
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -796,7 +796,7 @@ Create a dedicated HTTPS endpoint for a function
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
 | `authType` | string | Yes | AWS_IAM requires signed requests, NONE allows public unauthenticated access |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 | `invokeMode` | string | No | BUFFERED returns the whole response at once, RESPONSE_STREAM streams it |
 | `corsAllowCredentials` | boolean | No | Whether the function URL sends the Access-Control-Allow-Credentials header |
 | `corsAllowOrigins` | array | No | Origins allowed to call the function URL, or * for any |
@@ -823,7 +823,7 @@ Get details about a function URL
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -844,7 +844,7 @@ Update the auth type, invoke mode, or CORS settings of a function URL
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
 | `authType` | string | No | AWS_IAM requires signed requests, NONE allows public unauthenticated access |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 | `invokeMode` | string | No | BUFFERED returns the whole response at once, RESPONSE_STREAM streams it |
 | `corsAllowCredentials` | boolean | No | Whether the function URL sends the Access-Control-Allow-Credentials header |
 | `corsAllowOrigins` | array | No | Origins allowed to call the function URL, or * for any |
@@ -871,7 +871,7 @@ Delete the URL configuration of a function
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -913,7 +913,7 @@ Get the asynchronous invocation retry and destination settings of a function
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -933,7 +933,7 @@ Configure retry limits and destinations for asynchronous invocations of a functi
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 | `maximumRetryAttempts` | number | No | Times Lambda retries a failed asynchronous invocation \(0-2\) |
 | `maximumEventAgeInSeconds` | number | No | Maximum age of an event Lambda will still process \(60-21600\) |
 | `onSuccessDestination` | string | No | ARN of the destination that receives successful invocation records |
@@ -957,7 +957,7 @@ Remove the asynchronous invocation configuration of a function
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -1183,7 +1183,7 @@ Get the runtime update policy of a function version
 | `awsAccessKeyId` | string | Yes | AWS access key ID |
 | `awsSecretAccessKey` | string | Yes | AWS secret access key |
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 
@@ -1207,7 +1207,7 @@ Set how and when Lambda applies runtime updates to a function version
 | `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
 | `updateRuntimeOn` | string | Yes | Auto applies updates automatically, FunctionUpdate applies them on the next function update, Manual pins a runtime version |
 | `runtimeVersionArn` | string | No | ARN of the runtime version to pin to. Required when updateRuntimeOn is Manual |
-| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
 
 #### Output
 

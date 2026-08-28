@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaListEventSourceMappingsParams,
   LambdaListEventSourceMappingsResponse,
@@ -63,19 +64,15 @@ export const listEventSourceMappingsTool: InternalToolConfig<
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
-      ...(params.functionName !== undefined && { functionName: params.functionName }),
-      ...(params.eventSourceArn !== undefined && { eventSourceArn: params.eventSourceArn }),
-      ...(params.marker !== undefined && { marker: params.marker }),
-      ...(params.maxItems !== undefined && { maxItems: params.maxItems }),
+      ...(isSupplied(params.functionName) && { functionName: params.functionName }),
+      ...(isSupplied(params.eventSourceArn) && { eventSourceArn: params.eventSourceArn }),
+      ...(isSupplied(params.marker) && { marker: params.marker }),
+      ...(isSupplied(params.maxItems) && { maxItems: params.maxItems }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to list Lambda event source mappings')
-    }
 
     return {
       success: true,

@@ -57,10 +57,6 @@ export const untagResourceTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to untag Lambda resource')
-    }
-
     return {
       success: true,
       output: {

@@ -12,8 +12,15 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const PutFunctionEventInvokeConfigSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
-  qualifier: z.string().optional(),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
+  qualifier: z
+    .string()
+    .min(1, 'qualifier cannot be empty')
+    .max(128, 'qualifier cannot exceed 128 characters')
+    .optional(),
   maximumRetryAttempts: z.number().int().min(0).max(2).optional(),
   maximumEventAgeInSeconds: z.number().int().min(60).max(21600).optional(),
   onSuccessDestination: z.string().optional(),

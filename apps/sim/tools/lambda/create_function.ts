@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaCreateFunctionParams, LambdaCreateFunctionResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -100,11 +101,12 @@ export const createFunctionTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the function',
     },
-    timeout: {
+    functionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Seconds Lambda allows the function to run before stopping it (1-900)',
+      description:
+        'Seconds Lambda allows the function to run before stopping it (1-900). Named functionTimeout because the shared tool executor reserves `timeout` for its own request deadline',
     },
     memorySize: {
       type: 'number',
@@ -141,8 +143,7 @@ export const createFunctionTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description:
-        'Instruction set architecture: x86_64 or arm64 Pass [] to remove all of them on an update.',
+      description: 'Instruction set architecture: exactly one of x86_64 or arm64',
     },
     layers: {
       type: 'array',
@@ -216,46 +217,42 @@ export const createFunctionTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
       role: params.role,
-      ...(params.runtime !== undefined && { runtime: params.runtime }),
-      ...(params.handler !== undefined && { handler: params.handler }),
-      ...(params.packageType !== undefined && { packageType: params.packageType }),
-      ...(params.s3Bucket !== undefined && { s3Bucket: params.s3Bucket }),
-      ...(params.s3Key !== undefined && { s3Key: params.s3Key }),
-      ...(params.s3ObjectVersion !== undefined && { s3ObjectVersion: params.s3ObjectVersion }),
-      ...(params.imageUri !== undefined && { imageUri: params.imageUri }),
-      ...(params.sourceKmsKeyArn !== undefined && { sourceKmsKeyArn: params.sourceKmsKeyArn }),
-      ...(params.description !== undefined && { description: params.description }),
-      ...(params.timeout !== undefined && { timeout: params.timeout }),
-      ...(params.memorySize !== undefined && { memorySize: params.memorySize }),
-      ...(params.ephemeralStorageSize !== undefined && {
+      ...(isSupplied(params.runtime) && { runtime: params.runtime }),
+      ...(isSupplied(params.handler) && { handler: params.handler }),
+      ...(isSupplied(params.packageType) && { packageType: params.packageType }),
+      ...(isSupplied(params.s3Bucket) && { s3Bucket: params.s3Bucket }),
+      ...(isSupplied(params.s3Key) && { s3Key: params.s3Key }),
+      ...(isSupplied(params.s3ObjectVersion) && { s3ObjectVersion: params.s3ObjectVersion }),
+      ...(isSupplied(params.imageUri) && { imageUri: params.imageUri }),
+      ...(isSupplied(params.sourceKmsKeyArn) && { sourceKmsKeyArn: params.sourceKmsKeyArn }),
+      ...(isSupplied(params.description) && { description: params.description }),
+      ...(isSupplied(params.functionTimeout) && { functionTimeout: params.functionTimeout }),
+      ...(isSupplied(params.memorySize) && { memorySize: params.memorySize }),
+      ...(isSupplied(params.ephemeralStorageSize) && {
         ephemeralStorageSize: params.ephemeralStorageSize,
       }),
-      ...(params.publish !== undefined && { publish: params.publish }),
-      ...(params.environment !== undefined && { environment: params.environment }),
-      ...(params.tags !== undefined && { tags: params.tags }),
-      ...(params.architectures !== undefined && { architectures: params.architectures }),
-      ...(params.layers !== undefined && { layers: params.layers }),
-      ...(params.vpcSubnetIds !== undefined && { vpcSubnetIds: params.vpcSubnetIds }),
-      ...(params.vpcSecurityGroupIds !== undefined && {
+      ...(isSupplied(params.publish) && { publish: params.publish }),
+      ...(isSupplied(params.environment) && { environment: params.environment }),
+      ...(isSupplied(params.tags) && { tags: params.tags }),
+      ...(isSupplied(params.architectures) && { architectures: params.architectures }),
+      ...(isSupplied(params.layers) && { layers: params.layers }),
+      ...(isSupplied(params.vpcSubnetIds) && { vpcSubnetIds: params.vpcSubnetIds }),
+      ...(isSupplied(params.vpcSecurityGroupIds) && {
         vpcSecurityGroupIds: params.vpcSecurityGroupIds,
       }),
-      ...(params.tracingMode !== undefined && { tracingMode: params.tracingMode }),
-      ...(params.deadLetterTargetArn !== undefined && {
+      ...(isSupplied(params.tracingMode) && { tracingMode: params.tracingMode }),
+      ...(isSupplied(params.deadLetterTargetArn) && {
         deadLetterTargetArn: params.deadLetterTargetArn,
       }),
-      ...(params.kmsKeyArn !== undefined && { kmsKeyArn: params.kmsKeyArn }),
-      ...(params.snapStartApplyOn !== undefined && { snapStartApplyOn: params.snapStartApplyOn }),
-      ...(params.logFormat !== undefined && { logFormat: params.logFormat }),
-      ...(params.logGroup !== undefined && { logGroup: params.logGroup }),
+      ...(isSupplied(params.kmsKeyArn) && { kmsKeyArn: params.kmsKeyArn }),
+      ...(isSupplied(params.snapStartApplyOn) && { snapStartApplyOn: params.snapStartApplyOn }),
+      ...(isSupplied(params.logFormat) && { logFormat: params.logFormat }),
+      ...(isSupplied(params.logGroup) && { logGroup: params.logGroup }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create Lambda function')
-    }
 
     return {
       success: true,

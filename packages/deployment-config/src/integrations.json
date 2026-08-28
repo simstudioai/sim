@@ -12833,7 +12833,7 @@
       "operationCount": 50,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud"]

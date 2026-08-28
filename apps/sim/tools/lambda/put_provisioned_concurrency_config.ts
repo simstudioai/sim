@@ -67,10 +67,6 @@ export const putProvisionedConcurrencyConfigTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to set Lambda provisioned concurrency configuration')
-    }
-
     return {
       success: true,
       output: {

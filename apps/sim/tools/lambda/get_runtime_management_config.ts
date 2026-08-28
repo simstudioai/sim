@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaGetRuntimeManagementConfigParams,
   LambdaGetRuntimeManagementConfigResponse,
@@ -43,7 +44,7 @@ export const getRuntimeManagementConfigTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
   },
 
@@ -53,16 +54,12 @@ export const getRuntimeManagementConfigTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to get Lambda runtime management configuration')
-    }
 
     return {
       success: true,

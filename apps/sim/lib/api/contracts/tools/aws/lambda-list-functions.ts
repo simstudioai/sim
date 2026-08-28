@@ -11,12 +11,22 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const ListFunctionsSchema = z.object({
-  ...lambdaConnectionFields,
-  ...lambdaPaginationFields,
-  functionVersion: z.literal('ALL').optional(),
-  masterRegion: z.string().optional(),
-})
+const ListFunctionsSchema = z
+  .object({
+    ...lambdaConnectionFields,
+    ...lambdaPaginationFields,
+    functionVersion: z.literal('ALL').optional(),
+    masterRegion: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.masterRegion && value.functionVersion !== 'ALL') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['functionVersion'],
+        message: 'functionVersion must be ALL when masterRegion is set',
+      })
+    }
+  })
 
 const ListFunctionsResponseSchema = z.object({
   success: z.literal(true),

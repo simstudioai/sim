@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaUpdateFunctionConfigurationParams,
   LambdaUpdateFunctionConfigurationResponse,
@@ -64,11 +65,12 @@ export const updateFunctionConfigurationTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the function',
     },
-    timeout: {
+    functionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Seconds Lambda allows the function to run before stopping it (1-900)',
+      description:
+        'Seconds Lambda allows the function to run before stopping it (1-900). Named functionTimeout because the shared tool executor reserves `timeout` for its own request deadline',
     },
     memorySize: {
       type: 'number',
@@ -166,39 +168,35 @@ export const updateFunctionConfigurationTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.role !== undefined && { role: params.role }),
-      ...(params.runtime !== undefined && { runtime: params.runtime }),
-      ...(params.handler !== undefined && { handler: params.handler }),
-      ...(params.description !== undefined && { description: params.description }),
-      ...(params.timeout !== undefined && { timeout: params.timeout }),
-      ...(params.memorySize !== undefined && { memorySize: params.memorySize }),
-      ...(params.ephemeralStorageSize !== undefined && {
+      ...(isSupplied(params.role) && { role: params.role }),
+      ...(isSupplied(params.runtime) && { runtime: params.runtime }),
+      ...(isSupplied(params.handler) && { handler: params.handler }),
+      ...(isSupplied(params.description) && { description: params.description }),
+      ...(isSupplied(params.functionTimeout) && { functionTimeout: params.functionTimeout }),
+      ...(isSupplied(params.memorySize) && { memorySize: params.memorySize }),
+      ...(isSupplied(params.ephemeralStorageSize) && {
         ephemeralStorageSize: params.ephemeralStorageSize,
       }),
-      ...(params.environment !== undefined && { environment: params.environment }),
-      ...(params.layers !== undefined && { layers: params.layers }),
-      ...(params.vpcSubnetIds !== undefined && { vpcSubnetIds: params.vpcSubnetIds }),
-      ...(params.vpcSecurityGroupIds !== undefined && {
+      ...(isSupplied(params.environment) && { environment: params.environment }),
+      ...(isSupplied(params.layers) && { layers: params.layers }),
+      ...(isSupplied(params.vpcSubnetIds) && { vpcSubnetIds: params.vpcSubnetIds }),
+      ...(isSupplied(params.vpcSecurityGroupIds) && {
         vpcSecurityGroupIds: params.vpcSecurityGroupIds,
       }),
-      ...(params.tracingMode !== undefined && { tracingMode: params.tracingMode }),
-      ...(params.deadLetterTargetArn !== undefined && {
+      ...(isSupplied(params.tracingMode) && { tracingMode: params.tracingMode }),
+      ...(isSupplied(params.deadLetterTargetArn) && {
         deadLetterTargetArn: params.deadLetterTargetArn,
       }),
-      ...(params.kmsKeyArn !== undefined && { kmsKeyArn: params.kmsKeyArn }),
-      ...(params.snapStartApplyOn !== undefined && { snapStartApplyOn: params.snapStartApplyOn }),
-      ...(params.logFormat !== undefined && { logFormat: params.logFormat }),
-      ...(params.logGroup !== undefined && { logGroup: params.logGroup }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.kmsKeyArn) && { kmsKeyArn: params.kmsKeyArn }),
+      ...(isSupplied(params.snapStartApplyOn) && { snapStartApplyOn: params.snapStartApplyOn }),
+      ...(isSupplied(params.logFormat) && { logFormat: params.logFormat }),
+      ...(isSupplied(params.logGroup) && { logGroup: params.logGroup }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update Lambda function configuration')
-    }
 
     return {
       success: true,

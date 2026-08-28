@@ -14,7 +14,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const ListAliasesSchema = z.object({
   ...lambdaConnectionFields,
   ...lambdaPaginationFields,
-  functionName: z.string().min(1, 'functionName is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
   aliasFunctionVersion: z.string().optional(),
 })
 

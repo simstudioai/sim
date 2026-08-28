@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaUpdateFunctionCodeParams,
   LambdaUpdateFunctionCodeResponse,
@@ -76,8 +77,7 @@ export const updateFunctionCodeTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description:
-        'Instruction set architecture: x86_64 or arm64 Pass [] to remove all of them on an update.',
+      description: 'Instruction set architecture: exactly one of x86_64 or arm64',
     },
     publish: {
       type: 'boolean',
@@ -105,24 +105,20 @@ export const updateFunctionCodeTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.s3Bucket !== undefined && { s3Bucket: params.s3Bucket }),
-      ...(params.s3Key !== undefined && { s3Key: params.s3Key }),
-      ...(params.s3ObjectVersion !== undefined && { s3ObjectVersion: params.s3ObjectVersion }),
-      ...(params.imageUri !== undefined && { imageUri: params.imageUri }),
-      ...(params.sourceKmsKeyArn !== undefined && { sourceKmsKeyArn: params.sourceKmsKeyArn }),
-      ...(params.architectures !== undefined && { architectures: params.architectures }),
-      ...(params.publish !== undefined && { publish: params.publish }),
-      ...(params.dryRun !== undefined && { dryRun: params.dryRun }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.s3Bucket) && { s3Bucket: params.s3Bucket }),
+      ...(isSupplied(params.s3Key) && { s3Key: params.s3Key }),
+      ...(isSupplied(params.s3ObjectVersion) && { s3ObjectVersion: params.s3ObjectVersion }),
+      ...(isSupplied(params.imageUri) && { imageUri: params.imageUri }),
+      ...(isSupplied(params.sourceKmsKeyArn) && { sourceKmsKeyArn: params.sourceKmsKeyArn }),
+      ...(isSupplied(params.architectures) && { architectures: params.architectures }),
+      ...(isSupplied(params.publish) && { publish: params.publish }),
+      ...(isSupplied(params.dryRun) && { dryRun: params.dryRun }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update Lambda function code')
-    }
 
     return {
       success: true,

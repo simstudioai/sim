@@ -40,6 +40,34 @@ export const lambdaSmallPaginationFields = {
     .optional(),
 }
 
+/**
+ * Documented `SourceAccessConfiguration.Type` values for an event source mapping.
+ */
+export const sourceAccessTypeSchema = z.enum([
+  'BASIC_AUTH',
+  'VPC_SUBNET',
+  'VPC_SECURITY_GROUP',
+  'SASL_SCRAM_512_AUTH',
+  'SASL_SCRAM_256_AUTH',
+  'VIRTUAL_HOST',
+  'CLIENT_CERTIFICATE_TLS_AUTH',
+  'SERVER_ROOT_CA_CERTIFICATE',
+])
+
+/**
+ * The same set minus `VIRTUAL_HOST`, which the AWS docs state cannot be specified in an
+ * UpdateEventSourceMapping call.
+ */
+export const updateSourceAccessTypeSchema = z.enum([
+  'BASIC_AUTH',
+  'VPC_SUBNET',
+  'VPC_SECURITY_GROUP',
+  'SASL_SCRAM_512_AUTH',
+  'SASL_SCRAM_256_AUTH',
+  'CLIENT_CERTIFICATE_TLS_AUTH',
+  'SERVER_ROOT_CA_CERTIFICATE',
+])
+
 const errorDetailSchema = z
   .object({
     errorCode: z.string().nullable(),

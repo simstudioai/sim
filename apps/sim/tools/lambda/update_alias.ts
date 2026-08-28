@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaUpdateAliasParams, LambdaUpdateAliasResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -76,23 +77,19 @@ export const updateAliasTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
       aliasName: params.aliasName,
-      ...(params.aliasFunctionVersion !== undefined && {
+      ...(isSupplied(params.aliasFunctionVersion) && {
         aliasFunctionVersion: params.aliasFunctionVersion,
       }),
-      ...(params.description !== undefined && { description: params.description }),
-      ...(params.additionalVersionWeights !== undefined && {
+      ...(isSupplied(params.description) && { description: params.description }),
+      ...(isSupplied(params.additionalVersionWeights) && {
         additionalVersionWeights: params.additionalVersionWeights,
       }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update Lambda alias')
-    }
 
     return {
       success: true,

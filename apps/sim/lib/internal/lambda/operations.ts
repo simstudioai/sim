@@ -209,11 +209,11 @@ function toDocumentDbConfig(input: {
 
 /** Maps the camelCase source access configuration entries onto the SDK shape. */
 function toSourceAccessConfigurations(
-  configs?: Array<{ type: string; uri: string }>
+  configs?: Array<{ type: SourceAccessType; uri: string }>
 ): SourceAccessConfiguration[] | undefined {
   if (!configs) return undefined
   return configs.map((config) => ({
-    Type: config.type as SourceAccessType,
+    Type: config.type,
     URI: config.uri,
   }))
 }
@@ -359,7 +359,7 @@ export async function executeLambdaCreateFunction(
           SourceKMSKeyArn: input.sourceKmsKeyArn,
         },
         Description: input.description,
-        Timeout: input.timeout,
+        Timeout: input.functionTimeout,
         MemorySize: input.memorySize,
         Publish: input.publish,
         Environment: input.environment ? { Variables: input.environment } : undefined,
@@ -429,7 +429,7 @@ export async function executeLambdaUpdateFunctionConfiguration(
         Runtime: input.runtime as Runtime | undefined,
         Handler: input.handler,
         Description: input.description,
-        Timeout: input.timeout,
+        Timeout: input.functionTimeout,
         MemorySize: input.memorySize,
         Environment: input.environment ? { Variables: input.environment } : undefined,
         Layers: input.layers,

@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaCreateAliasParams, LambdaCreateAliasResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -71,8 +72,8 @@ export const createAliasTool: InternalToolConfig<
       functionName: params.functionName,
       aliasName: params.aliasName,
       aliasFunctionVersion: params.aliasFunctionVersion,
-      ...(params.description !== undefined && { description: params.description }),
-      ...(params.additionalVersionWeights !== undefined && {
+      ...(isSupplied(params.description) && { description: params.description }),
+      ...(isSupplied(params.additionalVersionWeights) && {
         additionalVersionWeights: params.additionalVersionWeights,
       }),
     }),
@@ -80,10 +81,6 @@ export const createAliasTool: InternalToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create Lambda alias')
-    }
 
     return {
       success: true,

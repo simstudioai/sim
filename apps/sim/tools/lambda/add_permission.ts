@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaAddPermissionParams, LambdaAddPermissionResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -40,7 +41,8 @@ export const addPermissionTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Unique identifier for the policy statement',
+      description:
+        'Unique identifier for the policy statement (letters, numbers, hyphens, and underscores)',
     },
     action: {
       type: 'string',
@@ -89,7 +91,7 @@ export const addPermissionTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
     revisionId: {
       type: 'string',
@@ -108,24 +110,20 @@ export const addPermissionTool: InternalToolConfig<
       statementId: params.statementId,
       action: params.action,
       principal: params.principal,
-      ...(params.sourceArn !== undefined && { sourceArn: params.sourceArn }),
-      ...(params.sourceAccount !== undefined && { sourceAccount: params.sourceAccount }),
-      ...(params.principalOrgId !== undefined && { principalOrgId: params.principalOrgId }),
-      ...(params.eventSourceToken !== undefined && { eventSourceToken: params.eventSourceToken }),
-      ...(params.functionUrlAuthType !== undefined && {
+      ...(isSupplied(params.sourceArn) && { sourceArn: params.sourceArn }),
+      ...(isSupplied(params.sourceAccount) && { sourceAccount: params.sourceAccount }),
+      ...(isSupplied(params.principalOrgId) && { principalOrgId: params.principalOrgId }),
+      ...(isSupplied(params.eventSourceToken) && { eventSourceToken: params.eventSourceToken }),
+      ...(isSupplied(params.functionUrlAuthType) && {
         functionUrlAuthType: params.functionUrlAuthType,
       }),
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to add Lambda permission')
-    }
 
     return {
       success: true,

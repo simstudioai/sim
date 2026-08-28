@@ -150,12 +150,12 @@ describe('LambdaBlock params mapping', () => {
       operation: 'create_function',
       functionName: 'alpha',
       role: 'arn:aws:iam::1:role/exec',
-      timeout: '30',
+      functionTimeout: '30',
       memorySize: '512',
       ephemeralStorageSize: '1024',
     })
 
-    expect(merged.timeout).toBe(30)
+    expect(merged.functionTimeout).toBe(30)
     expect(merged.memorySize).toBe(512)
     expect(merged.ephemeralStorageSize).toBe(1024)
   })

@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaListLayersParams, LambdaListLayersResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -58,23 +59,19 @@ export const listLayersTool: InternalToolConfig<LambdaListLayersParams, LambdaLi
         region: params.awsRegion,
         accessKeyId: params.awsAccessKeyId,
         secretAccessKey: params.awsSecretAccessKey,
-        ...(params.compatibleRuntime !== undefined && {
+        ...(isSupplied(params.compatibleRuntime) && {
           compatibleRuntime: params.compatibleRuntime,
         }),
-        ...(params.compatibleArchitecture !== undefined && {
+        ...(isSupplied(params.compatibleArchitecture) && {
           compatibleArchitecture: params.compatibleArchitecture,
         }),
-        ...(params.marker !== undefined && { marker: params.marker }),
-        ...(params.maxItems !== undefined && { maxItems: params.maxItems }),
+        ...(isSupplied(params.marker) && { marker: params.marker }),
+        ...(isSupplied(params.maxItems) && { maxItems: params.maxItems }),
       }),
     },
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to list Lambda layers')
-      }
 
       return {
         success: true,

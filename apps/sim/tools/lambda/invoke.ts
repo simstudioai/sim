@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaInvokeParams, LambdaInvokeResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -56,13 +57,14 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Base64-encoded JSON passed to the function in the client context object',
+      description:
+        'Base64-encoded JSON passed to the function in the client context object (max 3,583 bytes)',
     },
     qualifier: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
   },
 
@@ -72,20 +74,16 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.payload !== undefined && { payload: params.payload }),
-      ...(params.invocationType !== undefined && { invocationType: params.invocationType }),
-      ...(params.logType !== undefined && { logType: params.logType }),
-      ...(params.clientContext !== undefined && { clientContext: params.clientContext }),
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
+      ...(isSupplied(params.payload) && { payload: params.payload }),
+      ...(isSupplied(params.invocationType) && { invocationType: params.invocationType }),
+      ...(isSupplied(params.logType) && { logType: params.logType }),
+      ...(isSupplied(params.clientContext) && { clientContext: params.clientContext }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to invoke Lambda function')
-    }
 
     return {
       success: true,

@@ -12,8 +12,15 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const GetFunctionEventInvokeConfigSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
-  qualifier: z.string().optional(),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
+  qualifier: z
+    .string()
+    .min(1, 'qualifier cannot be empty')
+    .max(128, 'qualifier cannot exceed 128 characters')
+    .optional(),
 })
 
 const GetFunctionEventInvokeConfigResponseSchema = z.object({

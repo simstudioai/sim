@@ -93,8 +93,8 @@ const TOOL_CASES: Array<[string, Record<string, unknown>, ReturnType<typeof vi.f
       ...CONNECTION,
       functionName: 'functionName-value',
       statementId: 'statementId-value',
-      action: 'action-value',
-      principal: 'principal-value',
+      action: 'lambda:InvokeFunction',
+      principal: 's3.amazonaws.com',
     },
     mockOperations.executeLambdaAddPermission,
   ],
@@ -110,7 +110,11 @@ const TOOL_CASES: Array<[string, Record<string, unknown>, ReturnType<typeof vi.f
   ],
   [
     'lambda_create_event_source_mapping',
-    { ...CONNECTION, functionName: 'functionName-value' },
+    {
+      ...CONNECTION,
+      functionName: 'functionName-value',
+      eventSourceArn: 'arn:aws:sqs:us-east-1:1:queue',
+    },
     mockOperations.executeLambdaCreateEventSourceMapping,
   ],
   [
@@ -403,6 +407,136 @@ describe('executeLambdaTool', () => {
     expect(mockOperations.executeLambdaInvoke).not.toHaveBeenCalled()
   })
 
+  it('rejects create_function with a Zip package but no runtime or handler', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_function',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          role: 'arn:aws:iam::1:role/exec',
+          s3Bucket: 'bucket',
+          s3Key: 'alpha.zip',
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    const body = JSON.stringify(await response.json())
+    expect(body).toContain('runtime is required')
+    expect(body).toContain('handler is required')
+  })
+
+  it('rejects create_function that supplies both an S3 package and an image', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_function',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          role: 'arn:aws:iam::1:role/exec',
+          s3Bucket: 'bucket',
+          s3Key: 'alpha.zip',
+          runtime: 'python3.13',
+          handler: 'index.handler',
+          imageUri: 'ecr/alpha:1',
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('not both')
+  })
+
+  it('rejects an event source mapping with no source at all', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: { ...CONNECTION, functionName: 'alpha' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('An event source is required')
+  })
+
+  it('accepts a self-managed Kafka mapping with bootstrap servers instead of an ARN', async () => {
+    mockOperations.executeLambdaCreateEventSourceMapping.mockResolvedValue({
+      success: true,
+      output: {},
+    })
+
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          selfManagedKafkaBootstrapServers: ['broker-1:9092'],
+        },
+      })
+    )
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects AT_TIMESTAMP without a starting position timestamp', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          eventSourceArn: 'arn:aws:kinesis:us-east-1:1:stream/s',
+          startingPosition: 'AT_TIMESTAMP',
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('startingPositionTimestamp is required')
+  })
+
+  it('rejects masterRegion without functionVersion ALL', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_list_functions',
+        input: { ...CONNECTION, masterRegion: 'us-east-1' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('functionVersion must be ALL')
+  })
+
+  it('rejects VIRTUAL_HOST source access on an event source update', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          uuid: 'esm-1',
+          sourceAccessConfigurations: [{ type: 'VIRTUAL_HOST', uri: 'arn:aws:secret' }],
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaUpdateEventSourceMapping).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty qualifier at the contract boundary', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_get_function',
+        input: { ...CONNECTION, functionName: 'alpha', qualifier: '' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaGetFunction).not.toHaveBeenCalled()
+  })
+
   it('rejects create_function with no code source, naming the missing field', async () => {
     const response = await executeLambdaTool(
       createRequest({
@@ -428,6 +562,8 @@ describe('executeLambdaTool', () => {
           role: 'arn:aws:iam::1:role/exec',
           s3Bucket: 'bucket',
           s3Key: 'alpha.zip',
+          runtime: 'python3.13',
+          handler: 'index.handler',
         },
       })
     )

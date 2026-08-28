@@ -56,10 +56,6 @@ export const tagResourceTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to tag Lambda resource')
-    }
-
     return {
       success: true,
       output: {

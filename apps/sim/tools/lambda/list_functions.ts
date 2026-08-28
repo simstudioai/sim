@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaListFunctionsParams, LambdaListFunctionsResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -61,19 +62,15 @@ export const listFunctionsTool: InternalToolConfig<
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
-      ...(params.functionVersion !== undefined && { functionVersion: params.functionVersion }),
-      ...(params.masterRegion !== undefined && { masterRegion: params.masterRegion }),
-      ...(params.marker !== undefined && { marker: params.marker }),
-      ...(params.maxItems !== undefined && { maxItems: params.maxItems }),
+      ...(isSupplied(params.functionVersion) && { functionVersion: params.functionVersion }),
+      ...(isSupplied(params.masterRegion) && { masterRegion: params.masterRegion }),
+      ...(isSupplied(params.marker) && { marker: params.marker }),
+      ...(isSupplied(params.maxItems) && { maxItems: params.maxItems }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to list Lambda functions')
-    }
 
     return {
       success: true,

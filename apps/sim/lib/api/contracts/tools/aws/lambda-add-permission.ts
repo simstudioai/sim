@@ -9,16 +9,36 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const AddPermissionSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
-  statementId: z.string().min(1, 'statementId is required'),
-  action: z.string().min(1, 'action is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
+  statementId: z
+    .string()
+    .min(1, 'statementId is required')
+    .max(100, 'statementId cannot exceed 100 characters')
+    .regex(
+      /^[a-zA-Z0-9-_]+$/,
+      'statementId may only contain letters, numbers, hyphens, and underscores'
+    ),
+  action: z
+    .string()
+    .min(1, 'action is required')
+    .regex(
+      /^(lambda:[*]|lambda:[a-zA-Z]+|[*])$/,
+      'action must be a Lambda action such as lambda:InvokeFunction'
+    ),
   principal: z.string().min(1, 'principal is required'),
   sourceArn: z.string().optional(),
   sourceAccount: z.string().optional(),
   principalOrgId: z.string().optional(),
   eventSourceToken: z.string().optional(),
   functionUrlAuthType: z.enum(['NONE', 'AWS_IAM']).optional(),
-  qualifier: z.string().optional(),
+  qualifier: z
+    .string()
+    .min(1, 'qualifier cannot be empty')
+    .max(128, 'qualifier cannot exceed 128 characters')
+    .optional(),
   revisionId: z.string().optional(),
 })
 

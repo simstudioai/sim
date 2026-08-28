@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   LambdaAddPermissionResponse,
   LambdaCreateAliasResponse,
@@ -82,7 +82,7 @@ const PARAM_KINDS = {
   imageUri: 'string',
   sourceKmsKeyArn: 'string',
   description: 'string',
-  timeout: 'number',
+  functionTimeout: 'number',
   memorySize: 'number',
   ephemeralStorageSize: 'number',
   publish: 'boolean',
@@ -186,7 +186,7 @@ const OPERATION_PARAMS: Record<string, readonly ParamName[]> = {
     'imageUri',
     'sourceKmsKeyArn',
     'description',
-    'timeout',
+    'functionTimeout',
     'memorySize',
     'ephemeralStorageSize',
     'publish',
@@ -221,7 +221,7 @@ const OPERATION_PARAMS: Record<string, readonly ParamName[]> = {
     'runtime',
     'handler',
     'description',
-    'timeout',
+    'functionTimeout',
     'memorySize',
     'ephemeralStorageSize',
     'environment',
@@ -512,6 +512,7 @@ export const LambdaBlock: BlockConfig<
     'Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
+  authMode: AuthMode.ApiKey,
   docsLink: 'https://docs.sim.ai/integrations/lambda',
   bgColor: 'linear-gradient(45deg, #C8511B 0%, #FF9900 100%)',
   iconColor: '#FF9900',
@@ -1075,8 +1076,8 @@ export const LambdaBlock: BlockConfig<
       },
     },
     {
-      id: 'timeout',
-      title: 'Timeout (seconds)',
+      id: 'functionTimeout',
+      title: 'Function Timeout (seconds)',
       type: 'short-input',
       placeholder: '3',
       condition: {
@@ -2036,7 +2037,7 @@ export const LambdaBlock: BlockConfig<
     imageUri: { type: 'string', description: 'Image URI' },
     sourceKmsKeyArn: { type: 'string', description: 'Source KMS Key ARN' },
     description: { type: 'string', description: 'Description' },
-    timeout: { type: 'number', description: 'Timeout (seconds)' },
+    functionTimeout: { type: 'number', description: 'Function Timeout (seconds)' },
     memorySize: { type: 'number', description: 'Memory (MB)' },
     ephemeralStorageSize: { type: 'number', description: 'Ephemeral Storage (MB)' },
     publish: { type: 'boolean', description: 'Publish Version' },

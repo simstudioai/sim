@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaPutFunctionEventInvokeConfigParams,
   LambdaPutFunctionEventInvokeConfigResponse,
@@ -43,7 +44,7 @@ export const putFunctionEventInvokeConfigTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
     maximumRetryAttempts: {
       type: 'number',
@@ -77,17 +78,17 @@ export const putFunctionEventInvokeConfigTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
-      ...(params.maximumRetryAttempts !== undefined && {
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.maximumRetryAttempts) && {
         maximumRetryAttempts: params.maximumRetryAttempts,
       }),
-      ...(params.maximumEventAgeInSeconds !== undefined && {
+      ...(isSupplied(params.maximumEventAgeInSeconds) && {
         maximumEventAgeInSeconds: params.maximumEventAgeInSeconds,
       }),
-      ...(params.onSuccessDestination !== undefined && {
+      ...(isSupplied(params.onSuccessDestination) && {
         onSuccessDestination: params.onSuccessDestination,
       }),
-      ...(params.onFailureDestination !== undefined && {
+      ...(isSupplied(params.onFailureDestination) && {
         onFailureDestination: params.onFailureDestination,
       }),
     }),
@@ -95,10 +96,6 @@ export const putFunctionEventInvokeConfigTool: InternalToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to set Lambda asynchronous invocation configuration')
-    }
 
     return {
       success: true,

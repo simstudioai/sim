@@ -9,7 +9,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const PutFunctionConcurrencySchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
   reservedConcurrentExecutions: z
     .number()
     .int()

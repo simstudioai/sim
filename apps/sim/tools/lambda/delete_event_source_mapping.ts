@@ -52,10 +52,6 @@ export const deleteEventSourceMappingTool: InternalToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete Lambda event source mapping')
-    }
-
     return {
       success: true,
       output: {

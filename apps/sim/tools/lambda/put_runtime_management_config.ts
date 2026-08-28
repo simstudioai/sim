@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type {
   LambdaPutRuntimeManagementConfigParams,
   LambdaPutRuntimeManagementConfigResponse,
@@ -56,7 +57,7 @@ export const putRuntimeManagementConfigTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Version number or alias name to act on (defaults to $LATEST)',
+      description: 'Version number or alias name to act on. Omit to target the function itself',
     },
   },
 
@@ -67,19 +68,13 @@ export const putRuntimeManagementConfigTool: InternalToolConfig<
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
       updateRuntimeOn: params.updateRuntimeOn,
-      ...(params.runtimeVersionArn !== undefined && {
-        runtimeVersionArn: params.runtimeVersionArn,
-      }),
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
+      ...(isSupplied(params.runtimeVersionArn) && { runtimeVersionArn: params.runtimeVersionArn }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to set Lambda runtime management configuration')
-    }
 
     return {
       success: true,

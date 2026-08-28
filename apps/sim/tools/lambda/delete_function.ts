@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaDeleteFunctionParams, LambdaDeleteFunctionResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -51,16 +52,12 @@ export const deleteFunctionTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.qualifier !== undefined && { qualifier: params.qualifier }),
+      ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to delete Lambda function')
-    }
 
     return {
       success: true,

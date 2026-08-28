@@ -1,3 +1,4 @@
+import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaPublishVersionParams, LambdaPublishVersionResponse } from '@/tools/lambda/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -62,18 +63,14 @@ export const publishVersionTool: InternalToolConfig<
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
       functionName: params.functionName,
-      ...(params.codeSha256 !== undefined && { codeSha256: params.codeSha256 }),
-      ...(params.description !== undefined && { description: params.description }),
-      ...(params.revisionId !== undefined && { revisionId: params.revisionId }),
+      ...(isSupplied(params.codeSha256) && { codeSha256: params.codeSha256 }),
+      ...(isSupplied(params.description) && { description: params.description }),
+      ...(isSupplied(params.revisionId) && { revisionId: params.revisionId }),
     }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to publish Lambda function version')
-    }
 
     return {
       success: true,

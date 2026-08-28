@@ -12,12 +12,15 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const UpdateFunctionConfigurationSchema = z.object({
   ...lambdaConnectionFields,
-  functionName: z.string().min(1, 'functionName is required'),
+  functionName: z
+    .string()
+    .min(1, 'functionName is required')
+    .max(256, 'functionName cannot exceed 256 characters'),
   role: z.string().optional(),
   runtime: z.string().optional(),
   handler: z.string().optional(),
   description: z.string().optional(),
-  timeout: z.number().int().min(1).max(900).optional(),
+  functionTimeout: z.number().int().min(1).max(900).optional(),
   memorySize: z.number().int().min(128).max(32768).optional(),
   ephemeralStorageSize: z.number().int().min(512).max(10240).optional(),
   environment: z.record(z.string(), z.string()).optional(),
