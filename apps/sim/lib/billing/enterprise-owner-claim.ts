@@ -964,6 +964,23 @@ export async function acceptEnterpriseOwnerClaim(params: {
         invitationEmails: payload.request.invitations.map((invitation) => invitation.email),
       })
 
+      const [verifiedOwner] = await tx
+        .update(user)
+        .set({ emailVerified: true, updatedAt: new Date() })
+        .where(
+          and(
+            eq(user.id, params.userId),
+            or(
+              eq(user.normalizedEmail, payload.request.ownerEmail),
+              eq(sql<string>`lower(trim(${user.email}))`, payload.request.ownerEmail)
+            )
+          )
+        )
+        .returning({ id: user.id })
+      if (!verifiedOwner) {
+        return { success: false as const, kind: 'email-mismatch' as const }
+      }
+
       if (createsDefaultWorkspace) {
         const defaultWorkspace = await createDefaultPersonalWorkspaceInTransaction(tx, {
           userId: params.userId,
