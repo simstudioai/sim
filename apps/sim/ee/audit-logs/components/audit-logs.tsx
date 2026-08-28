@@ -406,14 +406,19 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       refreshTimers.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimers.add(timerId)
+    const pending: Promise<unknown>[] = []
     /*
-      The workspace lookup too, but only when a scope asked for it: a failed lookup
-      closes the feed, so refreshing only the feed would leave the one control on
-      screen unable to clear the state it is showing. `refetch` ignores `enabled`, so
-      an unconditional call would fire a request the unscoped feed has no use for and
-      could fail a refresh that otherwise succeeded.
+      `refetch` ignores `enabled`, so this has to repeat the gate. While the scope is
+      unanswerable the feed's filter carries no workspace, and refreshing it would
+      issue exactly the organization-wide read the gate exists to prevent.
     */
-    const pending = workspaceScope ? [refetch(), orgWorkspaces.refetch()] : [refetch()]
+    if (isScopeAnswerable) pending.push(refetch())
+    /*
+      The lookup is what has to succeed for a closed feed to reopen, so it is retried
+      whenever a scope asked for it — and skipped entirely when none did, where it is
+      a disabled query with nothing to say.
+    */
+    if (workspaceScope) pending.push(orgWorkspaces.refetch())
     Promise.all(pending).catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
