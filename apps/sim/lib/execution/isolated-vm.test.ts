@@ -654,6 +654,55 @@ describe('isolated-vm scheduler', () => {
     expect(result.error?.message).toContain('Too many concurrent')
   })
 
+  it('releases the lease when abort races an undetermined acquisition', async () => {
+    const scripts: string[] = []
+    let markLeaseRequested!: () => void
+    const leaseRequested = new Promise<void>((resolve) => {
+      markLeaseRequested = resolve
+    })
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('unused')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        scripts.push(script)
+        // Never settles, so the deadline decides and Redis may still register
+        // the lease id afterwards.
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          markLeaseRequested()
+          return new Promise<number>(() => {})
+        }
+        return 1
+      },
+    })
+    const controller = new AbortController()
+
+    const execution = executeInIsolatedVM(
+      {
+        code: 'return "unused"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-abort-undetermined',
+        ownerKey: 'user:cancelled-undetermined',
+      },
+      { signal: controller.signal }
+    )
+    await leaseRequested
+    controller.abort(new DOMException('user', 'AbortError'))
+
+    await expect(execution).resolves.toMatchObject({
+      termination: 'cancelled',
+      error: { name: 'AbortError' },
+    })
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(true)
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
   it('reports cancellation when abort races a rejected distributed lease', async () => {
     let resolveLease!: (value: number) => void
     let markLeaseRequested!: () => void
