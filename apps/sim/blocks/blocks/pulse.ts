@@ -141,7 +141,11 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     bounding_boxes: { type: 'json', description: 'Bounding box layout information' },
     extraction_url: { type: 'string', description: 'URL for extraction results (large documents)' },
     html: { type: 'string', description: 'HTML content if requested' },
-    structured_output: { type: 'json', description: 'Structured output; Sim exposes no input for supplying a schema, so this is always null' },
+    structured_output: {
+      type: 'json',
+      description:
+        'Structured output; Sim exposes no input for supplying a schema, so this is always null',
+    },
     chunks: { type: 'json', description: 'Chunked content if chunking was enabled' },
     figures: { type: 'json', description: 'Extracted figures if figure extraction was enabled' },
   },

@@ -18,7 +18,8 @@ export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
   bottom_right_y: { type: 'number', description: 'Bottom-right Y coordinate in pixels' },
   image_base64: {
     type: 'string',
-    description: 'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
+    description:
+      'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -58,7 +59,8 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   dimensions: MISTRAL_OCR_DIMENSIONS_OUTPUT,
   tables: {
     type: 'array',
-    description: 'Extracted tables as HTML/markdown, referenced via placeholders like [tbl-0.html]. Sim sends no table-extraction option, so this is empty',
+    description:
+      'Extracted tables as HTML/markdown, referenced via placeholders like [tbl-0.html]. Sim sends no table-extraction option, so this is empty',
   },
   hyperlinks: {
     type: 'array',
@@ -67,12 +69,14 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   },
   header: {
     type: 'string',
-    description: 'Page header content. Sim sends no header-extraction option, so this is not returned',
+    description:
+      'Page header content. Sim sends no header-extraction option, so this is not returned',
     optional: true,
   },
   footer: {
     type: 'string',
-    description: 'Page footer content. Sim sends no footer-extraction option, so this is not returned',
+    description:
+      'Page footer content. Sim sends no footer-extraction option, so this is not returned',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>

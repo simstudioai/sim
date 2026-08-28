@@ -466,7 +466,8 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
                 },
                 image_base64: {
                   type: 'string',
-                  description: 'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
+                  description:
+                    'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
                   optional: true,
                 },
               },
@@ -497,12 +498,14 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
           },
           header: {
             type: 'string',
-            description: 'Page header content. Sim sends no header-extraction option, so this is not returned',
+            description:
+              'Page header content. Sim sends no header-extraction option, so this is not returned',
             optional: true,
           },
           footer: {
             type: 'string',
-            description: 'Page footer content. Sim sends no footer-extraction option, so this is not returned',
+            description:
+              'Page footer content. Sim sends no footer-extraction option, so this is not returned',
             optional: true,
           },
         },
