@@ -137,12 +137,38 @@ export function requiredRecord(
   return value
 }
 
+/**
+ * Renders one entry of GitHub's `errors[]` array. Entries are either a bare string or
+ * an object carrying some combination of `field`, `code`, and `message`.
+ */
+function readGitHubErrorEntry(entry: unknown): string | undefined {
+  if (typeof entry === 'string') return entry.trim() || undefined
+  if (!isRecordLike(entry)) return undefined
+  const field = typeof entry.field === 'string' ? entry.field.trim() : ''
+  const message = typeof entry.message === 'string' ? entry.message.trim() : ''
+  const code = typeof entry.code === 'string' ? entry.code.trim() : ''
+  const detail = message || code
+  if (!detail) return field || undefined
+  return field ? `${field}: ${detail}` : detail
+}
+
+/**
+ * A GitHub 422 names the offending field only in `errors[]` — the top-level `message`
+ * is the useless `"Validation Failed"`. The field-level detail is appended so the user
+ * can tell which input was rejected. Responses without an `errors[]` array, and
+ * responses without a top-level `message` at all, are unchanged.
+ */
 export async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
   try {
     const value: unknown = await response.json()
     if (!isRecordLike(value)) return undefined
     const message = value.message
-    return typeof message === 'string' && message.trim() ? message : undefined
+    if (typeof message !== 'string' || !message.trim()) return undefined
+    if (!Array.isArray(value.errors)) return message
+    const details = value.errors
+      .map(readGitHubErrorEntry)
+      .filter((detail): detail is string => Boolean(detail))
+    return details.length ? `${message}: ${details.join('; ')}` : message
   } catch {
     return undefined
   }

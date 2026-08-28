@@ -22,9 +22,26 @@ function pullRequestUrl(params: CreateCommentParams): string {
  * GitHub requires `commit_id` on a pull request review comment. When the caller did
  * not supply one, the pull request is fetched first so its head SHA can be used —
  * mirroring how Jira resolves a missing `cloudId` from `domain`.
+ *
+ * The lookup is gated on `path` because only a request headed for the `/comments`
+ * endpoint needs a commit SHA. `path` is optional on the block, so a file comment
+ * left without one still falls through to `/pulls/{n}/reviews`, where GitHub creates
+ * a pending review and `commit_id` is optional.
  */
 function needsCommitLookup(params: CreateCommentParams): boolean {
-  return params.commentType === 'file_comment' && !params.commitId
+  return params.commentType === 'file_comment' && Boolean(params.path) && !params.commitId
+}
+
+/**
+ * The block renders `line` as a short input, so a typed line number reaches the tool
+ * as a string while GitHub types the field as an integer. Anything that is not a
+ * finite number is omitted rather than sent as `NaN`.
+ */
+function toLineNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : undefined
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const parsed = Number(value.trim())
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
 }
 
 function fileCommentBody(params: CreateCommentParams, commitId: string): Record<string, any> {
@@ -32,7 +49,7 @@ function fileCommentBody(params: CreateCommentParams, commitId: string): Record<
     body: params.body,
     commit_id: commitId,
     path: params.path,
-    line: params.line,
+    line: toLineNumber(params.line),
     side: params.side || 'RIGHT',
   }
 }
