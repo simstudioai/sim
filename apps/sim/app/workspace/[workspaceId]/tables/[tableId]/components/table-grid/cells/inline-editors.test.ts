@@ -91,13 +91,14 @@ describe('dateEditorRawValue', () => {
     })
     act(() => root.render(createElement(InlineEditor, props)))
 
-    const input = container.querySelector('input')
+    const input = container.querySelector('input') as HTMLInputElement
     expect(input?.value).toBe('06/15/2026 6:00:30 AM')
+    act(() => changeInput(input, '09/01/2026 9:00 AM'))
     act(() => {
-      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     })
 
-    expect(onSave).toHaveBeenCalledWith(value, 'enter')
+    expect(onSave).toHaveBeenCalledWith(Date.parse('2026-09-01T16:00:00Z') / 1000, 'enter')
     act(() => root.unmount())
     container.remove()
   })
