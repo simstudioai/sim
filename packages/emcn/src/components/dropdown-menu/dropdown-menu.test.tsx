@@ -16,6 +16,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuTrigger,
 } from './dropdown-menu'
 
@@ -102,7 +103,7 @@ describe('menu row labels', () => {
     expect(link.querySelector('span')).toBeNull()
   })
 
-  it('leaves a label the consumer already wrapped as a single box', () => {
+  it('hard-clips a consumer-provided rich span without adding an ellipsis', () => {
     openMenu(
       <DropdownMenuItem>
         <span>Add 2 rows to Chat</span>
@@ -110,6 +111,21 @@ describe('menu row labels', () => {
     )
 
     expect(row().querySelectorAll('span')).toHaveLength(1)
-    expect(row().className).toContain('[&>span:not([data-overflow-text])]:truncate')
+    expect(row().className).toContain('[&>span:not([data-overflow-text])]:text-clip')
+    expect(row().className).not.toContain('truncate')
+  })
+
+  it('uses the canonical fade-only label beside an icon', () => {
+    openMenu(
+      <DropdownMenuItem>
+        <svg aria-hidden />
+        <DropdownMenuItemLabel label='A long workflow label' />
+      </DropdownMenuItem>
+    )
+
+    const label = row().querySelector<HTMLElement>('[data-overflow-text]')
+    expect(label?.textContent).toBe('A long workflow label')
+    expect(label?.className).toContain('text-clip')
+    expect(label?.className).not.toContain('truncate')
   })
 })

@@ -4,7 +4,8 @@
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OverflowText } from './overflow-text'
+import { cn } from '../../lib/cn'
+import { OverflowText, overflowTextFadeClass } from './overflow-text'
 
 let host: HTMLDivElement
 let root: Root
@@ -75,6 +76,13 @@ function setWidths(element: HTMLElement, clientWidth: number, scrollWidth: numbe
 }
 
 describe('OverflowText', () => {
+  it('makes the shared fade treatment override an accidental ellipsis', () => {
+    const className = cn('truncate', overflowTextFadeClass)
+
+    expect(className).toContain('text-clip')
+    expect(className).not.toContain('truncate')
+  })
+
   it('fades and reveals the full value only when clipped', () => {
     act(() =>
       root.render(<OverflowText label='A long workflow name' className='truncate text-sm' />)
@@ -156,6 +164,27 @@ describe('OverflowText', () => {
 
     expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe(
       'A long workflow name'
+    )
+  })
+
+  it('opens from a focused menu item that uses roving tabindex', () => {
+    act(() =>
+      root.render(
+        <div role='menuitem' tabIndex={-1}>
+          <OverflowText label='A long menu label' focusTarget='nearest-interactive' />
+        </div>
+      )
+    )
+    const item = host.querySelector<HTMLElement>('[role="menuitem"]')
+    const label = host.querySelector<HTMLElement>('[data-overflow-text]')
+    if (!item || !label) throw new Error('Menu label did not render')
+
+    setWidths(label, 80, 180)
+    vi.spyOn(item, 'matches').mockReturnValue(true)
+    act(() => item.focus())
+
+    expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe(
+      'A long menu label'
     )
   })
 

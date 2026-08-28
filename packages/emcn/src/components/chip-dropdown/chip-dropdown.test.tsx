@@ -45,4 +45,12 @@ describe('ChipDropdown', () => {
   it('keeps its intrinsic width by default', () => {
     expect(mount(false).className).not.toContain('w-full')
   })
+
+  it('renders its text trigger through the fade-only overflow primitive', () => {
+    const label = mount(true).querySelector<HTMLElement>('[data-overflow-text]')
+
+    expect(label?.textContent).toBe('Workflow')
+    expect(label?.className).toContain('text-clip')
+    expect(label?.className).not.toContain('truncate')
+  })
 })

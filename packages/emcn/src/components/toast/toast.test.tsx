@@ -30,6 +30,7 @@ beforeEach(() => {
     class {
       disconnect(): void {}
       observe(): void {}
+      unobserve(): void {}
     }
   )
 })
