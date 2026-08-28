@@ -15,7 +15,18 @@
  * verb, endpoint is fine" and sends the caller looking in the wrong place. That
  * is the only case this script rejects, so it stays silent on the in-process
  * contracts whose routes were deleted outright.
+ *
+ * Contracts are read by importing each contract module and inspecting its
+ * exported objects, the same way `check-route-verbs.ts` resolves the contract
+ * behind a route. Scanning the source text instead would have to re-implement a
+ * TypeScript lexer to know which braces are code and which sit inside a string,
+ * template literal, regex or comment, and it could only ever see contracts whose
+ * `method`/`path` are inline literals — the 70-plus built through helpers like
+ * `definePostSelector(path, …)` would be invisible. Route files stay a static
+ * scan on purpose: importing one drags in `@sim/db`, auth and `next/server`,
+ * whereas contract modules are pure Zod.
  */
+import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -25,52 +36,35 @@ const APP_API_DIR = path.join(ROOT, 'apps/sim/app/api')
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage', '__tests__'])
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
 
+type HttpMethod = (typeof HTTP_METHODS)[number]
+
 interface DeclaredContract {
   name: string
-  method: string
+  method: HttpMethod
   routePath: string
-  file: string
-  line: number
+  module: string
 }
 
-async function walk(dir: string, results: string[] = []): Promise<string[]> {
+async function listContractModules(dir: string, results: string[] = []): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (SKIP_DIRS.has(entry.name)) continue
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) await walk(full, results)
+    if (entry.isDirectory()) await listContractModules(full, results)
     else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) results.push(full)
   }
   return results
 }
 
-/** Reads the balanced object literal passed to each `defineRouteContract(` call. */
-function parseContracts(source: string, file: string): DeclaredContract[] {
-  const found: DeclaredContract[] = []
-  const opener = /defineRouteContract\s*\(\s*\{/g
-  let match: RegExpExecArray | null
-  while ((match = opener.exec(source))) {
-    let cursor = match.index + match[0].length - 1
-    const start = cursor
-    let depth = 0
-    for (; cursor < source.length; cursor++) {
-      const char = source[cursor]
-      if (char === '{') depth++
-      else if (char === '}' && --depth === 0) break
-    }
-    const literal = source.slice(start, cursor + 1)
-    const method = literal.match(/(?:^|[\s,{])method\s*:\s*'([A-Z]+)'/)?.[1]
-    const routePath = literal.match(/(?:^|[\s,{])path\s*:\s*'([^']+)'/)?.[1]
-    if (!method || !routePath) continue
-    const preceding = source.slice(0, match.index)
-    found.push({
-      name: [...preceding.matchAll(/export\s+const\s+([A-Za-z0-9_]+)/g)].pop()?.[1] ?? 'anonymous',
-      method,
-      routePath,
-      file: path.relative(ROOT, file),
-      line: preceding.split('\n').length,
-    })
-  }
-  return found
+function isRouteContract(value: unknown): value is { method: HttpMethod; path: string } {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.method === 'string' &&
+    (HTTP_METHODS as readonly string[]).includes(candidate.method) &&
+    typeof candidate.path === 'string' &&
+    typeof candidate.response === 'object' &&
+    candidate.response !== null
+  )
 }
 
 async function readIfFile(candidate: string): Promise<string | null> {
@@ -98,13 +92,8 @@ async function readRouteFile(routePath: string): Promise<string | null> {
 
   for (let depth = segments.length; depth > 0; depth--) {
     const ancestor = path.join(APP_API_DIR, ...segments.slice(0, depth - 1))
-    let entries
-    try {
-      entries = await readdir(ancestor, { withFileTypes: true })
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
+    if (!existsSync(ancestor)) continue
+    for (const entry of await readdir(ancestor, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
       if (!entry.name.startsWith('[...') && !entry.name.startsWith('[[...')) continue
       const source = await readIfFile(path.join(ancestor, entry.name, 'route.ts'))
@@ -134,11 +123,42 @@ function exportedMethods(source: string): Set<string> {
   return methods
 }
 
-async function main() {
-  const contracts: DeclaredContract[] = []
-  for (const file of await walk(CONTRACTS_DIR)) {
-    contracts.push(...parseContracts(await readFile(file, 'utf8'), file))
+async function collectContracts(): Promise<DeclaredContract[]> {
+  const modules = await listContractModules(CONTRACTS_DIR)
+  // Barrels re-export the same object, so keying by identity keeps one entry per
+  // contract. Defining modules sort before `index.ts` so the report names them.
+  modules.sort((a, b) => {
+    const aBarrel = path.basename(a) === 'index.ts'
+    const bBarrel = path.basename(b) === 'index.ts'
+    return aBarrel === bBarrel ? a.localeCompare(b) : aBarrel ? 1 : -1
+  })
+
+  const seen = new Map<object, DeclaredContract>()
+  for (const file of modules) {
+    let loaded: Record<string, unknown>
+    try {
+      loaded = (await import(file)) as Record<string, unknown>
+    } catch (error) {
+      console.error(`✗ Could not import ${path.relative(ROOT, file)} to read its contracts:`)
+      console.error(`  ${error instanceof Error ? error.message : String(error)}`)
+      process.exit(1)
+    }
+    for (const [name, value] of Object.entries(loaded)) {
+      if (!isRouteContract(value)) continue
+      if (seen.has(value)) continue
+      seen.set(value, {
+        name,
+        method: value.method,
+        routePath: value.path,
+        module: path.relative(ROOT, file),
+      })
+    }
   }
+  return [...seen.values()]
+}
+
+async function main() {
+  const contracts = await collectContracts()
 
   const violations: Array<DeclaredContract & { served: string[] }> = []
   const inProcess: DeclaredContract[] = []
@@ -149,14 +169,12 @@ async function main() {
       continue
     }
     const served = exportedMethods(routeSource)
-    if (!served.has(contract.method)) {
-      violations.push({ ...contract, served: [...served].sort() })
-    }
+    if (!served.has(contract.method)) violations.push({ ...contract, served: [...served].sort() })
   }
 
   if (process.argv.includes('--list-in-process')) {
     for (const c of [...inProcess].sort((a, b) => a.routePath.localeCompare(b.routePath))) {
-      console.log(`  ${c.method.padEnd(6)} ${c.routePath}  ${c.name} (${c.file}:${c.line})`)
+      console.log(`  ${c.method.padEnd(6)} ${c.routePath}  ${c.name} (${c.module})`)
     }
   }
 
@@ -166,7 +184,7 @@ async function main() {
     )
     for (const v of violations) {
       console.error(`  ${v.method} ${v.routePath}`)
-      console.error(`    contract: ${v.name} (${v.file}:${v.line})`)
+      console.error(`    contract: ${v.name} (${v.module})`)
       console.error(`    route serves: ${v.served.join(', ') || '(no methods)'}`)
       console.error(
         `    fix: export ${v.method} from the route, or drop the declaration if the endpoint is retired\n`
