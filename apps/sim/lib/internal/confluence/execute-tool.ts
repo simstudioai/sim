@@ -1,5 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { AnyApiRouteContract, ContractBody, ContractQuery } from '@/lib/api/contracts'
+import type {
+  AnyApiRouteContract,
+  ApiSchema,
+  ContractBody,
+  ContractQuery,
+} from '@/lib/api/contracts'
 import {
   confluenceBlogPostOperationContract,
   confluenceCreateCommentContract,
@@ -10,7 +15,7 @@ import {
   confluenceDeleteBlogPostContract,
   confluenceDeleteCommentContract,
   confluenceDeleteLabelContract,
-  confluenceDeletePageContract,
+  confluenceDeletePageBodySchema,
   confluenceDeletePagePropertyContract,
   confluenceDeleteSpaceContract,
   confluenceGetSpaceContract,
@@ -37,7 +42,7 @@ import {
   confluenceTasksContract,
   confluenceUpdateBlogPostContract,
   confluenceUpdateCommentContract,
-  confluenceUpdatePageContract,
+  confluenceUpdatePageBodySchema,
   confluenceUpdateSpaceContract,
   confluenceUploadAttachmentContract,
   confluenceUserContract,
@@ -94,12 +99,10 @@ import type {
 
 type ContractInput<C extends AnyApiRouteContract> = NonNullable<ContractBody<C> | ContractQuery<C>>
 
-function parsePreparedRequest<C extends AnyApiRouteContract>(
-  contract: C,
+function parsePreparedInput<T>(
+  schema: ApiSchema,
   request: InternalToolOperationCall
-): { success: true; data: ContractInput<C> } | { success: false; response: Response } {
-  const schema = contract.query ?? contract.body
-  if (!schema) throw new Error(`Confluence contract ${contract.path} has no request input`)
+): { success: true; data: T } | { success: false; response: Response } {
   const parsed = schema.safeParse(request.input)
   if (!parsed.success) {
     return {
@@ -110,16 +113,21 @@ function parsePreparedRequest<C extends AnyApiRouteContract>(
       ),
     }
   }
-  return { success: true, data: parsed.data as ContractInput<C> }
+  return { success: true, data: parsed.data as T }
 }
 
-async function executeOperation<C extends AnyApiRouteContract>(
-  contract: C,
+/**
+ * Operations whose HTTP route was retired hold a bare request schema rather than
+ * a contract, so they cannot declare a `method` and `path` nothing serves. The
+ * contract form below feeds this the schema it would have parsed anyway.
+ */
+async function executeSchemaOperation<T>(
+  schema: ApiSchema,
   request: InternalToolOperationCall,
-  execute: (input: ContractInput<C>, context: ConfluenceOperationContext) => Promise<unknown>
+  execute: (input: T, context: ConfluenceOperationContext) => Promise<unknown>
 ): Promise<Response> {
   request.signal?.throwIfAborted()
-  const parsed = parsePreparedRequest(contract, request)
+  const parsed = parsePreparedInput<T>(schema, request)
   if (!parsed.success) return parsed.response
   try {
     const result = await execute(parsed.data, {
@@ -139,6 +147,16 @@ async function executeOperation<C extends AnyApiRouteContract>(
       { status: error instanceof ConfluenceOperationError ? error.status : 500 }
     )
   }
+}
+
+function executeOperation<C extends AnyApiRouteContract>(
+  contract: C,
+  request: InternalToolOperationCall,
+  execute: (input: ContractInput<C>, context: ConfluenceOperationContext) => Promise<unknown>
+): Promise<Response> {
+  const schema = contract.query ?? contract.body
+  if (!schema) throw new Error(`Confluence contract ${contract.path} has no request input`)
+  return executeSchemaOperation<ContractInput<C>>(schema, request, execute)
 }
 
 export const executeConfluenceTool: InternalToolOperationHandler = async (request) => {
@@ -194,7 +212,11 @@ export const executeConfluenceTool: InternalToolOperationHandler = async (reques
     case 'confluence_delete_label':
       return executeOperation(confluenceDeleteLabelContract, request, executeConfluenceDeleteLabel)
     case 'confluence_delete_page':
-      return executeOperation(confluenceDeletePageContract, request, executeConfluenceDeletePage)
+      return executeSchemaOperation(
+        confluenceDeletePageBodySchema,
+        request,
+        executeConfluenceDeletePage
+      )
     case 'confluence_delete_page_property':
       return executeOperation(
         confluenceDeletePagePropertyContract,
@@ -327,7 +349,11 @@ export const executeConfluenceTool: InternalToolOperationHandler = async (reques
         executeConfluenceSearchInSpace
       )
     case 'confluence_update':
-      return executeOperation(confluenceUpdatePageContract, request, executeConfluenceUpdatePage)
+      return executeSchemaOperation(
+        confluenceUpdatePageBodySchema,
+        request,
+        executeConfluenceUpdatePage
+      )
     case 'confluence_update_blogpost':
       return executeOperation(
         confluenceUpdateBlogPostContract,

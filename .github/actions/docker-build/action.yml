@@ -19,6 +19,13 @@ inputs:
   tags:
     description: Comma-separated list of tags to push.
     required: true
+  max-cache-size-mb:
+    description: >-
+      Layer cache to retain after the post-job prune, in MB. Must stay above one
+      build's working set (base + dependency layers + RUN --mount=type=cache
+      dirs) or every build evicts what the next one needs. Falls back to the
+      small-image default below when empty.
+    required: false
 
 # Registry logins must precede this action. provenance/sbom stay off: attestation
 # manifests break `imagetools create` retagging in promote-images.
@@ -42,11 +49,24 @@ runs:
         PLATFORMS: ${{ inputs.platforms }}
       run: echo "value=${GITHUB_REPOSITORY##*/}/${FILE#./}/${PLATFORMS//\//-}" >> "$GITHUB_OUTPUT"
 
+    # max-cache-size-mb is what bounds the disk: BuildKit's default GC is
+    # time-based only (layers unused for 8 days), and setup-docker-builder skips
+    # pruning altogether when the value is empty. On a repo that builds this
+    # often nothing ever ages out, so the disks grew without limit —
+    # app.Dockerfile/linux-amd64 reached 351 GB inside a day, and realtime, whose
+    # image is under 300 MB, sat at 249 GB. Sticky disks bill at ~$0.51/GB-month,
+    # so that was real money for layers no build would ever read again.
+    #
+    # The fallback is here rather than an input `default:` because callers pass
+    # this from a matrix field, and an unset matrix key arrives as the empty
+    # string — which counts as "provided", so a `default:` would never apply and
+    # a row that forgot the field would silently go back to unbounded growth.
     - name: Set up Blacksmith builder
       if: inputs.provider == '' || inputs.provider == 'blacksmith'
       uses: useblacksmith/setup-docker-builder@a5256a73e30f09e37e3eceb8ca36043d17621d24 # v2
       with:
         cache-key: ${{ steps.cache-key.outputs.value }}
+        max-cache-size-mb: ${{ inputs.max-cache-size-mb || '25600' }}
 
     - name: Build and push (Blacksmith)
       if: inputs.provider == '' || inputs.provider == 'blacksmith'

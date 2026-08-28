@@ -52,6 +52,33 @@ export type ResponseMode<S extends ApiSchema = ApiSchema> =
   | StreamResponseMode
   | RedirectResponseMode
 
+/**
+ * A contract is consumed in one of two modes, and `method`/`path` only describe
+ * the first.
+ *
+ * **Boundary mode** — the common one. The contract bridges the client/server
+ * gap: a route builder under `app/api/**` serves `method` at `path`, and
+ * `requestJson(contract, …)` on the client parses the request out and validates
+ * the response back. Both sides read the same declaration, so `method` and
+ * `path` are load-bearing.
+ *
+ * **In-process mode.** Tool operations that once self-hopped over HTTP now
+ * execute in the same process (`lib/internal/<domain>/execute-tool.ts`), and
+ * they kept their contract as the input/response schema bundle —
+ * `parseInternalContractInput` reads only `params`, `query`, and `body`, and
+ * never looks at `method` or `path`. For these there is no route and no client
+ * fetch; `method` and `path` are vestigial, describing the HTTP endpoint the
+ * operation *used* to expose. Do not read them as evidence that an endpoint
+ * exists, and do not point a client at one.
+ *
+ * The distinction is not expressed in the type, so which mode a contract is in
+ * is derived, never annotated per file — `bun run check:api-contract-routes
+ * --list-in-process` enumerates the in-process set from the tree rather than
+ * from a hand-maintained list that would drift. That same audit enforces the
+ * part which actually matters: an in-process contract may not claim a `path`
+ * whose live route serves other methods, because a caller trusting the
+ * declaration gets a 405 rather than an honest 404.
+ */
 export interface ApiRouteContract<
   TParams extends ApiSchema | undefined = undefined,
   TQuery extends ApiSchema | undefined = undefined,
