@@ -64,12 +64,11 @@ async function resolveAvailableToolContext(args: {
   principal: Exclude<Principal, { kind: 'workspace_api_key' }>
   workspaceId: string
   toolId: string
-  executionActorUserId?: string
 }): Promise<CustomToolContext> {
   const workspace = await resolveWorkspaceContext(args.workspaceId)
   const tool = await getCustomToolById({
     toolId: args.toolId,
-    userId: requireCustomToolUserId(args.principal, args.executionActorUserId),
+    userId: requireCustomToolUserId(args.principal),
     workspaceId: workspace.workspaceId,
   })
   if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
@@ -119,7 +118,6 @@ export const listWorkspaceCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
 
 export interface ListAvailableCustomToolsInput {
   workspaceId: string
-  executionActorUserId?: string
 }
 
 export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -129,7 +127,7 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   authorizationOptions,
   async execute({ principal, input, context }) {
     const tools = await listCustomTools({
-      userId: requireCustomToolUserId(principal, input.executionActorUserId),
+      userId: requireCustomToolUserId(principal),
       workspaceId: context.workspaceId,
     })
     return { tools }
@@ -155,7 +153,6 @@ export interface ReadAvailableCustomToolByIdOrTitleInput {
   workspaceId: string
   identifier: string
   lookup: 'id' | 'id_or_title'
-  executionActorUserId?: string
 }
 
 export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspaceUseCase({
@@ -166,7 +163,7 @@ export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspa
   async execute({ principal, input, context }) {
     const tool = await getAvailableCustomTool({
       identifier: input.identifier,
-      userId: requireCustomToolUserId(principal, input.executionActorUserId),
+      userId: requireCustomToolUserId(principal),
       workspaceId: context.workspaceId,
       lookup: input.lookup,
     })
@@ -260,7 +257,6 @@ interface UpdateCustomToolFields {
   schema?: unknown
   code?: string
   source?: CustomToolWriteSource
-  executionActorUserId?: string
 }
 
 export interface UpdateWorkspaceCustomToolInput extends UpdateCustomToolFields {
@@ -338,7 +334,6 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       principal,
       workspaceId: input.workspaceId,
       toolId: input.toolId,
-      executionActorUserId: input.executionActorUserId,
     }),
   authorizationOptions,
   async execute({ principal, input, context }) {
@@ -355,7 +350,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
-        userId: requireCustomToolUserId(principal, input.executionActorUserId),
+        userId: requireCustomToolUserId(principal),
         title,
         schema: input.schema ?? context.tool.schema,
         code: input.code ?? context.tool.code,
@@ -380,7 +375,6 @@ export interface DeleteWorkspaceCustomToolInput {
   workspaceId: string
   toolId: string
   source?: CustomToolWriteSource
-  executionActorUserId?: string
 }
 
 export const deleteWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
@@ -419,14 +413,13 @@ export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       principal,
       workspaceId: input.workspaceId,
       toolId: input.toolId,
-      executionActorUserId: input.executionActorUserId,
     }),
   authorizationOptions,
   async execute({ principal, input, context }) {
     const deleted = await deleteCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
-      userId: requireCustomToolUserId(principal, input.executionActorUserId),
+      userId: requireCustomToolUserId(principal),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
     return { tool: context.tool }

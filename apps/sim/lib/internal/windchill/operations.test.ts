@@ -352,8 +352,22 @@ describe('Windchill operations', () => {
         primaryFile: rawFile,
       },
       {
-        principal: { ...PRINCIPAL, subjectUserId: undefined },
-        executionActorUserId: 'execution-actor',
+        principal: {
+          ...PRINCIPAL,
+          subjectUserId: undefined,
+          delegationContext: {
+            ...PRINCIPAL.delegationContext,
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: 'execution-actor',
+            },
+          },
+        },
         requestId: 'request-1',
       }
     )
@@ -457,8 +471,22 @@ describe('Windchill operations', () => {
         documentOid: DOCUMENT_OID,
       },
       {
-        principal: { ...PRINCIPAL, subjectUserId: undefined },
-        executionActorUserId: 'execution-actor',
+        principal: {
+          ...PRINCIPAL,
+          subjectUserId: undefined,
+          delegationContext: {
+            ...PRINCIPAL.delegationContext,
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: 'execution-actor',
+            },
+          },
+        },
         requestId: 'request-1',
       }
     )

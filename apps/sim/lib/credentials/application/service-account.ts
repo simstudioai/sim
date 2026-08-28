@@ -133,7 +133,6 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
 export interface DeleteCredentialInput {
   workspaceId?: string
   credentialId: string
-  executionActorUserId?: string
 }
 
 export interface DeleteCredentialResult {
@@ -143,7 +142,6 @@ export interface DeleteCredentialResult {
 
 export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.delete,
-  resolveExecutionActorUserId: (input: DeleteCredentialInput) => input.executionActorUserId,
   resolveContext: ({ input }: { input: DeleteCredentialInput }) =>
     resolveCredentialApplicationContext({
       credentialId: input.credentialId,

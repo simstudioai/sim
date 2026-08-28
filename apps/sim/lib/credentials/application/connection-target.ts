@@ -32,10 +32,8 @@ export async function resolveCredentialConnectionTarget(params: {
   providerId?: string
   credentialId?: string
   assertedProviderId?: string
-  executionActorUserId?: string
 }): Promise<ResolvedCredentialConnectionTarget> {
-  const { principal, context, providerId, credentialId, assertedProviderId, executionActorUserId } =
-    params
+  const { principal, context, providerId, credentialId, assertedProviderId } = params
   if (Boolean(providerId) === Boolean(credentialId)) {
     throw new Error('Credential connection requires exactly one target identifier')
   }
@@ -49,7 +47,7 @@ export async function resolveCredentialConnectionTarget(params: {
   }
 
   if (!credentialId) throw new Error('Credential reconnect target is missing its credential ID')
-  const userId = requireCredentialExecutionUserId(principal, executionActorUserId)
+  const userId = requireCredentialExecutionUserId(principal)
   const targetCredentialId = credentialId
   const credential = await getWorkspaceCredential({
     workspaceId: context.workspaceId,

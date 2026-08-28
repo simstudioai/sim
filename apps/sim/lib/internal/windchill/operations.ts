@@ -1,6 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
-  resolvePrincipalSubjectUserId,
+  resolvePrincipalExecutionActorUserId,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -441,10 +441,9 @@ async function loadUploadFiles(
 }
 
 function requireWindchillExecutionUserId(
-  principal: BoundWorkflowExecutionDelegatedPrincipal,
-  executionActorUserId?: string
+  principal: BoundWorkflowExecutionDelegatedPrincipal
 ): string {
-  const userId = resolvePrincipalSubjectUserId(principal) ?? executionActorUserId
+  const userId = resolvePrincipalExecutionActorUserId(principal)
   if (!userId) {
     throw new WindchillOperationError('Windchill file operations require an execution actor', 403)
   }
@@ -473,19 +472,17 @@ async function storeDownloadedFile({
   buffer,
   fileName,
   contentType,
-  executionActorUserId,
   signal,
 }: {
   principal: BoundWorkflowExecutionDelegatedPrincipal
   buffer: Buffer
   fileName: string
   contentType: string
-  executionActorUserId?: string
   signal?: AbortSignal
 }): Promise<UserFile> {
   signal?.throwIfAborted()
   const { workflowId, executionId } = principal.delegationContext
-  const userId = requireWindchillExecutionUserId(principal, executionActorUserId)
+  const userId = requireWindchillExecutionUserId(principal)
   if (executionId) {
     const file = await uploadExecutionFile(
       {
@@ -518,7 +515,6 @@ async function executeDownload(
     | { operation: 'windchill_download_attachment' }
   >,
   principal: BoundWorkflowExecutionDelegatedPrincipal,
-  executionActorUserId?: string,
   signal?: AbortSignal
 ): Promise<WindchillOperationOutput> {
   const documentUrl = windchillDocumentUrl(body.baseUrl, body.documentOid)
@@ -550,7 +546,6 @@ async function executeDownload(
     buffer: downloaded.buffer,
     fileName,
     contentType: mimeType,
-    executionActorUserId,
     signal,
   })
   return {
@@ -563,7 +558,6 @@ async function executeDownload(
 
 export interface WindchillOperationContext {
   principal: BoundWorkflowExecutionDelegatedPrincipal
-  executionActorUserId?: string
   requestId: string
   signal?: AbortSignal
 }
@@ -572,14 +566,14 @@ export async function executeWindchillOperation(
   body: WindchillOperationBody,
   context: WindchillOperationContext
 ): Promise<WindchillOperationOutput> {
-  const { principal, executionActorUserId, requestId, signal } = context
+  const { principal, requestId, signal } = context
   signal?.throwIfAborted()
 
   if (
     body.operation === 'windchill_download_primary_content' ||
     body.operation === 'windchill_download_attachment'
   ) {
-    return executeDownload(body, principal, executionActorUserId, signal)
+    return executeDownload(body, principal, signal)
   }
 
   if (
@@ -592,7 +586,7 @@ export async function executeWindchillOperation(
         : body.attachmentFiles
     const files = await loadUploadFiles(
       inputs,
-      requireWindchillExecutionUserId(principal, executionActorUserId),
+      requireWindchillExecutionUserId(principal),
       requestId,
       signal
     )

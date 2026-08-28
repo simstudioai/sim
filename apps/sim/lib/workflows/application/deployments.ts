@@ -56,7 +56,6 @@ export interface RevertWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
   version: number | 'active'
-  executionActorUserId?: string
 }
 
 export interface UpdateWorkflowVersionInput {
@@ -240,7 +239,7 @@ export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.revertVersion,
   resolveContext: resolveWorkflowContext<RevertWorkflowVersionInput>,
   async execute({ principal, input, context }) {
-    const userId = requireWorkflowExecutionUserId(principal, input.executionActorUserId)
+    const userId = requireWorkflowExecutionUserId(principal)
     await requireMutableWorkflow(context.workflowId)
     const result = await performRevertToVersion({
       workflowId: context.workflowId,

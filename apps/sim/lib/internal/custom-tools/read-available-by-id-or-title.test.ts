@@ -98,14 +98,25 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
         workspaceId: principal.workspaceId,
         identifier: tool.id,
         lookup: 'id',
-        executionActorUserId: 'user-1',
       },
     })
   })
 
-  it('forwards the legacy execution actor for an actorless principal', async () => {
+  it('forwards the principal-bound legacy execution actor for an actorless principal', async () => {
     const context = executionContext()
-    mocks.createPrincipal.mockResolvedValueOnce({ ...principal, subjectUserId: undefined })
+    const actorlessPrincipal = {
+      ...principal,
+      subjectUserId: undefined,
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        compatibilityActor: {
+          kind: 'legacy_execution_user' as const,
+          userId: 'user-1',
+        },
+      },
+    }
+    mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
 
     await readAvailableCustomToolByIdOrTitleAsExecutor({
       context,
@@ -113,11 +124,14 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
       lookup: 'id',
     })
 
-    expect(mocks.readUseCase.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ executionActorUserId: 'user-1' }),
-      })
-    )
+    expect(mocks.readUseCase.execute).toHaveBeenCalledWith({
+      principal: actorlessPrincipal,
+      input: {
+        workspaceId: principal.workspaceId,
+        identifier: tool.id,
+        lookup: 'id',
+      },
+    })
   })
 
   it('stops before principal construction when execution is already cancelled', async () => {

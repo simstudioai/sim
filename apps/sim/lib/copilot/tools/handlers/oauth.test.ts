@@ -53,7 +53,6 @@ describe('executeOAuthGetAuthLink', () => {
       workspaceId: 'workspace-1',
       providerName: 'gmail',
       credentialId: undefined,
-      executionActorUserId: 'user-1',
     })
     const url = new URL((result.output as { oauth_url: string }).oauth_url)
     expect(url.pathname).toBe('/api/auth/oauth2/authorize')

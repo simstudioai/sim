@@ -1,4 +1,4 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
   WorkspaceDelegationPolicy,
@@ -36,11 +36,8 @@ export const workflowDelegationPolicy: WorkspaceDelegationPolicy<WorkflowAuthori
 }
 
 /** Resolves the legacy execution actor used for user-attributed workflow writes. */
-export function requireWorkflowExecutionUserId(
-  principal: Principal,
-  executionActorUserId?: string
-): string {
-  const userId = resolvePrincipalSubjectUserId(principal) ?? executionActorUserId
+export function requireWorkflowExecutionUserId(principal: Principal): string {
+  const userId = resolvePrincipalExecutionActorUserId(principal)
   if (!userId) {
     throw new OrchestrationError(
       'forbidden',

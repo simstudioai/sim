@@ -68,13 +68,6 @@ function assertWorkspaceKnowledgeContext<C extends KnowledgeResourceAuthorizatio
   }
 }
 
-function withExecutionActor<C extends KnowledgeResourceAuthorizationContext>(
-  context: C,
-  executionActorUserId?: string
-): C {
-  return executionActorUserId ? { ...context, executionActorUserId } : context
-}
-
 export function defineAuthorizedKnowledgeUseCase<
   const O extends WorkspaceOperation,
   I,
@@ -129,8 +122,7 @@ export function defineAuthorizedKnowledgeUseCase<
     operation: definition.operation,
     async execute({ principal, input, request }) {
       requireAllowedWorkspacePrincipal(principal, definition.operation)
-      const resolvedContext = await definition.resolveContext({ principal, input })
-      const context = withExecutionActor(resolvedContext, request?.executionActorUserId)
+      const context = await definition.resolveContext({ principal, input })
       if (isLegacyPersonalKnowledgeContext(context)) {
         if (
           principal.kind === 'workspace_api_key' ||

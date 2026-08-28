@@ -78,6 +78,16 @@ export interface WorkflowExecutionDelegationContext {
   executionId?: string
   principal?: WorkflowExecutionPrincipal
   currentWorkflow?: WorkflowExecutionAuthority
+  /**
+   * The trusted Sim user ID legacy executor routes ran as before principal wiring.
+   *
+   * This is compatibility policy, not the authenticated subject: workspace
+   * authorization and audit identity continue to use the principal itself.
+   */
+  compatibilityActor?: {
+    kind: 'legacy_execution_user'
+    userId: string
+  }
 }
 
 export type WorkflowExecutionAuthority =
@@ -135,6 +145,22 @@ export function requirePrincipalSubjectUserId(principal: Principal): string {
   const userId = resolvePrincipalSubjectUserId(principal)
   if (userId !== undefined) return userId
   throw new PrincipalSubjectUserRequiredError(principal.kind)
+}
+
+/**
+ * Resolves the principal's Sim user subject or its principal-bound legacy
+ * execution actor.
+ *
+ * Only operations that deliberately preserve pre-principal executor behavior
+ * should use this helper. It never changes the principal subject, workspace
+ * authorization, or audit actor.
+ */
+export function resolvePrincipalExecutionActorUserId(principal: Principal): string | undefined {
+  const subjectUserId = resolvePrincipalSubjectUserId(principal)
+  if (subjectUserId) return subjectUserId
+  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') return undefined
+  if (principal.delegationContext?.currentWorkflow?.mode !== 'deployment') return undefined
+  return principal.delegationContext?.compatibilityActor?.userId
 }
 
 export type WorkflowExecutionPrincipal =

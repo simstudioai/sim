@@ -76,9 +76,7 @@ type AuthorizedCredentialUseCaseDefinition<
 > = Omit<
   AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>,
   'authorizationOptions' | 'authorizeResource'
-> & {
-  resolveExecutionActorUserId?: (input: I) => string | undefined
-}
+>
 
 export function defineAuthorizedCredentialUseCase<
   const O extends CredentialOperation,
@@ -89,10 +87,10 @@ export function defineAuthorizedCredentialUseCase<
   return defineAuthorizedWorkspaceUseCase({
     ...definition,
     authorizationOptions: { delegation: credentialDelegationPolicy },
-    async authorizeResource({ principal, input, context }) {
+    async authorizeResource({ principal, context }) {
       const actor = await getCredentialActorContext(
         context.credential.id,
-        requireCredentialExecutionUserId(principal, definition.resolveExecutionActorUserId?.(input))
+        requireCredentialExecutionUserId(principal)
       )
       if (
         !actor.credential ||

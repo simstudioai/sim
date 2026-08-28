@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
@@ -38,7 +38,6 @@ export interface UpdateWorkspaceFileShareInput {
   allowedEmails?: string[]
   token?: string
   noOpIfInactive?: boolean
-  executionActorUserId?: string
 }
 
 export interface UpdateWorkspaceFileShareResult {
@@ -73,7 +72,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     return { ...canonical, file }
   },
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileShareResult> {
-    const userId = resolvePrincipalSubjectUserId(principal) ?? input.executionActorUserId
+    const userId = resolvePrincipalExecutionActorUserId(principal)
     if (!userId) {
       throw new OrchestrationError(
         'forbidden',

@@ -146,13 +146,25 @@ describe('resolveCredentialConnectionTarget', () => {
       audience: 'sim:credentials',
       issuedAt: new Date('2026-08-28T00:00:00.000Z'),
       expiresAt: new Date('2099-08-28T00:00:00.000Z'),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-1',
+        },
+        compatibilityActor: {
+          kind: 'legacy_execution_user' as const,
+          userId: 'execution-actor',
+        },
+      },
     }
 
     await resolveCredentialConnectionTarget({
       principal: actorlessPrincipal,
       context,
       credentialId: 'credential-1',
-      executionActorUserId: 'execution-actor',
     })
 
     expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'execution-actor')

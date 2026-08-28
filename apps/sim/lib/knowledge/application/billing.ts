@@ -1,7 +1,7 @@
 import {
   type Principal,
   resolvePrincipalAttribution,
-  resolvePrincipalSubjectUserId,
+  resolvePrincipalExecutionActorUserId,
 } from '@sim/auth/principal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
@@ -24,7 +24,7 @@ export function resolveKnowledgeAttributedUserId(
   principal: Principal,
   context: KnowledgeResourceContext
 ): string {
-  const executionUserId = resolvePrincipalSubjectUserId(principal) ?? context.executionActorUserId
+  const executionUserId = resolvePrincipalExecutionActorUserId(principal)
   if (executionUserId) return executionUserId
   if (context.workspaceId === undefined) {
     throw new OrchestrationError(

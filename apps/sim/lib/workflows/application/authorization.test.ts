@@ -78,12 +78,43 @@ describe('workflow delegation policy', () => {
 
 describe('workflow execution actor', () => {
   it('uses the legacy execution actor when the principal is actorless', () => {
-    const principal = createExecutorPrincipal({ subjectUserId: undefined })
+    const principal = createExecutorPrincipal({
+      subjectUserId: undefined,
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: 'parent-workflow',
+        currentWorkflow: {
+          workflowId: 'parent-workflow',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-1',
+        },
+        compatibilityActor: {
+          kind: 'legacy_execution_user',
+          userId: 'execution-actor',
+        },
+      },
+    })
 
-    expect(requireWorkflowExecutionUserId(principal, 'execution-actor')).toBe('execution-actor')
+    expect(requireWorkflowExecutionUserId(principal)).toBe('execution-actor')
   })
 
   it('prefers a real principal subject over the compatibility actor', () => {
-    expect(requireWorkflowExecutionUserId(createExecutorPrincipal(), 'someone-else')).toBe('user-1')
+    const principal = createExecutorPrincipal({
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: 'parent-workflow',
+        currentWorkflow: {
+          workflowId: 'parent-workflow',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-1',
+        },
+        compatibilityActor: {
+          kind: 'legacy_execution_user',
+          userId: 'someone-else',
+        },
+      },
+    })
+
+    expect(requireWorkflowExecutionUserId(principal)).toBe('user-1')
   })
 })

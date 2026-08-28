@@ -142,7 +142,6 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
     const context = {
       principal,
       headers: request.headers,
-      executionActorUserId: request.context.userId,
       signal,
     }
     const input = normalizeKnowledgeInput(request.input)

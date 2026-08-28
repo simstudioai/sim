@@ -91,7 +91,6 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
 
     const output = await executeWindchillOperation(input, {
       principal,
-      executionActorUserId: context.userId,
       requestId,
       signal,
     })

@@ -26,11 +26,6 @@ interface SchemaProperty {
 export interface ExecuteMcpToolInput {
   workspaceId: string
   serverId: string
-  /**
-   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
-   * the pre-in-process behavior for runs whose principal names no Sim user.
-   */
-  executionActorUserId?: string
   toolName: string
   arguments?: Record<string, unknown>
   callChain?: string[]
@@ -139,7 +134,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: mcpServerDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
-    const userId = requireMcpCredentialUserId(principal, input.executionActorUserId)
+    const userId = requireMcpCredentialUserId(principal)
     await assertPermissionsAllowed({
       userId,
       workspaceId: context.workspaceId,

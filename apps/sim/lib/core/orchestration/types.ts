@@ -109,12 +109,7 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
   return null
 }
 
-/**
- * Transport metadata available to an application operation. HTTP callers carry
- * headers for audit capture; executor adapters may also preserve the legacy
- * execution actor used by pre-application-boundary internal routes.
- */
+/** Transport metadata available to an application operation for audit capture. */
 export interface OrchestrationRequestContext {
   headers: { get(name: string): string | null }
-  executionActorUserId?: string
 }

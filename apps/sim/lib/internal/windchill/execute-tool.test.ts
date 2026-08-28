@@ -131,7 +131,6 @@ describe('executeWindchillTool', () => {
     })
     expect(mocks.executeWindchillOperation).toHaveBeenCalledWith(operationInput, {
       principal: PRINCIPAL,
-      executionActorUserId: 'user-1',
       requestId: 'request-1',
       signal: controller.signal,
     })

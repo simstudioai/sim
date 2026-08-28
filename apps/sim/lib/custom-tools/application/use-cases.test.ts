@@ -150,13 +150,16 @@ describe('custom tool application use cases', () => {
               mode: 'deployment',
               deploymentVersionId: 'version-1',
             },
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: 'execution-actor',
+            },
           },
         }),
         input: {
           workspaceId: workspace.workspaceId,
           identifier: tool.id,
           lookup: 'id_or_title',
-          executionActorUserId: 'execution-actor',
         },
       })
 

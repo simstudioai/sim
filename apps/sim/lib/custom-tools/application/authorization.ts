@@ -1,4 +1,4 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -16,16 +16,13 @@ export const customToolDelegationPolicy = {
 /**
  * Resolves the user whose custom-tool library an operation reads or mutates.
  *
- * Actorless execution keeps the pre-application-boundary behavior by falling
- * back to `ExecutionContext.userId`, the user the legacy internal route ran as.
- * A real principal subject always wins, so the fallback is not an impersonation
- * input and is never involved in workspace authorization.
+ * Actorless execution keeps the pre-application-boundary behavior through the
+ * compatibility actor bound into the executor principal. A real principal
+ * subject always wins, and this value is never involved in workspace
+ * authorization.
  */
-export function requireCustomToolUserId(
-  principal: Principal,
-  executionActorUserId?: string
-): string {
-  const userId = resolvePrincipalSubjectUserId(principal) ?? executionActorUserId
+export function requireCustomToolUserId(principal: Principal): string {
+  const userId = resolvePrincipalExecutionActorUserId(principal)
   if (!userId) {
     throw new OrchestrationError(
       'forbidden',

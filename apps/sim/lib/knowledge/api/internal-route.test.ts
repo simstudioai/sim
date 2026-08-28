@@ -56,6 +56,10 @@ function executorPrincipal(
         mode: 'deployment',
         deploymentVersionId: 'deployment-1',
       },
+      compatibilityActor: {
+        kind: 'legacy_execution_user',
+        userId: 'execution-billing-actor-1',
+      },
       ...(originalPrincipal ? { principal: originalPrincipal } : {}),
     },
   }
@@ -106,7 +110,6 @@ describe('internal Knowledge execution attribution', () => {
         workspaceOrganizationId: null,
         allowPersonalApiKeys: true,
         billedAccountUserId: 'billing-owner-1',
-        executionActorUserId: 'execution-billing-actor-1',
       })
     ).toBe('execution-billing-actor-1')
   })
