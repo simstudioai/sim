@@ -53,11 +53,13 @@ let queryClient: QueryClient
 function AuditProbe({
   organizationId,
   workspaceId,
+  enabled = true,
 }: {
   organizationId: string
   workspaceId?: string
+  enabled?: boolean
 }) {
-  const auditLogs = useAuditLogs(organizationId, { workspaceId })
+  const auditLogs = useAuditLogs(organizationId, { workspaceId }, enabled)
   const entries = auditLogs.data?.pages.flatMap((page) => page.data) ?? []
 
   return (
@@ -68,11 +70,11 @@ function AuditProbe({
   )
 }
 
-function renderAuditLogs(organizationId: string, workspaceId?: string) {
+function renderAuditLogs(organizationId: string, workspaceId?: string, enabled = true) {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <AuditProbe organizationId={organizationId} workspaceId={workspaceId} />
+        <AuditProbe organizationId={organizationId} workspaceId={workspaceId} enabled={enabled} />
       </QueryClientProvider>
     )
   })
@@ -155,5 +157,20 @@ describe('useAuditLogs identity transitions', () => {
     await flushQueries()
 
     expect(container).toHaveTextContent('Updated Organization A')
+  })
+
+  /**
+   * The scope a link asks for is a ceiling, not a hint. A workspace id that no longer
+   * resolves must leave the feed closed rather than answering with the whole
+   * organization's history under a URL that still claims to be scoped.
+   */
+  it('never queries unscoped while a workspace scope is unresolved', async () => {
+    mockRequestJson.mockResolvedValue(AUDIT_PAGE_A)
+
+    renderAuditLogs('org-a', undefined, false)
+    await flushQueries()
+
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(container).not.toHaveTextContent('Updated Organization A')
   })
 })

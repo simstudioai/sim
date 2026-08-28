@@ -257,12 +257,12 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   /**
    * Resolved, not merely present. Only the id lives in the URL, and the filter is
    * applied once it matches a workspace the organization actually owns — a stale id
-   * from an old link would otherwise silently narrow the feed to nothing under a
-   * chip labelled with the bare uuid.
+   * from an old link would otherwise be shown under a chip labelled with a bare uuid.
    */
-  const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(urlFilters.workspace))
-  const filteredWorkspace = urlFilters.workspace
-    ? orgWorkspaces.data?.find((entry) => entry.id === urlFilters.workspace)
+  const workspaceScope = urlFilters.workspace
+  const orgWorkspaces = useOrganizationWorkspaces(organizationId, Boolean(workspaceScope))
+  const scopedWorkspace = workspaceScope
+    ? orgWorkspaces.data?.find((entry) => entry.id === workspaceScope)
     : undefined
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -289,7 +289,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const filters: AuditLogFilters = {
     search: debouncedSearch || undefined,
     resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
-    workspaceId: filteredWorkspace?.id,
+    workspaceId: scopedWorkspace?.id,
     startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
     endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
   }
@@ -300,7 +300,20 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
    * immediately refetches it narrowed — two requests, with a flash of rows the link
    * did not ask for in between.
    */
-  const isWorkspaceFilterPending = Boolean(urlFilters.workspace) && orgWorkspaces.isPending
+  const isWorkspaceScopePending = Boolean(workspaceScope) && orgWorkspaces.isPending
+
+  /**
+   * The link named a workspace this organization cannot resolve — deleted since, or
+   * never one of ours.
+   *
+   * The feed stays closed rather than falling back to the organization. Every other
+   * deep-linked id in the app degrades to the unfiltered view, but an audit feed is
+   * the one place where widening is the dangerous direction: dropping the filter
+   * would answer a request for one workspace's history with everybody's, under a URL
+   * that still claims to be scoped, and the CSV export would follow.
+   */
+  const isWorkspaceScopeUnresolved =
+    Boolean(workspaceScope) && !isWorkspaceScopePending && !scopedWorkspace
   const {
     data,
     isLoading,
@@ -309,7 +322,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     hasNextPage,
     fetchNextPage,
     refetch,
-  } = useAuditLogs(organizationId, filters, !isWorkspaceFilterPending)
+  } = useAuditLogs(organizationId, filters, !isWorkspaceScopePending && !isWorkspaceScopeUnresolved)
 
   const allEntries = useMemo(() => {
     if (!data?.pages) return []
@@ -437,7 +450,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           allOptionLabel='All types'
           align='start'
         />
-        {filteredWorkspace && (
+        {workspaceScope && (
           /*
             A deep-linked scope, not a picker: the organization can hold hundreds of
             workspaces, so this narrows the feed only when a link asks it to and
@@ -448,11 +461,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           <Chip
             rightIcon={X}
             onClick={() => void setUrlFilters({ workspace: null })}
-            aria-label={`Clear the ${filteredWorkspace.name} workspace filter`}
+            aria-label='Clear the workspace filter'
             className='max-w-[280px] shrink-0'
           >
+            {/* Rendered for an unresolved scope too, or a bad link would leave the
+                feed closed with no control to reopen it. */}
             <OverflowText
-              label={`Workspace: ${filteredWorkspace.name}`}
+              label={`Workspace: ${scopedWorkspace?.name ?? 'not found'}`}
               className='block min-w-0'
             />
           </Chip>
@@ -516,7 +531,11 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       <ActivityLog
         entries={allEntries.map(toActivityEntry)}
         emptyState={
-          isLoading || isWorkspaceFilterPending ? undefined : debouncedSearch ? (
+          isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnresolved ? (
+            <SettingsEmptyState>
+              That workspace is not part of this organization.
+            </SettingsEmptyState>
+          ) : debouncedSearch ? (
             <SettingsEmptyState variant='inline'>
               No results for "{debouncedSearch}"
             </SettingsEmptyState>
