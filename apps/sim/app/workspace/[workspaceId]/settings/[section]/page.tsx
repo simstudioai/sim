@@ -5,8 +5,8 @@ import { notFound, redirect } from 'next/navigation'
 import {
   getOrganizationSettingsFeatures,
   isOrganizationSettingsSectionAvailable,
-  type OrganizationSettingsSection,
   resolveWorkspaceNavigation,
+  UNIFIED_TO_ORGANIZATION_SECTION,
   type WorkspaceSettingsSection,
   workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
@@ -46,18 +46,6 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   forks: 'forks',
   'custom-blocks': 'custom-blocks',
   'self-host': 'self-host',
-}
-
-const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSettingsSection>> = {
-  organization: 'members',
-  billing: 'billing',
-  'access-control': 'access-control',
-  'audit-logs': 'audit-logs',
-  sso: 'sso',
-  sessions: 'sessions',
-  'data-retention': 'data-retention',
-  'data-drains': 'data-drains',
-  whitelabeling: 'whitelabeling',
 }
 
 /**
@@ -163,7 +151,7 @@ export default async function WorkspaceSettingsSectionPage({
     }
   }
 
-  const organizationSection = ORGANIZATION_SECTION_MAP[parsed]
+  const organizationSection = UNIFIED_TO_ORGANIZATION_SECTION[parsed]
   if (organizationSection) {
     if (!isBillingEnabled && (parsed === 'billing' || parsed === 'organization')) {
       redirectToGeneralSettings(workspaceId)
@@ -173,7 +161,12 @@ export default async function WorkspaceSettingsSectionPage({
         redirectToGeneralSettings(workspaceId)
       }
     } else {
-      if (!hostContext.viewer.isHostOrganizationAdmin) {
+      /**
+       * The roster is the one organization section a plain member may open, read-only
+       * (`resolveOrganizationSectionAccess` returns `'view'` for it below). Everything
+       * else acts on the organization and stays admin-only.
+       */
+      if (organizationSection !== 'members' && !hostContext.viewer.isHostOrganizationAdmin) {
         redirectToGeneralSettings(workspaceId)
       }
       /**

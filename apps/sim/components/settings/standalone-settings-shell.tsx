@@ -7,15 +7,8 @@ import {
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
   getAccountSettingsHref,
-  getOrganizationSettingsFeatures,
-  getOrganizationSettingsHref,
   getSelfHostSettingsHref,
-  isOrganizationSettingsSectionAvailable,
-  ORGANIZATION_SETTINGS_GROUPS,
-  ORGANIZATION_SETTINGS_ITEMS,
-  ORGANIZATION_SETTINGS_PATH_ALIASES,
   parseSettingsPathSection,
-  resolveOrganizationSectionAccess,
   SELFHOST_SETTINGS_GROUPS,
   SELFHOST_SETTINGS_ITEMS,
   SETTINGS_PLANE_CHROME,
@@ -40,40 +33,19 @@ interface SelfHostSettingsShellProps extends StandaloneSettingsShellBaseProps {
   plane: 'selfhost'
 }
 
-interface OrganizationSettingsShellProps extends StandaloneSettingsShellBaseProps {
-  plane: 'organization'
-  organizationId: string
-  hasEnterprisePlan: boolean
-  isOrganizationAdmin: boolean
-}
-
-type StandaloneSettingsShellProps =
-  | AccountSettingsShellProps
-  | OrganizationSettingsShellProps
-  | SelfHostSettingsShellProps
+type StandaloneSettingsShellProps = AccountSettingsShellProps | SelfHostSettingsShellProps
 
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
   useSettingsBeforeUnload()
   const pathname = usePathname()
-  const hasEnterprisePlan = plane === 'organization' ? props.hasEnterprisePlan : false
-  const isOrganizationAdmin = plane === 'organization' ? props.isOrganizationAdmin : false
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
 
-  const organizationFeatures = getOrganizationSettingsFeatures(hasEnterprisePlan)
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !isBillingEnabled) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
     return true
   })
-  const organizationItems = ORGANIZATION_SETTINGS_ITEMS.filter(
-    (item) =>
-      resolveOrganizationSectionAccess({
-        section: item.id,
-        isTargetOrganizationMember: true,
-        isTargetOrganizationAdmin: isOrganizationAdmin,
-      }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, organizationFeatures)
-  )
   const selfHostItems = SELFHOST_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !isBillingEnabled) return false
     // Chat keys are issued by the managed service, so there are none to list on
@@ -93,28 +65,9 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     defaultSection: 'general',
     aliases: ACCOUNT_SETTINGS_PATH_ALIASES,
   })
-  const organizationSection = parseSettingsPathSection({
-    path: pathname,
-    items: ORGANIZATION_SETTINGS_ITEMS,
-    defaultSection: 'members',
-    aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
-  })
-  const activeSection =
-    plane === 'account'
-      ? accountSection
-      : plane === 'selfhost'
-        ? selfHostSection
-        : organizationSection
+  const activeSection = plane === 'account' ? accountSection : selfHostSection
   const sidebar =
-    plane === 'selfhost' ? (
-      <SettingsSidebar
-        activeSection={selfHostSection}
-        plane={plane}
-        groups={SELFHOST_SETTINGS_GROUPS}
-        hrefForSection={getSelfHostSettingsHref}
-        items={selfHostItems}
-      />
-    ) : plane === 'account' ? (
+    plane === 'account' ? (
       <SettingsSidebar
         activeSection={accountSection}
         plane={plane}
@@ -124,11 +77,11 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       />
     ) : (
       <SettingsSidebar
-        activeSection={organizationSection}
+        activeSection={selfHostSection}
         plane={plane}
-        groups={ORGANIZATION_SETTINGS_GROUPS}
-        hrefForSection={(section) => getOrganizationSettingsHref(props.organizationId, section)}
-        items={organizationItems}
+        groups={SELFHOST_SETTINGS_GROUPS}
+        hrefForSection={getSelfHostSettingsHref}
+        items={selfHostItems}
       />
     )
 

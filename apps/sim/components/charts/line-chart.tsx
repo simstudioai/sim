@@ -1,7 +1,34 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+'use client'
+
+import { memo, useId, useMemo, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
-import { generateShortId } from '@sim/utils/id'
-import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatChartCompactNumber,
+  formatChartLatency,
+  formatChartTimestamp,
+} from '@/components/charts/chart-format'
+import {
+  CHART_DEFAULT_HEIGHT,
+  CHART_GRID_FRACTIONS,
+  CHART_PADDING,
+  CHART_TICK_FILL,
+  CHART_TICK_FONT_SIZE,
+  chartPlotBand,
+  formatTimeTick,
+  resolveSpanMs,
+  resolveTimeTickIndices,
+} from '@/components/charts/chart-geometry'
+import {
+  ChartTooltip,
+  ChartTooltipRow,
+  estimateTooltipWidth,
+  positionChartTooltip,
+} from '@/components/charts/chart-tooltip'
+import {
+  useChartWidth,
+  useIsDarkTheme,
+  useResolvedChartColors,
+} from '@/components/charts/use-chart-theme'
 
 export interface LineChartPoint {
   timestamp: string
@@ -16,83 +43,50 @@ export interface LineChartMultiSeries {
   dashed?: boolean
 }
 
+interface LineChartProps {
+  data: LineChartPoint[]
+  /** Pass `''` for the caller-owned-wrapper form: no card chrome, title, or legend. */
+  label: string
+  color: string
+  unit?: string
+  series?: LineChartMultiSeries[]
+  height?: number
+}
+
 function LineChartComponent({
   data,
   label,
   color,
   unit,
   series,
-}: {
-  data: LineChartPoint[]
-  label: string
-  color: string
-  unit?: string
-  series?: LineChartMultiSeries[]
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const uniqueId = useRef(`chart-${generateShortId(7)}`).current
-  const [containerWidth, setContainerWidth] = useState<number | null>(null)
+  height = CHART_DEFAULT_HEIGHT,
+}: LineChartProps) {
+  /*
+    `useId`, not `useRef(generateShortId())`: a ref initializer is evaluated on
+    every render and all but the first result thrown away, and React already has
+    a hook whose whole job is a stable unique id.
+  */
+  const uniqueId = useId().replace(/:/g, '')
+  const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
-  const height = 166
-  const padding = { top: 16, right: 28, bottom: 26, left: 26 }
-  useEffect(() => {
-    if (!containerRef.current) return
-    const element = containerRef.current
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry?.contentRect && entry.contentRect.width > 0) {
-        const w = Math.max(280, Math.floor(entry.contentRect.width))
-        setContainerWidth(w)
-      }
-    })
-    ro.observe(element)
-    const rect = element.getBoundingClientRect()
-    if (rect?.width && rect.width > 0) setContainerWidth(Math.max(280, Math.floor(rect.width)))
-    return () => ro.disconnect()
-  }, [])
+  const padding = CHART_PADDING
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
-  const [isDark, setIsDark] = useState<boolean>(true)
+  const isDark = useIsDarkTheme()
   const [hoverSeriesId, setHoverSeriesId] = useState<string | null>(null)
   const [activeSeriesId, setActiveSeriesId] = useState<string | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
-  const [resolvedColors, setResolvedColors] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const el = document.documentElement
-    const update = () => setIsDark(el.classList.contains('dark'))
-    update()
-    const observer = new MutationObserver(update)
-    observer.observe(el, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const resolveColor = (c: string): string => {
-      if (!c.startsWith('var(')) return c
-
-      const tempEl = document.createElement('div')
-      tempEl.style.color = c
-      document.body.appendChild(tempEl)
-      const computed = window.getComputedStyle(tempEl).color
-      document.body.removeChild(tempEl)
-      return computed
-    }
-
-    const colorMap: Record<string, string> = { base: resolveColor(color) }
-    const allSeriesToResolve = Array.isArray(series) && series.length > 0 ? series : []
-
-    for (const s of allSeriesToResolve) {
+  const colorTokens = useMemo(() => {
+    const tokens: Record<string, string> = { base: color }
+    for (const s of series ?? []) {
       const id = s.id || s.label || ''
-      if (id) colorMap[id] = resolveColor(s.color)
+      if (id) tokens[id] = s.color
     }
-
-    setResolvedColors(colorMap)
+    return tokens
   }, [color, series])
+  const resolvedColors = useResolvedChartColors(colorTokens)
 
   const hasExternalWrapper = !label || label === ''
 
@@ -135,8 +129,7 @@ function LineChartComponent({
     }
   }, [allSeries, unit])
 
-  const yMin = padding.top + 3
-  const yMax = padding.top + chartHeight - 3
+  const { yMin, yMax } = chartPlotBand(height)
 
   const scaledPoints = useMemo(
     () =>
@@ -202,26 +195,8 @@ function LineChartComponent({
     return d
   }, [scaledPoints, yMin, yMax])
 
-  const getCompactDateLabel = (timestamp?: string) => {
-    if (!timestamp) return ''
-    try {
-      const f = formatDate(timestamp)
-      return `${f.compactDate} ${f.compactTime}`
-    } catch (e) {
-      const d = new Date(timestamp)
-      if (Number.isNaN(d.getTime())) return ''
-      return d.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    }
-  }
-
   const currentHoverDate =
-    hoverIndex !== null && data[hoverIndex] ? getCompactDateLabel(data[hoverIndex].timestamp) : ''
+    hoverIndex !== null && data[hoverIndex] ? formatChartTimestamp(data[hoverIndex].timestamp) : ''
 
   if (containerWidth === null) {
     return (
@@ -237,10 +212,16 @@ function LineChartComponent({
     return (
       <div
         className={cn(
-          'flex items-center justify-center',
+          'flex w-full items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-card p-4'
         )}
-        style={{ width, height }}
+        /*
+          Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
+          and pinning the empty state to it pushed a narrow container into horizontal
+          overflow to centre two words — this branch draws no axes, so it has nothing
+          to protect from compressing.
+        */
+        style={{ height }}
       >
         <p className='text-[var(--text-muted)] text-sm'>No data</p>
       </div>
@@ -251,7 +232,14 @@ function LineChartComponent({
     <div
       ref={containerRef}
       className={cn(
-        'w-full overflow-hidden',
+        /*
+          `overflow-x-auto`, not `overflow-hidden`: `useChartWidth` floors the SVG at
+          CHART_MIN_WIDTH, so in a narrower container the chart is wider than its box.
+          Hiding that silently cut off the rightmost bars and axis labels — and
+          contradicted the constant's own note that the chart "scrolls rather than
+          compresses". At or above the floor there is no overflow and nothing changes.
+        */
+        'w-full overflow-x-auto',
         !hasExternalWrapper && 'rounded-[11px] border bg-card p-4 shadow-sm'
       )}
     >
@@ -371,7 +359,7 @@ function LineChartComponent({
             strokeWidth='1'
           />
 
-          {[0.25, 0.5, 0.75].map((p) => (
+          {CHART_GRID_FRACTIONS.map((p) => (
             <line
               key={`${uniqueId}-grid-${p}`}
               x1={padding.left}
@@ -521,50 +509,23 @@ function LineChartComponent({
           {(() => {
             if (data.length < 2) return null
             const usableW = Math.max(1, chartWidth)
-            const firstTs = new Date(data[0].timestamp)
-            const lastTs = new Date(data[data.length - 1].timestamp)
-            const spanMs = Math.abs(lastTs.getTime() - firstTs.getTime())
-
-            const approxLabelWidth = 64
-            const desired = Math.min(8, Math.max(3, Math.floor(usableW / approxLabelWidth)))
-            const rawIdx = Array.from({ length: desired }, (_, i) =>
-              Math.round((i * (data.length - 1)) / Math.max(1, desired - 1))
-            )
-            const seen = new Set<number>()
-            const idx = rawIdx.filter((i) => {
-              if (seen.has(i)) return false
-              seen.add(i)
-              return true
-            })
-
-            const formatTick = (d: Date) => {
-              if (spanMs <= 36 * 60 * 60 * 1000) {
-                return d.toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  hour12: false,
-                })
-              }
-              if (spanMs <= 90 * 24 * 60 * 60 * 1000) {
-                return d.toLocaleString('en-US', { month: 'short', day: 'numeric' })
-              }
-              return d.toLocaleString('en-US', { month: 'short', year: 'numeric' })
-            }
+            const spanMs = resolveSpanMs(data)
+            const idx = resolveTimeTickIndices(data.length, usableW)
 
             return idx.map((i) => {
               const x = padding.left + (i / (data.length - 1 || 1)) * usableW
               const tsSource = data[i]?.timestamp
               if (!tsSource) return null
               const ts = new Date(tsSource)
-              const labelStr = Number.isNaN(ts.getTime()) ? '' : formatTick(ts)
+              const labelStr = Number.isNaN(ts.getTime()) ? '' : formatTimeTick(ts, spanMs)
               return (
                 <text
                   key={`${uniqueId}-x-axis-${i}`}
                   x={x}
                   y={height - padding.bottom + 14}
-                  fontSize='9'
+                  fontSize={CHART_TICK_FONT_SIZE}
                   textAnchor='middle'
-                  fill='var(--text-tertiary)'
+                  fill={CHART_TICK_FILL}
                 >
                   {labelStr}
                 </text>
@@ -577,16 +538,8 @@ function LineChartComponent({
             const showInTicks = unitSuffix === '%'
             const isLatency = unitSuffix.toLowerCase() === 'latency'
             const fmtCompact = (v: number) => {
-              if (isLatency) {
-                if (v === 0) return '0'
-                return formatLatency(v)
-              }
-              return new Intl.NumberFormat('en-US', {
-                notation: 'compact',
-                maximumFractionDigits: 1,
-              })
-                .format(v)
-                .toLowerCase()
+              if (isLatency) return v === 0 ? '0' : formatChartLatency(v)
+              return formatChartCompactNumber(v)
             }
             return (
               <>
@@ -594,8 +547,8 @@ function LineChartComponent({
                   x={padding.left - 8}
                   y={padding.top}
                   textAnchor='end'
-                  fontSize='9'
-                  fill='var(--text-tertiary)'
+                  fontSize={CHART_TICK_FONT_SIZE}
+                  fill={CHART_TICK_FILL}
                 >
                   {fmtCompact(maxValue)}
                   {showInTicks && !isLatency ? unit : ''}
@@ -604,8 +557,8 @@ function LineChartComponent({
                   x={padding.left - 8}
                   y={height - padding.bottom}
                   textAnchor='end'
-                  fontSize='9'
-                  fill='var(--text-tertiary)'
+                  fontSize={CHART_TICK_FONT_SIZE}
+                  fill={CHART_TICK_FILL}
                 >
                   {fmtCompact(minValue)}
                   {showInTicks && !isLatency ? unit : ''}
@@ -640,7 +593,7 @@ function LineChartComponent({
               if (typeof v !== 'number' || !Number.isFinite(v)) return '—'
               const u = unit || ''
               if (u.includes('%')) return `${v.toFixed(1)}%`
-              if (u.toLowerCase() === 'latency') return formatLatency(v)
+              if (u.toLowerCase() === 'latency') return formatChartLatency(v)
               if (u.toLowerCase().includes('ms')) return `${Math.round(v)}ms`
               if (u.toLowerCase().includes('exec')) return `${Math.round(v)}`
               return `${Math.round(v)}${u}`
@@ -654,31 +607,15 @@ function LineChartComponent({
               const len = `${labelStr} ${valueStr}`.length
               return Math.max(m, len)
             }, 0)
-            const tooltipMaxW = Math.min(220, Math.max(80, 7 * longest + 24))
-            const anchorX = hoverPos?.x ?? pt.x
-            const margin = 10
-            const preferRight = anchorX + margin + tooltipMaxW <= width - padding.right
-            const left = preferRight
-              ? Math.max(
-                  padding.left,
-                  Math.min(anchorX + margin, width - padding.right - tooltipMaxW)
-                )
-              : Math.max(
-                  padding.left,
-                  Math.min(anchorX - margin - tooltipMaxW, width - padding.right - tooltipMaxW)
-                )
-            const anchorY = hoverPos?.y ?? pt.y
-            const top = Math.min(Math.max(anchorY - 26, padding.top), height - padding.bottom - 18)
+            const { left, top } = positionChartTooltip({
+              anchorX: hoverPos?.x ?? pt.x,
+              anchorY: hoverPos?.y ?? pt.y,
+              width,
+              height,
+              tooltipMaxWidth: estimateTooltipWidth(longest),
+            })
             return (
-              <div
-                className='pointer-events-none absolute rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 text-xs shadow-lg'
-                style={{ left, top }}
-              >
-                {currentHoverDate && (
-                  <div className='mb-1 text-[var(--text-tertiary)] text-micro'>
-                    {currentHoverDate}
-                  </div>
-                )}
+              <ChartTooltip left={left} top={top} date={currentHoverDate || undefined}>
                 {toDisplay.map((s) => {
                   const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
                   const val = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
@@ -686,19 +623,15 @@ function LineChartComponent({
                   const showLabel =
                     seriesLabel && seriesLabel !== 'base' && seriesLabel.trim() !== ''
                   return (
-                    <div key={`tt-${s.id}`} className='flex items-center gap-2'>
-                      <span
-                        className='inline-block size-[6px] rounded-xs'
-                        style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
-                      />
-                      {showLabel && (
-                        <span className='text-[var(--text-secondary)]'>{seriesLabel}</span>
-                      )}
-                      <span className='text-[var(--text-primary)]'>{fmt(val)}</span>
-                    </div>
+                    <ChartTooltipRow
+                      key={`tt-${s.id}`}
+                      color={resolvedColors[s.id || ''] || s.color}
+                      label={showLabel ? seriesLabel : undefined}
+                      value={fmt(val)}
+                    />
                   )
                 })}
-              </div>
+              </ChartTooltip>
             )
           })()}
       </div>

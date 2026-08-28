@@ -21,6 +21,7 @@ export const FLAG_TWINS: ReadonlyArray<{ server: string; client: string }> = [
   { server: 'DISABLE_INVITATIONS', client: 'NEXT_PUBLIC_DISABLE_INVITATIONS' },
   { server: 'DISABLE_PUBLIC_API', client: 'NEXT_PUBLIC_DISABLE_PUBLIC_API' },
   { server: 'SSO_ENABLED', client: 'NEXT_PUBLIC_SSO_ENABLED' },
+  { server: 'USAGE_MONITORING_ENABLED', client: 'NEXT_PUBLIC_USAGE_MONITORING_ENABLED' },
   { server: 'EMAIL_PASSWORD_SIGNUP_ENABLED', client: 'NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED' },
   { server: 'E2B_ENABLED', client: 'NEXT_PUBLIC_E2B_ENABLED' },
   { server: 'SLACK_EXTENDED_SCOPES', client: 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES' },
@@ -46,6 +47,11 @@ export const SELF_HOST_UNLOCKS: ReadonlyArray<{ server: string; label: string; h
   { server: 'DATA_DRAINS_ENABLED', label: 'Data drains', hint: 'export streams' },
   { server: 'FORKING_ENABLED', label: 'Workflow forking', hint: '' },
   { server: 'INBOX_ENABLED', label: 'Inbox', hint: '' },
+  {
+    server: 'USAGE_MONITORING_ENABLED',
+    label: 'Usage monitoring',
+    hint: 'org-wide credit usage',
+  },
   { server: 'WHITELABELING_ENABLED', label: 'Whitelabeling', hint: 'custom branding' },
 ]
 
