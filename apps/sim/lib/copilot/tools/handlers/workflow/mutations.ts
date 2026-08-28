@@ -60,6 +60,20 @@ function runRejected(error: string): ToolCallResult {
   return { success: false, error, effect: executionEffect(TOOL_EFFECT_PHASE.notAttempted) }
 }
 
+/**
+ * `performed` claims the run reached the end of its work, so only a run that terminated on
+ * its own may carry it. A cancelled or paused one stopped partway — it may have run every
+ * block, one, or none — and `attempted` is the phase that says exactly that: an execution
+ * exists under this id, resolve it before deciding anything.
+ */
+function executionPhase(status: ExecutionResultStatus): ToolEffectPhase {
+  return status === 'cancelled' || status === 'paused'
+    ? TOOL_EFFECT_PHASE.attempted
+    : TOOL_EFFECT_PHASE.performed
+}
+
+type ExecutionResultStatus = 'completed' | 'paused' | 'cancelled' | undefined
+
 function buildExecutionOutput(
   result: {
     success: boolean
@@ -67,6 +81,7 @@ function buildExecutionOutput(
     output?: unknown
     logs?: unknown[]
     error?: string
+    status?: ExecutionResultStatus
   },
   extra?: Record<string, unknown>
 ): ToolCallResult {
@@ -80,7 +95,7 @@ function buildExecutionOutput(
       logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
-    effect: executionEffect(TOOL_EFFECT_PHASE.performed, result.metadata?.executionId),
+    effect: executionEffect(executionPhase(result.status), result.metadata?.executionId),
   }
 }
 

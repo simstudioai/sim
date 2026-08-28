@@ -296,6 +296,19 @@ describe('workflow mutation Copilot adapters', () => {
       effect: { phase: 'attempted', ids: { executionId: 'execution-1' } },
     },
     {
+      label: 'cancelled before it could finish',
+      arrange: () =>
+        mocks.executeWorkflowUseCase.mockResolvedValueOnce({
+          success: false,
+          output: {},
+          logs: [],
+          status: 'cancelled',
+          metadata: { executionId: 'execution-1' },
+        }),
+      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
+      effect: { phase: 'attempted', ids: { executionId: 'execution-1' } },
+    },
+    {
       label: 'completed',
       arrange: () =>
         mocks.executeWorkflowUseCase.mockResolvedValueOnce({
