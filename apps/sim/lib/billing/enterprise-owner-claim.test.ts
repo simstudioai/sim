@@ -3,7 +3,12 @@
  */
 import { db } from '@sim/db'
 import { member, outboxEvent, user, workspace } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -313,6 +318,28 @@ describe('Enterprise future-owner claims', () => {
       })
     ).resolves.toEqual({ success: false, kind: 'email-mismatch' })
 
+    const updateConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(
+      updateConditions.some(
+        (condition) =>
+          condition.type === 'eq' && condition.left === user.id && condition.right === 'owner-1'
+      )
+    ).toBe(true)
+    const emailScope = updateConditions.find((condition) => condition.type === 'or')
+    const emailConditions = Array.isArray(emailScope?.conditions) ? emailScope.conditions : []
+    expect(
+      emailConditions.some(
+        (condition) =>
+          condition?.type === 'eq' &&
+          condition.left === user.normalizedEmail &&
+          condition.right === request.ownerEmail
+      )
+    ).toBe(true)
+    expect(
+      emailConditions.filter(
+        (condition) => condition?.type === 'eq' && condition.right === request.ownerEmail
+      )
+    ).toHaveLength(2)
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
   })
