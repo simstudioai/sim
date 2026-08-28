@@ -134,7 +134,8 @@ export const listPermissionsTool: ToolConfig<
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of permissions',
+      description:
+        'Page token for the next page of permissions; absent from the response when the end of the permissions list has been reached',
     },
   },
 }

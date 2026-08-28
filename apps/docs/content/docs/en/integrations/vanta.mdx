@@ -330,9 +330,8 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 | `region` | string | No | Vanta API region: "us" \(api.vanta.com, default\) or "gov" \(api.vanta-gov.com\) |
 | `documentId` | string | Yes | Unique ID of the document to attach the file to |
 | `file` | file | No | The evidence file to upload |
-| `fileContent` | string | No | Base64-encoded file content \(alternative to file\) |
 | `fileName` | string | No | Optional file name override |
-| `mimeType` | string | No | MIME type of the file \(e.g., application/pdf\); used when uploading base64 content, since uploaded files already carry their own type |
+| `mimeType` | string | No | MIME type of the file \(e.g., application/pdf\). Used only for base64 uploads; ignored for a file from the File input, whose content type is always resolved from storage. |
 | `description` | string | No | Description of the uploaded evidence \(e.g., "Q3 access review evidence"\) |
 | `effectiveAtDate` | string | No | ISO 8601 date indicating when the document is effective from |
 

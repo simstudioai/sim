@@ -387,7 +387,7 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 
 ### Upload File to Microsoft Dataverse
 
-Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string.
+Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
 
 #### Input
 
@@ -399,7 +399,6 @@ Upload a file to a file or image column on a Dataverse record. Supports single-r
 | `fileColumn` | string | Yes | File or image column logical name \(e.g., entityimage, cr_document\) |
 | `fileName` | string | Yes | Name of the file being uploaded \(e.g., document.pdf\) |
 | `file` | file | No | File to upload \(UserFile object\) |
-| `fileContent` | string | No | Base64-encoded file content \(legacy\) |
 
 #### Output
 

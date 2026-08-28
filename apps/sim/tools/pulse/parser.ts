@@ -224,12 +224,13 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     },
     html: {
       type: 'string',
-      description: 'HTML content if requested',
+      description: 'HTML content; returned only when the hidden returnHtml input is enabled',
       optional: true,
     },
     structured_output: {
       type: 'json',
-      description: 'Structured output if schema was provided',
+      description:
+        'Structured output; Sim exposes no input for supplying a schema, so this is always null',
       optional: true,
     },
     chunks: {
@@ -239,7 +240,8 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     },
     figures: {
       type: 'json',
-      description: 'Extracted figures if figure extraction was enabled',
+      description:
+        'Extracted figures; returned only when the hidden extractFigure input is enabled',
       optional: true,
     },
   },

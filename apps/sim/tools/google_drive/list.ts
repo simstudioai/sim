@@ -198,7 +198,8 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of results',
+      description:
+        'Page token for the next page of files; absent from the response when the end of the files list has been reached',
     },
   },
 }

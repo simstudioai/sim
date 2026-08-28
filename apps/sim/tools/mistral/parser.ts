@@ -466,7 +466,8 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
                 },
                 image_base64: {
                   type: 'string',
-                  description: 'Base64-encoded image data (when include_image_base64=true)',
+                  description:
+                    'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
                   optional: true,
                 },
               },
@@ -484,7 +485,7 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
           tables: {
             type: 'array',
             description:
-              'Extracted tables as HTML/markdown (when table_format is set). Referenced via placeholders like [tbl-0.html]',
+              'Separate table objects, referenced from the markdown via placeholders like [tbl-0.html]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty',
           },
           hyperlinks: {
             type: 'array',
@@ -497,12 +498,14 @@ export const mistralParserV2Tool: InternalToolConfig<MistralParserInput, Mistral
           },
           header: {
             type: 'string',
-            description: 'Page header content (when extract_header=true)',
+            description:
+              'Page header content. Mistral returns it only when extract_header is true (it defaults to false); Sim never sets it, so this is not returned',
             optional: true,
           },
           footer: {
             type: 'string',
-            description: 'Page footer content (when extract_footer=true)',
+            description:
+              'Page footer content. Mistral returns it only when extract_footer is true (it defaults to false); Sim never sets it, so this is not returned',
             optional: true,
           },
         },
