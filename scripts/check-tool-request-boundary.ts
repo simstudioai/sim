@@ -230,6 +230,23 @@ function resolveScopedArgument(
   return { expression: current, resolver }
 }
 
+function collectFunctionLocalBindings(fn: SyntaxNode, locals: Map<string, SyntaxNode>): void {
+  const visit = (node: SyntaxNode) => {
+    if (node !== fn && FUNCTION_NODE_TYPES.has(node.type)) return
+    if (
+      node.type === 'VariableDeclarator' &&
+      isSyntaxNode(node.id) &&
+      node.id.type === 'Identifier' &&
+      typeof node.id.name === 'string' &&
+      isSyntaxNode(node.init)
+    ) {
+      locals.set(node.id.name, node.init)
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(fn)
+}
+
 function isInternalPathExpression(
   expression: SyntaxNode,
   resolver: SelfHopResolver,
@@ -249,6 +266,31 @@ function isInternalPathExpression(
     const nextSeen = new Set(seen)
     nextSeen.add(key)
     return isInternalPathExpression(binding.expression, binding.resolver, nextSeen)
+  }
+
+  if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
+    if (!isSyntaxNode(current.callee)) return false
+    const callee = unwrapExpression(current.callee)
+    if (callee.type === 'Identifier' && typeof callee.name === 'string') {
+      const key = `${resolver.file}:path-call:${callee.name}`
+      if (seen.has(key)) return false
+      const binding = resolveScopedIdentifier(callee.name, resolver)
+      if (binding && FUNCTION_NODE_TYPES.has(unwrapExpression(binding.expression).type)) {
+        const nextSeen = new Set(seen)
+        nextSeen.add(key)
+        const argumentsList = Array.isArray(current.arguments)
+          ? current.arguments
+              .filter(isSyntaxNode)
+              .map((argument) => resolveScopedArgument(argument, resolver))
+          : []
+        return functionReturnsInternalPath(
+          binding.expression,
+          binding.resolver,
+          argumentsList,
+          nextSeen
+        )
+      }
+    }
   }
 
   if (current.type === 'ConditionalExpression') {
@@ -273,6 +315,59 @@ function isInternalPathExpression(
       : false
   }
   return false
+}
+
+function functionReturnsInternalPath(
+  fn: SyntaxNode,
+  resolver: SelfHopResolver,
+  argumentsList: readonly ScopedExpression[],
+  seen: ReadonlySet<string>
+): boolean {
+  const current = unwrapExpression(fn)
+  if (!FUNCTION_NODE_TYPES.has(current.type)) return false
+  const locals = new Map(resolver.locals)
+  const scopedLocals = new Map(resolver.scopedLocals)
+  const parameters = Array.isArray(current.params) ? current.params : []
+  for (const [index, parameter] of parameters.entries()) {
+    if (
+      isSyntaxNode(parameter) &&
+      parameter.type === 'Identifier' &&
+      typeof parameter.name === 'string' &&
+      argumentsList[index]
+    ) {
+      const argument = argumentsList[index]
+      scopedLocals.set(parameter.name, argument)
+      if (argument.resolver === resolver) locals.set(parameter.name, argument.expression)
+    }
+  }
+  collectFunctionLocalBindings(current, locals)
+  const localResolver = { ...resolver, locals, scopedLocals }
+  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
+    const body = unwrapExpression(current.body)
+    if (body.type !== 'BlockStatement') {
+      return isInternalPathExpression(body, localResolver, new Set(seen))
+    }
+  }
+  let found = false
+  const visit = (node: SyntaxNode) => {
+    if (found || (node !== current && FUNCTION_NODE_TYPES.has(node.type))) return
+    if (
+      node.type === 'ReturnStatement' &&
+      isSyntaxNode(node.argument) &&
+      isInternalPathExpression(node.argument, localResolver, new Set(seen))
+    ) {
+      found = true
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(current)
+  return found
+}
+
+function isOriginPreservingStaticSuffix(expression: SyntaxNode): boolean {
+  const suffix = getStaticString(expression)
+  return suffix !== undefined && (suffix === '' || /^[/?#]/.test(suffix))
 }
 
 function isSimOriginExpression(
@@ -321,6 +416,34 @@ function isSimOriginExpression(
       }
     }
   }
+  if (
+    current.type === 'BinaryExpression' &&
+    current.operator === '+' &&
+    isSyntaxNode(current.left) &&
+    isSyntaxNode(current.right)
+  ) {
+    return (
+      isSimOriginExpression(current.left, resolver, new Set(seen)) &&
+      isOriginPreservingStaticSuffix(current.right)
+    )
+  }
+  if (
+    current.type === 'TemplateLiteral' &&
+    Array.isArray(current.expressions) &&
+    Array.isArray(current.quasis) &&
+    current.expressions.length > 0 &&
+    current.quasis.length === current.expressions.length + 1 &&
+    current.expressions.every(isSyntaxNode) &&
+    current.quasis.every(isSyntaxNode) &&
+    getTemplateQuasiValue(current.quasis[0]) === '' &&
+    isSimOriginExpression(current.expressions[0], resolver, new Set(seen))
+  ) {
+    const suffix = getTemplateQuasiValue(current.quasis[1])
+    return (
+      suffix !== undefined &&
+      (suffix === '' ? current.expressions.length === 1 : /^[/?#]/.test(suffix))
+    )
+  }
   if (current.type === 'ConditionalExpression') {
     return (
       (isSyntaxNode(current.consequent) &&
@@ -362,6 +485,7 @@ function functionReturnsSimOrigin(
       if (argument.resolver === resolver) locals.set(parameter.name, argument.expression)
     }
   }
+  collectFunctionLocalBindings(current, locals)
   const localResolver = { ...resolver, locals, scopedLocals }
   if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
     const body = unwrapExpression(current.body)
@@ -744,22 +868,7 @@ function functionContainsInternalRoute(
   }
   const localResolver: SelfHopResolver = { ...resolver, locals, scopedLocals }
 
-  const collectLocals = (node: SyntaxNode) => {
-    if (node !== current && FUNCTION_NODE_TYPES.has(node.type)) {
-      return
-    }
-    if (
-      node.type === 'VariableDeclarator' &&
-      isSyntaxNode(node.id) &&
-      node.id.type === 'Identifier' &&
-      typeof node.id.name === 'string' &&
-      isSyntaxNode(node.init)
-    ) {
-      locals.set(node.id.name, node.init)
-    }
-    for (const child of getChildNodes(node)) collectLocals(child)
-  }
-  collectLocals(current)
+  collectFunctionLocalBindings(current, locals)
 
   if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
     const body = unwrapExpression(current.body)

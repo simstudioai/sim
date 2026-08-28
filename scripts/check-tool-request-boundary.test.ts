@@ -336,12 +336,118 @@ describe('tool self-hop audit', () => {
     expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
   })
 
+  it('rejects a helper-returned path concatenated with the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function buildPath() {
+        return '/api/tools/test'
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => getBaseUrl() + buildPath(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a locally-bound helper path concatenated with the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function buildPath() {
+        const path = '/api/tools/test'
+        return path
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => getBaseUrl() + buildPath(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
   it('rejects a same-origin path interpolated with the Sim origin', () => {
     const audit = auditToolSelfHops(`
       import { getBaseUrl } from '@/lib/core/utils/urls'
       const tool = {
         id: 'test_tool',
         request: { url: () => \`${GET_BASE_URL_TEMPLATE}/api/tools/test\`, method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a helper-returned path interpolated with the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function buildPath() {
+        return '/api/tools/test'
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => \`\${getBaseUrl()}\${buildPath()}\`, method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a helper-returned path resolved against the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function buildPath() {
+        return '/api/tools/test'
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => new URL(buildPath(), getBaseUrl()).toString(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects an internal path resolved against a path-normalized Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const baseUrl = getBaseUrl() + '/tool-proxy/'
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => new URL('/api/tools/test', baseUrl).toString(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects an internal path resolved against a template-normalized Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const baseUrl = \`\${getBaseUrl()}/tool-proxy/\`
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => new URL('/api/tools/test', baseUrl).toString(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects an internal path resolved against a helper-normalized Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function getNormalizedOrigin() {
+        const origin = \`\${getBaseUrl()}/tool-proxy/\`
+        return origin
+      }
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => new URL('/api/tools/test', getNormalizedOrigin()).toString(),
+          method: 'POST',
+        },
       }
     `)
 
@@ -492,6 +598,57 @@ describe('tool self-hop audit', () => {
         id: 'test_tool',
         request: {
           url: () => providerUrl('/api/messages', 'https://provider.example.com'),
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('allows a helper-returned API-shaped path resolved against an external origin', () => {
+    const audit = auditToolSelfHops(`
+      function buildPath() {
+        return '/api/messages'
+      }
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => new URL(buildPath(), 'https://provider.example.com').toString(),
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('does not treat hostname mutation as Sim-origin normalization', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const providerOrigin = getBaseUrl() + '.provider.example.com'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => new URL('/api/messages', providerOrigin).toString(),
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('does not treat a dynamic hostname suffix as Sim-origin normalization', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: (params) => new URL(
+            '/api/messages',
+            \`\${getBaseUrl()}\${params.providerDomain}\`
+          ).toString(),
           method: 'POST',
         },
       }
