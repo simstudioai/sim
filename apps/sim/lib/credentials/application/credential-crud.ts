@@ -244,6 +244,7 @@ export type UpdateWorkspaceCredentialInput = Omit<
   PerformUpdateCredentialParams,
   'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
 > & {
+  executionActorUserId?: string
   /**
    * Workspace the caller asserts owns the credential; a mismatch is concealed as
    * a not-found. The internal surface omits it and resolves the credential's own
@@ -254,6 +255,8 @@ export type UpdateWorkspaceCredentialInput = Omit<
 
 export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.update,
+  resolveExecutionActorUserId: (input: UpdateWorkspaceCredentialInput) =>
+    input.executionActorUserId,
   resolveContext: ({ input }: { input: UpdateWorkspaceCredentialInput }) =>
     resolveCredentialApplicationContext(input),
   async execute({ principal, input, context }) {

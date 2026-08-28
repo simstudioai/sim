@@ -137,6 +137,27 @@ describe('resolveCredentialConnectionTarget', () => {
     })
   })
 
+  it('uses the legacy execution actor for an actorless reconnect', async () => {
+    const actorlessPrincipal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:credentials',
+      issuedAt: new Date('2026-08-28T00:00:00.000Z'),
+      expiresAt: new Date('2099-08-28T00:00:00.000Z'),
+    }
+
+    await resolveCredentialConnectionTarget({
+      principal: actorlessPrincipal,
+      context,
+      credentialId: 'credential-1',
+      executionActorUserId: 'execution-actor',
+    })
+
+    expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'execution-actor')
+  })
+
   it('rejects providers whose custom flow cannot reconnect', async () => {
     mocks.listCatalog.mockResolvedValue([{ ...salesforceProvider, supportsReconnect: false }])
 

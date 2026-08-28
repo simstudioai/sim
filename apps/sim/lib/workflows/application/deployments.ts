@@ -1,13 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalAttribution,
-  toPrincipalActor,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
+import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -60,6 +56,7 @@ export interface RevertWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
   version: number | 'active'
+  executionActorUserId?: string
 }
 
 export interface UpdateWorkflowVersionInput {
@@ -243,8 +240,7 @@ export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.revertVersion,
   resolveContext: resolveWorkflowContext<RevertWorkflowVersionInput>,
   async execute({ principal, input, context }) {
-    // actorless-unsupported: reverting a version is an authored edit and records who made it; no tool exposes it to a run
-    const userId = requirePrincipalSubjectUserId(principal)
+    const userId = requireWorkflowExecutionUserId(principal, input.executionActorUserId)
     await requireMutableWorkflow(context.workflowId)
     const result = await performRevertToVersion({
       workflowId: context.workflowId,

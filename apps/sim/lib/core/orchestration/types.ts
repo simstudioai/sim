@@ -110,10 +110,11 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
 }
 
 /**
- * The slice of an HTTP request the audit log reads for client IP and user-agent
- * capture. Optional on every orchestration function so the non-HTTP callers —
- * copilot tools, background jobs — can omit what they do not have.
+ * Transport metadata available to an application operation. HTTP callers carry
+ * headers for audit capture; executor adapters may also preserve the legacy
+ * execution actor used by pre-application-boundary internal routes.
  */
 export interface OrchestrationRequestContext {
   headers: { get(name: string): string | null }
+  executionActorUserId?: string
 }

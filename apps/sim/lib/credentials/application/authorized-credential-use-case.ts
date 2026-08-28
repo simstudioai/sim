@@ -1,5 +1,4 @@
 import type { Principal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   type AuthorizedWorkspaceUseCaseDefinition,
   defineAuthorizedWorkspaceUseCase,
@@ -9,7 +8,10 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialActorContext } from '@/lib/credentials/access'
 import { getCredentialActorContext } from '@/lib/credentials/access'
-import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
+import {
+  credentialDelegationPolicy,
+  requireCredentialExecutionUserId,
+} from '@/lib/credentials/application/authorization'
 import type { CredentialOperation } from '@/lib/credentials/application/operations'
 import type { CredentialRow } from '@/lib/credentials/queries'
 
@@ -74,7 +76,9 @@ type AuthorizedCredentialUseCaseDefinition<
 > = Omit<
   AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>,
   'authorizationOptions' | 'authorizeResource'
->
+> & {
+  resolveExecutionActorUserId?: (input: I) => string | undefined
+}
 
 export function defineAuthorizedCredentialUseCase<
   const O extends CredentialOperation,
@@ -85,11 +89,10 @@ export function defineAuthorizedCredentialUseCase<
   return defineAuthorizedWorkspaceUseCase({
     ...definition,
     authorizationOptions: { delegation: credentialDelegationPolicy },
-    async authorizeResource({ principal, context }) {
+    async authorizeResource({ principal, input, context }) {
       const actor = await getCredentialActorContext(
         context.credential.id,
-        // actorless-unsupported: credential access is decided per person; an actorless run has no credential grants
-        requirePrincipalSubjectUserId(principal)
+        requireCredentialExecutionUserId(principal, definition.resolveExecutionActorUserId?.(input))
       )
       if (
         !actor.credential ||

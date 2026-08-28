@@ -34,6 +34,7 @@ export async function readAvailableCustomToolByIdOrTitleAsExecutor({
       workspaceId: principal.workspaceId,
       identifier,
       lookup,
+      executionActorUserId: context.userId,
     },
   })
   context.abortSignal?.throwIfAborted()

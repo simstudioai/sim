@@ -103,6 +103,7 @@ describe('executeFileTool', () => {
       expect.objectContaining({
         workspaceId: 'workspace-1',
         attributedUserId: 'user-1',
+        executionActorUserId: 'user-1',
         fileAccessUserId: 'user-1',
         requestId: 'request-1',
       })
@@ -223,6 +224,7 @@ describe('executeFileTool', () => {
       expect.objectContaining({
         principal,
         attributedUserId: 'workspace-owner',
+        executionActorUserId: 'legacy-actor',
         fileAccessUserId: undefined,
         workspaceId: 'workspace-1',
       })

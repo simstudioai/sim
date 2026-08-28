@@ -86,6 +86,7 @@ export interface FileManageOperationContext {
   principal: Principal
   workspaceId: string
   attributedUserId: string
+  executionActorUserId?: string
   fileAccessUserId?: string
   workflowId: string
   executionId?: string
@@ -878,6 +879,7 @@ export async function executeFileManageOperation(
               authType,
               password,
               allowedEmails,
+              executionActorUserId: context.executionActorUserId,
             },
           })
         ).share

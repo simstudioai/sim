@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/application/authorization'
 import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
-import { authenticateCredentialGroupDelegation } from '@/lib/credential-groups/application/delegation'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupsForWorkflow } from '@/lib/credential-groups/application/list-groups'
 import {
@@ -11,10 +11,10 @@ import { sendCredentialGroupInvite } from '@/lib/credential-groups/application/s
 import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
 import type { CredentialGroupEnrollmentStatus } from '@/lib/credential-groups/enrollments'
 import { enforceCredentialGroupInvitationExecutionRateLimit } from '@/lib/credential-groups/rate-limit'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext, ExecutorDelegationOrigin } from '@/executor/types'
-import { buildExecutorDelegationHeaders } from '@/executor/utils/http'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('CredentialGroupBlockHandler')
@@ -84,13 +84,6 @@ function requireString(value: unknown, label: string): string {
   return parsed
 }
 
-function delegationOrigin(ctx: ExecutionContext): ExecutorDelegationOrigin {
-  if (!ctx.executorDelegationOrigin) {
-    throw new Error('Credential Group operations require an authenticated workflow execution')
-  }
-  return ctx.executorDelegationOrigin
-}
-
 export class CredentialGroupBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.CREDENTIAL_GROUP
@@ -103,14 +96,18 @@ export class CredentialGroupBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     if (!ctx.workspaceId) throw new Error('workspaceId is required for Credential Group operations')
     const operation = parseOperation(inputs.operation)
+    if (!ctx.executorDelegationOrigin) {
+      throw new Error('Credential Group operations require an authenticated workflow execution')
+    }
     const credentialGroupId =
       operation === 'list_groups'
         ? undefined
         : requireString(inputs.credentialGroupId, 'Credential Group')
-    const headers = await buildExecutorDelegationHeaders(delegationOrigin(ctx))
-    const authorization = headers.Authorization
-    if (!authorization) throw new Error('Executor delegation authorization is missing')
-    const principal = await authenticateCredentialGroupDelegation(authorization, credentialGroupId)
+    const principal = await createExecutorPrincipalFromExecutionContext({
+      context: ctx,
+      audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
+      ...(credentialGroupId ? { resourceScope: { credentialGroupId } } : {}),
+    })
 
     switch (operation) {
       case 'list_credentials': {

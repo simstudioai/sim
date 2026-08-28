@@ -98,8 +98,26 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
         workspaceId: principal.workspaceId,
         identifier: tool.id,
         lookup: 'id',
+        executionActorUserId: 'user-1',
       },
     })
+  })
+
+  it('forwards the legacy execution actor for an actorless principal', async () => {
+    const context = executionContext()
+    mocks.createPrincipal.mockResolvedValueOnce({ ...principal, subjectUserId: undefined })
+
+    await readAvailableCustomToolByIdOrTitleAsExecutor({
+      context,
+      identifier: tool.id,
+      lookup: 'id',
+    })
+
+    expect(mocks.readUseCase.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ executionActorUserId: 'user-1' }),
+      })
+    )
   })
 
   it('stops before principal construction when execution is already cancelled', async () => {

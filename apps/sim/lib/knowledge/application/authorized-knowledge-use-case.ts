@@ -1,4 +1,3 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   defineAuthorizedWorkspaceUseCase,
   type OperationUseCase,
@@ -18,6 +17,7 @@ import {
   knowledgeDelegationPolicy,
   type LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
+import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 
 interface AuthorizedKnowledgeUseCaseContext<
   O extends WorkspaceOperation,
@@ -66,6 +66,13 @@ function assertWorkspaceKnowledgeContext<C extends KnowledgeResourceAuthorizatio
   if (isLegacyPersonalKnowledgeContext(context)) {
     throw new Error('Expected a workspace-scoped Knowledge authorization context')
   }
+}
+
+function withExecutionActor<C extends KnowledgeResourceAuthorizationContext>(
+  context: C,
+  executionActorUserId?: string
+): C {
+  return executionActorUserId ? { ...context, executionActorUserId } : context
 }
 
 export function defineAuthorizedKnowledgeUseCase<
@@ -122,12 +129,12 @@ export function defineAuthorizedKnowledgeUseCase<
     operation: definition.operation,
     async execute({ principal, input, request }) {
       requireAllowedWorkspacePrincipal(principal, definition.operation)
-      const context = await definition.resolveContext({ principal, input })
+      const resolvedContext = await definition.resolveContext({ principal, input })
+      const context = withExecutionActor(resolvedContext, request?.executionActorUserId)
       if (isLegacyPersonalKnowledgeContext(context)) {
         if (
           principal.kind === 'workspace_api_key' ||
-          // actorless-unsupported: a legacy personal knowledge base has exactly one owner, so an actorless caller is never it
-          requirePrincipalSubjectUserId(principal) !== context.legacyPersonalOwnerUserId
+          resolveKnowledgeAttributedUserId(principal, context) !== context.legacyPersonalOwnerUserId
         ) {
           throw new OrchestrationError('not_found', 'Knowledge base not found')
         }

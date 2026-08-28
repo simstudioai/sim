@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
@@ -38,6 +38,7 @@ export interface UpdateWorkspaceFileShareInput {
   allowedEmails?: string[]
   token?: string
   noOpIfInactive?: boolean
+  executionActorUserId?: string
 }
 
 export interface UpdateWorkspaceFileShareResult {
@@ -72,8 +73,13 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     return { ...canonical, file }
   },
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileShareResult> {
-    // actorless-unsupported: a share link records the person who published it
-    const subjectUserId = requirePrincipalSubjectUserId(principal)
+    const userId = resolvePrincipalSubjectUserId(principal) ?? input.executionActorUserId
+    if (!userId) {
+      throw new OrchestrationError(
+        'forbidden',
+        'File sharing requires a user subject or execution actor'
+      )
+    }
 
     const existingShare = await getShareForResource('file', context.fileId)
     if (input.noOpIfInactive && !input.isActive && !existingShare?.isActive) {
@@ -83,7 +89,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     if (input.isActive) {
       const effectiveAuthType = input.authType ?? existingShare?.authType ?? 'public'
       try {
-        await validatePublicFileSharing(subjectUserId, context.workspaceId, effectiveAuthType)
+        await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
       } catch (error) {
         if (error instanceof PublicFileSharingNotAllowedError)
           throw new ForbiddenOperationError('PUBLIC_SHARING_NOT_ALLOWED', error.message)
@@ -96,7 +102,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
       share = await upsertFileShare({
         workspaceId: context.workspaceId,
         fileId: context.fileId,
-        userId: subjectUserId,
+        userId,
         isActive: input.isActive,
         authType: input.authType,
         password: input.password,

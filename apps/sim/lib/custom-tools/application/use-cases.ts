@@ -1,16 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubject,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { customToolDelegationPolicy } from '@/lib/custom-tools/application/authorization'
+import {
+  customToolDelegationPolicy,
+  requireCustomToolUserId,
+} from '@/lib/custom-tools/application/authorization'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   assertStorableCustomToolSchema,
@@ -66,12 +64,12 @@ async function resolveAvailableToolContext(args: {
   principal: Exclude<Principal, { kind: 'workspace_api_key' }>
   workspaceId: string
   toolId: string
+  executionActorUserId?: string
 }): Promise<CustomToolContext> {
   const workspace = await resolveWorkspaceContext(args.workspaceId)
   const tool = await getCustomToolById({
     toolId: args.toolId,
-    // actorless-unsupported: a custom tool is owned by one user; an actorless run has no library to look in
-    userId: requirePrincipalSubjectUserId(args.principal),
+    userId: requireCustomToolUserId(args.principal, args.executionActorUserId),
     workspaceId: workspace.workspaceId,
   })
   if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
@@ -121,6 +119,7 @@ export const listWorkspaceCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
 
 export interface ListAvailableCustomToolsInput {
   workspaceId: string
+  executionActorUserId?: string
 }
 
 export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -128,10 +127,9 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   resolveContext: ({ input }: { input: ListAvailableCustomToolsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
-  async execute({ principal, context }) {
+  async execute({ principal, input, context }) {
     const tools = await listCustomTools({
-      // actorless-unsupported: the listing is the acting user's own tool library, which an actorless run does not have
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: requireCustomToolUserId(principal, input.executionActorUserId),
       workspaceId: context.workspaceId,
     })
     return { tools }
@@ -157,6 +155,7 @@ export interface ReadAvailableCustomToolByIdOrTitleInput {
   workspaceId: string
   identifier: string
   lookup: 'id' | 'id_or_title'
+  executionActorUserId?: string
 }
 
 export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspaceUseCase({
@@ -165,10 +164,9 @@ export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspa
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    const subject = resolvePrincipalSubject(principal)
     const tool = await getAvailableCustomTool({
       identifier: input.identifier,
-      ...(subject?.kind === 'sim_user' ? { userId: subject.userId } : {}),
+      userId: requireCustomToolUserId(principal, input.executionActorUserId),
       workspaceId: context.workspaceId,
       lookup: input.lookup,
     })
@@ -262,6 +260,7 @@ interface UpdateCustomToolFields {
   schema?: unknown
   code?: string
   source?: CustomToolWriteSource
+  executionActorUserId?: string
 }
 
 export interface UpdateWorkspaceCustomToolInput extends UpdateCustomToolFields {
@@ -339,6 +338,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       principal,
       workspaceId: input.workspaceId,
       toolId: input.toolId,
+      executionActorUserId: input.executionActorUserId,
     }),
   authorizationOptions,
   async execute({ principal, input, context }) {
@@ -355,8 +355,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
-        // actorless-unsupported: editing a tool is scoped to its owner; an actorless run owns none
-        userId: requirePrincipalSubjectUserId(principal),
+        userId: requireCustomToolUserId(principal, input.executionActorUserId),
         title,
         schema: input.schema ?? context.tool.schema,
         code: input.code ?? context.tool.code,
@@ -381,6 +380,7 @@ export interface DeleteWorkspaceCustomToolInput {
   workspaceId: string
   toolId: string
   source?: CustomToolWriteSource
+  executionActorUserId?: string
 }
 
 export const deleteWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
@@ -419,14 +419,14 @@ export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       principal,
       workspaceId: input.workspaceId,
       toolId: input.toolId,
+      executionActorUserId: input.executionActorUserId,
     }),
   authorizationOptions,
-  async execute({ principal, context }) {
+  async execute({ principal, input, context }) {
     const deleted = await deleteCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
-      // actorless-unsupported: deleting a tool is scoped to its owner; an actorless run owns none
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: requireCustomToolUserId(principal, input.executionActorUserId),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
     return { tool: context.tool }

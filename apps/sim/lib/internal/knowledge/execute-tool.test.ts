@@ -114,6 +114,7 @@ describe('executeKnowledgeTool', () => {
       expect.objectContaining({
         principal,
         headers: request.headers,
+        executionActorUserId: 'trusted-user',
         signal: controller.signal,
       })
     )

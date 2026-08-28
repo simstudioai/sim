@@ -1,6 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
-  requirePrincipalSubjectUserId,
+  resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -440,6 +440,17 @@ async function loadUploadFiles(
   return files
 }
 
+function requireWindchillExecutionUserId(
+  principal: BoundWorkflowExecutionDelegatedPrincipal,
+  executionActorUserId?: string
+): string {
+  const userId = resolvePrincipalSubjectUserId(principal) ?? executionActorUserId
+  if (!userId) {
+    throw new WindchillOperationError('Windchill file operations require an execution actor', 403)
+  }
+  return userId
+}
+
 function contentDispositionFileName(value: string | null): string | null {
   if (!value) return null
   const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
@@ -462,16 +473,19 @@ async function storeDownloadedFile({
   buffer,
   fileName,
   contentType,
+  executionActorUserId,
   signal,
 }: {
   principal: BoundWorkflowExecutionDelegatedPrincipal
   buffer: Buffer
   fileName: string
   contentType: string
+  executionActorUserId?: string
   signal?: AbortSignal
 }): Promise<UserFile> {
   signal?.throwIfAborted()
   const { workflowId, executionId } = principal.delegationContext
+  const userId = requireWindchillExecutionUserId(principal, executionActorUserId)
   if (executionId) {
     const file = await uploadExecutionFile(
       {
@@ -482,8 +496,7 @@ async function storeDownloadedFile({
       buffer,
       fileName,
       contentType,
-      // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
-      requirePrincipalSubjectUserId(principal)
+      userId
     )
     signal?.throwIfAborted()
     return file
@@ -492,8 +505,7 @@ async function storeDownloadedFile({
     buffer,
     fileName,
     contentType,
-    // actorless-unsupported: the uploaded file needs an owning user row; attributing it to the workflow's user is a follow-up
-    userId: requirePrincipalSubjectUserId(principal),
+    userId,
   })
   signal?.throwIfAborted()
   return file
@@ -506,6 +518,7 @@ async function executeDownload(
     | { operation: 'windchill_download_attachment' }
   >,
   principal: BoundWorkflowExecutionDelegatedPrincipal,
+  executionActorUserId?: string,
   signal?: AbortSignal
 ): Promise<WindchillOperationOutput> {
   const documentUrl = windchillDocumentUrl(body.baseUrl, body.documentOid)
@@ -537,6 +550,7 @@ async function executeDownload(
     buffer: downloaded.buffer,
     fileName,
     contentType: mimeType,
+    executionActorUserId,
     signal,
   })
   return {
@@ -549,6 +563,7 @@ async function executeDownload(
 
 export interface WindchillOperationContext {
   principal: BoundWorkflowExecutionDelegatedPrincipal
+  executionActorUserId?: string
   requestId: string
   signal?: AbortSignal
 }
@@ -557,14 +572,14 @@ export async function executeWindchillOperation(
   body: WindchillOperationBody,
   context: WindchillOperationContext
 ): Promise<WindchillOperationOutput> {
-  const { principal, requestId, signal } = context
+  const { principal, executionActorUserId, requestId, signal } = context
   signal?.throwIfAborted()
 
   if (
     body.operation === 'windchill_download_primary_content' ||
     body.operation === 'windchill_download_attachment'
   ) {
-    return executeDownload(body, principal, signal)
+    return executeDownload(body, principal, executionActorUserId, signal)
   }
 
   if (
@@ -577,8 +592,7 @@ export async function executeWindchillOperation(
         : body.attachmentFiles
     const files = await loadUploadFiles(
       inputs,
-      // actorless-unsupported: reads the acting user's own files; attributing it to the workflow's user is a follow-up
-      requirePrincipalSubjectUserId(principal),
+      requireWindchillExecutionUserId(principal, executionActorUserId),
       requestId,
       signal
     )

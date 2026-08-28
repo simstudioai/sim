@@ -395,6 +395,7 @@ export async function executeLoadDeployment(
       workflowId,
       assertedWorkspaceId: context.workspaceId,
       version: target.version,
+      executionActorUserId: context.userId,
     })
 
     const label = target.version === 'active' ? 'the live deployment' : `version ${target.version}`

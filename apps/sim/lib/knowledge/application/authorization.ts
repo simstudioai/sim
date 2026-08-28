@@ -16,11 +16,14 @@ interface KnowledgeResourceIdentifiers {
 
 export interface KnowledgeAuthorizationContext
   extends WorkspaceAuthorizationContext,
-    KnowledgeResourceIdentifiers {}
+    KnowledgeResourceIdentifiers {
+  executionActorUserId?: string
+}
 
 export interface LegacyPersonalKnowledgeAuthorizationContext extends KnowledgeResourceIdentifiers {
   workspaceId: undefined
   legacyPersonalOwnerUserId: string
+  executionActorUserId?: string
 }
 
 export type KnowledgeResourceAuthorizationContext =

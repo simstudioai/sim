@@ -39,6 +39,7 @@ export async function executeOAuthGetAuthLink(
       workspaceId,
       providerName,
       credentialId,
+      executionActorUserId: context.userId,
     })
     const callbackURL = context.workflowId
       ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`

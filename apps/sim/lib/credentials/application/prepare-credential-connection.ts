@@ -14,6 +14,7 @@ export interface PrepareCredentialConnectionInput {
   workspaceId: string
   providerName: string
   credentialId?: string
+  executionActorUserId?: string
 }
 
 export interface PrepareCredentialConnectionResult {
@@ -85,6 +86,7 @@ export const prepareCredentialConnection = defineAuthorizedWorkspaceUseCase({
       principal,
       context,
       credentialId: input.credentialId,
+      executionActorUserId: input.executionActorUserId,
     })
     if (
       !credentialProviderMatchesService(target.providerId, {

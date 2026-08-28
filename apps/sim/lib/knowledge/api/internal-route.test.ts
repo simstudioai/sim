@@ -98,7 +98,7 @@ describe('internal Knowledge execution attribution', () => {
       resolveInternalKnowledgeBillingAttribution(request(), executor, 'workspace-1')
     ).resolves.toEqual(BILLING_ATTRIBUTION)
     expect(internalKnowledgeProvenanceUserId(request().headers, executor, 'workspace-1')).toBe(
-      'billing-owner-1'
+      'execution-billing-actor-1'
     )
     expect(
       resolveKnowledgeAttributedUserId(executor, {
@@ -106,8 +106,9 @@ describe('internal Knowledge execution attribution', () => {
         workspaceOrganizationId: null,
         allowPersonalApiKeys: true,
         billedAccountUserId: 'billing-owner-1',
+        executionActorUserId: 'execution-billing-actor-1',
       })
-    ).toBe('billing-owner-1')
+    ).toBe('execution-billing-actor-1')
   })
 
   it('rejects a billing snapshot from another workspace', async () => {

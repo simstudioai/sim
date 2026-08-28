@@ -89,6 +89,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         principal,
         workspaceId,
         attributedUserId,
+        executionActorUserId: request.context.userId,
         fileAccessUserId,
         workflowId: request.context.workflowId,
         executionId: request.context.executionId,

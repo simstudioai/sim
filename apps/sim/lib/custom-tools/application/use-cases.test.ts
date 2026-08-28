@@ -131,7 +131,7 @@ describe('custom tool application use cases', () => {
       expect(mocks.audit).not.toHaveBeenCalled()
     })
 
-    it('authorizes an actorless deployment without enabling personal fallback', async () => {
+    it('preserves the legacy execution actor for an actorless deployment', async () => {
       const result = await readAvailableCustomToolByIdOrTitleUseCase.execute({
         principal: executorPrincipal({
           subjectUserId: undefined,
@@ -156,6 +156,7 @@ describe('custom tool application use cases', () => {
           workspaceId: workspace.workspaceId,
           identifier: tool.id,
           lookup: 'id_or_title',
+          executionActorUserId: 'execution-actor',
         },
       })
 
@@ -163,9 +164,39 @@ describe('custom tool application use cases', () => {
       expect(mocks.resolvePermission).not.toHaveBeenCalled()
       expect(mocks.getAvailableTool).toHaveBeenCalledWith({
         identifier: tool.id,
+        userId: 'execution-actor',
         workspaceId: workspace.workspaceId,
         lookup: 'id_or_title',
       })
+    })
+
+    it('refuses actorless lookup when the legacy execution actor is missing', async () => {
+      await expect(
+        readAvailableCustomToolByIdOrTitleUseCase.execute({
+          principal: executorPrincipal({
+            subjectUserId: undefined,
+            delegationContext: {
+              kind: 'workflow_execution',
+              workflowId: 'workflow-1',
+              currentWorkflow: {
+                workflowId: 'workflow-1',
+                mode: 'deployment',
+                deploymentVersionId: 'version-1',
+              },
+            },
+          }),
+          input: {
+            workspaceId: workspace.workspaceId,
+            identifier: tool.id,
+            lookup: 'id',
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'forbidden',
+        message:
+          'Custom tools are resolved from a user library, and this run has no execution actor',
+      })
+      expect(mocks.getAvailableTool).not.toHaveBeenCalled()
     })
 
     it('conceals a workspace assertion outside the delegated workspace before lookup', async () => {

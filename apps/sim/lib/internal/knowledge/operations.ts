@@ -55,6 +55,7 @@ import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-prove
 export interface KnowledgeOperationContext {
   principal: WorkflowExecutionDelegatedPrincipal
   headers: Headers
+  executionActorUserId?: string
   signal?: AbortSignal
 }
 
@@ -77,6 +78,13 @@ function throwIfAborted(context: KnowledgeOperationContext): void {
 
 function billingAttribution(context: KnowledgeOperationContext, workspaceId: string) {
   return requireWorkspaceBillingAttributionHeader(context.headers, { workspaceId })
+}
+
+function applicationRequest(context: KnowledgeOperationContext) {
+  return {
+    headers: context.headers,
+    ...(context.executionActorUserId ? { executionActorUserId: context.executionActorUserId } : {}),
+  }
 }
 
 function resolveChunkContentProvenance(
@@ -124,7 +132,7 @@ export async function listDocumentsOperation(
       sortOrder: query.sortOrder,
       tagFilters,
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = {
@@ -193,7 +201,7 @@ export async function createDocumentsOperation(
   const result = await createKnowledgeDocuments.execute({
     principal: context.principal,
     input,
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   internalKnowledgeAnalytics.documentsUploaded({ principal: context.principal, input, result })
   throwIfAborted(context)
@@ -229,7 +237,7 @@ export async function readDocumentOperation(
       documentId,
       assertedWorkspaceId: context.principal.workspaceId,
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = { success: true, data: toInternalKnowledgeDocument(result.document) }
@@ -269,7 +277,7 @@ export async function deleteDocumentOperation(
   const result = await deleteKnowledgeDocument.execute({
     principal: context.principal,
     input,
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   internalKnowledgeAnalytics.documentDeleted({ principal: context.principal, result })
   throwIfAborted(context)
@@ -323,7 +331,7 @@ export async function upsertDocumentOperation(
   const result = await upsertKnowledgeDocument.execute({
     principal: context.principal,
     input,
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   internalKnowledgeAnalytics.documentUpserted({ principal: context.principal, input, result })
   throwIfAborted(context)
@@ -373,7 +381,7 @@ export async function listChunksOperation(
       assertedWorkspaceId: context.principal.workspaceId,
       ...query,
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = {
@@ -419,7 +427,7 @@ export async function createChunkOperation(
       resolveContentProvenance: ({ workspaceId }) =>
         resolveChunkContentProvenance(context, bodyInput, workspaceId, true),
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = { success: true, data: toInternalKnowledgeChunk(result.chunk) }
@@ -459,7 +467,7 @@ export async function updateChunkOperation(
           bodyInput.content !== undefined
         ),
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = { success: true, data: toInternalKnowledgeChunk(result.chunk) }
@@ -500,7 +508,7 @@ export async function deleteChunkOperation(
       chunkId,
       assertedWorkspaceId: context.principal.workspaceId,
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   return { body: { success: true, data: { message: 'Chunk deleted successfully' } } }
@@ -514,7 +522,7 @@ export async function listConnectorsOperation(
   const result = await listKnowledgeConnectors.execute({
     principal: context.principal,
     input: { knowledgeBaseId, assertedWorkspaceId: context.principal.workspaceId },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   return {
@@ -535,7 +543,7 @@ export async function readConnectorOperation(
       connectorId,
       assertedWorkspaceId: context.principal.workspaceId,
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   return { body: { success: true, data: toInternalKnowledgeConnectorDetail(result.connector) } }
@@ -560,7 +568,7 @@ export async function syncConnectorOperation(
   const result = await syncKnowledgeConnector.execute({
     principal: context.principal,
     input,
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   internalKnowledgeAnalytics.connectorSynced({ principal: context.principal, input, result })
   throwIfAborted(context)
@@ -575,7 +583,7 @@ export async function listTagsOperation(
   const result = await listKnowledgeTags.execute({
     principal: context.principal,
     input: { knowledgeBaseId, assertedWorkspaceId: context.principal.workspaceId },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   return {
@@ -619,7 +627,7 @@ export async function searchOperation(
         return prepared.registry
       },
     },
-    request: { headers: context.headers },
+    request: applicationRequest(context),
   })
   throwIfAborted(context)
   const body = {

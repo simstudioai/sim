@@ -1,5 +1,8 @@
-import type { Principal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalAttribution,
+  resolvePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
@@ -7,6 +10,7 @@ import {
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeResourceContext } from '@/lib/knowledge/application/contexts'
 
 export class KnowledgeUsageLimitExceededError extends Error {
@@ -20,8 +24,14 @@ export function resolveKnowledgeAttributedUserId(
   principal: Principal,
   context: KnowledgeResourceContext
 ): string {
-  // actorless-unsupported: a workspace-less knowledge base bills its owner directly, with no workspace to attribute to
-  if (context.workspaceId === undefined) return requirePrincipalSubjectUserId(principal)
+  const executionUserId = resolvePrincipalSubjectUserId(principal) ?? context.executionActorUserId
+  if (executionUserId) return executionUserId
+  if (context.workspaceId === undefined) {
+    throw new OrchestrationError(
+      'forbidden',
+      'Knowledge operations require a user subject or execution actor'
+    )
+  }
   return resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,
   }).attributedUserId
