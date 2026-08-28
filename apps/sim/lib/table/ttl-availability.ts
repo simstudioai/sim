@@ -9,5 +9,5 @@ export function isTableRowTtlEnabled(): Promise<boolean> {
 /** Rejects attempts to introduce a TTL column while the feature is disabled. */
 export async function assertTableRowTtlEnabled(): Promise<void> {
   if (await isTableRowTtlEnabled()) return
-  throw new OrchestrationError('validation', 'TTL columns are not enabled')
+  throw new OrchestrationError('validation', 'Expiration columns are not enabled')
 }

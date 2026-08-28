@@ -5,6 +5,7 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -49,9 +50,7 @@ function ColumnTypeMenuItem({ option, onSelect }: ColumnTypeMenuItemProps) {
   const item = (
     <DropdownMenuItem
       aria-disabled={option.disabledReason ? true : undefined}
-      className={
-        option.disabledReason ? 'cursor-not-allowed opacity-50 focus:bg-transparent' : undefined
-      }
+      className={cn(option.disabledReason && 'cursor-not-allowed opacity-50 focus:bg-transparent')}
       onSelect={(event) => {
         if (option.disabledReason) {
           event.preventDefault()

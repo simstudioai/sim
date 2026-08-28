@@ -28,7 +28,7 @@ describe('table row TTL availability', () => {
 
     await expect(assertTableRowTtlEnabled()).rejects.toMatchObject({
       code: 'validation',
-      message: 'TTL columns are not enabled',
+      message: 'Expiration columns are not enabled',
     })
   })
 })

@@ -67,20 +67,20 @@ describe('TTL column mutation limit', () => {
   })
 
   it('rejects adding a TTL column before locking when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('TTL columns are not enabled'))
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
 
     await expect(
       addTableColumn('table-1', { name: 'expiry', type: 'ttl' }, 'request-1')
-    ).rejects.toThrow('TTL columns are not enabled')
+    ).rejects.toThrow('Expiration columns are not enabled')
     expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('rejects retyping to TTL before locking when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('TTL columns are not enabled'))
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
 
     await expect(
       updateColumnType({ tableId: 'table-1', columnName: 'name', newType: 'ttl' }, 'request-1')
-    ).rejects.toThrow('TTL columns are not enabled')
+    ).rejects.toThrow('Expiration columns are not enabled')
     expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 

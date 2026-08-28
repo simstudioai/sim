@@ -70,11 +70,11 @@ describe('createTable schema invariants', () => {
   })
 
   it('rejects a TTL schema before persistence when the feature is disabled', async () => {
-    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('TTL columns are not enabled'))
+    mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
 
     await expect(
       create({ columns: [{ name: 'expires_at', type: 'ttl' }] } as TableSchema)
-    ).rejects.toThrow('TTL columns are not enabled')
+    ).rejects.toThrow('Expiration columns are not enabled')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
