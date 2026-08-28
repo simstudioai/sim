@@ -1473,11 +1473,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <OverflowText
-                label={statusDisplayLabel}
-                className='block flex-1'
-                tooltipEnabled={false}
-              />
+              <span className='min-w-0 flex-1'>{statusDisplayLabel}</span>
             </span>
           }
           showAllOption
@@ -1500,11 +1496,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
               {selectedWorkflow && (
                 <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               )}
-              <OverflowText
-                label={workflowDisplayLabel}
-                className='block flex-1'
-                tooltipEnabled={false}
-              />
+              <span className='min-w-0 flex-1'>{workflowDisplayLabel}</span>
             </span>
           }
           searchable
@@ -1524,13 +1516,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
           overlayLabel={folderDisplayLabel}
-          overlayContent={
-            <OverflowText
-              label={folderDisplayLabel}
-              className='block w-full text-[var(--text-primary)]'
-              tooltipEnabled={false}
-            />
-          }
+          overlayContent={folderDisplayLabel}
           searchable
           searchPlaceholder='Search folders...'
           showAllOption
@@ -1548,13 +1534,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
           overlayLabel={triggerDisplayLabel}
-          overlayContent={
-            <OverflowText
-              label={triggerDisplayLabel}
-              className='block w-full text-[var(--text-primary)]'
-              tooltipEnabled={false}
-            />
-          }
+          overlayContent={triggerDisplayLabel}
           searchable
           searchPlaceholder='Search triggers...'
           showAllOption
@@ -1572,13 +1552,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             onChange={handleTimeRangeChange}
             placeholder='All time'
             overlayLabel={timeDisplayLabel}
-            overlayContent={
-              <OverflowText
-                label={timeDisplayLabel}
-                className='block w-full text-[var(--text-primary)]'
-                tooltipEnabled={false}
-              />
-            }
+            overlayContent={timeDisplayLabel}
             className='w-full'
             maxHeight={320}
           />

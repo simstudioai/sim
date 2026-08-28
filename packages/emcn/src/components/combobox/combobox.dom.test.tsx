@@ -66,8 +66,13 @@ describe('Combobox onOpenChange', () => {
       />
     )
 
-    const overflowLabel = trigger().querySelector('[data-overflow-text]')
-    expect(overflowLabel?.textContent).toBe('2 selected')
+    const overflowLabels = trigger().querySelectorAll<HTMLElement>('[data-overflow-text]')
+    expect(overflowLabels).toHaveLength(2)
+    expect([...overflowLabels].map(({ textContent }) => textContent)).toEqual([
+      '2 selected',
+      '2 selected',
+    ])
+    expect([...overflowLabels].every(({ className }) => !className.includes('truncate'))).toBe(true)
   })
 
   it('reports the open a trigger click causes', () => {

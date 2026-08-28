@@ -6,7 +6,6 @@ import {
   Calendar,
   ChipCombobox,
   ChipModalTabs,
-  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -419,19 +418,8 @@ export function UsageMonitoring({
               options={PERIOD_OPTIONS}
               value={preset}
               onChange={handlePeriodChange}
-              /*
-              The visible layer is masked, so the interactive layer owns the one
-              reachable tooltip — a custom range's label truncates, and without
-              `overlayLabel` its full value was unreadable.
-            */
               overlayLabel={periodLabel}
-              overlayContent={
-                <OverflowText
-                  label={periodLabel}
-                  className='block w-full text-[var(--text-primary)]'
-                  tooltipEnabled={false}
-                />
-              }
+              overlayContent={periodLabel}
               align='end'
             />
             <Popover
