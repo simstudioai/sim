@@ -12,7 +12,7 @@ import {
 
 /** Complete fade-only clipping treatment for measured special cases. */
 export const overflowTextFadeClass =
-  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_18px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_18px),transparent)]'
+  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
 
 /** Fade-free clipping for externally measured labels and rich-content overflow exceptions. */
 export const overflowTextClipClass = 'block min-w-0 overflow-hidden text-clip whitespace-nowrap'
