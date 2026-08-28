@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEdgeHighlighted } from './edge-highlight'
+import { isEdgeHighlighted } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
 
 describe('isEdgeHighlighted', () => {
   it('highlights a directly selected edge', () => {
