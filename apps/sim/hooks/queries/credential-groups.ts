@@ -22,7 +22,7 @@ import {
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupList,
+  fetchCredentialGroupSettings,
 } from '@/hooks/queries/utils/credential-group-queries'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
@@ -30,8 +30,8 @@ export function useCredentialGroups(workspaceId?: string) {
   return useQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
     queryFn: async ({ signal }) => {
-      if (!workspaceId) return []
-      return fetchCredentialGroupList(workspaceId, signal)
+      if (!workspaceId) return { credentialGroups: [], availableProviders: [] }
+      return fetchCredentialGroupSettings(workspaceId, signal)
     },
     enabled: Boolean(workspaceId),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,

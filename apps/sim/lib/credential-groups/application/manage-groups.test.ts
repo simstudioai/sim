@@ -120,7 +120,12 @@ describe('Credential Group Settings application operations', () => {
 
     expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
     expect(mocks.list).toHaveBeenCalledWith('workspace-1')
-    expect(result).toEqual({ credentialGroups: [] })
+    expect(result.credentialGroups).toEqual([])
+    /**
+     * Which providers are offerable depends on the OAuth clients this environment configures, so
+     * the list is asserted as a shape rather than a fixed set.
+     */
+    expect(Array.isArray(result.availableProviders)).toBe(true)
   })
 
   it('derives created-by identity from the authenticated session principal', async () => {

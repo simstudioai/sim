@@ -15,6 +15,8 @@ import { getCredentialGroupProviderService } from '@/lib/credential-groups/provi
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  credentialGroupProviderSearchParam,
+  credentialGroupProviderSearchUrlKeys,
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
@@ -42,6 +44,7 @@ import {
   useUpdateCredentialGroup,
 } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface CredentialGroupDetailProps {
   workspaceId: string
@@ -111,6 +114,11 @@ export function CredentialGroupDetail({
     groupId,
     enabled: activeTab === 'access',
   })
+  const [providerSearch, setProviderSearchParam] = useQueryState(
+    credentialGroupProviderSearchParam.key,
+    { ...credentialGroupProviderSearchParam.parser, ...credentialGroupProviderSearchUrlKeys }
+  )
+  const setProviderSearch = useDebouncedSearchSetter(setProviderSearchParam)
   const [showInvite, setShowInvite] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
@@ -262,6 +270,16 @@ export function CredentialGroupDetail({
         title={credentialGroup?.name ?? 'Credential group'}
         description={credentialGroup?.description ?? undefined}
         actions={actions}
+        search={
+          activeTab === 'details'
+            ? {
+                value: providerSearch,
+                onChange: setProviderSearch,
+                placeholder: 'Search account types...',
+                disabled: detail.isPending,
+              }
+            : undefined
+        }
       >
         {detail.error ? (
           <SettingsEmptyState tone='error'>
@@ -280,6 +298,7 @@ export function CredentialGroupDetail({
               <CredentialGroupDetails
                 workspaceId={workspaceId}
                 credentialGroup={credentialGroup}
+                providerSearch={providerSearch}
                 name={name}
                 onNameChange={setDraftName}
                 description={description}
