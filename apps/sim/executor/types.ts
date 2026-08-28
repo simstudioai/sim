@@ -372,6 +372,8 @@ export interface ExecutorDelegationOrigin {
 }
 
 export interface ExecutionContext {
+  /** See {@link ContextExtensions.onBlocksMayRun}. Fired by the engine, once. */
+  onBlocksMayRun?: () => void
   workflowId: string
   workspaceId?: string
   executionId?: string

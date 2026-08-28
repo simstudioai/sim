@@ -107,6 +107,15 @@ export class ExecutionEngine {
       this.initializeQueue(triggerBlockId)
       await this.subscribeToCancellationSignal()
 
+      /**
+       * Past every fallible startup step — DAG construction, pipeline assembly and the
+       * cancellation subscription above all reject having run nothing — and immediately
+       * before the loop that processes blocks. This is the line a caller means by "could a
+       * side effect have occurred"; anything earlier reports a run for a request that was
+       * merely refused.
+       */
+      this.context.onBlocksMayRun?.()
+
       while (this.hasWork()) {
         if (this.checkCancellation() || this.errorFlag || this.stoppedEarlyFlag) {
           break

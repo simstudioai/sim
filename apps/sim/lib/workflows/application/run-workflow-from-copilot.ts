@@ -1,4 +1,5 @@
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
@@ -29,6 +30,9 @@ import {
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+
+const logger = createLogger('CopilotWorkflowRun')
+
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface CopilotWorkflowRunLifecycle {
@@ -305,6 +309,12 @@ async function executeCopilotRun(params: {
      * what threw and an execution certainly exists.
      */
     if (runReturned) attachAttemptedExecutionId(error, childExecutionId)
+    /**
+     * Recovery must never replace the failure it is describing. Both steps below run only to
+     * record and release, and either throwing would propagate a different error — one the
+     * dispatched-run id was never recorded against — so an existing run would report itself
+     * as never started and invite the duplicate this id exists to prevent.
+     */
     if (registry) {
       const executionResult =
         typeof error === 'object' &&
@@ -313,18 +323,34 @@ async function executeCopilotRun(params: {
         typeof error.executionResult === 'object'
           ? (error.executionResult as ExecutionResult)
           : undefined
-      await registry.importCrossingProvenance(
-        executionResult?.executionState?.resolvedSecretTraceProvenance,
-        {
-          output: executionResult?.output,
-          logs: executionResult?.logs,
-          error: executionResult?.error,
-          thrownMessage: toError(error).message,
-        },
-        { trusted: true, origin: 'copilotWorkflowMutation.failedRunCrossing' }
-      )
+      try {
+        await registry.importCrossingProvenance(
+          executionResult?.executionState?.resolvedSecretTraceProvenance,
+          {
+            output: executionResult?.output,
+            logs: executionResult?.logs,
+            error: executionResult?.error,
+            thrownMessage: toError(error).message,
+          },
+          { trusted: true, origin: 'copilotWorkflowMutation.failedRunCrossing' }
+        )
+      } catch (importError) {
+        logger.error('Failed to record provenance for a failed Copilot run', {
+          executionId: childExecutionId,
+          error: toError(importError).message,
+        })
+      }
     }
-    if (admission.targetReservation) await releaseExecutionSlot(childExecutionId)
+    if (admission.targetReservation) {
+      try {
+        await releaseExecutionSlot(childExecutionId)
+      } catch (releaseError) {
+        logger.error('Failed to release the execution slot for a failed Copilot run', {
+          executionId: childExecutionId,
+          error: toError(releaseError).message,
+        })
+      }
+    }
     throw error
   } finally {
     completePendingActivation?.()
