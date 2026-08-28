@@ -528,6 +528,25 @@ describe('executeLambdaTool', () => {
     expect(JSON.stringify(await response.json())).toContain('not both')
   })
 
+  it('rejects an empty code-source field rather than treating it as absent', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_function',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          role: 'arn:aws:iam::1:role/exec',
+          imageUri: 'ecr/alpha:1',
+          packageType: 'Image',
+          s3Bucket: '',
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaCreateFunction).not.toHaveBeenCalled()
+  })
+
   it('rejects a partial S3 pair alongside an image URI', async () => {
     const response = await executeLambdaTool(
       createRequest({

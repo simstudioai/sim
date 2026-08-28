@@ -17,11 +17,11 @@ const UpdateFunctionCodeSchema = z
       .string()
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
-    s3Bucket: z.string().optional(),
-    s3Key: z.string().optional(),
-    s3ObjectVersion: z.string().optional(),
-    imageUri: z.string().optional(),
-    sourceKmsKeyArn: z.string().optional(),
+    s3Bucket: z.string().min(1, 's3Bucket cannot be empty').optional(),
+    s3Key: z.string().min(1, 's3Key cannot be empty').optional(),
+    s3ObjectVersion: z.string().min(1, 's3ObjectVersion cannot be empty').optional(),
+    imageUri: z.string().min(1, 'imageUri cannot be empty').optional(),
+    sourceKmsKeyArn: z.string().min(1, 'sourceKmsKeyArn cannot be empty').optional(),
     architectures: z
       .array(z.enum(['x86_64', 'arm64']))
       .length(1, 'architectures takes exactly one value')
