@@ -704,6 +704,7 @@ describe('isolated-vm scheduler', () => {
   })
 
   it('reports cancellation when abort races a rejected distributed lease', async () => {
+    const scripts: string[] = []
     let resolveLease!: (value: number) => void
     let markLeaseRequested!: () => void
     const leaseResult = new Promise<number>((resolve) => {
@@ -719,6 +720,7 @@ describe('isolated-vm scheduler', () => {
       spawns: [() => createReadyProc('unused')],
       redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
+        scripts.push(script)
         if (script.includes('ZREMRANGEBYSCORE')) {
           markLeaseRequested()
           return leaseResult
@@ -748,6 +750,8 @@ describe('isolated-vm scheduler', () => {
       termination: 'cancelled',
       error: { name: 'AbortError' },
     })
+    // Redis answered before its ZADD, so there is nothing to remove.
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(false)
     expect(spawnMock).not.toHaveBeenCalled()
   })
 

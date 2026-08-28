@@ -1436,7 +1436,8 @@ export async function executeInIsolatedVM(
   }
 
   if (leaseAcquireResult !== 'acquired' && signal?.aborted) {
-    releaseLease()
+    // Only an undetermined result can have registered; see the over-limit branch below.
+    if (leaseAcquireResult === 'undetermined') releaseLease()
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
