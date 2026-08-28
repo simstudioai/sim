@@ -1,5 +1,6 @@
 import { usageLog } from '@sim/db/schema'
 import { eq, gte, lt, type SQL } from 'drizzle-orm'
+import { MAX_CUSTOM_RANGE_DAYS } from '@/lib/api/contracts/organization-usage'
 import {
   type ResolvedUsagePeriod,
   resolveEnterpriseReportingPeriod,
@@ -40,8 +41,10 @@ export type UsageBucket = 'day' | 'week' | 'month'
  * A custom range is capped because three of the five breakdown dimensions are not
  * index-covered and heap-fetch per row; an unbounded range over a large ledger is a
  * table scan. Longer look-back goes through `previous-period`, which is stamped.
+ *
+ * Declared on the contract so the picker and this resolver state one number.
  */
-export const MAX_CUSTOM_RANGE_DAYS = 92
+export { MAX_CUSTOM_RANGE_DAYS }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -308,7 +311,8 @@ export interface UsageBreakdownEntry {
 
 export interface UsageBreakdownFold {
   rows: UsageBreakdownEntry[]
-  other: { cost: number; events: number; rowCount: number }
+  /** `tokens` is the omitted rows' total, so a token-denominated tab still adds up. */
+  other: { cost: number; events: number; rowCount: number; tokens: number }
   totalCost: number
 }
 
@@ -316,6 +320,8 @@ interface RankedRow {
   key: string | null
   cost: string | number | null
   events: number | string | null
+  inputTokens?: number
+  outputTokens?: number
 }
 
 /**
@@ -324,12 +330,18 @@ interface RankedRow {
  * The remainder is not cosmetic: five lists that do not add up to the headline
  * number is the classic "the numbers are wrong" bug, and the only way a truncated
  * ranking can reconcile is by naming what it left out.
+ *
+ * `rankBy` exists because BYOK has no cost to rank by — every row is zero by
+ * definition, so a cost sort fell through to its alphabetical tiebreak and the
+ * "top providers" were whichever ones sorted first. A tab denominated in tokens
+ * has to rank by tokens.
  */
 export function foldUsageBreakdown(
   rows: RankedRow[],
   totalCost: number,
   labelFor: (key: string | null) => string,
-  limit: number
+  limit: number,
+  rankBy: 'cost' | 'tokens' = 'cost'
 ): UsageBreakdownFold {
   const ranked = rows
     .map((row) => ({
@@ -337,19 +349,27 @@ export function foldUsageBreakdown(
       label: labelFor(row.key),
       cost: toNumber(row.cost),
       events: Math.round(toNumber(row.events)),
+      tokens: (row.inputTokens ?? 0) + (row.outputTokens ?? 0),
     }))
-    .sort((left, right) => right.cost - left.cost || left.label.localeCompare(right.label))
+    .sort(
+      (left, right) =>
+        (rankBy === 'tokens' ? right.tokens - left.tokens : right.cost - left.cost) ||
+        left.label.localeCompare(right.label)
+    )
 
   const visible = ranked.slice(0, limit)
   const hidden = ranked.slice(limit)
   const share = (cost: number) => (totalCost > 0 ? cost / totalCost : 0)
 
   return {
-    rows: visible.map((row) => ({ ...row, share: share(row.cost) })),
+    rows: visible.map(({ tokens: _tokens, ...row }) => ({ ...row, share: share(row.cost) })),
     other: {
       cost: hidden.reduce((sum, row) => sum + row.cost, 0),
       events: hidden.reduce((sum, row) => sum + row.events, 0),
       rowCount: hidden.length,
+      // BYOK ranks by cost, which is zero for every row, so the visible slice is
+      // effectively arbitrary — omitting the tail's tokens would hide real volume.
+      tokens: hidden.reduce((sum, row) => sum + row.tokens, 0),
     },
     totalCost,
   }

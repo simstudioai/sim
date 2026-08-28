@@ -63,6 +63,8 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
       const page = await getBillingEntityUsageLogs(context.billingEntity, {
         startDate: bounds.start,
         endDate: bounds.end,
+        // Half-open, matching the summary and breakdowns — see `endDateExclusive`.
+        endDateExclusive: true,
         ...(input.source?.length ? { source: input.source } : {}),
         limit: EXPORT_PAGE_SIZE,
         ...(cursor ? { cursor } : {}),

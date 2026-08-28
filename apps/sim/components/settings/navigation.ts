@@ -504,7 +504,16 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       description: 'Monitor credit usage across your organization.',
       group: 'organization',
       order: 1,
-      hideWhenBillingDisabled: true,
+      /**
+       * Deliberately no `hideWhenBillingDisabled`, unlike Members above.
+       *
+       * The sidebar applies that filter *before* it consults `selfHostedOverride`,
+       * so pairing the two hid this section from exactly the deployment the
+       * override exists to serve: self-hosted, billing off, `USAGE_MONITORING_ENABLED`
+       * on. Members can carry the flag because it has no override to reach. Here the
+       * two gates below already answer both cases — hosted needs the plan, and
+       * self-hosted needs the flag.
+       */
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.usageMonitoring,

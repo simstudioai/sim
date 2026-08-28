@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { INTERNAL_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 
 /**
  * Organization usage monitoring (enterprise).
@@ -30,6 +31,13 @@ export const USAGE_BREAKDOWN_DIMENSIONS = [
 ] as const
 export const usageBreakdownDimensionSchema = z.enum(USAGE_BREAKDOWN_DIMENSIONS)
 export type UsageBreakdownDimension = z.output<typeof usageBreakdownDimensionSchema>
+
+/**
+ * The longest custom range the ledger will scan. Declared on the contract so the
+ * picker states the same limit the window resolver enforces, rather than the client
+ * discovering it from a rejected request.
+ */
+export const MAX_CUSTOM_RANGE_DAYS = 92
 
 const isoDateSchema = z
   .string()
@@ -62,8 +70,23 @@ export const organizationUsageBreakdownQuerySchema = organizationUsageWindowQuer
 })
 export type OrganizationUsageBreakdownQuery = z.input<typeof organizationUsageBreakdownQuerySchema>
 
+/**
+ * Ledger sources, as an enum rather than free strings.
+ *
+ * Two problems this closes. A single selected source arrives on the wire as one
+ * scalar, not a one-item array, so an `z.array(...)` alone rejected the commonest
+ * filter outright — hence the union and normalization. And an unrecognized value
+ * used to survive validation and reach the query as an unchecked cast, where it
+ * matched nothing and returned an empty page that looked like "no usage" rather
+ * than a bad request.
+ */
+const usageLogSourceFilterSchema = z
+  .union([z.string(), z.array(z.string())])
+  .transform((value) => (Array.isArray(value) ? value : [value]))
+  .pipe(z.array(z.enum(INTERNAL_USAGE_LOG_SOURCES)).max(20))
+
 export const organizationUsageEventsQuerySchema = organizationUsageWindowQuerySchema.extend({
-  source: z.array(z.string().min(1)).max(20).optional(),
+  source: usageLogSourceFilterSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().min(1).optional(),
 })
@@ -122,6 +145,8 @@ export const organizationUsageBreakdownResponseSchema = z.object({
     credits: z.number(),
     events: z.number().int(),
     rowCount: z.number().int(),
+    /** Tokens for the omitted rows, so the token-denominated BYOK tab still adds up. */
+    tokens: z.number().int().nonnegative(),
   }),
   totalCredits: z.number(),
 })

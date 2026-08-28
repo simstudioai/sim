@@ -21,9 +21,16 @@ interface SegmentedMeterProps {
  * affordance answering the same question, and previously only one existed.
  */
 export function SegmentedMeter({ used, total, segments, className }: SegmentedMeterProps) {
-  const filledSegments =
-    total > 0 ? Math.min(segments, Math.round((used / total) * segments)) : used > 0 ? segments : 0
-  const allowedSegments = total > 0 ? segments : 0
+  /**
+   * Both counts are measured against the larger of the two, so an overage has
+   * somewhere to render. Scaling the fill by `total` and clamping it meant
+   * `filledSegments` and the allowance were both `segments` whenever usage exceeded
+   * the limit, and the overage tone below could never be reached — the meter simply
+   * showed full.
+   */
+  const scale = Math.max(total, used)
+  const filledSegments = scale > 0 ? Math.min(segments, Math.round((used / scale) * segments)) : 0
+  const allowedSegments = scale > 0 ? Math.round((total / scale) * segments) : 0
 
   return (
     <div className={cn('flex items-center gap-1', className)} aria-hidden='true'>

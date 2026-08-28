@@ -242,6 +242,12 @@ export async function getBillingPeriodUsageCost(
  * Counts distinct workflow executions that produced billable ledger entries in
  * an attributed billing period. Multiple line items for one execution count as
  * one run; executions with no billable usage are intentionally excluded.
+ *
+ * The category filter is what keeps that last clause true now that unbilled rows
+ * exist. A BYOK-only run whose base charge is zero writes nothing but a
+ * `model_unbilled` row, and without this it would newly appear in a count that
+ * feeds the enterprise billing preview — a customer-facing number moving because
+ * of a reporting-only row.
  */
 export async function getBillingPeriodWorkflowRunCount(
   billingEntity: BillingEntity,
@@ -251,7 +257,7 @@ export async function getBillingPeriodWorkflowRunCount(
   const [row] = await executor
     .select({
       workflowRuns:
-        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow')`.mapWith(
+        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${usageLog.category} <> ALL(${UNBILLED_USAGE_CATEGORIES}))`.mapWith(
           Number
         ),
     })
@@ -420,7 +426,12 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     tx,
   } = params
 
-  const validEntries = entries.filter((e) => e.cost > 0 || isUnbilledUsageCategory(e.category))
+  // An unbilled row is admitted only at exactly zero cost. The category's whole
+  // safety argument is that every billing aggregate is `SUM(cost)` and these rows
+  // contribute nothing; a nonzero one would quietly move real money.
+  const validEntries = entries.filter((e) =>
+    isUnbilledUsageCategory(e.category) ? e.cost === 0 : e.cost > 0
+  )
 
   if (validEntries.length === 0) {
     return
@@ -744,7 +755,21 @@ interface UsageLogFilter {
   source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
+  /**
+   * Inclusive by default, which is what the personal credit-usage surfaces have
+   * always meant by it.
+   */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive instead.
+   *
+   * Analytics windows are half-open `[start, end)` — a billing period's end
+   * instant is the next period's start — so a row stamped exactly on the
+   * boundary belongs to the next window. Without this the event list and the
+   * export counted it while the summary and breakdowns did not, and the two
+   * disagreed by one row at exactly the moment a period rolls over.
+   */
+  endDateExclusive?: boolean
 }
 
 type UsageLogScope =
@@ -773,7 +798,13 @@ function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
   }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
-  if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
+  if (filter.endDate) {
+    conditions.push(
+      filter.endDateExclusive
+        ? lt(usageLog.createdAt, filter.endDate)
+        : lte(usageLog.createdAt, filter.endDate)
+    )
+  }
   return conditions
 }
 
@@ -855,8 +886,13 @@ export interface GetUsageLogsOptions {
   workspaceId?: string
   /** Start date (inclusive) */
   startDate?: Date
-  /** End date (inclusive) */
+  /** End date (inclusive, unless {@link endDateExclusive}) */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive, matching a half-open analytics window.
+   * See {@link UsageLogFilter.endDateExclusive}.
+   */
+  endDateExclusive?: boolean
   /** Maximum number of results */
   limit?: number
   /** Cursor for pagination (log ID) */
@@ -923,6 +959,7 @@ async function getUsageLogs(
     workspaceId,
     startDate,
     endDate,
+    endDateExclusive,
     limit = 50,
     cursor,
     cursorCreatedAt,
@@ -930,7 +967,13 @@ async function getUsageLogs(
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(scope, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, {
+      source,
+      workspaceId,
+      startDate,
+      endDate,
+      endDateExclusive,
+    })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
@@ -1004,6 +1047,7 @@ async function getUsageLogs(
         workspaceId,
         startDate,
         endDate,
+        endDateExclusive,
       })
 
       const summaryResult = await dbReplica

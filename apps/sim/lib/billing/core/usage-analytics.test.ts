@@ -313,6 +313,23 @@ describe('foldUsageBreakdown', () => {
     const fold = foldUsageBreakdown([{ key: 'a', cost: '0', events: 2 }], 0, labelFor, 5)
     expect(fold.rows[0].share).toBe(0)
   })
+
+  it('carries the omitted rows tokens, so a zero-cost dimension still adds up', () => {
+    // BYOK ranks by a cost that is zero for every row, so which rows land in the
+    // visible slice is effectively arbitrary — dropping the tail's tokens would
+    // hide real volume behind an em dash.
+    const byokRows = [
+      { key: 'gpt-4o', cost: '0', events: 1, inputTokens: 100, outputTokens: 50 },
+      { key: 'claude', cost: '0', events: 1, inputTokens: 700, outputTokens: 300 },
+      { key: 'gemini', cost: '0', events: 1, inputTokens: 20, outputTokens: 5 },
+    ]
+    const fold = foldUsageBreakdown(byokRows, 0, labelFor, 1, 'tokens')
+    // Ranked by tokens, so the biggest provider is the one shown...
+    expect(fold.rows.map((row) => row.id)).toEqual(['claude'])
+    // ...and the tail's tokens are still accounted for rather than hidden.
+    expect(fold.other.rowCount).toBe(2)
+    expect(fold.other.tokens).toBe(175)
+  })
 })
 
 describe('MAX_CUSTOM_RANGE_DAYS', () => {

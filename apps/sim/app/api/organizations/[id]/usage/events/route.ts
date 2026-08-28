@@ -1,13 +1,12 @@
 import { listOrganizationUsageEventsContract } from '@/lib/api/contracts/organization-usage'
 import {
   defineInternalJsonRoute,
-  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { listOrganizationUsageEvents } from '@/lib/billing/application/organization-usage/list-organization-usage-events'
 import { organizationUsageOperations } from '@/lib/billing/application/organization-usage/operations'
-import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
+import { organizationUsageErrorPolicy } from '@/app/api/organizations/[id]/usage/error-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,13 +23,13 @@ export const GET = defineInternalJsonRoute({
     reason:
       'Authenticated org-admin settings read, gated on enterprise entitlement and billing authority',
   }),
-  errorPolicy: internalOrchestrationErrorPolicy,
+  errorPolicy: organizationUsageErrorPolicy,
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     preset: query.preset,
     startDate: query.startDate ? new Date(query.startDate) : undefined,
     endDate: query.endDate ? new Date(query.endDate) : undefined,
-    source: query.source as InternalUsageLogSource[] | undefined,
+    source: query.source,
     limit: query.limit,
     cursor: query.cursor,
   }),

@@ -8,8 +8,8 @@ import {
   exportOrganizationUsageEvents,
   type OrganizationUsageExportRow,
 } from '@/lib/billing/application/organization-usage/export-organization-usage-events'
+import { UsageWindowRangeTooLargeError } from '@/lib/billing/core/usage-analytics'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
-import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -59,7 +59,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context) => {
         preset: query.preset,
         startDate: query.startDate ? new Date(query.startDate) : undefined,
         endDate: query.endDate ? new Date(query.endDate) : undefined,
-        source: query.source as InternalUsageLogSource[] | undefined,
+        source: query.source,
       },
     })
 
@@ -74,6 +74,11 @@ export const GET = withRouteHandler(async (request: NextRequest, context) => {
   } catch (error) {
     if (error instanceof ForbiddenOperationError) {
       return NextResponse.json({ error: error.message }, { status: 403 })
+    }
+    // A range over the cap is the caller's input, not a fault — the same
+    // classification the three JSON routes make through `organizationUsageErrorPolicy`.
+    if (error instanceof UsageWindowRangeTooLargeError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     logger.error('Failed to export organization usage', { error: getErrorMessage(error) })
     return NextResponse.json({ error: 'Failed to export usage' }, { status: 500 })

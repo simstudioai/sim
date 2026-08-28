@@ -286,7 +286,9 @@ function BarChartComponent({
             fontSize={CHART_TICK_FONT_SIZE}
             fill={CHART_TICK_FILL}
           >
-            {formatChartCompactNumber(maxValue)}
+            {/* Same formatter the tooltip uses, or the axis and the hover disagree
+                about what the numbers mean on any non-`credits` unit. */}
+            {formatValue(maxValue)}
           </text>
           <text
             x={padding.left - 8}

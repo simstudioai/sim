@@ -52,6 +52,7 @@ vi.mock('@/components/settings/navigation', () => ({
     sessions: 'sessions',
     'data-retention': 'data-retention',
     'data-drains': 'data-drains',
+    usage: 'usage',
     whitelabeling: 'whitelabeling',
   },
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>

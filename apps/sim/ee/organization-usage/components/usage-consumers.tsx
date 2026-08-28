@@ -181,7 +181,9 @@ export function UsageConsumers({
             {`Other (${breakdown.other.rowCount} more)`}
           </span>
           <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
-            {showTokensOnly ? '—' : breakdown.other.credits.toLocaleString()}
+            {showTokensOnly
+              ? formatChartCompactNumber(breakdown.other.tokens)
+              : breakdown.other.credits.toLocaleString()}
           </span>
           {trailingSlot && (
             <span className={cn(trailingSlot, 'flex-shrink-0')} aria-hidden='true' />

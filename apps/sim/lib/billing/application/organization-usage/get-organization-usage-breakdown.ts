@@ -14,7 +14,7 @@ import {
   readUsageBreakdown,
   readUsageEntityNames,
 } from '@/lib/billing/core/usage-analytics-queries'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   BILLING_USAGE_LOG_SOURCE_LABELS,
   type InternalUsageLogSource,
@@ -46,7 +46,7 @@ export interface OrganizationUsageBreakdownRow {
 export interface OrganizationUsageBreakdownResult {
   dimension: UsageBreakdownDimension
   rows: OrganizationUsageBreakdownRow[]
-  other: { credits: number; events: number; rowCount: number }
+  other: { credits: number; events: number; rowCount: number; tokens: number }
   totalCredits: number
 }
 
@@ -142,20 +142,45 @@ export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUs
       return names.get(key) ?? key
     }
 
-    const fold = foldUsageBreakdown(rows, totalCost, labelFor, input.limit)
+    // BYOK is denominated in tokens and every row costs zero, so ranking it by cost
+    // would order the list alphabetically and call the result "top providers".
+    const fold = foldUsageBreakdown(
+      rows,
+      totalCost,
+      labelFor,
+      input.limit,
+      input.dimension === 'byok' ? 'tokens' : 'cost'
+    )
     const tokensByKey = new Map(
       rows.map((row) => [row.key ?? '', (row.inputTokens ?? 0) + (row.outputTokens ?? 0)])
     )
     const isModelDimension = input.dimension === 'model' || input.dimension === 'byok'
 
+    /**
+     * One apportionment across the visible rows and the remainder together.
+     *
+     * Converting each row independently rounds each one, so with sub-credit
+     * fractions the rows and `Other` no longer add up — which defeats the entire
+     * reason `Other` is rendered. Largest-remainder over the whole set is what
+     * `apportionCredits` is for, and it is the same routine the per-log credit
+     * costs use, so a row cannot read differently here than in the event list.
+     *
+     * Keyed positionally: a row id may be `''` for a null grouping key, and any
+     * id could otherwise collide with the remainder's own key.
+     */
+    const apportioned = apportionCredits([
+      ...fold.rows.map((row, index) => ({ key: `row:${index}` as const, dollars: row.cost })),
+      { key: 'other' as const, dollars: fold.other.cost },
+    ])
+
     return {
       dimension: input.dimension,
-      rows: fold.rows.map((row) => {
+      rows: fold.rows.map((row, index) => {
         const tokens = tokensByKey.get(row.id) ?? 0
         return {
           id: row.id,
           label: row.label,
-          credits: dollarsToCredits(row.cost),
+          credits: apportioned[`row:${index}`] ?? 0,
           events: row.events,
           share: row.share,
           ...(isModelDimension && tokens > 0 ? { tokens } : {}),
@@ -166,10 +191,21 @@ export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUs
         }
       }),
       other: {
-        credits: dollarsToCredits(fold.other.cost),
+        credits: apportioned.other ?? 0,
         events: fold.other.events,
         rowCount: fold.other.rowCount,
+        /**
+         * The omitted rows' tokens, so the BYOK tab still accounts for providers
+         * past the visible limit instead of hiding them behind an em dash.
+         */
+        tokens: fold.other.tokens,
       },
+      /**
+       * The scope total, which the rows need not sum to: the workflow dimension is
+       * explicitly the workflow-attributed subset of it. Where they do sum to it —
+       * every other dimension — the apportionment above lands on this exact figure,
+       * because it derives its target from the same dollar sum.
+       */
       totalCredits: dollarsToCredits(fold.totalCost),
     }
   },

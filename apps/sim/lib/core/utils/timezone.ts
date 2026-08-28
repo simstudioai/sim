@@ -1,3 +1,5 @@
+import { truncate } from '@sim/utils/string'
+
 /**
  * A curated fallback for runtimes without `Intl.supportedValuesOf` (e.g. Safari
  * < 15.4), so the timezone picker is never an empty dead-end.
@@ -37,7 +39,11 @@ export function assertValidTimezone(timezone: string): void {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: timezone })
   } catch {
-    throw new Error(`Invalid timezone: ${timezone}. Use an IANA name like "America/Los_Angeles".`)
+    // Echoed back trimmed and stripped of line breaks: the rejected value came off
+    // a query string, and a raw one carrying newlines or U+2028/U+2029 would forge
+    // extra lines in whatever log or error surface renders the message.
+    const safe = truncate(timezone.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' '), 64)
+    throw new Error(`Invalid timezone: ${safe}. Use an IANA name like "America/Los_Angeles".`)
   }
 }
 

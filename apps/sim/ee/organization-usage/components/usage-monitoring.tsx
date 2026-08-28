@@ -13,7 +13,10 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, Download } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
-import type { UsageBreakdownDimension } from '@/lib/api/contracts/organization-usage'
+import {
+  MAX_CUSTOM_RANGE_DAYS,
+  type UsageBreakdownDimension,
+} from '@/lib/api/contracts/organization-usage'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -40,6 +43,8 @@ import {
 } from '@/hooks/queries/organization-usage'
 
 const TABS = USAGE_TAB_ORDER.map((tab) => ({ value: tab, label: USAGE_TAB_LABELS[tab] }))
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * One labelled band per view. The unit lives here rather than on every row — ten rows
@@ -135,6 +140,19 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   }
 
   const handleDateRangeApply = (nextStart: string, nextEnd: string) => {
+    /**
+     * Refuse an over-long range here rather than committing it and letting all four
+     * reads fail. The server still enforces the cap — this is the same rule stated
+     * where the user can act on it, with the picker left open on the selection that
+     * needs changing.
+     */
+    const spanDays = Math.ceil(
+      (new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / DAY_MS
+    )
+    if (spanDays + 1 > MAX_CUSTOM_RANGE_DAYS) {
+      toast.error(`Select a range of ${MAX_CUSTOM_RANGE_DAYS} days or fewer`)
+      return
+    }
     void setState({ preset: 'custom', startDate: nextStart, endDate: nextEnd })
     setDatePickerOpen(false)
   }
@@ -284,10 +302,17 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
 
       {isOverview ? (
         <>
+          {/*
+            The allowance is a per-billing-period figure, so it is only comparable
+            to the current period's total. Against a rolling window or a custom
+            range it measures a different span than the limit covers — a 30-day
+            window spanning two periods could read "Over limit" while neither
+            period was — so those windows show the figure without an allowance.
+          */}
           <UsageSummary
             summary={summary.data}
             limitCredits={
-              billing.data?.data?.totalUsageLimit != null
+              preset === 'current-period' && billing.data?.data?.totalUsageLimit != null
                 ? dollarsToCredits(billing.data.data.totalUsageLimit)
                 : null
             }
