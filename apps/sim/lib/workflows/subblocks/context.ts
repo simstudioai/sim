@@ -1,62 +1,22 @@
-import { getBlock } from '@/blocks'
-import type { SubBlockConfig } from '@/blocks/types'
-import { isReference } from '@/executor/constants'
-import type { SelectorContext } from '@/hooks/selectors/types'
-import type { SubBlockState } from '@/stores/workflows/workflow/types'
+import {
+  buildSelectorRawContext,
+  getSelectorContextSubBlocks as getSharedSelectorContextSubBlocks,
+  SELECTOR_CONTEXT_FIELDS,
+} from '@/lib/selectors/context'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
   type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   resolveActiveCanonicalValue,
-} from './visibility'
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks'
+import type { SubBlockConfig } from '@/blocks/types'
+import { isReference } from '@/executor/constants'
+import type { SubBlockState } from '@/stores/workflows/workflow/types'
 
-/**
- * Canonical param IDs (or raw subblock IDs) that correspond to SelectorContext fields.
- * A subblock's resolved canonical key is set on the context only if it appears here.
- */
-export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
-  'oauthCredential',
-  'domain',
-  'teamId',
-  'projectId',
-  'knowledgeBaseId',
-  'planId',
-  'siteId',
-  'collectionId',
-  'spreadsheetId',
-  'driveId',
-  'fileId',
-  'baseId',
-  'datasetId',
-  'serviceDeskId',
-  'impersonateUserEmail',
-  'boardId',
-  'spaceId',
-  'listSpaceId',
-  'folderId',
-  'awsAccessKeyId',
-  'awsSecretAccessKey',
-  'awsRegion',
-  'logGroupName',
-  'tableId',
-  'jobId',
-  'orgId',
-  'database',
-  'schema',
-  'workspaceSlug',
-  'objectType',
-  'customObjectTypeId',
-  'pipelineId',
-  'environmentType',
-  'credentialGroupId',
-  'language',
-  'host',
-  'port',
-  'secure',
-  'username',
-  'password',
-])
+export { SELECTOR_CONTEXT_FIELDS }
 
 /**
  * Selects the block fields allowed to contribute to selector context for the active mode.
@@ -66,12 +26,7 @@ export function getSelectorContextSubBlocks(
   values: Record<string, unknown>,
   triggerMode?: boolean
 ): SubBlockConfig[] {
-  if (!triggerMode) return subBlocks
-  return subBlocks.filter(
-    (subBlock) =>
-      (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
-      evaluateSubBlockCondition(subBlock.condition, values)
-  )
+  return getSharedSelectorContextSubBlocks(subBlocks, values, triggerMode)
 }
 
 /**
@@ -90,74 +45,65 @@ export function buildSelectorContextFromBlock(
     workspaceId?: string
     canonicalModes?: CanonicalModeOverrides
     triggerMode?: boolean
+    selectorKey?: SelectorKey
+    dependsOn?: readonly string[]
+    staticContext?: Readonly<Record<string, unknown>>
   }
 ): SelectorContext {
-  const context: SelectorContext = {}
-  if (opts?.workflowId) context.workflowId = opts.workflowId
-  if (opts?.workspaceId) context.workspaceId = opts.workspaceId
+  if (!opts?.selectorKey) {
+    const context: SelectorContext & { workflowId?: string; workspaceId?: string } = {}
+    if (opts?.workflowId) context.workflowId = opts.workflowId
+    if (opts?.workspaceId) context.workspaceId = opts.workspaceId
 
-  const blockConfig = getBlock(blockType)
-  if (!blockConfig) return context
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig) return context
+    const values = buildSubBlockValues(subBlocks)
+    const configs = getSelectorContextSubBlocks(blockConfig.subBlocks, values, opts?.triggerMode)
+    const configById = new Map(configs.map((config) => [config.id, config]))
+    const canonicalIndex = buildCanonicalIndex(configs)
+    const resolvedGroups = new Set<string>()
 
-  const values = buildSubBlockValues(subBlocks)
-  const contextConfigs = getSelectorContextSubBlocks(
-    blockConfig.subBlocks,
-    values,
-    opts?.triggerMode
-  )
-  const canonicalIndex = buildCanonicalIndex(contextConfigs)
-  const contextSubBlockIds = opts?.triggerMode
-    ? new Set(contextConfigs.map((subBlock) => subBlock.id))
-    : undefined
-  const resolvedGroups = new Set<string>()
-
-  const setField = (key: string, value: unknown) => {
-    if (value === null || value === undefined) return
-    const strValue = typeof value === 'string' ? value : String(value)
-    if (!strValue) return
-    // A `<block.output>` reference only resolves at run time; handing the literal text to a
-    // selector would issue a request for a resource that cannot exist (mirrors useSelectorSetup).
-    if (isReference(strValue)) return
-    if (SELECTOR_CONTEXT_FIELDS.has(key as keyof SelectorContext)) {
-      context[key as keyof SelectorContext] = strValue
+    const setField = (field: string, value: unknown) => {
+      if (!SELECTOR_CONTEXT_FIELDS.has(field as keyof SelectorContext)) return
+      if (value === null || value === undefined) return
+      const normalized = typeof value === 'string' ? value : String(value)
+      if (!normalized || isReference(normalized)) return
+      context[field as keyof SelectorContext] = normalized
     }
-  }
 
-  for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-    if (contextSubBlockIds && !contextSubBlockIds.has(subBlockId)) continue
-    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
-    if (canonicalId) {
-      // A canonical group resolves to its ACTIVE member only (no last-write-wins between a
-      // basic/advanced pair when both hold values), honoring an explicit mode override.
-      if (resolvedGroups.has(canonicalId)) continue
-      resolvedGroups.add(canonicalId)
-      const group = canonicalIndex.groupsById[canonicalId]
-      setField(canonicalId, resolveActiveCanonicalValue(group, values, opts?.canonicalModes))
-      continue
-    }
-    setField(subBlockId, subBlock?.value)
-  }
-
-  // A credential field IS the oauth credential, whatever the block calls its subblock. Most
-  // blocks say so with `canonicalParamId: 'oauthCredential'`, but that id is also the block's
-  // serialized param name — so requiring it would mean renaming a shipped block's param just
-  // to make its pickers resolvable, which is not a rename any picker should be able to force.
-  // Reading it off the subblock TYPE keeps the two decisions independent.
-  //
-  // Only fills a gap: a block that does declare the canonical id has already set it above,
-  // including the basic/advanced active-member resolution this loop cannot express.
-  if (!context.oauthCredential && !resolvedGroups.has('oauthCredential')) {
     for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
-      if (contextConfigs.find((cfg) => cfg.id === subBlockId)?.type !== 'oauth-input') {
+      if (!configById.has(subBlockId)) continue
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
+      if (!canonicalId) {
+        setField(subBlockId, subBlock.value)
         continue
       }
-      const value = subBlock?.value
-      if (typeof value === 'string' && value) {
-        context.oauthCredential = value
-        break
-      }
+      if (resolvedGroups.has(canonicalId)) continue
+      resolvedGroups.add(canonicalId)
+      setField(
+        canonicalId,
+        resolveActiveCanonicalValue(
+          canonicalIndex.groupsById[canonicalId],
+          values,
+          opts?.canonicalModes
+        )
+      )
     }
+
+    if (!context.oauthCredential && !resolvedGroups.has('oauthCredential')) {
+      const credential = configs.find((config) => config.type === 'oauth-input')
+      if (credential) setField('oauthCredential', subBlocks[credential.id]?.value)
+    }
+    return context
   }
 
-  return context
+  return buildSelectorRawContext({
+    selectorKey: opts.selectorKey,
+    blockType,
+    subBlocks,
+    dependsOn: opts.dependsOn,
+    canonicalModes: opts.canonicalModes,
+    triggerMode: opts.triggerMode,
+    staticContext: opts.staticContext,
+  })
 }

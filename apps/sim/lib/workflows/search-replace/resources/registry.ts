@@ -4,10 +4,10 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
   WorkflowSearchResourceMeta,
+  WorkflowSearchSelectorContext,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 export type StructuredWorkflowSearchResourceKind = Exclude<
   WorkflowSearchMatchKind,
@@ -21,7 +21,7 @@ interface ResourceCodecParseParams {
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }
 
 export interface StructuredResourceReference {
@@ -69,7 +69,7 @@ function createResourceMeta({
   kind: StructuredWorkflowSearchResourceKind
   rawValue: string
   subBlockConfig: Pick<SubBlockConfig, 'serviceId' | 'selectorKey' | 'requiredScopes'>
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }): WorkflowSearchResourceMeta {
   const resource: WorkflowSearchResourceMeta = {
     kind,
@@ -409,7 +409,7 @@ export function parseWorkflowSearchSubBlockResources(
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >,
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 ): StructuredResourceReference[] {
   const definition = getWorkflowSearchSubBlockResourceDefinition(subBlockConfig)
   if (!definition || !subBlockConfig) return []

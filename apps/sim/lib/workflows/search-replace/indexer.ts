@@ -3,6 +3,8 @@ import { forEachSearchOccurrence, projectEscapedMarkdownForSearch } from '@sim/u
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
+import { buildSelectorContextFromValues } from '@/lib/selectors/context'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { COMPARISON_OPERATORS, LOGICAL_OPERATORS } from '@/lib/table/query-builder/constants'
 import {
   getSearchableJsonStringLeaves,
@@ -22,10 +24,10 @@ import type {
   WorkflowSearchBlockState,
   WorkflowSearchIndexerOptions,
   WorkflowSearchMatch,
+  WorkflowSearchSelectorContext,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
@@ -48,7 +50,6 @@ import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflow
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isReference } from '@/executor/constants'
-import type { SelectorContext } from '@/hooks/selectors/types'
 import {
   formatParameterLabel,
   getSubBlocksForToolInput,
@@ -690,7 +691,7 @@ export interface ResolvedToolInputParamConfig {
   value: unknown
   /** False when the codec had no registered tool definition and inferred only a generic shape. */
   authoritative: boolean
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
   dependentValuePaths?: WorkflowSearchValuePath[]
 }
 
@@ -782,6 +783,7 @@ export function getToolInputParamConfigs({
               ? buildSelectorContext({
                   subBlockConfig: config,
                   subBlockValues: values,
+                  contextConfigs: [config],
                   canonicalIndex: fallbackCanonicalIndex,
                   canonicalModes: scopedCanonicalModes,
                 })
@@ -837,6 +839,7 @@ export function getToolInputParamConfigs({
         ? buildSelectorContext({
             subBlockConfig: config,
             subBlockValues: values,
+            contextConfigs: allToolSubBlocks,
             canonicalIndex: toolCanonicalIndex,
             canonicalModes: scopedCanonicalModes,
           })
@@ -856,6 +859,7 @@ export function getToolInputParamConfigs({
             ? buildSelectorContext({
                 subBlockConfig: config,
                 subBlockValues: values,
+                contextConfigs: allToolSubBlocks,
                 canonicalIndex: toolCanonicalIndex,
                 canonicalModes: scopedCanonicalModes,
               })
@@ -869,6 +873,7 @@ export function getToolInputParamConfigs({
 function buildSelectorContext({
   subBlockConfig,
   subBlockValues,
+  contextConfigs,
   canonicalIndex,
   canonicalModes,
   workspaceId,
@@ -876,21 +881,40 @@ function buildSelectorContext({
 }: {
   subBlockConfig?: WorkflowSearchSubBlockConfig
   subBlockValues: Record<string, unknown>
+  contextConfigs: SubBlockConfig[]
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>
   canonicalModes?: CanonicalModeOverrides
   workspaceId?: string
   workflowId?: string
-}): SelectorContext {
-  const context: SelectorContext = {}
+}): WorkflowSearchSelectorContext {
+  const context: WorkflowSearchSelectorContext = {}
   if (workspaceId) context.workspaceId = workspaceId
   if (workflowId) {
     context.workflowId = workflowId
     context.excludeWorkflowId = workflowId
   }
 
-  if (subBlockConfig?.mimeType) context.mimeType = subBlockConfig.mimeType
-
   const { allDependsOnFields } = parseDependsOn(subBlockConfig?.dependsOn)
+
+  if (subBlockConfig?.selectorKey) {
+    const projected = buildSelectorContextFromValues({
+      selectorKey: subBlockConfig.selectorKey as SelectorKey,
+      contextConfigs,
+      values: subBlockValues,
+      dependsOn: allDependsOnFields,
+      canonicalIndex,
+      canonicalModes,
+      staticContext: { mimeType: subBlockConfig.mimeType },
+    })
+    return {
+      ...projected,
+      ...(context.excludeWorkflowId ? { excludeWorkflowId: context.excludeWorkflowId } : {}),
+      ...(context.workflowId ? { workflowId: context.workflowId } : {}),
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    }
+  }
+
+  if (subBlockConfig?.mimeType) context.mimeType = subBlockConfig.mimeType
 
   for (const subBlockId of allDependsOnFields) {
     const value = normalizeDependencyValue(
@@ -906,11 +930,8 @@ function buildSelectorContext({
       context.mcpServerId = stringValue
       continue
     }
-    if (SELECTOR_CONTEXT_FIELDS.has(canonicalKey as keyof SelectorContext)) {
-      context[canonicalKey as keyof SelectorContext] = stringValue
-    }
+    context[canonicalKey as keyof WorkflowSearchSelectorContext] = stringValue
   }
-
   return context
 }
 
@@ -918,6 +939,7 @@ function buildSearchSelectorContext({
   block,
   subBlockConfig,
   subBlockValues,
+  contextConfigs,
   canonicalIndex,
   workspaceId,
   workflowId,
@@ -925,13 +947,15 @@ function buildSearchSelectorContext({
   block: WorkflowSearchBlockState
   subBlockConfig?: WorkflowSearchSubBlockConfig
   subBlockValues: Record<string, unknown>
+  contextConfigs: SubBlockConfig[]
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>
   workspaceId?: string
   workflowId?: string
-}): SelectorContext {
+}): WorkflowSearchSelectorContext {
   return buildSelectorContext({
     subBlockConfig,
     subBlockValues,
+    contextConfigs,
     canonicalIndex,
     canonicalModes: getSearchCanonicalModes(block),
     workspaceId,
@@ -1556,6 +1580,7 @@ export function indexWorkflowSearchMatches(
               block,
               subBlockConfig,
               subBlockValues,
+              contextConfigs: subBlockConfigs,
               canonicalIndex,
               workspaceId,
               workflowId,

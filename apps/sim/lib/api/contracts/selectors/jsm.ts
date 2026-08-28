@@ -1,11 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import {
-  credentialWorkflowDomainBodySchema,
-  definePostSelector,
-  idNameSchema,
-} from '@/lib/api/contracts/selectors/shared'
-import type { ContractBody, ContractJsonResponse } from '@/lib/api/contracts/types'
+import { definePostSelector } from '@/lib/api/contracts/selectors/shared'
+import type { ContractBody } from '@/lib/api/contracts/types'
 
 const jsmBaseBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
@@ -51,10 +47,6 @@ const jsmBooleanFlagField = z
   .union([z.string(), z.boolean()])
   .transform((value) => String(value))
   .optional()
-
-export const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
-  serviceDeskId: z.string().min(1),
-})
 
 export const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
@@ -289,18 +281,6 @@ export const jsmDeleteObjectBodySchema = jsmAssetsBaseBodySchema.extend({
 export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   definePostSelector(path, body, z.unknown())
 
-export const jsmServiceDesksSelectorContract = definePostSelector(
-  '/api/tools/jsm/selector-servicedesks',
-  credentialWorkflowDomainBodySchema,
-  z.object({ serviceDesks: z.array(idNameSchema) })
-)
-
-export const jsmRequestTypesSelectorContract = definePostSelector(
-  '/api/tools/jsm/selector-requesttypes',
-  jsmRequestTypesBodySchema,
-  z.object({ requestTypes: z.array(idNameSchema) })
-)
-
 export const jsmServiceDesksContract = defineJsmToolContract(
   '/api/tools/jsm/servicedesks',
   jsmServiceDesksBodySchema
@@ -481,9 +461,3 @@ export type JsmFormAnswersBody = ContractBody<typeof jsmFormAnswersContract>
 export type JsmProjectFormTemplatesBody = ContractBody<typeof jsmProjectFormTemplatesContract>
 export type JsmProjectFormStructureBody = ContractBody<typeof jsmProjectFormStructureContract>
 export type JsmCopyFormsBody = ContractBody<typeof jsmCopyFormsContract>
-export type JsmServiceDesksSelectorResponse = ContractJsonResponse<
-  typeof jsmServiceDesksSelectorContract
->
-export type JsmRequestTypesSelectorResponse = ContractJsonResponse<
-  typeof jsmRequestTypesSelectorContract
->

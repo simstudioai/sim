@@ -1,0 +1,327 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { sleep } from '@sim/utils/helpers'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockExecuteSelectorRequest, mockLoggerWarn } = vi.hoisted(() => ({
+  mockExecuteSelectorRequest: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}))
+
+vi.mock('@/lib/selectors/client/execute-selector', () => ({
+  executeSelectorRequest: mockExecuteSelectorRequest,
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ warn: mockLoggerWarn }),
+}))
+
+import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
+
+interface HookHarness<T> {
+  getResult: () => T
+  queryClient: QueryClient
+  rerender: (nextHook?: () => T) => void
+  unmount: () => void
+}
+
+const mountedRoots = new Set<Root>()
+
+function renderHookWithClient<T>(
+  initialHook: () => T,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+): HookHarness<T> {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  mountedRoots.add(root)
+  let hook = initialHook
+  let result: T | undefined
+
+  function Probe() {
+    result = hook()
+    return null
+  }
+
+  const render = () => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <Probe />
+      </QueryClientProvider>
+    )
+  }
+
+  act(render)
+
+  return {
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    queryClient,
+    rerender: (nextHook) => {
+      if (nextHook) hook = nextHook
+      act(render)
+    },
+    unmount: () => {
+      if (!mountedRoots.delete(root)) return
+      act(() => root.unmount())
+      void queryClient.cancelQueries()
+      container.remove()
+    },
+  }
+}
+
+async function waitFor(assertion: () => void, timeout = 2_000) {
+  await act(async () => {
+    await vi.waitFor(assertion, { interval: 1, timeout })
+  })
+}
+
+function serializedKeys(queryClient: QueryClient): string {
+  return JSON.stringify(
+    queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey)
+  )
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  act(() => {
+    for (const root of mountedRoots) root.unmount()
+  })
+  mountedRoots.clear()
+  document.body.replaceChildren()
+})
+
+describe('generic selector queries', () => {
+  it('transports supported search and keeps context and request plaintext out of query keys', async () => {
+    const credentialReference = '{{SHARED_GOOGLE_CREDENTIAL}}'
+    const search = 'private search phrase'
+    mockExecuteSelectorRequest.mockResolvedValue({
+      kind: 'list',
+      items: [{ id: 'file-1', label: 'Quarterly report' }],
+    })
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('google.drive', {
+        context: {
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          oauthCredential: credentialReference,
+          mimeType: 'application/private-canary',
+        },
+        search,
+        surfaceId: 'canvas:block-1:file',
+      })
+    )
+
+    await waitFor(() =>
+      expect(hook.getResult().data).toEqual([{ id: 'file-1', label: 'Quarterly report' }])
+    )
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectorKey: 'google.drive',
+        scope: {
+          kind: 'workflow',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+        },
+        context: {
+          oauthCredential: credentialReference,
+          mimeType: 'application/private-canary',
+        },
+        request: { kind: 'list', search },
+        signal: expect.any(AbortSignal),
+      })
+    )
+    const keys = serializedKeys(hook.queryClient)
+    expect(keys).toContain('google.drive')
+    expect(keys).not.toContain(credentialReference)
+    expect(keys).not.toContain(search)
+    expect(keys).not.toContain('application/private-canary')
+  })
+
+  it('omits unsupported search without needlessly issuing another request when it changes', async () => {
+    mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items: [] })
+    let search = 'first private phrase'
+    const useHook = () =>
+      useSelectorOptions('gmail.labels', {
+        context: {
+          workspaceId: 'workspace-1',
+          oauthCredential: '{{GMAIL_CREDENTIAL}}',
+        },
+        search,
+        surfaceId: 'connector:gmail:label',
+      })
+    const hook = renderHookWithClient(useHook)
+
+    await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1))
+    expect(mockExecuteSelectorRequest.mock.calls[0][0].request).toEqual({ kind: 'list' })
+
+    search = 'second private phrase'
+    hook.rerender(useHook)
+    await act(async () => {
+      await sleep(5)
+    })
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1)
+    expect(serializedKeys(hook.queryClient)).not.toContain('private phrase')
+  })
+
+  it('uses distinct opaque revisions for dependency changes and later mounts', async () => {
+    mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items: [] })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    let credential = '{{FIRST_SHARED_CREDENTIAL}}'
+    const useHook = () =>
+      useSelectorOptions('gmail.labels', {
+        context: { workspaceId: 'workspace-1', oauthCredential: credential },
+        surfaceId: 'canvas:block-1:label',
+      })
+    const first = renderHookWithClient(useHook, queryClient)
+    await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(1))
+
+    credential = '{{SECOND_SHARED_CREDENTIAL}}'
+    first.rerender(useHook)
+    await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(2))
+    first.unmount()
+
+    const second = renderHookWithClient(useHook, queryClient)
+    await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(3))
+
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey)
+    const revisions = keys.filter((key) => key.at(-1) !== 'paged').map((key) => key.at(-1))
+    expect(new Set(revisions).size).toBe(3)
+    expect(serializedKeys(queryClient)).not.toContain('SHARED_CREDENTIAL')
+    second.unmount()
+  })
+
+  it('progressively drains paginated selectors without putting cursors in the base key', async () => {
+    mockExecuteSelectorRequest.mockImplementation(
+      async ({ request }: { request: { cursor?: string } }) =>
+        request.cursor
+          ? { kind: 'list', items: [{ id: 'repo-2', label: 'Second' }] }
+          : {
+              kind: 'list',
+              items: [{ id: 'repo-1', label: 'First' }],
+              nextCursor: 'private-provider-cursor',
+            }
+    )
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('bitbucket.workspaces', {
+        context: { workspaceId: 'workspace-1', oauthCredential: '{{BITBUCKET_CREDENTIAL}}' },
+        surfaceId: 'canvas:block-1:workspace',
+      })
+    )
+
+    await waitFor(() =>
+      expect(hook.getResult().data).toEqual([
+        { id: 'repo-1', label: 'First' },
+        { id: 'repo-2', label: 'Second' },
+      ])
+    )
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(2)
+    expect(mockExecuteSelectorRequest.mock.calls[1][0].request).toEqual({
+      kind: 'list',
+      cursor: 'private-provider-cursor',
+    })
+    expect(serializedKeys(hook.queryClient)).not.toContain('private-provider-cursor')
+    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: false })
+  })
+
+  it('stops automatic pagination at the 50-page safety cap', async () => {
+    mockExecuteSelectorRequest.mockImplementation(async () => ({
+      kind: 'list',
+      items: [{ id: 'workspace', label: 'Workspace' }],
+      nextCursor: `cursor-${mockExecuteSelectorRequest.mock.calls.length}`,
+    }))
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('bitbucket.workspaces', {
+        context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+        surfaceId: 'canvas:block-1:workspace',
+      })
+    )
+
+    await waitFor(() => expect(hook.getResult().truncated).toBe(true), 5_000)
+
+    expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(50)
+    expect(hook.getResult()).toMatchObject({ hasMore: false, truncated: true })
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Selector hit auto-drain cap; option list is truncated',
+      { selectorKey: 'bitbucket.workspaces', pages: 50 }
+    )
+  })
+
+  it('hydrates detail options while keeping the detail id and references out of its key', async () => {
+    const detailId = 'private-issue-id'
+    mockExecuteSelectorRequest.mockResolvedValue({
+      kind: 'detail',
+      item: { id: detailId, label: 'Issue label' },
+    })
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptionDetail('jira.issues', {
+        context: {
+          workflowId: 'workflow-1',
+          oauthCredential: '{{JIRA_CREDENTIAL}}',
+          domain: '{{JIRA_DOMAIN}}',
+        },
+        detailId,
+        surfaceId: 'canvas:block-1:issue',
+      })
+    )
+
+    await waitFor(() =>
+      expect(hook.getResult().data).toEqual({ id: detailId, label: 'Issue label' })
+    )
+
+    expect(mockExecuteSelectorRequest.mock.calls[0][0].request).toEqual({
+      kind: 'detail',
+      id: detailId,
+    })
+    const keys = serializedKeys(hook.queryClient)
+    expect(keys).not.toContain(detailId)
+    expect(keys).not.toContain('JIRA_CREDENTIAL')
+    expect(keys).not.toContain('JIRA_DOMAIN')
+  })
+
+  it('forwards React Query cancellation to selector execution', async () => {
+    let requestSignal: AbortSignal | undefined
+    mockExecuteSelectorRequest.mockImplementation(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          requestSignal = signal
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+
+    const hook = renderHookWithClient(() =>
+      useSelectorOptions('gmail.labels', {
+        context: { workspaceId: 'workspace-1', oauthCredential: 'credential-1' },
+        surfaceId: 'connector:gmail:label',
+      })
+    )
+    await waitFor(() => expect(requestSignal).toBeDefined())
+
+    hook.unmount()
+
+    expect(requestSignal?.aborted).toBe(true)
+  })
+})

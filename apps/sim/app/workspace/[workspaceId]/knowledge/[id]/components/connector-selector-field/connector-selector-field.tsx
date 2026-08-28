@@ -3,21 +3,22 @@
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
+import { useParams } from 'next/navigation'
+import { projectSelectorContext } from '@/lib/selectors/context'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField } from '@/connectors/types'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
   useSelectorOptionDetail,
   useSelectorOptionDetails,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
@@ -41,33 +42,33 @@ export function ConnectorSelectorField({
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
 
   const context = useMemo<SelectorContext>(() => {
-    const ctx: SelectorContext = {}
-    if (credentialId) ctx.oauthCredential = credentialId
-    if (field.mimeType) ctx.mimeType = field.mimeType
+    const candidate: Record<string, string> = {}
+    if (credentialId) candidate.oauthCredential = credentialId
+    if (field.mimeType) candidate.mimeType = field.mimeType
 
     const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = fieldsById.get(depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
       const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
-      if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
-        ctx[canonicalId as keyof SelectorContext] = depValue
-      }
+      if (depValue) candidate[canonicalId] = depValue
     }
 
-    return ctx
+    return projectSelectorContext(field.selectorKey, candidate)
   }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
-    const deps = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
-    return deps.every((depId) =>
+    const all = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
+    const any = Array.isArray(field.dependsOn) ? [] : (field.dependsOn.any ?? [])
+    const hasValue = (depId: string) =>
       Boolean(resolveDepValue(depId, configFields, canonicalModes, sourceConfig)?.trim())
-    )
+    return all.every(hasValue) && (any.length === 0 || any.some(hasValue))
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
@@ -80,14 +81,15 @@ export function ConnectorSelectorField({
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
+    scope: { kind: 'workspace', workspaceId },
     enabled: isEnabled,
+    surfaceId: `connector:${field.id}`,
   })
 
   /**
    * Label every selected value, including values restored from saved config that no
-   * in-session search would have resolved. Queries are keyed on `context`, so a label
-   * can never outlive the context that produced it, and they share keys with the
-   * speculative lookup below so an already-resolved id costs no extra request.
+   * in-session search would have resolved. Opaque revisions bind each label request to
+   * the active context without placing credential or dependency values in its query key.
    */
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
@@ -96,7 +98,9 @@ export function ConnectorSelectorField({
   )
   const selectedOptions = useSelectorOptionDetails(field.selectorKey, {
     context,
+    scope: { kind: 'workspace', workspaceId },
     detailIds: isEnabled ? selectedIds : [],
+    surfaceId: `connector:${field.id}`,
   })
 
   /**
@@ -107,12 +111,14 @@ export function ConnectorSelectorField({
    * implementations resolve a record by id, where a partial keystroke is a guaranteed
    * failed upstream request rather than an empty result.
    */
-  const resolvesUnknownIds = Boolean(getSelectorDefinition(field.selectorKey).resolvesUnknownIds)
+  const resolvesUnknownIds = getSelectorManifestEntry(field.selectorKey).resolvesUnknownIds
   const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
+    scope: { kind: 'workspace', workspaceId },
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
+    surfaceId: `connector:${field.id}`,
   })
 
   const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {

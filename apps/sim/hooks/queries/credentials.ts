@@ -30,6 +30,7 @@ import {
   requireWorkspaceCredentialListResponse,
   WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
 } from '@/hooks/queries/utils/fetch-workspace-credentials'
+import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
 /**
  * Key prefix for OAuth credential queries.
@@ -132,6 +133,7 @@ export function useCreateWorkspaceCredential() {
       queryClient.invalidateQueries({
         queryKey: OAUTH_CREDENTIALS_KEY,
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -222,6 +224,7 @@ export function useUpdateWorkspaceCredential() {
       queryClient.invalidateQueries({
         queryKey: OAUTH_CREDENTIALS_KEY,
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -239,6 +242,7 @@ export function useDeleteWorkspaceCredential() {
       queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
       queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -283,6 +287,7 @@ export function useUpsertWorkspaceCredentialMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -308,6 +313,7 @@ export function useRemoveWorkspaceCredentialMember() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }

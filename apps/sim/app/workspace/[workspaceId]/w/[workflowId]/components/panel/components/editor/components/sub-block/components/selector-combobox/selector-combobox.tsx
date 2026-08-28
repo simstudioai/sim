@@ -2,6 +2,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox as EditableCombobox } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
@@ -9,19 +10,19 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
+  type SelectorClientContext,
   useSelectorOptionDetail,
   useSelectorOptionMap,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface SelectorComboboxProps {
   blockId: string
   subBlock: SubBlockConfig
   selectorKey: SelectorKey
-  selectorContext: SelectorContext
+  selectorContext: SelectorClientContext
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
@@ -77,6 +78,7 @@ export function SelectorCombobox({
   const trimmedSearch = searchTerm.trim()
   const debouncedSearch = useDebounce(trimmedSearch, SEARCH_DEBOUNCE_MS)
   const activeSearch = trimmedSearch === '' ? '' : debouncedSearch
+  const surfaceId = `${blockId}:${subBlock.id}`
   const {
     data: options = [],
     isLoading,
@@ -85,10 +87,14 @@ export function SelectorCombobox({
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
     search: allowSearch ? activeSearch : undefined,
+    enabled: !disabled,
+    surfaceId,
   })
   const { data: detailOption } = useSelectorOptionDetail(selectorKey, {
     context: selectorContext,
     detailId: activeValue,
+    enabled: !disabled,
+    surfaceId,
   })
   const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
   const hasMissingOption =

@@ -88,7 +88,7 @@ function main(): void {
     [
       '',
       'Each needs one of:',
-      "  - selectorKey: '<key>'   register the list in hooks/selectors/ (the usual answer for a picker)",
+      "  - selectorKey: '<key>'   register the key in the selector manifest and server attachment (the usual answer for a picker)",
       '  - a canonical pair whose basic member is a selector (the manual member is verbatim)',
       '  - type short-input / long-input, which the sync modal renders as a text field',
       '  - a preserved name-based type in PRESERVED_NAME_BASED_DEPENDENT_TYPES',

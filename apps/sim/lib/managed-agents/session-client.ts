@@ -531,6 +531,7 @@ async function listPaginated<T>(
     const resp = await fetch(url.toString(), {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
+      redirect: 'error',
       signal: input.signal,
     })
     if (!resp.ok) {

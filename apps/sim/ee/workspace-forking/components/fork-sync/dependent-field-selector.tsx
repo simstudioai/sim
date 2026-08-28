@@ -2,14 +2,17 @@
 
 import { useMemo } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
 import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
-import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { useSelectorOptions } from '@/hooks/queries/selectors'
 
 interface DependentFieldSelectorProps {
   selectorKey: SelectorKey
   /** Full selector context, including the newly-chosen parent value. */
   context: Record<string, string>
+  /** Workspace whose parent resource the selector browses. */
+  workspaceId: string
   /** False until the parent (credential/KB) target is chosen. */
   enabled: boolean
   value: string
@@ -26,6 +29,7 @@ interface DependentFieldSelectorProps {
 export function DependentFieldSelector({
   selectorKey,
   context,
+  workspaceId,
   enabled,
   value,
   onChange,
@@ -39,7 +43,9 @@ export function DependentFieldSelector({
 
   const { data: options = [], isLoading } = useSelectorOptions(selectorKey, {
     context: selectorContext,
+    scope: { kind: 'workspace', workspaceId },
     enabled,
+    surfaceId: `fork:${title}`,
   })
 
   const comboboxOptions = useMemo<ComboboxOption[]>(

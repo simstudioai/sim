@@ -24,6 +24,7 @@ import {
   credentialGroupKeys,
   fetchCredentialGroupList,
 } from '@/hooks/queries/utils/credential-group-queries'
+import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 
 export function useCredentialGroups(workspaceId?: string) {
   return useQuery({
@@ -119,10 +120,13 @@ export function useUpdateCredentialGroupAccess() {
       })
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
-        exact: true,
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
+          exact: true,
+        }),
+        queryClient.invalidateQueries({ queryKey: selectorKeys.all }),
+      ]),
   })
 }
 
@@ -138,6 +142,7 @@ export function useCreateCredentialGroup() {
     }) => requestJson(createCredentialGroupContract, { params: { id: workspaceId }, body }),
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -154,6 +159,7 @@ export function useDeleteCredentialGroup() {
       queryClient.removeQueries({
         queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -185,6 +191,7 @@ export function useUpdateCredentialGroup() {
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
         }),
+        queryClient.invalidateQueries({ queryKey: selectorKeys.all }),
       ]),
   })
 }
@@ -227,6 +234,7 @@ export function useInviteCredentialGroupEnrollments() {
       queryClient.invalidateQueries({
         queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -250,6 +258,7 @@ export function useResendCredentialGroupEnrollment() {
       queryClient.invalidateQueries({
         queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }
@@ -273,6 +282,7 @@ export function useDeleteCredentialGroupEnrollment() {
       queryClient.invalidateQueries({
         queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
       })
+      queryClient.invalidateQueries({ queryKey: selectorKeys.all })
     },
   })
 }

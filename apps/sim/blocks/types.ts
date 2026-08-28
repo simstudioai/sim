@@ -5,7 +5,7 @@ import type {
   PrimitiveValueType,
   SubBlockType,
 } from '@sim/workflow-types/blocks'
-import type { SelectorKey } from '@/hooks/selectors/types'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ToolResponse } from '@/tools/types'
 
 export type { OutputCondition, OutputFieldDefinition, PrimitiveValueType, SubBlockType }

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
+import type { SelectorClientContext } from '@/hooks/queries/selectors'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface WorkflowSelectorInputProps {
@@ -26,7 +26,7 @@ export function WorkflowSelectorInput({
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
-  const context: SelectorContext = useMemo(
+  const context: SelectorClientContext = useMemo(
     () => ({
       workspaceId,
       excludeWorkflowId: activeWorkflowId ?? undefined,

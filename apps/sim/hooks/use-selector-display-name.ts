@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
-import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import {
+  type SelectorClientContext,
   useSelectorOptionDetail,
   useSelectorOptionMap,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 
 interface SelectorDisplayNameArgs {
   subBlock?: SubBlockConfig
@@ -66,8 +66,8 @@ export function useSelectorDisplayName({
   const hasSelection = selectedIds.length > 0
 
   const resolution = useMemo(() => {
-    if (!subBlock || !hasSelection) return null
-    return resolveSelectorForSubBlock(subBlock, {
+    if (!subBlock?.selectorKey || !hasSelection) return null
+    const context: SelectorClientContext = {
       workflowId,
       oauthCredential,
       domain,
@@ -82,7 +82,9 @@ export function useSelectorDisplayName({
       collectionId,
       spreadsheetId,
       fileId,
-    })
+      mimeType: subBlock.mimeType,
+    }
+    return { key: subBlock.selectorKey, context }
   }, [
     subBlock,
     hasSelection,

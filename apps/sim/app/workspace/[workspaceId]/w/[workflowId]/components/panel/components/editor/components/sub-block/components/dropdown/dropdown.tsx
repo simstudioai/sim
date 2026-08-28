@@ -6,6 +6,7 @@ import {
   NO_DENIED_OPERATIONS,
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -16,7 +17,6 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -166,6 +166,7 @@ export const Dropdown = memo(function Dropdown({
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
+    subBlockId,
     dependsOnFields,
     selectorKey,
     selectorExcludeSelf,

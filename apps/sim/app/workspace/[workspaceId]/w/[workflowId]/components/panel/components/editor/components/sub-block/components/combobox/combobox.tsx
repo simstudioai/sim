@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
@@ -14,7 +15,6 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -148,6 +148,7 @@ export const ComboBox = memo(function ComboBox({
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
+    subBlockId,
     dependsOnFields,
     selectorKey,
     selectorExcludeSelf,

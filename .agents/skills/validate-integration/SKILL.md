@@ -38,6 +38,10 @@ packages/deployment-config/src/service-account-providers.generated.ts # Generate
 packages/deployment-config/src/service-account-metadata.ts # Handwritten deployment policy
 ```
 
+If the block or its triggers use a `selectorKey`, also apply the `validate-selector` skill and read
+the key's entry in `apps/sim/lib/selectors/manifest.ts`, its server attachment and provider listing
+primitive, and the shared context builder. There is no client provider selector registry.
+
 ## Step 2: Pull API Documentation
 
 Fetch the official API docs for the service. This is the **source of truth** for:
@@ -278,6 +282,22 @@ For **each tool** in `tools.access`:
 - [ ] Input types match the subBlock types
 - [ ] When using `canonicalParamId`, inputs list the canonical ID (not the raw subBlock IDs)
 
+### Dynamic Selectors
+
+- [ ] Every remote `selectorKey` is classified in the browser-safe manifest and has exactly one
+      server attachment
+- [ ] The manifest allowlists the minimal active `dependsOn` context and matches list/search/detail,
+      pagination, scope, and stale-time behavior
+- [ ] Canonical basic/advanced and trigger/action modes project only their active values; exact
+      `{{KEY}}` references remain unresolved in the browser
+- [ ] Stored credentials are bound to the actor, workspace, and trusted provider/service
+- [ ] Each attachment declares and enforces a `fixed`, `credential-bound`, or explicitly reviewed
+      `user-controlled` destination policy
+- [ ] Provider results are explicitly projected to safe option fields; secrets, tokens, credential
+      IDs, context values, and raw upstream errors do not enter responses, logs, or query keys
+- [ ] No selector provider module, provider fetch, or OAuth-token request runs in the browser, and no
+      selector-only provider route remains
+
 ## Step 5: Validate OAuth Scopes (if OAuth service)
 
 Scopes are centralized — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
@@ -358,6 +378,9 @@ Group findings by severity:
   legacy headerless/`NULL` data
 - A tool substitutes secret plaintext into source, leaks private metadata, or generically sanitizes
   unrelated third-party results
+- A selector resolves shared secret plaintext in the browser, lacks credential provider binding or
+  destination enforcement, or returns provider payloads or protected values across the selector
+  boundary
 
 **Warning** (follows conventions incorrectly or has usability issues):
 - Optional field not set to `mode: 'advanced'`
@@ -452,6 +475,8 @@ After fixing, confirm:
 - [ ] Confirmed legacy persisted data keeps working and tracked invalid provenance fails closed
 - [ ] Confirmed ordinary third-party results remain unchanged absent activated Sim provenance
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
+- [ ] Validated every dynamic selector through the shared manifest, server attachment, and
+      `selectors.execute` boundary
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes

@@ -5,7 +5,7 @@ import { cloudwatchLogStreamsSelectorContract } from '@/lib/api/contracts/select
 import { parseToolRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createCloudWatchLogsClient, describeLogStreams } from '@/app/api/tools/cloudwatch/utils'
+import { listCloudWatchLogStreams } from '@/tools/cloudwatch/listing'
 
 const logger = createLogger('CloudWatchDescribeLogStreams')
 
@@ -25,27 +25,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`Describing log streams for group: ${validatedData.logGroupName}`)
 
-    const client = createCloudWatchLogsClient({
-      region: validatedData.region,
-      accessKeyId: validatedData.accessKeyId,
-      secretAccessKey: validatedData.secretAccessKey,
+    const logStreams = await listCloudWatchLogStreams({
+      credentials: {
+        region: validatedData.region,
+        accessKeyId: validatedData.accessKeyId,
+        secretAccessKey: validatedData.secretAccessKey,
+      },
+      logGroupName: validatedData.logGroupName,
+      prefix: validatedData.prefix,
+      limit: validatedData.limit,
+      signal: request.signal,
     })
 
-    try {
-      const result = await describeLogStreams(client, validatedData.logGroupName, {
-        prefix: validatedData.prefix,
-        limit: validatedData.limit,
-      })
-
-      logger.info(`Successfully described ${result.logStreams.length} log streams`)
-
-      return NextResponse.json({
-        success: true,
-        output: { logStreams: result.logStreams },
-      })
-    } finally {
-      client.destroy()
-    }
+    logger.info(`Successfully described ${logStreams.length} log streams`)
+    return NextResponse.json({ success: true, output: { logStreams } })
   } catch (error) {
     logger.error('DescribeLogStreams failed', { error: toError(error).message })
     return NextResponse.json(

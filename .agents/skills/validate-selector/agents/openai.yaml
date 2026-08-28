@@ -1,0 +1,5 @@
+interface:
+  display_name: "Validate Selector"
+  short_description: "Audit a dynamic selector boundary"
+  brand_color: "#B45309"
+  default_prompt: "Use $validate-selector to audit a Sim dynamic selector for correctness and secure server-side execution."

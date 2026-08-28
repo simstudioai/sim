@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
@@ -247,12 +246,11 @@ export async function getPersonalAndWorkspaceEnv(
         try {
           const { decrypted } = await decryptSecret(v)
           return [k, decrypted] as const
-        } catch (error) {
-          logger.error(`Failed to decrypt ${source} environment variable "${k}"`, {
+        } catch {
+          logger.error('Failed to decrypt environment variable', {
             userId,
             workspaceId,
             source,
-            error: getErrorMessage(error, 'Unknown error'),
           })
           decryptionFailures.push(k)
           return [k, ''] as const
@@ -273,7 +271,6 @@ export async function getPersonalAndWorkspaceEnv(
     logger.warn('Some environment variables failed to decrypt', {
       userId,
       workspaceId,
-      failedKeys: decryptionFailures,
       failedCount: decryptionFailures.length,
     })
   }

@@ -1,0 +1,185 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import type { ServerSelectorKey } from '@/lib/selectors/manifest'
+import {
+  SelectorConnectionUnavailableError,
+  SelectorContextUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
+import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
+import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import type {
+  ExecuteServerSelectorArgs,
+  ServerSelectorAttachmentMap,
+} from '@/lib/selectors/server/types'
+import type { SafeSelectorOption } from '@/lib/selectors/types'
+import { assertZohoUrl, extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
+import { buildZohoDeskHeaders, getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
+
+type ZohoDeskSelectorKey = Extract<
+  ServerSelectorKey,
+  'zoho_desk.organizations' | 'zoho_desk.departments' | 'zoho_desk.agents'
+>
+
+const credential = {
+  kind: 'stored',
+  field: 'oauthCredential',
+  serviceIds: ['zoho-desk'],
+} as const
+
+async function readOAuthApiDomain(credentialId: string): Promise<string | undefined> {
+  try {
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (!resolved?.accountId) return undefined
+    const [row] = await db
+      .select({ scope: account.scope })
+      .from(account)
+      .where(eq(account.id, resolved.accountId))
+      .limit(1)
+    return extractZohoDeskBaseFromScope(row?.scope)
+  } catch {
+    return undefined
+  }
+}
+
+async function resolveZohoCredential(args: ExecuteServerSelectorArgs) {
+  if (!args.credential) throw new SelectorConnectionUnavailableError()
+  const bundle = await resolveSelectorCredentialBundle({
+    credential: args.credential,
+    protectedValues: args.protectedValues,
+  })
+  const apiDomain = bundle.apiDomain ?? (await readOAuthApiDomain(args.credential.suppliedId))
+  args.protectedValues.add(apiDomain)
+  const apiBase = getZohoDeskApiBase({ apiDomain })
+  return { accessToken: bundle.accessToken, apiBase }
+}
+
+async function fetchZoho(
+  args: ExecuteServerSelectorArgs,
+  url: URL,
+  headers: Record<string, string>
+): Promise<{ status: number; data: unknown[] }> {
+  let response
+  try {
+    response = await secureFetchWithValidation(url.toString(), {
+      method: 'GET',
+      headers,
+      timeout: 15_000,
+      maxResponseBytes: 2 * 1024 * 1024,
+      stripAuthOnRedirect: true,
+      signal: args.signal,
+    })
+  } catch {
+    throw new SelectorOptionsUnavailableError()
+  }
+  if (response.status === 204) return { status: 204, data: [] }
+  const body = await response
+    .json()
+    .then((value) =>
+      value && typeof value === 'object' ? (value as { data?: unknown }) : undefined
+    )
+    .catch(() => undefined)
+  if (!response.ok) throw new SelectorOptionsUnavailableError()
+  return { status: response.status, data: Array.isArray(body?.data) ? body.data : [] }
+}
+
+async function listOrganizations(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+  const { accessToken, apiBase } = await resolveZohoCredential(args)
+  let url: URL
+  try {
+    url = assertZohoUrl(`${apiBase}/organizations`)
+  } catch {
+    throw new SelectorConnectionUnavailableError()
+  }
+  const { data } = await fetchZoho(args, url, {
+    Authorization: `Zoho-oauthtoken ${accessToken}`,
+    'Content-Type': 'application/json',
+  })
+  return data.flatMap((value) => {
+    if (!value || typeof value !== 'object') return []
+    const organization = value as {
+      id?: string | number
+      companyName?: string
+      portalName?: string
+    }
+    if (organization.id === undefined || organization.id === null) return []
+    const id = String(organization.id)
+    return [{ id, label: organization.companyName || organization.portalName || id }]
+  })
+}
+
+async function listOrgResources(
+  args: ExecuteServerSelectorArgs,
+  kind: 'departments' | 'agents'
+): Promise<SafeSelectorOption[]> {
+  const orgId = args.context.orgId
+  if (!orgId) throw new SelectorContextUnavailableError()
+  const { accessToken, apiBase } = await resolveZohoCredential(args)
+  const headers = buildZohoDeskHeaders({ accessToken, orgId })
+  const items: SafeSelectorOption[] = []
+  const seen = new Set<string>()
+
+  for (let page = 0; page < 20; page++) {
+    let url: URL
+    try {
+      url = assertZohoUrl(`${apiBase}/${kind}`)
+    } catch {
+      throw new SelectorConnectionUnavailableError()
+    }
+    url.searchParams.set('from', String(page * 200))
+    url.searchParams.set('limit', '200')
+    if (kind === 'agents') url.searchParams.set('status', 'ACTIVE')
+    const result = await fetchZoho(args, url, headers)
+    if (result.status === 204) break
+
+    for (const value of result.data) {
+      if (!value || typeof value !== 'object') continue
+      const record = value as Record<string, unknown>
+      if (record.id === undefined || record.id === null) continue
+      const id = String(record.id)
+      if (seen.has(id)) continue
+      seen.add(id)
+      let label: string
+      if (kind === 'departments') {
+        label =
+          (typeof record.name === 'string' && record.name) ||
+          (typeof record.nameInCustomerPortal === 'string' && record.nameInCustomerPortal) ||
+          id
+      } else {
+        const name = typeof record.name === 'string' ? record.name.trim() : ''
+        const fullName = [record.firstName, record.lastName]
+          .filter((part): part is string => typeof part === 'string' && Boolean(part.trim()))
+          .map((part) => part.trim())
+          .join(' ')
+        label =
+          name || fullName || (typeof record.emailId === 'string' && record.emailId.trim()) || id
+      }
+      items.push({ id, label })
+    }
+    if (result.data.length < 200) break
+  }
+  return items
+}
+
+export const zohoDeskSelectorAttachments = {
+  'zoho_desk.organizations': {
+    credential,
+    destination: 'credential-bound',
+    execute: async (args) => flatSelectorResult(args.request, await listOrganizations(args)),
+  },
+  'zoho_desk.departments': {
+    credential,
+    destination: 'credential-bound',
+    execute: async (args) =>
+      flatSelectorResult(args.request, await listOrgResources(args, 'departments')),
+  },
+  'zoho_desk.agents': {
+    credential,
+    destination: 'credential-bound',
+    execute: async (args) =>
+      flatSelectorResult(args.request, await listOrgResources(args, 'agents')),
+  },
+} satisfies ServerSelectorAttachmentMap<ZohoDeskSelectorKey>

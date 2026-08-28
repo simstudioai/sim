@@ -1,30 +1,8 @@
 import { z } from 'zod'
-import {
-  credentialWorkflowDomainBodySchema,
-  definePostSelector,
-  fileOptionSchema,
-  optionalString,
-} from '@/lib/api/contracts/selectors/shared'
+import { definePostSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
-
-const confluenceSpaceSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    key: z.string(),
-    status: z.string().optional(),
-  })
-  .passthrough()
-
-export const confluencePagesBodySchema = z.object({
-  domain: z.string().min(1, 'Domain is required'),
-  accessToken: z.string().min(1, 'Access token is required'),
-  cloudId: optionalString,
-  title: optionalString,
-  limit: z.number().int().positive().optional().default(50),
-})
 
 /**
  * Refines a `pageId` field to match Confluence's alphanumeric format
@@ -364,35 +342,6 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
-export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
-  cursor: optionalString,
-  /**
-   * Exact space key to resolve server-side, bypassing pagination. Confluence v2
-   * `/spaces` supports a `keys` filter, so a known key resolves in one request
-   * instead of depending on how far the background page drain has progressed.
-   */
-  spaceKey: z
-    .string()
-    .min(1, 'spaceKey cannot be empty')
-    .max(255, 'spaceKey must be 255 characters or fewer')
-    .optional(),
-})
-
-export const confluenceSpacesSelectorContract = definePostSelector(
-  '/api/tools/confluence/selector-spaces',
-  confluenceSpacesSelectorBodySchema,
-  z.object({
-    spaces: z.array(confluenceSpaceSchema),
-    nextCursor: optionalString,
-  })
-)
-
-export const confluencePagesSelectorContract = definePostSelector(
-  '/api/tools/confluence/pages',
-  confluencePagesBodySchema,
-  z.object({ files: z.array(fileOptionSchema) })
-)
-
 export const confluencePageSelectorContract = definePostSelector(
   '/api/tools/confluence/page',
   confluencePageBodySchema,
@@ -560,7 +509,6 @@ export const confluenceUserContract = defineConfluencePostContract(
   confluenceUserBodySchema
 )
 
-export type ConfluencePagesBody = ContractBody<typeof confluencePagesSelectorContract>
 export type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
 export type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
 export type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
@@ -612,12 +560,6 @@ export type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpace
 export type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
 export type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
 export type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
-export type ConfluenceSpacesSelectorResponse = ContractJsonResponse<
-  typeof confluenceSpacesSelectorContract
->
-export type ConfluencePagesSelectorResponse = ContractJsonResponse<
-  typeof confluencePagesSelectorContract
->
 export type ConfluencePageSelectorResponse = ContractJsonResponse<
   typeof confluencePageSelectorContract
 >
