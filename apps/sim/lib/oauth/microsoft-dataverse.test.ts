@@ -10,6 +10,7 @@ import {
   classifyMicrosoftDataverseCredentialEnvironment,
   extractMicrosoftDataverseEnvironmentUrl,
   getBoundMicrosoftDataverseEnvironment,
+  getMicrosoftDataverseIdentityScopes,
   getMicrosoftDataverseOAuthScopes,
   getMicrosoftDataverseRequiredScope,
   normalizeMicrosoftDataverseEnvironmentUrl,
@@ -65,6 +66,15 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
       'profile',
       'email',
       'https://contoso.api.crm4.dynamics.com/.default',
+      'offline_access',
+    ])
+  })
+
+  it('derives identity permissions from the canonical service grant', () => {
+    expect(getMicrosoftDataverseIdentityScopes(LEGACY_DATAVERSE_SCOPES)).toEqual([
+      'openid',
+      'profile',
+      'email',
       'offline_access',
     ])
   })
@@ -126,7 +136,7 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
         undefined,
         LEGACY_DATAVERSE_SCOPES
       )
-    ).not.toThrow()
+    ).toThrow('exact legacy scopes')
     expect(() =>
       assertMicrosoftDataverseOAuthLinkRequest(
         'https://sim.test/workspace',
@@ -283,6 +293,19 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     ).toThrow('multiple environment scopes')
   })
 
+  it('rejects a malformed internal environment marker instead of treating it as legacy', () => {
+    const malformedMarker = '__sim_dataverse_instance__:https://evil.example'
+    expect(() => extractMicrosoftDataverseEnvironmentUrl([malformedMarker])).toThrow(
+      'invalid environment scope'
+    )
+    expect(
+      classifyMicrosoftDataverseCredentialEnvironment(
+        [malformedMarker],
+        'https://dev.crm.dynamics.com'
+      )
+    ).toBe('invalid')
+  })
+
   it('classifies matching, legacy, different, and ambiguous stored grants', () => {
     const requested = 'https://dev.crm.dynamics.com'
     expect(
@@ -329,6 +352,14 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     expect(dev.id.replace(UUID_SUFFIX_RE, '')).not.toBe(prod.id.replace(UUID_SUFFIX_RE, ''))
     expect(dev.id).toContain(':dev.api.crm.dynamics.com-')
     expect(prod.id).toContain(':prod.api.crm.dynamics.com-')
+  })
+
+  it('fails closed when the generated account ID invariant is missing', () => {
+    expect(() =>
+      bindMicrosoftDataverseEnvironmentToUserInfo({ id: 'entra-user-id' }, [
+        getMicrosoftDataverseRequiredScope('https://dev.crm.dynamics.com'),
+      ])
+    ).toThrow('user ID is missing its generated suffix')
   })
 
   it('rejects callback tokens without an environment audience', () => {

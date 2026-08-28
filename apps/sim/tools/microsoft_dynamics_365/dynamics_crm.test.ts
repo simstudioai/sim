@@ -118,6 +118,23 @@ describe('Microsoft Dataverse Dynamics CRM shared safety', () => {
   })
 
   it.each([
+    microsoftDynamics365ListRecordsTool,
+    microsoftDynamics365GetRecordTool,
+    microsoftDynamics365CreateRecordTool,
+    microsoftDynamics365UpdateRecordTool,
+    microsoftDynamics365SearchRecordsTool,
+    microsoftDynamics365QualifyLeadTool,
+    microsoftDynamics365CloseOpportunityTool,
+    microsoftDynamics365CloseCaseTool,
+  ])('$id accepts instanceUrl only from credential resolution', (tool) => {
+    expect(tool.oauth).toEqual({
+      required: true,
+      provider: 'microsoft-dataverse',
+      authoritativeParams: ['instanceUrl'],
+    })
+  })
+
+  it.each([
     ['https://contoso.crm.dynamics.com/', 'https://contoso.api.crm.dynamics.com'],
     ['https://contoso.crm4.dynamics.com', 'https://contoso.api.crm4.dynamics.com'],
     ['https://contoso.api.crm4.dynamics.com', 'https://contoso.api.crm4.dynamics.com'],
@@ -874,6 +891,14 @@ describe('microsoft_dynamics_365_qualify_lead', () => {
       ).rejects.toThrow(/Invalid Dataverse QualifyLead response/)
     }
   )
+
+  it('rejects an undocumented successful QualifyLead status', async () => {
+    await expect(
+      microsoftDynamics365QualifyLeadTool.transformResponse!(
+        Response.json({ value: [] }, { status: 201 })
+      )
+    ).rejects.toThrow('expected HTTP 200, received 201')
+  })
 
   it('surfaces bounded JSON and text errors', async () => {
     await expect(

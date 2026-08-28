@@ -70,7 +70,12 @@ afterAll(resetEnvMock)
 import { GoogleIcon, GoogleVaultIcon } from '@/components/icons'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { getSlackApprovalGatedScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import {
+  getPerRequestOAuthLinkScopes,
+  getSlackApprovalGatedScopes,
+  OAUTH_PROVIDERS,
+  refreshOAuthToken,
+} from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
 /**
@@ -136,6 +141,21 @@ describe('Atlassian OAuth connectors', () => {
       )
     }
   )
+})
+
+describe('Microsoft Dataverse OAuth connector', () => {
+  it('keeps static connector scopes empty and supplies the canonical legacy grant per request', () => {
+    const connector = buildConnectorProviders().find(
+      (candidate) => candidate.providerId === 'microsoft-dataverse'
+    )
+    if (!connector) throw new Error('Microsoft Dataverse OAuth connector is not configured')
+
+    expect(connector.scopes).toEqual([])
+    expect(getPerRequestOAuthLinkScopes('microsoft-dataverse')).toEqual(
+      OAUTH_PROVIDERS.microsoft.services['microsoft-dataverse'].scopes
+    )
+    expect(getPerRequestOAuthLinkScopes('microsoft-excel')).toBeUndefined()
+  })
 })
 
 function getBitbucketConnector() {

@@ -4,12 +4,11 @@ import { useState } from 'react'
 import { ChipModalField } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
+  getMicrosoftDataverseIdentityScopes,
   getMicrosoftDataverseOAuthScopes,
   MICROSOFT_DATAVERSE_PROVIDER_ID,
   normalizeMicrosoftDataverseEnvironmentUrl,
 } from '@/lib/oauth/microsoft-dataverse'
-
-const DYNAMICS_IDENTITY_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
 
 interface UseMicrosoftDataverseEnvironmentFormProps {
   fallbackScopes: readonly string[]
@@ -71,7 +70,7 @@ export function useMicrosoftDataverseEnvironmentForm({
 
   const effectiveScopes = (() => {
     if (!enabled) return fallbackScopes
-    if (!value.trim()) return DYNAMICS_IDENTITY_SCOPES
+    if (!value.trim()) return getMicrosoftDataverseIdentityScopes(fallbackScopes)
     try {
       return getMicrosoftDataverseOAuthScopes(value)
     } catch {

@@ -798,7 +798,11 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
       tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      scopes: getCanonicalScopesForProvider('microsoft-dataverse'),
+      /**
+       * Better Auth appends connector scopes to link-request scopes. Dataverse audiences are
+       * request-specific, so every allowed link supplies its exact grant and this base stays empty.
+       */
+      scopes: [],
       responseType: 'code',
       accessType: 'offline',
       authentication: 'basic',

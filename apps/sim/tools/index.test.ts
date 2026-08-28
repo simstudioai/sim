@@ -2916,15 +2916,19 @@ describe('Internal Route Trust', () => {
     }
   })
 
-  it('accepts instanceUrl only from credential resolution for Dynamics CRM tools', async () => {
+  it('accepts an authoritative instanceUrl only from credential resolution', async () => {
     const environmentUrl = 'https://contoso.crm.dynamics.com'
     const otherEnvironmentUrl = 'https://other.crm.dynamics.com'
-    const createAuthorityTool = (id: string) => ({
+    const createAuthorityTool = (id: string, authoritative: boolean) => ({
       id,
       name: 'Credential Origin Authority Test',
       description: 'Verifies credential-derived provider origins',
       version: '1.0.0',
-      oauth: { required: true, provider: 'microsoft-dataverse' },
+      oauth: {
+        required: true,
+        provider: 'microsoft-dataverse',
+        ...(authoritative && { authoritativeParams: ['instanceUrl'] }),
+      },
       params: {
         accessToken: { type: 'string', required: true, visibility: 'hidden' },
         instanceUrl: { type: 'string', required: true, visibility: 'hidden' },
@@ -2945,10 +2949,13 @@ describe('Internal Route Trust', () => {
       },
       transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
     })
-    const dynamicsToolId = 'microsoft_dynamics_365_test_origin_authority'
+    const authorityToolId = 'test_credential_origin_authority'
     const ordinaryToolId = 'test_origin_authority'
-    ;(tools as Record<string, unknown>)[dynamicsToolId] = createAuthorityTool(dynamicsToolId)
-    ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId)
+    ;(tools as Record<string, unknown>)[authorityToolId] = createAuthorityTool(
+      authorityToolId,
+      true
+    )
+    ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
 
     const setTokenPayload = (payload: Record<string, unknown>) => {
       global.fetch = Object.assign(
@@ -2964,7 +2971,7 @@ describe('Internal Route Trust', () => {
 
     try {
       setTokenPayload({ accessToken: 'legacy-token' })
-      const legacyResult = await executeTool(dynamicsToolId, {
+      const legacyResult = await executeTool(authorityToolId, {
         credential: 'legacy-credential',
         environmentUrl,
         instanceUrl: environmentUrl,
@@ -2976,7 +2983,7 @@ describe('Internal Route Trust', () => {
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
 
       setTokenPayload({ accessToken: 'bound-token', instanceUrl: environmentUrl })
-      const boundResult = await executeTool(dynamicsToolId, {
+      const boundResult = await executeTool(authorityToolId, {
         credential: 'bound-credential',
         environmentUrl,
         instanceUrl: otherEnvironmentUrl,
@@ -3002,7 +3009,7 @@ describe('Internal Route Trust', () => {
         expect.anything()
       )
     } finally {
-      Reflect.deleteProperty(tools, dynamicsToolId)
+      Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
     }
   })

@@ -5,6 +5,7 @@ import type {
   DataverseOpportunityOutcome,
 } from '@/tools/microsoft_dynamics_365/types'
 import {
+  DYNAMICS_365_OAUTH_CONFIG,
   getDataverseErrorMessage,
   getDynamics365BaseUrl,
   normalizeDataverseGuid,
@@ -30,7 +31,7 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
   description: 'Close a Dynamics 365 Sales opportunity as won or lost.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {

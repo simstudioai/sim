@@ -67,6 +67,13 @@ export function getMicrosoftDataverseOAuthScopes(environmentUrl: unknown): strin
   ]
 }
 
+/** Keeps only non-resource permissions from the canonical Dataverse service grant for UI display. */
+export function getMicrosoftDataverseIdentityScopes(scopes: readonly string[]): string[] {
+  return scopes.filter(
+    (scope) => !/^https:\/\//i.test(scope) && !scope.startsWith(DATAVERSE_INSTANCE_MARKER_PREFIX)
+  )
+}
+
 /** Returns the trusted internal marker used to match a Dynamics credential in block UIs. */
 export function getMicrosoftDataverseRequiredScope(environmentUrl: unknown): string {
   const origin = normalizeMicrosoftDataverseEnvironmentUrl(environmentUrl)
@@ -130,7 +137,6 @@ export function assertMicrosoftDataverseOAuthLinkRequest(
 ): void {
   const environment = getBoundMicrosoftDataverseEnvironment(callbackURL)
   if (!environment) {
-    if (requestedScopes === undefined || requestedScopes === null) return
     if (
       !Array.isArray(requestedScopes) ||
       !requestedScopes.every((scope) => typeof scope === 'string')
@@ -258,7 +264,9 @@ export function extractMicrosoftDataverseEnvironmentUrl(
     const candidate = value.slice(DATAVERSE_INSTANCE_MARKER_PREFIX.length)
     try {
       origins.add(normalizeMicrosoftDataverseEnvironmentUrl(candidate))
-    } catch {}
+    } catch {
+      throw new Error('Microsoft Dataverse credential contains an invalid environment scope')
+    }
   }
 
   if (origins.size > 1) {
@@ -308,6 +316,9 @@ export function bindMicrosoftDataverseEnvironmentToUserInfo<T extends { id: stri
   }
 
   const environmentHost = new URL(environmentUrl).hostname
+  if (!UUID_SUFFIX_RE.test(userInfo.id)) {
+    throw new Error('Microsoft Dynamics 365 OAuth user ID is missing its generated suffix')
+  }
   return {
     ...userInfo,
     id: userInfo.id.replace(UUID_SUFFIX_RE, `:${environmentHost}$&`),

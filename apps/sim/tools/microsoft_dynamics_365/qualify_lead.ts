@@ -4,6 +4,7 @@ import type {
   DataverseQualifyLeadResponse,
 } from '@/tools/microsoft_dynamics_365/types'
 import {
+  DYNAMICS_365_OAUTH_CONFIG,
   getDataverseErrorMessage,
   getDynamics365BaseUrl,
   isDataverseObject,
@@ -25,7 +26,7 @@ export const microsoftDynamics365QualifyLeadTool: ToolConfig<
     'Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -225,6 +226,11 @@ export const microsoftDynamics365QualifyLeadTool: ToolConfig<
       const errorMessage = await getDataverseErrorMessage(response)
       logger.error('Dataverse qualify lead failed', { status: response.status })
       throw new Error(errorMessage)
+    }
+    if (response.status !== 200) {
+      throw new Error(
+        `Invalid Dataverse QualifyLead response: expected HTTP 200, received ${response.status}`
+      )
     }
 
     let data: unknown

@@ -1,4 +1,11 @@
 import { truncate } from '@sim/utils/string'
+import type { OAuthConfig } from '@/tools/types'
+
+export const DYNAMICS_365_OAUTH_CONFIG = {
+  required: true,
+  provider: 'microsoft-dataverse',
+  authoritativeParams: ['instanceUrl'],
+} as const satisfies OAuthConfig
 
 export const DATAVERSE_MAX_ERROR_BODY_BYTES = 64 * 1024
 

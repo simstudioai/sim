@@ -5,6 +5,7 @@ import type {
 } from '@/tools/microsoft_dynamics_365/types'
 import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dynamics_365/types'
 import {
+  DYNAMICS_365_OAUTH_CONFIG,
   getDataverseErrorMessage,
   getDynamics365BaseUrl,
   isDataverseObject,
@@ -92,7 +93,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
     'Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {

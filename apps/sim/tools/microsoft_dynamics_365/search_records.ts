@@ -4,6 +4,7 @@ import type {
   DataverseSearchResponse,
 } from '@/tools/microsoft_dynamics_365/types'
 import {
+  DYNAMICS_365_OAUTH_CONFIG,
   getDataverseErrorMessage,
   getDynamics365BaseUrl,
   isDataverseObject,
@@ -50,7 +51,7 @@ export const microsoftDynamics365SearchRecordsTool: ToolConfig<
     'Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DYNAMICS_365_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
