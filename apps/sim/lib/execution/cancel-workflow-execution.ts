@@ -392,6 +392,49 @@ async function rollbackPausedCancellationAfterAbort(args: {
   return true
 }
 
+async function rollbackActiveResumeAfterFailedSignal(args: {
+  executionId: string
+  workflowId: string
+  resumeEntryId: string
+}): Promise<boolean> {
+  try {
+    const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
+      args.executionId,
+      args.workflowId,
+      args.resumeEntryId
+    )
+    if (!rolledBack) {
+      logger.warn('Active resume cancellation could not be rolled back; completing cancellation', {
+        executionId: args.executionId,
+        activeResumeEntryId: args.resumeEntryId,
+      })
+    }
+    return rolledBack
+  } catch (error) {
+    logger.warn('Failed to roll back active resume cancellation; completing cancellation', {
+      executionId: args.executionId,
+      activeResumeEntryId: args.resumeEntryId,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
+function activeResumeSignalFailureResult(
+  executionId: string,
+  stopSummary: ExecutionStopSummary
+): CancelWorkflowExecutionResult {
+  return {
+    success: false,
+    executionId,
+    redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
+    durablyRecorded: stopSummary.cancellation.durablyRecorded,
+    locallyAborted: stopSummary.locallyAborted,
+    pausedCancelled: false,
+    reason: 'active_resume_signal_failed',
+  }
+}
+
 function resolveCancellationReason(args: {
   activeResumeSignalFailed: boolean
   pauseReconciliationFailed: boolean
@@ -676,26 +719,14 @@ export async function cancelWorkflowExecution({
 
       if (!activeResumeSignalAccepted) {
         const failedResumeEntryId = activeResumeTarget.resumeEntryId
-        await PauseResumeManager.rollbackActiveResumeCancellation(
+        const rolledBack = await rollbackActiveResumeAfterFailedSignal({
           executionId,
           workflowId,
-          failedResumeEntryId
-        ).catch((error) => {
-          logger.warn('Failed to roll back active resume cancellation intent', {
-            executionId,
-            activeResumeEntryId: failedResumeEntryId,
-            error: toError(error).message,
-          })
+          resumeEntryId: failedResumeEntryId,
         })
-        await clearStopSignalMarkers(stopSummary)
-        return {
-          success: false,
-          executionId,
-          redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
-          durablyRecorded: stopSummary.cancellation.durablyRecorded,
-          locallyAborted: stopSummary.locallyAborted,
-          pausedCancelled: false,
-          reason: 'active_resume_signal_failed',
+        if (rolledBack) {
+          await clearStopSignalMarkers(stopSummary)
+          return activeResumeSignalFailureResult(executionId, stopSummary)
         }
       }
     } else if (!effectivePausedCancellationPath && !isWorkflowGroupExecution) {
@@ -738,26 +769,14 @@ export async function cancelWorkflowExecution({
           })
           if (!activeResumeSignalAccepted) {
             const failedResumeEntryId = activeResumeTarget.resumeEntryId
-            await PauseResumeManager.rollbackActiveResumeCancellation(
+            const rolledBack = await rollbackActiveResumeAfterFailedSignal({
               executionId,
               workflowId,
-              failedResumeEntryId
-            ).catch((error) => {
-              logger.warn('Failed to roll back late active resume cancellation intent', {
-                executionId,
-                activeResumeEntryId: failedResumeEntryId,
-                error: toError(error).message,
-              })
+              resumeEntryId: failedResumeEntryId,
             })
-            await clearStopSignalMarkers(stopSummary)
-            return {
-              success: false,
-              executionId,
-              redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
-              durablyRecorded: stopSummary.cancellation.durablyRecorded,
-              locallyAborted: stopSummary.locallyAborted,
-              pausedCancelled: false,
-              reason: 'active_resume_signal_failed',
+            if (rolledBack) {
+              await clearStopSignalMarkers(stopSummary)
+              return activeResumeSignalFailureResult(executionId, stopSummary)
             }
           }
         } else if (!effectivePausedCancellationPath) {

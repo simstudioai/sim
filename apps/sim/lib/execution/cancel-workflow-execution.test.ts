@@ -150,6 +150,12 @@ const ACTIVE_RESUME_TARGET = {
   resumeExecutionId: 'resume-ex-1',
 }
 
+const REPLACEMENT_ACTIVE_RESUME_TARGET = {
+  ...ACTIVE_RESUME_TARGET,
+  resumeEntryId: 'resume-entry-2',
+  resumeExecutionId: 'resume-ex-2',
+}
+
 describe('cancelWorkflowExecution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -783,6 +789,85 @@ describe('cancelWorkflowExecution', () => {
     expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
     expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('finishes cancellation when a failed active-resume rollback detects a replacement', async () => {
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'active_resume', target: ACTIVE_RESUME_TARGET })
+      .mockResolvedValueOnce({
+        kind: 'active_resume',
+        target: REPLACEMENT_ACTIVE_RESUME_TARGET,
+      })
+    mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValueOnce(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(1, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(2, 'resume-ex-2', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('finishes late pause cancellation when rollback detects a replacement resume', async () => {
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValueOnce({ kind: 'active_resume', target: ACTIVE_RESUME_TARGET })
+      .mockResolvedValueOnce({
+        kind: 'active_resume',
+        target: REPLACEMENT_ACTIVE_RESUME_TARGET,
+      })
+    mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValueOnce(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(1, 'ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(2, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(3, 'resume-ex-2', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
   })
 
   it('returns success when a paused HITL execution is cancelled directly in the database', async () => {
