@@ -167,6 +167,7 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
 
     const switcher = container.querySelector('button[aria-label="Switch workspace"]')
     expect(switcher).toBeDisabled()
+    expect(switcher).not.toHaveAttribute('title')
     expect(switcher).toHaveTextContent('Brightwave')
     expect(switcher).toHaveTextContent('B')
     expect(switcher?.querySelector('.animate-pulse')).toBeNull()
@@ -174,6 +175,10 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
 
   it('leaves Enter unarmed until a cursor is on screen', () => {
     render()
+
+    expect(container.querySelector('button[aria-label="Switch workspace"]')).not.toHaveAttribute(
+      'title'
+    )
 
     const search = document.querySelector('input[placeholder="Search workspaces..."]')
     act(() => {
