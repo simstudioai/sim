@@ -181,11 +181,14 @@ async function didActiveResumeStop(
   target: ActiveResumeCancellationTarget,
   signal: ExecutionStopSignalResult
 ): Promise<boolean> {
-  if (signal.accepted) return true
+  if (signal.cancellation.durablyRecorded || signal.locallyAborted) return true
   const currentTarget = await PauseResumeManager.getActiveResumeCancellationTarget(
     executionId,
     workflowId
   )
+  if (currentTarget?.resumeEntryId === target.resumeEntryId && signal.queueJobsCancelled > 0) {
+    return true
+  }
   if (currentTarget && currentTarget.resumeEntryId !== target.resumeEntryId) {
     logger.warn('A replacement resume became active while cancellation was staged', {
       executionId,
@@ -707,6 +710,7 @@ export async function cancelWorkflowExecution({
       pausedCancellationStage.kind === 'active_resume' ? pausedCancellationStage.target : null
     let activeResumeEntryId = activeResumeTarget?.resumeEntryId ?? null
     let activeResumeSignalAccepted = false
+    const activeResumeTargetsNeedingStopConfirmation: ActiveResumeCancellationTarget[] = []
 
     if (activeResumeTarget && !isWorkflowGroupExecution) {
       activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
@@ -728,6 +732,7 @@ export async function cancelWorkflowExecution({
           await clearStopSignalMarkers(stopSummary)
           return activeResumeSignalFailureResult(executionId, stopSummary)
         }
+        activeResumeTargetsNeedingStopConfirmation.push(activeResumeTarget)
       }
     } else if (!effectivePausedCancellationPath && !isWorkflowGroupExecution) {
       const signal = await signalExecutionStop({
@@ -778,6 +783,7 @@ export async function cancelWorkflowExecution({
               await clearStopSignalMarkers(stopSummary)
               return activeResumeSignalFailureResult(executionId, stopSummary)
             }
+            activeResumeTargetsNeedingStopConfirmation.push(activeResumeTarget)
           }
         } else if (!effectivePausedCancellationPath) {
           return {
@@ -934,6 +940,19 @@ export async function cancelWorkflowExecution({
 
     let pauseReconciliationFailed = false
     let activeResumeSignalFailed = false
+    for (const target of activeResumeTargetsNeedingStopConfirmation) {
+      const stopConfirmed = await signalAndRecordActiveResumeStop({
+        workflowId,
+        executionId,
+        executionDeadlineAt: execution.executionDeadlineAt,
+        target,
+        summary: stopSummary,
+      })
+      if (target.resumeEntryId === activeResumeEntryId) {
+        activeResumeSignalAccepted = stopConfirmed
+      }
+      activeResumeSignalFailed = activeResumeSignalFailed || !stopConfirmed
+    }
     if (isWorkflowGroupExecution) {
       if (activeResumeTarget) {
         activeResumeSignalAccepted = await signalAndRecordActiveResumeStop({
@@ -975,9 +994,7 @@ export async function cancelWorkflowExecution({
               summary: stopSummary,
             })
           }
-          activeResumeSignalFailed = !activeResumeSignalAccepted
-        } else {
-          activeResumeSignalFailed = false
+          activeResumeSignalFailed = activeResumeSignalFailed || !activeResumeSignalAccepted
         }
       }
     } catch (error) {
