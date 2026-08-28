@@ -123,8 +123,20 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // an absent filter is still legitimate (delete-all is an explicit caller mode).
     if (filter && !filterClause) throw new Error('Filter is required for bulk delete')
     const excluded = new Set(excludeRowIds ?? [])
-    const dispatchDeleteTriggers = (rows: DeletedTableRow[]) => {
-      void fireTableTrigger(table.id, table.name, 'delete', rows, null, table.schema, requestId)
+    const dispatchDeleteTriggers = async (
+      rows: DeletedTableRow[],
+      committedTable?: TableDefinition
+    ) => {
+      const triggerTable = committedTable ?? table
+      await fireTableTrigger(
+        triggerTable.id,
+        triggerTable.name,
+        'delete',
+        rows,
+        null,
+        triggerTable.schema,
+        requestId
+      )
     }
 
     // Resume the persisted count: a retried attempt's earlier batches are already committed,

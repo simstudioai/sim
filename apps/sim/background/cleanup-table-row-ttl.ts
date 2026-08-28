@@ -5,6 +5,7 @@ import { task } from '@trigger.dev/sdk'
 import { sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
+import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { assertRowDelete, TableLockedError } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -17,7 +18,6 @@ import type { RowData, TableSchema } from '@/lib/table/types'
 const logger = createLogger('CleanupTableRowTtl')
 const cleanupDb = dbFor('cleanup')
 
-const TTL_CLEANUP_BATCH_SIZE = 500
 const TTL_CLEANUP_MAX_BATCHES = 100
 
 interface ExpiredTtlTableRef {
@@ -96,12 +96,12 @@ async function listExpiredTtlTables(nowEpochSeconds: number): Promise<ExpiredTtl
   return Array.isArray(rows) ? rows : []
 }
 
-function parseDeletedBatch(rows: unknown): DeletedTtlRows {
+function parseDeletedBatch(rows: unknown, batchSize: number): DeletedTtlRows {
   if (!Array.isArray(rows)) {
     throw new Error('Table row TTL cleanup did not return deleted rows')
   }
   const deletedRows = rows as Array<{ id?: unknown; data?: unknown; createdAt?: unknown }>
-  if (deletedRows.length > TTL_CLEANUP_BATCH_SIZE) {
+  if (deletedRows.length > batchSize) {
     throw new Error('Table row TTL cleanup returned an invalid deleted count')
   }
   const parsed = deletedRows.map((row) => {
@@ -129,6 +129,7 @@ async function deleteExpiredTableRowBatch(
   workspaceId: string,
   columnKey: string,
   nowEpochSeconds: number,
+  batchSize: number,
   after?: TtlCleanupCursor
 ): Promise<DeletedTtlRows> {
   const rows = await trx.execute<{ id: string; data: RowData; createdAt: string }>(sql`
@@ -145,7 +146,7 @@ async function deleteExpiredTableRowBatch(
         AND jsonb_typeof(table_row.data->${columnKey}) = 'number'
         AND (table_row.data->>${columnKey})::numeric <= ${nowEpochSeconds}
       ORDER BY table_row.created_at, table_row.id
-      LIMIT ${TTL_CLEANUP_BATCH_SIZE}
+      LIMIT ${batchSize}
       FOR UPDATE OF table_row SKIP LOCKED
     ), deleted AS (
       DELETE FROM ${userTableRows} AS table_row
@@ -160,12 +161,13 @@ async function deleteExpiredTableRowBatch(
     FROM deleted
     ORDER BY "createdAt", id
   `)
-  return parseDeletedBatch(rows)
+  return parseDeletedBatch(rows, batchSize)
 }
 
 async function deleteExpiredRowsForTable(
   ref: ExpiredTtlTableRef,
   nowEpochSeconds: number,
+  batchSize: number,
   after?: TtlCleanupCursor
 ): Promise<DeletedTtlBatch> {
   try {
@@ -190,6 +192,7 @@ async function deleteExpiredRowsForTable(
           table.workspaceId,
           getColumnId(ttlColumn),
           nowEpochSeconds,
+          batchSize,
           after
         )
         return {
@@ -202,7 +205,7 @@ async function deleteExpiredRowsForTable(
       { expectedWorkspaceId: ref.workspaceId }
     )
     if (batch.attempted && batch.rows.length > 0) {
-      void fireTableTrigger(
+      await fireTableTrigger(
         ref.id,
         batch.tableName,
         'delete',
@@ -232,6 +235,7 @@ export async function runCleanupTableRowTtl(
   }
 
   const nowEpochSeconds = Math.floor(Date.now() / 1000)
+  const batchSize = getDeleteSnapshotBatchSize()
   const tableRefs = await listExpiredTtlTables(nowEpochSeconds)
   const tableStates: TtlTableCleanupState[] = tableRefs.map((ref) => ({
     ref,
@@ -250,7 +254,12 @@ export async function runCleanupTableRowTtl(
       if (state.complete) continue
       if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-      const batch = await deleteExpiredRowsForTable(state.ref, nowEpochSeconds, state.after)
+      const batch = await deleteExpiredRowsForTable(
+        state.ref,
+        nowEpochSeconds,
+        batchSize,
+        state.after
+      )
       if (!batch.attempted) {
         state.complete = true
         continue
@@ -260,7 +269,7 @@ export async function runCleanupTableRowTtl(
       deleted += batch.deleted
       state.deleted += batch.deleted
       state.after = batch.cursor ?? undefined
-      if (batch.deleted < TTL_CLEANUP_BATCH_SIZE) state.complete = true
+      if (batch.deleted < batchSize) state.complete = true
     }
   }
 

@@ -87,17 +87,20 @@ describe('runTableDelete', () => {
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockDeletePageByIds.mockImplementation(
-      (
+      async (
         _t,
         _w,
         ids: string[],
         _proof,
         _revalidate,
-        onDeleted?: (rows: Array<{ id: string; data: Record<string, unknown> }>) => void
+        onDeleted?: (
+          rows: Array<{ id: string; data: Record<string, unknown> }>,
+          table?: typeof table
+        ) => void | Promise<void>
       ) => {
         const rows = ids.map((id) => ({ id, data: { title: id } }))
-        onDeleted?.(rows)
-        return Promise.resolve(rows.length)
+        await onDeleted?.(rows)
+        return rows.length
       }
     )
     mockBuildFilterClause.mockReturnValue({})
@@ -206,6 +209,34 @@ describe('runTableDelete', () => {
     // The live grid must be told rows changed so deleted rows drop out of every open editor —
     // the `job` progress event only drives the delete meter, not the rows query.
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
+  it('uses the table definition revalidated with each committed delete batch', async () => {
+    const renamedTable = {
+      ...table,
+      name: 'Renamed issues',
+      schema: { columns: [{ id: 'col-title', name: 'Renamed title', type: 'string' }] },
+    }
+    mockSelectRowIdPage.mockResolvedValueOnce(['a']).mockResolvedValueOnce([])
+    mockDeletePageByIds.mockImplementationOnce(
+      async (_t, _w, ids: string[], _proof, _revalidate, onDeleted) => {
+        const rows = ids.map((id) => ({ id, data: { 'col-title': id } }))
+        await onDeleted?.(rows, renamedTable)
+        return rows.length
+      }
+    )
+
+    await runTableDelete(basePayload())
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      renamedTable.id,
+      renamedTable.name,
+      'delete',
+      [{ id: 'a', data: { 'col-title': 'a' } }],
+      null,
+      renamedTable.schema,
+      expect.any(String)
+    )
   })
 
   it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {

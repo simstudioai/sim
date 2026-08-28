@@ -32,6 +32,7 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mockSignalTableRowsChanged }))
+vi.mock('@/lib/table/constants', () => ({ getDeleteSnapshotBatchSize: () => 500 }))
 vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
 vi.mock('@/lib/table/ttl-availability', () => ({
   isTableRowTtlEnabled: mockIsTableRowTtlEnabled,

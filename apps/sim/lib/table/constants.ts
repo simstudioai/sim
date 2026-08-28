@@ -39,6 +39,12 @@ export const TABLE_LIMITS = {
   UPDATE_BATCH_SIZE: 100,
   /** Batch size for bulk delete operations */
   DELETE_BATCH_SIZE: 1000,
+  /**
+   * Maximum serialized row-data bytes returned from one committed delete for
+   * post-commit trigger dispatch. The row-count cap is derived from this budget
+   * and the configured maximum row size before a DELETE materializes snapshots.
+   */
+  DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024, // 32MB
   /** Maximum rows per batch insert */
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
@@ -147,6 +153,21 @@ export function getMaxRowSizeBytes(): number {
     min: 1,
     integer: true,
   })
+}
+
+/**
+ * Maximum rows one delete may materialize with their JSON data for trigger
+ * dispatch. Uses the worst-case configured row size so every batch has an
+ * explicit byte bound before PostgreSQL returns it to the app process.
+ */
+export function getDeleteSnapshotBatchSize(): number {
+  return Math.max(
+    1,
+    Math.min(
+      TABLE_LIMITS.DELETE_BATCH_SIZE,
+      Math.floor(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES / getMaxRowSizeBytes())
+    )
+  )
 }
 
 export type PlanName = keyof typeof DEFAULT_TABLE_PLAN_LIMITS

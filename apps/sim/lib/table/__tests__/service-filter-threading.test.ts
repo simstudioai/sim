@@ -234,6 +234,31 @@ describe('delete trigger dispatch', () => {
       'req-delete-many'
     )
   })
+
+  it('dispatches byte-bounded ID-delete snapshots before loading the next batch', async () => {
+    setEnv({
+      TABLE_MAX_ROW_SIZE_BYTES: TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2,
+    })
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+      .mockResolvedValueOnce([{ id: 'row-2', data: { name: 'Grace' } }])
+
+    try {
+      await deleteRowsByIds(
+        TABLE,
+        { tableId: TABLE.id, workspaceId: TABLE.workspaceId, rowIds: ['row-1', 'row-2'] },
+        'req-delete-bounded'
+      )
+    } finally {
+      setEnv({ TABLE_MAX_ROW_SIZE_BYTES: undefined })
+    }
+
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+    expect(mockFireTableTrigger.mock.calls[0][3]).toEqual([{ id: 'row-1', data: { name: 'Ada' } }])
+    expect(mockFireTableTrigger.mock.calls[1][3]).toEqual([
+      { id: 'row-2', data: { name: 'Grace' } },
+    ])
+  })
 })
 
 describe('bulk update/delete limited-subset ordering', () => {

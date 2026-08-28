@@ -10,7 +10,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
@@ -23,6 +23,11 @@ export interface DeletedTableRow {
   id: string
   data: RowData
 }
+
+export type DeletedRowsHandler = (
+  rows: DeletedTableRow[],
+  table?: TableDefinition
+) => void | Promise<void>
 
 /**
  * Starting `position` for an append import — `max(position) + 1`, or 0 when empty. Read once,
@@ -307,10 +312,12 @@ export async function deleteOrderedRow(params: {
 }
 
 /**
- * Deletes the given row ids in batches within one transaction. Deletes leave
- * `order_key` untouched, so no positional recompaction is needed. Returns the
- * deleted row snapshots. The caller resolves which ids to delete (used by both
- * delete-by-ids and delete-by-filter).
+ * Deletes the given row ids in byte-bounded, independently committed batches.
+ * Deletes leave `order_key` untouched, so no positional recompaction is needed.
+ * The post-commit handler is awaited before the next batch so deleted JSON
+ * snapshots cannot accumulate in memory. Returns only the compact deleted ids;
+ * the caller resolves which ids to delete (used by both delete-by-ids and
+ * delete-by-filter).
  */
 export async function deleteOrderedRowsByIds(params: {
   tableId: string
@@ -318,15 +325,18 @@ export async function deleteOrderedRowsByIds(params: {
   rowIds: string[]
   /** Proof the caller asserted the delete lock (see `mutation-locks.ts`). */
   proof: MutationProof<'delete'>
-}): Promise<DeletedTableRow[]> {
-  const { tableId, workspaceId, rowIds } = params
+  /** Handles each bounded snapshot batch after its transaction commits. */
+  onDeleted?: DeletedRowsHandler
+}): Promise<string[]> {
+  const { tableId, workspaceId, rowIds, onDeleted } = params
   if (rowIds.length === 0) return []
-  return db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx, { statementMs: 60_000 })
-    const deleted: DeletedTableRow[] = []
-    for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-      const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
-      const rows = await trx
+  const batchSize = getDeleteSnapshotBatchSize()
+  const deletedIds: string[] = []
+  for (let i = 0; i < rowIds.length; i += batchSize) {
+    const batch = rowIds.slice(i, i + batchSize)
+    const rows = await db.transaction(async (trx) => {
+      await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      return trx
         .delete(userTableRows)
         .where(
           and(
@@ -336,10 +346,12 @@ export async function deleteOrderedRowsByIds(params: {
           )
         )
         .returning({ id: userTableRows.id, data: userTableRows.data })
-      deleted.push(...rows.map((row) => ({ id: row.id, data: row.data as RowData })))
-    }
-    return deleted
-  })
+    })
+    const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
+    deletedIds.push(...deletedRows.map((row) => row.id))
+    await onDeleted?.(deletedRows)
+  }
+  return deletedIds
 }
 
 /**
@@ -474,15 +486,16 @@ export async function deletePageByIds(
   /** Re-asserts the lock inside each batch transaction. See {@link guardBatch}. */
   revalidate?: MutationRevalidator,
   /** Called after each batch commits, with snapshots suitable for delete triggers. */
-  onDeleted?: (rows: DeletedTableRow[]) => void
+  onDeleted?: DeletedRowsHandler
 ): Promise<number> {
   let deleted = 0
-  for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-    const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
-    const rows = await db.transaction(async (trx) => {
+  const batchSize = getDeleteSnapshotBatchSize()
+  for (let i = 0; i < rowIds.length; i += batchSize) {
+    const batch = rowIds.slice(i, i + batchSize)
+    const { rows, table } = await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      await guardBatch(trx, tableId, revalidate)
-      return trx
+      const table = await guardBatch(trx, tableId, revalidate)
+      const rows = await trx
         .delete(userTableRows)
         .where(
           and(
@@ -492,10 +505,11 @@ export async function deletePageByIds(
           )
         )
         .returning({ id: userTableRows.id, data: userTableRows.data })
+      return { rows, table }
     })
     const deletedRows = rows.map((row) => ({ id: row.id, data: row.data as RowData }))
     deleted += deletedRows.length
-    onDeleted?.(deletedRows)
+    await onDeleted?.(deletedRows, table)
   }
   return deleted
 }
