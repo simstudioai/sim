@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { AnyApiRouteContract } from '@/lib/api/contracts'
+import type { AnyApiRouteContract, ApiSchema } from '@/lib/api/contracts'
 import {
   createKnowledgeChunkContract,
-  createKnowledgeDocumentsContract,
+  createKnowledgeDocumentsResponseSchema,
+  createKnowledgeDocumentsSchemas,
   deleteKnowledgeChunkContract,
   deleteKnowledgeDocumentContract,
   getKnowledgeConnectorContract,
@@ -36,7 +37,10 @@ import {
   upsertDocumentOperation,
 } from '@/lib/internal/knowledge/operations'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
-import { parseInternalContractInput } from '@/lib/internal/tool-operations/parse-contract-input'
+import {
+  parseInternalContractInput,
+  parseInternalOperationInput,
+} from '@/lib/internal/tool-operations/parse-contract-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
@@ -92,6 +96,11 @@ function projectError(
   )
 }
 
+function schemaSuccessResponse(schema: ApiSchema, result: KnowledgeOperationResponse): Response {
+  const validated = schema.parse(result.body) as Record<string, unknown>
+  return Response.json({ ...validated, ...result.bodyFields }, { headers: result.headers })
+}
+
 function successResponse<C extends AnyApiRouteContract>(
   contract: C,
   result: KnowledgeOperationResponse
@@ -99,8 +108,7 @@ function successResponse<C extends AnyApiRouteContract>(
   if (contract.response.mode !== 'json') {
     throw new Error('Knowledge tool contract must return JSON')
   }
-  const validated = contract.response.schema.parse(result.body) as Record<string, unknown>
-  return Response.json({ ...validated, ...result.bodyFields }, { headers: result.headers })
+  return schemaSuccessResponse(contract.response.schema, result)
 }
 
 /** Executes every Knowledge tool through the same authorized application use cases as HTTP. */
@@ -132,10 +140,10 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
     switch (toolId) {
       case 'knowledge_create_document': {
         policy = internalKnowledgeErrorPolicies.uploads
-        const parsed = parseInternalContractInput(createKnowledgeDocumentsContract, input)
+        const parsed = parseInternalOperationInput(createKnowledgeDocumentsSchemas, input)
         if (!parsed.success) return parsed.response
-        return successResponse(
-          createKnowledgeDocumentsContract,
+        return schemaSuccessResponse(
+          createKnowledgeDocumentsResponseSchema,
           await createDocumentsOperation(parsed.data.params.id, parsed.data.body, context)
         )
       }
