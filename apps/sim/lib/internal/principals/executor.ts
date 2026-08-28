@@ -31,7 +31,8 @@ export function resolveExecutorOriginSubject(origin: ExecutorDelegationOrigin): 
 async function bindExecutorPrincipal(
   origin: ExecutorDelegationOrigin,
   audience: string,
-  resourceScope?: DelegatedPrincipal['resourceScope']
+  resourceScope?: DelegatedPrincipal['resourceScope'],
+  expiresAt?: Date
 ) {
   if (!origin.workflowId.trim()) throw new Error('Authentication required')
   const subjectUserId = resolveExecutorOriginSubject(origin)
@@ -46,7 +47,7 @@ async function bindExecutorPrincipal(
       ...(origin.currentWorkflow ? { currentWorkflow: origin.currentWorkflow } : {}),
       delegationId: generateId(),
       issuedAt,
-      expiresAt: new Date(issuedAt.getTime() + EXECUTOR_DELEGATION_TTL_MS),
+      expiresAt: expiresAt ?? new Date(issuedAt.getTime() + EXECUTOR_DELEGATION_TTL_MS),
     },
     {
       audience,
@@ -59,14 +60,16 @@ export interface CreateExecutorPrincipalFromExecutionContextInput {
   context: InternalToolOperationContext
   audience: string
   resourceScope?: DelegatedPrincipal['resourceScope']
+  expiresAt?: Date
 }
 
 export async function createExecutorPrincipalFromExecutionContext({
   context,
   audience,
   resourceScope,
+  expiresAt,
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
   if (!origin) throw new Error('Executor delegation origin is required')
-  return bindExecutorPrincipal(origin, audience, resourceScope)
+  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt)
 }

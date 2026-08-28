@@ -68,6 +68,13 @@ function request(
       userId: 'user-1',
       workspaceId: 'workspace-1',
       billingAttribution: BILLING_ATTRIBUTION,
+      executorDelegationOrigin: {
+        subjectUserId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+      },
     },
     requestId: 'request-1',
     ...overrides,
@@ -223,7 +230,6 @@ describe('executeFileTool', () => {
   })
 
   it('rejects missing trusted identity during principal construction', async () => {
-    mocks.createPrincipal.mockRejectedValueOnce(new Error('Authentication required'))
     const response = await executeFileTool(
       request('file_get', MANAGE_INPUTS.file_get, {
         context: {
@@ -236,7 +242,7 @@ describe('executeFileTool', () => {
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).toHaveBeenCalledOnce()
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
 

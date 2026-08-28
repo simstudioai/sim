@@ -70,6 +70,27 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     )
   })
 
+  it('uses an explicit trusted execution deadline as the delegation expiry', async () => {
+    const expiresAt = new Date('2026-01-01T01:00:00.000Z')
+
+    await createExecutorPrincipalFromExecutionContext({
+      context: executionContext({
+        executorDelegationOrigin: {
+          subjectUserId: 'user-origin',
+          workflowId: 'workflow-origin',
+          executionId: 'execution-origin',
+        },
+      }),
+      audience: 'sim:function-executions',
+      expiresAt,
+    })
+
+    expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
+      expect.objectContaining({ expiresAt }),
+      { audience: 'sim:function-executions' }
+    )
+  })
+
   it.each([
     {
       name: 'schedule',

@@ -26,6 +26,7 @@ describe('executeFunctionTool', () => {
   })
 
   it('binds executor calls from the canonical origin instead of the compatibility user ID', async () => {
+    const startedAt = Date.now()
     const origin = {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
@@ -62,7 +63,12 @@ describe('executeFunctionTool', () => {
     const headers = new Headers()
 
     await executeFunctionTool({
-      body: { code: 'return 1', userId: 'forged-user', workspaceId: 'forged-workspace' },
+      body: {
+        code: 'return 1',
+        timeout: 60_000,
+        userId: 'forged-user',
+        workspaceId: 'forged-workspace',
+      },
       headers,
       context,
       requestId: 'request-1',
@@ -71,8 +77,12 @@ describe('executeFunctionTool', () => {
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context,
       audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
+      expiresAt: expect.any(Date),
       resourceScope: { executionId: 'execution-1' },
     })
+    const delegatedExpiry = mocks.createPrincipal.mock.calls[0]?.[0].expiresAt as Date
+    expect(delegatedExpiry.getTime()).toBeGreaterThanOrEqual(startedAt + 60_000)
+    expect(delegatedExpiry.getTime()).toBeLessThanOrEqual(Date.now() + 60_000)
     expect(mocks.execute).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({

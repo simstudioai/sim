@@ -61,7 +61,12 @@ export function rebindWorkspaceFileDelegatedPrincipal(
     delegationId: input.delegationId,
     audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     issuedAt,
-    expiresAt: new Date(issuedAt.getTime() + WORKSPACE_FILE_DELEGATION_TTL_MS),
+    expiresAt: new Date(
+      Math.min(
+        input.principal.expiresAt.getTime(),
+        issuedAt.getTime() + WORKSPACE_FILE_DELEGATION_TTL_MS
+      )
+    ),
     resourceScope: {
       ...(input.fileId ? { fileId: input.fileId } : {}),
       ...(input.chatId ? { chatId: input.chatId } : {}),

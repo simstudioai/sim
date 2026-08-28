@@ -7,6 +7,7 @@ import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/app
 
 describe('rebindWorkspaceFileDelegatedPrincipal', () => {
   it('preserves actorless workflow identity and deployment authority', () => {
+    const expiresAt = new Date(Date.now() + 60_000)
     const delegationContext = {
       kind: 'workflow_execution' as const,
       workflowId: 'workflow-1',
@@ -32,7 +33,7 @@ describe('rebindWorkspaceFileDelegatedPrincipal', () => {
         delegationId: 'function-1',
         audience: 'sim:function-executions',
         issuedAt: new Date(Date.now() - 1_000),
-        expiresAt: new Date(Date.now() + 60_000),
+        expiresAt,
         delegationContext,
       },
       workspaceId: 'workspace-1',
@@ -48,6 +49,7 @@ describe('rebindWorkspaceFileDelegatedPrincipal', () => {
       resourceScope: { executionId: 'execution-1' },
       delegationContext,
     })
+    expect(rebound.expiresAt).toEqual(expiresAt)
     expect(rebound).not.toHaveProperty('subjectUserId')
   })
 

@@ -60,6 +60,7 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
     principal = await createExecutorPrincipalFromExecutionContext({
       context,
       audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
+      expiresAt,
       ...(context.executionId ? { resourceScope: { executionId: context.executionId } } : {}),
     })
   }

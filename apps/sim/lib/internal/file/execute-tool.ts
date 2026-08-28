@@ -42,7 +42,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  if (!workspaceId) {
+  if (!workspaceId || !request.context.executorDelegationOrigin) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 

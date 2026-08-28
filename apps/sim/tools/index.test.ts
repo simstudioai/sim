@@ -863,7 +863,6 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: undefined,
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],
@@ -871,6 +870,7 @@ describe('executeTool Function', () => {
         },
       },
     })
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -948,7 +948,6 @@ describe('executeTool Function', () => {
               __blockRef_0: { field: 'resolved-output' },
               __blockRef_1: largeValueRef,
             },
-            userId: undefined,
             workspaceId: 'workspace-456',
             workflowId: 'workflow-1',
             executionId: 'execution-1',
@@ -960,6 +959,7 @@ describe('executeTool Function', () => {
         }),
       })
     )
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -1042,7 +1042,6 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: undefined,
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],
@@ -1051,6 +1050,7 @@ describe('executeTool Function', () => {
         },
       },
     })
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
