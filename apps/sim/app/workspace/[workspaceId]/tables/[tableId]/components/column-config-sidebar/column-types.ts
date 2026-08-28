@@ -8,9 +8,9 @@ import { ALL_COLUMN_TYPES } from '@/lib/table/column-types'
  * "+ New column" dropdown to spawn a workflow group; the resulting columns are
  * stored as scalar types under the hood (none carry `'workflow'`).
  */
-export type SidebarColumnType = ColumnDefinition['type'] | 'workflow'
+type SidebarColumnType = ColumnDefinition['type'] | 'workflow'
 
-export interface ColumnTypeOption {
+interface ColumnTypeOption {
   type: SidebarColumnType
   label: string
   icon: React.ComponentType<{ className?: string }>
