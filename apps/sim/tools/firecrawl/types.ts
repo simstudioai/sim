@@ -136,32 +136,32 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
   markdown: {
     type: 'string',
     description:
-      'Page content in markdown; returned only when scraping was requested, for which the Search operation exposes no input',
+      'Page content in markdown; returned only when scraping was requested, for which the Search operation exposes no visible input',
     optional: true,
   },
   html: {
     type: 'string',
     description:
-      'Processed HTML content; returned only when "html" is among the requested scrape formats, for which the Search operation exposes no input',
+      'Processed HTML content; returned only when "html" is among the requested scrape formats, for which the Search operation exposes no visible input',
     optional: true,
   },
   rawHtml: {
     type: 'string',
     description:
-      'Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats, for which the Search operation exposes no input',
+      'Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats, for which the Search operation exposes no visible input',
     optional: true,
   },
   links: {
     type: 'array',
     description:
-      'Links found on the page; returned only when "links" is among the requested scrape formats, for which the Search operation exposes no input',
+      'Links found on the page; returned only when "links" is among the requested scrape formats, for which the Search operation exposes no visible input',
     optional: true,
     items: { type: 'string', description: 'URL found on the page' },
   },
   screenshot: {
     type: 'string',
     description:
-      'Screenshot URL (expires after 24 hours); returned only when "screenshot" is among the requested scrape formats, for which the Search operation exposes no input',
+      'Screenshot URL (expires after 24 hours); returned only when "screenshot" is among the requested scrape formats, for which the Search operation exposes no visible input',
     optional: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,
