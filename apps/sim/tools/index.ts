@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
@@ -2358,11 +2359,29 @@ function isErrorResponse(
 
 /**
  * Checks whether a fully resolved URL points back to this Sim instance.
+ * Loopback aliases are equivalent when protocol and port match because they
+ * address the same self-hosted listener even when their origin strings differ.
  * Used to propagate cycle-detection headers on API blocks that target
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
+  return [getBaseUrl(), getInternalApiBaseUrl()].some((baseUrl) => {
+    if (isSameOrigin(url, baseUrl)) return true
+
+    try {
+      const target = new URL(url)
+      const base = new URL(baseUrl)
+      if (target.protocol !== base.protocol || target.port !== base.port) return false
+
+      const targetHostname = unwrapIpv6Brackets(target.hostname.toLowerCase())
+      const baseHostname = unwrapIpv6Brackets(base.hostname.toLowerCase())
+      const targetIsLoopback = targetHostname === 'localhost' || isLoopbackIp(targetHostname)
+      const baseIsLoopback = baseHostname === 'localhost' || isLoopbackIp(baseHostname)
+      return targetIsLoopback && baseIsLoopback
+    } catch {
+      return false
+    }
+  })
 }
 
 interface ResolvedRetryConfig {

@@ -2663,19 +2663,19 @@ describe('Internal Route Trust', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('allows the generic HTTP tool to target this Sim instance', async () => {
+  it('allows the generic HTTP tool to target this Sim instance through a loopback alias', async () => {
     const result = await executeTool('http_request', {
-      url: 'http://localhost:3000/api/v1/workflows/test',
+      url: 'http://127.0.0.2:3000/api/v1/workflows/test',
       method: 'GET',
     })
 
     expect(result.success).toBe(true)
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
-      'http://localhost:3000/api/v1/workflows/test',
+      'http://127.0.0.2:3000/api/v1/workflows/test',
       'toolUrl'
     )
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'http://localhost:3000/api/v1/workflows/test',
+      'http://127.0.0.2:3000/api/v1/workflows/test',
       '93.184.216.34',
       expect.objectContaining({ assertRedirectTarget: undefined })
     )
@@ -2710,6 +2710,67 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it.each(['127.0.0.1', '127.0.0.2', '[::1]'])(
+    'rejects the loopback alias %s for a self-hosted Sim listener',
+    async (hostname) => {
+      const mockTool = {
+        id: 'test_loopback_alias_integration',
+        name: 'Loopback Alias Integration',
+        description: 'Regression fixture',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: () => `http://${hostname}:3000/api/tools/test`,
+          method: 'GET' as const,
+          headers: () => ({}),
+        },
+      }
+      ;(tools as Record<string, unknown>).test_loopback_alias_integration = mockTool
+
+      try {
+        const result = await executeTool('test_loopback_alias_integration', {})
+
+        expect(result.success).toBe(false)
+        expect(result.error).toContain(
+          'External integration tools cannot target this Sim instance; use an internal operation'
+        )
+        expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+        expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(tools, 'test_loopback_alias_integration')
+      }
+    }
+  )
+
+  it('allows a self-hosted provider on a different loopback port', async () => {
+    const mockTool = {
+      id: 'test_local_provider',
+      name: 'Local Provider',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'http://127.0.0.1:4000/api/provider',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_local_provider = mockTool
+
+    try {
+      const result = await executeTool('test_local_provider', {})
+
+      expect(result.success).toBe(true)
+      expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+        'http://127.0.0.1:4000/api/provider',
+        'toolUrl'
+      )
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_local_provider')
+    }
+  })
+
   it('rejects an integration redirect that resolves back to this Sim instance', async () => {
     const mockTool = {
       id: 'test_same_origin_redirect',
@@ -2732,7 +2793,7 @@ describe('Internal Route Trust', () => {
       const secureFetchOptions = mockSecureFetchWithPinnedIP.mock.calls.at(-1)?.[2]
       expect(secureFetchOptions?.assertRedirectTarget).toBeTypeOf('function')
       expect(() =>
-        secureFetchOptions?.assertRedirectTarget?.('http://localhost:3000/api/tools/test')
+        secureFetchOptions?.assertRedirectTarget?.('http://127.0.0.2:3000/api/tools/test')
       ).toThrow(
         'External integration tools cannot target this Sim instance; use an internal operation'
       )
