@@ -348,6 +348,7 @@ export function UsageMonitoring({
             summary={workspaceSummary.data}
             isLoading={workspaceSummary.isLoading}
             isError={workspaceSummary.isError}
+            isPlaceholderData={workspaceSummary.isPlaceholderData}
           />
         </SettingsSection>
         {/*
@@ -481,6 +482,7 @@ export function UsageMonitoring({
                 }
                 isLoading={summary.isLoading}
                 isError={summary.isError}
+                isPlaceholderData={summary.isPlaceholderData}
               />
             </SettingsSection>
             {/*

@@ -29,7 +29,19 @@ export const organizationUsageKeys = {
     /** Set only inside the Workspaces drill-down, whose chart reads one workspace. */
     workspaceId?: string
   ) =>
-    [...organizationUsageKeys.all(organizationId), 'summary', window, workspaceId ?? ''] as const,
+    [
+      ...organizationUsageKeys.all(organizationId),
+      'summary',
+      workspaceId ?? '',
+      /*
+        Last deliberately, as on `breakdown`: it is the one segment the summary's
+        `placeholderData` may cross, so the scope's identity is a plain prefix rather
+        than an index-based filter that would silently drop `workspaceId` if a segment
+        were ever appended. Ordering it the other way is what let a retained summary
+        cross workspaces.
+      */
+      window,
+    ] as const,
   breakdowns: (organizationId: string, window: OrganizationUsageWindowKey) =>
     [...organizationUsageKeys.all(organizationId), 'breakdown', window] as const,
   breakdown: (

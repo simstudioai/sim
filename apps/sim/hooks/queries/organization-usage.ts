@@ -26,6 +26,19 @@ export const ORGANIZATION_USAGE_EVENTS_STALE_TIME = 30 * 1000
 
 const EVENTS_PAGE_SIZE = 50
 
+/**
+ * A usage key with its trailing segment dropped — the identity of the question being
+ * asked, which is what `placeholderData` has to compare on.
+ *
+ * Both keys put the one segment their placeholder may legitimately cross last: the
+ * summary's window ("the same scope, a different period") and the breakdown's row limit
+ * ("the same list, more rows"). Everything a retained answer must never cross —
+ * organization, workspace, dimension — sits in the prefix.
+ */
+function usageKeyIdentity(key: readonly unknown[]): string {
+  return hashKey(key.slice(0, -1))
+}
+
 interface UseSummaryOptions {
   /** The panel fetches the drill-down's chart only while that view is open. */
   enabled?: boolean
@@ -39,8 +52,9 @@ export function useOrganizationUsageSummary(
   options: UseSummaryOptions = {}
 ) {
   const { workspaceId } = options
+  const queryKey = organizationUsageKeys.summary(organizationId ?? '', window, workspaceId)
   return useQuery({
-    queryKey: organizationUsageKeys.summary(organizationId ?? '', window, workspaceId),
+    queryKey,
     queryFn: ({ signal }): Promise<OrganizationUsageSummary> =>
       requestJson(getOrganizationUsageSummaryContract, {
         params: { id: organizationId as string },
@@ -49,8 +63,22 @@ export function useOrganizationUsageSummary(
       }),
     enabled: Boolean(organizationId) && (options.enabled ?? true),
     staleTime: ORGANIZATION_USAGE_SUMMARY_STALE_TIME,
-    // Changing the period should dim the current figures rather than blank them.
-    placeholderData: keepPreviousData,
+    /**
+     * Kept only across a period change — the same scope asked about a different window,
+     * where dimming the figures beats blanking them.
+     *
+     * Not `keepPreviousData`, which retains across *any* key change: once the key
+     * carries a workspace, moving between two drill-downs would draw one workspace's
+     * headline, delta, and chart under the other's name until the fetch landed. A
+     * figure attributed to the wrong workspace is worse than a brief skeleton, and
+     * unlike a ranked list it carries nothing that would look out of place.
+     */
+    placeholderData: (previous, previousQuery) =>
+      previous &&
+      previousQuery &&
+      usageKeyIdentity(previousQuery.queryKey) === usageKeyIdentity(queryKey)
+        ? previous
+        : undefined,
   })
 }
 
@@ -60,14 +88,6 @@ interface UseBreakdownOptions {
   enabled?: boolean
   /** Narrows to one workspace, for the Workspaces drill-down. */
   workspaceId?: string
-}
-
-/**
- * A breakdown key with its trailing row limit removed — the identity of the list,
- * which is what "the same list, more rows" has to compare on.
- */
-function breakdownListIdentity(key: readonly unknown[]): string {
-  return hashKey(key.slice(0, -1))
 }
 
 export function useOrganizationUsageBreakdown(
@@ -110,7 +130,7 @@ export function useOrganizationUsageBreakdown(
     placeholderData: (previous, previousQuery) =>
       previous &&
       previousQuery &&
-      breakdownListIdentity(previousQuery.queryKey) === breakdownListIdentity(queryKey)
+      usageKeyIdentity(previousQuery.queryKey) === usageKeyIdentity(queryKey)
         ? previous
         : undefined,
   })
