@@ -12,15 +12,14 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
   params: SupabaseStorageUpdateBucketParams,
   signal
 ): Promise<SupabaseStorageUpdateBucketResponse> => {
-  const baseUrl = supabaseBaseUrl(params.projectId)
-  const bucket = encodeStorageSegment(params.bucket)
-  const headers = {
-    apikey: params.apiKey,
-    Authorization: `Bearer ${params.apiKey}`,
-    'Content-Type': 'application/json',
-  }
-
   try {
+    const baseUrl = supabaseBaseUrl(params.projectId)
+    const bucket = encodeStorageSegment(params.bucket)
+    const headers = {
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }
     const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
       method: 'GET',
       headers,

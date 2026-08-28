@@ -304,6 +304,7 @@ async function fetchTaskStatus(
 
 interface PollResult {
   success: boolean
+  taskEnded: boolean
   output: unknown
   steps: BrowserUseTaskStep[]
   sessionId: string | null
@@ -312,12 +313,18 @@ interface PollResult {
   error?: string
 }
 
+interface PollOptions {
+  initialSessionId: string | null
+  signal?: AbortSignal
+  onSessionId: (sessionId: string) => void
+}
+
 async function pollForCompletion(
   taskId: string,
   apiKey: string,
-  initialSessionId: string | null,
-  signal?: AbortSignal
+  options: PollOptions
 ): Promise<PollResult> {
+  const { initialSessionId, signal, onSessionId } = options
   let consecutiveErrors = 0
   let sessionId = initialSessionId
   let liveUrl: string | null = null
@@ -337,6 +344,7 @@ async function pollForCompletion(
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         return {
           success: false,
+          taskEnded: false,
           output: null,
           steps: [],
           sessionId,
@@ -352,7 +360,10 @@ async function pollForCompletion(
 
     consecutiveErrors = 0
     const taskData = result.data
-    if (taskData.sessionId) sessionId = taskData.sessionId
+    if (taskData.sessionId) {
+      sessionId = taskData.sessionId
+      onSessionId(taskData.sessionId)
+    }
     const status = taskData.status
 
     logger.info(`BrowserUse task ${taskId} status: ${status}`)
@@ -370,6 +381,7 @@ async function pollForCompletion(
       const output = taskData.output ?? null
       return {
         success: status === 'finished',
+        taskEnded: true,
         output,
         steps: taskData.steps ?? [],
         sessionId,
@@ -391,11 +403,14 @@ async function pollForCompletion(
   if (finalResult.ok && ['finished', 'failed', 'stopped'].includes(finalResult.data.status)) {
     const status = finalResult.data.status
     const output = finalResult.data.output ?? null
+    const finalSessionId = finalResult.data.sessionId ?? sessionId
+    if (finalSessionId) onSessionId(finalSessionId)
     return {
       success: status === 'finished',
+      taskEnded: true,
       output,
       steps: finalResult.data.steps ?? [],
-      sessionId: finalResult.data.sessionId ?? sessionId,
+      sessionId: finalSessionId,
       liveUrl,
       publicShareUrl,
       error:
@@ -409,6 +424,7 @@ async function pollForCompletion(
 
   return {
     success: false,
+    taskEnded: false,
     output: null,
     steps: [],
     sessionId,
@@ -470,7 +486,9 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
   params: BrowserUseRunTaskParams,
   signal?: AbortSignal
 ): Promise<BrowserUseRunTaskResponse> => {
-  let sessionId: string | undefined
+  let profileSessionId: string | undefined
+  let taskSessionId: string | null = null
+  let taskEnded = false
 
   if (params.profile_id) {
     logger.info(`Creating session with profile ID: ${params.profile_id}`)
@@ -478,12 +496,12 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     if ('error' in sessionResult) {
       return { success: false, output: emptyOutput(), error: sessionResult.error }
     }
-    sessionId = sessionResult.sessionId
+    profileSessionId = sessionResult.sessionId
   }
 
   try {
-    const requestBody = buildRequestBody(params, sessionId)
-    logger.info('Creating BrowserUse task', { hasSession: !!sessionId })
+    const requestBody = buildRequestBody(params, profileSessionId)
+    logger.info('Creating BrowserUse task', { hasSession: !!profileSessionId })
     const response = await fetchBrowserUse('/tasks', params.apiKey, {
       method: 'POST',
       body: requestBody,
@@ -512,10 +530,18 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     }
     const data = parsed.data
     const taskId = data.id
-    const initialSessionId = sessionId ?? data.sessionId ?? null
+    const initialSessionId = profileSessionId ?? data.sessionId ?? null
+    taskSessionId = initialSessionId
     logger.info(`Created BrowserUse task ${taskId}`, { sessionId: initialSessionId })
 
-    const result = await pollForCompletion(taskId, params.apiKey, initialSessionId, signal)
+    const result = await pollForCompletion(taskId, params.apiKey, {
+      initialSessionId,
+      signal,
+      onSessionId: (discoveredSessionId) => {
+        taskSessionId = discoveredSessionId
+      },
+    })
+    taskEnded = result.taskEnded
 
     const finalSessionId = result.sessionId ?? initialSessionId
     const shareUrl =
@@ -544,7 +570,10 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
       error: `Error creating task: ${getErrorMessage(error, 'Unknown error')}`,
     }
   } finally {
-    if (sessionId) {
+    const sessionsToStop = new Set<string>()
+    if (profileSessionId) sessionsToStop.add(profileSessionId)
+    if (!taskEnded && taskSessionId) sessionsToStop.add(taskSessionId)
+    for (const sessionId of sessionsToStop) {
       await stopSession(sessionId, params.apiKey)
     }
   }

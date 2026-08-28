@@ -90,4 +90,18 @@ describe('executeStorageUpdateBucketOperation', () => {
       executeStorageUpdateBucketOperation(INPUT, controller.signal)
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
+
+  it('returns a structured failure for an invalid project reference', async () => {
+    const result = await executeStorageUpdateBucketOperation({
+      ...INPUT,
+      projectId: '../invalid',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      output: { message: 'Failed to update storage bucket', results: {} },
+      error: expect.any(String),
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
