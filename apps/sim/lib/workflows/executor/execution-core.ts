@@ -117,6 +117,7 @@ export interface ExecuteWorkflowCoreOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   stopAfterBlockId?: string
+  onBlocksMayRun?: () => void
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
@@ -973,6 +974,7 @@ async function executeWorkflowCoreImpl(
        */
       onBlocksMayRun: () => {
         executorStarted = true
+        options.onBlocksMayRun?.()
       },
       stream: !!onStream,
       selectedOutputs,

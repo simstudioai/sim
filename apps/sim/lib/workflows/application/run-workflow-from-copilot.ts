@@ -29,7 +29,7 @@ import {
 } from '@/lib/workflows/triggers/run-options'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+import { attachAttemptedExecutionId, recordBlocksMayHaveRun } from '@/executor/utils/errors'
 
 const logger = createLogger('CopilotWorkflowRun')
 
@@ -251,6 +251,7 @@ async function executeCopilotRun(params: {
   )
   const completePendingActivation = registry?.beginPendingActivation()
   let runReturned = false
+  let blocksMayHaveRun = false
   try {
     const result = await executeWorkflow(
       {
@@ -273,6 +274,17 @@ async function executeCopilotRun(params: {
         stopAfterBlockId: params.stopAfterBlockId,
         runFromBlock: params.runFromBlock,
         abortSignal: params.input.lifecycle.abortSignal,
+        /**
+         * Whether a block could have run, stated by the executor rather than inferred here.
+         * Every earlier attempt read it off the shape of the outcome — a status field, or
+         * whether an ExecutionResult rode along on the error — and those are proxies that
+         * disagree with reality on exactly the paths that matter: an engine that fails
+         * before its first block still carries a result, and a run that ends without one
+         * still ran every block it had.
+         */
+        onBlocksMayRun: () => {
+          blocksMayHaveRun = true
+        },
         billingAttribution: admission.billingAttribution,
         ...(trustedInitialResolvedSecretTraceProvenance
           ? { trustedInitialResolvedSecretTraceProvenance }
@@ -293,6 +305,7 @@ async function executeCopilotRun(params: {
       childExecutionId
     )
     runReturned = true
+    recordBlocksMayHaveRun(result, blocksMayHaveRun)
     if (registry) {
       await registry.importCrossingProvenance(
         result.executionState?.resolvedSecretTraceProvenance,
@@ -309,6 +322,7 @@ async function executeCopilotRun(params: {
      * what threw and an execution certainly exists.
      */
     if (runReturned) attachAttemptedExecutionId(error, childExecutionId)
+    recordBlocksMayHaveRun(error, blocksMayHaveRun)
     /**
      * Recovery must never replace the failure it is describing. Both steps below run only to
      * record and release, and either throwing would propagate a different error — one the

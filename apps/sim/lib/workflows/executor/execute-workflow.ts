@@ -52,6 +52,12 @@ export interface ExecuteWorkflowOptions {
   useDraftState?: boolean
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
+  /**
+   * Fired once, when a block handler is first about to run. The only fact that answers
+   * "could a side effect have occurred", and the only one the executor can state rather
+   * than have inferred from the shape of a result.
+   */
+  onBlocksMayRun?: () => void
   /** Run-from-block configuration using a prior execution snapshot. */
   runFromBlock?: {
     startBlockId: string
@@ -203,6 +209,7 @@ export async function executeWorkflow(
       base64MaxBytes: streamConfig?.base64MaxBytes,
       abortSignal: streamConfig?.abortSignal,
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
+      onBlocksMayRun: streamConfig?.onBlocksMayRun,
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
