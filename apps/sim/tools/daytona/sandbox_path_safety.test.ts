@@ -180,3 +180,45 @@ describe('encodeSandboxId', () => {
     expect(encodeSandboxId(sandboxId)).toBe(sandboxId)
   })
 })
+
+/**
+ * The lifecycle tools echo `sandboxId` back as the output id when the API
+ * returns no body. That runs in `transformResponse`, so the sandbox has already
+ * been started, stopped, or irreversibly deleted by the time it executes — a
+ * `.trim()` on a non-string id would surface the successful call as an unnamed
+ * `TypeError`. `sandboxId` is declared `type: 'string'` but arrives unvalidated,
+ * and `safeUrlPathSegment` now accepts a numeric id, so a number reaches here.
+ */
+describe('the sandbox id echoed back by the lifecycle tools', () => {
+  const lifecycleTools = [
+    daytonaTools.daytonaStartSandboxTool,
+    daytonaTools.daytonaStopSandboxTool,
+    daytonaTools.daytonaDeleteSandboxTool,
+  ] as AnyTool[]
+
+  const emptyBody = () => new Response('', { status: 200 })
+
+  it.each(lifecycleTools.map((tool) => [tool.id, tool] as const))(
+    '%s reports a numeric sandboxId instead of throwing after the request went out',
+    async (_id, tool) => {
+      const result = await tool.transformResponse!(emptyBody(), {
+        apiKey: 'k',
+        sandboxId: 12345 as unknown as string,
+      })
+
+      expect(result.output.sandbox.id).toBe('12345')
+    }
+  )
+
+  it.each(lifecycleTools.map((tool) => [tool.id, tool] as const))(
+    '%s still trims a string sandboxId',
+    async (_id, tool) => {
+      const result = await tool.transformResponse!(emptyBody(), {
+        apiKey: 'k',
+        sandboxId: '  sbx_abc123  ',
+      })
+
+      expect(result.output.sandbox.id).toBe('sbx_abc123')
+    }
+  )
+})
