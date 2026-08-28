@@ -47,9 +47,6 @@ Parse documents (PDF, images, Office docs) using Pulse OCR API
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Document to be processed |
 | `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
-| `extractFigure` | boolean | No | Enable figure extraction from the document |
-| `figureDescription` | boolean | No | Generate descriptions/captions for extracted figures |
-| `returnHtml` | boolean | No | Include HTML in the response |
 | `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
 | `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
 | `apiKey` | string | Yes | Pulse API key |
@@ -63,9 +60,9 @@ Parse documents (PDF, images, Office docs) using Pulse OCR API
 | `job_id` | string | Unique job identifier |
 | `bounding_boxes` | json | Bounding box layout information |
 | `extraction_url` | string | URL for extraction results \(for large documents\) |
-| `html` | string | HTML content if requested |
-| `structured_output` | json | Structured output if schema was provided |
+| `html` | string | HTML content; returned only when the hidden returnHtml input is enabled |
+| `structured_output` | json | Structured output; Sim exposes no input for supplying a schema, so this is always null |
 | `chunks` | json | Chunked content if chunking was enabled |
-| `figures` | json | Extracted figures if figure extraction was enabled |
+| `figures` | json | Extracted figures; returned only when the hidden extractFigure input is enabled |
 
 

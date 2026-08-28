@@ -274,7 +274,7 @@ export function SettingsHeaderShell({ meta, children }: SettingsHeaderShellProps
    * field-by-field: a body that registers an explicit `title` and no `description` is
    * deliberately suppressing the meta description, so the two must never be merged — and a
    * body that registers an empty config is deliberately asking for no heading at all, which
-   * is how a surface that renders its own (`SettingsUnavailable`) opts out.
+   * is how a surface that renders its own heading opts out.
    */
   const config: SettingsHeaderConfig = registered ?? meta ?? EMPTY_CONFIG
   const { title, description, docsLink, back, actions, search, scrollContainerRef } = config

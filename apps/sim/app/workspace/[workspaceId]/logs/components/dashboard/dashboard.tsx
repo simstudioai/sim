@@ -3,6 +3,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Loader } from '@sim/emcn'
 import { useParams } from 'next/navigation'
+import { LineChart } from '@/components/charts'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,
@@ -11,7 +12,7 @@ import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { LineChart, WorkflowsList } from './components'
+import { WorkflowsList } from './components'
 
 interface WorkflowExecution {
   workflowId: string

@@ -73,7 +73,7 @@ describe('renderUsageLimitReachedEmail', () => {
       scope: 'organization',
       currentUsage: 500,
       limit: 500,
-      ctaLink: 'https://sim.ai/organization/org_1/settings/billing',
+      ctaLink: 'https://sim.ai/workspace/ws_1/settings/billing',
     })
 
     expect(html).toContain('Raise Organization Limit')

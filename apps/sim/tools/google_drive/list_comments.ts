@@ -134,7 +134,8 @@ export const listCommentsTool: ToolConfig<
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of comments',
+      description:
+        'Page token for the next page of comments; absent from the response when the end of the comments list has been reached',
     },
   },
 }

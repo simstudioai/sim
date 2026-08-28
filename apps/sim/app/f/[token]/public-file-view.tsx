@@ -114,6 +114,7 @@ export function PublicFileView({
           contentSource={source}
           canEdit={false}
           readOnly
+          enableFind
         />
       </main>
     </div>

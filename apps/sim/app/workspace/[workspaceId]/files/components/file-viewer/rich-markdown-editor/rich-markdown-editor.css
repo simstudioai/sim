@@ -585,3 +585,16 @@
   border-radius: 2px;
   pointer-events: none;
 }
+
+/* Cmd/Ctrl+F match highlights. Every hit carries the same tint the rest of the app
+ * paints a search match with; the active one is ringed rather than recolored, so the
+ * two read as one family and neither needs a token that only exists here. */
+.rich-markdown-nodes .rich-find-match {
+  background-color: var(--highlight-match-bg);
+  color: var(--highlight-match-text);
+  border-radius: 2px;
+}
+
+.rich-markdown-nodes .rich-find-match-active {
+  box-shadow: 0 0 0 1.5px var(--highlight-match-text);
+}

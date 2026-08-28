@@ -200,6 +200,15 @@ interface BlockConfig {
     access?: string[]
   }
   operations?: OperationInfo[]
+  /**
+   * Param names the block itself supplies — via a `subBlocks` field (id or
+   * `canonicalParamId`) or via its `tools.config.params` mapper.
+   *
+   * `null` means the block's `subBlocks` array could not be read, so which params it supplies
+   * is UNKNOWN and the hidden-param filter is skipped for it. Never conflate that with `[]`,
+   * which asserts the block supplies nothing and strips every hidden param from its page.
+   */
+  userSettableParamIds?: string[] | null
   docsLink?: string
   [key: string]: any
 }
@@ -669,6 +678,417 @@ ${mappingEntries}
 }
 
 /**
+ * Raised when a block's `subBlocks` array is present but cannot be read. Distinguishes
+ * a parse failure from a block that genuinely exposes no fields — both used to surface
+ * as an empty array, and the empty array silently strips documented rows.
+ */
+class SubBlockParseError extends Error {
+  override name = 'SubBlockParseError'
+}
+
+/** Blocks already warned about. The same block is re-parsed by the page pass, the icon pass and
+ * each spread-base recursion, so without this the same warning prints several times. */
+const subBlockParseWarnings = new Set<string>()
+
+/**
+ * Collects the param names a block exposes to the user through its own `subBlocks`.
+ *
+ * A subBlock's `id` is the param it writes, unless it declares `canonicalParamId`,
+ * which is how a differently-named field maps onto a tool param. A tool param marked
+ * `visibility: 'hidden'` is not an LLM-settable tool argument, but when the block
+ * declares a matching field the value is still typed by the user (e.g. Mailchimp's
+ * `apiKey`) and must stay documented. Params with no matching field are genuinely
+ * server-derived (Jira's `cloudId`, Salesforce's `idToken`) and stay filtered out.
+ *
+ * Brace matching runs on a blanked copy so braces inside string literals and comments
+ * cannot skew it; only depth-1 properties of each subBlock are read, so `id` fields on
+ * nested `options`/`condition` objects are never mistaken for the subBlock's own id.
+ *
+ * Returns `null` for UNKNOWN — an array whose elements are all spreads of fields arrays this
+ * scanner cannot follow (`...NotionBlock.subBlocks`, `...getTrigger('x').subBlocks`). `[]` is
+ * reserved for a block that genuinely exposes no fields, because `[]` strips every hidden param
+ * from the page. Throws {@link SubBlockParseError} when the array is there but unreadable.
+ */
+export function extractUserSettableParamIds(
+  blockContent: string,
+  blockName = 'block'
+): string[] | null {
+  const scannable = blankStringsAndComments(blockContent)
+  const keyMatch = /\bsubBlocks\s*:/.exec(scannable)
+  if (!keyMatch) return []
+
+  const afterKey = keyMatch.index + keyMatch[0].length
+  const literalMatch = /^\s*\[/.exec(scannable.slice(afterKey))
+  if (!literalMatch) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks is built by an expression rather than an array literal, so the fields it contributes cannot be read`
+    )
+  }
+
+  const arrayStart = afterKey + literalMatch[0].length - 1
+  const arrayEnd = findMatchingClose(scannable, arrayStart, '[', ']')
+  if (arrayEnd === -1) {
+    throw new SubBlockParseError(
+      `${blockName}: found a subBlocks array but could not locate its closing bracket`
+    )
+  }
+
+  const ids = new Set<string>()
+  let elementsWithoutIds = 0
+
+  /**
+   * Text of the array's own elements with every object literal, call argument and nested
+   * bracket elided, so each remaining comma-separated segment is one element's head. Used to
+   * tell an element that names an existing fields array from one that hides its fields behind
+   * a helper call.
+   */
+  let elementHeads = ''
+  let nesting = 0
+  let i = arrayStart + 1
+
+  while (i < arrayEnd - 1) {
+    const char = scannable[i]
+
+    if (nesting === 0 && char === '{') {
+      const objectEnd = findMatchingClose(scannable, i)
+      if (objectEnd === -1) break
+
+      let depth = 0
+      let topLevel = ''
+      const sourceIndices: number[] = []
+      for (let k = i; k < objectEnd; k++) {
+        const inner = scannable[k]
+        if (inner === '{' || inner === '[') {
+          depth++
+          continue
+        }
+        if (inner === '}' || inner === ']') {
+          depth--
+          continue
+        }
+        if (depth === 1) {
+          topLevel += inner
+          sourceIndices.push(k)
+        }
+      }
+
+      /**
+       * Matching runs on the blanked characters, so an `id:` sitting inside a string value or a
+       * `//` comment cannot be mistaken for the subBlock's own id. Blanking keeps a string's
+       * quotes and its length, so the matched literal's value is read back character by character
+       * from the original content at the indices the blanked copy matched at.
+       */
+      const readLiteral = (match: RegExpExecArray): string => {
+        const valueStart = match.index + match[0].length - 1 - match[1].length
+        let value = ''
+        for (let offset = 0; offset < match[1].length; offset++) {
+          value += blockContent[sourceIndices[valueStart + offset]]
+        }
+        return value
+      }
+
+      const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+      if (idMatch) ids.add(readLiteral(idMatch))
+      const canonicalMatch = /\bcanonicalParamId\s*:\s*['"]([^'"]+)['"]/.exec(topLevel)
+      if (canonicalMatch) ids.add(readLiteral(canonicalMatch))
+
+      /**
+       * An object that spreads an existing subBlock to override one property
+       * (`{ ...sb, required: true }`) legitimately carries no id of its own — the id comes from
+       * the spread source. Only an object with neither an id nor a spread means the scan failed.
+       */
+      if (!idMatch && !canonicalMatch && !topLevel.includes('...')) elementsWithoutIds++
+
+      i = objectEnd
+      continue
+    }
+
+    if (char === '(' || char === '[') {
+      nesting++
+      i++
+      continue
+    }
+    if (char === ')' || char === ']') {
+      nesting--
+      i++
+      continue
+    }
+    if (nesting === 0) elementHeads += char
+    i++
+  }
+
+  /**
+   * Any id at all means the array was read and the page keeps a populated Input table. An
+   * opaque element alongside real ids can only omit extra rows — the long-standing limitation
+   * that a spread contributes ids this scanner never sees — and is not this guard's business.
+   * The guard exists solely to stop an empty result, because empty is what strips every hidden
+   * param from the page.
+   */
+  if (ids.size > 0) return [...ids]
+
+  if (elementsWithoutIds > 0) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks array holds object literals but no id was extracted`
+    )
+  }
+
+  /**
+   * Zero ids is a legitimate answer only when every element names an existing fields array
+   * (`...NotionBlock.subBlocks`, `...getTrigger('x').subBlocks`, `...Base.subBlocks.filter(…)`),
+   * because those fields reach the page through the spread base instead. An element that is a
+   * bare helper call (`...getSlackV2ActionSubBlocks()`) hides whatever fields the helper builds,
+   * and used to yield a silent empty array indistinguishable from a spread-only block.
+   */
+  const segments = elementHeads
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+  const opaque = segments.filter((segment) => !segment.includes('.subBlocks'))
+  if (opaque.length > 0) {
+    throw new SubBlockParseError(
+      `${blockName}: subBlocks array yielded no ids and element${
+        opaque.length > 1 ? 's' : ''
+      } ${opaque.map((segment) => `\`${segment}\``).join(', ')} do not name a fields array`
+    )
+  }
+
+  /**
+   * Every element named a fields array this scanner cannot follow, so the block's fields are
+   * UNKNOWN, not empty. Returning `[]` here would assert the block supplies nothing and strip
+   * every hidden param from its tools' Input tables with no warning — the silent false-drop the
+   * `null` state exists to prevent. Only a genuinely empty array (`subBlocks: []`) reaches the
+   * `[]` below.
+   */
+  if (segments.length > 0) return null
+
+  return []
+}
+
+/**
+ * Locates the bodies of every `tools.config.params` mapper in `scannable`.
+ *
+ * Returns `[start, end)` index pairs into `scannable` (a length-preserving blanked copy, so
+ * the same indices address the original content).
+ *
+ * In production this only ever runs on a single block's slice, which holds at most one
+ * `subBlocks:` key — the loop over every `tools` object is defensive rather than required, and
+ * the multi-block file it was once justified by (Textract's v1 and v2) is split before it gets
+ * here. The tests do pass whole files, so the loop is exercised on wider input than production
+ * ever supplies.
+ *
+ * Handles `params: (params) => { ... }`, the concise `params: (params) => ({ ... })` form, the
+ * `async` and generic-annotated variants, and method shorthand. Candidates are tried in order
+ * rather than only the first, because a decoy key that is not a mapper at all
+ * (`params: (GitHubBlock.tools?.config as any)?.params`) would otherwise mask the real one.
+ */
+function findMapperBodyRanges(scannable: string): [number, number][] {
+  const ranges: [number, number][] = []
+  const toolsRegex = /\btools\s*:\s*\{/g
+  let toolsMatch: RegExpExecArray | null
+
+  while ((toolsMatch = toolsRegex.exec(scannable)) !== null) {
+    const toolsEnd = findMatchingClose(scannable, toolsMatch.index + toolsMatch[0].length - 1)
+    if (toolsEnd === -1) continue
+    toolsRegex.lastIndex = toolsEnd
+
+    const toolsRegion = scannable.slice(toolsMatch.index, toolsEnd)
+    const configMatch = /\bconfig\s*:\s*\{/.exec(toolsRegion)
+    if (!configMatch) continue
+    const configStart = toolsMatch.index + configMatch.index + configMatch[0].length - 1
+    const configEnd = findMatchingClose(scannable, configStart)
+    if (configEnd === -1) continue
+
+    const configRegion = scannable.slice(configStart, configEnd)
+    const paramsRegex = /\bparams\s*(?::\s*(?:async\s*)?(?:<[^<>]*>\s*)?)?\(/g
+    let paramsMatch: RegExpExecArray | null
+
+    while ((paramsMatch = paramsRegex.exec(configRegion)) !== null) {
+      const argsStart = configStart + paramsMatch.index + paramsMatch[0].length - 1
+      const argsEnd = findMatchingClose(scannable, argsStart, '(', ')')
+      if (argsEnd === -1) continue
+
+      const afterArgs = scannable.slice(argsEnd, configEnd)
+      const bodyMatch = /^\s*(?::[^=({]*)?(?:=>\s*)?([({])/.exec(afterArgs)
+      if (!bodyMatch) continue
+      const open = bodyMatch[1] as '(' | '{'
+      const bodyStart = argsEnd + bodyMatch[0].length - 1
+      const bodyEnd = findMatchingClose(scannable, bodyStart, open, open === '(' ? ')' : '}')
+      if (bodyEnd === -1) continue
+      ranges.push([bodyStart, bodyEnd])
+      break
+    }
+  }
+
+  return ranges
+}
+
+/**
+ * Adds the shorthand property names of every object literal in `body` to `into`.
+ *
+ * `{ file }` names the `file` param exactly as `{ file: value }` does, but carries no colon,
+ * so the key scan below cannot see it — a mapper written in the idiomatic shorthand form used
+ * to drop the param from the docs silently, which is the one failure mode this whole filter
+ * exists to prevent.
+ *
+ * Only the depth-1 comma segments of a brace-matched region are read, and a segment that
+ * opens a call or an index is marked so it can no longer look like a bare identifier. That
+ * keeps argument lists (`fn(a, b, c)`), calls (`{ doWork() }`) and nested values
+ * (`{ a: { b: 1 }, file }`) from contributing names, while `{ ...rest, file }` still yields
+ * `file` because `...rest` is not an identifier on its own.
+ */
+function collectShorthandPropertyNames(body: string, into: Set<string>): void {
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] !== '{') continue
+
+    const objectEnd = findMatchingClose(body, i)
+    if (objectEnd === -1) continue
+
+    const segments: string[] = []
+    let current = ''
+    let depth = 0
+
+    for (let k = i; k < objectEnd; k++) {
+      const char = body[k]
+      if (char === '{' || char === '[' || char === '(') {
+        depth++
+        if (depth === 2) current += '#'
+        continue
+      }
+      if (char === '}' || char === ']' || char === ')') {
+        depth--
+        continue
+      }
+      if (depth !== 1) continue
+      if (char === ',') {
+        segments.push(current)
+        current = ''
+        continue
+      }
+      current += char
+    }
+    segments.push(current)
+
+    for (const segment of segments) {
+      const name = segment.trim()
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) into.add(name)
+    }
+  }
+}
+
+/**
+ * Collects the tool-param names a block's own `tools.config.params` mapper writes.
+ *
+ * A block can supply a hidden tool param without ever declaring a subBlock of that name:
+ * Cal.com assembles `result.attendee` from `attendeeName`/`attendeeEmail`/`attendeeTimeZone`,
+ * JSM renames its `assetWorkspaceId` field to `workspaceId`, and Textract renames its
+ * `document` field to `file`. All are user-driven and must stay documented, so this scan
+ * catches both shapes — `<anyIdentifier>.<param> = …` assignments (the accumulator is named
+ * `result` in one block and `parameters` in another, so the name is never assumed) and
+ * `<param>:` keys of the objects the mapper returns.
+ *
+ * The rule is deliberately biased toward keeping. Object keys are collected without proving
+ * they are top-level params, so a key on a nested object (Cal.com's `attendee.name`) can keep
+ * a same-named hidden param that the mapper never actually supplies. That false keep costs a
+ * reader one hard-to-set row; a false drop hides a required input — the exact failure this
+ * filter exists to prevent, and one it has already caused. When the two are in tension, keep.
+ *
+ * Scanning runs on the blanked copy, so a commented-out or string-embedded mapper cannot
+ * contribute names.
+ */
+export function extractMapperWrittenParamIds(blockContent: string): string[] {
+  const scannable = blankStringsAndComments(blockContent)
+  const ids = new Set<string>()
+
+  for (const [start, end] of findMapperBodyRanges(scannable)) {
+    const body = scannable.slice(start, end)
+
+    const assignmentRegex = /(?:^|[^.\w$])[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*=(?!=)/g
+    let match: RegExpExecArray | null
+    while ((match = assignmentRegex.exec(body)) !== null) ids.add(match[1])
+
+    const keyRegex = /(?:^|[^?.\w$])([A-Za-z_$][\w$]*)\s*:/g
+    while ((match = keyRegex.exec(body)) !== null) ids.add(match[1])
+
+    /**
+     * Quoted keys survive blanking only as their delimiters, so the name is read back from
+     * the original content at the same index — `blankStringsAndComments` is length-preserving.
+     */
+    const quotedKeyRegex = /(['"])[^'"\n]*\1\s*:/g
+    while ((match = quotedKeyRegex.exec(body)) !== null) {
+      const keyStart = start + match.index
+      const original = blockContent.slice(keyStart, keyStart + match[0].length)
+      const name = /(['"])([A-Za-z_$][\w$]*)\1/.exec(original)?.[2]
+      if (name) ids.add(name)
+    }
+
+    /**
+     * A computed write (`result['file'] = …`) supplies a param exactly as `result.file = …`
+     * does. Like the quoted keys above, the name only survives blanking as its delimiters and
+     * is read back from the original content at the matched index.
+     */
+    const bracketAssignmentRegex =
+      /(?:^|[^.\w$])[A-Za-z_$][\w$]*\s*\[\s*(['"])[^'"\n]*\1\s*\]\s*=(?!=)/g
+    while ((match = bracketAssignmentRegex.exec(body)) !== null) {
+      const matchStart = start + match.index
+      const original = blockContent.slice(matchStart, matchStart + match[0].length)
+      const name = /\[\s*(['"])([A-Za-z_$][\w$]*)\1\s*\]/.exec(original)?.[2]
+      if (name) ids.add(name)
+    }
+
+    collectShorthandPropertyNames(body, ids)
+  }
+
+  return [...ids]
+}
+
+/** What {@link extractBlockSuppliedParamIds} could and could not read off a block. */
+export interface BlockSuppliedParams {
+  /**
+   * Every param the block supplies, or `null` when what its `subBlocks` array contributes is
+   * unknown — either the array could not be read (`parseError` set) or it holds only spreads of
+   * fields arrays this scanner cannot follow (`parseError` null).
+   *
+   * `null` is UNKNOWN and is deliberately distinct from `[]`: an empty array asserts the block
+   * supplies nothing, which strips every hidden param from the page, while `null` says the scan
+   * failed and the filter must be skipped entirely for this block.
+   */
+  ids: string[] | null
+  /**
+   * The params the block's `tools.config.params` mapper writes. Collected even when the
+   * `subBlocks` scan failed, so a spread-inheriting block does not lose its mapper's renames
+   * along with its own fields.
+   */
+  mapperIds: string[]
+  /** Why the `subBlocks` scan failed, when it did. `null` on success. */
+  parseError: string | null
+}
+
+/**
+ * Every param name the block itself supplies — via a user-facing `subBlocks` field or via
+ * its `tools.config.params` mapper. A hidden tool param in this set stays in the public
+ * Input table; the rest are genuinely resolver-derived and stay filtered out.
+ *
+ * An unreadable `subBlocks` array is reported as `ids: null` rather than thrown, because the
+ * only safe response to "the fields are unknown" is to stop filtering, never to filter against
+ * an empty set. The mapper scan runs first so its result survives that failure.
+ */
+export function extractBlockSuppliedParamIds(
+  blockContent: string,
+  blockName = 'block'
+): BlockSuppliedParams {
+  const mapperIds = extractMapperWrittenParamIds(blockContent)
+
+  try {
+    const settableIds = extractUserSettableParamIds(blockContent, blockName)
+    if (settableIds === null) return { ids: null, mapperIds, parseError: null }
+    return { ids: [...new Set([...settableIds, ...mapperIds])], mapperIds, parseError: null }
+  } catch (error) {
+    if (!(error instanceof SubBlockParseError)) throw error
+    return { ids: null, mapperIds, parseError: error.message }
+  }
+}
+
+/**
  * Extract operation options from the subBlock with id: 'operation' (if present).
  * Returns { label, id } pairs — label is the display name, id is the option's id field
  * (used to construct the tool ID as `{blockType}_{id}`).
@@ -842,7 +1262,17 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 function blankStringsAndComments(content: string): string {
   return content.replace(
     /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
-    (match) => match[0] + match.slice(1, -1).replace(/[^\n]/g, ' ') + match[match.length - 1]
+    (match: string, quote: string | undefined) => {
+      const blanked = match.replace(/[^\n]/g, ' ')
+      /**
+       * A comment has no delimiters worth preserving, so it is blanked whole. Keeping
+       * its final character would leak arbitrary source text — commented-out code ending
+       * in `[` or `{` leaves an unbalanced bracket that derails every scan downstream.
+       * A quoted string keeps its own quotes so callers can still see where it began.
+       */
+      if (quote === undefined) return blanked
+      return quote + blanked.slice(1, -1) + quote
+    }
   )
 }
 
@@ -1224,7 +1654,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 /**
  * Extract ALL block configs from a file, filtering out hidden blocks
  */
-function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
+export function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
   const configs: BlockConfig[] = []
 
   // First, extract the primary icon from the file (for V2 blocks that inherit via spread)
@@ -1356,6 +1786,63 @@ function extractBlockConfigFromContent(
 
     const operations = extractOperationsFromContent(blockContent)
     const triggerIds = extractTriggersAvailable(blockContent, fileContent)
+    const supplied = extractBlockSuppliedParamIds(blockContent, blockName)
+    /**
+     * `null` on the base means the base's own scan failed, which is not the same as a block
+     * with no base at all (`undefined`) — the fields the base contributes are unknown, so
+     * anything inheriting them is unknown too.
+     */
+    const baseParamIds: string[] | null | undefined = (baseConfig as any)?.userSettableParamIds
+    const baseSettableParamIds: string[] = baseParamIds ?? []
+
+    /**
+     * `null` means UNKNOWN and disables the hidden-param filter for this block, restoring the
+     * pre-filter behaviour of documenting every param. An unreadable `subBlocks` array must
+     * never be collapsed into `[]`, because `[]` asserts the block supplies nothing and strips
+     * every hidden param from the page, and it must never abort the run either — one block the
+     * scanner cannot read used to brick the generator for the entire repository.
+     */
+    let userSettableParamIds: string[] | null
+    if (supplied.parseError !== null) {
+      /**
+       * A block that spreads a base still documents the base's fields, so the filter can stay
+       * on and lose at most the fields this block adds on top of the base — plus its mapper's
+       * renames, which are read even when the `subBlocks` scan fails. With no base to fall back
+       * on there is nothing to filter against, so the filter is switched off entirely.
+       */
+      const fallback =
+        baseSettableParamIds.length > 0
+          ? [...new Set([...baseSettableParamIds, ...supplied.mapperIds])]
+          : null
+      if (!subBlockParseWarnings.has(supplied.parseError)) {
+        subBlockParseWarnings.add(supplied.parseError)
+        console.warn(
+          `⚠ ${supplied.parseError}; ${
+            fallback
+              ? "documenting the spread base's fields instead"
+              : 'documenting every param of its tools instead of filtering'
+          }`
+        )
+      }
+      userSettableParamIds = fallback
+    } else if (baseParamIds === null) {
+      userSettableParamIds = null
+    } else if (supplied.ids === null) {
+      /**
+       * The block's `subBlocks` array holds only spreads of fields arrays this scanner cannot
+       * follow. A config-level spread base still contributes its readable fields, so the filter
+       * stays on against those plus the mapper's renames; with no base there is nothing to
+       * filter against and the filter is switched off. No warning: unlike the `parseError`
+       * cases the array itself parsed fine, and every field it names is documented through the
+       * spread source's own page.
+       */
+      userSettableParamIds =
+        baseSettableParamIds.length > 0
+          ? [...new Set([...baseSettableParamIds, ...supplied.mapperIds])]
+          : null
+    } else {
+      userSettableParamIds = [...new Set([...supplied.ids, ...baseSettableParamIds])]
+    }
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
@@ -1387,6 +1874,7 @@ function extractBlockConfigFromContent(
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
       operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      userSettableParamIds,
       triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
       docsLink,
       ...(integrationType ? { integrationType } : {}),
@@ -2200,7 +2688,8 @@ export function extractToolInfo(
   fileContent: string,
   factorySource = '',
   toolFilePath = '',
-  rootDir = ''
+  rootDir = '',
+  userSettableParamIdSet: ReadonlySet<string> | null = null
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2350,6 +2839,23 @@ export function extractToolInfo(
         const paramBlock = param.content
 
         if (paramName === 'accessToken' || paramName === 'params' || paramName === 'tools') {
+          continue
+        }
+
+        /**
+         * `visibility: 'hidden'` means the param is not an LLM-settable tool argument, so
+         * it must not appear in the public Input table — emitting it tells integrators they
+         * can override a value they cannot reach, and several such params are credential-
+         * shaped (idToken, instanceUrl, apiToken). The exception is a param the owning block
+         * still exposes as a field the user types: Mailchimp's `apiKey` is hidden on every
+         * tool because the block injects it, yet the block's own `apiKey` subBlock is the
+         * only place the requirement is documented. Keep those; drop the rest.
+         */
+        if (
+          userSettableParamIdSet !== null &&
+          /visibility\s*:\s*['"]hidden['"]/.test(paramBlock) &&
+          !userSettableParamIdSet.has(paramName)
+        ) {
           continue
         }
 
@@ -2954,11 +3460,17 @@ export function parsePropertiesContent(
   return properties
 }
 
-export async function getToolInfo(toolName: string): Promise<{
+export async function getToolInfo(
+  toolName: string,
+  userSettableParamIds: readonly string[] | null = null
+): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null> {
+  const userSettableParamIdSet =
+    userSettableParamIds === null ? null : new Set(userSettableParamIds)
+
   try {
     const metadata = (await loadToolMetadata())[toolName]
     const parts = toolName.split('_')
@@ -3090,14 +3602,27 @@ export async function getToolInfo(toolName: string): Promise<{
           toolFileContent,
           resolveFactorySource(toolFileContent, foundFile, rootDir),
           foundFile,
-          rootDir
+          rootDir,
+          userSettableParamIdSet
         )
       : null
 
     if (!metadata) return sourceInfo
 
+    /**
+     * The same hidden-param rule `extractToolInfo` applies to source-parsed params, applied to the
+     * metadata-derived ones. `tool-metadata.ts` carries `visibility` for every param, so this is the
+     * authoritative form of the check; the source-side filter remains for tools with no metadata
+     * entry. A null set means the block's subBlocks could not be read, so nothing is filtered.
+     */
     const params = Object.entries(metadata.params ?? {})
       .filter(([name]) => name !== 'accessToken')
+      .filter(
+        ([name, param]) =>
+          userSettableParamIdSet === null ||
+          param.visibility !== 'hidden' ||
+          userSettableParamIdSet.has(name)
+      )
       .map(([name, param]) => ({
         name,
         type: typeof param.type === 'string' ? param.type : 'string',
@@ -3263,6 +3788,7 @@ async function generateMarkdownForBlock(
     bgColor,
     outputs = {},
     tools = { access: [] },
+    userSettableParamIds = null,
   } = blockConfig
 
   let outputsSection = ''
@@ -3325,7 +3851,7 @@ async function generateMarkdownForBlock(
       toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
-      const toolInfo = await getToolInfo(tool)
+      const toolInfo = await getToolInfo(tool, userSettableParamIds)
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {
@@ -4057,6 +4583,8 @@ async function generateAllTriggerDocs(): Promise<void> {
 
 async function generateAllBlockDocs() {
   try {
+    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+
     copyIconsFile()
 
     const docsIconMapping = await generateIconMapping({ includeHidden: true })
@@ -4070,8 +4598,6 @@ async function generateAllBlockDocs() {
     // covers hidden blocks AND blocks re-categorized away from `'tools'`.
     const validToolDocs = await getCanonicalToolDocNames()
     cleanupStaleToolDocs(validToolDocs)
-
-    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
     for (const blockFile of blockFiles) {
       await generateBlockDoc(blockFile)
