@@ -50,7 +50,7 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Token for fetching the next page of results',
     },
   },

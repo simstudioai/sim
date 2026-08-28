@@ -34,14 +34,20 @@ describe('GoogleDriveBlock pagination', () => {
       })
     })
 
-    it('forwards the page token to the tool', () => {
-      expect(
-        buildParams({ operation, [subBlockId]: 'token-abc' }, undefined as never)
-      ).toMatchObject({ pageToken: 'token-abc' })
+    /**
+     * `pageToken` is the canonical tool param, so the `list` case would forward
+     * through `...rest` even without the mapper. The per-operation ids are the
+     * ones the mapper has to translate, and none of them may survive as-is.
+     */
+    it('forwards the page token to the tool under its own id', () => {
+      const params = buildParams({ operation, [subBlockId]: 'token-abc' }, undefined as never)
+
+      expect(params).toMatchObject({ pageToken: 'token-abc' })
+      if (subBlockId !== 'pageToken') expect(params[subBlockId]).toBeUndefined()
     })
 
-    it('declares pageToken as a user-settable tool param', () => {
-      expect(tool.params.pageToken?.visibility).toBe('user-only')
+    it('lets an agent feed a nextPageToken back in', () => {
+      expect(tool.params.pageToken?.visibility).toBe('user-or-llm')
     })
   })
 
@@ -49,6 +55,40 @@ describe('GoogleDriveBlock pagination', () => {
     expect(
       buildParams({ operation: 'get_file', pageToken: 'token-abc' }, undefined as never).pageToken
     ).toBeUndefined()
+  })
+
+  /**
+   * `shouldSerializeSubBlock` short-circuits for `advanced` fields in basic display
+   * mode without evaluating `condition`, so a page token typed under one operation
+   * genuinely reaches `inputs` after the user switches to another. The mapper must
+   * pick the token belonging to the operation being run and drop the rest.
+   */
+  describe.each(paginationCases.filter(({ subBlockId }) => subBlockId !== 'pageToken'))(
+    '$subBlockId left over from a previous operation',
+    ({ subBlockId }) => {
+      it.each(['upload', 'get_file', 'list'])('is dropped under %s', (operation) => {
+        const params = buildParams({ operation, [subBlockId]: 'stale' }, undefined as never)
+
+        expect(params.pageToken).toBeUndefined()
+        expect(params[subBlockId]).toBeUndefined()
+      })
+    }
+  )
+
+  it('prefers the operation-owned token when a stale sibling is also present', () => {
+    const params = buildParams(
+      {
+        operation: 'search',
+        searchPageToken: 'search-token',
+        commentsPageToken: 'stale',
+        pageToken: 'stale-canonical',
+      },
+      undefined as never
+    )
+
+    expect(params.pageToken).toBe('search-token')
+    expect(params.commentsPageToken).toBeUndefined()
+    expect(params.searchPageToken).toBeUndefined()
   })
 
   it('declares pageToken as a block input', () => {

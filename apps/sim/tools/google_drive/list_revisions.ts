@@ -51,7 +51,7 @@ export const listRevisionsTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The page token to use for pagination',
     },
   },
