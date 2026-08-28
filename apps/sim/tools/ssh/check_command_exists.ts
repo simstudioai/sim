@@ -1,7 +1,9 @@
 import type { SSHCheckCommandExistsParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const checkCommandExistsTool: ToolConfig<SSHCheckCommandExistsParams, SSHResponse> = {
+type CheckCommandExistsToolConfig = InternalToolConfig<SSHCheckCommandExistsParams, SSHResponse>
+
+export const checkCommandExistsTool: CheckCommandExistsToolConfig = {
   id: 'ssh_check_command_exists',
   name: 'SSH Check Command Exists',
   description: 'Check if a command/program exists on the remote SSH server',
@@ -52,13 +54,8 @@ export const checkCommandExistsTool: ToolConfig<SSHCheckCommandExistsParams, SSH
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/check-command-exists',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

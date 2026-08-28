@@ -1,7 +1,7 @@
 import type { GmailSendParams, GmailToolResponse } from '@/tools/gmail/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
+export const gmailDraftTool: InternalToolConfig<GmailSendParams, GmailToolResponse> = {
   id: 'gmail_draft',
   name: 'Gmail Draft',
   description: 'Draft emails using Gmail',
@@ -76,13 +76,8 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/gmail/draft',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: GmailSendParams) => ({
+  operation: {
+    input: (params: GmailSendParams) => ({
       accessToken: params.accessToken,
       to: params.to,
       subject: params.subject,
@@ -150,14 +145,14 @@ interface GmailDraftV2Response {
   }
 }
 
-export const gmailDraftV2Tool: ToolConfig<GmailSendParams, GmailDraftV2Response> = {
+export const gmailDraftV2Tool: InternalToolConfig<GmailSendParams, GmailDraftV2Response> = {
   id: 'gmail_draft_v2',
   name: 'Gmail Draft',
   description: 'Draft emails using Gmail. Returns API-aligned fields only.',
   version: '2.0.0',
   oauth: gmailDraftTool.oauth,
   params: gmailDraftTool.params,
-  request: gmailDraftTool.request,
+  operation: gmailDraftTool.operation,
   transformResponse: async (response) => {
     const legacy = await gmailDraftTool.transformResponse!(response)
     if (!legacy.success) return { success: false, output: {}, error: legacy.error }

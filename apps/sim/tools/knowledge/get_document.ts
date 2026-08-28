@@ -1,7 +1,7 @@
 import type { KnowledgeGetDocumentResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentResponse> = {
+export const knowledgeGetDocumentTool: InternalToolConfig<any, KnowledgeGetDocumentResponse> = {
   id: 'knowledge_get_document',
   name: 'Knowledge Get Document',
   description:
@@ -23,15 +23,11 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params) =>
-      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}`,
-    method: 'GET',
+  operation: {
     secretProvenance: { response: { incomplete: 'reject' } },
-    headers: () => ({
-      'Content-Type': 'application/json',
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      documentId: params.documentId,
     }),
   },
 

@@ -1,7 +1,10 @@
 import type { SESListTemplatesParams, SESListTemplatesResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listTemplatesTool: ToolConfig<SESListTemplatesParams, SESListTemplatesResponse> = {
+export const listTemplatesTool: InternalToolConfig<
+  SESListTemplatesParams,
+  SESListTemplatesResponse
+> = {
   id: 'ses_list_templates',
   name: 'SES List Templates',
   description: 'List all SES email templates in your account',
@@ -40,11 +43,8 @@ export const listTemplatesTool: ToolConfig<SESListTemplatesParams, SESListTempla
     },
   },
 
-  request: {
-    url: '/api/tools/ses/list-templates',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

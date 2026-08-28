@@ -2,9 +2,9 @@ import type {
   CloudWatchPutMetricDataParams,
   CloudWatchPutMetricDataResponse,
 } from '@/tools/cloudwatch/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const putMetricDataTool: ToolConfig<
+export const putMetricDataTool: InternalToolConfig<
   CloudWatchPutMetricDataParams,
   CloudWatchPutMetricDataResponse
 > = {
@@ -64,13 +64,8 @@ export const putMetricDataTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudwatch/put-metric-data',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

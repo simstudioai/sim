@@ -2,9 +2,9 @@ import type {
   AppConfigUpdateEnvironmentParams,
   AppConfigUpdateEnvironmentResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateEnvironmentTool: ToolConfig<
+export const updateEnvironmentTool: InternalToolConfig<
   AppConfigUpdateEnvironmentParams,
   AppConfigUpdateEnvironmentResponse
 > = {
@@ -58,11 +58,8 @@ export const updateEnvironmentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/update-environment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

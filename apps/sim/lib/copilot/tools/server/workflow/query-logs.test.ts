@@ -12,6 +12,9 @@ const {
   toFullMock,
   toTraceMock,
   grepSpansMock,
+  executeLogUseCaseMock,
+  listLogsUseCase,
+  readLogDetailUseCase,
 } = vi.hoisted(() => ({
   listLogsMock: vi.fn(),
   statsLogsMock: vi.fn(),
@@ -20,11 +23,17 @@ const {
   toFullMock: vi.fn(),
   toTraceMock: vi.fn(),
   grepSpansMock: vi.fn(),
+  executeLogUseCaseMock: vi.fn(),
+  listLogsUseCase: { kind: 'list' },
+  readLogDetailUseCase: { kind: 'detail' },
 }))
 
-vi.mock('@/lib/logs/list-logs', () => ({ listLogs: listLogsMock }))
+vi.mock('@/lib/copilot/application/execute-log-use-case', () => ({
+  executeCopilotLogUseCase: executeLogUseCaseMock,
+}))
+vi.mock('@/lib/logs/application/list-logs', () => ({ listLogsUseCase }))
+vi.mock('@/lib/logs/application/read-log-detail', () => ({ readLogDetailUseCase }))
 vi.mock('@/lib/logs/stats-logs', () => ({ statsLogs: statsLogsMock }))
-vi.mock('@/lib/logs/fetch-log-detail', () => ({ fetchLogDetail: fetchLogDetailMock }))
 vi.mock('@/lib/logs/log-views', () => ({
   toOverview: toOverviewMock,
   toFull: toFullMock,
@@ -39,7 +48,12 @@ vi.mock('@/lib/execution/payloads/large-execution-value', () => ({
 import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { queryLogsServerTool } from './query-logs'
 
-const ctx: ServerToolContext = { userId: 'user-1', workspaceId: 'ws-1' }
+const ctx: ServerToolContext = {
+  userId: 'user-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+}
 
 type QueryLogsArgs = Parameters<typeof queryLogsServerTool.execute>[0]
 
@@ -62,6 +76,12 @@ function detail(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  executeLogUseCaseMock.mockImplementation(async (_context, useCase, input) => {
+    if (useCase === listLogsUseCase) return listLogsMock(input)
+    const detail = await fetchLogDetailMock(input)
+    if (!detail) throw new Error('Not found')
+    return { detail }
+  })
 })
 
 describe('queryLogsServerTool', () => {
@@ -74,8 +94,7 @@ describe('queryLogsServerTool', () => {
     )
 
     expect(listLogsMock).toHaveBeenCalledTimes(1)
-    const [params, userId] = listLogsMock.mock.calls[0]
-    expect(userId).toBe('user-1')
+    const [params] = listLogsMock.mock.calls[0]
     expect(params.workspaceId).toBe('ws-1')
     expect(params.includeTotal).toBe(true)
     expect(params).not.toHaveProperty('view')

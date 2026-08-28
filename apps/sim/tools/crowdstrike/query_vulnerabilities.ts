@@ -2,9 +2,9 @@ import type {
   CrowdStrikeQueryVulnerabilitiesParams,
   CrowdStrikeQueryVulnerabilitiesResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikeQueryVulnerabilitiesTool: ToolConfig<
+export const crowdstrikeQueryVulnerabilitiesTool: InternalToolConfig<
   CrowdStrikeQueryVulnerabilitiesParams,
   CrowdStrikeQueryVulnerabilitiesResponse
 > = {
@@ -60,13 +60,8 @@ export const crowdstrikeQueryVulnerabilitiesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       after: params.after,
       cloud: params.cloud,
       clientId: params.clientId,

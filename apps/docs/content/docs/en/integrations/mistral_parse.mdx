@@ -35,11 +35,16 @@ Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF do
 
 ### Mistral PDF Parser
 
+Parse PDF documents using Mistral OCR API
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Normalized UserFile from file upload or file reference |
+| `resultType` | string | No | Type of parsed result \(markdown, text, or json\). Defaults to markdown. |
+| `pages` | array | No | Specific pages to process \(array of page numbers, starting from 0\) |
+| `apiKey` | string | Yes | Mistral API key \(MISTRAL_API_KEY\) |
 
 #### Output
 

@@ -1,34 +1,26 @@
 import {
   bulkKnowledgeDocumentsContract,
-  createKnowledgeDocumentsContract,
   listKnowledgeDocumentsContract,
   parseDocumentTagFiltersParam,
 } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  internalKnowledgeActorUserId,
-  internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
-  resolveInternalKnowledgeBillingAttribution,
+  internalKnowledgeProvenanceUserId,
   toInternalKnowledgeDocument,
 } from '@/lib/knowledge/api/internal-route'
 import {
   internalKnowledgeErrorPolicies,
   internalKnowledgeSessionOrExecutorAuth,
 } from '@/lib/knowledge/api/route-policies'
+import { finalizeKnowledgePersistedResponse } from '@/lib/knowledge/api/secret-provenance'
 import {
   bulkUpdateKnowledgeDocuments,
-  createKnowledgeDocuments,
   listKnowledgeDocuments,
 } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
-import {
-  finalizeKnowledgePersistedResponse,
-  finalizeKnowledgeProvenanceResponse,
-  resolveKnowledgeDocumentWriteSecretProvenance,
-} from '@/app/api/knowledge/secret-provenance'
 
 export const GET = defineInternalJsonRoute({
   contract: listKnowledgeDocumentsContract,
@@ -66,9 +58,9 @@ export const GET = defineInternalJsonRoute({
   }),
   finalizeResponse: ({ request, principal, result, body }) =>
     finalizeKnowledgePersistedResponse({
-      request,
+      headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeActorUserId(principal),
+      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       documents: result.documents.map((document) => ({
@@ -76,61 +68,6 @@ export const GET = defineInternalJsonRoute({
         source: createKnowledgeDocumentSourceValue(document),
         value: document,
       })),
-    }),
-})
-
-export const POST = defineInternalJsonRoute({
-  contract: createKnowledgeDocumentsContract,
-  auth: internalKnowledgeSessionOrExecutorAuth,
-  operation: knowledgeOperations.uploadDocument,
-  rateLimit: internalRateLimits.none({
-    reason: 'Preserve existing internal document-create behavior',
-  }),
-  errorPolicy: internalKnowledgeErrorPolicies.uploads,
-  mapInput: ({ params, body }, { principal, request }) => {
-    const documents = body.bulk ? body.documents : [body]
-    return {
-      knowledgeBaseId: params.id,
-      documents,
-      bulk: body.bulk,
-      processingOptions: body.bulk ? body.processingOptions : undefined,
-      resolveBillingAttribution: (workspaceId: string) =>
-        resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
-      resolveSecretProvenances: ({ userId, workspaceId }) => {
-        const resolution = resolveKnowledgeDocumentWriteSecretProvenance({
-          request,
-          payload: body,
-          authType: internalKnowledgeAuthType(principal),
-          userId,
-          workspaceId,
-          documents,
-        })
-        if (!resolution.success) {
-          throw new OrchestrationError('validation', 'Invalid knowledge secret provenance')
-        }
-        return resolution.provenances
-      },
-      source: 'ui' as const,
-    }
-  },
-  useCase: createKnowledgeDocuments,
-  onSuccess: internalKnowledgeAnalytics.documentsUploaded,
-  present: (result) => ({
-    success: true as const,
-    data: result.kind === 'bulk' ? result.data : toInternalKnowledgeDocument(result.data),
-  }),
-  finalizeResponse: ({ request, principal, result, body }) =>
-    finalizeKnowledgeProvenanceResponse({
-      request,
-      authType: internalKnowledgeAuthType(principal),
-      userId: result.userId,
-      workspaceId: result.workspaceId,
-      provenances:
-        result.secretProvenances?.flatMap((provenance) => [
-          provenance.filename,
-          ...provenance.tags.map((tag) => tag.provenance),
-        ]) ?? [],
-      body,
     }),
 })
 

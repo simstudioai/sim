@@ -1,11 +1,11 @@
+import { assertSafeJupyterPath, mapJupyterSession } from '@/lib/internal/jupyter/protocol'
 import type {
   JupyterCreateSessionParams,
   JupyterCreateSessionResponse,
 } from '@/tools/jupyter/types'
-import { assertSafeJupyterPath, mapJupyterSession } from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterCreateSessionTool: ToolConfig<
+export const jupyterCreateSessionTool: InternalToolConfig<
   JupyterCreateSessionParams,
   JupyterCreateSessionResponse
 > = {
@@ -53,11 +53,8 @@ export const jupyterCreateSessionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'POST',

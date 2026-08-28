@@ -1,7 +1,7 @@
 import type { MongoDBQueryParams, MongoDBResponse } from '@/tools/mongodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
+export const queryTool: InternalToolConfig<MongoDBQueryParams, MongoDBResponse> = {
   id: 'mongodb_query',
   name: 'MongoDB Query',
   description: 'Execute find operation on MongoDB collection',
@@ -76,13 +76,8 @@ export const queryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mongodb/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

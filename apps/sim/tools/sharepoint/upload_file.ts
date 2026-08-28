@@ -1,8 +1,11 @@
 import type { SharepointToolParams, SharepointUploadFileResponse } from '@/tools/sharepoint/types'
 import { optionalTrim } from '@/tools/sharepoint/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFileResponse> = {
+export const uploadFileTool: InternalToolConfig<
+  SharepointToolParams,
+  SharepointUploadFileResponse
+> = {
   id: 'sharepoint_upload_file',
   name: 'Upload File to SharePoint',
   description: 'Upload files to a SharePoint document library',
@@ -54,13 +57,16 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     },
   },
 
-  request: {
-    url: '/api/tools/sharepoint/upload',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SharepointToolParams) => {
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        driveId: params.driveId,
+        folderPath: params.folderPath,
+        fileName: params.fileName,
+      }),
+    },
+    input: (params: SharepointToolParams) => {
       return {
         accessToken: params.accessToken,
         siteId: optionalTrim(params.siteId) || 'root',

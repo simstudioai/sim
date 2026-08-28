@@ -1,7 +1,7 @@
 import type { MySQLIntrospectParams, MySQLIntrospectResponse } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<MySQLIntrospectParams, MySQLIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<MySQLIntrospectParams, MySQLIntrospectResponse> = {
   id: 'mysql_introspect',
   name: 'MySQL Introspect',
   description:
@@ -47,13 +47,8 @@ export const introspectTool: ToolConfig<MySQLIntrospectParams, MySQLIntrospectRe
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

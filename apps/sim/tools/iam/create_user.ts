@@ -1,7 +1,7 @@
 import type { IAMCreateUserParams, IAMCreateUserResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createUserTool: ToolConfig<IAMCreateUserParams, IAMCreateUserResponse> = {
+export const createUserTool: InternalToolConfig<IAMCreateUserParams, IAMCreateUserResponse> = {
   id: 'iam_create_user',
   name: 'IAM Create User',
   description: 'Create a new IAM user',
@@ -40,11 +40,8 @@ export const createUserTool: ToolConfig<IAMCreateUserParams, IAMCreateUserRespon
     },
   },
 
-  request: {
-    url: '/api/tools/iam/create-user',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

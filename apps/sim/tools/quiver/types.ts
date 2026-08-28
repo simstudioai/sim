@@ -44,7 +44,7 @@ export interface QuiverSvgResponse extends ToolResponse {
       size: number
     }>
     svgContent: string
-    id: string
+    id: string | null
     usage: {
       totalTokens: number
       inputTokens: number

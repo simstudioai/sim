@@ -1,8 +1,8 @@
 import type { UserFile } from '@/executor/types'
 import type { LatexCompileParams, LatexCompileResponse } from '@/tools/latex/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const latexCompileTool: ToolConfig<LatexCompileParams, LatexCompileResponse> = {
+export const latexCompileTool: InternalToolConfig<LatexCompileParams, LatexCompileResponse> = {
   id: 'latex_compile',
   name: 'LaTeX Compile',
   description:
@@ -47,24 +47,12 @@ export const latexCompileTool: ToolConfig<LatexCompileParams, LatexCompileRespon
     },
   },
 
-  request: {
-    url: '/api/tools/latex',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: LatexCompileParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    input: (params: LatexCompileParams) => ({
       content: params.content,
       compiler: params.compiler,
       fileName: params.fileName,
       resources: params.resources,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

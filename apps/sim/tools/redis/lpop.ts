@@ -1,7 +1,7 @@
 import type { RedisLPopParams, RedisLPopResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisLPopTool: ToolConfig<RedisLPopParams, RedisLPopResponse> = {
+export const redisLPopTool: InternalToolConfig<RedisLPopParams, RedisLPopResponse> = {
   id: 'redis_lpop',
   name: 'Redis LPOP',
   description: 'Remove and return the first element of a list stored at a key in Redis.',
@@ -22,11 +22,8 @@ export const redisLPopTool: ToolConfig<RedisLPopParams, RedisLPopResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'LPOP',
       args: [params.key],

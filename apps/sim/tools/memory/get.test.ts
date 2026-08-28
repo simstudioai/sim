@@ -4,36 +4,24 @@
 import { describe, expect, it } from 'vitest'
 import { memoryGetTool } from '@/tools/memory/get'
 
-interface MemoryGetParams {
-  _context?: {
-    workspaceId?: string
-  }
-  conversationId?: string
-  id?: string
-}
-
 describe('memoryGetTool', () => {
-  const buildUrl = memoryGetTool.request.url as (params: MemoryGetParams) => string
+  const buildInput = memoryGetTool.operation.input
   const transformResponse = memoryGetTool.transformResponse!
 
-  it('builds an exact memory lookup URL', () => {
-    const url = buildUrl({
-      _context: { workspaceId: 'workspace-1' },
+  it('builds an exact semantic memory lookup input', () => {
+    const input = buildInput({
       conversationId: 'user-123',
     })
 
-    expect(url).toBe('/api/memory/user-123?workspaceId=workspace-1')
-    expect(url).not.toContain('query=')
-    expect(url).not.toContain('limit=')
+    expect(input).toEqual({ id: 'user-123' })
   })
 
-  it('encodes legacy id values in the path', () => {
-    const url = buildUrl({
-      _context: { workspaceId: 'workspace-1' },
+  it('preserves legacy id values without transport encoding', () => {
+    const input = buildInput({
       id: 'team/user 123',
     })
 
-    expect(url).toBe('/api/memory/team%2Fuser%20123?workspaceId=workspace-1')
+    expect(input).toEqual({ id: 'team/user 123' })
   })
 
   it('returns empty memories when key is not found (null data)', async () => {

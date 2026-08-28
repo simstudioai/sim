@@ -1,7 +1,10 @@
 import type { AgiloftReadRecordParams, AgiloftRecordResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftRecordResponse> = {
+export const agiloftReadRecordTool: InternalToolConfig<
+  AgiloftReadRecordParams,
+  AgiloftRecordResponse
+> = {
   id: 'agiloft_read_record',
   name: 'Agiloft Read Record',
   description: 'Read a record by ID from an Agiloft table.',
@@ -52,12 +55,8 @@ export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftR
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/read_record',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

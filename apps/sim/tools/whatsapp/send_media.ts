@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppSendMediaParams, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 import { whatsappSendOutputs } from '@/tools/whatsapp/utils'
 
-export const sendMediaTool: ToolConfig<WhatsAppSendMediaParams, WhatsAppSendResponse> = {
+export const sendMediaTool: InternalToolConfig<WhatsAppSendMediaParams, WhatsAppSendResponse> = {
   id: 'whatsapp_send_media',
   name: 'WhatsApp Send Media',
   description:
@@ -68,13 +68,8 @@ export const sendMediaTool: ToolConfig<WhatsAppSendMediaParams, WhatsAppSendResp
     },
   },
 
-  // Routed server-side so an uploaded file can be pushed to `/media` for a media ID
-  // before the `/messages` send. Link and media-ID sends pass straight through.
-  request: {
-    url: '/api/tools/whatsapp/send-media',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       phoneNumberId: params.phoneNumberId,
       phoneNumber: params.phoneNumber,

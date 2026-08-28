@@ -2,9 +2,9 @@ import type {
   OnePasswordResolveSecretParams,
   OnePasswordResolveSecretResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const resolveSecretTool: ToolConfig<
+export const resolveSecretTool: InternalToolConfig<
   OnePasswordResolveSecretParams,
   OnePasswordResolveSecretResponse
 > = {
@@ -35,11 +35,8 @@ export const resolveSecretTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/resolve-secret',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode ?? 'service_account',
       serviceAccountToken: params.serviceAccountToken,
       secretReference: params.secretReference,

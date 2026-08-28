@@ -7,6 +7,7 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { and, eq, type SQL } from 'drizzle-orm'
+import { type WorkflowLogDetail, workflowLogDetailSchema } from '@/lib/api/contracts/logs'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
 import {
@@ -18,7 +19,6 @@ import {
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import type { TraceSpan } from '@/lib/logs/types'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type LookupColumn = 'id' | 'executionId'
 
@@ -29,30 +29,29 @@ export function jobCostTotal(raw: unknown): { total: number } | null {
 }
 
 interface FetchLogDetailArgs {
-  userId: string
+  viewerUserId: string
   workspaceId: string
   lookupColumn: LookupColumn
   lookupValue: string
+  signal?: AbortSignal
 }
 
 /**
- * Shared loader for the workflow-log detail shape returned by the by-id and
- * by-execution routes. Returns `null` when no matching row exists in either
- * the workflow-execution or job-execution tables for this user + workspace.
+ * Canonical workflow-log detail loader after workspace authorization. Returns
+ * `null` when no matching row exists in either execution-log table.
  *
  * For in-flight (running/pending) executions, live progress markers are merged
  * from Redis, since they are only folded into the row at a terminal/pause
  * boundary.
  */
-export async function fetchLogDetail({
-  userId,
+export async function readLogDetail({
+  viewerUserId,
   workspaceId,
   lookupColumn,
   lookupValue,
-}: FetchLogDetailArgs) {
-  const access = await checkWorkspaceAccess(workspaceId, userId)
-  if (!access.hasAccess) return null
-
+  signal,
+}: FetchLogDetailArgs): Promise<WorkflowLogDetail | null> {
+  signal?.throwIfAborted()
   const workflowMatch: SQL =
     lookupColumn === 'id'
       ? eq(workflowExecutionLogs.id, lookupValue)
@@ -97,6 +96,7 @@ export async function fetchLogDetail({
     .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
     .where(and(workflowMatch, eq(workflowExecutionLogs.workspaceId, workspaceId)))
     .limit(1)
+  signal?.throwIfAborted()
 
   const log = rows[0]
 
@@ -123,6 +123,7 @@ export async function fetchLogDetail({
     // Cost is sourced exclusively from the usage_log ledger (itemized breakdown)
     // and its cost_total projection (run total). The cost jsonb is never read.
     const costLedger = await buildCostLedger(log.executionId)
+    signal?.throwIfAborted()
     const totalDollars = costLedger?.total ?? (log.costTotal != null ? Number(log.costTotal) : null)
 
     // Trace spans / heavy execution data may live in object storage; resolve the
@@ -133,20 +134,23 @@ export async function fetchLogDetail({
         workspaceId,
         workflowId: log.workflowId,
         executionId: log.executionId,
-        userId,
+        userId: viewerUserId,
       }
     )
+    signal?.throwIfAborted()
 
     // A custom block's child ran in another workspace and kept its spans on its
     // own log row. Join in the ones whose publisher opened them to consumers.
     if (Array.isArray(executionData?.traceSpans)) {
-      await hydrateChildTraces(executionData.traceSpans as TraceSpan[], { viewerUserId: userId })
+      await hydrateChildTraces(executionData.traceSpans as TraceSpan[], { viewerUserId })
+      signal?.throwIfAborted()
     }
 
     const liveMarkers =
       log.status === 'running' || log.status === 'pending' || log.status === 'redacting'
         ? ((await getProgressMarkers(log.executionId)) ?? {})
         : {}
+    signal?.throwIfAborted()
     const rowMarkers = (executionData ?? {}) as ExecutionProgressMarkers
     const mergedStartedBlock = pickLatestStartedMarker(
       liveMarkers.lastStartedBlock,
@@ -157,7 +161,7 @@ export async function fetchLogDetail({
       rowMarkers.lastCompletedBlock
     )
 
-    return {
+    return workflowLogDetailSchema.parse({
       id: log.id,
       workflowId: log.workflowId,
       executionId: log.executionId,
@@ -188,7 +192,7 @@ export async function fetchLogDetail({
         enhanced: true as const,
       },
       files: log.files ?? null,
-    }
+    })
   }
 
   const jobMatch: SQL =
@@ -213,6 +217,7 @@ export async function fetchLogDetail({
     .from(jobExecutionLogs)
     .where(and(jobMatch, eq(jobExecutionLogs.workspaceId, workspaceId)))
     .limit(1)
+  signal?.throwIfAborted()
 
   const jobLog = jobRows[0]
   if (!jobLog) return null
@@ -223,10 +228,11 @@ export async function fetchLogDetail({
       workspaceId,
       workflowId: null,
       executionId: jobLog.executionId,
-      userId,
+      userId: viewerUserId,
     }
   )
-  return {
+  signal?.throwIfAborted()
+  return workflowLogDetailSchema.parse({
     id: jobLog.id,
     workflowId: null,
     executionId: jobLog.executionId,
@@ -250,5 +256,5 @@ export async function fetchLogDetail({
       enhanced: true as const,
     },
     files: null,
-  }
+  })
 }

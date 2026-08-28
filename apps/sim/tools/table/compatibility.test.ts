@@ -18,25 +18,25 @@ describe('table write compatibility', () => {
     }
     const rows = [data]
 
-    expect(tableInsertRowTool.request.modelInput).toBeUndefined()
-    expect(tableBatchInsertRowsTool.request.modelInput).toBeUndefined()
-    expect(tableUpsertRowTool.request.modelInput).toBeUndefined()
-    expect(tableUpdateRowTool.request.modelInput).toBeUndefined()
-    expect(tableUpdateRowsByFilterTool.request.modelInput).toBeUndefined()
+    expect(tableInsertRowTool.operation.modelInput).toBeUndefined()
+    expect(tableBatchInsertRowsTool.operation.modelInput).toBeUndefined()
+    expect(tableUpsertRowTool.operation.modelInput).toBeUndefined()
+    expect(tableUpdateRowTool.operation.modelInput).toBeUndefined()
+    expect(tableUpdateRowsByFilterTool.operation.modelInput).toBeUndefined()
 
     expect(
-      tableInsertRowTool.request.body?.({
+      tableInsertRowTool.operation.input({
         tableId: 'table-1',
         data,
         _context: { workspaceId: 'workspace-1' },
       })
-    ).toEqual({ data, workspaceId: 'workspace-1' })
+    ).toEqual({ tableId: 'table-1', data, workspaceId: 'workspace-1' })
     expect(
-      tableBatchInsertRowsTool.request.body?.({
+      tableBatchInsertRowsTool.operation.input({
         tableId: 'table-1',
         rows,
         _context: { workspaceId: 'workspace-1' },
       })
-    ).toEqual({ rows, workspaceId: 'workspace-1' })
+    ).toEqual({ tableId: 'table-1', rows, workspaceId: 'workspace-1' })
   })
 })

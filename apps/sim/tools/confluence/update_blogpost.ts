@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceUpdateBlogPostParams {
   accessToken: string
@@ -23,7 +23,7 @@ export interface ConfluenceUpdateBlogPostResponse {
   }
 }
 
-export const confluenceUpdateBlogPostTool: ToolConfig<
+export const confluenceUpdateBlogPostTool: InternalToolConfig<
   ConfluenceUpdateBlogPostParams,
   ConfluenceUpdateBlogPostResponse
 > = {
@@ -77,16 +77,8 @@ export const confluenceUpdateBlogPostTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/blogposts',
-    method: 'PUT',
-    headers: (params: ConfluenceUpdateBlogPostParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceUpdateBlogPostParams) => ({
+  operation: {
+    input: (params: ConfluenceUpdateBlogPostParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

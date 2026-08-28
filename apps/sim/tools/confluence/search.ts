@@ -1,5 +1,5 @@
 import { SEARCH_RESULT_ITEM_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceSearchParams {
   accessToken: string
@@ -23,7 +23,10 @@ export interface ConfluenceSearchResponse {
   }
 }
 
-export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, ConfluenceSearchResponse> = {
+export const confluenceSearchTool: InternalToolConfig<
+  ConfluenceSearchParams,
+  ConfluenceSearchResponse
+> = {
   id: 'confluence_search',
   name: 'Confluence Search',
   description: 'Search for content across Confluence pages, blog posts, and other content.',
@@ -68,18 +71,8 @@ export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, Confluence
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/search',
-    method: 'POST',
-    headers: (params: ConfluenceSearchParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceSearchParams) => {
+  operation: {
+    input: (params: ConfluenceSearchParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

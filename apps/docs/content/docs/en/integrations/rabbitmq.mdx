@@ -90,10 +90,10 @@ Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so 
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `queue` | string | Yes | Queue to read messages from |
-| `count` | number | No | Maximum number of messages to retrieve, from 1 to $\{MAX_MESSAGE_COUNT\}. Defaults to 1 |
+| `count` | number | No | Maximum number of messages to retrieve, from 1 to 50. Defaults to 1 |
 | `ackmode` | string | No | How retrieved messages are handled: ack_requeue_true \(default, leaves messages in the queue\), ack_requeue_false \(removes them\), reject_requeue_true, or reject_requeue_false |
 | `encoding` | string | No | auto \(default\) returns readable text where possible, base64 always returns base64 |
-| `truncate` | number | No | Truncate payloads longer than this many bytes. Defaults to $\{DEFAULT_TRUNCATE_BYTES\}, capped at $\{MAX_TRUNCATE_BYTES\}, and lowered further at high counts so the whole batch stays inside the response limit. Each message reports whether it was truncated |
+| `truncate` | number | No | Truncate payloads longer than this many bytes. Defaults to 50000, capped at 1000000, and lowered further at high counts so the whole batch stays inside the response limit. Each message reports whether it was truncated |
 
 #### Output
 
@@ -116,7 +116,7 @@ List queues in a RabbitMQ virtual host with their depth, consumer count, and con
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `page` | number | No | Page of results to return, starting at 1 |
-| `pageSize` | number | No | Queues per page, from 1 to $\{RABBITMQ_MAX_PAGE_SIZE\}. Defaults to $\{DEFAULT_PAGE_SIZE\} |
+| `pageSize` | number | No | Queues per page, from 1 to 500. Defaults to 50 |
 | `name` | string | No | Filter queues whose name contains this value |
 | `useRegex` | boolean | No | Treat the name filter as a regular expression |
 
@@ -234,7 +234,7 @@ List exchanges in a RabbitMQ virtual host with their type and declaration settin
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `page` | number | No | Page of results to return, starting at 1 |
-| `pageSize` | number | No | Exchanges per page, from 1 to $\{RABBITMQ_MAX_PAGE_SIZE\}. Defaults to $\{DEFAULT_PAGE_SIZE\} |
+| `pageSize` | number | No | Exchanges per page, from 1 to 500. Defaults to 50 |
 | `name` | string | No | Filter exchanges whose name contains this value |
 | `useRegex` | boolean | No | Treat the name filter as a regular expression |
 
@@ -532,7 +532,7 @@ List client connections to the broker with their user, state, and channel count.
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `page` | number | No | Page of results to return, starting at 1 |
-| `pageSize` | number | No | Connections per page, from 1 to $\{RABBITMQ_MAX_PAGE_SIZE\}. Defaults to $\{DEFAULT_PAGE_SIZE\} |
+| `pageSize` | number | No | Connections per page, from 1 to 500. Defaults to 50 |
 | `name` | string | No | Filter connections whose name contains this value |
 | `useRegex` | boolean | No | Treat the name filter as a regular expression |
 
@@ -559,7 +559,7 @@ List open channels with their prefetch limit and unacknowledged message count, w
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `page` | number | No | Page of results to return, starting at 1 |
-| `pageSize` | number | No | Channels per page, from 1 to $\{RABBITMQ_MAX_PAGE_SIZE\}. Defaults to $\{DEFAULT_PAGE_SIZE\} |
+| `pageSize` | number | No | Channels per page, from 1 to 500. Defaults to 50 |
 | `name` | string | No | Filter channels whose name contains this value |
 | `useRegex` | boolean | No | Treat the name filter as a regular expression |
 
@@ -626,7 +626,7 @@ Create or replace a RabbitMQ policy, applying settings such as dead-lettering, T
 | `password` | string | Yes | RabbitMQ password |
 | `vhost` | string | No | Virtual host to operate on. Defaults to / |
 | `policyName` | string | Yes | Name of the policy. Reusing an existing name replaces that policy |
-| `pattern` | string | Yes | Regular expression matched against queue or exchange names, e.g. ^orders\\. to match every name starting with orders. |
+| `pattern` | string | Yes | Regular expression matched against queue or exchange names, e.g. ^orders\. to match every name starting with orders. |
 | `definition` | string | Yes | Settings to apply, as a JSON object, e.g. \{"dead-letter-exchange":"dlx","message-ttl":86400000,"max-length":10000\} |
 | `priority` | number | No | Priority, defaulting to 0. When several policies match a resource only the highest-priority one applies — they do not merge |
 | `applyTo` | string | No | What the policy applies to: queues \(default\), classic_queues, quorum_queues, streams, exchanges, or all |

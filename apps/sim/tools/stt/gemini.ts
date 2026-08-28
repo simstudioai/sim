@@ -1,7 +1,7 @@
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
+export const geminiSttTool: InternalToolConfig<SttParams, SttResponse> = {
   id: 'stt_gemini',
   name: 'Google Gemini STT',
   description: 'Transcribe audio to text using Google Gemini with multimodal capabilities',
@@ -58,21 +58,12 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
     },
-    url: '/api/tools/stt',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: SttParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+    input: (params) => ({
       provider: 'gemini',
       apiKey: params.apiKey,
       model: params.model,
@@ -81,9 +72,6 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
       audioUrl: params.audioUrl,
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 
@@ -129,20 +117,16 @@ const geminiSttV2Params = {
   audioFileReference: geminiSttTool.params.audioFileReference,
   language: geminiSttTool.params.language,
   timestamps: geminiSttTool.params.timestamps,
-} satisfies ToolConfig['params']
+} satisfies InternalToolConfig['params']
 
-export const geminiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+export const geminiSttV2Tool: InternalToolConfig<SttV2Params, SttResponse> = {
   ...geminiSttTool,
   id: 'stt_gemini_v2',
   name: 'Gemini STT',
   params: geminiSttV2Params,
-  request: {
-    ...geminiSttTool.request,
-    body: (
-      params: SttV2Params & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    ...geminiSttTool.operation,
+    input: (params) => ({
       provider: 'gemini',
       apiKey: params.apiKey,
       model: params.model,
@@ -150,9 +134,6 @@ export const geminiSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
       audioFileReference: params.audioFileReference,
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 }

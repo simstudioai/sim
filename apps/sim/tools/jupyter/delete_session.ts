@@ -2,9 +2,9 @@ import type {
   JupyterDeleteSessionParams,
   JupyterDeleteSessionResponse,
 } from '@/tools/jupyter/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterDeleteSessionTool: ToolConfig<
+export const jupyterDeleteSessionTool: InternalToolConfig<
   JupyterDeleteSessionParams,
   JupyterDeleteSessionResponse
 > = {
@@ -34,11 +34,8 @@ export const jupyterDeleteSessionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'DELETE',

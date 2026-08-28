@@ -4,9 +4,9 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishReelTool: ToolConfig<
+export const instagramPublishReelTool: InternalToolConfig<
   InstagramPublishReelParams,
   InstagramPublishResponse
 > = {
@@ -65,13 +65,8 @@ export const instagramPublishReelTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-reel',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishReelParams) => ({
+  operation: {
+    input: (params: InstagramPublishReelParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       video: params.video,

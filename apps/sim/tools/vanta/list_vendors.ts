@@ -1,12 +1,15 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
   VANTA_VENDOR_OUTPUT_PROPERTIES,
 } from '@/tools/vanta/outputs'
 import type { VantaListVendorsParams, VantaListVendorsResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaListVendorsTool: ToolConfig<VantaListVendorsParams, VantaListVendorsResponse> = {
+export const vantaListVendorsTool: InternalToolConfig<
+  VantaListVendorsParams,
+  VantaListVendorsResponse
+> = {
   id: 'vanta_list_vendors',
   name: 'Vanta List Vendors',
   description:
@@ -60,11 +63,8 @@ export const vantaListVendorsTool: ToolConfig<VantaListVendorsParams, VantaListV
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_list_vendors',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

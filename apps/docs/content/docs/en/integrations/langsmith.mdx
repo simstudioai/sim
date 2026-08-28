@@ -102,6 +102,13 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 | `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to update |
 | `name` | string | No | Corrected run name |
+| `end_time` | string | No | Run end time in ISO-8601 format |
+| `outputs` | json | No | Outputs payload |
+| `extra` | json | No | Additional metadata \(extra\) |
+| `tags` | json | No | Array of tag strings |
+| `status` | string | No | Run status |
+| `error` | string | No | Error details |
+| `events` | json | No | Structured events array |
 
 #### Output
 

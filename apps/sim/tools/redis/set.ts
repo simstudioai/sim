@@ -1,7 +1,7 @@
 import type { RedisSetParams, RedisSetResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisSetTool: ToolConfig<RedisSetParams, RedisSetResponse> = {
+export const redisSetTool: InternalToolConfig<RedisSetParams, RedisSetResponse> = {
   id: 'redis_set',
   name: 'Redis Set',
   description: 'Set the value of a key in Redis with an optional expiration time in seconds.',
@@ -34,11 +34,8 @@ export const redisSetTool: ToolConfig<RedisSetParams, RedisSetResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'SET',
       args: params.ex ? [params.key, params.value, 'EX', params.ex] : [params.key, params.value],

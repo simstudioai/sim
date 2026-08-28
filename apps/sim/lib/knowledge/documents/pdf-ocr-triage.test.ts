@@ -8,12 +8,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl } = vi.hoisted(() => ({
-  mockParseBuffer: vi.fn(),
-  mockDownload: vi.fn(),
-  mockToken: vi.fn(),
-  mockBaseUrl: vi.fn(),
-}))
+const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistralParse } =
+  vi.hoisted(() => ({
+    mockParseBuffer: vi.fn(),
+    mockDownload: vi.fn(),
+    mockToken: vi.fn(),
+    mockBaseUrl: vi.fn(),
+    mockExecuteMistralParse: vi.fn(),
+  }))
 
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
 vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
@@ -26,8 +28,12 @@ vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: (extension: string) => ['pdf'].includes(extension),
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+vi.mock('@/lib/internal/mistral/operations', () => ({
+  executeMistralParse: mockExecuteMistralParse,
+}))
 
 import { env } from '@/lib/core/config/env'
+import { MistralOperationError } from '@/lib/internal/mistral/errors'
 import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -63,6 +69,16 @@ describe('PDF OCR triage', () => {
     mockDownload.mockResolvedValue(Buffer.from('%PDF-1.7'))
     mockToken.mockResolvedValue('internal-token')
     mockBaseUrl.mockReturnValue('http://sim.local')
+    mockExecuteMistralParse.mockImplementation(async () => {
+      const response = await fetch('https://api.mistral.ai/v1/ocr', { method: 'POST' })
+      if (!response.ok) {
+        throw new MistralOperationError(response.status, {
+          success: false,
+          error: `Mistral API error: ${response.statusText}`,
+        })
+      }
+      return { success: true, output: await response.json() }
+    })
   })
 
   afterEach(() => {

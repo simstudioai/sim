@@ -110,38 +110,6 @@ export const textractAnalyzeIdBodySchema = z
     }
   })
 
-export const reductoParseBodySchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().optional(),
-  file: RawFileInputSchema.optional(),
-  pages: z.array(z.number()).optional(),
-  tableOutputFormat: z.enum(['html', 'md']).optional(),
-  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
-})
-
-export const pulseParseBodySchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().optional(),
-  file: RawFileInputSchema.optional(),
-  pages: z.string().optional(),
-  extractFigure: z.boolean().optional(),
-  figureDescription: z.boolean().optional(),
-  returnHtml: z.boolean().optional(),
-  chunking: z.string().optional(),
-  chunkSize: z.number().optional(),
-  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
-})
-
-export const extendParseBodySchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().optional(),
-  file: RawFileInputSchema.optional(),
-  outputFormat: z.enum(['markdown', 'spatial']).optional(),
-  chunking: z.enum(['page', 'document', 'section']).optional(),
-  engine: z.enum(['parse_performance', 'parse_light']).optional(),
-  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
-})
-
 export const mistralParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().min(1, 'File path is required').optional(),
@@ -173,27 +141,6 @@ export const textractAnalyzeIdContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/textract/analyze-id',
   body: textractAnalyzeIdBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const reductoParseContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/reducto/parse',
-  body: reductoParseBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const pulseParseContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/pulse/parse',
-  body: pulseParseBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const extendParseContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/extend/parse',
-  body: extendParseBodySchema,
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 

@@ -56,17 +56,6 @@ export const microsoftFileQuerySchema = credentialIdQuerySchema.extend({
   workflowId: optionalString,
 })
 
-export const onedriveFolderQuerySchema = z.object({
-  credentialId: z.preprocess(
-    (value) => value ?? '',
-    z.string().min(1, 'Credential ID and File ID are required')
-  ),
-  fileId: z.preprocess(
-    (value) => value ?? '',
-    z.string().min(1, 'Credential ID and File ID are required')
-  ),
-})
-
 export const onedriveFilesQuerySchema = credentialIdQueryWithSearchSchema
 /**
  * Folder listing is drive-scoped like the file listing above: without `driveId`
@@ -145,12 +134,6 @@ export const onedriveFoldersSelectorContract = defineGetSelector(
   z.object({ files: z.array(fileOptionSchema) })
 )
 
-export const onedriveFolderSelectorContract = defineGetSelector(
-  '/api/tools/onedrive/folder',
-  onedriveFolderQuerySchema,
-  z.object({ file: fileOptionSchema.optional() }).passthrough()
-)
-
 export const microsoftExcelSheetsSelectorContract = defineGetSelector(
   '/api/tools/microsoft_excel/sheets',
   microsoftExcelSheetsQuerySchema,
@@ -221,10 +204,6 @@ export type OnedriveFoldersSelectorResponse = ContractJsonResponse<
   typeof onedriveFoldersSelectorContract
 >
 export type OnedriveFoldersSelectorQuery = ContractQuery<typeof onedriveFoldersSelectorContract>
-export type OnedriveFolderSelectorResponse = ContractJsonResponse<
-  typeof onedriveFolderSelectorContract
->
-export type OnedriveFolderSelectorQuery = ContractQuery<typeof onedriveFolderSelectorContract>
 export type MicrosoftExcelSheetsSelectorResponse = ContractJsonResponse<
   typeof microsoftExcelSheetsSelectorContract
 >

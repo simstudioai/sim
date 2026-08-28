@@ -2,9 +2,9 @@ import type {
   DataverseUploadFileParams,
   DataverseUploadFileResponse,
 } from '@/tools/microsoft_dataverse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const dataverseUploadFileTool: ToolConfig<
+export const dataverseUploadFileTool: InternalToolConfig<
   DataverseUploadFileParams,
   DataverseUploadFileResponse
 > = {
@@ -67,19 +67,8 @@ export const dataverseUploadFileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft-dataverse/upload-file',
-    method: 'POST',
-    /**
-     * Dataverse endpoints redirect (file downloads issue a signed storage URL,
-     * and environment hosts redirect between regional origins), so drop the
-     * bearer token rather than forward it to whatever origin answers.
-     */
-    stripAuthOnRedirect: true,
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       environmentUrl: params.environmentUrl,
       entitySetName: params.entitySetName,

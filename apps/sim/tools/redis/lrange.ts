@@ -1,7 +1,7 @@
 import type { RedisLRangeParams, RedisLRangeResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisLRangeTool: ToolConfig<RedisLRangeParams, RedisLRangeResponse> = {
+export const redisLRangeTool: InternalToolConfig<RedisLRangeParams, RedisLRangeResponse> = {
   id: 'redis_lrange',
   name: 'Redis LRANGE',
   description: 'Get a range of elements from a list stored at a key in Redis.',
@@ -34,11 +34,8 @@ export const redisLRangeTool: ToolConfig<RedisLRangeParams, RedisLRangeResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'LRANGE',
       args: [params.key, params.start, params.stop],

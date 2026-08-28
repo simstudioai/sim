@@ -2,9 +2,9 @@ import type {
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse,
 } from '@/tools/fireflies/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const firefliesUploadAudioTool: ToolConfig<
+export const firefliesUploadAudioTool: InternalToolConfig<
   FirefliesUploadAudioParams,
   FirefliesUploadAudioResponse
 > = {
@@ -65,17 +65,12 @@ export const firefliesUploadAudioTool: ToolConfig<
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
     },
-    url: '/api/tools/fireflies/upload-audio',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+    input: (params) => {
       if (!params.apiKey) {
         throw new Error('Missing API key for Fireflies API request')
       }

@@ -434,7 +434,8 @@ async function callEmbeddingAPI(
    * native size is a 400, not a no-op.
    */
   requestedDimensions: number | undefined,
-  expectedDimensions: number | undefined
+  expectedDimensions: number | undefined,
+  signal?: AbortSignal
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   return retryWithExponentialBackoff(
     async () => {
@@ -448,7 +449,11 @@ async function callEmbeddingAPI(
         dimensions: requestedDimensions,
       })
 
+      signal?.throwIfAborted()
       const controller = new AbortController()
+      const onAbort = () => controller.abort(signal?.reason)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       const response = await fetch(request.apiUrl, {
@@ -456,7 +461,10 @@ async function callEmbeddingAPI(
         headers: request.headers,
         body: JSON.stringify(request.body),
         signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
+      }).finally(() => {
+        clearTimeout(timeout)
+        signal?.removeEventListener('abort', onAbort)
+      })
 
       if (!response.ok) {
         const classificationBody = await readEmbeddingErrorBody(response)
@@ -531,7 +539,8 @@ async function callEmbeddingAPI(
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
       retryBudgetMs: EMBEDDING_RETRY_BUDGET_MS,
-      retryCondition: isWorthRetrying,
+      retryCondition: (error) => !signal?.aborted && isWorthRetrying(error),
+      signal,
     }
   )
 }
@@ -602,8 +611,10 @@ async function embedWithProvider(
   model: string,
   taskType: EmbeddingTaskType,
   requestedDimensions: number | undefined,
-  provider: ResolvedProvider
+  provider: ResolvedProvider,
+  signal?: AbortSignal
 ): Promise<EmbedResult> {
+  signal?.throwIfAborted()
   assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, provider.dimensions)
   const batches = createEmbeddingBatches(
     boundedInputs,
@@ -618,6 +629,7 @@ async function embedWithProvider(
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
+        signal?.throwIfAborted()
         return await callEmbeddingAPI(
           batch,
           provider.adapter,
@@ -626,7 +638,8 @@ async function embedWithProvider(
           provider.providerId,
           provider.quotaCircuitIdentity,
           requestedDimensions,
-          provider.dimensions
+          provider.dimensions,
+          signal
         )
       } catch (error) {
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
@@ -748,6 +761,7 @@ function combineEmbeddingBatches(
  * per-provider item caps, bounded concurrency, and retry on transient failures.
  */
 export async function embed(texts: string[], options: EmbedOptions): Promise<EmbedResult> {
+  options.signal?.throwIfAborted()
   const model = options.model ?? DEFAULT_EMBEDDING_MODEL
   const taskType = options.taskType ?? 'document'
   const provider = await resolveProvider(model, options)
@@ -757,7 +771,14 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     getEmbeddingInputLimits(provider.info),
     options.projectInputs
   )
-  return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+  return embedWithProvider(
+    boundedInputs,
+    model,
+    taskType,
+    options.dimensions,
+    provider,
+    options.signal
+  )
 }
 
 /** Generates embeddings for any model returned by OpenRouter's embedding catalog. */
@@ -796,7 +817,8 @@ export async function embedOpenRouter(
       'openrouter',
       quotaCircuitIdentity,
       options.dimensions,
-      expectedDimensions
+      expectedDimensions,
+      options.signal
     )
 
   let batchResults: { embeddings: number[][]; totalTokens: number; dimensions: number }[]
@@ -805,6 +827,7 @@ export async function embedOpenRouter(
     if (firstInput === undefined) {
       throw new EmbeddingResponseValidationError('the response did not contain any vectors')
     }
+    options.signal?.throwIfAborted()
     const firstResult = await callOpenRouterBatch([firstInput], undefined)
     assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, firstResult.dimensions)
     const batches = createEmbeddingBatches(
@@ -814,9 +837,10 @@ export async function embedOpenRouter(
       adapter.maxItemsPerRequest,
       firstResult.dimensions
     )
-    const remainingResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
-      callOpenRouterBatch(batch, firstResult.dimensions)
-    )
+    const remainingResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) => {
+      options.signal?.throwIfAborted()
+      return callOpenRouterBatch(batch, firstResult.dimensions)
+    })
     batchResults = [firstResult, ...remainingResults]
   } else {
     assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, options.dimensions)
@@ -827,9 +851,10 @@ export async function embedOpenRouter(
       adapter.maxItemsPerRequest,
       options.dimensions
     )
-    batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
-      callOpenRouterBatch(batch, options.dimensions)
-    )
+    batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) => {
+      options.signal?.throwIfAborted()
+      return callOpenRouterBatch(batch, options.dimensions)
+    })
   }
   const result = combineEmbeddingBatches(batchResults)
 

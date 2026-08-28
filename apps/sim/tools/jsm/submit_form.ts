@@ -1,7 +1,7 @@
 import type { JsmSubmitFormParams, JsmSubmitFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmSubmitFormTool: ToolConfig<JsmSubmitFormParams, JsmSubmitFormResponse> = {
+export const jsmSubmitFormTool: InternalToolConfig<JsmSubmitFormParams, JsmSubmitFormResponse> = {
   id: 'jsm_submit_form',
   name: 'JSM Submit Form',
   description: 'Submit a form on a Jira issue or JSM request, locking it from further edits',
@@ -45,13 +45,8 @@ export const jsmSubmitFormTool: ToolConfig<JsmSubmitFormParams, JsmSubmitFormRes
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/submit',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

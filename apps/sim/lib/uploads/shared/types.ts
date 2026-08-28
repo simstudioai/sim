@@ -133,6 +133,7 @@ export interface DownloadFileOptions {
   key: string
   context?: StorageContext
   maxBytes?: number
+  signal?: AbortSignal
 }
 
 export interface DeleteFileOptions {

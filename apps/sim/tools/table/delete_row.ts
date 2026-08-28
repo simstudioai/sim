@@ -1,7 +1,7 @@
 import type { TableDeleteResponse, TableRowDeleteParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteResponse> = {
+export const tableDeleteRowTool: InternalToolConfig<TableRowDeleteParams, TableDeleteResponse> = {
   id: 'table_delete_row',
   name: 'Delete Row',
   description: 'Delete a row from a table',
@@ -22,22 +22,16 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params: TableRowDeleteParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}`,
-    method: 'DELETE',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowDeleteParams) => {
+  operation: {
+    input: (params: TableRowDeleteParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
+        rowId: params.rowId,
         workspaceId,
       }
     },

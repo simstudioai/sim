@@ -231,9 +231,9 @@ function billableAmount(value: unknown): number {
 }
 
 /**
- * Reads the cost off a JSON response returned by the `/api/providers` proxy.
+ * Reads the cost off a provider-operation result.
  *
- * The proxy already resolved key provenance and applied the policy, so its cost
+ * The provider boundary already resolved key provenance and applied the policy, so its cost
  * is authoritative and must never be recomputed from token counts — the caller
  * cannot see whether a workspace BYOK key paid for the call. A response with no
  * usable cost carried no billable usage.

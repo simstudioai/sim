@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
+import { executeCopilotLogUseCase } from '@/lib/copilot/application/execute-log-use-case'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { requireCopilotWorkspace } from '@/lib/copilot/tools/server/workspace-scope'
@@ -7,8 +8,9 @@ import {
   collectLargeValueExecutionIds,
   collectLargeValueKeys,
 } from '@/lib/execution/payloads/large-execution-value'
-import { fetchLogDetail } from '@/lib/logs/fetch-log-detail'
-import { type ListLogsParams, listLogs } from '@/lib/logs/list-logs'
+import { listLogsUseCase } from '@/lib/logs/application/list-logs'
+import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
+import type { ListLogsParams } from '@/lib/logs/list-logs'
 import { grepSpans, type LogViewContext, toFull, toOverview, toTrace } from '@/lib/logs/log-views'
 import { statsLogs } from '@/lib/logs/stats-logs'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -174,7 +176,11 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
       const { view: _view, title: _title, ...rest } = args
       const params = { ...rest, workspaceId, includeTotal: true } as ListLogsParams
       logger.info('query_logs list', { workspaceId, sortBy: params.sortBy })
-      const { data, nextCursor, total } = await listLogs(params, userId)
+      const { data, nextCursor, total } = await executeCopilotLogUseCase(
+        context,
+        listLogsUseCase,
+        params
+      )
       // Cursor and total lead the payload so a truncated render still shows them.
       return { total, nextCursor, data }
     }
@@ -186,13 +192,19 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
     }
 
     // overview / full / grep — single execution by id
-    const detail = await fetchLogDetail({
-      userId,
-      workspaceId,
-      lookupColumn: 'executionId',
-      lookupValue: args.executionId,
-    })
-    if (!detail) {
+    let detail
+    try {
+      ;({ detail } = await executeCopilotLogUseCase(context, readLogDetailUseCase, {
+        workspaceId,
+        lookupColumn: 'executionId',
+        lookupValue: args.executionId,
+      }))
+    } catch (error) {
+      if (!(error instanceof Error && error.message === 'Not found')) throw error
+      return { ok: false, error: `Execution not found: ${args.executionId}` }
+    }
+    const detailExecutionId = detail.executionId
+    if (!detailExecutionId) {
       return { ok: false, error: `Execution not found: ${args.executionId}` }
     }
 
@@ -212,7 +224,11 @@ export const queryLogsServerTool: BaseServerTool<QueryLogsArgs, unknown> = {
       }
     }
 
-    const viewCtx = buildLogViewContext(detail, workspaceId, userId)
+    const viewCtx = buildLogViewContext(
+      { ...detail, executionId: detailExecutionId },
+      workspaceId,
+      userId
+    )
 
     if (args.pattern) {
       logger.info('query_logs grep', { workspaceId, executionId: args.executionId })

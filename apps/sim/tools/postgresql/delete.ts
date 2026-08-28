@@ -1,7 +1,7 @@
 import type { PostgresDeleteParams, PostgresDeleteResponse } from '@/tools/postgresql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<PostgresDeleteParams, PostgresDeleteResponse> = {
+export const deleteTool: InternalToolConfig<PostgresDeleteParams, PostgresDeleteResponse> = {
   id: 'postgresql_delete',
   name: 'PostgreSQL Delete',
   description: 'Delete data from PostgreSQL database',
@@ -58,13 +58,8 @@ export const deleteTool: ToolConfig<PostgresDeleteParams, PostgresDeleteResponse
     },
   },
 
-  request: {
-    url: '/api/tools/postgresql/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

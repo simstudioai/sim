@@ -1,13 +1,11 @@
-import type { ListBillingDocumentsParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListBillingDocumentsParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listBillingDocumentsTool: ToolConfig<ListBillingDocumentsParams, SapProxyResponse> = {
+export const listBillingDocumentsTool: InternalToolConfig<
+  ListBillingDocumentsParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_list_billing_documents',
   name: 'SAP S/4HANA List Billing Documents',
   description:
@@ -113,19 +111,15 @@ export const listBillingDocumentsTool: ToolConfig<ListBillingDocumentsParams, Sa
         'Comma-separated navigation properties to expand (e.g., "to_Item,to_Partner,to_PricingElement")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_BILLING_DOCUMENT_SRV',
       path: '/A_BillingDocument',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

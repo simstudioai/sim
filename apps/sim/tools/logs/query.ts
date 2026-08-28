@@ -1,7 +1,7 @@
 import type { LogsQueryParams, LogsQueryResponse } from '@/tools/logs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
+export const logsQueryTool: InternalToolConfig<LogsQueryParams, LogsQueryResponse> = {
   id: 'logs_query',
   name: 'Query Logs',
   description: 'Query workflow execution logs in the current workspace with filters.',
@@ -77,32 +77,19 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
     },
   },
 
-  request: {
-    internal: true,
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      const qs = new URLSearchParams({ workspaceId })
-      if (params.workflowIds) qs.set('workflowIds', params.workflowIds)
-      if (params.executionId) qs.set('executionId', params.executionId)
-      if (params.level && params.level !== 'all') qs.set('level', params.level)
-      if (params.triggers) qs.set('triggers', params.triggers)
-      if (params.startDate) qs.set('startDate', params.startDate)
-      if (params.endDate) qs.set('endDate', params.endDate)
-      if (params.search) qs.set('search', params.search)
-      if (params.cursor) qs.set('cursor', params.cursor)
-      if (params.sortBy) qs.set('sortBy', params.sortBy)
-      if (params.sortOrder) qs.set('sortOrder', params.sortOrder)
-      if (params.limit !== undefined && params.limit !== null) {
-        qs.set('limit', String(params.limit))
-      }
-      return `/api/logs?${qs.toString()}`
-    },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
+  operation: {
+    input: (params) => ({
+      workflowIds: params.workflowIds,
+      executionId: params.executionId,
+      level: params.level === 'all' ? undefined : params.level,
+      triggers: params.triggers,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      search: params.search,
+      cursor: params.cursor,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
+      limit: params.limit,
     }),
   },
 

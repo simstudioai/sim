@@ -1,5 +1,5 @@
 import { SEARCH_RESULT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceSearchInSpaceParams {
   accessToken: string
@@ -29,7 +29,7 @@ export interface ConfluenceSearchInSpaceResponse {
   }
 }
 
-export const confluenceSearchInSpaceTool: ToolConfig<
+export const confluenceSearchInSpaceTool: InternalToolConfig<
   ConfluenceSearchInSpaceParams,
   ConfluenceSearchInSpaceResponse
 > = {
@@ -90,16 +90,8 @@ export const confluenceSearchInSpaceTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/search-in-space',
-    method: 'POST',
-    headers: (params: ConfluenceSearchInSpaceParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceSearchInSpaceParams) => ({
+  operation: {
+    input: (params: ConfluenceSearchInSpaceParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       spaceKey: params.spaceKey?.trim(),

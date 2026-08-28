@@ -1,13 +1,12 @@
-import type { ListBudgetsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListBudgetsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyResponse> = {
+export const listBudgetsTool: InternalToolConfig<ListBudgetsParams, SapConcurResponse> = {
   id: 'sap_concur_list_budgets',
   name: 'SAP Concur List Budgets',
   description: 'List budget item headers (GET /budget/v4/budgetItemHeader).',
@@ -75,12 +74,9 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
         'Response schema variant: "COMPACT" returns a smaller payload. Defaults to the non-compact schema',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/budget/v4/budgetItemHeader`,
       method: 'GET',
       query: buildListQuery({
@@ -90,7 +86,7 @@ export const listBudgetsTool: ToolConfig<ListBudgetsParams, SapConcurProxyRespon
       }),
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

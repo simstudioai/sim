@@ -1,10 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   WorkdayGetOrganizationsParams,
   WorkdayGetOrganizationsResponse,
 } from '@/tools/workday/types'
 
-export const getOrganizationsTool: ToolConfig<
+export const getOrganizationsTool: InternalToolConfig<
   WorkdayGetOrganizationsParams,
   WorkdayGetOrganizationsResponse
 > = {
@@ -58,13 +58,8 @@ export const getOrganizationsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/workday/get-organizations',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

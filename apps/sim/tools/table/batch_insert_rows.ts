@@ -2,9 +2,9 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableBatchInsertRowsTool: ToolConfig<
+export const tableBatchInsertRowsTool: InternalToolConfig<
   TableBatchInsertParams,
   TableBatchInsertResponse
 > = {
@@ -34,25 +34,19 @@ export const tableBatchInsertRowsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance(params.rows, 'rows'),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableBatchInsertParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableBatchInsertParams) => {
+    input: (params: TableBatchInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         rows: params.rows,
         workspaceId,
       }

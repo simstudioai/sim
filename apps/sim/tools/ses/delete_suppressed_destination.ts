@@ -2,9 +2,9 @@ import type {
   SESDeleteSuppressedDestinationParams,
   SESDeleteSuppressedDestinationResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteSuppressedDestinationTool: ToolConfig<
+export const deleteSuppressedDestinationTool: InternalToolConfig<
   SESDeleteSuppressedDestinationParams,
   SESDeleteSuppressedDestinationResponse
 > = {
@@ -40,11 +40,8 @@ export const deleteSuppressedDestinationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/delete-suppressed-destination',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

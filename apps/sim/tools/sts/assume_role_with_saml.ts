@@ -1,7 +1,7 @@
 import type { STSAssumeRoleWithSAMLParams, STSAssumeRoleWithSAMLResponse } from '@/tools/sts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const assumeRoleWithSAMLTool: ToolConfig<
+export const assumeRoleWithSAMLTool: InternalToolConfig<
   STSAssumeRoleWithSAMLParams,
   STSAssumeRoleWithSAMLResponse
 > = {
@@ -57,11 +57,8 @@ export const assumeRoleWithSAMLTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/sts/assume-role-with-saml',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       roleArn: params.roleArn,
       principalArn: params.principalArn,

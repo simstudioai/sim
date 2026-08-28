@@ -26,7 +26,7 @@ vi.mock('@/lib/knowledge/application/chunks', () => ({
   },
 }))
 
-vi.mock('@/app/api/knowledge/secret-provenance', () => ({
+vi.mock('@/lib/knowledge/api/secret-provenance', () => ({
   finalizeKnowledgePersistedResponse: vi.fn(),
   finalizeKnowledgeProvenanceResponse: vi.fn(),
   resolveKnowledgeWriteSecretProvenance: vi.fn(),

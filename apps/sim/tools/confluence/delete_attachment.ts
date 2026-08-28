@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteAttachmentParams {
   accessToken: string
@@ -16,7 +16,7 @@ export interface ConfluenceDeleteAttachmentResponse {
   }
 }
 
-export const confluenceDeleteAttachmentTool: ToolConfig<
+export const confluenceDeleteAttachmentTool: InternalToolConfig<
   ConfluenceDeleteAttachmentParams,
   ConfluenceDeleteAttachmentResponse
 > = {
@@ -58,17 +58,8 @@ export const confluenceDeleteAttachmentTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/attachment',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeleteAttachmentParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceDeleteAttachmentParams) => {
+  operation: {
+    input: (params: ConfluenceDeleteAttachmentParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

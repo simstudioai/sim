@@ -1,7 +1,7 @@
 import type { SESGetTemplateParams, SESGetTemplateResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getTemplateTool: ToolConfig<SESGetTemplateParams, SESGetTemplateResponse> = {
+export const getTemplateTool: InternalToolConfig<SESGetTemplateParams, SESGetTemplateResponse> = {
   id: 'ses_get_template',
   name: 'SES Get Template',
   description: 'Retrieve the content and details of an SES email template',
@@ -34,11 +34,8 @@ export const getTemplateTool: ToolConfig<SESGetTemplateParams, SESGetTemplateRes
     },
   },
 
-  request: {
-    url: '/api/tools/ses/get-template',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

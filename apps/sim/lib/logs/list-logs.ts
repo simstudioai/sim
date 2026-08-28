@@ -38,26 +38,19 @@ import {
   decodeLogSortCursor,
   encodeLogSortCursor,
 } from '@/lib/logs/sort-cursor'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-export type ListLogsParams = z.output<typeof listLogsQuerySchema>
+export type ListLogsParams = z.output<typeof listLogsQuerySchema> & {
+  signal?: AbortSignal
+}
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
 type SortOrder = 'asc' | 'desc'
 
 /**
- * Shared logs list query used by the `/api/logs` route and the copilot `query_logs`
- * tool. Builds the workflow + job execution-log query (cursor pagination, sort,
- * level running/pending logic, job-log merge) from the shared filter params. The
- * caller is responsible for authenticating `userId`; this function enforces
- * workspace permission via the `permissions` join.
+ * Canonical logs list query after workspace authorization.
  */
-export async function listLogs(params: ListLogsParams, userId: string): Promise<ListLogsResponse> {
-  const access = await checkWorkspaceAccess(params.workspaceId, userId)
-  if (!access.hasAccess) {
-    return { data: [], nextCursor: null }
-  }
-
+export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse> {
+  params.signal?.throwIfAborted()
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
@@ -67,6 +60,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   const folderIds = params.folderIds
     ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
     : params.folderIds
+  params.signal?.throwIfAborted()
   const p: ListLogsParams = { ...params, folderIds }
 
   const workflowSortExpr: SQL<unknown> = (() => {
@@ -315,6 +309,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     : Promise.resolve([])
 
   const [workflowRows, jobRows] = await Promise.all([workflowQuery, jobQuery])
+  params.signal?.throwIfAborted()
 
   type RowWithSort = {
     id: string
@@ -458,9 +453,11 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
           .where(and(...jobFilterConditions))
       : Promise.resolve([{ count: 0 }])
     const [workflowCount, jobCount] = await Promise.all([workflowCountQuery, jobCountQuery])
+    params.signal?.throwIfAborted()
     total = Number(workflowCount[0]?.count ?? 0) + Number(jobCount[0]?.count ?? 0)
   }
 
+  params.signal?.throwIfAborted()
   return {
     data: page.map((row) => row.summary),
     nextCursor,

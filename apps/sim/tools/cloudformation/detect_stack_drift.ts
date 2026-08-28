@@ -2,9 +2,9 @@ import type {
   CloudFormationDetectStackDriftParams,
   CloudFormationDetectStackDriftResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const detectStackDriftTool: ToolConfig<
+export const detectStackDriftTool: InternalToolConfig<
   CloudFormationDetectStackDriftParams,
   CloudFormationDetectStackDriftResponse
 > = {
@@ -40,13 +40,8 @@ export const detectStackDriftTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/detect-stack-drift',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

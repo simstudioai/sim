@@ -2,6 +2,7 @@ import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { resolveLogFolderScope } from '@/lib/logs/folder-scope'
@@ -47,7 +48,7 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: logDelegationAuthorization(),
   execute: async ({ principal, input, context }): Promise<ListPublicLogsResult> => {
     const folderScope = input.folderPaths
       ? await resolveLogFolderScope(context.workspaceId, input.folderPaths)

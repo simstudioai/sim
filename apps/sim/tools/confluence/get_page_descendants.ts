@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPageDescendantsParams {
   accessToken: string
@@ -29,7 +29,7 @@ export interface ConfluenceGetPageDescendantsResponse {
   }
 }
 
-export const confluenceGetPageDescendantsTool: ToolConfig<
+export const confluenceGetPageDescendantsTool: InternalToolConfig<
   ConfluenceGetPageDescendantsParams,
   ConfluenceGetPageDescendantsResponse
 > = {
@@ -83,16 +83,8 @@ export const confluenceGetPageDescendantsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-descendants',
-    method: 'POST',
-    headers: (params: ConfluenceGetPageDescendantsParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceGetPageDescendantsParams) => ({
+  operation: {
+    input: (params: ConfluenceGetPageDescendantsParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

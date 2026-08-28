@@ -133,7 +133,7 @@ Search for contacts in SendGrid using a query
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SendGrid API key |
-| `query` | string | Yes | Search query \(e.g., \"email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)\"\) |
+| `query` | string | Yes | Search query \(e.g., "email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)"\) |
 
 #### Output
 
@@ -323,9 +323,7 @@ Get all email templates from SendGrid
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | SendGrid API key |
 | `generations` | string | No | Filter by generation \(legacy, dynamic, or both\) |
-| `pageSize` | number | No | Number of templates to return per page \(default: 20, max: 200\). ' +
-        'When paginating with pageToken, pass the same pageSize used on the first request ' +
-        'to keep page boundaries consistent. |
+| `pageSize` | number | No | Number of templates to return per page \(default: 20, max: 200\). When paginating with pageToken, pass the same pageSize used on the first request to keep page boundaries consistent. |
 | `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
 
 #### Output

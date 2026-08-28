@@ -1,13 +1,12 @@
-import type { GetReceiptStatusParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetReceiptStatusParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getReceiptStatusTool: ToolConfig<GetReceiptStatusParams, SapConcurProxyResponse> = {
+export const getReceiptStatusTool: InternalToolConfig<GetReceiptStatusParams, SapConcurResponse> = {
   id: 'sap_concur_get_receipt_status',
   name: 'SAP Concur Get Receipt Status',
   description: 'Get receipt processing status (GET /receipts/v4/status/{receiptId}).',
@@ -62,20 +61,17 @@ export const getReceiptStatusTool: ToolConfig<GetReceiptStatusParams, SapConcurP
       description: 'Receipt ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const receiptId = trimRequired(params.receiptId, 'receiptId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/receipts/v4/status/${encodeURIComponent(receiptId)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

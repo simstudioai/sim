@@ -312,13 +312,35 @@ async function loadTriggerRegistry(): Promise<Record<string, RegistryTrigger>> {
   return module.TRIGGER_REGISTRY as Record<string, RegistryTrigger>
 }
 
+interface ToolMetadataParam {
+  type?: string
+  required?: boolean
+  description?: string
+  visibility?: string
+}
+
+interface ToolMetadataEntry {
+  name?: string
+  description?: string
+  params?: Record<string, ToolMetadataParam>
+}
+
+/** Client-safe tool metadata, keyed by tool id and kept in sync with the registry by CI. */
+let toolMetadata: Record<string, ToolMetadataEntry> | null = null
+
+async function loadToolMetadata(): Promise<Record<string, ToolMetadataEntry>> {
+  if (toolMetadata) return toolMetadata
+  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
+  toolMetadata = module.default as Record<string, ToolMetadataEntry>
+  return toolMetadata
+}
+
 /** Human-facing tool names, keyed by tool id. Kept in sync with the registry by CI. */
 let toolDisplayNames: Map<string, string> | null = null
 
 async function loadToolDisplayNames(): Promise<Map<string, string>> {
   if (toolDisplayNames) return toolDisplayNames
-  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
-  const metadata = module.default as Record<string, { name?: string }>
+  const metadata = await loadToolMetadata()
   toolDisplayNames = new Map(
     Object.entries(metadata).flatMap(([id, entry]) =>
       entry?.name ? [[id, entry.name] as const] : []
@@ -2618,7 +2640,16 @@ function expandSpreadConsts(
   })
 }
 
-function extractToolInfo(
+function extractObjectPropertyBody(content: string, propertyName: string): string | null {
+  const propertyMatch = content.match(new RegExp(`\\b${propertyName}\\s*:\\s*{`))
+  if (!propertyMatch || propertyMatch.index === undefined) return null
+
+  const open = propertyMatch.index + propertyMatch[0].length - 1
+  const close = findMatchingClose(content, open)
+  return close === -1 ? null : content.substring(open + 1, close - 1)
+}
+
+export function extractToolInfo(
   toolName: string,
   fileContent: string,
   factorySource = '',
@@ -2657,12 +2688,10 @@ function extractToolInfo(
     // defining multiple tools (e.g. file_compress + file_decompress in
     // compress.ts) don't all inherit the first tool's params. Fall back to the
     // full file for tools that inherit params via spread from a base object.
-    const toolConfigRegex =
-      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|hosting|request|directExecution|postProcess|transformResponse)\s*:/
-    const toolConfigMatch =
-      toolContent.match(toolConfigRegex) ??
-      fileContent.match(toolConfigRegex) ??
-      factorySource.match(toolConfigRegex)
+    const paramsBody =
+      extractObjectPropertyBody(toolContent, 'params') ??
+      extractObjectPropertyBody(fileContent, 'params') ??
+      extractObjectPropertyBody(factorySource, 'params')
 
     // Description should come from the specific tool block if found
     // Only search before nested objects (params, outputs, request, etc.) to avoid matching
@@ -2717,13 +2746,8 @@ function extractToolInfo(
 
     const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
 
-    if (toolConfigMatch) {
-      const paramsContent = expandSpreadConsts(
-        toolConfigMatch[1],
-        fileContent,
-        toolFilePath,
-        rootDir
-      )
+    if (paramsBody !== null) {
+      const paramsContent = expandSpreadConsts(paramsBody, fileContent, toolFilePath, rootDir)
 
       const paramBlocksRegex = /(\w+)\s*:\s*{/g
       let paramMatch
@@ -3414,6 +3438,7 @@ export async function getToolInfo(
     userSettableParamIds === null ? null : new Set(userSettableParamIds)
 
   try {
+    const metadata = (await loadToolMetadata())[toolName]
     const parts = toolName.split('_')
 
     let toolPrefix = ''
@@ -3532,19 +3557,50 @@ export async function getToolInfo(
       }
     }
 
-    if (!toolFileContent) {
+    if (!toolFileContent && !metadata) {
       console.warn(`Could not find definition for tool: ${toolName}`)
       return null
     }
 
-    return extractToolInfo(
-      toolName,
-      toolFileContent,
-      resolveFactorySource(toolFileContent, foundFile, rootDir),
-      foundFile,
-      rootDir,
-      userSettableParamIdSet
-    )
+    const sourceInfo = toolFileContent
+      ? extractToolInfo(
+          toolName,
+          toolFileContent,
+          resolveFactorySource(toolFileContent, foundFile, rootDir),
+          foundFile,
+          rootDir,
+          userSettableParamIdSet
+        )
+      : null
+
+    if (!metadata) return sourceInfo
+
+    /**
+     * The same hidden-param rule `extractToolInfo` applies to source-parsed params, applied to the
+     * metadata-derived ones. `tool-metadata.ts` carries `visibility` for every param, so this is the
+     * authoritative form of the check; the source-side filter remains for tools with no metadata
+     * entry. A null set means the block's subBlocks could not be read, so nothing is filtered.
+     */
+    const params = Object.entries(metadata.params ?? {})
+      .filter(([name]) => name !== 'accessToken')
+      .filter(
+        ([name, param]) =>
+          userSettableParamIdSet === null ||
+          param.visibility !== 'hidden' ||
+          userSettableParamIdSet.has(name)
+      )
+      .map(([name, param]) => ({
+        name,
+        type: typeof param.type === 'string' ? param.type : 'string',
+        required: param.required === true,
+        description: typeof param.description === 'string' ? param.description : 'No description',
+      }))
+
+    return {
+      description: metadata.description ?? sourceInfo?.description ?? 'No description available',
+      params,
+      outputs: sourceInfo?.outputs ?? {},
+    }
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
     return null

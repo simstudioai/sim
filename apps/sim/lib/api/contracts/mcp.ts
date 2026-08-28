@@ -219,16 +219,6 @@ export const mcpToolDiscoveryQuerySchema = z.object({
   refresh: z.string().optional(),
 })
 
-export const mcpToolExecutionBodySchema = z
-  .object({
-    serverId: z.string().min(1),
-    toolName: z.string().min(1),
-    arguments: z.record(z.string(), z.unknown()).optional(),
-    workflowId: z.string().optional(),
-  })
-  .passthrough()
-export type McpToolExecutionBody = z.input<typeof mcpToolExecutionBodySchema>
-
 export const mcpToolResultSchema = z
   .object({
     content: z.array(z.unknown()).optional(),
@@ -236,13 +226,6 @@ export const mcpToolResultSchema = z
     structuredContent: z.unknown().optional(),
   })
   .passthrough()
-
-export const mcpToolExecutionResultSchema = z.object({
-  success: z.boolean(),
-  output: mcpToolResultSchema.optional(),
-  error: z.string().optional(),
-})
-export type McpToolExecutionResult = z.output<typeof mcpToolExecutionResultSchema>
 
 export const mcpJsonRpcRequestSchema = z
   .object({
@@ -433,17 +416,6 @@ export const testMcpServerConnectionContract = defineRouteContract({
     schema: mcpSuccessResponseSchema(mcpServerTestResultSchema),
   },
 })
-
-export const executeMcpToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mcp/tools/execute',
-  body: mcpToolExecutionBodySchema,
-  response: {
-    mode: 'json',
-    schema: mcpSuccessResponseSchema(mcpToolExecutionResultSchema),
-  },
-})
-export type ExecuteMcpToolResponse = ContractJsonResponse<typeof executeMcpToolContract>
 
 export const startMcpOauthQuerySchema = z.object({
   serverId: z.string().min(1, 'serverId is required'),

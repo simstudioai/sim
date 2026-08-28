@@ -27,7 +27,7 @@ const ALL_TOOLS = [
 describe('embeddings tools model-input projection', () => {
   it('declares a projecting model input on every tool', () => {
     for (const tool of ALL_TOOLS) {
-      expect(tool.request.modelInput?.mode, `${tool.id} must project its model input`).toBe(
+      expect(tool.operation.modelInput?.mode, `${tool.id} must project its model input`).toBe(
         'project'
       )
     }
@@ -35,7 +35,7 @@ describe('embeddings tools model-input projection', () => {
 
   it('selects only the input field, never the API key', () => {
     for (const tool of ALL_TOOLS) {
-      const modelInput = tool.request.modelInput
+      const modelInput = tool.operation.modelInput
       if (modelInput?.mode !== 'project') throw new Error(`${tool.id} does not project`)
 
       expect(
@@ -54,7 +54,7 @@ describe('embeddings tools model-input projection', () => {
    * unchanged, since the block accepts both a string and a list of strings.
    */
   it('selects an array input unchanged', () => {
-    const modelInput = embeddingsOpenAITool.request.modelInput
+    const modelInput = embeddingsOpenAITool.operation.modelInput
     if (modelInput?.mode !== 'project') throw new Error('expected a projecting model input')
 
     expect(modelInput.select({ input: ['alpha', 'beta'], apiKey: 'sk-secret' } as never)).toEqual({
@@ -68,7 +68,7 @@ describe('embeddings tools model-input projection', () => {
    */
   it('selects only keys the tool declares as params', () => {
     for (const tool of ALL_TOOLS) {
-      const modelInput = tool.request.modelInput
+      const modelInput = tool.operation.modelInput
       if (modelInput?.mode !== 'project') throw new Error(`${tool.id} does not project`)
 
       for (const key of Object.keys(modelInput.select({ input: 'x' } as never))) {
@@ -82,7 +82,7 @@ describe('embeddings tools model-input projection', () => {
   it('requires an explicit OpenRouter key without hosted-key injection', () => {
     expect(embeddingsOpenRouterTool.params.apiKey.required).toBe(true)
     expect(embeddingsOpenRouterTool.hosting).toBeUndefined()
-    expect(embeddingsOpenRouterTool.request.body({ input: 'hello' } as never)).toMatchObject({
+    expect(embeddingsOpenRouterTool.operation.input({ input: 'hello' } as never)).toMatchObject({
       provider: 'openrouter',
       model: 'openrouter/openai/text-embedding-3-small',
     })

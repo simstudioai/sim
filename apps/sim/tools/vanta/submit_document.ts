@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { VantaSubmitDocumentParams, VantaSubmitDocumentResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaSubmitDocumentTool: ToolConfig<
+export const vantaSubmitDocumentTool: InternalToolConfig<
   VantaSubmitDocumentParams,
   VantaSubmitDocumentResponse
 > = {
@@ -39,11 +39,8 @@ export const vantaSubmitDocumentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_submit_document',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

@@ -134,7 +134,7 @@ describe('public log application use cases', () => {
     mocks.materialize.mockResolvedValue({ finalOutput: { ok: true } })
   })
 
-  it('rejects unsupported principals before resolving the run', async () => {
+  it('allows the internal session surface through the shared read operation', async () => {
     const principal: SessionPrincipal = {
       kind: 'session',
       userId: 'user-1',
@@ -143,9 +143,9 @@ describe('public log application use cases', () => {
 
     await expect(
       getPublicLog.execute({ principal, input: { runId: 'run-1' } })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.getLogScope).not.toHaveBeenCalled()
-    expect(mocks.getLog).not.toHaveBeenCalled()
+    ).resolves.toMatchObject({ log: { executionId: 'run-1' } })
+    expect(mocks.getLogScope).toHaveBeenCalledWith('run-1')
+    expect(mocks.getLog).toHaveBeenCalledOnce()
   })
 
   it('derives workspace and materialization scope from the canonical run', async () => {

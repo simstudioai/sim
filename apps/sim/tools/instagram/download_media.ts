@@ -1,14 +1,14 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type InstagramDownloadMediaBody,
   instagramDownloadMediaResponseSchema,
-} from '@/lib/api/contracts/tools/instagram'
-import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+} from '@/lib/internal/instagram/schema'
 import type {
   InstagramDownloadMediaParams,
   InstagramDownloadMediaResponse,
 } from '@/tools/instagram/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const MAX_INTERNAL_RESPONSE_BYTES = 256 * 1024
 
@@ -21,7 +21,7 @@ function failureOutput(mediaId: string): InstagramDownloadMediaResponse['output'
   }
 }
 
-export const instagramDownloadMediaTool: ToolConfig<
+export const instagramDownloadMediaTool: InternalToolConfig<
   InstagramDownloadMediaParams,
   InstagramDownloadMediaResponse
 > = {
@@ -57,27 +57,12 @@ export const instagramDownloadMediaTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/download-media',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) =>
+  operation: {
+    input: (params) =>
       ({
         accessToken: params.accessToken,
         mediaId: params.mediaId,
         filename: params.filename,
-        workspaceId:
-          typeof params._context?.workspaceId === 'string'
-            ? params._context.workspaceId
-            : undefined,
-        workflowId:
-          typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
-        executionId:
-          typeof params._context?.executionId === 'string'
-            ? params._context.executionId
-            : undefined,
       }) satisfies InstagramDownloadMediaBody,
   },
 

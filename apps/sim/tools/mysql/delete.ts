@@ -1,7 +1,7 @@
 import type { MySQLDeleteParams, MySQLResponse } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteTool: ToolConfig<MySQLDeleteParams, MySQLResponse> = {
+export const deleteTool: InternalToolConfig<MySQLDeleteParams, MySQLResponse> = {
   id: 'mysql_delete',
   name: 'MySQL Delete',
   description: 'Delete records from MySQL database',
@@ -58,13 +58,8 @@ export const deleteTool: ToolConfig<MySQLDeleteParams, MySQLResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

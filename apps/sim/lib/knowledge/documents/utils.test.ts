@@ -667,6 +667,24 @@ describe('retryWithExponentialBackoff retry budget', () => {
     expect(operation).toHaveBeenCalledTimes(3)
   })
 
+  it('cancels a retry wait without starting another attempt', async () => {
+    const controller = new AbortController()
+    const operation = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('service unavailable'), { status: 503 }))
+    const result = retryWithExponentialBackoff(operation, {
+      maxRetries: 2,
+      initialDelayMs: 60_000,
+      signal: controller.signal,
+    })
+
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledOnce())
+    controller.abort()
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    expect(operation).toHaveBeenCalledOnce()
+  })
+
   it.each([
     { retryBudgetMs: Number.NaN },
     { retryBudgetMs: Number.POSITIVE_INFINITY },

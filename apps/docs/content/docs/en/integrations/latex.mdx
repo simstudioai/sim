@@ -43,7 +43,7 @@ Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `content` | string | Yes | LaTeX source of the main document, from \\documentclass to \\end\{document\} |
+| `content` | string | Yes | LaTeX source of the main document, from \documentclass to \end\{document\} |
 | `compiler` | string | No | LaTeX compiler: pdflatex \(default\), xelatex, lualatex, platex, uplatex, or context |
 | `fileName` | string | No | Name for the generated PDF file \(default: document.pdf\) |
 | `resources` | array | No | Supporting files for the compilation. Each entry has a "path" plus exactly one of "content" \(plain text\), "file" \(base64\), or "url" \(remote file\), e.g. \[\{"path": "refs.bib", "content": "..."\}, \{"path": "logo.png", "url": "https://..."\}\] |

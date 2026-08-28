@@ -2013,7 +2013,7 @@ Write one non-list field value on a company or person. The value type must match
 | `entityType` | string | Yes | Which entity to write the field on: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `fieldId` | string | Yes | The field ID to write |
-| `value` | json | Yes | The new value as \{type, data\}, where type matches the field\'s value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
+| `value` | json | Yes | The new value as \{type, data\}, where type matches the field's value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
 
 #### Output
 
@@ -2034,7 +2034,7 @@ Write one field value on a list row. Requires the "Export data from Lists" permi
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `fieldId` | string | Yes | The field ID to write |
-| `value` | json | Yes | The new value as \{type, data\}, where type matches the field\'s value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
+| `value` | json | Yes | The new value as \{type, data\}, where type matches the field's value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
 
 #### Output
 

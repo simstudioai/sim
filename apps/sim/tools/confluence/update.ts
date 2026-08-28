@@ -1,8 +1,11 @@
 import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from '@/tools/confluence/types'
 import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, ConfluenceUpdateResponse> = {
+export const confluenceUpdateTool: InternalToolConfig<
+  ConfluenceUpdateParams,
+  ConfluenceUpdateResponse
+> = {
   id: 'confluence_update',
   name: 'Confluence Update',
   description: 'Update a Confluence page using the Confluence API.',
@@ -53,20 +56,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceUpdateParams) => {
-      return '/api/tools/confluence/page'
-    },
-    method: 'PUT',
-    headers: (params: ConfluenceUpdateParams) => {
-      return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceUpdateParams) => {
+  operation: {
+    input: (params: ConfluenceUpdateParams) => {
       const body: Record<string, any> = {
         domain: params.domain,
         accessToken: params.accessToken,
