@@ -65,7 +65,7 @@ export const listCommentsTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'The page token to use for pagination',
     },
   },

@@ -46,6 +46,7 @@ List files and folders in Google Drive with complete metadata
 | `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | Search term to filter files by name \(e.g. "budget" finds files with "budget" in the name\). Do NOT use Google Drive query syntax here - just provide a plain search term. |
 | `pageSize` | number | No | The maximum number of files to return \(default: 100\) |
+| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -484,6 +485,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Google Drive query string using advanced search syntax \(e.g., "fullText contains 'budget'", "mimeType = 'application/pdf'", "modifiedTime &gt; '2024-01-01'"\) |
 | `pageSize` | number | No | Maximum number of files to return \(default: 100\) |
+| `pageToken` | string | No | Token for fetching the next page of results |
 
 #### Output
 
@@ -671,6 +673,7 @@ List all permissions (who has access) for a file in Google Drive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to list permissions for |
+| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -720,6 +723,7 @@ List the revision history of a file in Google Drive
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | Yes | The ID of the file to list revisions for |
 | `pageSize` | number | No | Maximum number of revisions to return \(1-1000, default 200\) |
+| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
@@ -779,6 +783,7 @@ List comments on a file in Google Drive
 | `includeDeleted` | boolean | No | Whether to include deleted comments \(their content is stripped\) |
 | `pageSize` | number | No | Maximum number of comments to return \(1-100, default 20\) |
 | `startModifiedTime` | string | No | Only return comments modified after this RFC 3339 timestamp |
+| `pageToken` | string | No | The page token to use for pagination |
 
 #### Output
 
