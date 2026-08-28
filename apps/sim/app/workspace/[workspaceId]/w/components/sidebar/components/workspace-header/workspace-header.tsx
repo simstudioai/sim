@@ -519,7 +519,6 @@ function WorkspaceHeaderImpl({
               type='button'
               aria-label='Switch workspace'
               className={cn(chipVariants(), 'min-w-0 max-w-full')}
-              title={activeWorkspace?.name}
               onContextMenu={(e) => {
                 if (activeWorkspaceFull) {
                   handleContextMenu(e, activeWorkspaceFull)
@@ -871,7 +870,6 @@ function WorkspaceHeaderImpl({
              shifts when the workspace resolves. Chips carry no margin, so neither
              does this. */
           className={cn(chipGeometryClass, isCollapsed ? 'flex' : 'inline-flex min-w-0 max-w-full')}
-          title={activeWorkspace?.name}
           disabled
         >
           {activeWorkspaceFull?.logoUrl ? (
