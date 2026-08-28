@@ -65,12 +65,28 @@ export type UsageAnalyticsWindow =
  */
 export function buildUsageAnalyticsScope(
   entity: BillingEntity,
-  window: UsageAnalyticsWindow
+  window: UsageAnalyticsWindow,
+  /**
+   * Narrows every read built from this scope to one workspace, for the Workspaces
+   * drill-down.
+   *
+   * On the scope rather than on each query: the drill-down draws a chart, a headline,
+   * and two ranked lists from separate reads, and a narrowing each one applied for
+   * itself is one they could apply differently. Not an authorization boundary — the
+   * entity predicates above are — so a workspace belonging to another organization
+   * narrows to nothing rather than disclosing anything.
+   *
+   * `workspace_id` is not in `usage_log_billing_entity_created_at_cost_idx`, so a
+   * narrowed read heap-fetches per row in the window. That is the cost the Workspaces
+   * tab already pays to rank its list, and it is only ever paid inside a drill-down.
+   */
+  workspaceId?: string
 ): SQL[] {
   const conditions: SQL[] = [
     eq(usageLog.billingEntityType, entity.type),
     eq(usageLog.billingEntityId, entity.id),
   ]
+  if (workspaceId) conditions.push(eq(usageLog.workspaceId, workspaceId))
 
   if (window.kind === 'range') {
     conditions.push(gte(usageLog.createdAt, window.from), lt(usageLog.createdAt, window.to))

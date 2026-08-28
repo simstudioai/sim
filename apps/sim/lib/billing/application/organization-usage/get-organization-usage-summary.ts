@@ -20,6 +20,8 @@ export interface OrganizationUsageSummaryInput {
   startDate?: Date
   endDate?: Date
   timezone: string
+  /** Narrows to one workspace, for the Workspaces drill-down. */
+  workspaceId?: string
 }
 
 export interface OrganizationUsageSummaryResult {
@@ -47,7 +49,7 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       timezone: input.timezone,
     })
     const bucket = resolveUsageBucket(window)
-    const scope = buildUsageAnalyticsScope(context.billingEntity, window)
+    const scope = buildUsageAnalyticsScope(context.billingEntity, window, input.workspaceId)
 
     /**
      * The comparison window only exists when it is exactly derivable.
@@ -68,7 +70,11 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       readUsageTotals(scope),
       readUsageTimeSeries(scope, bucket, input.timezone),
       comparison
-        ? readUsageTotals(buildUsageAnalyticsScope(context.billingEntity, comparison))
+        ? readUsageTotals(
+            // Same narrowing as the current window, or the delta would compare one
+            // workspace against the whole organization.
+            buildUsageAnalyticsScope(context.billingEntity, comparison, input.workspaceId)
+          )
         : Promise.resolve(null),
     ])
 

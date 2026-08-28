@@ -23,8 +23,13 @@ export interface OrganizationUsageWindowKey {
 
 export const organizationUsageKeys = {
   all: (organizationId: string) => ['organizations', 'detail', organizationId, 'usage'] as const,
-  summary: (organizationId: string, window: OrganizationUsageWindowKey) =>
-    [...organizationUsageKeys.all(organizationId), 'summary', window] as const,
+  summary: (
+    organizationId: string,
+    window: OrganizationUsageWindowKey,
+    /** Set only inside the Workspaces drill-down, whose chart reads one workspace. */
+    workspaceId?: string
+  ) =>
+    [...organizationUsageKeys.all(organizationId), 'summary', window, workspaceId ?? ''] as const,
   breakdowns: (organizationId: string, window: OrganizationUsageWindowKey) =>
     [...organizationUsageKeys.all(organizationId), 'breakdown', window] as const,
   breakdown: (

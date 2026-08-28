@@ -26,19 +26,28 @@ export const ORGANIZATION_USAGE_EVENTS_STALE_TIME = 30 * 1000
 
 const EVENTS_PAGE_SIZE = 50
 
+interface UseSummaryOptions {
+  /** The panel fetches the drill-down's chart only while that view is open. */
+  enabled?: boolean
+  /** Narrows to one workspace, for the Workspaces drill-down. */
+  workspaceId?: string
+}
+
 export function useOrganizationUsageSummary(
   organizationId: string | undefined,
-  window: OrganizationUsageWindowKey
+  window: OrganizationUsageWindowKey,
+  options: UseSummaryOptions = {}
 ) {
+  const { workspaceId } = options
   return useQuery({
-    queryKey: organizationUsageKeys.summary(organizationId ?? '', window),
+    queryKey: organizationUsageKeys.summary(organizationId ?? '', window, workspaceId),
     queryFn: ({ signal }): Promise<OrganizationUsageSummary> =>
       requestJson(getOrganizationUsageSummaryContract, {
         params: { id: organizationId as string },
-        query: { ...window },
+        query: { ...window, ...(workspaceId ? { workspaceId } : {}) },
         signal,
       }),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && (options.enabled ?? true),
     staleTime: ORGANIZATION_USAGE_SUMMARY_STALE_TIME,
     // Changing the period should dim the current figures rather than blank them.
     placeholderData: keepPreviousData,

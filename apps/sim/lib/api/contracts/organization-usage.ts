@@ -126,13 +126,24 @@ const organizationUsageWindowQuerySchema = z.object({
     .default('UTC'),
 })
 
-export const organizationUsageSummaryQuerySchema = organizationUsageWindowQuerySchema
+/**
+ * Narrows a read to one workspace, for the Workspaces drill-down.
+ *
+ * Declared once and spread into both query schemas: the drill-down draws its chart
+ * from the summary and its lists from the breakdown, so a workspace filter either
+ * surface could express alone is one the two could disagree about.
+ */
+const usageWorkspaceScopeShape = {
+  workspaceId: workspaceIdSchema.optional(),
+} as const
+
+export const organizationUsageSummaryQuerySchema =
+  organizationUsageWindowQuerySchema.extend(usageWorkspaceScopeShape)
 export type OrganizationUsageSummaryQuery = z.input<typeof organizationUsageSummaryQuerySchema>
 
 export const organizationUsageBreakdownQuerySchema = organizationUsageWindowQuerySchema.extend({
+  ...usageWorkspaceScopeShape,
   dimension: usageBreakdownDimensionSchema,
-  /** Narrows the breakdown to one workspace, for the Workspaces drill-down. */
-  workspaceId: workspaceIdSchema.optional(),
   limit: usageLimitSchema(50, 10),
 })
 export type OrganizationUsageBreakdownQuery = z.input<typeof organizationUsageBreakdownQuerySchema>
