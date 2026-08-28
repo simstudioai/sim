@@ -13,7 +13,9 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const UntagResourceSchema = z.object({
   ...lambdaConnectionFields,
   resourceArn: z.string().min(1, 'resourceArn is required'),
-  tagKeys: z.array(z.string()).min(1, 'tagKeys must contain at least one key'),
+  tagKeys: z
+    .array(z.string().min(1, 'a tag key cannot be empty'))
+    .min(1, 'tagKeys must contain at least one key'),
 })
 
 const UntagResourceResponseSchema = lambdaMessageResponseSchema

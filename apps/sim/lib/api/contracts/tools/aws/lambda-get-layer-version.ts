@@ -12,7 +12,14 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const GetLayerVersionSchema = z.object({
   ...lambdaConnectionFields,
-  layerName: z.string().min(1, 'layerName is required'),
+  layerName: z
+    .string()
+    .min(1, 'layerName is required')
+    .max(140, 'layerName cannot exceed 140 characters')
+    .regex(
+      /^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:d{12}:layer:[a-zA-Z0-9-_]+)$|^[a-zA-Z0-9-_]+$/,
+      'layerName must be a layer name or a layer ARN'
+    ),
   versionNumber: z.number().int().min(1, 'versionNumber must be at least 1'),
 })
 

@@ -31,21 +31,26 @@ const UpdateFunctionCodeSchema = z
     revisionId: z.string().optional(),
   })
   .superRefine((value, ctx) => {
+    const hasAnyZipField = Boolean(
+      value.s3Bucket || value.s3Key || value.s3ObjectVersion || value.sourceKmsKeyArn
+    )
     const hasS3 = Boolean(value.s3Bucket && value.s3Key)
-    if (!hasS3 && !value.imageUri) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['s3Bucket'],
-        message:
-          'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
-      })
-      return
-    }
-    if (hasS3 && value.imageUri) {
+    if (value.imageUri && hasAnyZipField) {
       ctx.addIssue({
         code: 'custom',
         path: ['imageUri'],
-        message: 'Provide either an S3 package or imageUri, not both',
+        message:
+          'Provide either a .zip package (s3Bucket, s3Key, s3ObjectVersion, sourceKmsKeyArn) or imageUri, not both',
+      })
+      return
+    }
+    if (!value.imageUri && !hasS3) {
+      ctx.addIssue({
+        code: 'custom',
+        path: hasAnyZipField ? ['s3Key'] : ['s3Bucket'],
+        message: hasAnyZipField
+          ? 's3Bucket and s3Key must be provided together for a .zip package'
+          : 'A code source is required: provide s3Bucket and s3Key for a .zip package, or imageUri for a container image',
       })
     }
   })

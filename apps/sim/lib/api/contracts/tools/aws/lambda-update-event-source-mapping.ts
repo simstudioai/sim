@@ -14,7 +14,11 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const UpdateEventSourceMappingSchema = z.object({
   ...lambdaConnectionFields,
   uuid: z.string().min(1, 'uuid is required'),
-  functionName: z.string().optional(),
+  functionName: z
+    .string()
+    .min(1, 'functionName cannot be empty')
+    .max(256, 'functionName cannot exceed 256 characters')
+    .optional(),
   enabled: z.boolean().optional(),
   batchSize: z.number().int().min(1).max(10000).optional(),
   maximumBatchingWindowInSeconds: z.number().int().min(0).max(300).optional(),

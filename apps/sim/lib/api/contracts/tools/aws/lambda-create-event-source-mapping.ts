@@ -54,15 +54,25 @@ const CreateEventSourceMappingSchema = z
     documentDbFullDocument: z.enum(['UpdateLookup', 'Default']).optional(),
     amazonManagedKafkaConsumerGroupId: z.string().optional(),
     selfManagedKafkaConsumerGroupId: z.string().optional(),
-    selfManagedKafkaBootstrapServers: z.array(z.string()).optional(),
+    selfManagedKafkaBootstrapServers: z
+      .array(z.string().min(1, 'a bootstrap server cannot be empty'))
+      .optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.eventSourceArn && !value.selfManagedKafkaBootstrapServers?.length) {
+    const hasBootstrapServers = Boolean(value.selfManagedKafkaBootstrapServers?.length)
+    if (!value.eventSourceArn && !hasBootstrapServers) {
       ctx.addIssue({
         code: 'custom',
         path: ['eventSourceArn'],
         message:
           'An event source is required: provide eventSourceArn, or selfManagedKafkaBootstrapServers for a self-managed Kafka cluster',
+      })
+    } else if (value.eventSourceArn && hasBootstrapServers) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['selfManagedKafkaBootstrapServers'],
+        message:
+          'A mapping has one event source: provide eventSourceArn, or selfManagedKafkaBootstrapServers, not both',
       })
     }
     if (value.startingPosition === 'AT_TIMESTAMP' && !value.startingPositionTimestamp) {

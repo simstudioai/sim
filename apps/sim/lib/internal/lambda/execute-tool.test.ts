@@ -124,6 +124,7 @@ const TOOL_CASES: Array<[string, Record<string, unknown>, ReturnType<typeof vi.f
       functionName: 'functionName-value',
       role: 'role-value',
       imageUri: 'ecr/alpha:1',
+      packageType: 'Image',
     },
     mockOperations.executeLambdaCreateFunction,
   ],
@@ -405,6 +406,225 @@ describe('executeLambdaTool', () => {
 
     expect(response.status).toBe(400)
     expect(mockOperations.executeLambdaInvoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects an alias name that is all digits or too long', async () => {
+    const digits = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_alias',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          aliasName: '123',
+          aliasFunctionVersion: '1',
+        },
+      })
+    )
+    const long = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_delete_alias',
+        input: { ...CONNECTION, functionName: 'alpha', aliasName: 'a'.repeat(129) },
+      })
+    )
+
+    expect(digits.status).toBe(400)
+    expect(long.status).toBe(400)
+    expect(mockOperations.executeLambdaCreateAlias).not.toHaveBeenCalled()
+    expect(mockOperations.executeLambdaDeleteAlias).not.toHaveBeenCalled()
+  })
+
+  it('rejects more than one weighted routing entry', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_alias',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          aliasName: 'prod',
+          aliasFunctionVersion: '1',
+          additionalVersionWeights: { '2': 0.1, '3': 0.2 },
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('at most one entry')
+  })
+
+  it('rejects a statement id with characters RemovePermission does not allow', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_remove_permission',
+        input: { ...CONNECTION, functionName: 'alpha', statementId: 'has spaces' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaRemovePermission).not.toHaveBeenCalled()
+  })
+
+  it('accepts a dotted statement id on remove, which AddPermission does not allow', async () => {
+    mockOperations.executeLambdaRemovePermission.mockResolvedValue({ success: true, output: {} })
+
+    const remove = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_remove_permission',
+        input: { ...CONNECTION, functionName: 'alpha', statementId: 's3.invoke' },
+      })
+    )
+    const add = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_add_permission',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          statementId: 's3.invoke',
+          action: 'lambda:InvokeFunction',
+          principal: 's3.amazonaws.com',
+        },
+      })
+    )
+
+    expect(remove.status).toBe(200)
+    expect(add.status).toBe(400)
+  })
+
+  it('rejects an empty tag key and an empty bootstrap server', async () => {
+    const tags = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_untag_resource',
+        input: { ...CONNECTION, resourceArn: 'arn', tagKeys: [''] },
+      })
+    )
+    const servers = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          selfManagedKafkaBootstrapServers: [''],
+        },
+      })
+    )
+
+    expect(tags.status).toBe(400)
+    expect(servers.status).toBe(400)
+  })
+
+  it('rejects an event source mapping that supplies both source mechanisms', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          eventSourceArn: 'arn:aws:sqs:us-east-1:1:queue',
+          selfManagedKafkaBootstrapServers: ['broker-1:9092'],
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('not both')
+  })
+
+  it('rejects a partial S3 pair alongside an image URI', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_code',
+        input: { ...CONNECTION, functionName: 'alpha', s3Bucket: 'bucket', imageUri: 'ecr/a:1' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('not both')
+    expect(mockOperations.executeLambdaUpdateFunctionCode).not.toHaveBeenCalled()
+  })
+
+  it('rejects a partial S3 pair on its own, naming the missing key', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_code',
+        input: { ...CONNECTION, functionName: 'alpha', s3Bucket: 'bucket' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('must be provided together')
+  })
+
+  it('requires packageType Image when an image URI is supplied', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_function',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          role: 'arn:aws:iam::1:role/exec',
+          imageUri: 'ecr/alpha:1',
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('packageType must be Image')
+  })
+
+  it('rejects a VPC update where only one list is empty', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_configuration',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          vpcSubnetIds: [],
+          vpcSecurityGroupIds: ['sg-1'],
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('both be empty to detach')
+  })
+
+  it('rejects an empty or overlong function name on an event source list', async () => {
+    const empty = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_list_event_source_mappings',
+        input: { ...CONNECTION, functionName: '' },
+      })
+    )
+    const long = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_event_source_mapping',
+        input: { ...CONNECTION, uuid: 'esm-1', functionName: 'a'.repeat(257) },
+      })
+    )
+
+    expect(empty.status).toBe(400)
+    expect(long.status).toBe(400)
+  })
+
+  it('rejects a layer name longer than the documented maximum', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_list_layer_versions',
+        input: { ...CONNECTION, layerName: 'a'.repeat(141) },
+      })
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a description longer than 256 characters', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_publish_version',
+        input: { ...CONNECTION, functionName: 'alpha', description: 'd'.repeat(257) },
+      })
+    )
+
+    expect(response.status).toBe(400)
   })
 
   it('rejects a one-sided VPC change that would half-detach the function', async () => {
