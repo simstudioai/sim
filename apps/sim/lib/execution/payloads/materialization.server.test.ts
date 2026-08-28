@@ -85,6 +85,46 @@ describe('readUserFileContent', () => {
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
   })
 
+  it.each(['profile-pictures', 'og-images', 'workspace-logos'] as const)(
+    'authorizes actorless reads from the trusted public %s context',
+    async (context) => {
+      const publicFile: UserFile = {
+        id: 'public-file',
+        name: 'public.png',
+        url: '',
+        size: 6,
+        type: 'image/png',
+        key: `${context}/public.png`,
+        context,
+      }
+      mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer: Buffer.from('public') })
+
+      await expect(readUserFileContent(publicFile, { encoding: 'text' })).resolves.toBe('public')
+
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockResolveWorkspaceFile).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not let an actorless caller relabel a private key as public', async () => {
+    const relabeledFile: UserFile = {
+      id: 'private-file',
+      name: 'private.txt',
+      url: '',
+      size: 7,
+      type: 'text/plain',
+      key: 'workspace/workspace-1/private.txt',
+      context: 'og-images',
+    }
+
+    await expect(readUserFileContent(relabeledFile, { encoding: 'text' })).rejects.toThrow(
+      'File context does not match its storage key.'
+    )
+
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
   it('authorizes workspace files with the preserved actorless deployment principal', async () => {
     const principal = {
       kind: 'delegated' as const,

@@ -23,6 +23,7 @@ import {
   bufferToBase64,
   inferContextFromKey,
   isGeneratedDocumentSourceType,
+  isPublicStorageContext,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
@@ -271,6 +272,10 @@ export async function assertUserFileContentAccess(
 
   if (context === 'execution') {
     assertExecutionFileScope(file.key, options)
+    return
+  }
+
+  if (isPublicStorageContext(context)) {
     return
   }
 

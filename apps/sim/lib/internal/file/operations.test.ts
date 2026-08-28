@@ -216,6 +216,34 @@ function workspaceFile(id: string, ownerUserId = 'user-1') {
   }
 }
 
+function actorlessDeploymentPrincipal(workspaceId = 'workspace-1') {
+  return {
+    kind: 'delegated' as const,
+    serviceId: 'executor' as const,
+    workspaceId,
+    delegationId: 'delegation-1',
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(Date.now() - 1_000),
+    expiresAt: new Date(Date.now() + 60_000),
+    delegationContext: {
+      kind: 'workflow_execution' as const,
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId,
+        workflowId: 'workflow-1',
+      },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment' as const,
+        deploymentVersionId: 'deployment-1',
+      },
+    },
+  }
+}
+
 describe('file manage operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -746,31 +774,7 @@ describe('file manage operations', () => {
 
   it('decompresses a canonical workspace archive for an actorless deployed execution', async () => {
     const archiveBuffer = Buffer.from('archive-bytes')
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:workspace-files',
-      issuedAt: new Date(Date.now() - 1_000),
-      expiresAt: new Date(Date.now() + 60_000),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: {
-          kind: 'system' as const,
-          serviceId: 'schedule' as const,
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-        },
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment' as const,
-          deploymentVersionId: 'deployment-1',
-        },
-      },
-    }
+    const principal = actorlessDeploymentPrincipal()
     mockDownloadFileFromStorage.mockResolvedValue(archiveBuffer)
     mockGetWorkspaceFile.mockResolvedValue({
       ...workspaceFile('archive'),
@@ -812,11 +816,37 @@ describe('file manage operations', () => {
 
     expect(response.status).toBe(200)
     expect(mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
-    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'archive', {
+      throwOnError: true,
+    })
     expect(mockDecompressArchiveBufferToWorkspaceFiles).toHaveBeenCalledWith(
       archiveBuffer,
       expect.objectContaining({ principal, workspaceId: 'workspace-1' })
     )
+  })
+
+  it('rejects an actorless deployment principal bound to a different workspace', async () => {
+    const response = await executeFileManageOperation(
+      fileManageBodySchema.parse({
+        operation: 'decompress',
+        workspaceId: 'workspace-1',
+        fileId: 'archive',
+      }),
+      {
+        principal: actorlessDeploymentPrincipal('workspace-2'),
+        workspaceId: 'workspace-1',
+        attributedUserId: 'workspace-owner',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        headers: new Headers(),
+        requestId: 'request-cross-workspace',
+      }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDecompressArchiveBufferToWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('omits source scope when canonical files have different owners', async () => {

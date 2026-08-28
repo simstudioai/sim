@@ -51,8 +51,15 @@ describe('tool self-hop audit', () => {
   })
 
   it('rejects a compound same-origin URL constructor path', () => {
-    const audit = auditRequest(`
-      url: (params) => new URL('/api/tools/' + params.id, params.baseUrl).toString()
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: (params) => new URL('/api/tools/' + params.id, getBaseUrl()).toString(),
+          method: 'POST',
+        },
+      }
     `)
 
     expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
@@ -96,10 +103,81 @@ describe('tool self-hop audit', () => {
   })
 
   it('rejects a same-origin URL constructor', () => {
-    const audit = auditRequest(`
-      url: (params) => {
-        const url = new URL('/api/tools/test', params.baseUrl)
-        return url.toString()
+    const audit = auditToolSelfHops(`
+      import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => {
+            const url = new URL('/api/tools/test', getInternalApiBaseUrl())
+            return url.toString()
+          },
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a same-origin path passed through a local URL helper', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl as getSimOrigin } from '@/lib/core/utils/urls'
+      function providerUrl(path, host) {
+        return new URL(path, host).toString()
+      }
+      const simOrigin = getSimOrigin()
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => providerUrl('/api/tools/test', simOrigin),
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a same-origin path forwarded through nested local helpers', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function providerUrl(path, host) {
+        return new URL(path, host).toString()
+      }
+      function buildUrl(path) {
+        return providerUrl(path, getBaseUrl())
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => buildUrl('/api/tools/test'), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a same-origin path concatenated with the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => getBaseUrl() + '/api/tools/test', method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a same-origin path passed through a known imported URL builder', () => {
+    const audit = auditToolSelfHops(`
+      import { buildAPIUrl as buildSimUrl } from '@/executor/utils/http'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => buildSimUrl('/api/tools/test').toString(),
+          method: 'POST',
+        },
       }
     `)
 
@@ -138,6 +216,23 @@ describe('tool self-hop audit', () => {
 
   it('does not mistake a provider-relative path argument for a Sim API route', () => {
     const audit = auditRequest("url: (params) => providerUrl('/api/messages', params.host)")
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('allows an API-shaped provider path resolved against an external origin', () => {
+    const audit = auditToolSelfHops(`
+      function providerUrl(path, host) {
+        return new URL(path, host).toString()
+      }
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => providerUrl('/api/messages', 'https://provider.example.com'),
+          method: 'POST',
+        },
+      }
+    `)
 
     expect(audit.violations).toEqual([])
   })
