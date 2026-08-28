@@ -85,7 +85,7 @@ describe('secureGitHubRequest redirects', () => {
     expect(hops[0].headers.authorization).toBeUndefined()
   })
 
-  it('does not forward the GitHub token when a comment POST crosses an origin boundary', async () => {
+  it('refuses a comment POST that crosses an origin boundary', async () => {
     const hops: RecordedHop[] = []
     const attacker = await startRecordingServer(hops)
     const origin = await startServer((req, res) => {
@@ -94,15 +94,18 @@ describe('secureGitHubRequest redirects', () => {
       res.end()
     })
 
-    await secureGitHubRequest(origin, {
-      method: 'POST',
-      headers: { ...GITHUB_HEADERS, 'Content-Type': 'application/json' },
-      body: '{"body":"Looks good"}',
-    })
+    // Stronger than withholding the token: the comment body never reaches the
+    // redirect target either, so nothing is disclosed and nothing is written
+    // somewhere the caller did not address.
+    await expect(
+      secureGitHubRequest(origin, {
+        method: 'POST',
+        headers: { ...GITHUB_HEADERS, 'Content-Type': 'application/json' },
+        body: '{"body":"Looks good"}',
+      })
+    ).rejects.toThrow('cross-origin redirect would forward a request body')
 
-    expect(hops).toHaveLength(1)
-    expect(hops[0].headers.authorization).toBeUndefined()
-    expect(hops[0].headers.cookie).toBeUndefined()
+    expect(hops).toHaveLength(0)
   })
 
   it('replays a comment POST as a POST across a same-origin renamed-repository 301', async () => {

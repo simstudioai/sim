@@ -1075,10 +1075,27 @@ export async function secureFetchWithPinnedIP(
             if (redirectHeaders && options.stripAuthOnRedirect) {
               redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
             }
+            const redirectBody = hop.dropBody ? undefined : options.body
+            // Refusing rather than quietly dropping the body: a bodyless replay
+            // of a POST is a different request, and the caller cannot tell it
+            // happened. Matches followRedirectsGuarded, which has always refused.
+            if (
+              isCrossOrigin &&
+              redirectBody !== undefined &&
+              redirectBody !== null &&
+              redirectPolicy?.allowCrossOriginBody !== true
+            ) {
+              settledReject(
+                new Error(
+                  'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+                )
+              )
+              return
+            }
             const redirectOptions: SecureFetchOptions = {
               ...options,
               method: hop.method,
-              body: hop.dropBody ? undefined : options.body,
+              body: redirectBody,
               headers: redirectHeaders,
             }
             return secureFetchWithPinnedIP(

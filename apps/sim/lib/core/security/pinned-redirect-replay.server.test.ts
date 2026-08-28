@@ -81,7 +81,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     expect(hops).toEqual([])
   })
 
-  it('replays method and body without a policy, but not credentials cross-origin', async () => {
+  it('strips credentials on a cross-origin hop when no policy is supplied', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
     const origin = await startServer((req, res) => {
@@ -91,11 +91,10 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     })
 
     const response = await secureFetchWithPinnedIP(origin, '127.0.0.1', {
-      method: 'POST',
-      body: '{"message":"legacy"}',
+      method: 'GET',
       headers: {
         Authorization: 'Bearer legacy-token',
-        'Content-Type': 'application/json',
+        'X-Trace': 'keep-me',
         Host: 'legacy.example',
       },
       profile: 'configuredEndpoint',
@@ -103,13 +102,58 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
 
     expect(response.status).toBe(200)
     expect(hops).toHaveLength(1)
-    // Legacy replay semantics: the method and body survive a 303.
-    expect(hops[0].method).toBe('POST')
-    expect(hops[0].body).toBe('{"message":"legacy"}')
-    // ...but the credentials do not travel to another origin just because this
-    // caller passed no redirect policy.
     expect(hops[0].headers.authorization).toBeUndefined()
     expect(hops[0].headers.host).not.toBe('legacy.example')
+    // Non-credential headers still travel.
+    expect(hops[0].headers['x-trace']).toBe('keep-me')
+  })
+
+  it('refuses to replay a body to another origin', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    // 307 preserves the method and body verbatim, which is exactly the case
+    // that would hand an Agiloft-style `$password` form to the redirect target.
+    const origin = await startServer((req, res) => {
+      req.resume()
+      res.writeHead(307, { location: `${target}/after` })
+      res.end()
+    })
+
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        method: 'POST',
+        body: '$login=admin&$password=hunter2',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        profile: 'configuredEndpoint',
+      })
+    ).rejects.toThrow('cross-origin redirect would forward a request body')
+
+    expect(hops).toHaveLength(0)
+  })
+
+  it('replays a body to another origin only when a policy opts in', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    const origin = await startServer((req, res) => {
+      req.resume()
+      res.writeHead(307, { location: `${target}/after` })
+      res.end()
+    })
+
+    await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      method: 'POST',
+      body: '{"intentional":true}',
+      headers: { 'Content-Type': 'application/json' },
+      redirectPolicy: {
+        mode: 'legacy',
+        sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
+      },
+      profile: 'configuredEndpoint',
+    })
+
+    expect(hops).toHaveLength(1)
+    expect(hops[0].body).toBe('{"intentional":true}')
   })
 
   it('keeps credentials cross-origin only when a policy explicitly opts in', async () => {
@@ -125,7 +169,11 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       method: 'POST',
       body: '{"message":"opt-in"}',
       headers: { Authorization: 'Bearer keep-me', 'Content-Type': 'application/json' },
-      redirectPolicy: { mode: 'legacy', sendCredentialsOnCrossOriginRedirect: true },
+      redirectPolicy: {
+        mode: 'legacy',
+        sendCredentialsOnCrossOriginRedirect: true,
+        allowCrossOriginBody: true,
+      },
       profile: 'configuredEndpoint',
     })
 
@@ -154,6 +202,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'legacy',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
         sensitiveHeaders: ['x-api-key'],
       },
       profile: 'configuredEndpoint',
@@ -190,6 +239,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
         sensitiveHeaders: ['x-api-key'],
       },
       profile: 'configuredEndpoint',
@@ -227,6 +277,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
       profile: 'configuredEndpoint',
     })
@@ -252,6 +303,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
       profile: 'configuredEndpoint',
     })
@@ -280,6 +332,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
       profile: 'configuredEndpoint',
     })
@@ -308,6 +361,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: true,
+        allowCrossOriginBody: true,
       },
       profile: 'configuredEndpoint',
     })
@@ -346,6 +400,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       redirectPolicy: {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
+        allowCrossOriginBody: true,
       },
       profile: 'configuredEndpoint',
     })
