@@ -322,7 +322,17 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const isWorkspaceScopePending = Boolean(workspaceScope) && orgWorkspaces.isPending
 
   /**
-   * The link named a workspace this organization cannot resolve — deleted since, or
+   * The lookup itself failed, so whether the workspace exists is simply unknown.
+   *
+   * Kept apart from {@link isWorkspaceScopeUnresolved}: telling an admin their
+   * workspace is not part of the organization because a request timed out is a wrong
+   * answer, not a cautious one, and it offers nothing to do about it. Refresh retries
+   * this lookup alongside the feed.
+   */
+  const isWorkspaceScopeUnavailable = Boolean(workspaceScope) && orgWorkspaces.isError
+
+  /**
+   * The link named a workspace this organization does not have — deleted since, or
    * never one of ours.
    *
    * The feed stays closed rather than falling back to the organization. Every other
@@ -332,10 +342,14 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
    * that still claims to be scoped, and the CSV export would follow.
    */
   const isWorkspaceScopeUnresolved =
-    Boolean(workspaceScope) && !isWorkspaceScopePending && !scopedWorkspace
+    Boolean(workspaceScope) &&
+    !isWorkspaceScopePending &&
+    !isWorkspaceScopeUnavailable &&
+    !scopedWorkspace
 
   /** The feed can answer the scope the URL asks for — the gate on reading or exporting. */
-  const isScopeAnswerable = !isWorkspaceScopePending && !isWorkspaceScopeUnresolved
+  const isScopeAnswerable =
+    !isWorkspaceScopePending && !isWorkspaceScopeUnresolved && !isWorkspaceScopeUnavailable
   const {
     data,
     isLoading,
@@ -392,7 +406,12 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       refreshTimers.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimers.add(timerId)
-    refetch().catch((error: unknown) => {
+    /*
+      Both, because a failed workspace lookup closes the feed — refreshing only the
+      feed would leave the one control on screen unable to clear the state it is
+      showing.
+    */
+    Promise.all([refetch(), orgWorkspaces.refetch()]).catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
   }
@@ -495,7 +514,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             {/* Rendered for an unresolved scope too, or a bad link would leave the
                 feed closed with no control to reopen it. */}
             <OverflowText
-              label={`Workspace: ${scopedWorkspace?.name ?? 'not found'}`}
+              label={`Workspace: ${scopedWorkspace?.name ?? (isWorkspaceScopeUnavailable ? 'unavailable' : 'not found')}`}
               className='block min-w-0'
             />
           </Chip>
@@ -559,7 +578,11 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
       <ActivityLog
         entries={allEntries.map(toActivityEntry)}
         emptyState={
-          isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnresolved ? (
+          isLoading || isWorkspaceScopePending ? undefined : isWorkspaceScopeUnavailable ? (
+            <SettingsEmptyState tone='error'>
+              Couldn't check that workspace. Refresh to try again.
+            </SettingsEmptyState>
+          ) : isWorkspaceScopeUnresolved ? (
             <SettingsEmptyState>
               That workspace is not part of this organization.
             </SettingsEmptyState>

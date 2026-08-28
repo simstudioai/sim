@@ -53,13 +53,15 @@ let queryClient: QueryClient
 function AuditProbe({
   organizationId,
   workspaceId,
+  search,
   enabled = true,
 }: {
   organizationId: string
   workspaceId?: string
+  search?: string
   enabled?: boolean
 }) {
-  const auditLogs = useAuditLogs(organizationId, { workspaceId }, enabled)
+  const auditLogs = useAuditLogs(organizationId, { workspaceId, search }, enabled)
   const entries = auditLogs.data?.pages.flatMap((page) => page.data) ?? []
 
   return (
@@ -70,11 +72,22 @@ function AuditProbe({
   )
 }
 
-function renderAuditLogs(organizationId: string, workspaceId?: string, enabled = true) {
+interface RenderOptions {
+  workspaceId?: string
+  search?: string
+  enabled?: boolean
+}
+
+function renderAuditLogs(organizationId: string, options: RenderOptions = {}) {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <AuditProbe organizationId={organizationId} workspaceId={workspaceId} enabled={enabled} />
+        <AuditProbe
+          organizationId={organizationId}
+          workspaceId={options.workspaceId}
+          search={options.search}
+          enabled={options.enabled ?? true}
+        />
       </QueryClientProvider>
     )
   })
@@ -140,12 +153,12 @@ describe('useAuditLogs identity transitions', () => {
   })
 
   /** Blanking the feed on each keystroke is what the placeholder exists to stop. */
-  it('holds the current entries while a filter change loads, within one organization', async () => {
+  it('holds the current entries while a filter change loads, within one scope', async () => {
     const filteredPage = createDeferred<AuditLogPage>()
     mockRequestJson.mockImplementation(
-      (contract: unknown, input: { query?: { workspaceId?: string } }) => {
+      (contract: unknown, input: { query?: { search?: string } }) => {
         if (contract !== listAuditLogsContract) throw new Error('Unexpected contract')
-        return input.query?.workspaceId ? filteredPage.promise : Promise.resolve(AUDIT_PAGE_A)
+        return input.query?.search ? filteredPage.promise : Promise.resolve(AUDIT_PAGE_A)
       }
     )
 
@@ -153,10 +166,36 @@ describe('useAuditLogs identity transitions', () => {
     await flushQueries()
     expect(container).toHaveTextContent('Updated Organization A')
 
-    renderAuditLogs('org-a', 'workspace-a')
+    renderAuditLogs('org-a', { search: 'canary' })
     await flushQueries()
 
     expect(container).toHaveTextContent('Updated Organization A')
+  })
+
+  /**
+   * The other side of that rule. A workspace is a scope, not a filter: holding the
+   * organization-wide rows while the scoped page loads would show, under a
+   * workspace-scoped URL, entries that scope does not cover — with Export armed
+   * against them, since it gates on this list being non-empty.
+   */
+  it('clears the entries when the workspace scope changes, within one organization', async () => {
+    const scopedPage = createDeferred<AuditLogPage>()
+    mockRequestJson.mockImplementation(
+      (contract: unknown, input: { query?: { workspaceId?: string } }) => {
+        if (contract !== listAuditLogsContract) throw new Error('Unexpected contract')
+        return input.query?.workspaceId ? scopedPage.promise : Promise.resolve(AUDIT_PAGE_A)
+      }
+    )
+
+    renderAuditLogs('org-a')
+    await flushQueries()
+    expect(container).toHaveTextContent('Updated Organization A')
+
+    renderAuditLogs('org-a', { workspaceId: 'workspace-a' })
+    await flushQueries()
+
+    expect(container).not.toHaveTextContent('Updated Organization A')
+    expect(container.querySelector('button')).toBeNull()
   })
 
   /**
@@ -167,7 +206,7 @@ describe('useAuditLogs identity transitions', () => {
   it('never queries unscoped while a workspace scope is unresolved', async () => {
     mockRequestJson.mockResolvedValue(AUDIT_PAGE_A)
 
-    renderAuditLogs('org-a', undefined, false)
+    renderAuditLogs('org-a', { enabled: false })
     await flushQueries()
 
     expect(mockRequestJson).not.toHaveBeenCalled()
