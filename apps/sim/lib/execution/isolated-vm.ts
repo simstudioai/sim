@@ -148,8 +148,14 @@ const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
  * actually measure is event-loop scheduling, not Redis. A value near normal loop
  * latency therefore reports a healthy Redis as unreachable whenever a garbage
  * collection pause lands on the call. Keep it well clear of that floor.
+ *
+ * A non-positive configured value is treated as unconfigured rather than
+ * honored: a timer of zero or less fires immediately, which would leave every
+ * acquisition undetermined and silently drop cross-replica enforcement.
  */
-const LEASE_REDIS_DEADLINE_MS = Number.parseInt(env.IVM_LEASE_REDIS_DEADLINE_MS) || 1000
+const CONFIGURED_LEASE_REDIS_DEADLINE_MS = Number.parseInt(env.IVM_LEASE_REDIS_DEADLINE_MS)
+const LEASE_REDIS_DEADLINE_MS =
+  CONFIGURED_LEASE_REDIS_DEADLINE_MS > 0 ? CONFIGURED_LEASE_REDIS_DEADLINE_MS : 1000
 const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
@@ -1439,12 +1445,17 @@ export async function executeInIsolatedVM(
   // the per-owner active/queued limits above still bound this work.
 
   let settled = false
-  const holdsDistributedLease = leaseAcquireResult === 'acquired'
+  /**
+   * Released even when the acquisition was undetermined. The deadline abandons
+   * the local wait but cannot cancel the script, so a late completion still
+   * registers this lease id — and unreleased it would count against the owner
+   * for the whole TTL, denying later executions that do have capacity. The
+   * lease id is unique to this execution, so removing one that was never
+   * registered is a no-op.
+   */
   const releaseLease = () => {
     if (settled) return
     settled = true
-    // Nothing was registered when the lease was undetermined; skip the round trip.
-    if (!holdsDistributedLease) return
     releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
       logger.error('Failed to release distributed lease', { ownerKey, error })
     })

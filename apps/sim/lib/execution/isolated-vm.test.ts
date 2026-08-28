@@ -8,6 +8,7 @@ import {
   loggerMock,
   redisConfigMockFns,
 } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -578,6 +579,76 @@ describe('isolated-vm scheduler', () => {
 
     expect(result.error).toBeUndefined()
     expect(result.result).toBe('ok')
+  })
+
+  it('releases a lease that Redis registers after the local deadline', async () => {
+    const scripts: string[] = []
+    let completeAcquire!: (value: number) => void
+    const lateAcquire = new Promise<number>((resolve) => {
+      completeAcquire = resolve
+    })
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        scripts.push(script)
+        // Settles only once the test says so, standing in for a script the
+        // deadline abandoned locally but that Redis still runs to completion.
+        if (script.includes('ZREMRANGEBYSCORE')) return lateAcquire
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-11',
+      ownerKey: 'user:redis-late',
+    })
+    completeAcquire(1)
+
+    expect(result.error).toBeUndefined()
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(true)
+  })
+
+  it('ignores a non-positive configured deadline instead of abandoning every lease', async () => {
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
+        IVM_LEASE_REDIS_DEADLINE_MS: '-1',
+        REDIS_URL: 'redis://localhost:6379',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: async (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          // Arrives after a non-positive timer would already have fired, so the
+          // answer only lands in time when the default deadline is restored.
+          await sleep(25)
+          return 0
+        }
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-12',
+      ownerKey: 'user:negative-deadline',
+    })
+
+    expect(result.error?.message).toContain('Too many concurrent')
   })
 
   it('still rejects when Redis answers that the owner is over its lease limit', async () => {
