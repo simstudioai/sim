@@ -217,6 +217,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/memory.mdx',
   'integrations/microsoft_ad.mdx',
   'integrations/microsoft_dataverse.mdx',
+  'integrations/microsoft_dynamics_365.mdx',
   'integrations/microsoft_excel.mdx',
   'integrations/microsoft_planner.mdx',
   'integrations/microsoft_teams.mdx',

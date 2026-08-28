@@ -95,6 +95,13 @@ vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
   }),
 }))
 
+vi.mock('@/hooks/queries/oauth/microsoft-dataverse-connections', () => ({
+  useConnectMicrosoftDataverseOAuthService: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}))
+
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/connect-oauth-modal'
 
 let container: HTMLDivElement

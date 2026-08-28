@@ -209,6 +209,10 @@ import {
   MicrosoftDataverseBlockMeta,
 } from '@/blocks/blocks/microsoft_dataverse'
 import {
+  MicrosoftDynamics365Block,
+  MicrosoftDynamics365BlockMeta,
+} from '@/blocks/blocks/microsoft_dynamics_365'
+import {
   MicrosoftExcelBlock,
   MicrosoftExcelBlockMeta,
   MicrosoftExcelV2Block,
@@ -560,6 +564,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   memory: MemoryBlock,
   microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
+  microsoft_dynamics_365: MicrosoftDynamics365Block,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
@@ -881,6 +886,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mem0: Mem0BlockMeta,
   microsoft_ad: MicrosoftAdBlockMeta,
   microsoft_dataverse: MicrosoftDataverseBlockMeta,
+  microsoft_dynamics_365: MicrosoftDynamics365BlockMeta,
   microsoft_excel: MicrosoftExcelBlockMeta,
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
