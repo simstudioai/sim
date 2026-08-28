@@ -234,6 +234,28 @@ describe('executeWorkflow', () => {
     )
   })
 
+  it('forwards a trusted immutable workflow state to the execution snapshot', async () => {
+    const workflowStateOverride = {
+      blocks: { 'block-1': { id: 'block-1', type: 'start_trigger' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId: 'deployment-version-1',
+    }
+
+    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+      workflowStateOverride,
+    })
+
+    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
+      snapshot: ExecutionSnapshot
+    }
+    expect(coreParams.snapshot.metadata.workflowStateOverride).toEqual(workflowStateOverride)
+  })
+
   it('waits for post-execution persistence before resolving', async () => {
     let resolvePostExecution!: () => void
     waitForPostExecutionMock.mockReturnValueOnce(

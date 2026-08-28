@@ -115,7 +115,14 @@ async function assertTableWorkflowIntegrity(): Promise<void> {
     WHERE jsonb_typeof(workflow_group.value) IS DISTINCT FROM 'object'
       OR NOT (workflow_group.value ? 'workflowId')
       OR jsonb_typeof(workflow_group.value->'workflowId') IS DISTINCT FROM 'string'
-      OR workflow_group.value->>'workflowId' = ''
+      OR (
+        workflow_group.value->>'workflowId' = ''
+        AND (
+          NOT (workflow_group.value ? 'enrichmentId')
+          OR jsonb_typeof(workflow_group.value->'enrichmentId') IS DISTINCT FROM 'string'
+          OR workflow_group.value->>'enrichmentId' = ''
+        )
+      )
     LIMIT 1
   `)
   if (invalidGroup) {

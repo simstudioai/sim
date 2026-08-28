@@ -993,6 +993,7 @@ async function runWorkflowAndWriteTerminal(
             workflowTriggerType: 'table',
             triggerBlockId: startBlock.id,
             useDraftState: false,
+            workflowStateOverride: normalizedData,
             abortSignal: attemptSignal,
             onBlockStart: progressWriter.onBlockStart,
             onBlockComplete: progressWriter.onBlockComplete,
