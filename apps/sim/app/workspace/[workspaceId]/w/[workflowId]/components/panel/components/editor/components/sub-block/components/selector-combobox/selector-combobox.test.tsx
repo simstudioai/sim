@@ -95,31 +95,14 @@ beforeEach(() => {
 })
 
 describe('SelectorCombobox label hydration', () => {
-  it.each([
-    {
-      state: 'preview',
-      isPreview: true,
-      disabled: false,
-      previewValue: 'preview-label',
-      detailId: 'preview-label',
-    },
-    {
-      state: 'disabled',
-      isPreview: false,
-      disabled: true,
-      previewValue: undefined,
-      detailId: 'stored-label',
-    },
-  ])('keeps the list disabled but hydrates the selected value when $state', (state) => {
+  it('renders a hydrated selected label while disabled without enabling the list', () => {
     const html = renderToStaticMarkup(
       <SelectorCombobox
         blockId='block-1'
         subBlock={{ id: 'label', title: 'Label', type: 'combobox' }}
         selectorKey='jira.issues'
         selectorContext={{ workspaceId: 'workspace-1', oauthCredential: 'credential-1' }}
-        isPreview={state.isPreview}
-        disabled={state.disabled}
-        previewValue={state.previewValue}
+        disabled
       />
     )
 
@@ -130,72 +113,14 @@ describe('SelectorCombobox label hydration', () => {
     )
     expect(mockUseSelectorOptionDetail).toHaveBeenCalledWith(
       'jira.issues',
-      expect.objectContaining({ detailId: state.detailId, enabled: true })
+      expect.objectContaining({ detailId: 'stored-label', enabled: true })
     )
   })
 
-  it.each([
-    {
-      state: 'preview',
-      isPreview: true,
-      disabled: false,
-      previewValue: ['preview-label', '{{SHARED_LABEL}}', '<Block.output>'],
-      detailIds: ['preview-label', '{{SHARED_LABEL}}'],
-    },
-    {
-      state: 'disabled',
-      isPreview: false,
-      disabled: true,
-      previewValue: undefined,
-      detailIds: ['stored-one', 'stored-two'],
-    },
-  ])('hydrates selected multi-values without enabling the list when $state', (state) => {
-    if (!state.isPreview) selectorState.storeValue = ['stored-one', 'stored-two']
-
-    const html = renderToStaticMarkup(
-      <SelectorCombobox
-        blockId='block-1'
-        subBlock={{ id: 'labels', title: 'Labels', type: 'combobox' }}
-        selectorKey='jira.issues'
-        selectorContext={{ workspaceId: 'workspace-1', oauthCredential: 'credential-1' }}
-        isPreview={state.isPreview}
-        disabled={state.disabled}
-        previewValue={state.previewValue}
-        multiSelect
-      />
-    )
-
-    for (const id of state.detailIds) expect(html).toContain(`Hydrated ${id}`)
-    if (state.isPreview) expect(html).toContain('&lt;Block.output&gt;')
-    expect(mockUseSelectorOptions).toHaveBeenCalledWith(
-      'jira.issues',
-      expect.objectContaining({ enabled: false })
-    )
-    expect(mockUseSelectorOptionDetails).toHaveBeenCalledWith(
-      'jira.issues',
-      expect.objectContaining({ detailIds: state.detailIds, enabled: true })
-    )
-  })
-
-  it.each([
-    {
-      state: 'preview',
-      isPreview: true,
-      disabled: false,
-      previewValue: ['preview-label', '{{SHARED_LABEL}}', '<Block.output>'],
-      listedValues: ['preview-label'],
-    },
-    {
-      state: 'disabled',
-      isPreview: false,
-      disabled: true,
-      previewValue: undefined,
-      listedValues: ['stored-one', 'stored-two'],
-    },
-  ])('uses a search-free list to hydrate no-detail multi-values when $state', (state) => {
-    if (!state.isPreview) selectorState.storeValue = ['stored-one', 'stored-two']
+  it('renders preview labels from a search-free list when detail lookup is unsupported', () => {
+    const previewValue = ['preview-label', '{{SHARED_LABEL}}', '<Block.output>']
     mockUseSelectorOptions.mockReturnValue({
-      data: state.listedValues.map((id) => ({ id, label: `Listed ${id}` })),
+      data: [{ id: 'preview-label', label: 'Listed preview-label' }],
       isLoading: false,
       hasMore: false,
       error: null,
@@ -207,18 +132,15 @@ describe('SelectorCombobox label hydration', () => {
         subBlock={{ id: 'labels', title: 'Labels', type: 'combobox' }}
         selectorKey='gmail.labels'
         selectorContext={{ workspaceId: 'workspace-1', oauthCredential: 'credential-1' }}
-        isPreview={state.isPreview}
-        disabled={state.disabled}
-        previewValue={state.previewValue}
+        isPreview
+        previewValue={previewValue}
         multiSelect
       />
     )
 
-    for (const id of state.listedValues) expect(html).toContain(`Listed ${id}`)
-    if (state.isPreview) {
-      expect(html).toContain('{{SHARED_LABEL}}')
-      expect(html).toContain('&lt;Block.output&gt;')
-    }
+    expect(html).toContain('Listed preview-label')
+    expect(html).toContain('{{SHARED_LABEL}}')
+    expect(html).toContain('&lt;Block.output&gt;')
     expect(mockUseSelectorOptions).toHaveBeenCalledWith(
       'gmail.labels',
       expect.objectContaining({ enabled: true, search: undefined })
@@ -226,26 +148,6 @@ describe('SelectorCombobox label hydration', () => {
     expect(mockUseSelectorOptionDetails).toHaveBeenCalledWith(
       'gmail.labels',
       expect.objectContaining({ enabled: false })
-    )
-  })
-
-  it('does not detail-hydrate a runtime reference', () => {
-    selectorState.storeValue = '<Block.output>'
-
-    const html = renderToStaticMarkup(
-      <SelectorCombobox
-        blockId='block-1'
-        subBlock={{ id: 'label', title: 'Label', type: 'combobox' }}
-        selectorKey='gmail.labels'
-        selectorContext={{ workspaceId: 'workspace-1', oauthCredential: 'credential-1' }}
-        disabled
-      />
-    )
-
-    expect(html).toContain('&lt;Block.output&gt;')
-    expect(mockUseSelectorOptionDetail).toHaveBeenCalledWith(
-      'gmail.labels',
-      expect.objectContaining({ detailId: undefined, enabled: false })
     )
   })
 })

@@ -41,32 +41,16 @@ vi.mock('@/tools/params', () => ({
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 
 describe('tool-input selector fallback context', () => {
-  beforeEach(() => {
-    getSubBlocksForToolInput.mockReturnValue(null)
-  })
+  beforeEach(() => getSubBlocksForToolInput.mockReset())
 
-  it('includes sibling display parameters in selector context', () => {
-    const configs = getToolInputParamConfigs({
-      tool: {
-        type: 'test',
-        operation: 'list',
-        params: {
-          credential: 'credential-1',
-          resourceId: 'resource-1',
-        },
-      },
-    })
-
-    expect(configs.find((config) => config.paramId === 'resourceId')?.selectorContext).toEqual({
-      oauthCredential: 'credential-1',
-    })
-  })
-
-  it('includes sibling display parameters when tool sub-blocks also exist', () => {
-    getSubBlocksForToolInput.mockReturnValue({
-      subBlocks: [{ id: 'message', title: 'Message', type: 'short-input' }],
-    })
-
+  it.each([
+    ['without generated sub-blocks', null],
+    [
+      'with generated sub-blocks',
+      { subBlocks: [{ id: 'message', title: 'Message', type: 'short-input' }] },
+    ],
+  ])('includes sibling display parameters $0', (_state, subBlocksResult) => {
+    getSubBlocksForToolInput.mockReturnValue(subBlocksResult)
     const configs = getToolInputParamConfigs({
       tool: {
         type: 'test',

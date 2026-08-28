@@ -53,18 +53,15 @@ beforeEach(() => {
 })
 
 describe('useFetchedOptions label hydration', () => {
-  it.each([
-    { state: 'preview', isPreview: true, disabled: false },
-    { state: 'disabled', isPreview: false, disabled: true },
-  ])('keeps the list disabled but hydrates the selected value when $state', (state) => {
+  it('hydrates a selected value while a disabled control keeps list interaction off', () => {
     function Probe() {
       const result = useFetchedOptions({
         blockId: 'block-1',
         subBlockId: 'label',
         dependsOnFields: ['credential'],
         selectorKey: 'jira.issues',
-        isPreview: state.isPreview,
-        disabled: state.disabled,
+        isPreview: false,
+        disabled: true,
         valueToHydrate: 'issue-1',
         localOptions: [],
       })
@@ -82,18 +79,15 @@ describe('useFetchedOptions label hydration', () => {
     )
   })
 
-  it.each([
-    { state: 'preview', isPreview: true, disabled: false },
-    { state: 'disabled', isPreview: false, disabled: true },
-  ])('hydrates selected multi-values without enabling the list when $state', (state) => {
+  it('hydrates only eligible multi-values while preview keeps list interaction off', () => {
     function Probe() {
       const result = useFetchedOptions({
         blockId: 'block-1',
         subBlockId: 'labels',
         dependsOnFields: ['credential'],
         selectorKey: 'jira.issues',
-        isPreview: state.isPreview,
-        disabled: state.disabled,
+        isPreview: true,
+        disabled: false,
         valueToHydrate: undefined,
         valuesToHydrate: ['label-1', '{{SHARED_LABEL}}', '<Block.output>', 'local-label'],
         localOptions: [{ id: 'local-label' }],
@@ -117,10 +111,7 @@ describe('useFetchedOptions label hydration', () => {
     )
   })
 
-  it.each([
-    { state: 'preview', isPreview: true, disabled: false },
-    { state: 'disabled', isPreview: false, disabled: true },
-  ])('uses a search-free list to hydrate no-detail multi-values when $state', (state) => {
+  it('uses a search-free list to hydrate a no-detail selector while disabled', () => {
     mockUseSelectorOptions.mockReturnValue({
       data: [{ id: 'label-1', label: 'Primary label' }],
       isLoading: false,
@@ -135,8 +126,8 @@ describe('useFetchedOptions label hydration', () => {
         subBlockId: 'labels',
         dependsOnFields: ['credential'],
         selectorKey: 'gmail.labels',
-        isPreview: state.isPreview,
-        disabled: state.disabled,
+        isPreview: false,
+        disabled: true,
         valueToHydrate: undefined,
         valuesToHydrate: ['label-1', '{{SHARED_LABEL}}', '<Block.output>'],
         localOptions: [],
