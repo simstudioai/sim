@@ -63,7 +63,6 @@ export function assertMicrosoftDataverseReconnectAvailable({
   bindingState,
   credentialQueryFailed,
 }: AssertMicrosoftDataverseReconnectAvailableParams): void {
-  assertMicrosoftDataverseWebOAuthAvailable()
   if (credentialQueryFailed) {
     throw new Error(
       'Could not verify this Dataverse credential’s environment binding. Please try again.'
@@ -74,6 +73,7 @@ export function assertMicrosoftDataverseReconnectAvailable({
       'This Dataverse credential has an invalid environment binding and cannot be reconnected in place.'
     )
   }
+  if (bindingState === 'bound') assertMicrosoftDataverseWebOAuthAvailable()
 }
 
 export function useConnectMicrosoftDataverseOAuthService() {

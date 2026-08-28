@@ -209,11 +209,10 @@ export function CredentialSelector({
     ? getMissingRequiredScopes(selectedCredential!, requiredScopes || [])
     : []
   const needsUpdate =
-    hasOAuthSelection &&
     !isServiceAccount &&
-    (missingRequiredScopes.length > 0 ||
-      dataversePolicy.requiresSeparateCredential ||
-      dataversePolicy.hasInvalidEnvironment) &&
+    (dataversePolicy.hasInvalidEnvironment ||
+      (hasOAuthSelection &&
+        (missingRequiredScopes.length > 0 || dataversePolicy.requiresSeparateCredential))) &&
     !effectiveDisabled &&
     !isPreview &&
     !credentialsLoading

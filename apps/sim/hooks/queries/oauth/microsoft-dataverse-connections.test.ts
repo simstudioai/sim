@@ -185,6 +185,12 @@ describe('Microsoft Dataverse OAuth connections', () => {
         credentialQueryFailed: false,
       })
     ).toThrow('Sim web app')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'legacy',
+        credentialQueryFailed: false,
+      })
+    ).not.toThrow()
   })
 
   it.each([
