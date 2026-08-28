@@ -689,7 +689,7 @@ describe('tool self-hop audit', () => {
     expect(audit.violations).toEqual([])
   })
 
-  it('does not treat a dynamic hostname suffix as Sim-origin normalization', () => {
+  it('fails closed when a dynamic suffix follows the Sim origin', () => {
     const audit = auditToolSelfHops(`
       import { getBaseUrl } from '@/lib/core/utils/urls'
       const tool = {
@@ -704,7 +704,12 @@ describe('tool self-hop audit', () => {
       }
     `)
 
-    expect(audit.violations).toEqual([])
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
   })
 
   it('allows an API-shaped path interpolated with an external provider origin', () => {
@@ -837,6 +842,38 @@ describe('tool self-hop audit', () => {
         reason: 'unresolved-request-policy',
       }),
     ])
+  })
+
+  it('rejects a dynamic path resolved against the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: { url: (params) => new URL(params.path, getBaseUrl()), method: 'GET' },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
+  })
+
+  it('allows an encoded path segment resolved against a static non-API Sim path', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: (params) => new URL('/assets/' + encodeURIComponent(params.id), getBaseUrl()),
+          method: 'GET',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
   })
 
   it('allows an uninspectable path helper after an explicit external origin', () => {

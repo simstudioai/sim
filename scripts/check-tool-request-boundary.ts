@@ -702,7 +702,8 @@ function hasExplicitExternalUrlPrefix(
 function expressionContainsUnresolvedUrlHelper(
   expression: SyntaxNode,
   resolver: SelfHopResolver,
-  seen = new Set<string>()
+  seen = new Set<string>(),
+  unresolvedIdentifierIsUnsafe = false
 ): boolean {
   const current = unwrapExpression(expression)
   if (hasExplicitExternalUrlPrefix(current, resolver)) return false
@@ -711,26 +712,51 @@ function expressionContainsUnresolvedUrlHelper(
     const key = `${resolver.file}:unresolved-url:${current.name}`
     if (seen.has(key)) return false
     const binding = resolveScopedIdentifier(current.name, resolver)
-    if (!binding) return false
+    if (!binding) return unresolvedIdentifierIsUnsafe
     const nextSeen = new Set(seen)
     nextSeen.add(key)
-    return expressionContainsUnresolvedUrlHelper(binding.expression, binding.resolver, nextSeen)
+    return expressionContainsUnresolvedUrlHelper(
+      binding.expression,
+      binding.resolver,
+      nextSeen,
+      unresolvedIdentifierIsUnsafe
+    )
   }
 
   if (current.type === 'ConditionalExpression') {
     return (
       (isSyntaxNode(current.consequent) &&
-        expressionContainsUnresolvedUrlHelper(current.consequent, resolver, new Set(seen))) ||
+        expressionContainsUnresolvedUrlHelper(
+          current.consequent,
+          resolver,
+          new Set(seen),
+          unresolvedIdentifierIsUnsafe
+        )) ||
       (isSyntaxNode(current.alternate) &&
-        expressionContainsUnresolvedUrlHelper(current.alternate, resolver, new Set(seen)))
+        expressionContainsUnresolvedUrlHelper(
+          current.alternate,
+          resolver,
+          new Set(seen),
+          unresolvedIdentifierIsUnsafe
+        ))
     )
   }
   if (current.type === 'LogicalExpression') {
     return (
       (isSyntaxNode(current.left) &&
-        expressionContainsUnresolvedUrlHelper(current.left, resolver, new Set(seen))) ||
+        expressionContainsUnresolvedUrlHelper(
+          current.left,
+          resolver,
+          new Set(seen),
+          unresolvedIdentifierIsUnsafe
+        )) ||
       (isSyntaxNode(current.right) &&
-        expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen)))
+        expressionContainsUnresolvedUrlHelper(
+          current.right,
+          resolver,
+          new Set(seen),
+          unresolvedIdentifierIsUnsafe
+        ))
     )
   }
   if (
@@ -739,9 +765,20 @@ function expressionContainsUnresolvedUrlHelper(
     isSyntaxNode(current.left)
   ) {
     if (isSimOriginExpression(current.left, resolver) && isSyntaxNode(current.right)) {
-      return expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen))
+      return expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen), true)
     }
-    return expressionContainsUnresolvedUrlHelper(current.left, resolver, new Set(seen))
+    if (unresolvedIdentifierIsUnsafe && isSyntaxNode(current.right)) {
+      return (
+        expressionContainsUnresolvedUrlHelper(current.left, resolver, new Set(seen), true) ||
+        expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen), true)
+      )
+    }
+    return expressionContainsUnresolvedUrlHelper(
+      current.left,
+      resolver,
+      new Set(seen),
+      unresolvedIdentifierIsUnsafe
+    )
   }
   if (
     current.type === 'TemplateLiteral' &&
@@ -753,17 +790,29 @@ function expressionContainsUnresolvedUrlHelper(
     current.quasis.length === current.expressions.length + 1
   ) {
     const leading = getTemplateQuasiValue(current.quasis[0])
-    if (leading !== '') return false
+    if (leading !== '') {
+      return (
+        unresolvedIdentifierIsUnsafe &&
+        current.expressions.some((part) =>
+          expressionContainsUnresolvedUrlHelper(part, resolver, new Set(seen), true)
+        )
+      )
+    }
     const origin = current.expressions[0]
     if (isSimOriginExpression(origin, resolver)) {
       const following = getTemplateQuasiValue(current.quasis[1])
       return (
         following === '' &&
         current.expressions.length > 1 &&
-        expressionContainsUnresolvedUrlHelper(current.expressions[1], resolver, new Set(seen))
+        expressionContainsUnresolvedUrlHelper(current.expressions[1], resolver, new Set(seen), true)
       )
     }
-    return expressionContainsUnresolvedUrlHelper(origin, resolver, new Set(seen))
+    return expressionContainsUnresolvedUrlHelper(
+      origin,
+      resolver,
+      new Set(seen),
+      unresolvedIdentifierIsUnsafe
+    )
   }
 
   if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
@@ -777,11 +826,17 @@ function expressionContainsUnresolvedUrlHelper(
         return false
       }
       if (URL_VALUE_WRAPPER_CALLS.has(callee.name)) {
+        if (unresolvedIdentifierIsUnsafe && callee.name === 'encodeURIComponent') return false
         const firstArgument = Array.isArray(current.arguments)
           ? current.arguments.find(isSyntaxNode)
           : undefined
         return firstArgument
-          ? expressionContainsUnresolvedUrlHelper(firstArgument, resolver, new Set(seen))
+          ? expressionContainsUnresolvedUrlHelper(
+              firstArgument,
+              resolver,
+              new Set(seen),
+              unresolvedIdentifierIsUnsafe
+            )
           : false
       }
       const key = `${resolver.file}:unresolved-url-call:${callee.name}`
@@ -801,12 +856,18 @@ function expressionContainsUnresolvedUrlHelper(
         binding.expression,
         binding.resolver,
         nextSeen,
-        argumentsList
+        argumentsList,
+        unresolvedIdentifierIsUnsafe
       )
     }
     const access = getStaticMemberAccess(callee)
     if (!access) return true
-    return expressionContainsUnresolvedUrlHelper(access.target, resolver, new Set(seen))
+    return expressionContainsUnresolvedUrlHelper(
+      access.target,
+      resolver,
+      new Set(seen),
+      unresolvedIdentifierIsUnsafe
+    )
   }
 
   if (current.type === 'NewExpression') {
@@ -827,10 +888,24 @@ function expressionContainsUnresolvedUrlHelper(
       const base = current.arguments.length > 1 ? current.arguments[1] : undefined
       if (isSyntaxNode(base)) {
         return isSimOriginExpression(base, resolver)
-          ? Boolean(path && expressionContainsUnresolvedUrlHelper(path, resolver, new Set(seen)))
-          : expressionContainsUnresolvedUrlHelper(base, resolver, new Set(seen))
+          ? Boolean(
+              path && expressionContainsUnresolvedUrlHelper(path, resolver, new Set(seen), true)
+            )
+          : expressionContainsUnresolvedUrlHelper(
+              base,
+              resolver,
+              new Set(seen),
+              unresolvedIdentifierIsUnsafe
+            )
       }
-      return path ? expressionContainsUnresolvedUrlHelper(path, resolver, new Set(seen)) : false
+      return path
+        ? expressionContainsUnresolvedUrlHelper(
+            path,
+            resolver,
+            new Set(seen),
+            unresolvedIdentifierIsUnsafe
+          )
+        : false
     }
     return true
   }
@@ -838,11 +913,22 @@ function expressionContainsUnresolvedUrlHelper(
   if (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
     const access = getStaticMemberAccess(current)
     return access
-      ? expressionContainsUnresolvedUrlHelper(access.target, resolver, new Set(seen))
-      : false
+      ? expressionContainsUnresolvedUrlHelper(
+          access.target,
+          resolver,
+          new Set(seen),
+          unresolvedIdentifierIsUnsafe
+        )
+      : unresolvedIdentifierIsUnsafe
   }
   if (FUNCTION_NODE_TYPES.has(current.type)) {
-    return functionContainsUnresolvedUrlHelper(current, resolver, seen)
+    return functionContainsUnresolvedUrlHelper(
+      current,
+      resolver,
+      seen,
+      [],
+      unresolvedIdentifierIsUnsafe
+    )
   }
   return false
 }
@@ -851,7 +937,8 @@ function functionContainsUnresolvedUrlHelper(
   fn: SyntaxNode,
   resolver: SelfHopResolver,
   seen: ReadonlySet<string>,
-  argumentsList: readonly ScopedExpression[] = []
+  argumentsList: readonly ScopedExpression[] = [],
+  unresolvedIdentifierIsUnsafe = false
 ): boolean {
   const current = unwrapExpression(fn)
   if (!FUNCTION_NODE_TYPES.has(current.type)) return true
@@ -875,7 +962,12 @@ function functionContainsUnresolvedUrlHelper(
   if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
     const body = unwrapExpression(current.body)
     if (body.type !== 'BlockStatement') {
-      return expressionContainsUnresolvedUrlHelper(body, localResolver, new Set(seen))
+      return expressionContainsUnresolvedUrlHelper(
+        body,
+        localResolver,
+        new Set(seen),
+        unresolvedIdentifierIsUnsafe
+      )
     }
   }
   let unresolved = false
@@ -884,7 +976,12 @@ function functionContainsUnresolvedUrlHelper(
     if (
       node.type === 'ReturnStatement' &&
       isSyntaxNode(node.argument) &&
-      expressionContainsUnresolvedUrlHelper(node.argument, localResolver, new Set(seen))
+      expressionContainsUnresolvedUrlHelper(
+        node.argument,
+        localResolver,
+        new Set(seen),
+        unresolvedIdentifierIsUnsafe
+      )
     ) {
       unresolved = true
       return
