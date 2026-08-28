@@ -45,12 +45,14 @@ interface WebhookConfig {
  * This is fire-and-forget - errors are logged but never thrown.
  * Call with `void fireTableTrigger(...)` to avoid blocking the caller.
  *
+ * @param workspaceId - Canonical workspace that owns the mutated table.
  * @param eventType - The committed row mutation that should trigger workflows.
  * @param rows - Committed row snapshots; only the ID and data are needed, including for deletes.
  * @param oldRows - Map of row ID to previous data. Pass null for inserts and deletes.
  */
 export async function fireTableTrigger(
   tableId: string,
+  workspaceId: string,
   tableName: string,
   eventType: EventType,
   rows: TableTriggerRow[],
@@ -75,6 +77,7 @@ export async function fireTableTrigger(
 
     // Filter to webhooks watching this table with a matching event type
     const matching = webhooks.filter((entry) => {
+      if (entry.workflow.workspaceId !== workspaceId) return false
       const config = entry.webhook.providerConfig as WebhookConfig | null
       // Canonical key `tableId` first; `tableSelector`/`manualTableId` are a transitional
       // basic-first fallback for configs deployed before the canonical key was written.

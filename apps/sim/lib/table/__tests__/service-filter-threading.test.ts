@@ -200,6 +200,7 @@ describe('delete trigger dispatch', () => {
 
     expect(mockFireTableTrigger).toHaveBeenCalledWith(
       TABLE.id,
+      TABLE.workspaceId,
       TABLE.name,
       'delete',
       [{ id: 'row-1', data: { name: 'Ada' } }],
@@ -223,6 +224,7 @@ describe('delete trigger dispatch', () => {
 
     expect(mockFireTableTrigger).toHaveBeenCalledWith(
       TABLE.id,
+      TABLE.workspaceId,
       TABLE.name,
       'delete',
       [
@@ -254,8 +256,8 @@ describe('delete trigger dispatch', () => {
     }
 
     expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
-    expect(mockFireTableTrigger.mock.calls[0][3]).toEqual([{ id: 'row-1', data: { name: 'Ada' } }])
-    expect(mockFireTableTrigger.mock.calls[1][3]).toEqual([
+    expect(mockFireTableTrigger.mock.calls[0][4]).toEqual([{ id: 'row-1', data: { name: 'Ada' } }])
+    expect(mockFireTableTrigger.mock.calls[1][4]).toEqual([
       { id: 'row-2', data: { name: 'Grace' } },
     ])
   })

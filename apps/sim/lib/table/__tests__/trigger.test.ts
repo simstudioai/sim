@@ -60,7 +60,7 @@ interface Payload {
 function webhookEntry(config: Record<string, unknown> = {}) {
   return {
     webhook: { id: 'wh_1', providerConfig: { tableId: 'tbl_1', eventType: 'insert', ...config } },
-    workflow: { id: 'wf_1' },
+    workflow: { id: 'wf_1', workspaceId: 'ws_1' },
   }
 }
 
@@ -75,6 +75,7 @@ async function fire(
 ) {
   await fireTableTrigger(
     'tbl_1',
+    'ws_1',
     'Issues',
     eventType,
     [{ id: 'row_1', data } as never],
@@ -189,6 +190,14 @@ describe('fireTableTrigger — gating', () => {
 
   it('fires nothing for a different table', async () => {
     mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ tableId: 'tbl_other' })])
+    await fire('insert', { col_title: 'x' })
+    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
+  })
+
+  it('fires nothing for a workflow in a different workspace', async () => {
+    mockFetchActiveWebhooks.mockResolvedValue([
+      { ...webhookEntry(), workflow: { id: 'wf_other', workspaceId: 'ws_other' } },
+    ])
     await fire('insert', { col_title: 'x' })
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })

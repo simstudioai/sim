@@ -130,6 +130,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       const triggerTable = committedTable ?? table
       await fireTableTrigger(
         triggerTable.id,
+        triggerTable.workspaceId,
         triggerTable.name,
         'delete',
         rows,

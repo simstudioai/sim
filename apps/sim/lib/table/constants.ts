@@ -44,7 +44,7 @@ export const TABLE_LIMITS = {
    * post-commit trigger dispatch. The row-count cap is derived from this budget
    * and the configured maximum row size before a DELETE materializes snapshots.
    */
-  DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024, // 32MB
+  DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024,
   /** Maximum rows per batch insert */
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */

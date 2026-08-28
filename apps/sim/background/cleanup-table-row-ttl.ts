@@ -207,6 +207,7 @@ async function deleteExpiredRowsForTable(
     if (batch.attempted && batch.rows.length > 0) {
       await fireTableTrigger(
         ref.id,
+        ref.workspaceId,
         batch.tableName,
         'delete',
         batch.rows,

@@ -108,6 +108,7 @@ describe('table row TTL cleanup', () => {
     expect(mockFireTableTrigger).toHaveBeenNthCalledWith(
       1,
       table.id,
+      table.workspaceId,
       table.name,
       'delete',
       deletedRows(500),

@@ -196,6 +196,7 @@ describe('runTableDelete', () => {
     expect(mockFireTableTrigger).toHaveBeenNthCalledWith(
       1,
       'tbl_1',
+      'ws_1',
       'Issues',
       'delete',
       [
@@ -230,6 +231,7 @@ describe('runTableDelete', () => {
 
     expect(mockFireTableTrigger).toHaveBeenCalledWith(
       renamedTable.id,
+      renamedTable.workspaceId,
       renamedTable.name,
       'delete',
       [{ id: 'a', data: { 'col-title': 'a' } }],

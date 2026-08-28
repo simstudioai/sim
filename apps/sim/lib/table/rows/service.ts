@@ -117,7 +117,16 @@ async function dispatchDeleteTriggers(
   requestId: string
 ): Promise<void> {
   if (deletedRows.length === 0) return
-  await fireTableTrigger(table.id, table.name, 'delete', deletedRows, null, table.schema, requestId)
+  await fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'delete',
+    deletedRows,
+    null,
+    table.schema,
+    requestId
+  )
 }
 
 /**
@@ -217,6 +226,7 @@ export async function insertRow(
 
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'insert',
     [insertedRow],
@@ -393,7 +403,16 @@ export function dispatchAfterBatchInsert(
   requestId: string,
   actorUserId?: string | null
 ): void {
-  void fireTableTrigger(table.id, table.name, 'insert', result, null, table.schema, requestId)
+  void fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'insert',
+    result,
+    null,
+    table.schema,
+    requestId
+  )
   // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
   // row in the table. After the sidecar migration, all existing rows have
   // zero entries → `mode:'new'`'s `NOT EXISTS` filter would otherwise include
@@ -875,6 +894,7 @@ export async function upsertRow(
     })
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'insert',
       [result.row],
@@ -886,6 +906,7 @@ export async function upsertRow(
     const oldRows = new Map([[result.row.id, result.previousData]])
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       [result.row],
@@ -1811,6 +1832,7 @@ export async function updateRow(
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'update',
     [updatedRow],
@@ -2072,6 +2094,7 @@ function dispatchBulkUpdateEffects(
   }))
   void fireTableTrigger(
     table.id,
+    table.workspaceId,
     table.name,
     'update',
     updatedRows,
@@ -2494,6 +2517,7 @@ export async function batchUpdateRows(
   if (updatedRowsForTrigger.length > 0) {
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       updatedRowsForTrigger,
