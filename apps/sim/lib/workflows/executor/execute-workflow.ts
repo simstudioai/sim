@@ -1,5 +1,6 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
@@ -13,6 +14,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { attachAttemptedExecutionId } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -128,6 +130,7 @@ export async function executeWorkflow(
     loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
   }
   let postExecutionOwnershipTransferred = false
+  let coreReturned = false
 
   try {
     const metadata: ExecutionMetadata = {
@@ -169,6 +172,12 @@ export async function executeWorkflow(
 
     const executionStartMs = Date.now()
 
+    /**
+     * Once the core returns, the run happened. Everything after it here — analytics, pause
+     * persistence, post-execution settling — is bookkeeping that can still throw, and a
+     * failure there names no run unless it is marked, so an execution that really occurred
+     * would report itself as never started and invite a duplicate.
+     */
     const result = await executeWorkflowCore({
       snapshot,
       callbacks: {
@@ -198,6 +207,7 @@ export async function executeWorkflow(
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
     })
+    coreReturned = true
 
     const blockTypes = [
       ...new Set(
@@ -241,6 +251,7 @@ export async function executeWorkflow(
 
     return result
   } catch (error: unknown) {
+    if (coreReturned) attachAttemptedExecutionId(error, executionId)
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
     logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 
@@ -262,7 +273,19 @@ export async function executeWorkflow(
     throw error
   } finally {
     if (!postExecutionOwnershipTransferred) {
-      await loggingSession.waitForPostExecution()
+      /**
+       * A `finally` that throws replaces whatever the function was about to do — turning a
+       * successful run into an error, or an error that names its run into one that does not.
+       * Settling post-execution work is bookkeeping and must not be able to do either.
+       */
+      try {
+        await loggingSession.waitForPostExecution()
+      } catch (postExecutionError) {
+        logger.error(`[${requestId}] Failed to settle post-execution work`, {
+          executionId,
+          error: getErrorMessage(postExecutionError),
+        })
+      }
     }
   }
 }
