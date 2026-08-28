@@ -16,6 +16,7 @@ import {
   AccountTokenDecryptionError,
   decryptAccountToken,
   encryptAccountToken,
+  fieldsNeedingEncryption,
   isEncryptedAccountToken,
 } from '@/lib/oauth/account-token-crypto'
 
@@ -192,5 +193,51 @@ describe('decryptAccountToken', () => {
   it('confirms the raw primitive cannot consume a prefixed envelope', async () => {
     const encrypted = await encryptAccountToken('token')
     await expect(decryptSecret(encrypted)).rejects.toThrow()
+  })
+})
+
+/**
+ * Shared with `scripts/backfill-account-token-encryption.ts` so the bulk job and the live
+ * write path cannot disagree about what counts as already-encrypted.
+ */
+describe('fieldsNeedingEncryption', () => {
+  it('selects every plaintext token column', () => {
+    expect(
+      fieldsNeedingEncryption({
+        accessToken: 'plaintext-access',
+        refreshToken: 'plaintext-refresh',
+        idToken: 'plaintext-id',
+      })
+    ).toEqual(['accessToken', 'refreshToken', 'idToken'])
+  })
+
+  it('skips an enveloped value, so a re-run cannot double-wrap', async () => {
+    expect(fieldsNeedingEncryption({ accessToken: await encryptAccountToken('x') })).toEqual([])
+  })
+
+  it('selects only what is still plaintext on a half-migrated row', async () => {
+    expect(
+      fieldsNeedingEncryption({
+        accessToken: await encryptAccountToken('x'),
+        refreshToken: 'plaintext-refresh',
+      })
+    ).toEqual(['refreshToken'])
+  })
+
+  it.each([
+    ['an empty string', ''],
+    ['null', null],
+    ['undefined', undefined],
+  ])('leaves %s alone', (_label, value) => {
+    expect(fieldsNeedingEncryption({ accessToken: value })).toEqual([])
+  })
+
+  /** Not ours despite the leading `simenc:`, so it is plaintext and must be enveloped. */
+  it.each([
+    ['no version segment', 'simenc:legacy-opaque-value'],
+    ['a non-numeric version', 'simenc:vX:value'],
+    ['the bare prefix', 'simenc:'],
+  ])('treats a legacy value with %s as plaintext', (_label, value) => {
+    expect(fieldsNeedingEncryption({ accessToken: value })).toEqual(['accessToken'])
   })
 })

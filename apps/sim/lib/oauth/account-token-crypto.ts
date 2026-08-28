@@ -27,6 +27,9 @@ const ENVELOPE_V1_PREFIX = `${ENVELOPE_PREFIX}v1:`
 /** The `account` columns this module protects. */
 export type AccountTokenField = 'accessToken' | 'refreshToken' | 'idToken'
 
+/** Every column this module protects, in a stable order. */
+export const ACCOUNT_TOKEN_FIELDS = ['accessToken', 'refreshToken', 'idToken'] as const
+
 /**
  * Thrown when a prefixed value cannot be recovered — wrong `ENCRYPTION_KEY`, truncated
  * column, or an unknown envelope version. Never thrown for legacy plaintext.
@@ -89,4 +92,21 @@ export async function decryptAccountToken(
   } catch (error) {
     throw new AccountTokenDecryptionError(field, 'decrypt-failed', error)
   }
+}
+
+/**
+ * Which of a row's token columns still hold plaintext and therefore need enveloping.
+ *
+ * Shared by the accessor and by `scripts/backfill-account-token-encryption.ts` so the bulk
+ * job and the live write path cannot disagree about what counts as already-encrypted.
+ * Empty strings are excluded: SSO writes `accessToken: ''` for SAML rows, and enveloping
+ * that would make it truthy, flipping every `if (account.accessToken)` guard in the app.
+ */
+export function fieldsNeedingEncryption(
+  row: Partial<Record<AccountTokenField, string | null>>
+): AccountTokenField[] {
+  return ACCOUNT_TOKEN_FIELDS.filter((field) => {
+    const value = row[field]
+    return typeof value === 'string' && value !== '' && !isEncryptedAccountToken(value)
+  })
 }

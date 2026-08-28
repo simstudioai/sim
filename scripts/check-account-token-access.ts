@@ -17,6 +17,10 @@
  * Escape hatch: `// account-token-access-allow: <reason>` on one of the three lines above
  * the offending line. The reason is mandatory.
  *
+ * Scope is `apps/sim`. `scripts/backfill-account-token-encryption.ts` writes these columns
+ * directly by design — bulk enveloping is the one job that cannot go through the accessor —
+ * and is reviewed as a maintenance tool rather than application code.
+ *
  * Run: `bun run check:account-token-access`
  */
 import { readdirSync, readFileSync } from 'node:fs'
