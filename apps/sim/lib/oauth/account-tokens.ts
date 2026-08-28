@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { hasUsableEncryptionKey } from '@/lib/core/security/encryption'
 import {
@@ -71,14 +70,13 @@ export async function encryptAccountTokenColumns<T extends Partial<AccountTokenC
   for (const field of TOKEN_FIELDS) {
     const value = data[field]
     if (typeof value !== 'string' || value === '') continue
-    try {
-      next[field] = (await encryptAccountToken(value)) as T[typeof field]
-    } catch (error) {
-      logger.error('Failed to encrypt account token; storing plaintext', {
-        field,
-        error: getErrorMessage(error),
-      })
-    }
+    /**
+     * Deliberately unguarded. The only expected reason encryption cannot run is an unusable
+     * key, and the gate above already returned for that. Anything throwing here is a real
+     * fault, and swallowing it would silently store a plaintext token while the flag reports
+     * encryption as on — the exact guarantee this module exists to provide.
+     */
+    next[field] = (await encryptAccountToken(value)) as T[typeof field]
   }
   return next
 }

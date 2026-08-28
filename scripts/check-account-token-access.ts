@@ -44,10 +44,24 @@ const TOKEN_AWARE_MODULES = new Set([
 const ANNOTATION = 'account-token-access-allow:'
 const MAX_ANNOTATION_LOOKBACK = 3
 
-const TOKEN_COLUMN_RE = /\b(?:schema\.)?account\.(accessToken|refreshToken|idToken)\b/
-const STAR_SELECT_RE = /\bdb\s*\.\s*select\s*\(\s*\)\s*\.\s*from\s*\(\s*(?:schema\.)?account\s*\)/
-const RELATIONAL_READ_RE = /\bdb\s*\.\s*query\s*\.\s*account\s*\.\s*find/
-const WRITE_RE = /\.\s*(?:insert|update)\s*\(\s*(?:schema\.)?account\s*\)/
+/**
+ * Matched against the whole file rather than line by line: the formatter breaks any chain
+ * past the print width, so `db.select().from(account)` is normally written across three
+ * lines and a per-line scan would never see it. `\s` spans newlines, so one pass over the
+ * source catches both shapes.
+ */
+const RULES: ReadonlyArray<{ kind: FindingKind; pattern: RegExp }> = [
+  {
+    kind: 'token-column',
+    pattern: /\b(?:schema\.)?account\.(?:accessToken|refreshToken|idToken)\b/g,
+  },
+  {
+    kind: 'star-select',
+    pattern: /\bdb\s*\.\s*select\s*\(\s*\)\s*\.\s*from\s*\(\s*(?:schema\.)?account\s*\)/g,
+  },
+  { kind: 'relational-read', pattern: /\bdb\s*\.\s*query\s*\.\s*account\s*\.\s*find/g },
+  { kind: 'write', pattern: /\.\s*(?:insert|update)\s*\(\s*(?:schema\.)?account\s*\)/g },
+]
 
 export type FindingKind =
   | 'token-column'
@@ -97,32 +111,45 @@ export function auditSource(relPath: string, source: string): Finding[] {
   if (!source.includes('account')) return []
 
   const lines = source.split('\n')
-  const findings: Finding[] = []
+  /** Offset of the first character of each line, so a match index maps back to a line. */
+  const lineStarts: number[] = [0]
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '\n') lineStarts.push(i + 1)
+  }
 
-  lines.forEach((line, index) => {
-    const kind: FindingKind | null = TOKEN_COLUMN_RE.test(line)
-      ? 'token-column'
-      : STAR_SELECT_RE.test(line)
-        ? 'star-select'
-        : RELATIONAL_READ_RE.test(line)
-          ? 'relational-read'
-          : WRITE_RE.test(line)
-            ? 'write'
-            : null
-    if (!kind) return
+  const lineIndexAt = (offset: number): number => {
+    let low = 0
+    let high = lineStarts.length - 1
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (lineStarts[mid] <= offset) low = mid
+      else high = mid - 1
+    }
+    return low
+  }
 
-    const annotation = findAnnotation(lines, index)
-    if (annotation === 'present') return
+  /** One finding per line: a single statement should not be reported by several rules. */
+  const byLine = new Map<number, Finding>()
 
-    findings.push({
-      file: relPath,
-      line: index + 1,
-      kind: annotation === 'empty-reason' ? 'empty-reason' : kind,
-      text: line.trim(),
-    })
-  })
+  for (const { kind, pattern } of RULES) {
+    pattern.lastIndex = 0
+    for (const match of source.matchAll(pattern)) {
+      const index = lineIndexAt(match.index)
+      if (byLine.has(index)) continue
 
-  return findings
+      const annotation = findAnnotation(lines, index)
+      if (annotation === 'present') continue
+
+      byLine.set(index, {
+        file: relPath,
+        line: index + 1,
+        kind: annotation === 'empty-reason' ? 'empty-reason' : kind,
+        text: (lines[index] ?? '').trim(),
+      })
+    }
+  }
+
+  return [...byLine.values()].sort((a, b) => a.line - b.line)
 }
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.next', 'generated'])

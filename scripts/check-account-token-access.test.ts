@@ -49,6 +49,28 @@ describe('auditSource', () => {
     expect(findings[0].kind).toBe('write')
   })
 
+  /**
+   * The formatter breaks any chain past the print width, so this is how these calls are
+   * actually written. A per-line scan saw none of them.
+   */
+  it.each([
+    ['select', 'const rows = await db\n  .select()\n  .from(account)\n  .where(x)'],
+    ['update', 'await db\n  .update(account)\n  .set({ accessToken: raw })'],
+    [
+      'insert with a wrapped argument',
+      'await db.insert(\n  account\n).values({ accessToken: raw })',
+    ],
+    ['relational read', 'const row = await db\n  .query\n  .account\n  .findFirst({ where })'],
+  ])('flags a multiline %s', (_label, src) => {
+    expect(auditSource(FILE, src)).toHaveLength(1)
+  })
+
+  it('still allows a narrowed projection when it spans lines', () => {
+    expect(
+      auditSource(FILE, 'const rows = await db\n  .select({ id: account.id })\n  .from(account)')
+    ).toEqual([])
+  })
+
   it('does not flag a write to a different table', () => {
     expect(auditSource(FILE, 'await db.update(credential).set({ scope })')).toEqual([])
   })

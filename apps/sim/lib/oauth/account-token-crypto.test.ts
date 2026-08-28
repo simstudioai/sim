@@ -43,6 +43,19 @@ describe('isEncryptedAccountToken', () => {
     expect(isEncryptedAccountToken(token)).toBe(false)
   })
 
+  /**
+   * A legacy token that merely begins `simenc:` is not one of ours. Matching the version
+   * too keeps it classified as plaintext instead of an envelope this build cannot read —
+   * which would leave it unencrypted on write and unavailable on read.
+   */
+  it.each([
+    ['no version segment', 'simenc:legacy-opaque-value'],
+    ['a non-numeric version', 'simenc:vX:legacy'],
+    ['the bare prefix', 'simenc:'],
+  ])('treats a legacy value with %s as plaintext, not an envelope', (_label, value) => {
+    expect(isEncryptedAccountToken(value)).toBe(false)
+  })
+
   it('classifies an envelope as ciphertext', async () => {
     expect(isEncryptedAccountToken(await encryptAccountToken('secret'))).toBe(true)
   })
@@ -135,6 +148,13 @@ describe('decryptAccountToken', () => {
     ['undefined', undefined],
   ])('passes %s through untouched', async (_label, value) => {
     await expect(decryptAccountToken(value as string, 'accessToken')).resolves.toBe(value)
+  })
+
+  it.each([
+    ['no version segment', 'simenc:legacy-opaque-value'],
+    ['the bare prefix', 'simenc:'],
+  ])('passes a legacy value with %s through unchanged', async (_label, value) => {
+    await expect(decryptAccountToken(value, 'accessToken')).resolves.toBe(value)
   })
 
   it('throws on an unknown envelope version rather than passing it through', async () => {

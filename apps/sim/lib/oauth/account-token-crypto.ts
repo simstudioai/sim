@@ -14,6 +14,13 @@ import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
  */
 const ENVELOPE_PREFIX = 'simenc:'
 
+/**
+ * A full, versioned envelope header. Matching the version too — rather than the bare
+ * `simenc:` prefix — keeps a legacy token that happens to begin `simenc:` classified as
+ * plaintext instead of as an envelope this build cannot read.
+ */
+const ENVELOPE_HEADER_RE = /^simenc:v(\d+):/
+
 /** Current envelope version. The payload after this prefix is `iv:ciphertext:authTag`. */
 const ENVELOPE_V1_PREFIX = `${ENVELOPE_PREFIX}v1:`
 
@@ -37,7 +44,7 @@ export class AccountTokenDecryptionError extends Error {
 
 /** True when a stored column value is one of our envelopes rather than legacy plaintext. */
 export function isEncryptedAccountToken(value: string): boolean {
-  return value.startsWith(ENVELOPE_PREFIX)
+  return ENVELOPE_HEADER_RE.test(value)
 }
 
 /**
