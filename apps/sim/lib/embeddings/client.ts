@@ -135,6 +135,9 @@ const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DE
 export class EmbeddingAPIError extends Error {
   public status: number
 
+  /** True when the rejected request used a customer-managed credential. */
+  public readonly isBYOK: boolean
+
   /** Rejected for an exhausted balance rather than a recoverable rate limit. */
   public quotaExhausted?: boolean
 
@@ -144,10 +147,11 @@ export class EmbeddingAPIError extends Error {
    */
   public retryAfterMs?: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, isBYOK = false) {
     super(message)
     this.name = 'EmbeddingAPIError'
     this.status = status
+    this.isBYOK = isBYOK
   }
 }
 
@@ -170,6 +174,9 @@ export class EmbeddingOutputLimitError extends Error {
 export const EMBEDDING_QUOTA_EXHAUSTED_MESSAGE =
   'The embedding provider has exhausted its available quota. Add credit or replace the credential before retrying.'
 
+export const BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE =
+  'The configured embedding API key was rejected. Update the key and retry this document.'
+
 /**
  * A provider credential has no remaining credit. This remains transient across
  * providers so a configured fallback can run, but it is terminal for the
@@ -182,7 +189,8 @@ export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
     const status = cause instanceof EmbeddingAPIError ? cause.status : 429
     super(
       `The ${providerId} embedding credential has exhausted its available quota. Add credit or replace the credential before retrying.`,
-      status
+      status,
+      cause instanceof EmbeddingAPIError && cause.isBYOK
     )
     this.name = 'EmbeddingQuotaExhaustedError'
     this.providerId = providerId
@@ -202,6 +210,21 @@ export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
     return error.errors.length > 0 && error.errors.every(isEmbeddingQuotaExhaustion)
   }
   return false
+}
+
+/**
+ * True when a customer-managed embedding credential was rejected outright.
+ * These failures require a key or permission change; retrying the same request
+ * cannot recover. Quota failures are classified separately even when a provider
+ * reports them with HTTP 403.
+ */
+export function isBYOKEmbeddingCredentialRejection(error: unknown): error is EmbeddingAPIError {
+  return (
+    error instanceof EmbeddingAPIError &&
+    error.isBYOK &&
+    !error.quotaExhausted &&
+    (error.status === 401 || error.status === 403)
+  )
 }
 
 /**
@@ -435,6 +458,7 @@ async function callEmbeddingAPI(
    */
   requestedDimensions: number | undefined,
   expectedDimensions: number | undefined,
+  isBYOK: boolean,
   signal?: AbortSignal
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   return retryWithExponentialBackoff(
@@ -470,7 +494,8 @@ async function callEmbeddingAPI(
         const classificationBody = await readEmbeddingErrorBody(response)
         const error = new EmbeddingAPIError(
           `Embedding API failed: ${response.status}`,
-          response.status
+          response.status,
+          isBYOK
         )
         error.quotaExhausted =
           isQuotaExhaustionBody(classificationBody) ||
@@ -639,12 +664,19 @@ async function embedWithProvider(
           provider.quotaCircuitIdentity,
           requestedDimensions,
           provider.dimensions,
+          provider.isBYOK,
           signal
         )
       } catch (error) {
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
         if (isEmbeddingQuotaExhaustion(error)) {
           logger.warn(message, { providerId: provider.providerId, quotaExhausted: true })
+        } else if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(message, {
+            providerId: provider.providerId,
+            outcome: 'customer_configuration',
+            status: error.status,
+          })
         } else {
           logger.error(message, error)
         }
@@ -818,6 +850,7 @@ export async function embedOpenRouter(
       quotaCircuitIdentity,
       options.dimensions,
       expectedDimensions,
+      true,
       options.signal
     )
 
@@ -1001,7 +1034,8 @@ export async function embedKnowledgeForDeployment(
             provider.providerId,
             provider.quotaCircuitIdentity,
             options.dimensions,
-            provider.dimensions
+            provider.dimensions,
+            provider.isBYOK
           )),
           provider,
         }))
@@ -1009,6 +1043,11 @@ export async function embedKnowledgeForDeployment(
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
         if (isEmbeddingQuotaExhaustion(error)) {
           logger.warn(message, { quotaExhausted: true })
+        } else if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(message, {
+            outcome: 'customer_configuration',
+            status: error.status,
+          })
         } else {
           logger.error(message, error)
         }
