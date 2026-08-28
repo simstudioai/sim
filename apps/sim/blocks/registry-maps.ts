@@ -181,6 +181,7 @@ import {
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { LambdaBlock, LambdaBlockMeta } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
 import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
@@ -533,6 +534,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
+  lambda: LambdaBlock,
   langsmith: LangsmithBlock,
   latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
@@ -859,6 +861,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
+  lambda: LambdaBlockMeta,
   langsmith: LangsmithBlockMeta,
   latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,

@@ -210,6 +210,59 @@ const CLOUDFORMATION_TOOL_IDS = [
   'cloudformation_validate_template',
 ] as const
 
+const LAMBDA_TOOL_IDS = [
+  'lambda_add_permission',
+  'lambda_create_alias',
+  'lambda_create_event_source_mapping',
+  'lambda_create_function',
+  'lambda_create_function_url_config',
+  'lambda_delete_alias',
+  'lambda_delete_event_source_mapping',
+  'lambda_delete_function',
+  'lambda_delete_function_concurrency',
+  'lambda_delete_function_event_invoke_config',
+  'lambda_delete_function_url_config',
+  'lambda_delete_provisioned_concurrency_config',
+  'lambda_get_account_settings',
+  'lambda_get_alias',
+  'lambda_get_event_source_mapping',
+  'lambda_get_function',
+  'lambda_get_function_concurrency',
+  'lambda_get_function_configuration',
+  'lambda_get_function_event_invoke_config',
+  'lambda_get_function_recursion_config',
+  'lambda_get_function_url_config',
+  'lambda_get_layer_version',
+  'lambda_get_policy',
+  'lambda_get_provisioned_concurrency_config',
+  'lambda_get_runtime_management_config',
+  'lambda_invoke',
+  'lambda_list_aliases',
+  'lambda_list_event_source_mappings',
+  'lambda_list_function_event_invoke_configs',
+  'lambda_list_function_url_configs',
+  'lambda_list_functions',
+  'lambda_list_layer_versions',
+  'lambda_list_layers',
+  'lambda_list_provisioned_concurrency_configs',
+  'lambda_list_tags',
+  'lambda_list_versions_by_function',
+  'lambda_publish_version',
+  'lambda_put_function_concurrency',
+  'lambda_put_function_event_invoke_config',
+  'lambda_put_function_recursion_config',
+  'lambda_put_provisioned_concurrency_config',
+  'lambda_put_runtime_management_config',
+  'lambda_remove_permission',
+  'lambda_tag_resource',
+  'lambda_untag_resource',
+  'lambda_update_alias',
+  'lambda_update_event_source_mapping',
+  'lambda_update_function_code',
+  'lambda_update_function_configuration',
+  'lambda_update_function_url_config',
+] as const
+
 const CODEPIPELINE_TOOL_IDS = [
   'codepipeline_disable_stage_transition',
   'codepipeline_enable_stage_transition',
@@ -1117,6 +1170,9 @@ registerFamily(handlerLoaders, REDIS_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, CLOUDFORMATION_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudformation/execute-tool')).executeCloudformationTool
+})
+registerFamily(handlerLoaders, LAMBDA_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/lambda/execute-tool')).executeLambdaTool
 })
 registerFamily(handlerLoaders, CODEPIPELINE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool

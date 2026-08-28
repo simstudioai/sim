@@ -1,0 +1,1220 @@
+---
+title: Lambda
+description: Invoke, deploy, and manage AWS Lambda functions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="lambda"
+  color="linear-gradient(45deg, #C8511B 0%, #FF9900 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Lambda](https://aws.amazon.com/lambda/) is a serverless compute service that runs your code in response to events and scales automatically, with no servers to manage. You package code as a .zip archive or a container image, give it an execution role, and Lambda handles provisioning, scaling, and logging.
+
+With the Lambda integration, you can:
+
+- **Invoke Function**: Run a function synchronously and read back its parsed response payload, queue it asynchronously, or dry-run it to verify permissions — with the decoded execution log tail when something fails
+- **Manage functions**: Create, read, update, and delete functions, including runtime, handler, memory, timeout, ephemeral storage, environment variables, VPC attachment, layers, X-Ray tracing, SnapStart, and CloudWatch log settings
+- **Version and alias**: Publish immutable versions, then point aliases such as `prod` at them — including weighted routing to shift a percentage of traffic to a new version for canary releases
+- **Wire up event sources**: Create and tune event source mappings for SQS, Kinesis, DynamoDB Streams, Amazon MQ, DocumentDB, Amazon MSK, and self-managed Kafka — with batch size, batching window, filter patterns, retry limits, success/failure destinations, broker authentication, and consumer group IDs
+- **Control concurrency**: Reserve a share of account concurrency for a function, allocate provisioned concurrency to a version or alias to eliminate cold starts, and read account-level limits and usage
+- **Expose function URLs**: Create dedicated HTTPS endpoints with `AWS_IAM` or public auth, buffered or streamed responses, and full CORS configuration
+- **Configure async behavior**: Set retry attempts, maximum event age, and on-success/on-failure destinations for asynchronous invocations
+- **Audit access**: Read a function's resource-based policy, add and remove permission statements for AWS services or accounts, and list function URL configurations to find publicly reachable endpoints
+- **Work with layers and tags**: List layers and their versions, fetch a layer version's download location, and list, add, or remove function tags
+
+### Credentials and permissions
+
+The block authenticates with an AWS access key ID and secret access key scoped to a region. Grant the IAM principal only the Lambda actions the operations you use require — for example `lambda:InvokeFunction` for invocation, `lambda:GetFunction` and `lambda:ListFunctions` for read-only inventory, or `lambda:UpdateFunctionCode` and `lambda:PublishVersion` for deployments.
+
+### Deployment packages
+
+Function code is supplied from Amazon S3 (bucket, key, and optional object version) or from a container image URI in Amazon ECR. Uploading a .zip archive inline is not supported — publish the archive to S3 first, in the same region as the function, then point **Create Function** or **Update Function Code** at it.
+
+In Sim, the Lambda integration lets your agents run existing serverless code as a step in a workflow, ship and roll back deployments with alias traffic shifting, and continuously audit functions for deprecated runtimes, over-permissive policies, and publicly exposed URLs. It pairs naturally with CloudWatch for metrics and logs, S3 for deployment artifacts, and SQS for event sources.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.
+
+
+
+## Actions
+
+### Lambda Invoke Function
+
+Invoke a Lambda function synchronously or asynchronously and return its response
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `payload` | json | No | JSON event payload passed to the function handler |
+| `invocationType` | string | No | RequestResponse waits for the result, Event queues the invocation, DryRun only validates permissions |
+| `logType` | string | No | Set to Tail to return the last 4 KB of the execution log |
+| `clientContext` | string | No | Base64-encoded JSON passed to the function in the client context object |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusCode` | number | HTTP status of the invocation \(200 for RequestResponse, 202 for Event, 204 for DryRun\) |
+| `payload` | json | The response returned by the function, parsed as JSON when possible |
+| `functionError` | string | Set to Handled or Unhandled when the function itself returned an error |
+| `logResult` | string | Decoded execution log tail, present only when logType is Tail |
+| `executedVersion` | string | The function version that was executed |
+
+### Lambda List Functions
+
+List Lambda functions with the version-specific configuration of each
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionVersion` | string | No | Set to ALL to include every published version of each function |
+| `masterRegion` | string | No | For Lambda@Edge functions, the region of the master function. Requires functionVersion ALL |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-10000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functions` | array | Lambda functions with their runtime, handler, memory, and state |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Get Function
+
+Get a function's configuration, code location, tags, and reserved concurrency
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+| `code` | json | Presigned download URL for the deployment package, or the container image URI |
+| `tags` | json | The function's tags |
+| `reservedConcurrentExecutions` | number | Concurrency reserved for this function, if any |
+
+### Lambda Get Function Configuration
+
+Get a function's version-specific configuration
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+
+### Lambda Create Function
+
+Create a Lambda function from a deployment package in Amazon S3 or a container image
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `role` | string | Yes | ARN of the function's execution role |
+| `runtime` | string | No | Runtime identifier such as nodejs22.x or python3.13. Required for .zip packages, omit for container images |
+| `handler` | string | No | Entry point in your code, such as index.handler. Required for .zip packages |
+| `packageType` | string | No | Zip for a .zip file archive \(default\) or Image for a container image |
+| `s3Bucket` | string | No | Amazon S3 bucket holding the deployment package, in the same region as the function |
+| `s3Key` | string | No | Amazon S3 key of the .zip package |
+| `s3ObjectVersion` | string | No | Version of the Amazon S3 object to use |
+| `imageUri` | string | No | Amazon ECR URI of the container image to deploy |
+| `sourceKmsKeyArn` | string | No | ARN of the KMS customer managed key that encrypts the function's .zip deployment package |
+| `description` | string | No | Description of the function |
+| `timeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\) |
+| `memorySize` | number | No | Memory available to the function at runtime in MB \(128-32768\) |
+| `ephemeralStorageSize` | number | No | Size of the /tmp directory in MB \(512-10240\) |
+| `publish` | boolean | No | Publish the first version of the function atomically with creation |
+| `environment` | json | No | Environment variables as a flat key/value JSON object |
+| `tags` | json | No | Tags to apply to the function, as a flat key/value JSON object |
+| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 |
+| `layers` | array | No | ARNs of layer versions to add to the function execution environment |
+| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to |
+| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use |
+| `tracingMode` | string | No | X-Ray tracing mode: Active samples and traces requests, PassThrough only traces sampled requests |
+| `deadLetterTargetArn` | string | No | ARN of an SQS queue or SNS topic that receives failed asynchronous invocations |
+| `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt environment variables and snapshots |
+| `snapStartApplyOn` | string | No | Set to PublishedVersions to snapshot the initialized environment when a version is published |
+| `logFormat` | string | No | Format the function sends CloudWatch logs in |
+| `logGroup` | string | No | CloudWatch log group the function sends logs to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+
+### Lambda Update Function Code
+
+Update a function's deployment package from Amazon S3 or a container image
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `s3Bucket` | string | No | Amazon S3 bucket holding the new deployment package, in the same region as the function |
+| `s3Key` | string | No | Amazon S3 key of the .zip package |
+| `s3ObjectVersion` | string | No | Version of the Amazon S3 object to use |
+| `imageUri` | string | No | Amazon ECR URI of the container image to deploy |
+| `sourceKmsKeyArn` | string | No | ARN of the KMS customer managed key that encrypts the function's .zip deployment package |
+| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 |
+| `publish` | boolean | No | Publish a new version after updating the code |
+| `dryRun` | boolean | No | Validate the request without updating the function |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+
+### Lambda Update Function Configuration
+
+Update a function's settings such as memory, timeout, role, and environment variables
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `role` | string | No | ARN of the function's execution role |
+| `runtime` | string | No | Runtime identifier such as nodejs22.x or python3.13 |
+| `handler` | string | No | Entry point in your code, such as index.handler |
+| `description` | string | No | Description of the function |
+| `timeout` | number | No | Seconds Lambda allows the function to run before stopping it \(1-900\) |
+| `memorySize` | number | No | Memory available to the function at runtime in MB \(128-32768\) |
+| `ephemeralStorageSize` | number | No | Size of the /tmp directory in MB \(512-10240\) |
+| `environment` | json | No | Environment variables as a flat key/value JSON object. Replaces the existing set |
+| `layers` | array | No | ARNs of layer versions to add to the function execution environment |
+| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to |
+| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use |
+| `tracingMode` | string | No | X-Ray tracing mode: Active samples and traces requests, PassThrough only traces sampled requests |
+| `deadLetterTargetArn` | string | No | ARN of an SQS queue or SNS topic that receives failed asynchronous invocations |
+| `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt environment variables and snapshots |
+| `snapStartApplyOn` | string | No | Set to PublishedVersions to snapshot the initialized environment when a version is published |
+| `logFormat` | string | No | Format the function sends CloudWatch logs in |
+| `logGroup` | string | No | CloudWatch log group the function sends logs to |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+
+### Lambda Delete Function
+
+Delete a Lambda function, or a single published version of it
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number to delete. Omit to delete the whole function including all versions and aliases |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda Publish Version
+
+Publish an immutable version from the current code and configuration of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `codeSha256` | string | No | Publish only if the SHA256 hash of the deployment package matches this value |
+| `description` | string | No | Description of the version |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+
+### Lambda List Function Versions
+
+List the published versions of a Lambda function, plus $LATEST
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-10000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `versions` | array | Published versions of the function, plus the unpublished $LATEST version |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Create Alias
+
+Create an alias that points to a published function version
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `aliasName` | string | Yes | Name of the alias, such as prod or staging |
+| `aliasFunctionVersion` | string | Yes | Function version the alias points to |
+| `description` | string | No | Description of the alias |
+| `additionalVersionWeights` | json | No | Weighted routing as a JSON object mapping a second version to the fraction of traffic it receives, e.g. \{"2": 0.1\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alias` | json | The alias with its ARN, target version, and routing configuration |
+
+### Lambda Get Alias
+
+Get details about a Lambda function alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `aliasName` | string | Yes | Name of the alias |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alias` | json | The alias with its ARN, target version, and routing configuration |
+
+### Lambda Update Alias
+
+Update the target version, description, or traffic weights of an alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `aliasName` | string | Yes | Name of the alias |
+| `aliasFunctionVersion` | string | No | Function version the alias should point to |
+| `description` | string | No | Description of the alias |
+| `additionalVersionWeights` | json | No | Weighted routing as a JSON object mapping a second version to the fraction of traffic it receives, e.g. \{"2": 0.1\} |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alias` | json | The alias with its ARN, target version, and routing configuration |
+
+### Lambda Delete Alias
+
+Delete a Lambda function alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `aliasName` | string | Yes | Name of the alias |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda List Aliases
+
+List the aliases of a Lambda function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `aliasFunctionVersion` | string | No | Return only aliases that point to this function version |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-10000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | array | Aliases with their ARNs, target versions, and routing configuration |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Add Permission
+
+Grant an AWS service, account, or organization permission to use a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `statementId` | string | Yes | Unique identifier for the policy statement |
+| `action` | string | Yes | Action the principal is granted, such as lambda:InvokeFunction |
+| `principal` | string | Yes | AWS service principal or account ID granted the permission, such as s3.amazonaws.com |
+| `sourceArn` | string | No | ARN of the AWS resource allowed to invoke the function |
+| `sourceAccount` | string | No | ID of the AWS account that owns the source resource |
+| `principalOrgId` | string | No | AWS Organizations ID to grant permission to every account in the organization |
+| `eventSourceToken` | string | No | Token that must be supplied by the invoker \(Alexa Smart Home functions only\) |
+| `functionUrlAuthType` | string | No | Auth type of the function URL this permission applies to |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statement` | string | The permission statement that was added, as a JSON document string |
+
+### Lambda Remove Permission
+
+Remove a statement from a function's resource-based policy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `statementId` | string | Yes | Identifier of the policy statement to remove |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda Get Policy
+
+Get the resource-based IAM policy attached to a function, version, or alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policy` | string | The resource-based policy, as a JSON document string |
+| `revisionId` | string | Current revision ID of the policy |
+
+### Lambda Create Event Source Mapping
+
+Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `eventSourceArn` | string | No | ARN of the event source. Omit only for self-managed Kafka |
+| `enabled` | boolean | No | Whether the mapping is active |
+| `batchSize` | number | No | Maximum records sent to the function in a single batch |
+| `maximumBatchingWindowInSeconds` | number | No | Seconds to gather records before invoking the function \(0-300\) |
+| `startingPosition` | string | No | Position in the stream to start reading from. Required for Kinesis, DynamoDB Streams, and Kafka |
+| `startingPositionTimestamp` | string | No | ISO 8601 timestamp to start reading from, when startingPosition is AT_TIMESTAMP |
+| `parallelizationFactor` | number | No | Number of concurrent batches to process from each shard \(1-10\) |
+| `maximumRecordAgeInSeconds` | number | No | Discard records older than this. Use -1 for infinite |
+| `maximumRetryAttempts` | number | No | Retries before a record is discarded. Use -1 for infinite |
+| `bisectBatchOnFunctionError` | boolean | No | Split a failing batch in two and retry each half |
+| `tumblingWindowInSeconds` | number | No | Duration of a processing window for stream aggregation \(0-900\) |
+| `maximumConcurrency` | number | No | Maximum concurrent function invocations from an SQS event source \(2-1000\) |
+| `topics` | array | No | Kafka topic names to consume |
+| `queues` | array | No | Amazon MQ broker destination queue names |
+| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting |
+| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function |
+| `onSuccessDestination` | string | No | ARN of the destination that receives successfully processed records |
+| `onFailureDestination` | string | No | ARN of the destination that receives discarded records |
+| `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt filter criteria |
+| `tags` | json | No | Tags to apply to the event source mapping, as a flat key/value JSON object |
+| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\) |
+| `documentDbDatabaseName` | string | No | DocumentDB database to consume the change stream from |
+| `documentDbCollectionName` | string | No | DocumentDB collection to consume. Omit to consume the whole database |
+| `documentDbFullDocument` | string | No | UpdateLookup sends the full document on update, Default sends only the change delta |
+| `amazonManagedKafkaConsumerGroupId` | string | No | Consumer group ID to join on an Amazon MSK cluster |
+| `selfManagedKafkaConsumerGroupId` | string | No | Consumer group ID to join on a self-managed Kafka cluster |
+| `selfManagedKafkaBootstrapServers` | array | No | Bootstrap servers of a self-managed Kafka cluster \(host:port\). Required instead of eventSourceArn for self-managed Kafka |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
+
+### Lambda Get Event Source Mapping
+
+Get details about an event source mapping
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `uuid` | string | Yes | Identifier of the event source mapping |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
+
+### Lambda Update Event Source Mapping
+
+Update the batching, retry, filtering, or enabled state of an event source mapping
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `uuid` | string | Yes | Identifier of the event source mapping |
+| `functionName` | string | No | Function the mapping should invoke |
+| `enabled` | boolean | No | Whether the mapping is active |
+| `batchSize` | number | No | Maximum records sent to the function in a single batch |
+| `maximumBatchingWindowInSeconds` | number | No | Seconds to gather records before invoking the function \(0-300\) |
+| `parallelizationFactor` | number | No | Number of concurrent batches to process from each shard \(1-10\) |
+| `maximumRecordAgeInSeconds` | number | No | Discard records older than this. Use -1 for infinite |
+| `maximumRetryAttempts` | number | No | Retries before a record is discarded. Use -1 for infinite |
+| `bisectBatchOnFunctionError` | boolean | No | Split a failing batch in two and retry each half |
+| `tumblingWindowInSeconds` | number | No | Duration of a processing window for stream aggregation \(0-900\) |
+| `maximumConcurrency` | number | No | Maximum concurrent function invocations from an SQS event source \(2-1000\) |
+| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting |
+| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function |
+| `onSuccessDestination` | string | No | ARN of the destination that receives successfully processed records |
+| `onFailureDestination` | string | No | ARN of the destination that receives discarded records |
+| `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt filter criteria |
+| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\) |
+| `documentDbDatabaseName` | string | No | DocumentDB database to consume the change stream from |
+| `documentDbCollectionName` | string | No | DocumentDB collection to consume. Omit to consume the whole database |
+| `documentDbFullDocument` | string | No | UpdateLookup sends the full document on update, Default sends only the change delta |
+| `amazonManagedKafkaConsumerGroupId` | string | No | Consumer group ID to join on an Amazon MSK cluster |
+| `selfManagedKafkaConsumerGroupId` | string | No | Consumer group ID to join on a self-managed Kafka cluster |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventSourceMapping` | json | The event source mapping with its UUID, state, batching, and filter settings |
+
+### Lambda Delete Event Source Mapping
+
+Delete an event source mapping
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `uuid` | string | Yes | Identifier of the event source mapping |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventSourceMapping` | json | The deleted event source mapping, whose state transitions to Deleting |
+
+### Lambda List Event Source Mappings
+
+List event source mappings, optionally filtered by function or event source
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | No | Return only mappings that invoke this function |
+| `eventSourceArn` | string | No | Return only mappings for this event source ARN |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-10000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventSourceMappings` | array | Event source mappings with their UUIDs, state, and batching settings |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Get Function Concurrency
+
+Get the reserved concurrency configured for a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reservedConcurrentExecutions` | number | Concurrency reserved for this function, or null when none is reserved |
+
+### Lambda Set Function Concurrency
+
+Reserve a share of the account concurrency limit for a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `reservedConcurrentExecutions` | number | Yes | Number of simultaneous executions to reserve for this function |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reservedConcurrentExecutions` | number | Concurrency now reserved for this function |
+
+### Lambda Delete Function Concurrency
+
+Remove the reserved concurrency configuration from a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda Get Provisioned Concurrency
+
+Get the provisioned concurrency configuration of a function version or alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | Yes | Version number or alias name the configuration applies to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `provisionedConcurrency` | json | Requested, available, and allocated provisioned concurrency with its status |
+
+### Lambda Set Provisioned Concurrency
+
+Allocate provisioned concurrency to a function version or alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | Yes | Version number or alias name the configuration applies to |
+| `provisionedConcurrentExecutions` | number | Yes | Number of pre-initialized execution environments to allocate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `provisionedConcurrency` | json | Requested, available, and allocated provisioned concurrency with its status |
+
+### Lambda Delete Provisioned Concurrency
+
+Remove the provisioned concurrency configuration from a function version or alias
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | Yes | Version number or alias name the configuration applies to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda List Provisioned Concurrency
+
+List the provisioned concurrency configurations of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `provisionedConcurrencyConfigs` | array | Provisioned concurrency configurations with their allocation status |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Create Function URL
+
+Create a dedicated HTTPS endpoint for a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `authType` | string | Yes | AWS_IAM requires signed requests, NONE allows public unauthenticated access |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `invokeMode` | string | No | BUFFERED returns the whole response at once, RESPONSE_STREAM streams it |
+| `corsAllowCredentials` | boolean | No | Whether the function URL sends the Access-Control-Allow-Credentials header |
+| `corsAllowOrigins` | array | No | Origins allowed to call the function URL, or * for any |
+| `corsAllowMethods` | array | No | HTTP methods allowed when calling the function URL, or * for any |
+| `corsAllowHeaders` | array | No | Headers browsers may send in a cross-origin request |
+| `corsExposeHeaders` | array | No | Response headers browsers may access from the response |
+| `corsMaxAge` | number | No | Seconds a browser may cache the CORS preflight result \(0-86400\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
+
+### Lambda Get Function URL
+
+Get details about a function URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
+
+### Lambda Update Function URL
+
+Update the auth type, invoke mode, or CORS settings of a function URL
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `authType` | string | No | AWS_IAM requires signed requests, NONE allows public unauthenticated access |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `invokeMode` | string | No | BUFFERED returns the whole response at once, RESPONSE_STREAM streams it |
+| `corsAllowCredentials` | boolean | No | Whether the function URL sends the Access-Control-Allow-Credentials header |
+| `corsAllowOrigins` | array | No | Origins allowed to call the function URL, or * for any |
+| `corsAllowMethods` | array | No | HTTP methods allowed when calling the function URL, or * for any |
+| `corsAllowHeaders` | array | No | Headers browsers may send in a cross-origin request |
+| `corsExposeHeaders` | array | No | Response headers browsers may access from the response |
+| `corsMaxAge` | number | No | Seconds a browser may cache the CORS preflight result \(0-86400\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functionUrlConfig` | json | The function URL with its auth type, invoke mode, and CORS settings |
+
+### Lambda Delete Function URL
+
+Delete the URL configuration of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda List Function URLs
+
+List the URL configurations of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functionUrlConfigs` | array | Function URLs with their auth types, invoke modes, and CORS settings |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Get Async Invoke Config
+
+Get the asynchronous invocation retry and destination settings of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventInvokeConfig` | json | Asynchronous invocation retry limits and success/failure destinations |
+
+### Lambda Set Async Invoke Config
+
+Configure retry limits and destinations for asynchronous invocations of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+| `maximumRetryAttempts` | number | No | Times Lambda retries a failed asynchronous invocation \(0-2\) |
+| `maximumEventAgeInSeconds` | number | No | Maximum age of an event Lambda will still process \(60-21600\) |
+| `onSuccessDestination` | string | No | ARN of the destination that receives successful invocation records |
+| `onFailureDestination` | string | No | ARN of the destination that receives failed invocation records |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventInvokeConfig` | json | Asynchronous invocation retry limits and success/failure destinations |
+
+### Lambda Delete Async Invoke Config
+
+Remove the asynchronous invocation configuration of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda List Async Invoke Configs
+
+List the asynchronous invocation configurations of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventInvokeConfigs` | array | Asynchronous invocation configurations for the function versions and aliases |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda List Layers
+
+List Lambda layers and the latest version of each
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `compatibleRuntime` | string | No | Return only layers compatible with this runtime, such as python3.13 |
+| `compatibleArchitecture` | string | No | Return only layers compatible with this instruction set architecture |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `layers` | array | Layers with their ARNs and latest matching version |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda List Layer Versions
+
+List the versions of a Lambda layer
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `layerName` | string | Yes | The name or ARN of the layer |
+| `compatibleRuntime` | string | No | Return only versions compatible with this runtime, such as python3.13 |
+| `compatibleArchitecture` | string | No | Return only versions compatible with this instruction set architecture |
+| `marker` | string | No | Pagination token returned by a previous request |
+| `maxItems` | number | No | Maximum number of items to return \(1-50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `layerVersions` | array | Layer versions with their ARNs, compatible runtimes, and license info |
+| `nextMarker` | string | Pagination token to pass as marker on the next request |
+
+### Lambda Get Layer Version
+
+Get details and a download link for a specific layer version
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `layerName` | string | Yes | The name or ARN of the layer |
+| `versionNumber` | number | Yes | Version number of the layer |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `layerVersion` | json | The layer version with its ARN, compatible runtimes, and a presigned content download URL |
+
+### Lambda List Tags
+
+List the tags applied to a Lambda function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | The function's Amazon Resource Name \(ARN\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | The resource's tags as a key/value object |
+
+### Lambda Tag Resource
+
+Add tags to a Lambda function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | The function's Amazon Resource Name \(ARN\) |
+| `tags` | json | Yes | Tags to apply, as a flat key/value JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda Untag Resource
+
+Remove tags from a Lambda function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `resourceArn` | string | Yes | The function's Amazon Resource Name \(ARN\) |
+| `tagKeys` | array | Yes | Tag keys to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### Lambda Get Account Settings
+
+Get the Lambda limits and usage of the current AWS account and region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountLimit` | json | Account-level storage and concurrency limits |
+| `accountUsage` | json | Current code storage used and number of functions deployed |
+
+### Lambda Get Recursion Config
+
+Get the recursive loop detection setting of a function
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recursiveLoop` | string | Terminate stops the function after 16 recursive invocations, Allow permits recursion |
+
+### Lambda Set Recursion Config
+
+Set whether Lambda stops a function that invokes itself recursively
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `recursiveLoop` | string | Yes | Terminate stops the function after 16 recursive invocations, Allow permits recursion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recursiveLoop` | string | The recursion setting now in effect for the function |
+
+### Lambda Get Runtime Management Config
+
+Get the runtime update policy of a function version
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updateRuntimeOn` | string | Auto, FunctionUpdate, or Manual runtime update policy |
+| `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
+| `functionArn` | string | ARN of the function the policy applies to |
+
+### Lambda Set Runtime Management Config
+
+Set how and when Lambda applies runtime updates to a function version
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `functionName` | string | Yes | Function name, ARN, or partial ARN \(e.g. my-function, or arn:aws:lambda:us-east-1:123456789012:function:my-function\) |
+| `updateRuntimeOn` | string | Yes | Auto applies updates automatically, FunctionUpdate applies them on the next function update, Manual pins a runtime version |
+| `runtimeVersionArn` | string | No | ARN of the runtime version to pin to. Required when updateRuntimeOn is Manual |
+| `qualifier` | string | No | Version number or alias name to act on \(defaults to $LATEST\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updateRuntimeOn` | string | The runtime update policy now in effect |
+| `runtimeVersionArn` | string | ARN of the pinned runtime version, when the policy is Manual |
+| `functionArn` | string | ARN of the function the policy applies to |
+
+
