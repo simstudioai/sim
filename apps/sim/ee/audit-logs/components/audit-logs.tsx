@@ -407,11 +407,14 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimers.add(timerId)
     /*
-      Both, because a failed workspace lookup closes the feed — refreshing only the
-      feed would leave the one control on screen unable to clear the state it is
-      showing.
+      The workspace lookup too, but only when a scope asked for it: a failed lookup
+      closes the feed, so refreshing only the feed would leave the one control on
+      screen unable to clear the state it is showing. `refetch` ignores `enabled`, so
+      an unconditional call would fire a request the unscoped feed has no use for and
+      could fail a refresh that otherwise succeeded.
     */
-    Promise.all([refetch(), orgWorkspaces.refetch()]).catch((error: unknown) => {
+    const pending = workspaceScope ? [refetch(), orgWorkspaces.refetch()] : [refetch()]
+    Promise.all(pending).catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
   }
