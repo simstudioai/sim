@@ -409,6 +409,33 @@ describe('tool self-hop audit', () => {
     expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
   })
 
+  it('rejects a relative internal path resolved against the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => new URL('api/tools/test', getBaseUrl()).toString(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
+  it('rejects a normalized relative internal path resolved against the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      function buildPath() {
+        return 'provider/../api/tools/test'
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => new URL(buildPath(), getBaseUrl()).toString(), method: 'POST' },
+      }
+    `)
+
+    expect(audit.violations[0]?.reason).toBe('same-origin-tool-request')
+  })
+
   it('rejects an internal path resolved against a path-normalized Sim origin', () => {
     const audit = auditToolSelfHops(`
       import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -615,6 +642,21 @@ describe('tool self-hop audit', () => {
         id: 'test_tool',
         request: {
           url: () => new URL(buildPath(), 'https://provider.example.com').toString(),
+          method: 'POST',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('allows a protocol-relative provider URL resolved against the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: () => new URL('//provider.example.com/api/messages', getBaseUrl()).toString(),
           method: 'POST',
         },
       }

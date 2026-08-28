@@ -250,13 +250,14 @@ function collectFunctionLocalBindings(fn: SyntaxNode, locals: Map<string, Syntax
 function isInternalPathExpression(
   expression: SyntaxNode,
   resolver: SelfHopResolver,
-  seen = new Set<string>()
+  seen = new Set<string>(),
+  allowRelative = false
 ): boolean {
   const current = unwrapExpression(expression)
   const staticValue = getStaticString(current)
-  if (staticValue?.startsWith('/api/')) return true
+  if (staticValue && isInternalApiPath(staticValue, allowRelative)) return true
   const prefix = getStringPrefix(current)
-  if (prefix?.startsWith('/api/')) return true
+  if (prefix && isInternalApiPath(prefix, allowRelative)) return true
 
   if (current.type === 'Identifier' && typeof current.name === 'string') {
     const key = `${resolver.file}:path:${current.name}`
@@ -265,7 +266,7 @@ function isInternalPathExpression(
     if (!binding) return false
     const nextSeen = new Set(seen)
     nextSeen.add(key)
-    return isInternalPathExpression(binding.expression, binding.resolver, nextSeen)
+    return isInternalPathExpression(binding.expression, binding.resolver, nextSeen, allowRelative)
   }
 
   if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
@@ -287,7 +288,8 @@ function isInternalPathExpression(
           binding.expression,
           binding.resolver,
           argumentsList,
-          nextSeen
+          nextSeen,
+          allowRelative
         )
       }
     }
@@ -296,22 +298,22 @@ function isInternalPathExpression(
   if (current.type === 'ConditionalExpression') {
     return (
       (isSyntaxNode(current.consequent) &&
-        isInternalPathExpression(current.consequent, resolver, new Set(seen))) ||
+        isInternalPathExpression(current.consequent, resolver, new Set(seen), allowRelative)) ||
       (isSyntaxNode(current.alternate) &&
-        isInternalPathExpression(current.alternate, resolver, new Set(seen)))
+        isInternalPathExpression(current.alternate, resolver, new Set(seen), allowRelative))
     )
   }
   if (current.type === 'LogicalExpression') {
     return (
       (isSyntaxNode(current.left) &&
-        isInternalPathExpression(current.left, resolver, new Set(seen))) ||
+        isInternalPathExpression(current.left, resolver, new Set(seen), allowRelative)) ||
       (isSyntaxNode(current.right) &&
-        isInternalPathExpression(current.right, resolver, new Set(seen)))
+        isInternalPathExpression(current.right, resolver, new Set(seen), allowRelative))
     )
   }
   if (current.type === 'BinaryExpression' && current.operator === '+') {
     return isSyntaxNode(current.left)
-      ? isInternalPathExpression(current.left, resolver, new Set(seen))
+      ? isInternalPathExpression(current.left, resolver, new Set(seen), allowRelative)
       : false
   }
   return false
@@ -321,7 +323,8 @@ function functionReturnsInternalPath(
   fn: SyntaxNode,
   resolver: SelfHopResolver,
   argumentsList: readonly ScopedExpression[],
-  seen: ReadonlySet<string>
+  seen: ReadonlySet<string>,
+  allowRelative: boolean
 ): boolean {
   const current = unwrapExpression(fn)
   if (!FUNCTION_NODE_TYPES.has(current.type)) return false
@@ -345,7 +348,7 @@ function functionReturnsInternalPath(
   if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
     const body = unwrapExpression(current.body)
     if (body.type !== 'BlockStatement') {
-      return isInternalPathExpression(body, localResolver, new Set(seen))
+      return isInternalPathExpression(body, localResolver, new Set(seen), allowRelative)
     }
   }
   let found = false
@@ -354,7 +357,7 @@ function functionReturnsInternalPath(
     if (
       node.type === 'ReturnStatement' &&
       isSyntaxNode(node.argument) &&
-      isInternalPathExpression(node.argument, localResolver, new Set(seen))
+      isInternalPathExpression(node.argument, localResolver, new Set(seen), allowRelative)
     ) {
       found = true
       return
@@ -363,6 +366,18 @@ function functionReturnsInternalPath(
   }
   visit(current)
   return found
+}
+
+function isInternalApiPath(value: string, allowRelative: boolean): boolean {
+  if (value.startsWith('/api/')) return true
+  if (!allowRelative) return false
+  try {
+    const base = new URL('https://sim-boundary.invalid/')
+    const resolved = new URL(value, base)
+    return resolved.origin === base.origin && resolved.pathname.startsWith('/api/')
+  } catch {
+    return false
+  }
 }
 
 function isOriginPreservingStaticSuffix(expression: SyntaxNode): boolean {
@@ -616,7 +631,7 @@ function isInternalUrlConstruction(node: SyntaxNode, resolver: SelfHopResolver):
   }
   return (
     isSyntaxNode(current.arguments[1]) &&
-    isInternalPathExpression(current.arguments[0], resolver) &&
+    isInternalPathExpression(current.arguments[0], resolver, new Set(), true) &&
     isSimOriginExpression(current.arguments[1], resolver)
   )
 }
