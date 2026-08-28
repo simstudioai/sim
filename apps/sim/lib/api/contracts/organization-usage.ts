@@ -63,7 +63,18 @@ const isoDateSchema = z
   .optional()
   .refine(
     (value) => {
-      if (!value) return true
+      /*
+        Absent is allowed; empty is not. A missing bound is a real state — the picker
+        clears the param rather than blanking it — and the resolver falls back to the
+        current period for it. An explicit `?start-date=` is a malformed request, and
+        treating it as absent silently answered about a different window than the one
+        asked for.
+
+        Deliberately unlike `usageLimitSchema`, which does coerce `''` to its default:
+        that field declares a default, so omission has a documented meaning. These
+        bounds have none — omitting one changes which period you get.
+      */
+      if (value === undefined) return true
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
       return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
     },

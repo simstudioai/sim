@@ -37,6 +37,14 @@ describe('organization usage window contract', () => {
     expect(parseWindow({ startDate: '2026-02-30T00:00:00' }).success).toBe(false)
   })
 
+  it('refuses an empty date but allows an absent one', () => {
+    // The picker clears the param rather than blanking it, so `?start-date=` is a
+    // malformed request — and treating it as absent silently answered about the
+    // current period instead of the range the caller named.
+    expect(parseWindow({ startDate: '' }).success).toBe(false)
+    expect(parseWindow({}).success).toBe(true)
+  })
+
   it('treats an empty limit as omitted rather than as zero', () => {
     // `z.coerce.number()` turns `''` into `0`, which then fails `.min(1)` — so a
     // client serializing an unset filter got a 400 instead of the declared default.
