@@ -17,7 +17,7 @@ All figures are in **credits** (1 credit = $0.005). See [cost calculation](/plat
 
 Go to **Settings → Organization → Usage tracking** in your workspace.
 
-<Image src="/static/enterprise/usage-tracking-overview.png" alt="Usage tracking Overview tab showing the period selector, credits used against the organization limit, a daily usage chart, and a Sources breakdown listing Sim Chat, Workflow, and Agent block" width={900} height={578} />
+<Image src="/static/enterprise/usage-tracking-overview.png" alt="Usage tracking Overview tab showing the period selector, credits used against the organization limit, a daily usage chart, and a Sources section pairing a ranked list of sources with a radar chart of the same mix" width={900} height={781} />
 
 The period selector applies to every tab:
 
@@ -40,9 +40,8 @@ The period selector applies to every tab:
 | **Members** | Which people are driving usage |
 | **Workspaces** | Which workspaces are driving usage — select one to drill in |
 | **Models** | Which models we are paying for |
-| **BYOK** | What ran on our own provider keys |
 
-Selecting a workspace opens its detail view, which splits that workspace's usage into **Sources** (what kind of work) and **Workflows** (the individual workflow runs). **Open logs** jumps to that workspace's execution logs.
+Selecting a workspace opens its detail view, which splits that workspace's usage into **Sources** (what kind of work) and **Workflows** (the individual workflow runs). **Open logs** jumps to [audit logs](/platform/enterprise/audit-logs) filtered to that workspace.
 
 <Image src="/static/enterprise/usage-tracking-workspace-detail.png" alt="A workspace's detail view with a Sources section listing Sim Chat and Workflow, and a Workflows section ranking individual workflows by credits" width={900} height={598} />
 
@@ -90,12 +89,10 @@ These follow from how charges are recorded, and they explain most questions abou
 
 ## Bring your own keys (BYOK)
 
-When a workspace or organization supplies its own provider key, Sim does not charge for that model usage. Those calls are still recorded so you can see the volume.
-
-The **BYOK** tab groups this usage by provider and reports **tokens** rather than credits, because the credit cost is zero by definition. Tokens on your own keys are not included in the credit totals anywhere else in the panel.
+When a workspace or organization supplies its own provider key, Sim does not charge for that model usage. Those calls are still recorded, measured in **tokens** rather than credits — the credit cost is zero by definition — and they are not included in the credit totals anywhere in the panel.
 
 <Callout type="info">
-  Tool calls and Chat usage made on your own keys are not yet recorded. BYOK currently covers model usage in workflow runs.
+  This usage is not broken out in the panel today. Of what is recorded, only model usage in workflow runs is covered: tool calls and Chat usage made on your own keys are not recorded at all.
 </Callout>
 
 ---
