@@ -127,6 +127,13 @@ interface FileViewerProps {
    * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
    */
   onDeriveTitleFromHeading?: (headingText: string) => void
+  /**
+   * Let an open markdown file claim Cmd/Ctrl+F for find-in-document. Set wherever the file is the
+   * whole pane the user is reading — the Files page, the mothership file view, the public share
+   * page. Left off for the streaming-file preview, which is a pane beside a conversation that owns
+   * its own find. See {@link RichMarkdownEditorProps.enableFind}.
+   */
+  enableFind?: boolean
 }
 
 export function FileViewer(props: FileViewerProps) {
@@ -165,6 +172,7 @@ function FileViewerContent({
   previewContextKey,
   collaborative,
   onDeriveTitleFromHeading,
+  enableFind = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -181,7 +189,13 @@ function FileViewerContent({
       // the bubble menu, and every other editing affordance.
       if (isMarkdownFile(file)) {
         return (
-          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+          <RichMarkdownEditor
+            key={file.id}
+            file={file}
+            workspaceId={workspaceId}
+            canEdit={false}
+            enableFind={enableFind}
+          />
         )
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
@@ -212,6 +226,7 @@ function FileViewerContent({
           previewContextKey={previewContextKey}
           collaborative={collaborative}
           onDeriveTitleFromHeading={onDeriveTitleFromHeading}
+          enableFind={enableFind}
         />
       )
     }

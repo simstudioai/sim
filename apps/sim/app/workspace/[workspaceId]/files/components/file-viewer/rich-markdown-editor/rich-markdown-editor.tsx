@@ -16,6 +16,7 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
+import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
@@ -39,6 +40,7 @@ import {
 import { nextCollabReadiness } from './collaboration/readiness'
 import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
+import { useMarkdownFind } from './find'
 import { findHeadingPos } from './heading-anchors'
 import { moveDraggedImageNode } from './image-drag-move'
 import { extractImageFiles, findHostedImageAttrs, shouldSkipFileUpload } from './image-paste'
@@ -159,6 +161,12 @@ interface RichMarkdownEditorProps {
    * {@link isUntitledName}.
    */
   onDeriveTitleFromHeading?: (headingText: string) => void
+  /**
+   * Claim Cmd/Ctrl+F for find-in-document. Off by default, because this editor also renders as a
+   * preview pane beside something that owns the shortcut itself. Every find surface binds its own
+   * listener, so only one may be enabled at a time — see {@link useFindShortcut}.
+   */
+  enableFind?: boolean
 }
 
 /** Inline WYSIWYG markdown editor: agent output streams in read-only, then the same instance becomes editable on settle. */
@@ -180,6 +188,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   disableTagging,
   collaborative = false,
   onDeriveTitleFromHeading,
+  enableFind = false,
 }: RichMarkdownEditorProps) {
   const { data: session, isPending: isSessionPending } = useSession()
   const userId = session?.user?.id ?? ''
@@ -253,6 +262,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       onSaveShortcut={saveImmediately}
       onCollabReadyChange={setCollabReady}
       onDeriveTitleFromHeading={onDeriveTitleFromHeading}
+      enableFind={enableFind}
     />
   )
 })
@@ -283,6 +293,8 @@ interface LoadedRichMarkdownEditorProps {
   onCollabReadyChange: (ready: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
   onDeriveTitleFromHeading?: (headingText: string) => void
+  /** See {@link RichMarkdownEditorProps.enableFind}. */
+  enableFind: boolean
 }
 
 interface SettledContent {
@@ -314,6 +326,7 @@ export function LoadedRichMarkdownEditor({
   onSaveShortcut,
   onCollabReadyChange,
   onDeriveTitleFromHeading,
+  enableFind,
 }: LoadedRichMarkdownEditorProps) {
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const streamingAtMountRef = useRef(isStreaming)
@@ -1208,43 +1221,70 @@ export function LoadedRichMarkdownEditor({
   // shows the base content until the seed swaps it in, avoiding both a blank frame and a garbled merge.
   const showPlaceholder = collaborationEnabled && !collabReady
 
+  /**
+   * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
+   * editor, not to `editor` — which is still empty and hidden — so searching `editor` would answer
+   * "No results" for text the user can see. Declining the shortcut hands it back to the browser, whose
+   * native find reads the rendered placeholder correctly; it becomes ours once the seed lands.
+   */
+  const find = useMarkdownFind({ editor, enabled: enableFind && !showPlaceholder })
+
   return (
-    <div
-      ref={containerRef}
-      className={cn('relative flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
-    >
-      {editor && (
-        <EditorBubbleMenu
-          editor={editor}
-          scrollContainerRef={containerRef}
-          onAddToChat={handleAddSelectionToChat}
+    // The find bar is a sibling of the scroller, not a child: pinned inside `containerRef` it would
+    // scroll away with the document the moment stepping moved the view.
+    <div className='relative flex min-h-0 flex-1 flex-col'>
+      {find.isOpen && (
+        <FindBar
+          ariaLabel='Find in document'
+          query={find.query}
+          onQueryChange={find.setQuery}
+          onNext={find.next}
+          onPrev={find.prev}
+          onClose={find.close}
+          count={find.count}
+          currentIndex={find.currentIndex}
+          truncated={find.truncated}
+          isLoading={false}
+          inputRef={find.inputRef}
         />
       )}
-      {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
-      {editor && <LinkHoverCard editor={editor} />}
-      <input
-        ref={imageInputRef}
-        type='file'
-        accept='image/*'
-        multiple
-        hidden
-        onChange={(event) => {
-          const input = event.currentTarget
-          const images = Array.from(input.files ?? []).filter((f) => f.type.startsWith('image/'))
-          const at =
-            pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
-          pendingImagePosRef.current = null
-          input.value = ''
-          if (images.length > 0) void insertImagesRef.current(images, at)
-        }}
-      />
-      {showPlaceholder && placeholderContent && (
-        <ReadOnlyPlaceholder content={placeholderContent} />
-      )}
-      <EditorContent
-        editor={editor}
-        className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
-      />
+      <div
+        ref={containerRef}
+        className={cn('relative flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
+      >
+        {editor && (
+          <EditorBubbleMenu
+            editor={editor}
+            scrollContainerRef={containerRef}
+            onAddToChat={handleAddSelectionToChat}
+          />
+        )}
+        {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+        {editor && <LinkHoverCard editor={editor} />}
+        <input
+          ref={imageInputRef}
+          type='file'
+          accept='image/*'
+          multiple
+          hidden
+          onChange={(event) => {
+            const input = event.currentTarget
+            const images = Array.from(input.files ?? []).filter((f) => f.type.startsWith('image/'))
+            const at =
+              pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
+            pendingImagePosRef.current = null
+            input.value = ''
+            if (images.length > 0) void insertImagesRef.current(images, at)
+          }}
+        />
+        {showPlaceholder && placeholderContent && (
+          <ReadOnlyPlaceholder content={placeholderContent} />
+        )}
+        <EditorContent
+          editor={editor}
+          className={cn(EDITOR_SURFACE_CLASS, showPlaceholder && 'hidden')}
+        />
+      </div>
     </div>
   )
 }
