@@ -20,6 +20,7 @@ export interface EnvFlagsMockState {
   isAuthDisabled: boolean
   egressAllowedHosts: string | undefined
   egressAllowedIpRanges: string | undefined
+  legacyPrivateDatabaseAccess: boolean
   isRegistrationDisabled: boolean
   isEmailPasswordEnabled: boolean
   isSignupMxValidationEnabled: boolean
@@ -70,6 +71,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAuthDisabled: false,
   egressAllowedHosts: undefined,
   egressAllowedIpRanges: undefined,
+  legacyPrivateDatabaseAccess: false,
   isRegistrationDisabled: false,
   isEmailPasswordEnabled: true,
   isSignupMxValidationEnabled: false,
@@ -119,6 +121,18 @@ const envFlagsState: EnvFlagsMockState = { ...defaultEnvFlagsState }
  * {@link resetEnvFlagsMock} restores the default implementations.
  */
 export const envFlagsMockFns = {
+  /**
+   * Egress config is exposed as functions by the real module, but held as
+   * mutable state here so a test can still write
+   * `envFlagsMock.egressAllowedHosts = '...'` and have the read observe it.
+   */
+  getEgressAllowedHosts: vi.fn<() => string | undefined>(() => envFlagsState.egressAllowedHosts),
+  getEgressAllowedIpRanges: vi.fn<() => string | undefined>(
+    () => envFlagsState.egressAllowedIpRanges
+  ),
+  isLegacyPrivateDatabaseAccessAllowed: vi.fn<() => boolean>(
+    () => envFlagsState.legacyPrivateDatabaseAccess
+  ),
   getAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(() => null),
   getPreviewBlocksFromEnv: vi.fn<() => string[]>(() => []),
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
@@ -153,6 +167,15 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
   envFlagsMockFns.getAllowedMcpDomainsFromEnv.mockReset().mockImplementation(() => null)
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
+  envFlagsMockFns.getEgressAllowedHosts
+    .mockReset()
+    .mockImplementation(() => envFlagsState.egressAllowedHosts)
+  envFlagsMockFns.getEgressAllowedIpRanges
+    .mockReset()
+    .mockImplementation(() => envFlagsState.egressAllowedIpRanges)
+  envFlagsMockFns.isLegacyPrivateDatabaseAccessAllowed
+    .mockReset()
+    .mockImplementation(() => envFlagsState.legacyPrivateDatabaseAccess)
 }
 
 /**

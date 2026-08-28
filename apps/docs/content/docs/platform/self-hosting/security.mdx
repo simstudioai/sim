@@ -138,7 +138,8 @@ Sim blocks outbound requests to private, reserved, and loopback addresses. This 
 
 | Provenance | Examples | Reaches allowlisted private destinations |
 |---|---|---|
-| Configured endpoint | A self-hosted vLLM, Jupyter, GitHub Enterprise, Grafana, ClickHouse, an MCP server, a connector's host | Yes |
+| Configured endpoint | GitHub Enterprise, Grafana, an MCP server, a data-drain destination, a connector's host | Yes |
+| Self-hosted service | vLLM, Jupyter, 1Password Connect, ClickHouse — software usually run on-prem without TLS, so plain HTTP is expected | Yes |
 | Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
 | Database host | A database, cache, or mail connector's host | Yes |
 | Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |

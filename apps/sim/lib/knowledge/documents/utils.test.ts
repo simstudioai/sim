@@ -802,7 +802,11 @@ describe('secureFetchWithRetry', () => {
     )
 
     await expect(
-      secureFetchWithRetry('https://attacker.test', { method: 'GET' }, FAST_RETRY)
+      secureFetchWithRetry(
+        'https://attacker.test',
+        { method: 'GET', profile: 'configuredEndpoint' },
+        FAST_RETRY
+      )
     ).rejects.toThrow('blocked IP address')
 
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
@@ -815,7 +819,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -828,7 +832,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -872,7 +876,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://api.github.com/repos',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -887,7 +891,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://api.github.com/repos',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -902,7 +906,7 @@ describe('secureFetchWithRetry', () => {
 
     const response = await secureFetchWithRetry(
       'https://example.com/api',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       FAST_RETRY
     )
 
@@ -918,7 +922,7 @@ describe('secureFetchWithRetry', () => {
 
     const error = await secureFetchWithRetry(
       'https://gitlab.example.com/api/v4/projects',
-      { method: 'GET' },
+      { method: 'GET', profile: 'configuredEndpoint' },
       { ...FAST_RETRY, maxRetries: 0 }
     ).then(
       () => undefined,

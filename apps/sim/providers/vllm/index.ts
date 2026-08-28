@@ -130,7 +130,7 @@ export const vllmProvider: ProviderConfig = {
       const validation = await validateUrlWithDNS(
         userProvidedEndpoint,
         'vLLM endpoint',
-        'configuredEndpoint'
+        'selfHostedService'
       )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via vLLM endpoint', {

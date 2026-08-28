@@ -23,7 +23,15 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
-const SCAN_DIRS = ['apps/sim/app', 'apps/sim/lib', 'apps/sim/tools', 'apps/sim/connectors']
+const SCAN_DIRS = [
+  'apps/sim/app',
+  'apps/sim/lib',
+  'apps/sim/tools',
+  'apps/sim/connectors',
+  'apps/sim/executor',
+  'apps/sim/providers',
+  'apps/sim/triggers',
+]
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 

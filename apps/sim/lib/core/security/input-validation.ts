@@ -1094,6 +1094,7 @@ const SERVICENOW_ALLOWED_HOST_SUFFIXES = [
  * @param options.paramName - Name of the parameter for error messages
  * @param options.assumeHttps - Accept a bare host by prepending `https://`
  * @param options.sanitize - What to return as `sanitized`: the input, or the parsed origin
+ * @param options.allowBareSuffix - Also accept the suffix itself as a hostname
  */
 function validateVendorHostedUrl(
   url: string | null | undefined,
@@ -1103,9 +1104,17 @@ function validateVendorHostedUrl(
     paramName: string
     assumeHttps?: boolean
     sanitize?: 'input' | 'origin'
+    allowBareSuffix?: boolean
   }
 ): ValidationResult {
-  const { suffixes, vendor, paramName, assumeHttps = false, sanitize = 'input' } = options
+  const {
+    suffixes,
+    vendor,
+    paramName,
+    assumeHttps = false,
+    sanitize = 'input',
+    allowBareSuffix = true,
+  } = options
 
   const raw = typeof url === 'string' ? url.trim() : ''
   if (!raw) {
@@ -1120,7 +1129,7 @@ function validateVendorHostedUrl(
   const parsed = new URL(candidate)
   const hostname = parsed.hostname.toLowerCase()
   const allowed = suffixes.some(
-    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix)
+    (suffix) => (allowBareSuffix && hostname === suffix.slice(1)) || hostname.endsWith(suffix)
   )
 
   if (!allowed) {
@@ -1278,6 +1287,7 @@ export function validateDatabricksWorkspaceHost(
     paramName,
     assumeHttps: true,
     sanitize: 'origin',
+    allowBareSuffix: false,
   })
 }
 

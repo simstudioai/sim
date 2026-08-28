@@ -134,44 +134,41 @@ if (isTruthy(env.DISABLE_AUTH)) {
     })
 }
 
-const legacyPrivateHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)
-
-/**
- * Ranges the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` stood for: it was a
- * blanket "reach anything private", so it maps to the private and loopback
- * space in full. Appended to whatever the operator listed explicitly, which is
- * why an unset flag contributes nothing. Cloud metadata stays unreachable
- * regardless — that block is not lifted by any allowlist.
- */
-const LEGACY_PRIVATE_RANGES =
-  '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16,::1/128,fc00::/7,fe80::/10'
-
-function joinConfig(...parts: Array<string | undefined>): string | undefined {
-  const joined = parts.filter((part) => part && part.trim().length > 0).join(',')
-  return joined.length > 0 ? joined : undefined
-}
-
 /**
  * Destinations on a private network that outbound requests may reach, as raw
  * operator config. Empty on the hosted platform regardless of what is set, so a
  * tenant can never pivot into Sim's own network — mirroring {@link isAuthDisabled}.
  *
- * Parsing and enforcement live in `@sim/security/egress`; these are passed
- * through unparsed because `env-flags` is loaded by `next.config.ts` before the
- * `@/` alias exists and must stay dependency-light.
+ * Read through a function rather than captured at module load so a changed value
+ * is picked up, and parsed in `@sim/security/egress` rather than here: this file
+ * is loaded by `next.config.ts` before the `@/` alias exists and must stay
+ * dependency-light.
  */
-export const egressAllowedHosts = isHosted
-  ? undefined
-  : joinConfig(env.EGRESS_ALLOWED_HOSTS, legacyPrivateHostsAllowed ? 'localhost' : undefined)
+export function getEgressAllowedHosts(): string | undefined {
+  return isHosted ? undefined : env.EGRESS_ALLOWED_HOSTS
+}
 
-export const egressAllowedIpRanges = isHosted
-  ? undefined
-  : joinConfig(
-      env.EGRESS_ALLOWED_IP_RANGES,
-      legacyPrivateHostsAllowed ? LEGACY_PRIVATE_RANGES : undefined
-    )
+export function getEgressAllowedIpRanges(): string | undefined {
+  return isHosted ? undefined : env.EGRESS_ALLOWED_IP_RANGES
+}
 
-if (legacyPrivateHostsAllowed) {
+/**
+ * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` is set.
+ *
+ * It stood for a blanket "database and connector tools may reach anything
+ * private", so it maps to a policy that vouches for every private address rather
+ * than to a range list — a list would silently drop the ranges it never
+ * enumerated, CGNAT (`100.64.0.0/10`, where Tailscale lives) among them.
+ *
+ * Scoped to database hosts, which is all the flag ever governed. Widening it to
+ * HTTP destinations would hand every workflow author on an upgrading deployment
+ * a route into the internal network they never granted.
+ */
+export function isLegacyPrivateDatabaseAccessAllowed(): boolean {
+  return !isHosted && isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)
+}
+
+if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
   import('@sim/logger')
     .then(({ createLogger }) => {
       const logger = createLogger('EnvFlags')
@@ -181,7 +178,7 @@ if (legacyPrivateHostsAllowed) {
         )
       } else {
         logger.warn(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is deprecated and opens the whole private address space. Replace it with EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES naming only the destinations you need.'
+          'ALLOW_PRIVATE_DATABASE_HOSTS is deprecated. It opens the whole private address space to database and connector tools. Replace it with EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES naming only the destinations you need.'
         )
       }
     })

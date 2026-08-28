@@ -16,8 +16,9 @@ vi.mock('@sim/security/dns', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isHosted: false,
-  egressAllowedHosts: undefined,
-  egressAllowedIpRanges: undefined,
+  getEgressAllowedHosts: () => undefined,
+  getEgressAllowedIpRanges: () => undefined,
+  isLegacyPrivateDatabaseAccessAllowed: () => false,
   getProxyUrl: () => undefined,
 }))
 

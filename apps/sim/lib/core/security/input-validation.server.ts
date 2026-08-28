@@ -125,10 +125,9 @@ export async function validateAndPinProxyUrl(
  * Validates a database hostname by resolving DNS and checking the resolved IP
  * against private/reserved ranges to prevent SSRF via database connections.
  *
- * Unlike validateHostname (which enforces strict RFC hostname format), this
- * function is permissive about hostname format to avoid breaking legitimate
- * database hostnames (e.g. underscores in Docker/K8s service names). It only
- * blocks localhost and private/reserved IPs.
+ * Permissive about hostname format, so a legitimate database host is not
+ * rejected on shape alone — Docker and K8s service names carry underscores that
+ * a strict RFC check would refuse. Only the address is judged.
  *
  * Self-hosted operators reach a database on their private network (e.g. a
  * Docker/Swarm service name that resolves to an internal IP) by naming it in the

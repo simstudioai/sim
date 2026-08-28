@@ -575,23 +575,35 @@ describe('validateDatabaseHost', () => {
       envFlagsMock.egressAllowedIpRanges = undefined
     })
 
-    it('keeps working for a deployment that still sets only the old flag', async () => {
-      // env-flags expands the flag into the full private space, so the alias
-      // reproduces the behavior those deployments have today.
-      envFlagsMock.egressAllowedHosts = 'localhost'
-      envFlagsMock.egressAllowedIpRanges =
-        '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16,::1/128,fc00::/7,fe80::/10'
+    afterEach(() => {
+      envFlagsMock.legacyPrivateDatabaseAccess = false
+    })
 
-      expect((await validateDatabaseHost('localhost')).isValid).toBe(true)
-      expect((await validateDatabaseHost('10.0.0.5')).isValid).toBe(true)
-      expect((await validateDatabaseHost('127.0.0.1')).isValid).toBe(true)
+    it.each([
+      ['localhost', 'loopback by name'],
+      ['127.0.0.1', 'loopback literal'],
+      ['10.0.0.5', 'RFC1918'],
+      ['100.64.0.1', 'CGNAT, where a Tailscale host lives'],
+    ])('keeps %s reachable for a deployment still on the old flag — %s', async (host) => {
+      envFlagsMock.legacyPrivateDatabaseAccess = true
+      expect((await validateDatabaseHost(host)).isValid).toBe(true)
     })
 
     it('still cannot reach cloud metadata through the alias', async () => {
-      envFlagsMock.egressAllowedIpRanges = '169.254.0.0/16'
+      envFlagsMock.legacyPrivateDatabaseAccess = true
       const result = await validateDatabaseHost('169.254.169.254')
       expect(result.isValid).toBe(false)
       expect(result.error).toContain('cloud metadata endpoint')
+    })
+
+    it('does not widen HTTP destinations, which the flag never governed', async () => {
+      envFlagsMock.legacyPrivateDatabaseAccess = true
+      expect(
+        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'requestTarget')).isValid
+      ).toBe(false)
+      expect(
+        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'configuredEndpoint')).isValid
+      ).toBe(false)
     })
   })
 

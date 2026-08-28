@@ -126,6 +126,12 @@ export interface EgressPolicy {
    * case, not a privilege.
    */
   readonly allowLoopback: boolean
+  /**
+   * Vouches for every private address without naming one. Exists only to
+   * reproduce the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS`, which bypassed the
+   * address check outright; a named allowlist is the supported form.
+   */
+  readonly allowPrivate: boolean
   readonly allowedHosts: readonly HostPattern[]
   readonly allowedRanges: readonly CidrRange[]
 }
@@ -143,6 +149,8 @@ export interface EgressPolicySpec {
   readonly insecureHttp?: InsecureHttpPolicy
   /** Whether loopback destinations are vouched for without being allowlisted. */
   readonly allowLoopback?: boolean
+  /** Whether every private address is vouched for. See {@link EgressPolicy.allowPrivate}. */
+  readonly allowPrivate?: boolean
   /**
    * Names of the settings these lists came from, used verbatim in the error a
    * malformed entry throws so the operator knows which value to fix.
@@ -212,6 +220,7 @@ export function createEgressPolicy(spec: EgressPolicySpec = {}): EgressPolicy {
   return {
     insecureHttp: spec.insecureHttp ?? 'never',
     allowLoopback: spec.allowLoopback ?? false,
+    allowPrivate: spec.allowPrivate ?? false,
     allowedHosts: splitEntries(spec.allowedHosts).map((entry) =>
       parseHostPattern(entry, sourceNames.hosts)
     ),
@@ -256,14 +265,25 @@ function isMetadataAddress(address: string): boolean {
  * Otherwise a resolved address inside an allowlisted range vouches for it, which
  * is why this cannot be decided before DNS for a hostname destination.
  */
+/**
+ * Whether the destination names itself as loopback — `localhost`, or a loopback
+ * IP literal.
+ *
+ * The loopback carve-out keys off this rather than off the resolved address, so
+ * a public hostname that happens to resolve to `127.0.0.1` does not inherit it.
+ * Letting the address decide would make every DNS name an attacker controls a
+ * route to the deployment's own loopback services.
+ */
+function isLoopbackDestination(host: string): boolean {
+  const clean = unwrapIpv6Brackets(host)
+  return isLoopbackHostname(clean) || isLoopbackIp(clean)
+}
+
 function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): boolean {
   if (matchesHostAllowlist(url.hostname, policy)) return true
-  // `localhost` is loopback by name, so a loopback-permitting policy can vouch
-  // for it before DNS — which is what lets the synchronous check accept a local
-  // dev server without pretending to know where an arbitrary hostname points.
-  if (policy.allowLoopback && isLoopbackHostname(url.hostname)) return true
+  if (policy.allowLoopback && isLoopbackDestination(url.hostname)) return true
   if (address === undefined) return false
-  if (policy.allowLoopback && isLoopbackIp(unwrapIpv6Brackets(address))) return true
+  if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return true
   return matchesRangeAllowlist(address, policy)
 }
 
@@ -338,7 +358,12 @@ export function evaluateUrl(url: URL, policy: EgressPolicy): EgressDecision {
  * through ones it does not.
  */
 export function policyCanVouch(policy: EgressPolicy): boolean {
-  return policy.allowedHosts.length > 0 || policy.allowedRanges.length > 0 || policy.allowLoopback
+  return (
+    policy.allowedHosts.length > 0 ||
+    policy.allowedRanges.length > 0 ||
+    policy.allowLoopback ||
+    policy.allowPrivate
+  )
 }
 
 /**

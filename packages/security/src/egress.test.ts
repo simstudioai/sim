@@ -157,6 +157,60 @@ describe('the same operator config is inert on the hosted posture', () => {
   })
 })
 
+describe('loopback is vouched by name, never by resolved address', () => {
+  const selfHostedLoopback = createEgressPolicy({
+    insecureHttp: 'whenVouched',
+    allowLoopback: true,
+  })
+
+  it.each([
+    ['http://localhost:11434/api', '127.0.0.1', 'a local Ollama'],
+    ['http://127.0.0.1:8888/tree', '127.0.0.1', 'a local Jupyter'],
+    ['http://[::1]:8080/', '::1', 'IPv6 loopback'],
+    ['http://127.0.0.5:8080/', '127.0.0.5', 'the rest of 127/8'],
+  ])('permits %s — %s', (href, address) => {
+    expect(decide(selfHostedLoopback, href, address).allowed).toBe(true)
+  })
+
+  it('refuses a public hostname that merely resolves to loopback', () => {
+    // The carve-out keys off the hostname. Keying it off the resolved address
+    // would turn any attacker-controlled DNS name into a route to loopback.
+    expect(reason(selfHostedLoopback, 'https://localtest.me/', '127.0.0.1')).toBe(
+      'address-loopback'
+    )
+    expect(reason(selfHostedLoopback, 'https://127.0.0.1.nip.io/', '127.0.0.1')).toBe(
+      'address-loopback'
+    )
+  })
+
+  it('does not extend the carve-out past loopback', () => {
+    expect(reason(selfHostedLoopback, 'https://svc.internal/', '10.0.0.5')).toBe('address-blocked')
+  })
+
+  it('is absent when the policy does not permit loopback', () => {
+    expect(reason(hosted, 'http://localhost:11434/api', '127.0.0.1')).toBe('insecure-scheme')
+  })
+})
+
+describe('allowPrivate — the deprecated blanket flag', () => {
+  const legacy = createEgressPolicy({ insecureHttp: 'whenVouched', allowPrivate: true })
+
+  it.each([
+    ['10.0.0.5', 'RFC1918'],
+    ['192.168.1.9', 'RFC1918'],
+    ['172.16.0.1', 'RFC1918'],
+    ['100.64.0.1', 'CGNAT — where Tailscale lives'],
+    ['127.0.0.1', 'loopback'],
+    ['198.18.0.1', 'benchmarking'],
+  ])('vouches for %s — %s', (address) => {
+    expect(decide(legacy, 'https://db.internal/', address).allowed).toBe(true)
+  })
+
+  it('still cannot reach cloud metadata', () => {
+    expect(reason(legacy, 'https://metadata/', '169.254.169.254')).toBe('address-metadata')
+  })
+})
+
 describe('denied ports', () => {
   it.each([
     ['22', 'SSH'],

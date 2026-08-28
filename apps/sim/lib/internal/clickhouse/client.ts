@@ -74,7 +74,7 @@ export async function requestClickHouse(
     },
     body: statement,
     timeout: REQUEST_TIMEOUT_MS,
-    profile: 'configuredEndpoint',
+    profile: 'selfHostedService',
     maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     redirectPolicy: {
       mode: 'standard',

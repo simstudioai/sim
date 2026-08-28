@@ -189,7 +189,7 @@ describe('vllmProvider', () => {
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com',
         'vLLM endpoint',
-        'configuredEndpoint'
+        'selfHostedService'
       )
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
@@ -208,7 +208,7 @@ describe('vllmProvider', () => {
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com/v1',
         'vLLM endpoint',
-        'configuredEndpoint'
+        'selfHostedService'
       )
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
       expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)

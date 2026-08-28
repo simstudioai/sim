@@ -43,7 +43,7 @@ describe('Jupyter client', () => {
     expect(securityMocks.validateUrlWithDNS).toHaveBeenCalledWith(
       'http://jupyter.example.com:8888/base/api/kernels',
       'serverUrl',
-      'configuredEndpoint'
+      'selfHostedService'
     )
     expect(securityMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
       'http://jupyter.example.com:8888/base/api/kernels',
@@ -55,7 +55,7 @@ describe('Jupyter client', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ name: 'python3' }),
-        profile: 'configuredEndpoint',
+        profile: 'selfHostedService',
         maxRedirects: 0,
         maxResponseBytes: 10 * 1024 * 1024,
         signal: controller.signal,
