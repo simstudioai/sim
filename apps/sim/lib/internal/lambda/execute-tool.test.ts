@@ -605,6 +605,42 @@ describe('executeLambdaTool', () => {
     expect(long.status).toBe(400)
   })
 
+  it('accepts a layer ARN as well as a bare layer name', async () => {
+    mockOperations.executeLambdaListLayerVersions.mockResolvedValue({ success: true, output: {} })
+    mockOperations.executeLambdaGetLayerVersion.mockResolvedValue({ success: true, output: {} })
+
+    const arn = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_list_layer_versions',
+        input: {
+          ...CONNECTION,
+          layerName: 'arn:aws:lambda:us-east-1:123456789012:layer:my-layer',
+        },
+      })
+    )
+    const bare = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_get_layer_version',
+        input: { ...CONNECTION, layerName: 'my-layer', versionNumber: 1 },
+      })
+    )
+
+    expect(arn.status).toBe(200)
+    expect(bare.status).toBe(200)
+  })
+
+  it('rejects a layer ARN whose account segment is not twelve digits', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_list_layer_versions',
+        input: { ...CONNECTION, layerName: 'arn:aws:lambda:us-east-1:notanaccount:layer:my-layer' },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaListLayerVersions).not.toHaveBeenCalled()
+  })
+
   it('rejects a layer name longer than the documented maximum', async () => {
     const response = await executeLambdaTool(
       createRequest({

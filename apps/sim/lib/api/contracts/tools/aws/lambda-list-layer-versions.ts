@@ -19,7 +19,7 @@ const ListLayerVersionsSchema = z.object({
     .min(1, 'layerName is required')
     .max(140, 'layerName cannot exceed 140 characters')
     .regex(
-      /^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:d{12}:layer:[a-zA-Z0-9-_]+)$|^[a-zA-Z0-9-_]+$/,
+      /^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\d{12}:layer:[a-zA-Z0-9-_]+)$|^[a-zA-Z0-9-_]+$/,
       'layerName must be a layer name or a layer ARN'
     ),
   compatibleRuntime: z.string().optional(),
