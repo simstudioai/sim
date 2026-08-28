@@ -334,6 +334,17 @@ describe('Copilot workflow run application commands', () => {
       expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
     })
 
+    /**
+     * Deliberate, and the one place this contract is deliberately coarse: `executeWorkflow`
+     * validates its own arguments before creating anything, and those failures still name
+     * the run. `attempted` means "zero or one executions exist under this id, resolve it",
+     * so the caller resolves, finds nothing, and retries — correct, at the cost of a lookup.
+     *
+     * Paying to avoid that lookup means an executor-side dispatch marker, which is a
+     * callback on every block of every execution in the product. It would also buy nothing:
+     * all four preflight throws are invariant violations — no workspace id, no billing
+     * attribution, no principal, attribution mismatch — so a retry fails identically.
+     */
     it('names the run for a failure inside the executor call, whatever its cause', async () => {
       mocks.executeWorkflow.mockRejectedValueOnce(
         new Error('Billing attribution is required for workspace execution')

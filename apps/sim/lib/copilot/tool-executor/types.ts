@@ -56,7 +56,14 @@ export interface ToolExecutionContext {
 export const TOOL_EFFECT_PHASE = {
   /** Rejected before anything could happen. Correcting the call and retrying is safe. */
   notAttempted: 'not_attempted',
-  /** Dispatched; zero or one effects may exist. Resolve by id before retrying. */
+  /**
+   * Dispatched; zero or one effects may exist. Resolve by id before retrying.
+   *
+   * Zero is a legitimate outcome here, not a defect: the id is a correlation key, not a
+   * promise that a row exists. Narrowing this to "a run definitely exists" would take
+   * per-block instrumentation across every execution in the product to spare one caller a
+   * lookup that answers the question definitively either way.
+   */
   attempted: 'attempted',
   /** The effect ran to completion, whatever its outcome. Never retry blind. */
   performed: 'performed',
