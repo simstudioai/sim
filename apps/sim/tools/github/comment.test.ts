@@ -130,4 +130,95 @@ describe('github_comment file comments', () => {
   it('no longer exposes the deprecated position parameter', () => {
     expect(commentTool.params.position).toBeUndefined()
   })
+
+  it('leaves an untouched block on the reviews endpoint when commentType is unset', () => {
+    const params: CreateCommentParams = {
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 7,
+      body: 'Nice',
+      apiKey: 'ghp_test',
+    }
+    const url = commentTool.request.url as (params: CreateCommentParams) => string
+    const method = commentTool.request.method as (params: CreateCommentParams) => string
+
+    expect(url(params)).toBe('https://api.github.com/repos/octo/demo/pulls/7/reviews')
+    expect(method(params)).toBe('POST')
+    expect(commentTool.request.body?.(params)).toEqual({ body: 'Nice', event: 'COMMENT' })
+  })
+
+  it('never looks the pull request up for a general PR comment carrying a path', () => {
+    const params: CreateCommentParams = {
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 7,
+      body: 'Nice',
+      path: 'src/main.ts',
+      commentType: 'pr_comment',
+      apiKey: 'ghp_test',
+    }
+    const url = commentTool.request.url as (params: CreateCommentParams) => string
+    const method = commentTool.request.method as (params: CreateCommentParams) => string
+
+    expect(url(params)).toBe('https://api.github.com/repos/octo/demo/pulls/7/comments')
+    expect(method(params)).toBe('POST')
+    expect(commentTool.request.body?.(params)).toEqual({ body: 'Nice', event: 'COMMENT' })
+  })
+
+  it('posts a file comment left without a path to the reviews endpoint', () => {
+    const { path, ...params } = FILE_COMMENT_PARAMS
+    const url = commentTool.request.url as (params: CreateCommentParams) => string
+    const method = commentTool.request.method as (params: CreateCommentParams) => string
+
+    expect(url(params)).toBe('https://api.github.com/repos/octo/demo/pulls/7/reviews')
+    expect(method(params)).toBe('POST')
+  })
+
+  it('does not fetch the pull request for a file comment left without a path', async () => {
+    const { path, ...params } = FILE_COMMENT_PARAMS
+
+    const result = await commentTool.transformResponse!(createdCommentResponse(), params)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+  })
+
+  it('coerces a line number typed into the short input to an integer', () => {
+    const params = {
+      ...FILE_COMMENT_PARAMS,
+      commitId: 'b'.repeat(40),
+      line: '42' as unknown as number,
+    }
+
+    expect(commentTool.request.body?.(params)).toEqual({
+      body: 'Looks good',
+      commit_id: 'b'.repeat(40),
+      path: 'src/main.ts',
+      line: 42,
+      side: 'RIGHT',
+    })
+  })
+
+  it('coerces the line on the resolved-commit path as well', async () => {
+    fetchMock.mockResolvedValueOnce(createdCommentResponse())
+    const params = { ...FILE_COMMENT_PARAMS, line: '42' as unknown as number }
+
+    await commentTool.transformResponse!(pullRequestResponse(), params)
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).line).toBe(42)
+  })
+
+  it('omits a blank or unparseable line rather than sending NaN', () => {
+    for (const line of ['', '   ', 'abc', undefined, null]) {
+      const params = {
+        ...FILE_COMMENT_PARAMS,
+        commitId: 'b'.repeat(40),
+        line: line as unknown as number,
+      }
+      const body = commentTool.request.body?.(params) as Record<string, unknown>
+
+      expect(body).toHaveProperty('line')
+      expect(body.line).toBeUndefined()
+    }
+  })
 })
