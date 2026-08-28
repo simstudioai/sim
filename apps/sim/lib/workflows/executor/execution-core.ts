@@ -49,7 +49,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { ExecutionResult, StartBlockRunMetadata } from '@/executor/types'
-import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
   createResolvedSecretTraceRegistry,
@@ -117,7 +117,6 @@ export interface ExecuteWorkflowCoreOptions {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   stopAfterBlockId?: string
-  onBlocksMayRun?: () => void
   /** Trusted encrypted provenance captured by a server-only pre-execution boundary. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Immutable deployment admitted by the durable parent log for a resumed execution. */
@@ -425,7 +424,6 @@ async function executeWorkflowCoreImpl(
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
   let loggingStarted = false
-  let executorStarted = false
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
   const pendingLifecycleCallbacks = new Set<Promise<void>>()
 
@@ -962,20 +960,6 @@ async function executeWorkflowCoreImpl(
 
     const principalSubject = resolvePrincipalSubject(metadata.principal)
     const contextExtensions: ContextExtensions = {
-      /**
-       * The only honest answer to "could a side effect have occurred", and the executor is
-       * the only thing that knows it: everything before this — DAG construction, snapshot
-       * restoration, pipeline assembly — can reject a request having changed nothing.
-       *
-       * The logging session was the wrong proxy in both directions. `safeStart`'s result is
-       * never checked, so blocks run even when it fails, reporting that nothing started for
-       * a run that did; and it flips before trigger resolution and serialization, reporting
-       * a run for failures that never reached a block.
-       */
-      onBlocksMayRun: () => {
-        executorStarted = true
-        options.onBlocksMayRun?.()
-      },
       stream: !!onStream,
       selectedOutputs,
       executionId,
@@ -1113,13 +1097,6 @@ async function executeWorkflowCoreImpl(
 
     return result
   } catch (error: unknown) {
-    /**
-     * Named only once a block could have run. The thrown value is rethrown exactly as
-     * received, including a non-Error one, because the finalization guard below identifies
-     * it; a primitive therefore carries no id, which costs nothing today because every throw
-     * site past this point raises an Error.
-     */
-    if (executorStarted) attachAttemptedExecutionId(error, executionId)
     const errorCause = describeErrorCause(error)
     logger.error(
       `[${requestId}] Execution failed:`,

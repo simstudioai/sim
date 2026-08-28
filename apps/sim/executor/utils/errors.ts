@@ -67,27 +67,6 @@ export function attachAttemptedExecutionId(error: unknown, executionId: string):
   attemptedExecutionIds.set(error, executionId)
 }
 
-/**
- * Whether a block handler ran, keyed by the outcome that carries it — a result or a throw.
- *
- * Recorded rather than inferred. Every property of an outcome that looks like it answers
- * this is a proxy that disagrees on the paths that matter: an engine failing before its
- * first block still carries an `ExecutionResult`, and a run that ends without one still ran
- * every block it had. Only the executor knows, so only the executor says.
- */
-const observedBlockDispatch = new WeakMap<object, boolean>()
-
-/** Records the executor's answer against the outcome a caller will read it from. */
-export function recordBlocksMayHaveRun(outcome: unknown, blocksMayHaveRun: boolean): void {
-  if (!isRecordedThrown(outcome)) return
-  observedBlockDispatch.set(outcome, blocksMayHaveRun)
-}
-
-/** Undefined when nothing observed this run, which callers must treat conservatively. */
-export function readBlocksMayHaveRun(outcome: unknown): boolean | undefined {
-  return isRecordedThrown(outcome) ? observedBlockDispatch.get(outcome) : undefined
-}
-
 /** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
 export function readAttemptedExecutionId(error: unknown): string | undefined {
   return isRecordedThrown(error) ? attemptedExecutionIds.get(error) : undefined

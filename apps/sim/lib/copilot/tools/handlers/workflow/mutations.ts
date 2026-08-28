@@ -29,11 +29,7 @@ import {
   setWorkflowBlockEnabled,
 } from '@/lib/workflows/application/update-workflow-content'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import {
-  hasExecutionResult,
-  readAttemptedExecutionId,
-  readBlocksMayHaveRun,
-} from '@/executor/utils/errors'
+import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/errors'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 function stripBinaryFields(value: unknown): unknown {
@@ -65,29 +61,23 @@ function runRejected(error: string): ToolCallResult {
 }
 
 /**
- * Derives the phase from two facts, neither of them guessed.
+ * The phase of a run whose result came back, from how that run ended.
  *
- * `blocksMayHaveRun` comes from the executor and is the only thing that separates a run
- * with side effects from a request that was refused; the status says whether that run
- * reached the end of its work. Undefined means nothing observed the run, which is treated
- * as "it may have" — over-reporting costs a lookup, under-reporting duplicates work.
+ * A result in hand means the executor reached a terminal state and recorded it, so the
+ * caller can read the whole story by id — `performed`. Cancelled and paused stopped partway
+ * and may have run every block, one, or none, which is exactly what `attempted` says.
+ *
+ * Deliberately does not separate "ran no blocks" from "ran some". Establishing that would
+ * take a callback on every block of every execution in the product, and buys the caller
+ * nothing it cannot get by resolving the id it was already handed.
  */
-function executionPhase(
-  blocksMayHaveRun: boolean | undefined,
-  status: ExecutionResultStatus
-): ToolEffectPhase {
-  if (blocksMayHaveRun === false) return TOOL_EFFECT_PHASE.notAttempted
+function settledPhase(status: ExecutionResultStatus): ToolEffectPhase {
   return status === 'cancelled' || status === 'paused'
     ? TOOL_EFFECT_PHASE.attempted
     : TOOL_EFFECT_PHASE.performed
 }
 
 type ExecutionResultStatus = 'completed' | 'paused' | 'cancelled' | undefined
-
-/** The phase of a run that returned, from what the executor observed about it. */
-function runPhase(result: { status?: ExecutionResultStatus }): ToolEffectPhase {
-  return executionPhase(readBlocksMayHaveRun(result), result.status)
-}
 
 function buildExecutionOutput(
   result: {
@@ -123,12 +113,7 @@ function buildExecutionError(error: unknown): ToolCallResult {
         success: false,
         error: error.executionResult.error || 'Workflow execution failed',
       },
-      /**
-       * Read off the error, not the spread copy above: the executor recorded its answer
-       * against the value it threw, and spreading makes a new object the record cannot
-       * follow.
-       */
-      executionPhase(readBlocksMayHaveRun(error), error.executionResult.status)
+      settledPhase(error.executionResult.status)
     )
   }
   logger.error('Copilot workflow execution command failed', { error })
@@ -291,7 +276,7 @@ export async function executeRunWorkflow(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, runPhase(result))
+    return buildExecutionOutput(result, settledPhase(result.status))
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -413,7 +398,7 @@ export async function executeRunWorkflowUntilBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, runPhase(result), {
+    return buildExecutionOutput(result, settledPhase(result.status), {
       stoppedAfterBlockId: params.stopAfterBlockId,
     })
   } catch (error) {
@@ -490,7 +475,9 @@ export async function executeRunFromBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, runPhase(result), { startBlockId: params.startBlockId })
+    return buildExecutionOutput(result, settledPhase(result.status), {
+      startBlockId: params.startBlockId,
+    })
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -576,7 +563,7 @@ export async function executeRunBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, runPhase(result), { blockId: params.blockId })
+    return buildExecutionOutput(result, settledPhase(result.status), { blockId: params.blockId })
   } catch (error) {
     return buildExecutionError(error)
   }

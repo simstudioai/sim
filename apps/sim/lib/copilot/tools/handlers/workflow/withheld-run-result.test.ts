@@ -1,15 +1,20 @@
 /**
  * @vitest-environment node
  *
- * Pins what a caller can learn about a workflow run whose result the secret-egress
- * boundary withholds.
+ * What a caller can learn about a workflow run whose result the secret-egress boundary
+ * withholds.
  *
- * The registry here is latched the way production latches it — a child run that handed
- * back no provenance envelope — rather than by asserting an "unsafe" flag, so the test
- * fails for the same reason the incident did. Three outcomes that need opposite retry
- * decisions are driven through the real handler and the real projection: a call rejected
- * on its arguments, a call that threw after dispatch, and a run that completed. All three
- * used to arrive as the same sentence.
+ * The registry is latched the way production latches one — a child run that returned no
+ * provenance envelope — rather than by asserting an "unsafe" flag, so these fail for the
+ * same reason the incident did. Every outcome the copilot run path can produce is driven
+ * through the real handler and the real projection and asserted on two axes: the retry
+ * decision a caller can reach, which is the point of the disclosure, and that no run
+ * content crosses, which is the point of the boundary.
+ *
+ * The phases are deliberately coarse. `attempted` and `performed` both mean "an execution
+ * exists under this id". Separating "ran no blocks" from "ran some" would take a callback
+ * on every block of every execution in the product, and buys a caller nothing it cannot get
+ * by resolving the id it was handed.
  */
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,13 +24,11 @@ import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import { attachAttemptedExecutionId } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mocks } = vi.hoisted(() => ({
-  mocks: { executeWorkflowUseCase: vi.fn() },
-}))
+const { mocks } = vi.hoisted(() => ({ mocks: { executeWorkflowUseCase: vi.fn() } }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: mocks.executeWorkflowUseCase,
-  /** Passthrough, so a masked message is visible as masking rather than as a fallback. */
+  /** Passthrough, so a masked message reads as masking rather than as a fallback. */
   messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
     getErrorMessage(error, fallback),
 }))
@@ -34,15 +37,15 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
   sanitizeForCopilot: vi.fn((state) => state),
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { apiKeyGenerated: vi.fn() },
-}))
+vi.mock('@/lib/core/telemetry', () => ({ PlatformEvents: { apiKeyGenerated: vi.fn() } }))
 
 import { executeRunWorkflow } from '@/lib/copilot/tools/handlers/workflow/mutations'
 
 const EXECUTION_ID = '0f4d5a4c-6a1e-4c2f-9b7d-2c8f1a3e5d90'
-/** Above the 8-char substitution floor, and deliberately not shaped like any real
- * provider credential — a realistic-looking fixture makes secret scanners flag this file. */
+/**
+ * Above the eight-character substitution floor, and deliberately not shaped like a real
+ * provider credential — a realistic fixture makes secret scanners flag this file.
+ */
 const SECRET = 'fake-secret-for-test-only'
 
 const context = {
@@ -66,126 +69,161 @@ async function latchedRegistry(): Promise<ResolvedSecretTraceRegistry> {
   return registry
 }
 
-async function withheld(result: ToolExecutionResult) {
-  const registry = await latchedRegistry()
-  const projection = inspectToolResultForCopilot(result, registry, 'run_workflow')
-  expect(projection.safe).toBe(false)
-  return projection
+/** A run dense with the active secret, so a leak cannot pass unnoticed. */
+function secretBearingResult(extra: Record<string, unknown> = {}) {
+  return {
+    success: true,
+    output: { report: `PASS ${SECRET}`, nested: { key: SECRET } },
+    logs: [{ blockName: 'report', output: SECRET }],
+    metadata: { executionId: EXECUTION_ID, duration: 2800 },
+    ...extra,
+  }
 }
 
-function modelOutput(result: ToolExecutionResult): Record<string, unknown> {
-  expect(result.output).toBeTypeOf('object')
-  return result.output as Record<string, unknown>
+function dispatchFailure(): Error {
+  const error = new Error(`crashed reading ${SECRET}`)
+  // What `executeCopilotRun` does once the run has been handed to the executor.
+  attachAttemptedExecutionId(error, EXECUTION_ID)
+  return error
+}
+
+interface Outcome {
+  label: string
+  arrange: () => void
+  effect: string
+  /** Whether the caller may re-issue the call without resolving anything first. */
+  safeToRetry: boolean
+  succeeded: boolean
+}
+
+const OUTCOMES: Outcome[] = [
+  {
+    label: 'refused before the executor was handed the run',
+    arrange: () => mocks.executeWorkflowUseCase.mockRejectedValue(new Error('Access denied')),
+    effect: 'not_attempted',
+    safeToRetry: true,
+    succeeded: false,
+  },
+  {
+    label: 'failed after the executor was handed the run',
+    arrange: () => mocks.executeWorkflowUseCase.mockRejectedValue(dispatchFailure()),
+    effect: 'attempted',
+    safeToRetry: false,
+    succeeded: false,
+  },
+  {
+    label: 'cancelled partway',
+    arrange: () =>
+      mocks.executeWorkflowUseCase.mockResolvedValue(
+        secretBearingResult({ success: false, status: 'cancelled' })
+      ),
+    effect: 'attempted',
+    safeToRetry: false,
+    succeeded: false,
+  },
+  {
+    label: 'paused partway',
+    arrange: () =>
+      mocks.executeWorkflowUseCase.mockResolvedValue(
+        secretBearingResult({ success: false, status: 'paused' })
+      ),
+    effect: 'attempted',
+    safeToRetry: false,
+    succeeded: false,
+  },
+  {
+    label: 'ran and failed',
+    arrange: () =>
+      mocks.executeWorkflowUseCase.mockResolvedValue(
+        secretBearingResult({ success: false, error: `Block failed with ${SECRET}` })
+      ),
+    effect: 'performed',
+    safeToRetry: false,
+    succeeded: false,
+  },
+  {
+    label: 'ran and completed',
+    arrange: () => mocks.executeWorkflowUseCase.mockResolvedValue(secretBearingResult()),
+    effect: 'performed',
+    safeToRetry: false,
+    succeeded: true,
+  },
+]
+
+async function withhold(): Promise<ToolExecutionResult> {
+  const settled = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
+  const projection = inspectToolResultForCopilot(settled, await latchedRegistry(), 'run_workflow')
+  expect(projection.safe).toBe(false)
+  return projection.result
 }
 
 describe('a withheld run_workflow result', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.executeWorkflowUseCase.mockReset()
   })
 
-  it('says nothing was created when the call never reached dispatch', async () => {
+  it('says nothing was created when the call never reached the use case', async () => {
     const rejected = await executeRunWorkflow({}, { ...context, workflowId: undefined })
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
 
-    const { result } = await withheld(rejected)
+    const { result } = inspectToolResultForCopilot(
+      rejected,
+      await latchedRegistry(),
+      'run_workflow'
+    )
 
-    expect(result.success).toBe(false)
-    expect(modelOutput(result)).toEqual({ resultWithheld: true, effect: 'not_attempted' })
+    expect(result.output).toEqual({ resultWithheld: true, effect: 'not_attempted' })
     expect(result.error).toContain('nothing was created')
   })
 
-  it('names the run to resolve when the call threw after dispatch', async () => {
-    const error = new Error(`Execution crashed reading ${SECRET}`)
-    attachAttemptedExecutionId(error, EXECUTION_ID)
-    mocks.executeWorkflowUseCase.mockRejectedValue(error)
+  it.each(OUTCOMES)('discloses a run that was $label', async ({ arrange, effect, succeeded }) => {
+    arrange()
+    const result = await withhold()
 
-    const failed = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const { result } = await withheld(failed)
-
-    expect(result.success).toBe(false)
-    expect(modelOutput(result)).toEqual({
+    expect(result.success).toBe(succeeded)
+    expect(result.output).toEqual({
       resultWithheld: true,
-      effect: 'attempted',
-      executionId: EXECUTION_ID,
-    })
-    expect(result.error).toContain('At most one run exists')
-  })
-
-  it('names the run to read when it completed', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      success: true,
-      output: { report: `PASS ${SECRET}` },
-      logs: [{ blockName: 'report', output: SECRET }],
-      metadata: { executionId: EXECUTION_ID, duration: 2800 },
-    })
-
-    const completed = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-    const { result } = await withheld(completed)
-
-    expect(result.success).toBe(true)
-    expect(modelOutput(result)).toEqual({
-      resultWithheld: true,
-      effect: 'performed',
-      executionId: EXECUTION_ID,
+      effect,
+      // An id is present exactly when there is something to resolve.
+      ...(effect === 'not_attempted' ? {} : { executionId: EXECUTION_ID }),
     })
   })
 
-  /** The defect itself: these three needed opposite retry decisions and read identically. */
-  it('distinguishes the three outcomes from one another', async () => {
-    const rejected = await executeRunWorkflow({}, { ...context, workflowId: undefined })
+  it.each(OUTCOMES)('never leaks run content for a run that was $label', async ({ arrange }) => {
+    arrange()
+    const serialized = JSON.stringify(await withhold())
 
-    const thrown = new Error('boom')
-    attachAttemptedExecutionId(thrown, EXECUTION_ID)
-    mocks.executeWorkflowUseCase.mockRejectedValue(thrown)
-    const failed = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-
-    mocks.executeWorkflowUseCase.mockReset()
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      success: true,
-      output: {},
-      metadata: { executionId: EXECUTION_ID, duration: 1 },
-    })
-    const completed = await executeRunWorkflow({ workflowId: 'wf-1' }, context)
-
-    const views = await Promise.all(
-      [rejected, failed, completed].map(async (r) => JSON.stringify((await withheld(r)).result))
-    )
-
-    expect(new Set(views).size).toBe(3)
-    expect(views[0]).not.toContain(EXECUTION_ID)
-    expect(views[1]).toContain(EXECUTION_ID)
-    expect(views[2]).toContain(EXECUTION_ID)
-  })
-
-  /** A frozen failure cannot take a property, and losing the id here would invite a duplicate run. */
-  it('still names the run when the failure cannot be written to', async () => {
-    const error = Object.freeze(new Error('crashed'))
-    attachAttemptedExecutionId(error, EXECUTION_ID)
-    mocks.executeWorkflowUseCase.mockRejectedValue(error)
-
-    const { result } = await withheld(await executeRunWorkflow({ workflowId: 'wf-1' }, context))
-
-    expect(modelOutput(result)).toEqual({
-      resultWithheld: true,
-      effect: 'attempted',
-      executionId: EXECUTION_ID,
-    })
-  })
-
-  it('never lets the withheld payload carry the run content past the boundary', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      success: false,
-      output: { report: `FAIL ${SECRET}` },
-      logs: [{ output: SECRET }],
-      error: `Block failed with ${SECRET}`,
-      metadata: { executionId: EXECUTION_ID, duration: 10 },
-    })
-
-    const { result } = await withheld(await executeRunWorkflow({ workflowId: 'wf-1' }, context))
-
-    const serialized = JSON.stringify(result)
     expect(serialized).not.toContain(SECRET)
-    expect(serialized).not.toContain('FAIL')
+    expect(serialized).not.toContain('PASS')
     expect(serialized).not.toContain('Block failed')
+    expect(serialized).not.toContain('crashed')
+  })
+
+  /**
+   * The property the disclosure exists for: a caller can decide about retry from the
+   * response alone, and can never conclude "nothing happened" about a run that exists.
+   */
+  it('lets a caller decide retry safety without resolving anything', async () => {
+    for (const outcome of OUTCOMES) {
+      mocks.executeWorkflowUseCase.mockReset()
+      outcome.arrange()
+      const output = (await withhold()).output as Record<string, unknown>
+
+      expect(output.effect === 'not_attempted', outcome.label).toBe(outcome.safeToRetry)
+      expect(Object.hasOwn(output, 'executionId'), outcome.label).toBe(!outcome.safeToRetry)
+    }
+  })
+
+  /** The defect this replaced: every one of these arrived as the same sentence. */
+  it('distinguishes outcomes that need different decisions', async () => {
+    const seen = new Set<string>()
+    for (const outcome of OUTCOMES) {
+      mocks.executeWorkflowUseCase.mockReset()
+      outcome.arrange()
+      seen.add(JSON.stringify(await withhold()))
+    }
+    // Retry, resolve-then-decide, and read-the-result are the three distinct answers.
+    expect(seen.size).toBeGreaterThanOrEqual(3)
   })
 })

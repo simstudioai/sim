@@ -68,7 +68,7 @@ import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { attachAttemptedExecutionId, readAttemptedExecutionId } from '@/executor/utils/errors'
+import { readAttemptedExecutionId } from '@/executor/utils/errors'
 
 const principal = {
   kind: 'delegated' as const,
@@ -308,9 +308,13 @@ describe('Copilot workflow run application commands', () => {
   })
 
   /**
-   * A caller whose result was withheld can only decide about retry from whether a run exists.
-   * `executeWorkflow` owns that boundary and names the run itself once it crosses it; this
-   * layer only covers the window it cannot see — a failure after the run already returned.
+   * A caller whose result was withheld decides about retry from one fact: whether a run
+   * exists. This layer owns that answer, because it is the last place that can distinguish
+   * "we never handed the work to the executor" from "we did".
+   *
+   * Deliberately coarse. A preflight refusal inside `executeWorkflow` also names the run,
+   * costing the caller one lookup; establishing anything finer would take a callback on
+   * every block of every execution in the product.
    */
   describe('naming the run a failure belongs to', () => {
     const runInput = {
@@ -324,21 +328,23 @@ describe('Copilot workflow run application commands', () => {
     const failWith = (input = runInput) =>
       runWorkflowFromCopilot.execute({ principal, input }).catch((thrown) => thrown)
 
-    it('passes through the id executeWorkflow attached at its dispatch boundary', async () => {
-      mocks.executeWorkflow.mockImplementationOnce(() => {
-        // Exactly what the execution core does once a block could have run.
-        const dispatchFailure = new Error('database unavailable')
-        attachAttemptedExecutionId(dispatchFailure, 'child-execution-1')
-        throw dispatchFailure
-      })
+    it('names the run once it has been handed to the executor', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
+
+      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
+    })
+
+    it('names the run for a failure inside the executor call, whatever its cause', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(
+        new Error('Billing attribution is required for workspace execution')
+      )
 
       expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
     })
 
     it('names the run when the crossing threw after it already returned', async () => {
-      // Only the post-run crossing throws; the catch re-enters this same method to
-      // record the failed crossing, and throwing again there would replace the very
-      // error the id was attached to.
+      // Only the post-run crossing throws; the catch re-enters this same method to record
+      // the failed crossing, and throwing again there would replace the error the id is on.
       let crossings = 0
       const registry = {
         exportProvenanceForValue: () => undefined,
@@ -354,14 +360,6 @@ describe('Copilot workflow run application commands', () => {
       } as typeof runInput)
 
       expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
-    })
-
-    it('names nothing when a preflight failure never reached dispatch', async () => {
-      mocks.executeWorkflow.mockRejectedValueOnce(
-        new Error('Billing attribution is required for workspace execution')
-      )
-
-      expect(readAttemptedExecutionId(await failWith())).toBeUndefined()
     })
 
     it('names nothing when admission refused the run before it could start', async () => {

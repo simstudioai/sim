@@ -415,7 +415,6 @@ export class DAGExecutor {
 
     const context: ExecutionContext = {
       workflowId,
-      onBlocksMayRun: this.contextExtensions.onBlocksMayRun,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,

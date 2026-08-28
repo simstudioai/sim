@@ -10,7 +10,6 @@ const { mocks } = vi.hoisted(() => ({
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
     readAttemptedExecutionId: vi.fn(),
-    readBlocksMayHaveRun: vi.fn(),
   },
 }))
 
@@ -31,7 +30,6 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
 vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: mocks.hasExecutionResult,
   readAttemptedExecutionId: mocks.readAttemptedExecutionId,
-  readBlocksMayHaveRun: mocks.readBlocksMayHaveRun,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -62,8 +60,6 @@ describe('workflow mutation Copilot adapters', () => {
     vi.clearAllMocks()
     mocks.hasExecutionResult.mockReturnValue(false)
     mocks.readAttemptedExecutionId.mockReturnValue(undefined)
-    // Default: the executor saw a block run, which is the ordinary case.
-    mocks.readBlocksMayHaveRun.mockReturnValue(true)
   })
 
   it('maps encoded folder aliases into one create application command', async () => {
@@ -298,20 +294,6 @@ describe('workflow mutation Copilot adapters', () => {
       },
       run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
       effect: { phase: 'attempted', ids: { executionId: 'execution-1' } },
-    },
-    {
-      label: 'refused by the engine before any block ran',
-      arrange: () => {
-        mocks.readBlocksMayHaveRun.mockReturnValue(false)
-        mocks.executeWorkflowUseCase.mockResolvedValueOnce({
-          success: false,
-          output: {},
-          logs: [],
-          metadata: { executionId: 'execution-1' },
-        })
-      },
-      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
-      effect: { phase: 'not_attempted', ids: { executionId: 'execution-1' } },
     },
     {
       label: 'cancelled before it could finish',

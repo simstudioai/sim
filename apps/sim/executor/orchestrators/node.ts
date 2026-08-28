@@ -95,16 +95,6 @@ export class NodeExecutionOrchestrator {
       }
     }
 
-    /**
-     * The block handler, and therefore the first moment a side effect is possible. Every
-     * earlier position was a proxy with something in front of it — engine startup, the
-     * cancellation subscription, queue setup, and above this line a cache hit, loop and
-     * parallel scope initialization, and a sentinel that returns without reaching a handler.
-     * Nothing separates this call from the handler, so nothing can precede it.
-     *
-     * Fired per block rather than once; observers record a boolean, so repeats are free.
-     */
-    ctx.onBlocksMayRun?.()
     const output = await this.blockExecutor.execute(ctx, node, node.block)
     const isFinalOutput = node.outgoingEdges.size === 0
     return {
