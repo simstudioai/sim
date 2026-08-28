@@ -1,11 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Fails when production code reads an executable ToolConfig request member outside the canonical
- * transport. Tool definitions may declare request config, but only request-transport.ts may
- * materialize its URL, method, headers, or body. The direct-access check is intentionally
- * syntactic and zero-exception: ordinary nested request objects must first be bound to a local
- * before their wire members are read, keeping the reserved ToolConfig shape impossible to
- * reintroduce silently.
+ * Enforces the two tool execution boundaries: external ToolConfig requests are materialized only
+ * by request-transport.ts, while same-process work uses registered InternalToolConfig operations.
+ * Tool definitions may not point back to Sim API routes or revive the retired request.internal
+ * escape hatch.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
@@ -25,22 +23,17 @@ interface Violation {
   expression: string
 }
 
-export interface RequestTrustViolation {
+export interface ToolSelfHopViolation {
   file: string
   line: number
   toolId?: string
-  reason:
-    | 'missing-internal-policy'
-    | 'invalid-internal-policy'
-    | 'internal-policy-without-internal-route'
-    | 'mixed-route-requires-conditional-policy'
-    | 'unsafe-internal-path-interpolation'
+  reason: 'same-origin-tool-request' | 'legacy-internal-policy'
 }
 
-export interface RequestTrustAudit {
-  violations: RequestTrustViolation[]
-  dynamicInternalRoutes: number
-  dynamicInternalPolicies: number
+export interface ToolSelfHopAudit {
+  violations: ToolSelfHopViolation[]
+  detectedSelfHops: number
+  legacyInternalPolicies: number
 }
 
 interface SyntaxNode extends Record<string, unknown> {
@@ -174,29 +167,6 @@ function isInternalPathExpression(expression: SyntaxNode): boolean {
   return false
 }
 
-function isExternalUrlExpression(expression: SyntaxNode): boolean {
-  const current = unwrapExpression(expression)
-  const prefix = getStringPrefix(current)
-  if (prefix && /^https?:\/\//.test(prefix)) return true
-
-  if (current.type === 'ConditionalExpression') {
-    return (
-      (isSyntaxNode(current.consequent) && isExternalUrlExpression(current.consequent)) ||
-      (isSyntaxNode(current.alternate) && isExternalUrlExpression(current.alternate))
-    )
-  }
-  if (
-    current.type === 'LogicalExpression' ||
-    (current.type === 'BinaryExpression' && current.operator === '+')
-  ) {
-    return (
-      (isSyntaxNode(current.left) && isExternalUrlExpression(current.left)) ||
-      (isSyntaxNode(current.right) && isExternalUrlExpression(current.right))
-    )
-  }
-  return false
-}
-
 function getUrlConstructionPrefix(node: SyntaxNode): string | undefined {
   const current = unwrapExpression(node)
   if (
@@ -215,11 +185,6 @@ function getUrlConstructionPrefix(node: SyntaxNode): string | undefined {
 
 function isInternalUrlConstruction(node: SyntaxNode): boolean {
   return getUrlConstructionPrefix(node)?.startsWith('/api/') === true
-}
-
-function isExternalUrlConstruction(node: SyntaxNode): boolean {
-  const prefix = getUrlConstructionPrefix(node)
-  return prefix !== undefined && /^https?:\/\//.test(prefix)
 }
 
 function functionContainsInternalRoute(fn: SyntaxNode): boolean {
@@ -255,224 +220,6 @@ function functionContainsInternalRoute(fn: SyntaxNode): boolean {
   return found
 }
 
-function functionContainsExternalRoute(fn: SyntaxNode): boolean {
-  const current = unwrapExpression(fn)
-  if (
-    !['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
-  ) {
-    return false
-  }
-  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
-    const body = unwrapExpression(current.body)
-    if (body.type !== 'BlockStatement' && isExternalUrlExpression(body)) return true
-  }
-
-  let found = false
-  const visit = (node: SyntaxNode) => {
-    if (found) return
-    if (
-      node.type === 'ReturnStatement' &&
-      isSyntaxNode(node.argument) &&
-      isExternalUrlExpression(node.argument)
-    ) {
-      found = true
-      return
-    }
-    if (isExternalUrlConstruction(node)) {
-      found = true
-      return
-    }
-    for (const child of getChildNodes(node)) visit(child)
-  }
-  visit(current)
-  return found
-}
-
-function collectBindingIdentifiers(pattern: SyntaxNode, bindings: Set<string>): void {
-  const current = unwrapExpression(pattern)
-  if (current.type === 'Identifier' && typeof current.name === 'string') {
-    bindings.add(current.name)
-    return
-  }
-  if (current.type === 'AssignmentPattern' && isSyntaxNode(current.left)) {
-    collectBindingIdentifiers(current.left, bindings)
-    return
-  }
-  if (current.type === 'RestElement' && isSyntaxNode(current.argument)) {
-    collectBindingIdentifiers(current.argument, bindings)
-    return
-  }
-  if (current.type === 'TSParameterProperty' && isSyntaxNode(current.parameter)) {
-    collectBindingIdentifiers(current.parameter, bindings)
-    return
-  }
-  if (current.type === 'ObjectPattern' && Array.isArray(current.properties)) {
-    for (const property of current.properties) {
-      if (!isSyntaxNode(property)) continue
-      if (property.type === 'RestElement' && isSyntaxNode(property.argument)) {
-        collectBindingIdentifiers(property.argument, bindings)
-      } else if (property.type === 'ObjectProperty' && isSyntaxNode(property.value)) {
-        collectBindingIdentifiers(property.value, bindings)
-      }
-    }
-    return
-  }
-  if (current.type === 'ArrayPattern' && Array.isArray(current.elements)) {
-    for (const element of current.elements) {
-      if (isSyntaxNode(element)) collectBindingIdentifiers(element, bindings)
-    }
-  }
-}
-
-function getFunctionParameterBindings(fn: SyntaxNode): Set<string> {
-  const bindings = new Set<string>()
-  const current = unwrapExpression(fn)
-  if (!Array.isArray(current.params)) return bindings
-  for (const param of current.params) {
-    if (isSyntaxNode(param)) collectBindingIdentifiers(param, bindings)
-  }
-  return bindings
-}
-
-function containsParameterReference(
-  expression: SyntaxNode,
-  parameterBindings: ReadonlySet<string>
-): boolean {
-  const current = unwrapExpression(expression)
-  if (
-    current.type === 'Identifier' &&
-    typeof current.name === 'string' &&
-    parameterBindings.has(current.name)
-  ) {
-    return true
-  }
-  return getChildNodes(current).some((child) =>
-    containsParameterReference(child, parameterBindings)
-  )
-}
-
-function isEncodedPathExpression(expression: SyntaxNode): boolean {
-  const current = unwrapExpression(expression)
-  return (
-    current.type === 'CallExpression' &&
-    isSyntaxNode(current.callee) &&
-    current.callee.type === 'Identifier' &&
-    current.callee.name === 'encodeURIComponent'
-  )
-}
-
-function getConcatenationParts(expression: SyntaxNode): SyntaxNode[] {
-  const current = unwrapExpression(expression)
-  if (
-    current.type !== 'BinaryExpression' ||
-    current.operator !== '+' ||
-    !isSyntaxNode(current.left) ||
-    !isSyntaxNode(current.right)
-  ) {
-    return [current]
-  }
-  return [...getConcatenationParts(current.left), ...getConcatenationParts(current.right)]
-}
-
-function templateElementContainsQuery(element: unknown): boolean {
-  if (!isSyntaxNode(element)) return false
-  const value = element.value
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (('cooked' in value && typeof value.cooked === 'string' && value.cooked.includes('?')) ||
-      ('raw' in value && typeof value.raw === 'string' && value.raw.includes('?')))
-  )
-}
-
-function inspectTemplatePathExpressions(
-  template: SyntaxNode,
-  parameterBindings: ReadonlySet<string>,
-  initialQueryStarted = false
-): { queryStarted: boolean; unsafe: boolean } {
-  if (!Array.isArray(template.quasis) || !Array.isArray(template.expressions)) {
-    return { queryStarted: initialQueryStarted, unsafe: false }
-  }
-
-  let queryStarted = initialQueryStarted
-  for (let index = 0; index < template.expressions.length; index++) {
-    if (templateElementContainsQuery(template.quasis[index])) queryStarted = true
-    const expression = template.expressions[index]
-    if (
-      !queryStarted &&
-      isSyntaxNode(expression) &&
-      containsParameterReference(expression, parameterBindings) &&
-      !isEncodedPathExpression(expression)
-    ) {
-      return { queryStarted, unsafe: true }
-    }
-  }
-  if (templateElementContainsQuery(template.quasis[template.expressions.length])) {
-    queryStarted = true
-  }
-  return { queryStarted, unsafe: false }
-}
-
-function functionContainsUnsafeInternalPathInterpolation(fn: SyntaxNode): boolean {
-  const current = unwrapExpression(fn)
-  const parameterBindings = getFunctionParameterBindings(current)
-  let found = false
-
-  const visit = (node: SyntaxNode) => {
-    if (found) return
-    if (
-      node.type === 'BinaryExpression' &&
-      node.operator === '+' &&
-      isInternalPathExpression(node)
-    ) {
-      let queryStarted = false
-      for (const part of getConcatenationParts(node)) {
-        const currentPart = unwrapExpression(part)
-        if (currentPart.type === 'TemplateLiteral') {
-          const inspected = inspectTemplatePathExpressions(
-            currentPart,
-            parameterBindings,
-            queryStarted
-          )
-          if (inspected.unsafe) {
-            found = true
-            return
-          }
-          queryStarted = inspected.queryStarted
-          continue
-        }
-        const prefix = getStringPrefix(part)
-        if (prefix?.includes('?')) queryStarted = true
-        if (
-          !queryStarted &&
-          containsParameterReference(part, parameterBindings) &&
-          !isEncodedPathExpression(part)
-        ) {
-          found = true
-          return
-        }
-      }
-    }
-    if (
-      node.type === 'TemplateLiteral' &&
-      Array.isArray(node.quasis) &&
-      Array.isArray(node.expressions) &&
-      node.quasis.length > 0 &&
-      isSyntaxNode(node.quasis[0]) &&
-      getStringPrefix(node)?.startsWith('/api/')
-    ) {
-      if (inspectTemplatePathExpressions(node, parameterBindings).unsafe) {
-        found = true
-        return
-      }
-    }
-    for (const child of getChildNodes(node)) visit(child)
-  }
-
-  visit(current)
-  return found
-}
-
 function getToolId(object: SyntaxNode): string | undefined {
   const idProperty = getObjectProperty(object, 'id')
   if (!idProperty || !isSyntaxNode(idProperty.value)) return undefined
@@ -480,8 +227,8 @@ function getToolId(object: SyntaxNode): string | undefined {
   return value.type === 'StringLiteral' && typeof value.value === 'string' ? value.value : undefined
 }
 
-/** Audits dynamic tool URL builders for an explicit, definition-owned internal-route policy. */
-export function auditToolRequestTrust(source: string, file = 'source.ts'): RequestTrustAudit {
+/** Rejects tool definitions that route execution back through this Sim app. */
+export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfHopAudit {
   const extension = extname(file)
   const syntaxTree = parse(source, {
     sourceFilename: file,
@@ -492,9 +239,9 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
       ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
     ],
   })
-  const violations: RequestTrustViolation[] = []
-  let dynamicInternalRoutes = 0
-  let dynamicInternalPolicies = 0
+  const violations: ToolSelfHopViolation[] = []
+  let detectedSelfHops = 0
+  let legacyInternalPolicies = 0
 
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ObjectExpression') {
@@ -502,76 +249,36 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
       if (requestProperty && isSyntaxNode(requestProperty.value)) {
         const request = unwrapExpression(requestProperty.value)
         const urlProperty = getObjectProperty(request, 'url')
+        if (!urlProperty) {
+          for (const child of getChildNodes(node)) visit(child)
+          return
+        }
         const internalProperty = getObjectProperty(request, 'internal')
         const url = urlProperty?.value
-        const isDynamic =
-          isSyntaxNode(url) &&
-          ['ArrowFunctionExpression', 'FunctionExpression'].includes(unwrapExpression(url).type)
-        if (isDynamic && isSyntaxNode(url)) {
-          const hasInternalRoute = functionContainsInternalRoute(url)
-          const hasExternalRoute = functionContainsExternalRoute(url)
-          const hasInternalPolicy = internalProperty !== undefined
-          const internalPolicyValue = internalProperty?.value
-          const internalPolicyType = isSyntaxNode(internalPolicyValue)
-            ? unwrapExpression(internalPolicyValue).type
-            : undefined
-          const hasStaticInternalPolicy =
-            internalPolicyType === 'BooleanLiteral' &&
-            isSyntaxNode(internalPolicyValue) &&
-            unwrapExpression(internalPolicyValue).value === true
-          const hasConditionalInternalPolicy =
-            internalPolicyType === 'ArrowFunctionExpression' ||
-            internalPolicyType === 'FunctionExpression' ||
-            internalPolicyType === 'Identifier'
-          const hasValidInternalPolicy = hasStaticInternalPolicy || hasConditionalInternalPolicy
-          const hasUnsafeInternalPathInterpolation =
-            functionContainsUnsafeInternalPathInterpolation(url)
-          if (hasInternalRoute) dynamicInternalRoutes += 1
-          if (hasInternalPolicy) dynamicInternalPolicies += 1
-          if (hasInternalPolicy && !hasValidInternalPolicy) {
-            violations.push({
-              file,
-              line: internalProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-              toolId: getToolId(node),
-              reason: 'invalid-internal-policy',
-            })
-          } else if (hasInternalRoute && !hasInternalPolicy) {
-            violations.push({
-              file,
-              line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-              toolId: getToolId(node),
-              reason: 'missing-internal-policy',
-            })
-          } else if (hasStaticInternalPolicy && hasExternalRoute && !hasInternalRoute) {
-            const location = (hasInternalPolicy ? internalProperty : urlProperty)?.loc?.start.line
-            violations.push({
-              file,
-              line: location ?? requestProperty.loc?.start.line ?? 1,
-              toolId: getToolId(node),
-              reason: 'internal-policy-without-internal-route',
-            })
-          }
-          if (
-            hasValidInternalPolicy &&
-            hasInternalRoute &&
-            hasExternalRoute &&
-            !hasConditionalInternalPolicy
-          ) {
-            violations.push({
-              file,
-              line: internalProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-              toolId: getToolId(node),
-              reason: 'mixed-route-requires-conditional-policy',
-            })
-          }
-          if (hasInternalRoute && hasUnsafeInternalPathInterpolation) {
-            violations.push({
-              file,
-              line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-              toolId: getToolId(node),
-              reason: 'unsafe-internal-path-interpolation',
-            })
-          }
+        const currentUrl = isSyntaxNode(url) ? unwrapExpression(url) : undefined
+        const hasInternalRoute =
+          currentUrl !== undefined &&
+          (isInternalPathExpression(currentUrl) ||
+            isInternalUrlConstruction(currentUrl) ||
+            functionContainsInternalRoute(currentUrl))
+
+        if (hasInternalRoute) {
+          detectedSelfHops += 1
+          violations.push({
+            file,
+            line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+            toolId: getToolId(node),
+            reason: 'same-origin-tool-request',
+          })
+        }
+        if (internalProperty) {
+          legacyInternalPolicies += 1
+          violations.push({
+            file,
+            line: internalProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+            toolId: getToolId(node),
+            reason: 'legacy-internal-policy',
+          })
         }
       }
     }
@@ -579,7 +286,7 @@ export function auditToolRequestTrust(source: string, file = 'source.ts'): Reque
   }
   visit(syntaxTree.program)
 
-  return { violations, dynamicInternalRoutes, dynamicInternalPolicies }
+  return { violations, detectedSelfHops, legacyInternalPolicies }
 }
 
 function getStaticMemberAccess(
@@ -744,10 +451,10 @@ function main(): void {
   const violations = productionSources
     .filter((file) => file !== CANONICAL_TRANSPORT)
     .flatMap((file) => findToolRequestBoundaryViolations(readFileSync(file, 'utf8'), file))
-  const requestTrustAudits = productionSources
+  const selfHopAudits = productionSources
     .filter((file) => file.startsWith(join(APP, 'tools')))
-    .map((file) => auditToolRequestTrust(readFileSync(file, 'utf8'), file))
-  const requestTrustViolations = requestTrustAudits.flatMap((audit) => audit.violations)
+    .map((file) => auditToolSelfHops(readFileSync(file, 'utf8'), file))
+  const selfHopViolations = selfHopAudits.flatMap((audit) => audit.violations)
 
   if (violations.length > 0) {
     console.error('Direct ToolConfig request execution is forbidden outside the shared transport:')
@@ -760,19 +467,13 @@ function main(): void {
     process.exit(1)
   }
 
-  if (requestTrustViolations.length > 0) {
-    console.error('Dynamic tool routes have an invalid internal trust declaration:')
-    for (const violation of requestTrustViolations) {
+  if (selfHopViolations.length > 0) {
+    console.error('Tool definitions must not execute through same-origin Sim API routes:')
+    for (const violation of selfHopViolations) {
       const description =
-        violation.reason === 'missing-internal-policy'
-          ? 'dynamic /api route is missing request.internal'
-          : violation.reason === 'invalid-internal-policy'
-            ? 'request.internal must be true or a predicate function'
-            : violation.reason === 'internal-policy-without-internal-route'
-              ? 'request.internal is declared but the URL builder has no /api route'
-              : violation.reason === 'mixed-route-requires-conditional-policy'
-                ? 'mixed internal/external URL builder requires a predicate request.internal policy'
-                : 'dynamic /api path parameter must use encodeURIComponent'
+        violation.reason === 'same-origin-tool-request'
+          ? 'replace the /api self-hop with InternalToolConfig.operation and a registered server handler'
+          : 'request.internal is obsolete; use InternalToolConfig.operation for in-process work'
       console.error(
         `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
       )
@@ -781,16 +482,13 @@ function main(): void {
   }
 
   console.log('✓ production tool requests are materialized only by the shared transport')
-  const dynamicInternalRoutes = requestTrustAudits.reduce(
-    (total, audit) => total + audit.dynamicInternalRoutes,
-    0
-  )
-  const dynamicInternalPolicies = requestTrustAudits.reduce(
-    (total, audit) => total + audit.dynamicInternalPolicies,
+  const detectedSelfHops = selfHopAudits.reduce((total, audit) => total + audit.detectedSelfHops, 0)
+  const legacyInternalPolicies = selfHopAudits.reduce(
+    (total, audit) => total + audit.legacyInternalPolicies,
     0
   )
   console.log(
-    `✓ ${dynamicInternalRoutes} directly detectable dynamic internal routes declare trust (${dynamicInternalPolicies} explicit dynamic policies)`
+    `✓ no tool self-hops detected (${detectedSelfHops} same-origin requests, ${legacyInternalPolicies} legacy internal policies)`
   )
 }
 
