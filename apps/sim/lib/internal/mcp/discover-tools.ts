@@ -25,8 +25,8 @@ export async function discoverMcpServerToolsAsExecutor({
   signal?.throwIfAborted()
   const result = await discoverMcpServerToolsUseCase.execute({
     principal,
-    // See `credentialUserId`: an actorless run's credentials are the workflow's own user's.
-    input: { workspaceId, serverId, credentialUserId: context.userId },
+    // See `executionActorUserId`: preserves the pre-in-process behavior for unattended runs.
+    input: { workspaceId, serverId, executionActorUserId: context.userId },
   })
   signal?.throwIfAborted()
   return result.tools

@@ -18,6 +18,25 @@ import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-deleg
  */
 export type InternalToolIdentityFault = 'unauthenticated' | 'subject_user_required'
 
+/**
+ * An in-process tool ran without the execution context that proves who called it.
+ *
+ * Typed rather than a bare `Error` so this boundary can answer it as the
+ * unauthenticated failure it is; left untyped it fell past every classifier into a
+ * generic 500, which reads as "the tool broke" rather than "this caller never
+ * established an identity".
+ *
+ * It lives here rather than beside its thrower because the classifier must not
+ * import the executor-principal module: nearly every handler test mocks that
+ * module, and an `instanceof` against a mock that omits the export throws.
+ */
+export class ExecutorDelegationOriginRequiredError extends Error {
+  constructor() {
+    super('Executor delegation origin is required')
+    this.name = 'ExecutorDelegationOriginRequiredError'
+  }
+}
+
 const FAULTS: Record<InternalToolIdentityFault, { status: number; message: string }> = {
   unauthenticated: { status: 401, message: 'Authentication required' },
   subject_user_required: {
@@ -34,6 +53,7 @@ export function classifyInternalToolIdentityFault(
   if (error instanceof PrincipalSubjectUserRequiredError) return 'subject_user_required'
   if (
     error instanceof InvalidInternalDelegationBindingError ||
+    error instanceof ExecutorDelegationOriginRequiredError ||
     (error instanceof Error && error.message === 'Authentication required')
   ) {
     return 'unauthenticated'

@@ -92,12 +92,10 @@ export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
 export interface DiscoverMcpToolsInput {
   workspaceId: string
   /**
-   * The user whose MCP credentials apply. See `ExecuteMcpToolInput.credentialUserId`:
-   * discovery resolves the same third-party credentials, so an actorless run's
-   * surface supplies the workflow's own user, and the principal's subject wins
-   * whenever it has one.
+   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
+   * the pre-in-process behavior for runs whose principal names no Sim user.
    */
-  credentialUserId?: string
+  executionActorUserId?: string
   refresh?: boolean
 }
 
@@ -108,7 +106,7 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const tools = await mcpService.discoverTools(
-      requireMcpCredentialUserId(principal, input.credentialUserId),
+      requireMcpCredentialUserId(principal, input.executionActorUserId),
       context.workspaceId,
       /**
        * A public `refresh` skips the positive cache but keeps the failure
@@ -125,12 +123,10 @@ export interface DiscoverMcpServerToolsInput {
   workspaceId: string
   serverId: string
   /**
-   * The user whose MCP credentials apply. See `ExecuteMcpToolInput.credentialUserId`:
-   * discovery resolves the same third-party credentials, so an actorless run's
-   * surface supplies the workflow's own user, and the principal's subject wins
-   * whenever it has one.
+   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
+   * the pre-in-process behavior for runs whose principal names no Sim user.
    */
-  credentialUserId?: string
+  executionActorUserId?: string
   refresh?: boolean
 }
 
@@ -168,7 +164,7 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     const tools = await mcpService.discoverServerTools(
-      requireMcpCredentialUserId(principal, input.credentialUserId),
+      requireMcpCredentialUserId(principal, input.executionActorUserId),
       context.server.id,
       context.workspaceId,
       /**

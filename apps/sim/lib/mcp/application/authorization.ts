@@ -16,26 +16,39 @@ export const mcpServerDelegationPolicy = {
 /**
  * The user whose MCP server credentials an operation presents.
  *
- * Every MCP path — execution and both discoveries — connects to a third-party
- * server with one person's OAuth credentials and is gated by that person's
- * permission group, so unlike an attribution-only read it genuinely cannot run
- * with nobody: there is no credential set and the permission gate would be
- * skipped rather than satisfied.
+ * An MCP call connects to a third-party server with one person's stored
+ * credentials and is gated by that person's permission group, so unlike an
+ * attribution-only read it cannot proceed with nobody named.
  *
- * The principal's own subject always wins. `fallbackUserId` is for an actorless
- * run — a schedule, or a webhook with no external subject — whose surface passes
- * the workflow's own user; because it is consulted only when the principal names
- * nobody, a caller cannot use it to nominate someone else's credentials.
+ * `executionActorUserId` preserves the behavior that existed before the Logs and
+ * MCP tools moved in-process. That path minted an internal token from
+ * `ExecutionContext.userId` and the MCP route ran as that user, so an unattended
+ * run has always reached MCP as the execution actor. For a schedule, webhook, or
+ * anonymous public-API run that actor is the workspace system actor resolved
+ * during preprocessing — the billing payer — not the workflow's author. Keeping
+ * it is what stops every unattended MCP workflow from breaking; changing it is a
+ * product decision, not a refactor, and a workspace-level MCP identity is the
+ * real fix.
  *
- * Fails as `forbidden` rather than throwing `PrincipalSubjectUserRequiredError`,
- * so a run with no user at all gets a 403 that says why instead of an opaque 500.
+ * The fallback deliberately covers a webhook carrying an `external_user` subject
+ * too. That subject is a real identity but never a Sim user, so it has no Sim
+ * credentials of its own, and those runs have always connected as the actor.
+ * Refusing them here would break working workflows in the name of a boundary the
+ * old path never drew.
+ *
+ * It is NOT an authorization input: workspace reach is decided by the principal
+ * before this is read, and a principal that names its own subject always wins, so
+ * a caller cannot use this to nominate someone else's credentials.
  */
-export function requireMcpCredentialUserId(principal: Principal, fallbackUserId?: string): string {
-  const userId = resolvePrincipalSubjectUserId(principal) ?? fallbackUserId
+export function requireMcpCredentialUserId(
+  principal: Principal,
+  executionActorUserId?: string
+): string {
+  const userId = resolvePrincipalSubjectUserId(principal) ?? executionActorUserId
   if (!userId) {
     throw new OrchestrationError(
       'forbidden',
-      'MCP servers are reached with a user\u2019s own credentials, and this run has no user'
+      'MCP servers are reached with a user\u2019s own credentials, and this run has none'
     )
   }
   return userId

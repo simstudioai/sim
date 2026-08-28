@@ -149,9 +149,9 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       input: {
         workspaceId: request.context.workspaceId,
         serverId,
-        // An actorless run (a schedule, a webhook with no external subject) has no
-        // subject on its principal; the workflow's own user owns the credentials.
-        credentialUserId: request.context.userId,
+        // The run's execution actor, exactly what the pre-in-process path minted its
+        // internal token from. Keeps unattended MCP workflows working as before.
+        executionActorUserId: request.context.userId,
         toolName,
         arguments: args,
         callChain: request.context.callChain,

@@ -28,6 +28,7 @@ vi.mock('@/lib/internal/logs/operations', () => ({
 }))
 
 import { executeLogsTool } from '@/lib/internal/logs/execute-tool'
+import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -171,6 +172,23 @@ describe('executeLogsTool', () => {
     })
     expect(invalidResponse.status).toBe(500)
     expect(await invalidResponse.json()).toEqual({ error: 'Failed to fetch log' })
+  })
+
+  it('answers a missing execution context as unauthenticated, not as a broken tool', async () => {
+    // A caller with no executor delegation origin never established an identity.
+    // The error was untyped, so it fell past the classifier into a generic 500.
+    mocks.createPrincipal.mockRejectedValueOnce(new ExecutorDelegationOriginRequiredError())
+
+    const response = await executeLogsTool({
+      toolId: 'logs_query',
+      input: {},
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'Authentication required' })
   })
 
   it('names the missing identity instead of answering an opaque 500', async () => {

@@ -27,19 +27,10 @@ export interface ExecuteMcpToolInput {
   workspaceId: string
   serverId: string
   /**
-   * The user whose MCP credentials and permission group apply.
-   *
-   * NOT an authorization input — workspace reach is decided by the principal, and
-   * this is only consulted after that. It exists because an MCP call connects to a
-   * third-party server with a specific person's OAuth credentials, so unlike a log
-   * read it cannot proceed with nobody: there is no credential set to present.
-   *
-   * An actorless run — a schedule, or a webhook with no external subject — has no
-   * subject on its principal, so its surface supplies the workflow's own user here.
-   * Ignored when the principal already names a subject, which is what stops a
-   * caller from nominating someone else's credentials.
+   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
+   * the pre-in-process behavior for runs whose principal names no Sim user.
    */
-  credentialUserId?: string
+  executionActorUserId?: string
   toolName: string
   arguments?: Record<string, unknown>
   callChain?: string[]
@@ -148,7 +139,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: mcpServerDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
-    const userId = requireMcpCredentialUserId(principal, input.credentialUserId)
+    const userId = requireMcpCredentialUserId(principal, input.executionActorUserId)
     await assertPermissionsAllowed({
       userId,
       workspaceId: context.workspaceId,
