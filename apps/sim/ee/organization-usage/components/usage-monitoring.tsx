@@ -261,9 +261,17 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
           >
             <PopoverAnchor className='pointer-events-none absolute inset-0' />
             <PopoverContent align='end' sideOffset={4} className='w-auto p-0'>
+              {/*
+                No `showTime`: the panel buckets by calendar day, so a time of day is
+                precision it cannot render. It also emitted the end bound as an
+                inclusive `…T23:59:59` local wall time, which the window resolver then
+                treated as a midnight and pushed a further 24h — every custom range
+                covered an extra day, and a legal 92-day pick measured 93 and was
+                rejected. Bare `YYYY-MM-DD` bounds parse as UTC midnight, matching the
+                rest of the window logic.
+              */}
               <Calendar
                 mode='range'
-                showTime
                 startDate={startDate ?? undefined}
                 endDate={endDate ?? undefined}
                 onRangeChange={handleDateRangeApply}

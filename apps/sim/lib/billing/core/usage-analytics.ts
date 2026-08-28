@@ -206,16 +206,64 @@ function toNumber(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+/** The `YYYY-MM-DD` an instant falls on in the viewer's calendar — what `AT TIME ZONE` produced. */
+function localCalendarDate(instant: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(instant)
+}
+
+/**
+ * Civil-date arithmetic on a `YYYY-MM-DD` key.
+ *
+ * UTC is used purely as a proleptic calendar here — these values are never converted
+ * back to an instant, so no offset or DST transition can shift them. Doing the same
+ * arithmetic on a real local instant is what would break across a DST boundary.
+ */
+function civilDate(key: string): Date {
+  return new Date(`${key}T00:00:00.000Z`)
+}
+
+function civilKey(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+/**
+ * Mirrors Postgres `date_trunc(bucket, …)`: an ISO week starts Monday, a month on
+ * the 1st. The series keys have to land on the same boundaries the SQL emitted or
+ * no lookup below will ever hit.
+ */
+function truncateToBucket(key: string, bucket: UsageBucket): string {
+  const date = civilDate(key)
+  if (bucket === 'week') date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7))
+  else if (bucket === 'month') date.setUTCDate(1)
+  return civilKey(date)
+}
+
 /**
  * Fills every bucket in the window, because SQL only returns buckets that have rows.
  *
  * A period with no usage must render a flat zero line, not the chart's "No data"
  * branch — zero is information, "No data" reads as a failure.
+ *
+ * The keys are generated in the *same calendar the query grouped by*:
+ * `readUsageTimeSeries` truncates `created_at AT TIME ZONE <timezone>`, so a viewer
+ * east or west of UTC buckets rows by their own calendar date. Walking UTC dates
+ * here instead dropped the edge buckets of every non-UTC window — their cost stayed
+ * in the headline while their bar read zero. Week and month were worse than an edge
+ * case: Postgres aligns those to Monday and the 1st, so a cursor stepping from an
+ * arbitrary period start shared no key with the query at all and the whole chart
+ * came back zeroed. That is reachable today through an annual enterprise period,
+ * which resolves to `week`.
  */
 export function densifyUsageSeries(
   rows: SparseBucketRow[],
   window: UsageAnalyticsWindow,
-  bucket: UsageBucket
+  bucket: UsageBucket,
+  timezone: string
 ): UsageSeriesPoint[] {
   const byBucket = new Map<string, SparseBucketRow>()
   for (const row of rows) {
@@ -223,14 +271,18 @@ export function densifyUsageSeries(
   }
 
   const { start, end } = usageWindowBounds(window)
+  const first = truncateToBucket(localCalendarDate(start, timezone), bucket)
+  // The window is half-open, so the last bucket is the one holding its final instant.
+  const last = truncateToBucket(localCalendarDate(new Date(end.getTime() - 1), timezone), bucket)
+
   const points: UsageSeriesPoint[] = []
-  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()))
-  const limit = end.getTime()
+  const cursor = civilDate(first)
   let guard = 0
 
-  while (cursor.getTime() < limit && guard < 1000) {
+  // `YYYY-MM-DD` sorts lexicographically in calendar order, so this compares dates.
+  while (civilKey(cursor) <= last && guard < 1000) {
     guard += 1
-    const key = cursor.toISOString().slice(0, 10)
+    const key = civilKey(cursor)
     const row = byBucket.get(key)
     points.push({
       timestamp: `${key}T00:00:00`,

@@ -114,6 +114,38 @@ describe('resolveUsageAnalyticsWindow', () => {
     })
   })
 
+  it('covers exactly the days the picker emitted, from its bare date bounds', () => {
+    // The picker sends `YYYY-MM-DD`, which parses as UTC midnight. It must not send
+    // an inclusive `…T23:59:59` wall time: the extra day added below would then land
+    // on the *following* day, and every custom range would overrun by 24 hours.
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'custom',
+      period: period(),
+      customStart: new Date('2026-06-01'),
+      customEnd: new Date('2026-08-31'),
+      now,
+    })
+    expect(window).toEqual({
+      kind: 'range',
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-09-01T00:00:00.000Z'),
+    })
+  })
+
+  it('accepts a selection of exactly the maximum span', () => {
+    // June 1 through August 31 inclusive is 92 days. It measured 93 while the end
+    // bound carried a time of day, so the longest legal pick was rejected.
+    expect(() =>
+      resolveUsageAnalyticsWindow({
+        preset: 'custom',
+        period: period(),
+        customStart: new Date('2026-06-01'),
+        customEnd: new Date('2026-08-31'),
+        now,
+      })
+    ).not.toThrow()
+  })
+
   it('refuses a custom range beyond the cap rather than scanning the ledger', () => {
     expect(() =>
       resolveUsageAnalyticsWindow({
@@ -162,7 +194,8 @@ describe('densifyUsageSeries', () => {
     const points = densifyUsageSeries(
       [{ bucketStart: '2026-08-02T00:00:00', cost: '1.50', events: 3 }],
       window,
-      'day'
+      'day',
+      'UTC'
     )
     expect(points).toHaveLength(3)
     expect(points.map((p) => p.cost)).toEqual([0, 1.5, 0])
@@ -176,15 +209,73 @@ describe('densifyUsageSeries', () => {
         { bucketStart: '2026-08-03T00:00:00', cost: '2.75', events: 2 },
       ],
       window,
-      'day'
+      'day',
+      'UTC'
     )
     expect(points.reduce((sum, p) => sum + p.cost, 0)).toBeCloseTo(4, 8)
   })
 
   it('emits an empty series for a zero-length window instead of looping', () => {
     expect(
-      densifyUsageSeries([], { kind: 'range', from: window.from, to: window.from }, 'day')
+      densifyUsageSeries([], { kind: 'range', from: window.from, to: window.from }, 'day', 'UTC')
     ).toEqual([])
+  })
+
+  it('keys days by the viewer calendar the query grouped by, not UTC', () => {
+    // Auckland is UTC+12, so the window's final instant is already the next local
+    // day. Walking UTC dates dropped that bucket: its cost stayed in the headline
+    // while its bar was never drawn.
+    const points = densifyUsageSeries(
+      [{ bucketStart: '2026-08-04T00:00:00', cost: '5.00', events: 1 }],
+      window,
+      'day',
+      'Pacific/Auckland'
+    )
+    const keys = points.map((p) => p.timestamp.slice(0, 10))
+    expect(keys).toEqual(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04'])
+    expect(points.at(-1)?.cost).toBe(5)
+  })
+
+  it('aligns week buckets to Monday, as `date_trunc` does', () => {
+    // A period starting mid-week previously produced keys Postgres never emits, so
+    // every bar read zero while the total was correct. Reachable through an annual
+    // enterprise period, which resolves to `week`.
+    const points = densifyUsageSeries(
+      [{ bucketStart: '2026-08-10T00:00:00', cost: '9.00', events: 4 }],
+      // 2026-08-15 is a Saturday; its ISO week starts Monday 2026-08-10.
+      {
+        kind: 'range',
+        from: new Date('2026-08-15T00:00:00.000Z'),
+        to: new Date('2026-08-29T00:00:00.000Z'),
+      },
+      'week',
+      'UTC'
+    )
+    expect(points.map((p) => p.timestamp.slice(0, 10))).toEqual([
+      '2026-08-10',
+      '2026-08-17',
+      '2026-08-24',
+    ])
+    expect(points[0].cost).toBe(9)
+  })
+
+  it('aligns month buckets to the first, as `date_trunc` does', () => {
+    const points = densifyUsageSeries(
+      [{ bucketStart: '2026-09-01T00:00:00', cost: '3.00', events: 2 }],
+      {
+        kind: 'range',
+        from: new Date('2026-08-15T00:00:00.000Z'),
+        to: new Date('2026-10-15T00:00:00.000Z'),
+      },
+      'month',
+      'UTC'
+    )
+    expect(points.map((p) => p.timestamp.slice(0, 10))).toEqual([
+      '2026-08-01',
+      '2026-09-01',
+      '2026-10-01',
+    ])
+    expect(points[1].cost).toBe(3)
   })
 })
 

@@ -25,6 +25,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
 import { member, organization, organizationColumns, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { slugify } from '@sim/utils/string'
 import { count, eq } from 'drizzle-orm'
 import {
@@ -162,13 +163,34 @@ export const POST = withRouteHandler(
        * one exists. Creating a workspace only closes that gap once the organization
        * carries a usable Team/Enterprise plan; without one the creation policy still
        * resolves to a personal workspace.
+       *
+       * Attachment is a follow-on effect, not part of creating the organization, and
+       * it is deliberately not folded into the creation transaction: it runs its own,
+       * under a documented lock order (invitation scope, then organization, then
+       * workspace rows) that exists to avoid deadlocking against invitation
+       * acceptance. Re-deriving that ordering in a route is how a deadlock ships.
+       *
+       * So its failure must not be reported as a failure to create: the organization
+       * is already committed, and answering 500 for state that exists left the retry
+       * blocked by the existing-membership check above, with no way to reach the
+       * organization at all. Log it and return the organization that was created —
+       * attaching a workspace afterwards is a normal, repeatable operation.
        */
-      const { attachedWorkspaceIds } = await attachOwnedWorkspacesToOrganization({
-        ownerUserId: ownerId,
-        organizationId,
-        externalMemberPolicy: 'keep-external',
-        includeArchived: true,
-      })
+      let attachedWorkspaceIds: string[] = []
+      try {
+        ;({ attachedWorkspaceIds } = await attachOwnedWorkspacesToOrganization({
+          ownerUserId: ownerId,
+          organizationId,
+          externalMemberPolicy: 'keep-external',
+          includeArchived: true,
+        }))
+      } catch (attachError) {
+        logger.error('Admin API: Created organization but could not attach its workspaces', {
+          organizationId,
+          ownerId,
+          error: getErrorMessage(attachError),
+        })
+      }
 
       const [createdOrg] = await db
         .select(organizationColumns)

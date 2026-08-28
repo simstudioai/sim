@@ -75,7 +75,8 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       bucket,
       totals: { credits: dollarsToCredits(totals.cost) },
       previousTotals: previous ? { credits: dollarsToCredits(previous.cost) } : null,
-      series: densifyUsageSeries(seriesRows, window, bucket).map((point) => ({
+      // Same timezone the query grouped by, or the series keys cannot match its rows.
+      series: densifyUsageSeries(seriesRows, window, bucket, input.timezone).map((point) => ({
         timestamp: point.timestamp,
         credits: dollarsToCredits(point.cost),
         events: point.events,
