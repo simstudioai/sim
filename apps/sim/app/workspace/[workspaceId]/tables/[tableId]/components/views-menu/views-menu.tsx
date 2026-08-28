@@ -15,7 +15,6 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
-  PopoverSection,
   Tooltip,
 } from '@sim/emcn'
 import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn/icons'
@@ -132,8 +131,8 @@ export const ViewsMenu = memo(function ViewsMenu({
         side='bottom'
         align='start'
         sideOffset={6}
-        minWidth={240}
-        maxWidth={320}
+        minWidth={220}
+        maxWidth={280}
         maxHeight={420}
         border
         className={cn(
@@ -144,10 +143,7 @@ export const ViewsMenu = memo(function ViewsMenu({
         onMouseLeave={scheduleClose}
         onFocusCapture={cancelScheduledClose}
       >
-        <PopoverSection className='flex h-[28px] items-center px-2 py-0 text-[var(--text-muted)] text-caption'>
-          Views
-        </PopoverSection>
-        <div className='flex flex-col'>
+        <div className='flex flex-col gap-0.5'>
           {!hasDefaultView && (
             <ViewRow
               label={ALL_ROWS_VIEW_LABEL}
@@ -342,7 +338,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
                 defaultState.onSetDefault?.()
               }}
             >
-              <Pin className={cn('size-[14px]', defaultState.isDefault && 'fill-current')} />
+              <Pin className={cn(defaultState.isDefault ? 'size-3 fill-current' : 'size-[14px]')} />
             </Button>
           )}
         </div>
