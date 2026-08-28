@@ -94,6 +94,21 @@ function restoreReferencedDetailValues(input: {
   }
 }
 
+function getReferencedDetailResolvedId(input: {
+  originalRequest: SelectorRequest
+  resolvedRequest: SelectorRequest
+  references: ReadonlyMap<string, ResolvedSelectorReference>
+}): string | undefined {
+  if (
+    input.originalRequest.kind !== 'detail' ||
+    input.resolvedRequest.kind !== 'detail' ||
+    !input.references.has('request.id')
+  ) {
+    return undefined
+  }
+  return input.resolvedRequest.id
+}
+
 async function executeAuthorizedSelector(args: {
   principal: { kind: 'session'; userId: string; sessionId: string }
   input: ExecuteSelectorInput
@@ -140,15 +155,24 @@ async function executeAuthorizedSelector(args: {
       signal: args.input.signal,
       protectedValues,
     })
-    const result = sanitizeSelectorResult(
-      restoreReferencedDetailValues({
-        originalRequest: args.input.request,
-        resolvedRequest: resolved.request,
-        result: providerResult,
-        references: resolved.references,
-      }),
-      protectedValues
+    const referencedDetailResolvedId = getReferencedDetailResolvedId({
+      originalRequest: args.input.request,
+      resolvedRequest: resolved.request,
+      references: resolved.references,
+    })
+    const sanitizedProviderResult = sanitizeSelectorResult(
+      providerResult,
+      protectedValues,
+      referencedDetailResolvedId
+        ? { allowedDetailExactProtectedValue: referencedDetailResolvedId }
+        : undefined
     )
+    const result = restoreReferencedDetailValues({
+      originalRequest: args.input.request,
+      resolvedRequest: resolved.request,
+      result: sanitizedProviderResult,
+      references: resolved.references,
+    })
 
     logger.info('Executed selector', {
       selectorKey: args.input.selectorKey,

@@ -1,4 +1,4 @@
-import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
+import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { getSelectorManifestEntry, type ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
 import type {
@@ -55,31 +55,37 @@ export async function resolveSelectorReferences(input: {
     return { context, request: input.request, references: new Map() }
   }
 
-  const snapshot = await getEffectiveEnvironmentSnapshot(input.requesterUserId, input.workspaceId)
+  const referenceNames = [
+    ...new Set(
+      resolvableValues.flatMap((value) => {
+        const match = EXACT_ENVIRONMENT_REFERENCE.exec(value)
+        return match ? [match[1]] : []
+      })
+    ),
+  ]
+  const resolvedVariables = await resolveEffectiveEnvironmentVariables(
+    input.requesterUserId,
+    input.workspaceId,
+    referenceNames
+  )
   const references = new Map<string, ResolvedSelectorReference>()
-  const visibleWorkspaceNames = new Set(snapshot.workspaceUnredactedKeys)
 
   const resolve = (field: string, value: string): string => {
     const match = EXACT_ENVIRONMENT_REFERENCE.exec(value)
     if (!match) return value
 
     const name = match[1]
-    const fromWorkspace = Object.hasOwn(snapshot.workspaceDecrypted, name)
-    const resolved = fromWorkspace
-      ? snapshot.workspaceDecrypted[name]
-      : snapshot.personalDecrypted[name]
-    if (resolved === undefined) throw new SelectorContextUnavailableError()
+    const variable = Object.hasOwn(resolvedVariables, name) ? resolvedVariables[name] : undefined
+    if (!variable) throw new SelectorContextUnavailableError()
 
-    input.protectedValues.add(resolved)
+    input.protectedValues.add(variable.value)
     references.set(field, {
       field,
       name,
-      scope: fromWorkspace ? 'workspace' : 'personal',
-      visible: fromWorkspace
-        ? visibleWorkspaceNames.has(name)
-        : snapshot.personalOwners[name] === input.requesterUserId,
+      scope: variable.scope,
+      visible: variable.visible,
     })
-    return resolved
+    return variable.value
   }
 
   const context: SelectorContext = {}

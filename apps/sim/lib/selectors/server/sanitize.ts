@@ -11,17 +11,28 @@ const MAX_OPTIONS = 10_000
 const MAX_OPTION_TEXT = 16 * 1024
 const MAX_META_FIELDS = 32
 
-function requireSafeString(value: unknown, protectedValues: SelectorProtectedValues): string {
+export interface SanitizeSelectorResultOptions {
+  allowedDetailExactProtectedValue?: string
+}
+
+function requireSafeString(
+  value: unknown,
+  protectedValues: SelectorProtectedValues,
+  allowedExactValue?: string
+): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > MAX_OPTION_TEXT) {
     throw new SelectorOptionsUnavailableError()
   }
-  if (protectedValues.contains(value)) throw new SelectorOptionsUnavailableError()
+  if (protectedValues.contains(value) && value !== allowedExactValue) {
+    throw new SelectorOptionsUnavailableError()
+  }
   return value
 }
 
 function sanitizeMeta(
   value: unknown,
-  protectedValues: SelectorProtectedValues
+  protectedValues: SelectorProtectedValues,
+  allowedExactValue?: string
 ): SafeOptionMeta | undefined {
   if (value === undefined) return undefined
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -44,7 +55,11 @@ function sanitizeMeta(
     if (typeof entry === 'number' && !Number.isFinite(entry)) {
       throw new SelectorOptionsUnavailableError()
     }
-    if (typeof entry === 'string' && protectedValues.contains(entry)) {
+    if (
+      typeof entry === 'string' &&
+      protectedValues.contains(entry) &&
+      entry !== allowedExactValue
+    ) {
       throw new SelectorOptionsUnavailableError()
     }
     meta[key] = entry as SafeOptionMetaValue
@@ -54,28 +69,32 @@ function sanitizeMeta(
 
 function sanitizeOption(
   value: unknown,
-  protectedValues: SelectorProtectedValues
+  protectedValues: SelectorProtectedValues,
+  allowedExactValue?: string
 ): SafeSelectorOption {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new SelectorOptionsUnavailableError()
   }
   const option = value as { id?: unknown; label?: unknown; meta?: unknown }
-  const meta = sanitizeMeta(option.meta, protectedValues)
+  const meta = sanitizeMeta(option.meta, protectedValues, allowedExactValue)
   return {
-    id: requireSafeString(option.id, protectedValues),
-    label: requireSafeString(option.label, protectedValues),
+    id: requireSafeString(option.id, protectedValues, allowedExactValue),
+    label: requireSafeString(option.label, protectedValues, allowedExactValue),
     ...(meta ? { meta } : {}),
   }
 }
 
 export function sanitizeSelectorResult(
   result: SelectorExecutionResult,
-  protectedValues: SelectorProtectedValues
+  protectedValues: SelectorProtectedValues,
+  options?: SanitizeSelectorResultOptions
 ): SelectorExecutionResult {
   if (result.kind === 'detail') {
     return {
       kind: 'detail',
-      item: result.item ? sanitizeOption(result.item, protectedValues) : null,
+      item: result.item
+        ? sanitizeOption(result.item, protectedValues, options?.allowedDetailExactProtectedValue)
+        : null,
     }
   }
 

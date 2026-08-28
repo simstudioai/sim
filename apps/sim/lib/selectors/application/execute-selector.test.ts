@@ -170,10 +170,22 @@ describe('executeSelector', () => {
     expect(logged).not.toContain('context')
   })
 
-  it('restores exact detail-id repeats from reference provenance before sanitization', async () => {
+  it.each([
+    {
+      name: 'restores exact detail-id repeats after sanitization',
+      referenceName: 'GOOGLE_FILE_ID',
+      resolvedId: 'resolved-file-id',
+    },
+    {
+      name: 'restores a reference whose spelling overlaps its resolved ID',
+      referenceName: 'ID',
+      resolvedId: 'ID',
+    },
+  ])('$name', async ({ referenceName, resolvedId }) => {
     const { sanitizeSelectorResult } = await vi.importActual<
       typeof import('@/lib/selectors/server/sanitize')
     >('@/lib/selectors/server/sanitize')
+    const originalId = `{{${referenceName}}}`
 
     mocks.resolveScope.mockImplementationOnce(async () => {
       mocks.events.push('canonical-scope')
@@ -188,16 +200,16 @@ describe('executeSelector', () => {
     })
     mocks.resolveReferences.mockImplementationOnce(async ({ protectedValues }) => {
       mocks.events.push('reference-resolution')
-      protectedValues.add('resolved-file-id')
+      protectedValues.add(resolvedId)
       return {
         context: { oauthCredential: 'credential-1' },
-        request: { kind: 'detail', id: 'resolved-file-id' },
+        request: { kind: 'detail', id: resolvedId },
         references: new Map([
           [
             'request.id',
             {
               field: 'request.id',
-              name: 'GOOGLE_FILE_ID',
+              name: referenceName,
               scope: 'workspace',
               visible: false,
             },
@@ -210,38 +222,38 @@ describe('executeSelector', () => {
       return {
         kind: 'detail',
         item: {
-          id: 'resolved-file-id',
-          label: 'resolved-file-id',
-          meta: { resourceId: 'resolved-file-id', mimeType: 'application/pdf' },
+          id: resolvedId,
+          label: resolvedId,
+          meta: { resourceId: resolvedId, mimeType: 'application/pdf' },
         },
       }
     })
-    mocks.sanitize.mockImplementationOnce((result, protectedValues) => {
+    mocks.sanitize.mockImplementationOnce((result, protectedValues, options) => {
       mocks.events.push('sanitization')
       expect(result).toEqual({
         kind: 'detail',
         item: {
-          id: '{{GOOGLE_FILE_ID}}',
-          label: '{{GOOGLE_FILE_ID}}',
-          meta: { resourceId: '{{GOOGLE_FILE_ID}}', mimeType: 'application/pdf' },
+          id: resolvedId,
+          label: resolvedId,
+          meta: { resourceId: resolvedId, mimeType: 'application/pdf' },
         },
       })
-      expect(JSON.stringify(result)).not.toContain('resolved-file-id')
-      expect(protectedValues.contains('resolved-file-id')).toBe(true)
-      return sanitizeSelectorResult(result, protectedValues)
+      expect(protectedValues.contains(resolvedId)).toBe(true)
+      expect(options).toEqual({ allowedDetailExactProtectedValue: resolvedId })
+      return sanitizeSelectorResult(result, protectedValues, options)
     })
 
     await expect(
       execute({
         selectorKey: 'google.drive',
-        request: { kind: 'detail', id: '{{GOOGLE_FILE_ID}}' },
+        request: { kind: 'detail', id: originalId },
       })
     ).resolves.toEqual({
       kind: 'detail',
       item: {
-        id: '{{GOOGLE_FILE_ID}}',
-        label: '{{GOOGLE_FILE_ID}}',
-        meta: { resourceId: '{{GOOGLE_FILE_ID}}', mimeType: 'application/pdf' },
+        id: originalId,
+        label: originalId,
+        meta: { resourceId: originalId, mimeType: 'application/pdf' },
       },
     })
   })

@@ -279,6 +279,67 @@ export async function getEffectiveEnvironmentVariableNames(
   ].sort()
 }
 
+export interface ResolvedEnvironmentVariable {
+  value: string
+  scope: 'personal' | 'workspace'
+  visible: boolean
+}
+
+/**
+ * Resolves only the requested environment variables through a fresh ACL-aware lookup.
+ *
+ * This deliberately neither reads nor populates the runtime environment snapshot cache.
+ * Workspace values take precedence over personal values, matching normal resolution. Missing,
+ * inaccessible, and undecryptable values are all omitted so callers cannot distinguish them.
+ */
+export async function resolveEffectiveEnvironmentVariables(
+  userId: string,
+  workspaceId: string | undefined,
+  requestedNames: readonly string[]
+): Promise<Record<string, ResolvedEnvironmentVariable>> {
+  const names = [...new Set(requestedNames)]
+  if (names.length === 0) return {}
+
+  const { personalEncrypted, workspaceEncrypted, personalOwners, workspaceUnredactedKeys } =
+    await loadAccessibleEncryptedEnvironment(userId, workspaceId)
+  const visibleWorkspaceNames = new Set(workspaceUnredactedKeys)
+
+  const resolvedEntries = await Promise.all(
+    names.map(async (name) => {
+      const fromWorkspace = Object.hasOwn(workspaceEncrypted, name)
+      const fromPersonal = Object.hasOwn(personalEncrypted, name)
+      const encrypted = fromWorkspace
+        ? workspaceEncrypted[name]
+        : fromPersonal
+          ? personalEncrypted[name]
+          : undefined
+      if (encrypted === undefined) return null
+
+      try {
+        const { decrypted } = await decryptSecret(encrypted)
+        return [
+          name,
+          {
+            value: decrypted,
+            scope: fromWorkspace ? 'workspace' : 'personal',
+            visible: fromWorkspace
+              ? visibleWorkspaceNames.has(name)
+              : personalOwners[name] === userId,
+          },
+        ] as const
+      } catch {
+        return null
+      }
+    })
+  )
+
+  return Object.fromEntries(
+    resolvedEntries.filter(
+      (entry): entry is readonly [string, ResolvedEnvironmentVariable] => entry !== null
+    )
+  )
+}
+
 export async function getPersonalAndWorkspaceEnv(
   userId: string,
   workspaceId?: string,

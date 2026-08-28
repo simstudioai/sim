@@ -43,25 +43,26 @@ describe('resolveSelectorReferences', () => {
     })
     expect(result.references.size).toBe(0)
     expect(protectedValues.contains('prefix-literal-password-suffix')).toBe(true)
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
   })
 
   it('resolves personal, visible shared, and hidden use-only references with workspace precedence', async () => {
-    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
-      personalEncrypted: {},
-      workspaceEncrypted: {},
-      personalDecrypted: {
-        PERSONAL_HOST: 'personal.example.com',
-        SHARED_USERNAME: 'personal-shadow',
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
+      PERSONAL_HOST: {
+        value: 'personal.example.com',
+        scope: 'personal',
+        visible: true,
       },
-      workspaceDecrypted: {
-        SHARED_USERNAME: 'shared-user',
-        SHARED_PASSWORD: 'hidden-password',
+      SHARED_USERNAME: {
+        value: 'shared-user',
+        scope: 'workspace',
+        visible: true,
       },
-      personalOwners: { PERSONAL_HOST: 'user-1' },
-      conflicts: ['SHARED_USERNAME'],
-      decryptionFailures: [],
-      workspaceUnredactedKeys: ['SHARED_USERNAME'],
+      SHARED_PASSWORD: {
+        value: 'hidden-password',
+        scope: 'workspace',
+        visible: false,
+      },
     })
     const protectedValues = createSelectorProtectedValues()
 
@@ -102,19 +103,15 @@ describe('resolveSelectorReferences', () => {
       },
     ])
     expect(protectedValues.contains('hidden-password')).toBe(true)
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      ['PERSONAL_HOST', 'SHARED_USERNAME', 'SHARED_PASSWORD']
+    )
   })
 
   it('projects missing, inaccessible, embedded, and runtime references to one context error', async () => {
-    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
-      personalEncrypted: {},
-      workspaceEncrypted: {},
-      personalDecrypted: {},
-      workspaceDecrypted: {},
-      personalOwners: {},
-      conflicts: [],
-      decryptionFailures: ['INACCESSIBLE_SHARED'],
-      workspaceUnredactedKeys: [],
-    })
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({})
 
     const contexts = [
       { host: '{{MISSING}}', username: 'user', password: 'password' },
@@ -133,5 +130,40 @@ describe('resolveSelectorReferences', () => {
         })
       ).rejects.toEqual(new SelectorContextUnavailableError())
     }
+  })
+
+  it('loads duplicate references once while retaining field-level provenance', async () => {
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
+      REPEATED: {
+        value: 'resolved-value',
+        scope: 'workspace',
+        visible: false,
+      },
+    })
+
+    const result = await resolveSelectorReferences({
+      ...baseInput,
+      context: {
+        host: '{{REPEATED}}',
+        port: '993',
+        secure: 'true',
+        username: '{{REPEATED}}',
+        password: 'literal-password',
+      },
+      request: { kind: 'detail', id: '{{REPEATED}}' },
+      protectedValues: createSelectorProtectedValues(),
+    })
+
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      ['REPEATED']
+    )
+    expect(result.context).toMatchObject({
+      host: 'resolved-value',
+      username: 'resolved-value',
+    })
+    expect(result.request).toEqual({ kind: 'detail', id: 'resolved-value' })
+    expect([...result.references.keys()]).toEqual(['host', 'username', 'request.id'])
   })
 })
