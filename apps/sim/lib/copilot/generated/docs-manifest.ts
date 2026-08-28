@@ -194,6 +194,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/kalshi.mdx',
   'integrations/ketch.mdx',
   'integrations/knowledge.mdx',
+  'integrations/lambda.mdx',
   'integrations/langsmith.mdx',
   'integrations/latex.mdx',
   'integrations/launchdarkly.mdx',
