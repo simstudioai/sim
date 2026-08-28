@@ -102,7 +102,8 @@ export function readAttemptedExecutionId(error: unknown): string | undefined {
  * costs nothing today because every throw site past the dispatch boundary raises an `Error`.
  */
 function isRecordedThrown(value: unknown): value is object {
-  return typeof value === 'object' && value !== null
+  /** Functions key a WeakMap as well as objects do, so excluding them would drop the record. */
+  return (typeof value === 'object' || typeof value === 'function') && value !== null
 }
 
 export interface BlockExecutionErrorDetails {

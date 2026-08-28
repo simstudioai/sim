@@ -38,7 +38,6 @@ export class ExecutionEngine {
   private cancellationController = new AbortController()
   private abortSignalListener: (() => void) | null = null
   private cancellationUnsubscribe: (() => void) | null = null
-  private reportedBlocksMayRun = false
   private execLogger: Logger
 
   constructor(
@@ -61,13 +60,6 @@ export class ExecutionEngine {
         : [this.cancellationController.signal]
     )
     this.initializeAbortHandler()
-  }
-
-  /** Fires the caller's dispatch observer exactly once, however many nodes follow. */
-  private reportBlocksMayRun(): void {
-    if (this.reportedBlocksMayRun) return
-    this.reportedBlocksMayRun = true
-    this.context.onBlocksMayRun?.()
   }
 
   private async subscribeToCancellationSignal(): Promise<void> {
@@ -429,14 +421,6 @@ export class ExecutionEngine {
   private async executeNodeAsync(nodeId: string): Promise<void> {
     try {
       const wasAlreadyExecuted = this.context.executedBlocks.has(nodeId)
-      /**
-       * The single moment a side effect becomes possible: the last statement before a block
-       * handler runs. Every earlier candidate was a proxy that a reviewer could then find a
-       * fallible step in front of — startup, the cancellation subscription, queue and
-       * subflow initialization all reject having run nothing. There is nothing between here
-       * and the handler, so there is nothing left to be in front of.
-       */
-      this.reportBlocksMayRun()
       const result = await this.nodeOrchestrator.executeNode(this.context, nodeId)
 
       if (!wasAlreadyExecuted) {
