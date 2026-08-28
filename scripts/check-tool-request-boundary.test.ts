@@ -611,7 +611,15 @@ describe('tool self-hop audit', () => {
   })
 
   it('does not mistake a provider-relative path argument for a Sim API route', () => {
-    const audit = auditRequest("url: (params) => providerUrl('/api/messages', params.host)")
+    const audit = auditToolSelfHops(`
+      function providerUrl(path, host) {
+        return new URL(path, host).toString()
+      }
+      const tool = {
+        id: 'test_tool',
+        request: { url: (params) => providerUrl('/api/messages', params.host), method: 'GET' },
+      }
+    `)
 
     expect(audit.violations).toEqual([])
   })
@@ -796,6 +804,53 @@ describe('tool self-hop audit', () => {
         reason: 'unresolved-request-policy',
       }),
     ])
+  })
+
+  it('rejects a request URL returned by an uninspectable helper', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => unknownUrlHelper(), method: 'GET' },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
+  })
+
+  it('rejects an uninspectable URL helper combined with the Sim origin', () => {
+    const audit = auditToolSelfHops(`
+      import { getBaseUrl } from '@/lib/core/utils/urls'
+      const tool = {
+        id: 'test_tool',
+        request: { url: () => getBaseUrl() + unknownPathHelper(), method: 'GET' },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
+  })
+
+  it('allows an uninspectable path helper after an explicit external origin', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        request: {
+          url: (params) => 'https://provider.example.com/' + unknownPathHelper(params.id),
+          method: 'GET',
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
   })
 
   it('rejects a direct-id tool whose request may come from an unresolved spread', () => {

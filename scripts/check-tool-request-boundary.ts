@@ -27,6 +27,7 @@ const FUNCTION_NODE_TYPES = new Set([
   'FunctionDeclaration',
   'ObjectMethod',
 ])
+const URL_VALUE_WRAPPER_CALLS = new Set(['String', 'encodeURI', 'encodeURIComponent'])
 
 interface Violation {
   file: string
@@ -634,6 +635,264 @@ function isInternalUrlConstruction(node: SyntaxNode, resolver: SelfHopResolver):
     isInternalPathExpression(current.arguments[0], resolver, new Set(), true) &&
     isSimOriginExpression(current.arguments[1], resolver)
   )
+}
+
+function hasExplicitExternalUrlPrefix(
+  expression: SyntaxNode,
+  resolver: SelfHopResolver,
+  seen = new Set<string>()
+): boolean {
+  const current = unwrapExpression(expression)
+  const staticValue = getStaticString(current)
+  if (staticValue !== undefined) return /^https?:\/\//.test(staticValue)
+  const prefix = getStringPrefix(current)
+  if (prefix !== undefined && /^https?:\/\//.test(prefix)) return true
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    const key = `${resolver.file}:external-origin:${current.name}`
+    if (seen.has(key)) return false
+    const binding = resolveScopedIdentifier(current.name, resolver)
+    if (!binding) return false
+    const nextSeen = new Set(seen)
+    nextSeen.add(key)
+    return hasExplicitExternalUrlPrefix(binding.expression, binding.resolver, nextSeen)
+  }
+  if (
+    current.type === 'BinaryExpression' &&
+    current.operator === '+' &&
+    isSyntaxNode(current.left)
+  ) {
+    return hasExplicitExternalUrlPrefix(current.left, resolver, new Set(seen))
+  }
+  if (current.type === 'ConditionalExpression') {
+    return (
+      isSyntaxNode(current.consequent) &&
+      isSyntaxNode(current.alternate) &&
+      hasExplicitExternalUrlPrefix(current.consequent, resolver, new Set(seen)) &&
+      hasExplicitExternalUrlPrefix(current.alternate, resolver, new Set(seen))
+    )
+  }
+  if (current.type === 'LogicalExpression') {
+    return (
+      isSyntaxNode(current.left) &&
+      isSyntaxNode(current.right) &&
+      hasExplicitExternalUrlPrefix(current.left, resolver, new Set(seen)) &&
+      hasExplicitExternalUrlPrefix(current.right, resolver, new Set(seen))
+    )
+  }
+  if (
+    current.type === 'TemplateLiteral' &&
+    Array.isArray(current.expressions) &&
+    Array.isArray(current.quasis) &&
+    current.expressions.length > 0 &&
+    current.quasis.length === current.expressions.length + 1 &&
+    current.expressions.every(isSyntaxNode) &&
+    current.quasis.every(isSyntaxNode) &&
+    getTemplateQuasiValue(current.quasis[0]) === '' &&
+    hasExplicitExternalUrlPrefix(current.expressions[0], resolver, new Set(seen))
+  ) {
+    const suffix = getTemplateQuasiValue(current.quasis[1])
+    return (
+      suffix !== undefined &&
+      (suffix === '' ? current.expressions.length === 1 : /^[/?#]/.test(suffix))
+    )
+  }
+  return false
+}
+
+function expressionContainsUnresolvedUrlHelper(
+  expression: SyntaxNode,
+  resolver: SelfHopResolver,
+  seen = new Set<string>()
+): boolean {
+  const current = unwrapExpression(expression)
+  if (hasExplicitExternalUrlPrefix(current, resolver)) return false
+
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    const key = `${resolver.file}:unresolved-url:${current.name}`
+    if (seen.has(key)) return false
+    const binding = resolveScopedIdentifier(current.name, resolver)
+    if (!binding) return false
+    const nextSeen = new Set(seen)
+    nextSeen.add(key)
+    return expressionContainsUnresolvedUrlHelper(binding.expression, binding.resolver, nextSeen)
+  }
+
+  if (current.type === 'ConditionalExpression') {
+    return (
+      (isSyntaxNode(current.consequent) &&
+        expressionContainsUnresolvedUrlHelper(current.consequent, resolver, new Set(seen))) ||
+      (isSyntaxNode(current.alternate) &&
+        expressionContainsUnresolvedUrlHelper(current.alternate, resolver, new Set(seen)))
+    )
+  }
+  if (current.type === 'LogicalExpression') {
+    return (
+      (isSyntaxNode(current.left) &&
+        expressionContainsUnresolvedUrlHelper(current.left, resolver, new Set(seen))) ||
+      (isSyntaxNode(current.right) &&
+        expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen)))
+    )
+  }
+  if (
+    current.type === 'BinaryExpression' &&
+    current.operator === '+' &&
+    isSyntaxNode(current.left)
+  ) {
+    if (isSimOriginExpression(current.left, resolver) && isSyntaxNode(current.right)) {
+      return expressionContainsUnresolvedUrlHelper(current.right, resolver, new Set(seen))
+    }
+    return expressionContainsUnresolvedUrlHelper(current.left, resolver, new Set(seen))
+  }
+  if (
+    current.type === 'TemplateLiteral' &&
+    Array.isArray(current.expressions) &&
+    Array.isArray(current.quasis) &&
+    current.expressions.every(isSyntaxNode) &&
+    current.quasis.every(isSyntaxNode) &&
+    current.expressions.length > 0 &&
+    current.quasis.length === current.expressions.length + 1
+  ) {
+    const leading = getTemplateQuasiValue(current.quasis[0])
+    if (leading !== '') return false
+    const origin = current.expressions[0]
+    if (isSimOriginExpression(origin, resolver)) {
+      const following = getTemplateQuasiValue(current.quasis[1])
+      return (
+        following === '' &&
+        current.expressions.length > 1 &&
+        expressionContainsUnresolvedUrlHelper(current.expressions[1], resolver, new Set(seen))
+      )
+    }
+    return expressionContainsUnresolvedUrlHelper(origin, resolver, new Set(seen))
+  }
+
+  if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
+    if (!isSyntaxNode(current.callee)) return true
+    const callee = unwrapExpression(current.callee)
+    if (callee.type === 'Identifier' && typeof callee.name === 'string') {
+      if (
+        resolver.simOriginBindings.has(callee.name) ||
+        resolver.simUrlBuilderBindings.has(callee.name)
+      ) {
+        return false
+      }
+      if (URL_VALUE_WRAPPER_CALLS.has(callee.name)) {
+        const firstArgument = Array.isArray(current.arguments)
+          ? current.arguments.find(isSyntaxNode)
+          : undefined
+        return firstArgument
+          ? expressionContainsUnresolvedUrlHelper(firstArgument, resolver, new Set(seen))
+          : false
+      }
+      const key = `${resolver.file}:unresolved-url-call:${callee.name}`
+      if (seen.has(key)) return false
+      const binding = resolveScopedIdentifier(callee.name, resolver)
+      if (!binding || !FUNCTION_NODE_TYPES.has(unwrapExpression(binding.expression).type)) {
+        return true
+      }
+      const nextSeen = new Set(seen)
+      nextSeen.add(key)
+      const argumentsList = Array.isArray(current.arguments)
+        ? current.arguments
+            .filter(isSyntaxNode)
+            .map((argument) => resolveScopedArgument(argument, resolver))
+        : []
+      return functionContainsUnresolvedUrlHelper(
+        binding.expression,
+        binding.resolver,
+        nextSeen,
+        argumentsList
+      )
+    }
+    const access = getStaticMemberAccess(callee)
+    if (!access) return true
+    return expressionContainsUnresolvedUrlHelper(access.target, resolver, new Set(seen))
+  }
+
+  if (current.type === 'NewExpression') {
+    if (
+      isSyntaxNode(current.callee) &&
+      current.callee.type === 'Identifier' &&
+      current.callee.name === 'URL' &&
+      Array.isArray(current.arguments)
+    ) {
+      if (
+        current.arguments.length > 1 &&
+        isSyntaxNode(current.arguments[1]) &&
+        hasExplicitExternalUrlPrefix(current.arguments[1], resolver)
+      ) {
+        return false
+      }
+      const path = current.arguments.find(isSyntaxNode)
+      const base = current.arguments.length > 1 ? current.arguments[1] : undefined
+      if (isSyntaxNode(base)) {
+        return isSimOriginExpression(base, resolver)
+          ? Boolean(path && expressionContainsUnresolvedUrlHelper(path, resolver, new Set(seen)))
+          : expressionContainsUnresolvedUrlHelper(base, resolver, new Set(seen))
+      }
+      return path ? expressionContainsUnresolvedUrlHelper(path, resolver, new Set(seen)) : false
+    }
+    return true
+  }
+
+  if (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
+    const access = getStaticMemberAccess(current)
+    return access
+      ? expressionContainsUnresolvedUrlHelper(access.target, resolver, new Set(seen))
+      : false
+  }
+  if (FUNCTION_NODE_TYPES.has(current.type)) {
+    return functionContainsUnresolvedUrlHelper(current, resolver, seen)
+  }
+  return false
+}
+
+function functionContainsUnresolvedUrlHelper(
+  fn: SyntaxNode,
+  resolver: SelfHopResolver,
+  seen: ReadonlySet<string>,
+  argumentsList: readonly ScopedExpression[] = []
+): boolean {
+  const current = unwrapExpression(fn)
+  if (!FUNCTION_NODE_TYPES.has(current.type)) return true
+  const locals = new Map(resolver.locals)
+  const scopedLocals = new Map(resolver.scopedLocals)
+  const parameters = Array.isArray(current.params) ? current.params : []
+  for (const [index, parameter] of parameters.entries()) {
+    if (
+      isSyntaxNode(parameter) &&
+      parameter.type === 'Identifier' &&
+      typeof parameter.name === 'string' &&
+      argumentsList[index]
+    ) {
+      const argument = argumentsList[index]
+      scopedLocals.set(parameter.name, argument)
+      if (argument.resolver === resolver) locals.set(parameter.name, argument.expression)
+    }
+  }
+  collectFunctionLocalBindings(current, locals)
+  const localResolver = { ...resolver, locals, scopedLocals }
+  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
+    const body = unwrapExpression(current.body)
+    if (body.type !== 'BlockStatement') {
+      return expressionContainsUnresolvedUrlHelper(body, localResolver, new Set(seen))
+    }
+  }
+  let unresolved = false
+  const visit = (node: SyntaxNode) => {
+    if (unresolved || (node !== current && FUNCTION_NODE_TYPES.has(node.type))) return
+    if (
+      node.type === 'ReturnStatement' &&
+      isSyntaxNode(node.argument) &&
+      expressionContainsUnresolvedUrlHelper(node.argument, localResolver, new Set(seen))
+    ) {
+      unresolved = true
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(current)
+  return unresolved
 }
 
 function collectImportedBindings(program: SyntaxNode): {
@@ -1263,12 +1522,14 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
           for (const request of requests.requests) {
             const urlProperties = getResolvedObjectProperties(request, 'url')
             const internalProperties = getResolvedObjectProperties(request, 'internal')
+            let hasLegacyInternalPolicy = false
             if (!urlProperties.complete || !internalProperties.complete) {
               reportUnresolved(requestProperty.loc?.start.line ?? 1)
             }
             for (const resolvedInternal of internalProperties.properties) {
               if (!resolvedInternal) continue
               const internalProperty = resolvedInternal.property
+              hasLegacyInternalPolicy = true
               legacyInternalPolicies += 1
               violations.push({
                 file,
@@ -1287,12 +1548,9 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
                     ? urlProperty.value
                     : undefined
               if (!urlExpression) continue
-              if (
-                expressionContainsInternalRoute(
-                  unwrapExpression(urlExpression),
-                  requestObjectResolver(urlRequest)
-                )
-              ) {
+              const currentUrl = unwrapExpression(urlExpression)
+              const urlResolver = requestObjectResolver(urlRequest)
+              if (expressionContainsInternalRoute(currentUrl, urlResolver)) {
                 detectedSelfHops += 1
                 violations.push({
                   file,
@@ -1300,6 +1558,13 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
                   toolId,
                   reason: 'same-origin-tool-request',
                 })
+              } else if (
+                !hasLegacyInternalPolicy &&
+                expressionContainsUnresolvedUrlHelper(currentUrl, urlResolver)
+              ) {
+                reportUnresolved(
+                  urlProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1
+                )
               }
             }
           }
