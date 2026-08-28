@@ -339,6 +339,13 @@ describe('usage-reservation', () => {
   })
 
   describe('refreshExecutionSlotExpiry', () => {
+    it('rethrows the original error object rather than the diagnostic wrapper', async () => {
+      const original = Object.assign(new Error('Command timed out'), { code: 'ETIMEDOUT' })
+      getMock.mockRejectedValueOnce(original)
+
+      await expect(refreshExecutionSlotExpiry('exec-1', Date.now() + 60_000)).rejects.toBe(original)
+    })
+
     it('refreshes only the locally owned slot and matching pointer', async () => {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
       await reserveExecutionSlot(memberParams)
