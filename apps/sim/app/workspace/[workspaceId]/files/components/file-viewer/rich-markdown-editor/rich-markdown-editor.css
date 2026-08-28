@@ -587,14 +587,22 @@
 }
 
 /* Cmd/Ctrl+F match highlights. Every hit carries the same tint the rest of the app
- * paints a search match with; the active one is ringed rather than recolored, so the
- * two read as one family and neither needs a token that only exists here. */
+ * paints a search match with. */
 .rich-markdown-nodes .rich-find-match {
   background-color: var(--highlight-match-bg);
   color: var(--highlight-match-text);
   border-radius: 2px;
 }
 
+/* The active hit is a stronger fill of the same hue, never a ring: an outline drawn
+ * around a run of text traces the line box, so on a heading it reads as a stray
+ * rectangle rather than as emphasis. Filling instead keeps the two states one family.
+ *
+ * The ink is fixed rather than tokenized because the fill is: `--brand-secondary` is
+ * the same blue in both themes, so a theme-flipping text token would go white on light
+ * blue in dark mode. Same reasoning as the note card's active search mark, which pairs
+ * its solid fill with a fixed dark ink for exactly this reason. */
 .rich-markdown-nodes .rich-find-match-active {
-  box-shadow: 0 0 0 1.5px var(--highlight-match-text);
+  background-color: var(--brand-secondary);
+  color: #000;
 }
