@@ -18,7 +18,10 @@
  *   - slug: string - Organization slug (optional, auto-generated from name if not provided)
  *   - ownerId: string - User ID of the organization owner (required)
  *
- * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
+ * Response: AdminSingleResponse<AdminOrganization & { memberId: string; attachedWorkspaceIds: string[] }>
+ *   `attachedWorkspaceIds` reports which of the owner's workspaces moved under the
+ *   organization. Empty means none did — either the owner had none, or attachment
+ *   failed after the organization was already committed.
  */
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
@@ -173,10 +176,16 @@ export const POST = withRouteHandler(
        * So its failure must not be reported as a failure to create: the organization
        * is already committed, and answering 500 for state that exists left the retry
        * blocked by the existing-membership check above, with no way to reach the
-       * organization at all. Log it and return the organization that was created —
-       * attaching a workspace afterwards is a normal, repeatable operation.
+       * organization at all.
+       *
+       * It must not be reported as an unqualified success either. The outcome is
+       * returned as `attachedWorkspaceIds` and recorded on the audit event, so a
+       * caller sees which workspaces moved — an empty array after a failure is the
+       * explicit incomplete state, and attaching afterwards is a normal repeatable
+       * operation rather than something only the logs know is outstanding.
        */
       let attachedWorkspaceIds: string[] = []
+      let workspaceAttachmentFailed = false
       try {
         ;({ attachedWorkspaceIds } = await attachOwnedWorkspacesToOrganization({
           ownerUserId: ownerId,
@@ -185,6 +194,7 @@ export const POST = withRouteHandler(
           includeArchived: true,
         }))
       } catch (attachError) {
+        workspaceAttachmentFailed = true
         logger.error('Admin API: Created organization but could not attach its workspaces', {
           organizationId,
           ownerId,
@@ -214,13 +224,20 @@ export const POST = withRouteHandler(
         resourceId: organizationId,
         resourceName: name,
         description: `Admin API created organization "${name}"`,
-        metadata: { slug, ownerId, memberId },
+        metadata: {
+          slug,
+          ownerId,
+          memberId,
+          attachedWorkspaceIds,
+          ...(workspaceAttachmentFailed ? { workspaceAttachmentFailed: true } : {}),
+        },
         request,
       })
 
       return singleResponse({
         ...toAdminOrganization(createdOrg),
         memberId,
+        attachedWorkspaceIds,
       })
     } catch (error) {
       if (error instanceof OrganizationSlugInvalidError) {

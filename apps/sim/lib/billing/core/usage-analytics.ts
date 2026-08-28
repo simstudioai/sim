@@ -6,6 +6,7 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 /**
  * Pure half of organization usage analytics: window resolution, the ledger scope
@@ -105,13 +106,52 @@ export class UsageWindowRangeTooLargeError extends Error {
   }
 }
 
+export class UsageWindowRangeInvertedError extends Error {
+  constructor() {
+    super('Custom range ends before it starts.')
+    this.name = 'UsageWindowRangeInvertedError'
+  }
+}
+
+/**
+ * How much of an unbounded period to show.
+ *
+ * A deployment with no subscription resolves to `defaultBillingPeriod()`, which is
+ * the open pair `1970-01-01 … 9999-12-31`. Rendered as a period that is 1,000
+ * monthly buckets ending in 2053, stopped only by the densifier's loop guard — the
+ * chart was unusable and the label claimed it was a billing period. Self-hosted is
+ * exactly where this is reachable, since `USAGE_MONITORING_ENABLED` opens the panel
+ * on deployments that have no subscription at all.
+ */
+const UNBOUNDED_PERIOD_DISPLAY_DAYS = 30
+
+/** True for the open sentinel period a deployment without a subscription resolves to. */
+function isUnboundedPeriod(period: ResolvedUsagePeriod): boolean {
+  return period.source === 'default'
+}
+
 interface ResolveUsageWindowArgs {
   preset: UsageWindowPreset
   /** The payer's current period, already resolved from its subscription. */
   period: ResolvedUsagePeriod
   customStart?: Date
   customEnd?: Date
+  /**
+   * The viewer's calendar, used to resolve date-only custom bounds. The picker
+   * offers calendar days, so "Aug 31" has to mean midnight-to-midnight *there*.
+   */
+  timezone?: string
   now?: Date
+}
+
+/** The civil date an already-UTC-parsed `YYYY-MM-DD` bound represents. */
+function civilBoundKey(bound: Date): string {
+  return bound.toISOString().slice(0, 10)
+}
+
+/** Exact whole-day distance between two civil dates; unaffected by DST. */
+function civilDaysBetween(fromKey: string, toKey: string): number {
+  return Math.round((civilDate(toKey).getTime() - civilDate(fromKey).getTime()) / DAY_MS)
 }
 
 /**
@@ -126,25 +166,40 @@ export function resolveUsageAnalyticsWindow({
   period,
   customStart,
   customEnd,
+  timezone = 'UTC',
   now = new Date(),
 }: ResolveUsageWindowArgs): UsageAnalyticsWindow {
   switch (preset) {
     case 'current-period':
-      return { kind: 'period', period }
+      return isUnboundedPeriod(period)
+        ? {
+            kind: 'range',
+            from: new Date(now.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS),
+            to: now,
+          }
+        : { kind: 'period', period }
     case 'previous-period': {
       const previous = resolvePreviousPeriod(period)
-      // A stripe/default period carries no rule for deriving its predecessor, so
-      // fall back to a range of the same length rather than inventing stamps that
-      // would match nothing.
-      return previous
-        ? { kind: 'period', period: previous }
-        : {
-            kind: 'range',
-            from: new Date(
-              period.start.getTime() - (period.end.getTime() - period.start.getTime())
-            ),
-            to: period.start,
-          }
+      if (previous) return { kind: 'period', period: previous }
+      // An open period has no meaningful predecessor — deriving one from its length
+      // reaches back eight millennia — so it steps back by the display window instead.
+      if (isUnboundedPeriod(period)) {
+        const to = new Date(now.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS)
+        return {
+          kind: 'range',
+          from: new Date(to.getTime() - UNBOUNDED_PERIOD_DISPLAY_DAYS * DAY_MS),
+          to,
+        }
+      }
+      // A stripe period carries no rule for deriving its predecessor, so fall back to
+      // a range of the same length rather than inventing stamps that would match
+      // nothing. This is an approximation, which is why it is never used as the
+      // summary's comparison window — see `resolvePreviousPeriod` there.
+      return {
+        kind: 'range',
+        from: new Date(period.start.getTime() - (period.end.getTime() - period.start.getTime())),
+        to: period.start,
+      }
     }
     case '7d':
       return { kind: 'range', from: new Date(now.getTime() - 7 * DAY_MS), to: now }
@@ -152,11 +207,36 @@ export function resolveUsageAnalyticsWindow({
       return { kind: 'range', from: new Date(now.getTime() - 30 * DAY_MS), to: now }
     case 'custom': {
       if (!customStart || !customEnd) return { kind: 'period', period }
-      // Half-open on the day after `customEnd`, so a single-day range returns that day.
-      const to = new Date(customEnd.getTime() + DAY_MS)
-      const days = Math.ceil((to.getTime() - customStart.getTime()) / DAY_MS)
+      /**
+       * The picker offers calendar days and sends `YYYY-MM-DD`, which arrives here
+       * parsed as UTC midnight. Anchoring the window on those instants shifted every
+       * non-UTC viewer's selection by their offset — a range labelled "Aug 1–31"
+       * covered half of Jul 31 and half of Aug 31 for a viewer twelve hours east,
+       * and disagreed with the chart, whose buckets are already the viewer's
+       * calendar days. Reinterpret the same civil dates as midnight *there*.
+       */
+      const startKey = civilBoundKey(customStart)
+      const endKey = civilBoundKey(customEnd)
+      // Guarded before the span check, which would otherwise measure a negative
+      // number of days, pass the cap, and return an inverted range that matches no
+      // rows — reading as "no usage" rather than as a bad request.
+      if (endKey < startKey) throw new UsageWindowRangeInvertedError()
+
+      const days = civilDaysBetween(startKey, endKey) + 1
       if (days > MAX_CUSTOM_RANGE_DAYS) throw new UsageWindowRangeTooLargeError(days)
-      return { kind: 'range', from: customStart, to }
+
+      const exclusiveEndKey = civilKey(
+        (() => {
+          const cursor = civilDate(endKey)
+          cursor.setUTCDate(cursor.getUTCDate() + 1)
+          return cursor
+        })()
+      )
+      return {
+        kind: 'range',
+        from: zonedWallClockToUtc(`${startKey}T00:00`, timezone),
+        to: zonedWallClockToUtc(`${exclusiveEndKey}T00:00`, timezone),
+      }
     }
   }
 }

@@ -4,6 +4,7 @@ import type { UsagePeriodSource } from '@/lib/billing/core/reporting-period'
 import {
   buildUsageAnalyticsScope,
   densifyUsageSeries,
+  resolvePreviousPeriod,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
   type UsageBucket,
@@ -43,19 +44,25 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       period: context.period,
       customStart: input.startDate,
       customEnd: input.endDate,
+      timezone: input.timezone,
     })
     const bucket = resolveUsageBucket(window)
     const scope = buildUsageAnalyticsScope(context.billingEntity, window)
 
     /**
-     * The comparison window only exists when it is exactly derivable. A stripe period
-     * has no rule for its predecessor, and no delta beats a delta measured against the
-     * wrong window.
+     * The comparison window only exists when it is exactly derivable.
+     *
+     * `resolvePreviousPeriod` directly, not the `previous-period` preset: that preset
+     * must always return *something*, because a user who explicitly asks for the
+     * previous period has to see a window — so for a stripe period it approximates one
+     * by stepping back the current period's length. That approximation is fine as a
+     * destination and wrong as a baseline, since Stripe periods are not equal-length
+     * and the delta would silently compare against a window that is not the previous
+     * period. No delta beats a delta measured against the wrong window.
      */
-    const comparison =
-      input.preset === 'current-period'
-        ? resolveUsageAnalyticsWindow({ preset: 'previous-period', period: context.period })
-        : null
+    const previousPeriod =
+      input.preset === 'current-period' ? resolvePreviousPeriod(context.period) : null
+    const comparison = previousPeriod ? { kind: 'period' as const, period: previousPeriod } : null
 
     const [totals, seriesRows, previous] = await Promise.all([
       readUsageTotals(scope),

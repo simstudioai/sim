@@ -21,6 +21,8 @@ export interface OrganizationUsageExportInput {
   preset: UsageWindowPreset
   startDate?: Date
   endDate?: Date
+  /** Viewer calendar, so a date-only custom bound means midnight there. */
+  timezone?: string
   source?: InternalUsageLogSource[]
 }
 
@@ -52,6 +54,7 @@ export const exportOrganizationUsageEvents = defineAuthorizedOrganizationUsageUs
       period: context.period,
       customStart: input.startDate,
       customEnd: input.endDate,
+      timezone: input.timezone,
     })
     const bounds = usageWindowBounds(window)
 

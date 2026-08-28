@@ -12,6 +12,7 @@ import {
   resolvePreviousPeriod,
   resolveUsageAnalyticsWindow,
   resolveUsageBucket,
+  UsageWindowRangeInvertedError,
   UsageWindowRangeTooLargeError,
 } from '@/lib/billing/core/usage-analytics'
 
@@ -161,6 +162,77 @@ describe('resolveUsageAnalyticsWindow', () => {
   it('falls back to the period when a custom range is missing a bound', () => {
     const window = resolveUsageAnalyticsWindow({ preset: 'custom', period: period(), now })
     expect(window.kind).toBe('period')
+  })
+
+  it('anchors custom bounds on midnight in the viewer calendar, not UTC', () => {
+    // The picker offers calendar days. Anchoring on the UTC instant shifted every
+    // non-UTC viewer's selection by their offset, and disagreed with the chart,
+    // whose buckets are already the viewer's calendar days.
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'custom',
+      period: period(),
+      customStart: new Date('2026-08-01'),
+      customEnd: new Date('2026-08-31'),
+      timezone: 'America/New_York',
+      now,
+    })
+    expect(window.kind).toBe('range')
+    if (window.kind === 'range') {
+      // Midnight on Aug 1 in New York is 04:00 UTC (EDT, UTC-4).
+      expect(window.from.toISOString()).toBe('2026-08-01T04:00:00.000Z')
+      expect(window.to.toISOString()).toBe('2026-09-01T04:00:00.000Z')
+    }
+  })
+
+  it('refuses a range that ends before it starts', () => {
+    // Inverted bounds measured a negative span, passed the cap check, and produced a
+    // range that matched nothing — indistinguishable from "no usage".
+    expect(() =>
+      resolveUsageAnalyticsWindow({
+        preset: 'custom',
+        period: period(),
+        customStart: new Date('2026-08-31'),
+        customEnd: new Date('2026-08-01'),
+        now,
+      })
+    ).toThrow(UsageWindowRangeInvertedError)
+  })
+
+  it('shows a bounded window for a deployment with no subscription', () => {
+    // `defaultBillingPeriod()` is the open pair 1970…9999. Rendered as a period it
+    // produced 1,000 monthly buckets ending in 2053, stopped only by the densifier's
+    // loop guard — reachable on self-hosted, where the panel opens without a plan.
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'current-period',
+      period: period({
+        source: 'default',
+        start: new Date(0),
+        end: new Date(Date.UTC(9999, 11, 31)),
+      }),
+      now,
+    })
+    expect(window.kind).toBe('range')
+    if (window.kind === 'range') {
+      expect(window.to).toEqual(now)
+      expect(Math.round((window.to.getTime() - window.from.getTime()) / 86_400_000)).toBe(30)
+    }
+  })
+
+  it('steps an unbounded period back by the display window, not by its own length', () => {
+    const window = resolveUsageAnalyticsWindow({
+      preset: 'previous-period',
+      period: period({
+        source: 'default',
+        start: new Date(0),
+        end: new Date(Date.UTC(9999, 11, 31)),
+      }),
+      now,
+    })
+    expect(window.kind).toBe('range')
+    if (window.kind === 'range') {
+      // Not 1970-minus-eight-millennia, which is what deriving it from the span gave.
+      expect(window.from.getUTCFullYear()).toBe(2026)
+    }
   })
 })
 

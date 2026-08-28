@@ -29,6 +29,7 @@ export const GET = defineInternalJsonRoute({
     preset: query.preset,
     startDate: query.startDate ? new Date(query.startDate) : undefined,
     endDate: query.endDate ? new Date(query.endDate) : undefined,
+    timezone: query.timezone,
     source: query.source,
     limit: query.limit,
     cursor: query.cursor,

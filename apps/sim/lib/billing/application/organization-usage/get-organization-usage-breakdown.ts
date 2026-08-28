@@ -28,6 +28,8 @@ export interface OrganizationUsageBreakdownInput {
   preset: UsageWindowPreset
   startDate?: Date
   endDate?: Date
+  /** Viewer calendar, so a date-only custom bound means midnight there. */
+  timezone?: string
   /** Narrows to one workspace, for the Workspaces drill-down. */
   workspaceId?: string
   limit: number
@@ -81,6 +83,7 @@ export const getOrganizationUsageBreakdown = defineAuthorizedOrganizationUsageUs
       period: context.period,
       customStart: input.startDate,
       customEnd: input.endDate,
+      timezone: input.timezone,
     })
     const scope = buildUsageAnalyticsScope(context.billingEntity, window)
     const raw = await readUsageBreakdown(scope, input.dimension, input.workspaceId)
