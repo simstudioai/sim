@@ -135,7 +135,6 @@ export function UsageLimitField({
               : String(dollarsToCredits(currentLimit))
         }
         disabled={!canEdit}
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
     </SettingsSection>
   )

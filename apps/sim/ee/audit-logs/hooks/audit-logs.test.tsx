@@ -137,11 +137,7 @@ describe('useAuditLogs identity transitions', () => {
     )
   })
 
-  /**
-   * The other half of the same rule. Blanking the feed on every filter change is what
-   * the placeholder exists to stop — and it is why the Export action's
-   * `isPlaceholderData` guard means anything.
-   */
+  /** Blanking the feed on each keystroke is what the placeholder exists to stop. */
   it('holds the current entries while a filter change loads, within one organization', async () => {
     const filteredPage = createDeferred<AuditLogPage>()
     mockRequestJson.mockImplementation(

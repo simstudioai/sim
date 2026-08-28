@@ -270,10 +270,6 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS).trim()
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
-  /*
-    Lazy-init: `useRef(new Set())` allocates a fresh Set on every render and throws
-    all but the first away.
-  */
   const refreshTimersRef = useRef<Set<number> | null>(null)
   refreshTimersRef.current ??= new Set<number>()
   const refreshTimers = refreshTimersRef.current
@@ -285,22 +281,18 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     }
   }, [refreshTimers])
 
-  const filters = useMemo<AuditLogFilters>(() => {
-    return {
-      search: debouncedSearch || undefined,
-      resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
-      workspaceId: filteredWorkspace?.id,
-      startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
-      endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
-    }
-  }, [
-    debouncedSearch,
-    selectedTypes,
-    filteredWorkspace?.id,
-    timeRange,
-    customStartDate,
-    customEndDate,
-  ])
+  /*
+    Not memoized: this object is only ever hashed, never compared by identity — React
+    Query hashes a query key structurally, and the export handler reads its fields
+    directly. The same rule `useUsageWindow` applies to its window object.
+  */
+  const filters: AuditLogFilters = {
+    search: debouncedSearch || undefined,
+    resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+    workspaceId: filteredWorkspace?.id,
+    startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
+    endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
+  }
 
   /**
    * A deep-linked workspace scope is only resolvable once the organization's workspace
@@ -449,14 +441,20 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           /*
             A deep-linked scope, not a picker: the organization can hold hundreds of
             workspaces, so this narrows the feed only when a link asks it to and
-            offers exactly one action — take it back off.
+            offers exactly one action — take it back off. Trailing `X` and a bounded
+            width, matching the app's other removable filter chips; the label names
+            the dimension because a bare workspace name gives no clue what it scopes.
           */
           <Chip
-            leftIcon={X}
+            rightIcon={X}
             onClick={() => void setUrlFilters({ workspace: null })}
             aria-label={`Clear the ${filteredWorkspace.name} workspace filter`}
+            className='max-w-[280px] shrink-0'
           >
-            {filteredWorkspace.name}
+            <OverflowText
+              label={`Workspace: ${filteredWorkspace.name}`}
+              className='block min-w-0'
+            />
           </Chip>
         )}
         <div className='relative'>

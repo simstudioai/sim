@@ -1,7 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { chipHoverSurfaceClass, cn } from '@sim/emcn'
+import { cn, disclosureChevronClass } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import { formatChartCompactNumber } from '@/components/charts'
 import {
@@ -92,6 +92,12 @@ interface UsageConsumerRowProps {
   showTokensOnly: boolean
   onSelect?: (row: OrganizationUsageBreakdownRow) => void
   actions?: RowAction[]
+  /**
+   * Width of the affordance some other row in this list carries, reserved here so
+   * every figure stays in one column — including when the only row that carries one
+   * is `Other`.
+   */
+  reservedTrailing?: string
 }
 
 /**
@@ -99,17 +105,31 @@ interface UsageConsumerRowProps {
  * same slot on its `Other` row and keep every figure in one column.
  */
 const TRAILING_SLOT_CLASSES = {
-  /** The canonical resource-row arrow, at its own size. */
   arrow: 'size-4',
   /** `RowActionsMenu`'s trigger: a 14px glyph in a `chipVariants()` pill. */
   menu: 'size-[30px]',
+  /** The disclosure chevron on an expandable `Other` row, at the default icon size. */
+  disclosure: 'size-[14px]',
 } as const
+
+/**
+ * Geometry of the bespoke tabular usage row — the sanctioned exception to
+ * `SettingsResourceRow` in `sim-settings-pages.md`. One definition, so the breakdown
+ * rows, the `Other` row, and the events ledger cannot drift apart.
+ */
+export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-2 text-left'
 
 /**
  * A tabular row, not `SettingsResourceRow` — tabular columns are the sanctioned
  * exception in `sim-settings-pages.md`, alongside billing invoices and credit usage.
  */
-function UsageConsumerRow({ row, showTokensOnly, onSelect, actions }: UsageConsumerRowProps) {
+function UsageConsumerRow({
+  row,
+  showTokensOnly,
+  onSelect,
+  actions,
+  reservedTrailing,
+}: UsageConsumerRowProps) {
   const ProviderIcon = row.providerId ? PROVIDER_ICONS[row.providerId] : undefined
   const Row = onSelect ? 'button' : 'div'
 
@@ -123,8 +143,8 @@ function UsageConsumerRow({ row, showTokensOnly, onSelect, actions }: UsageConsu
           }
         : {})}
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-lg p-2 text-left',
-        onSelect && cn('transition-colors', chipHoverSurfaceClass)
+        USAGE_ROW_CLASSES,
+        onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
       {ProviderIcon && (
@@ -148,6 +168,8 @@ function UsageConsumerRow({ row, showTokensOnly, onSelect, actions }: UsageConsu
         <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />
       ) : actions?.length ? (
         <RowActionsMenu label={`${row.label} actions`} actions={actions} />
+      ) : reservedTrailing ? (
+        <span className={cn(reservedTrailing, 'flex-shrink-0')} aria-hidden='true' />
       ) : null}
     </Row>
   )
@@ -158,6 +180,8 @@ interface UsageConsumersProps {
   breakdown?: OrganizationUsageBreakdown
   isLoading: boolean
   isError: boolean
+  /** Dims the list while a re-keyed fetch resolves, rather than blanking it. */
+  isPlaceholderData?: boolean
   /** Set on Workspaces, where a row drills into that workspace's workflows. */
   onSelectRow?: (row: OrganizationUsageBreakdownRow) => void
   /** Set on Members, where a row can open the shared manage-credits modal. */
@@ -174,6 +198,7 @@ export function UsageConsumers({
   breakdown,
   isLoading,
   isError,
+  isPlaceholderData,
   onSelectRow,
   rowActions,
   onExpandOther,
@@ -199,15 +224,23 @@ export function UsageConsumers({
     ? TRAILING_SLOT_CLASSES.arrow
     : rowActions
       ? TRAILING_SLOT_CLASSES.menu
-      : null
+      : onExpandOther
+        ? TRAILING_SLOT_CLASSES.disclosure
+        : null
 
   return (
-    <div className='-mx-2 flex flex-col gap-y-0.5'>
+    <div
+      className={cn(
+        '-mx-2 flex flex-col gap-y-0.5',
+        isPlaceholderData && 'opacity-50 transition-opacity'
+      )}
+    >
       {breakdown.rows.map((row) => (
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
           showTokensOnly={showTokensOnly}
+          {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}
           {...(rowActions && row.id ? { actions: rowActions(row) } : {})}
         />
@@ -233,8 +266,8 @@ export function UsageConsumers({
                   }
                 : {})}
               className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg p-2 text-left',
-                onExpandOther && cn('transition-colors', chipHoverSurfaceClass)
+                USAGE_ROW_CLASSES,
+                onExpandOther && 'transition-colors hover-hover:bg-[var(--surface-active)]'
               )}
             >
               <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-sm'>
@@ -246,7 +279,7 @@ export function UsageConsumers({
                   : breakdown.other.credits.toLocaleString()}
               </span>
               {onExpandOther ? (
-                <ChevronDown className={RESOURCE_ROW_ARROW_CLASSES} />
+                <ChevronDown className={disclosureChevronClass} />
               ) : (
                 trailingSlot && (
                   <span className={cn(trailingSlot, 'flex-shrink-0')} aria-hidden='true' />

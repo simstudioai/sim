@@ -14,6 +14,14 @@ const MIX_SERIES_COLOR = 'var(--indicator-seat-filled)'
  */
 const MAX_AXES = 6
 
+/**
+ * Tall enough that the web is bound by its caption gutter rather than by height —
+ * past roughly this the extra pixels become dead space above and below a web that
+ * cannot grow any wider. Deliberately not matched to the ten-row list beside it: a
+ * summary shape does not have to be as tall as the ranking it summarises.
+ */
+const SOURCE_MIX_HEIGHT = 260
+
 interface UsageSourceMixProps {
   breakdown?: OrganizationUsageBreakdown
   isLoading: boolean
@@ -31,8 +39,7 @@ interface UsageSourceMixProps {
 export function UsageSourceMix({ breakdown, isLoading, isError }: UsageSourceMixProps) {
   /*
     Stabilized so `RadarChart`'s `memo()` can pass — built inline it was a new array
-    on every render of the panel. Above the early return because hooks cannot be
-    called conditionally.
+    on every render of the panel.
   */
   const axes = useMemo<RadarChartAxis[]>(() => {
     const rows = breakdown?.rows ?? []
@@ -40,9 +47,12 @@ export function UsageSourceMix({ breakdown, isLoading, isError }: UsageSourceMix
     const tail = rows.slice(MAX_AXES)
     /*
       The folded axis carries the API's own remainder as well as the rows this chart
-      dropped, so the web reconciles to the same total — and reads the same label — as
-      the list beside it. A second presentation of one dataset that disagrees with the
-      first is read as a bug in both.
+      dropped, so the web reconciles to the same total as the list beside it.
+
+      It is deliberately *not* labelled `Other (N more)`: the chart folds at MAX_AXES
+      and the list folds at COLLAPSED_ROW_COUNT, so the two counts genuinely differ,
+      and printing both a few pixels apart under identical wording reads as a bug. The
+      count moves into the hover row, where it is attributed.
     */
     const otherRowCount = tail.length + (breakdown?.other.rowCount ?? 0)
     const otherCredits =
@@ -56,9 +66,9 @@ export function UsageSourceMix({ breakdown, isLoading, isError }: UsageSourceMix
       ...(otherRowCount > 0
         ? [
             {
-              label: `Other (${otherRowCount} more)`,
+              label: 'Other',
               value: otherCredits,
-              display: otherCredits.toLocaleString(),
+              display: `${otherCredits.toLocaleString()} · ${otherRowCount} sources`,
             },
           ]
         : []),
@@ -68,13 +78,23 @@ export function UsageSourceMix({ breakdown, isLoading, isError }: UsageSourceMix
   if (isError) {
     return (
       <SettingsEmptyState variant='inline' tone='error'>
-        Couldn't load the source mix.
+        Couldn't load this view.
       </SettingsEmptyState>
     )
   }
   if (isLoading || !breakdown) {
-    return <SettingsEmptyState variant='inline'>Loading source mix…</SettingsEmptyState>
+    return <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
   }
 
-  return <RadarChart axes={axes} color={MIX_SERIES_COLOR} />
+  /*
+    The chart refuses fewer than three axes — a two-gon is a line, not a distribution —
+    but its own fallback is a `height`-tall "No data" box, which beside a list holding
+    two populated rows says the wrong thing at the wrong size. The wrapper answers
+    instead, in the same inline empty state its neighbour uses.
+  */
+  if (axes.length < 3) {
+    return <SettingsEmptyState variant='inline'>Not enough sources to compare.</SettingsEmptyState>
+  }
+
+  return <RadarChart axes={axes} color={MIX_SERIES_COLOR} height={SOURCE_MIX_HEIGHT} />
 }

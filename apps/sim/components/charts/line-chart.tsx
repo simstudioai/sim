@@ -192,14 +192,24 @@ function LineChartComponent({
   /**
    * The hovered sample, derived from the stored cursor rather than stored beside it.
    *
-   * The x written on hover is the same clamped x the index was resolved from, so a
-   * second piece of state could only ever agree with this — or go stale after a
-   * resize, once the width it was measured against had changed.
+   * Clamped here rather than relying on the stored x having been clamped at mousemove
+   * time: `padding.left` follows the axis labels and `chartWidth` follows the
+   * container, so either can move with no pointer event at all — a sidebar collapse
+   * mid-hover otherwise pushed the ratio past 1 and indexed off the end, and the dot,
+   * the rule and the tooltip all vanished until the cursor moved again.
    */
   const hoverIndex =
     hoverPos === null || scaledPoints.length === 0
       ? null
-      : Math.round(((hoverPos.x - padding.left) / (chartWidth || 1)) * (scaledPoints.length - 1))
+      : Math.max(
+          0,
+          Math.min(
+            scaledPoints.length - 1,
+            Math.round(
+              ((hoverPos.x - padding.left) / (chartWidth || 1)) * (scaledPoints.length - 1)
+            )
+          )
+        )
 
   const scaledSeries = useMemo(
     () =>
@@ -279,12 +289,6 @@ function LineChartComponent({
           Hiding that silently cut off the rightmost bars and axis labels — and
           contradicted the constant's own note that the chart "scrolls rather than
           compresses". At or above the floor there is no overflow and nothing changes.
-        */
-        /*
-          `overflow-y-hidden` is not redundant with `overflow-x-auto`: a computed
-          `overflow-x` other than `visible` promotes `overflow-y: visible` to `auto`,
-          so the tooltip's shadow reaching the foot of the box raised a vertical
-          scrollbar over the chart whenever the cursor neared the axis.
         */
         'w-full overflow-x-auto overflow-y-hidden',
         !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'

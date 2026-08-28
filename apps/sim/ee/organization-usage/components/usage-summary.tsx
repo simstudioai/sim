@@ -36,8 +36,6 @@ export function UsageSummary({ summary, limitCredits, isLoading, isError }: Usag
     Stabilized so `BarChart`'s `memo()` can actually pass. Built inline it was a new
     array on every render of the panel — a date-picker toggle or an export click
     re-rendered ninety bars for nothing.
-
-    Above the early returns because hooks cannot be called conditionally.
   */
   const series = useMemo(
     () =>

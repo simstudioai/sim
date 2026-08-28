@@ -117,12 +117,9 @@ function BarChartComponent({
   const barWidth = Math.max(1, Math.min(24, slot * 0.7))
 
   /**
-   * The hovered bucket, derived from the stored cursor rather than stored beside it.
-   *
-   * Bars own a slot, so this is which slot the cursor is in — not the nearest sample,
-   * which is how a line chart resolves it. Deriving it means a resize mid-hover cannot
-   * leave an index that disagrees with the slot geometry it was measured against, and
-   * a mouse move writes one state instead of two.
+   * Bars own a slot, so the hovered bucket is which slot the cursor is in — not the
+   * nearest sample, which is how a line chart resolves it. Derived, so a resize
+   * mid-hover cannot leave an index disagreeing with the slot geometry.
    */
   const hoverIndex =
     hoverPos === null || data.length === 0 || slot <= 0
@@ -202,12 +199,6 @@ function BarChartComponent({
           Hiding that silently cut off the rightmost bars and axis labels — and
           contradicted the constant's own note that the chart "scrolls rather than
           compresses". At or above the floor there is no overflow and nothing changes.
-        */
-        /*
-          `overflow-y-hidden` is not redundant with `overflow-x-auto`: a computed
-          `overflow-x` other than `visible` promotes `overflow-y: visible` to `auto`,
-          so the tooltip's shadow reaching the foot of the box raised a vertical
-          scrollbar over the chart whenever the cursor neared the axis.
         */
         'w-full overflow-x-auto overflow-y-hidden',
         !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'

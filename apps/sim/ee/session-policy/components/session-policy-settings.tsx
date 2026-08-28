@@ -46,7 +46,6 @@ function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
         onChange={(event) => onChange(event.target.value)}
         placeholder='No limit'
         className='w-[220px]'
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
       <p className='text-[var(--text-muted)] text-caption'>{hint}</p>
     </div>

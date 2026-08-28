@@ -40,12 +40,11 @@ export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   'workspace',
   'model',
   /*
-    'byok' is withheld, not removed. No usage has been recorded against a
-    bring-your-own-key provider yet, so the tab could only ever show its empty
-    state. Restore this entry once the ledger carries BYOK rows — the dimension,
-    its labels, its token unit, and the breakdown query all still work.
+    'byok' is withheld, not removed: no usage has been recorded against a
+    bring-your-own-key provider yet, so the tab could only show its empty state.
+    Re-add it here once the ledger carries BYOK rows — the dimension, its labels,
+    its token unit, and the breakdown query all still work.
   */
-  // 'byok',
 ]
 
 export const USAGE_TAB_LABELS: Record<UsageTab, string> = {

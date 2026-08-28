@@ -69,7 +69,7 @@ function UsageSection({
   return (
     <SettingsSection
       label={USAGE_SECTION_LABELS[dimension]}
-      action={<span className='text-[var(--text-muted)] text-caption'>{unit}</span>}
+      action={<span className='text-[var(--text-muted)] text-small'>{unit}</span>}
     >
       {children}
     </SettingsSection>
@@ -104,7 +104,6 @@ export function UsageMonitoring({
   const { window, tab, workspace, expanded, preset, startDate, endDate, periodLabel, setState } =
     useUsageWindow()
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  /** Gates the Export chip so it cannot re-fire while a CSV is still downloading. */
   const [isExporting, setIsExporting] = useState(false)
   /** The member whose credit limit is being edited, or null when the modal is closed. */
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
@@ -158,22 +157,30 @@ export function UsageMonitoring({
       ? 'workflow'
       : (tab as UsageBreakdownDimension)
 
-  const rowLimit = expanded ? EXPANDED_ROW_COUNT : COLLAPSED_ROW_COUNT
-  const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
-    limit: rowLimit,
-    ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
-  })
+  /**
+   * Per breakdown, not per page: the drill-down shows two lists at once, so opening
+   * one tail has to leave its neighbour at the count it was rendered with.
+   */
+  const rowLimitFor = (target: UsageBreakdownDimension) =>
+    expanded.includes(target) ? EXPANDED_ROW_COUNT : COLLAPSED_ROW_COUNT
 
   /**
-   * Opens the tail, unless the list is already at the API's ceiling — past that the
+   * Opens one list's tail, unless it is already at the API's ceiling — past that the
    * `Other` row is a true remainder and the control would do nothing. `undefined`
    * rather than a no-op handler, so the row renders as text instead of as a button.
    */
-  const handleExpandOther =
-    rowLimit < EXPANDED_ROW_COUNT ? () => void setState({ expanded: true }) : undefined
+  const expandOtherFor = (target: UsageBreakdownDimension) =>
+    rowLimitFor(target) < EXPANDED_ROW_COUNT
+      ? () => void setState({ expanded: [...expanded, target] })
+      : undefined
+
+  const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
+    limit: rowLimitFor(dimension),
+    ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
+  })
   const workspaceSources = useOrganizationUsageBreakdown(organizationId, window, 'source', {
     enabled: isWorkspaceDetail,
-    limit: rowLimit,
+    limit: rowLimitFor('source'),
     ...(workspace ? { workspaceId: workspace } : {}),
   })
   // Already cached by Members and Billing, so the meter costs nothing extra and
@@ -309,7 +316,8 @@ export function UsageMonitoring({
             breakdown={workspaceSources.data}
             isLoading={workspaceSources.isLoading}
             isError={workspaceSources.isError}
-            onExpandOther={handleExpandOther}
+            isPlaceholderData={workspaceSources.isPlaceholderData}
+            onExpandOther={expandOtherFor('source')}
           />
         </UsageSection>
         <UsageSection dimension='workflow' unit='credits'>
@@ -318,7 +326,8 @@ export function UsageMonitoring({
             breakdown={breakdown.data}
             isLoading={breakdown.isLoading}
             isError={breakdown.isError}
-            onExpandOther={handleExpandOther}
+            isPlaceholderData={breakdown.isPlaceholderData}
+            onExpandOther={expandOtherFor('workflow')}
           />
         </UsageSection>
       </SettingsPanel>
@@ -432,28 +441,33 @@ export function UsageMonitoring({
             "What kind of work was this?" belongs beside the total it explains, not
             behind a tab — it is the second half of the same sentence.
 
-            Two columns of the same data: the list ranks the sources, the radar shows
-            whether spend is concentrated or spread. Stacked below `lg`, where two
-            half-columns would leave neither the list room for its figures nor the web
-            room for its captions.
+            One section, two readings of it: the list ranks the sources, the web shows
+            whether spend is concentrated or spread. Two `SettingsSection`s side by
+            side would have drawn two half-width hairlines on one line — every other
+            rule in this panel spans the column — and left one header carrying the
+            `credits` unit while its neighbour, showing the same data, carried none.
+
+            `auto-fit` on a track minimum rather than a `lg:` breakpoint: the settings
+            content column is a fixed `max-w-[48rem]`, so viewport width says nothing
+            about how wide this actually is. Same rule as `RESOURCE_LIST_GRID`.
           */}
-            <div className='grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2'>
-              <UsageSection dimension='source' unit='credits'>
+            <UsageSection dimension='source' unit='credits'>
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-6 gap-y-7'>
                 <UsageConsumers
                   dimension='source'
                   breakdown={breakdown.data}
                   isLoading={breakdown.isLoading}
                   isError={breakdown.isError}
+                  isPlaceholderData={breakdown.isPlaceholderData}
+                  onExpandOther={expandOtherFor('source')}
                 />
-              </UsageSection>
-              <SettingsSection label='Source mix'>
                 <UsageSourceMix
                   breakdown={breakdown.data}
                   isLoading={breakdown.isLoading}
                   isError={breakdown.isError}
                 />
-              </SettingsSection>
-            </div>
+              </div>
+            </UsageSection>
           </>
         ) : (
           <UsageSection dimension={dimension} unit={dimension === 'byok' ? 'tokens' : 'credits'}>
@@ -462,6 +476,8 @@ export function UsageMonitoring({
               breakdown={breakdown.data}
               isLoading={breakdown.isLoading}
               isError={breakdown.isError}
+              isPlaceholderData={breakdown.isPlaceholderData}
+              onExpandOther={expandOtherFor(dimension)}
               {...(tab === 'workspace'
                 ? {
                     /*

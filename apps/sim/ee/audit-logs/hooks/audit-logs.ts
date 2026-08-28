@@ -11,8 +11,12 @@ export const auditLogKeys = {
     [...auditLogKeys.lists(), organizationId, filters] as const,
 }
 
-/** Position of the organization id in a key built by {@link auditLogKeys.list}. */
-const AUDIT_LOG_KEY_ORGANIZATION_INDEX = 2
+/**
+ * Position of the organization id in a key built by {@link auditLogKeys.list} —
+ * derived from the factory rather than restated, so a new prefix segment cannot
+ * silently point this at the wrong element.
+ */
+const AUDIT_LOG_KEY_ORGANIZATION_INDEX = auditLogKeys.lists().length
 
 export interface AuditLogFilters {
   search?: string

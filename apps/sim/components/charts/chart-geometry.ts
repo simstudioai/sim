@@ -15,15 +15,37 @@ export type ChartPadding = { top: number; right: number; bottom: number; left: n
 /** Matches the loader placeholders callers size themselves against. */
 export const CHART_DEFAULT_HEIGHT = 166
 
-/** Below this the axis labels collide, so the chart scrolls rather than compresses. */
+/**
+ * Below this the axis labels collide, so the chart scrolls rather than compresses.
+ *
+ * Consumers pair `overflow-x-auto` with `overflow-y-hidden`: a computed `overflow-x`
+ * other than `visible` promotes `overflow-y: visible` to `auto`, so the tooltip's
+ * shadow reaching the foot of the box raised a vertical scrollbar over the chart
+ * whenever the cursor neared the axis.
+ */
 export const CHART_MIN_WIDTH = 280
 
 export const CHART_TICK_FILL = 'var(--text-tertiary)'
 export const CHART_TICK_FONT_SIZE = 9
 export const CHART_GRID_FRACTIONS = [0.25, 0.5, 0.75] as const
 
+/** Punctuation and whitespace, which sit near half the width of a digit or letter. */
+const NARROW_GLYPH = /[.,:\s]/
+
 /** Gap between a y-axis tick label's right edge and the axis rule. */
 export const CHART_AXIS_LABEL_GAP = 8
+
+/**
+ * The gutter is rounded up to a multiple of this.
+ *
+ * Charts are read side by side — the logs dashboard puts three in one row — and a
+ * gutter derived exactly from each chart's own labels made `5`, `1.2s` and `12.3k`
+ * resolve to 26, 27 and 32, so three plots that used to share an origin no longer
+ * did. Quantizing collapses differences this small to one value while still growing
+ * for a genuinely wider label, and it turns the sub-pixel slack that `Math.ceil`
+ * alone left into several pixels.
+ */
+const CHART_AXIS_GUTTER_STEP = 8
 
 /**
  * Rendered width of a right-anchored y-axis tick label.
@@ -37,7 +59,7 @@ export const CHART_AXIS_LABEL_GAP = 8
 export function estimateAxisLabelWidth(text: string): number {
   let width = 0
   for (const character of text) {
-    width += /[.,:\s]/.test(character) ? 0.3 : 0.58
+    width += NARROW_GLYPH.test(character) ? 0.3 : 0.58
   }
   return width * CHART_TICK_FONT_SIZE
 }
@@ -54,9 +76,10 @@ export function estimateAxisLabelWidth(text: string): number {
  */
 export function resolveChartPadding(yAxisLabels: readonly string[]): ChartPadding {
   const widest = yAxisLabels.reduce((max, label) => Math.max(max, estimateAxisLabelWidth(label)), 0)
+  const required = Math.max(CHART_PADDING.left, widest + CHART_AXIS_LABEL_GAP)
   return {
     ...CHART_PADDING,
-    left: Math.max(CHART_PADDING.left, Math.ceil(widest) + CHART_AXIS_LABEL_GAP),
+    left: Math.ceil(required / CHART_AXIS_GUTTER_STEP) * CHART_AXIS_GUTTER_STEP,
   }
 }
 

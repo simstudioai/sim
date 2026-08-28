@@ -26,13 +26,7 @@ function place(anchorY: number, rows = 1, hasDate = true) {
 }
 
 describe('positionChartTooltip', () => {
-  /**
-   * The bug this exists for: the vertical clamp was a fixed inset that ignored the
-   * box's real height, so near the foot of the plot the tooltip hung a pixel or two
-   * past the bottom. The scroll container sets `overflow-x`, which promotes
-   * `overflow-y` to `auto`, and those pixels raised a vertical scrollbar over the
-   * chart the moment the cursor approached the axis.
-   */
+  /** Guards the height-aware vertical clamp — see `positionChartTooltip`. */
   it('keeps the whole box inside the chart when the cursor is at the very bottom', () => {
     const { top, tooltipHeight } = place(HEIGHT)
     expect(top + tooltipHeight).toBeLessThanOrEqual(HEIGHT)

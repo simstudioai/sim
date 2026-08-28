@@ -83,19 +83,32 @@ describe('chartPlotBand', () => {
 })
 
 describe('resolveChartPadding', () => {
-  /**
-   * The bug this exists for: a fixed 26px gutter left 18px of drawable width once
-   * `CHART_AXIS_LABEL_GAP` was taken out, and a right-anchored `7.3k` at 9px is wider
-   * than that — so its first glyph was cut off at the container's left edge.
-   */
   it('widens the gutter until the longest label fits beside the axis', () => {
     const { left } = resolveChartPadding(['7.3k', '0'])
     expect(left).toBeGreaterThanOrEqual(estimateAxisLabelWidth('7.3k') + CHART_AXIS_LABEL_GAP)
   })
 
-  it('never narrows below the shared padding, so short labels stay aligned', () => {
-    expect(resolveChartPadding(['0', '0']).left).toBe(CHART_PADDING.left)
-    expect(resolveChartPadding([]).left).toBe(CHART_PADDING.left)
+  it('never narrows below the shared padding', () => {
+    expect(resolveChartPadding(['0', '0']).left).toBeGreaterThanOrEqual(CHART_PADDING.left)
+    expect(resolveChartPadding([]).left).toBeGreaterThanOrEqual(CHART_PADDING.left)
+  })
+
+  /**
+   * Three charts sit side by side on the logs dashboard. A gutter derived exactly from
+   * each one's own labels put their plot origins at 26, 27 and 32 — visibly ragged
+   * across a row that used to share one origin.
+   */
+  it('resolves labels of similar width to the same gutter', () => {
+    const gutters = [['5'], ['1.2s'], ['12.3k'], ['0'], ['7.3k']].map(
+      (labels) => resolveChartPadding(labels).left
+    )
+    expect(new Set(gutters).size).toBe(1)
+  })
+
+  it('still grows for a genuinely wider label', () => {
+    expect(resolveChartPadding(['123456.7m']).left).toBeGreaterThan(
+      resolveChartPadding(['7.3k']).left
+    )
   })
 
   it('leaves the other three sides on the shared constant', () => {
@@ -103,11 +116,5 @@ describe('resolveChartPadding', () => {
     expect(padding.top).toBe(CHART_PADDING.top)
     expect(padding.right).toBe(CHART_PADDING.right)
     expect(padding.bottom).toBe(CHART_PADDING.bottom)
-  })
-
-  it('grows monotonically with label length', () => {
-    const short = resolveChartPadding(['1.2k']).left
-    const long = resolveChartPadding(['123456.7m']).left
-    expect(long).toBeGreaterThan(short)
   })
 })

@@ -54,12 +54,11 @@ interface UseBreakdownOptions {
 }
 
 /**
- * A breakdown key with its row limit removed. The key ends `dimension, limit,
- * workspaceId`, so dropping the second-to-last element leaves the identity of the
- * list — which is what "the same list, more rows" has to compare on.
+ * A breakdown key with its trailing row limit removed — the identity of the list,
+ * which is what "the same list, more rows" has to compare on.
  */
-function breakdownKeyWithoutLimit(key: readonly unknown[]): unknown[] {
-  return key.filter((_, index) => index !== key.length - 2)
+function breakdownListIdentity(key: readonly unknown[]): string {
+  return hashKey(key.slice(0, -1))
 }
 
 export function useOrganizationUsageBreakdown(
@@ -102,8 +101,7 @@ export function useOrganizationUsageBreakdown(
     placeholderData: (previous, previousQuery) =>
       previous &&
       previousQuery &&
-      hashKey(breakdownKeyWithoutLimit(previousQuery.queryKey)) ===
-        hashKey(breakdownKeyWithoutLimit(queryKey))
+      breakdownListIdentity(previousQuery.queryKey) === breakdownListIdentity(queryKey)
         ? previous
         : undefined,
   })

@@ -1,5 +1,8 @@
-import { createSerializer, parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server'
-import { USAGE_WINDOW_PRESETS } from '@/lib/api/contracts/organization-usage'
+import { createSerializer, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import {
+  USAGE_BREAKDOWN_DIMENSIONS,
+  USAGE_WINDOW_PRESETS,
+} from '@/lib/api/contracts/organization-usage'
 import { parseAsDateString } from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
   DEFAULT_USAGE_PRESET,
@@ -27,12 +30,16 @@ export const organizationUsageParsers = {
    */
   workspace: parseAsString,
   /**
-   * Whether the visible breakdown's `Other` row has been opened. In the URL because
-   * it is shareable view-state like every other filter here — and because it changes
-   * which rows the page fetched, so a shared link that omitted it would not show the
-   * list the sender was looking at.
+   * Which breakdowns have had their `Other` row opened, named by dimension. In the URL
+   * because it is shareable view-state like every other filter here — and because it
+   * changes which rows the page fetched, so a shared link that omitted it would not
+   * show the list the sender was looking at.
+   *
+   * A list, not a flag: the workspace drill-down renders two breakdowns at once, and
+   * one boolean meant opening either tail silently opened the other's — refetching a
+   * list nobody asked to expand, and leaving its `Other` row as inert text.
    */
-  expanded: parseAsBoolean.withDefault(false),
+  expanded: parseAsArrayOf(parseAsStringLiteral(USAGE_BREAKDOWN_DIMENSIONS)).withDefault([]),
 } as const
 
 /** Filter view-state: clean URLs, no back-stack churn, kebab-case URL keys. */
