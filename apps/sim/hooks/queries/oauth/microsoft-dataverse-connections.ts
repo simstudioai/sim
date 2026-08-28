@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
@@ -53,6 +54,28 @@ export function assertMicrosoftDataverseWebOAuthAvailable(): void {
   }
 }
 
+interface AssertMicrosoftDataverseReconnectAvailableParams {
+  bindingState: MicrosoftDataverseCredentialBindingState
+  credentialQueryFailed: boolean
+}
+
+export function assertMicrosoftDataverseReconnectAvailable({
+  bindingState,
+  credentialQueryFailed,
+}: AssertMicrosoftDataverseReconnectAvailableParams): void {
+  assertMicrosoftDataverseWebOAuthAvailable()
+  if (credentialQueryFailed) {
+    throw new Error(
+      'Could not verify this Dataverse credential’s environment binding. Please try again.'
+    )
+  }
+  if (bindingState === 'invalid') {
+    throw new Error(
+      'This Dataverse credential has an invalid environment binding and cannot be reconnected in place.'
+    )
+  }
+}
+
 export function useConnectMicrosoftDataverseOAuthService() {
   const queryClient = useQueryClient()
 
@@ -61,7 +84,15 @@ export function useConnectMicrosoftDataverseOAuthService() {
       assertMicrosoftDataverseWebOAuthAvailable()
       const request = buildMicrosoftDataverseOAuthLinkRequest(params)
 
-      await client.oauth2.link(request)
+      const result = await client.oauth2.link(request)
+      if (result.error) {
+        throw new Error(
+          getErrorMessage(
+            result.error.message,
+            result.error.statusText || 'Failed to start Microsoft Dataverse OAuth'
+          )
+        )
+      }
       return { success: true }
     },
     onError: (error) => {

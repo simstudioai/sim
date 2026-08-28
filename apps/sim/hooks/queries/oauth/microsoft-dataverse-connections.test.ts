@@ -25,6 +25,7 @@ vi.mock('@/lib/desktop', () => ({
 
 import { getMicrosoftDataverseRequiredScope } from '@/lib/oauth/microsoft-dataverse'
 import {
+  assertMicrosoftDataverseReconnectAvailable,
   assertMicrosoftDataverseWebOAuthAvailable,
   buildMicrosoftDataverseOAuthLinkRequest,
   useConnectMicrosoftDataverseOAuthService,
@@ -120,6 +121,26 @@ describe('Microsoft Dataverse OAuth connections', () => {
     hook.unmount()
   })
 
+  it('rejects Better Auth link errors instead of reporting a successful redirect', async () => {
+    mockLink.mockResolvedValue({
+      data: null,
+      error: {
+        message: 'OAuth state could not be created',
+        status: 500,
+        statusText: 'Failed',
+      },
+    })
+    const hook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
+
+    await expect(
+      hook.result().mutateAsync({
+        callbackURL: 'https://sim.test/workflow',
+        environmentUrl: 'https://contoso.crm.dynamics.com',
+      })
+    ).rejects.toThrow('OAuth state could not be created')
+    hook.unmount()
+  })
+
   it('rejects invalid environments and desktop initiation before linking', async () => {
     const webHook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
     await expect(
@@ -141,6 +162,29 @@ describe('Microsoft Dataverse OAuth connections', () => {
     ).rejects.toThrow('Sim web app')
     expect(mockLink).not.toHaveBeenCalled()
     desktopHook.unmount()
+  })
+
+  it('fails every reconnect precondition before the caller creates a draft', () => {
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'bound',
+        credentialQueryFailed: true,
+      })
+    ).toThrow('Could not verify')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'invalid',
+        credentialQueryFailed: false,
+      })
+    ).toThrow('invalid environment binding')
+
+    mockBeginOAuthConnect.mockName('desktop')
+    expect(() =>
+      assertMicrosoftDataverseReconnectAvailable({
+        bindingState: 'bound',
+        credentialQueryFailed: false,
+      })
+    ).toThrow('Sim web app')
   })
 
   it.each([
