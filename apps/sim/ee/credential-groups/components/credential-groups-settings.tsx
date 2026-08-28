@@ -8,6 +8,8 @@ import { useQueryState } from 'nuqs'
 import {
   credentialGroupIdParam,
   credentialGroupIdUrlKeys,
+  credentialGroupProviderSearchParam,
+  credentialGroupProviderSearchUrlKeys,
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
@@ -47,13 +49,20 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
     ...credentialGroupTabParam.parser,
     ...credentialGroupTabUrlKeys,
   })
+  /** Scoped to one group's account types for the same reason, and reset on the same transitions. */
+  const [, setProviderSearch] = useQueryState(credentialGroupProviderSearchParam.key, {
+    ...credentialGroupProviderSearchParam.parser,
+    ...credentialGroupProviderSearchUrlKeys,
+  })
   const openGroup = (groupId: string) => {
     void setSelectedGroupId(groupId)
     void setSelectedTab(null)
+    void setProviderSearch(null)
   }
   const closeGroup = () => {
     void setSelectedGroupId(null, { history: 'replace' })
     void setSelectedTab(null)
+    void setProviderSearch(null)
   }
   const selectedGroup = selectedGroupId
     ? groups.find((group) => group.id === selectedGroupId)
