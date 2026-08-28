@@ -7,6 +7,10 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 vi.unmock('@/tools/registry')
 
+import { executeNetsuiteTool } from '@/lib/internal/netsuite/execute-tool'
+import { executeNetsuiteAttachRecordOperation } from '@/lib/internal/netsuite/operations/attach-record'
+import { executeNetsuiteGetSelectOptionsOperation } from '@/lib/internal/netsuite/operations/get-select-options'
+import { executeNetsuiteGetSubresourceOperation } from '@/lib/internal/netsuite/operations/get-subresource'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { NetSuiteBlock } from '@/blocks/blocks/netsuite'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -44,7 +48,7 @@ import {
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { tools } from '@/tools/registry'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 const ORIGIN = 'https://1234567.suitetalk.api.netsuite.com'
 const AUTH: NetSuiteAuthParams = {
@@ -53,15 +57,24 @@ const AUTH: NetSuiteAuthParams = {
   instanceUrl: ORIGIN,
 }
 
-type ExecutableTool<P extends NetSuiteAuthParams> = Pick<ToolConfig<P>, 'directExecution'>
-
 function invoke<P extends NetSuiteAuthParams>(
-  tool: ExecutableTool<P>,
+  tool: InternalToolConfig<P>,
   params: Omit<P, keyof NetSuiteAuthParams>
 ): () => Promise<ToolResponse> {
-  return () => {
-    if (!tool.directExecution) throw new Error('NetSuite tool is missing direct execution')
-    return tool.directExecution({ ...AUTH, ...params } as P)
+  return async () => {
+    const input = tool.operation.input({ ...AUTH, ...params } as P)
+    const response = await executeNetsuiteTool({
+      toolId: tool.id,
+      input,
+      headers: new Headers(),
+      context: {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      requestId: 'request-1',
+    })
+    return (await response.json()) as ToolResponse
   }
 }
 
@@ -95,15 +108,15 @@ const NETSUITE_TOOLS = [
   netsuiteGetGovernanceLimitsTool,
 ] as const
 
-function importedNetSuiteTools(): ToolConfig[] {
+function importedNetSuiteTools(): InternalToolConfig[] {
   return Object.values(netsuiteToolExports).filter(
-    (value): value is ToolConfig =>
+    (value): value is InternalToolConfig =>
       typeof value === 'object' &&
       value !== null &&
       'id' in value &&
       typeof value.id === 'string' &&
       value.id.startsWith('netsuite_') &&
-      'request' in value
+      'operation' in value
   )
 }
 
@@ -1009,7 +1022,7 @@ describe('NetSuite operation contracts', () => {
     })
     expect(mapped.expand).toBeUndefined()
     expect(mapped.expandSubResources).toBeUndefined()
-    const execute = netsuiteGetSelectOptionsTool.directExecution
+    const execute = executeNetsuiteGetSelectOptionsOperation
     if (!execute) throw new Error('NetSuite select-options tool is missing direct execution')
     const result = await execute(mapped as never)
     expect(result.success).toBe(true)
@@ -1348,7 +1361,7 @@ describe('NetSuite operation contracts', () => {
   it('rejects dot path segments before authentication or SuiteTalk traffic', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const execute = netsuiteGetSubresourceTool.directExecution
+    const execute = executeNetsuiteGetSubresourceOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
 
     const result = await execute({
@@ -1367,7 +1380,7 @@ describe('NetSuite operation contracts', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const execute = netsuiteAttachRecordTool.directExecution
+    const execute = executeNetsuiteAttachRecordOperation
     if (!execute) throw new Error('NetSuite tool is missing direct execution')
     const result = await execute({
       ...AUTH,

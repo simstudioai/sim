@@ -1,18 +1,14 @@
-import { getErrorMessage } from '@sim/utils/errors'
-import { sendToolConfirmations } from '@/lib/managed-agents/session-client'
-import { normalizeStringList } from '@/tools/managed_agent/normalizers'
 import {
   ACCESS_TOKEN_PARAM,
   CREDENTIAL_PARAM,
-  resolveSessionTarget,
   SESSION_ID_PARAM,
-  UNUSED_REQUEST,
 } from '@/tools/managed_agent/shared'
 import type {
   ManagedAgentToolConfirmationParams,
   ManagedAgentToolConfirmationResponse,
 } from '@/tools/managed_agent/types'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Answers the `always_ask` permission gates blocking a session.
@@ -26,7 +22,8 @@ import type { ToolConfig } from '@/tools/types'
  * All ids are answered in a single request: resolving only some of a turn's
  * gates leaves the session parked on the rest.
  */
-export const managedAgentRespondToolConfirmationTool: ToolConfig<
+
+export const managedAgentRespondToolConfirmationTool: InternalToolConfig<
   ManagedAgentToolConfirmationParams,
   ManagedAgentToolConfirmationResponse
 > = {
@@ -61,8 +58,8 @@ export const managedAgentRespondToolConfirmationTool: ToolConfig<
     },
   },
 
-  request: {
-    ...UNUSED_REQUEST,
+  operation: {
+    input: createInternalToolOperationInput,
     modelInput: {
       mode: 'project',
       select: (params) =>
@@ -70,57 +67,6 @@ export const managedAgentRespondToolConfirmationTool: ToolConfig<
           ? { denyMessage: params.denyMessage }
           : {},
     },
-  },
-
-  directExecution: async (params, signal): Promise<ManagedAgentToolConfirmationResponse> => {
-    const emptyOutput = { sessionId: '', decision: '', confirmedToolUseIds: [] as string[] }
-    const target = resolveSessionTarget(params)
-    if (!target.ok) {
-      return { success: false, output: emptyOutput, error: target.error }
-    }
-
-    const decision = (params.decision ?? '').toString().trim().toLowerCase()
-    if (decision !== 'allow' && decision !== 'deny') {
-      return {
-        success: false,
-        output: { ...emptyOutput, sessionId: target.sessionId },
-        error: "Decision must be 'allow' or 'deny'.",
-      }
-    }
-
-    const toolUseIds = normalizeStringList(params.toolUseIds)
-    if (toolUseIds.length === 0) {
-      return {
-        success: false,
-        output: { ...emptyOutput, sessionId: target.sessionId, decision },
-        error:
-          'At least one tool-use event id is required. Read them from Get Session pendingTools[].id.',
-      }
-    }
-
-    const denyMessage = params.denyMessage?.trim()
-    try {
-      await sendToolConfirmations({
-        apiKey: target.apiKey,
-        sessionId: target.sessionId,
-        confirmations: toolUseIds.map((toolUseId) => ({
-          toolUseId,
-          result: decision,
-          ...(decision === 'deny' && denyMessage ? { denyMessage } : {}),
-        })),
-        ...(signal ? { signal } : {}),
-      })
-      return {
-        success: true,
-        output: { sessionId: target.sessionId, decision, confirmedToolUseIds: toolUseIds },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: { sessionId: target.sessionId, decision, confirmedToolUseIds: [] },
-        error: getErrorMessage(error, 'Failed to send tool confirmation'),
-      }
-    }
   },
 
   outputs: {

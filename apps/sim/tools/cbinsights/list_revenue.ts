@@ -1,10 +1,10 @@
 import type { CbInsightsOrgListParams, CbInsightsOrgListResponse } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, compactBody, requireOrgIds } from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsListRevenueParams extends CbInsightsOrgListParams {}
+export interface CbInsightsListRevenueParams extends CbInsightsOrgListParams {}
 
-export const cbinsightsListRevenueTool: ToolConfig<
+export const cbinsightsListRevenueTool: InternalToolConfig<
   CbInsightsListRevenueParams,
   CbInsightsOrgListResponse
 > = {
@@ -35,20 +35,9 @@ export const cbinsightsListRevenueTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) =>
-    cbInsightsRequest<{ orgs?: unknown }>(
-      params,
-      {
-        path: '/v2/revenuebyyear',
-        body: compactBody({
-          orgIds: requireOrgIds(params.orgIds),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs) }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
 
   outputs: {
     orgs: {

@@ -1,12 +1,12 @@
 import type { CbInsightsAuthParams, CbInsightsRagResponse } from '@/tools/cbinsights/types'
-import { asString, asStringArray, cbInsightsRequest } from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsRagParams extends CbInsightsAuthParams {
+export interface CbInsightsRagParams extends CbInsightsAuthParams {
   message: string
 }
 
-export const cbinsightsRagTool: ToolConfig<CbInsightsRagParams, CbInsightsRagResponse> = {
+export const cbinsightsRagTool: InternalToolConfig<CbInsightsRagParams, CbInsightsRagResponse> = {
   id: 'cbinsights_rag',
   name: 'CB Insights Retrieve Context',
   description:
@@ -34,34 +34,12 @@ export const cbinsightsRagTool: ToolConfig<CbInsightsRagParams, CbInsightsRagRes
     },
   },
 
-  request: {
-    url: () => '',
-    method: 'POST',
-    headers: () => ({}),
-    /**
-     * The message is the query CB Insights feeds to its own retrieval model —
-     * the endpoint documentation states so directly — so an activated Sim
-     * secret is projected to its canonical label before it leaves Sim.
-     */
+  operation: {
+    input: createInternalToolOperationInput,
     modelInput: {
       mode: 'project',
       select: (params) => ({ message: params.message }),
     },
-  },
-
-  directExecution: async (params, signal) => {
-    const message = params.message?.trim()
-    if (!message) throw new Error('CB Insights "message" is required')
-    if (message.length > 10_000) {
-      throw new Error('CB Insights "message" must be under 10,000 characters')
-    }
-
-    return cbInsightsRequest<{ data?: unknown; guidance?: unknown }>(
-      params,
-      { path: '/v2/cbirag', body: { message } },
-      (data) => ({ data: asString(data.data), guidance: asStringArray(data.guidance) }),
-      signal
-    )
   },
 
   outputs: {

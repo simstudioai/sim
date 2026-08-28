@@ -8,19 +8,19 @@ import { managedAgentRespondCustomToolTool } from '@/tools/managed_agent/respond
 import { managedAgentRespondToolConfirmationTool } from '@/tools/managed_agent/respond_tool_confirmation'
 import { managedAgentRunSessionTool } from '@/tools/managed_agent/run_session'
 import { managedAgentSendMessageTool } from '@/tools/managed_agent/send_message'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 function selectModelInput(
-  tool: ToolConfig,
+  tool: InternalToolConfig,
   params: Record<string, unknown>
 ): Record<string, unknown> {
-  const modelInput = tool.request.modelInput
+  const modelInput = tool.operation.modelInput
   expect(modelInput?.mode).toBe('project')
   if (modelInput?.mode !== 'project') throw new Error(`Expected ${tool.id} to project model input`)
   return modelInput.select(params)
 }
 
-describe('direct-execution model-input selectors', () => {
+describe('operation model-input selectors', () => {
   it('selects only Browser Use fields that are supplied to its agent model', () => {
     expect(
       selectModelInput(runTaskTool, {

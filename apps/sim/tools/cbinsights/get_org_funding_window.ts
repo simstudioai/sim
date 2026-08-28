@@ -1,14 +1,11 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asNumber,
-  asRecord,
-  asString,
-  cbInsightsRequest,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetOrgFundingWindowTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetOrgFundingWindowTool: InternalToolConfig<
+  CbInsightsOrgParams,
+  ToolResponse
+> = {
   id: 'cbinsights_get_org_funding_window',
   name: 'CB Insights Get Organization Funding Window',
   description:
@@ -37,28 +34,8 @@ export const cbinsightsGetOrgFundingWindowTool: ToolConfig<CbInsightsOrgParams, 
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      windowStart?: unknown
-      windowEnd?: unknown
-      cohortNextRoundRate?: unknown
-      cohortCriteria?: unknown
-      latestFunding?: unknown
-    }>(
-      params,
-      { path: `/v2/organizations/${orgId}/fundingwindow` },
-      (data) => ({
-        windowStart: asString(data.windowStart),
-        windowEnd: asString(data.windowEnd),
-        cohortNextRoundRate: asNumber(data.cohortNextRoundRate),
-        cohortCriteria: asRecord(data.cohortCriteria),
-        latestFunding: asRecord(data.latestFunding),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

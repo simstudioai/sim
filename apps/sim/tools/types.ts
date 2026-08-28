@@ -263,14 +263,6 @@ export interface ToolConfig<P = any, R = any> {
   transformResponse?: (response: Response, params?: P) => Promise<R>
 
   /**
-   * Direct execution function for tools that don't need HTTP requests.
-   * If provided, this will be called instead of making an HTTP request.
-   * Receives the workflow execution's abort signal (when one is active) so
-   * long-running direct executions can propagate cancellation.
-   */
-  directExecution?: (params: P, signal?: AbortSignal) => Promise<ToolResponse>
-
-  /**
    * Optional dynamic schema enrichment for specific params.
    * Maps param IDs to their enrichment configuration.
    */
@@ -466,10 +458,7 @@ export interface InternalToolOperationConfig<P> {
 }
 
 /** Tool metadata shared by network-backed and in-process tools. */
-export type ToolDefinition<P = any, R = any> = Omit<
-  ToolConfig<P, R>,
-  'request' | 'directExecution' | 'operation'
->
+export type ToolDefinition<P = any, R = any> = Omit<ToolConfig<P, R>, 'request' | 'operation'>
 
 /**
  * In-process tool definition. Internal operations deliberately have no URL, HTTP method, or
@@ -478,7 +467,6 @@ export type ToolDefinition<P = any, R = any> = Omit<
 export type InternalToolConfig<P = any, R = any> = ToolDefinition<P, R> & {
   operation: InternalToolOperationConfig<P>
   request?: never
-  directExecution?: never
 }
 
 export type ExecutableToolConfig<P = any, R = any> = ToolConfig<P, R> | InternalToolConfig<P, R>

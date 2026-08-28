@@ -1,11 +1,11 @@
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
 } from '@/tools/supabase/types'
-import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const storageGetPublicUrlTool: ToolConfig<
+export const storageGetPublicUrlTool: InternalToolConfig<
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse
 > = {
@@ -41,43 +41,8 @@ export const storageGetPublicUrlTool: ToolConfig<
     },
   },
 
-  /**
-   * Public URLs are deterministic and built entirely from the project ID,
-   * bucket, and path — no network request is required. `directExecution`
-   * short-circuits the HTTP request so we never hit the API just to discard
-   * its response.
-   */
-  directExecution: async (params: SupabaseStorageGetPublicUrlParams) => {
-    const bucket = encodeStorageSegment(params.bucket)
-    const path = encodeStoragePath(params.path)
-    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
-
-    if (params.download) {
-      // Supabase's `download` query param is a filename override, not a
-      // boolean flag — an empty value forces a download while preserving
-      // the original filename. Sending the literal string "true" would
-      // instead rename the downloaded file to "true".
-      publicUrl += '?download='
-    }
-
-    return {
-      success: true,
-      output: {
-        message: 'Successfully generated public URL',
-        publicUrl,
-      },
-      error: undefined,
-    }
-  },
-
-  request: {
-    url: (params) => {
-      const bucket = encodeStorageSegment(params.bucket)
-      const path = encodeStoragePath(params.path)
-      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
-    },
-    method: 'GET',
-    headers: () => ({}),
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

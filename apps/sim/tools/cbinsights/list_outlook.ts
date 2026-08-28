@@ -1,10 +1,10 @@
 import type { CbInsightsOrgListParams, CbInsightsOrgListResponse } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, compactBody, requireOrgIds } from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsListOutlookParams extends CbInsightsOrgListParams {}
+export interface CbInsightsListOutlookParams extends CbInsightsOrgListParams {}
 
-export const cbinsightsListOutlookTool: ToolConfig<
+export const cbinsightsListOutlookTool: InternalToolConfig<
   CbInsightsListOutlookParams,
   CbInsightsOrgListResponse
 > = {
@@ -35,20 +35,9 @@ export const cbinsightsListOutlookTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) =>
-    cbInsightsRequest<{ orgs?: unknown }>(
-      params,
-      {
-        path: '/v2/outlook',
-        body: compactBody({
-          orgIds: requireOrgIds(params.orgIds),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs) }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
 
   outputs: {
     orgs: {

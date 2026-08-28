@@ -27,6 +27,14 @@ export const googleDriveExportInputSchema = z.object({
   fileName: z.string().optional().nullable(),
 })
 
+export const googleDriveMoveInputSchema = z.object({
+  accessToken: googleAccessTokenSchema,
+  fileId: z.string().trim().min(1, 'File ID is required'),
+  destinationFolderId: z.string().trim().min(1, 'Destination folder ID is required'),
+  removeFromCurrent: z.boolean().optional().default(true),
+})
+
 export type GoogleDriveUploadInput = z.output<typeof googleDriveUploadInputSchema>
 export type GoogleDriveDownloadInput = z.output<typeof googleDriveDownloadInputSchema>
 export type GoogleDriveExportInput = z.output<typeof googleDriveExportInputSchema>
+export type GoogleDriveMoveInput = z.output<typeof googleDriveMoveInputSchema>

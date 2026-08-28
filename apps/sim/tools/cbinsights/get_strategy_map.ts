@@ -1,8 +1,8 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, asString, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetStrategyMapTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetStrategyMapTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
   id: 'cbinsights_get_strategy_map',
   name: 'CB Insights Get Strategy Map',
   description:
@@ -31,20 +31,8 @@ export const cbinsightsGetStrategyMapTool: ToolConfig<CbInsightsOrgParams, ToolR
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ orgName?: unknown; logoUrl?: unknown; categories?: unknown }>(
-      params,
-      { path: `/v2/organizations/${orgId}/strategymap` },
-      (data) => ({
-        orgName: asString(data.orgName),
-        logoUrl: asString(data.logoUrl),
-        categories: asArray(data.categories),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

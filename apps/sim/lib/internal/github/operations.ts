@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -10,10 +11,47 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { GitHubOperationError } from '@/lib/internal/github/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import type { LatestCommitParams, LatestCommitResponse } from '@/tools/github/types'
+import { formatGitHubErrorMessage } from '@/tools/github/response-parsers'
+import type {
+  CreateCommentParams,
+  LatestCommitParams,
+  LatestCommitResponse,
+} from '@/tools/github/types'
+import { secureGitHubRequest } from '@/tools/github/utils.server'
+import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('GitHubLatestCommitOperation')
 const MAX_COMMIT_RESPONSE_BYTES = 10 * 1024 * 1024
+const GITHUB_API_BASE = 'https://api.github.com'
+
+interface ReviewCommentBody {
+  body: string
+  event: 'COMMENT'
+}
+
+interface FileCommentBodyBase {
+  body: string
+  commit_id: string | undefined
+  path: string | undefined
+}
+
+type FileCommentBody =
+  | (FileCommentBodyBase & { subject_type: 'file' })
+  | (FileCommentBodyBase & { line: number; side: string })
+
+interface GitHubCommentPayload {
+  id?: number
+  body?: string
+  html_url?: string
+  user?: unknown
+  path?: string
+  line?: number
+  position?: number
+  side?: string
+  commit_id?: string
+  created_at?: string
+  updated_at?: string
+}
 
 interface GitHubCommitFile {
   filename: string
@@ -49,6 +87,228 @@ interface GitHubCommitFileOutput extends Omit<GitHubCommitFile, 'raw_url' | 'blo
 export interface GitHubOperationContext {
   requestId: string
   signal?: AbortSignal
+}
+
+function githubHeaders(apiKey: string): Record<string, string> {
+  return {
+    Accept: 'application/vnd.github.v3+json',
+    Authorization: `Bearer ${apiKey}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+  }
+}
+
+function pullRequestUrl(params: CreateCommentParams): string {
+  return `${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`
+}
+
+function isFileCommentRequest(params: CreateCommentParams): boolean {
+  return params.commentType === 'file_comment' && Boolean(params.path)
+}
+
+function needsCommitLookup(params: CreateCommentParams): boolean {
+  return isFileCommentRequest(params) && !params.commitId
+}
+
+function toLineNumber(value: unknown): number | undefined {
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = value
+  } else {
+    if (value === undefined || value === null) return undefined
+    if (typeof value !== 'string') {
+      throw new Error('GitHub line must be a positive integer')
+    }
+    if (!value.trim()) return undefined
+    parsed = Number(value.trim())
+  }
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`GitHub line must be a valid number, but line was ${String(value)}`)
+  }
+  if (!Number.isInteger(parsed)) {
+    throw new Error(
+      `GitHub line numbers are whole numbers, but line was ${parsed}. Set line to the integer line number in the diff.`
+    )
+  }
+  return parsed
+}
+
+function fileCommentBody(
+  params: CreateCommentParams,
+  commitId: string | undefined
+): FileCommentBody {
+  const base = {
+    body: params.body,
+    commit_id: commitId,
+    path: params.path,
+  }
+  const line = toLineNumber(params.line)
+  if (line === undefined) return { ...base, subject_type: 'file' }
+  if (line < 1) throw new Error('GitHub line numbers must be positive integers')
+  return { ...base, line, side: params.side || 'RIGHT' }
+}
+
+function commentEndpointUrl(params: CreateCommentParams): string {
+  return isFileCommentRequest(params)
+    ? `${pullRequestUrl(params)}/comments`
+    : `${pullRequestUrl(params)}/reviews`
+}
+
+function commentRequestBody(
+  params: CreateCommentParams,
+  commitId: string | undefined
+): FileCommentBody | ReviewCommentBody {
+  if (isFileCommentRequest(params)) return fileCommentBody(params, commitId)
+  return { body: params.body, event: 'COMMENT' }
+}
+
+function readHeadSha(pullRequest: unknown): string | undefined {
+  if (!isRecordLike(pullRequest) || !isRecordLike(pullRequest.head)) return undefined
+  const sha = pullRequest.head.sha
+  return typeof sha === 'string' && sha ? sha : undefined
+}
+
+function readString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function readNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key]
+  return typeof value === 'number' ? value : undefined
+}
+
+function readCommentPayload(value: unknown): GitHubCommentPayload {
+  if (!isRecordLike(value)) return {}
+  const submittedAt = readString(value, 'submitted_at')
+  return {
+    id: readNumber(value, 'id'),
+    body: readString(value, 'body'),
+    html_url: readString(value, 'html_url'),
+    user: value.user,
+    path: readString(value, 'path'),
+    line: readNumber(value, 'line'),
+    position: readNumber(value, 'position'),
+    side: readString(value, 'side'),
+    commit_id: readString(value, 'commit_id'),
+    created_at: readString(value, 'created_at') ?? submittedAt,
+    updated_at: readString(value, 'updated_at') ?? submittedAt,
+  }
+}
+
+async function assertGitHubResponseOk(
+  response: Response,
+  fallback: string,
+  signal?: AbortSignal
+): Promise<void> {
+  if (response.ok) return
+
+  const text = await readResponseTextWithLimit(response, {
+    maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+    label: 'GitHub error response',
+    signal,
+  }).catch(() => '')
+  let data: unknown = text
+  try {
+    data = JSON.parse(text)
+  } catch {
+    data = text
+  }
+
+  throw new GitHubOperationError(
+    formatGitHubErrorMessage(data) ?? `${fallback} (HTTP ${response.status})`,
+    response.status
+  )
+}
+
+async function createComment(
+  params: CreateCommentParams,
+  signal?: AbortSignal
+): Promise<GitHubCommentPayload> {
+  const headers = githubHeaders(params.apiKey)
+
+  let commitId = params.commitId
+  if (needsCommitLookup(params)) {
+    const pullRequestResponse = await secureGitHubRequest(pullRequestUrl(params), {
+      headers,
+      signal,
+    })
+    await assertGitHubResponseOk(
+      pullRequestResponse,
+      `Failed to load pull request ${params.owner}/${params.repo}#${params.pullNumber}`,
+      signal
+    )
+    const pullRequest = await readResponseJsonWithLimit<unknown>(pullRequestResponse, {
+      maxBytes: MAX_COMMIT_RESPONSE_BYTES,
+      label: 'GitHub pull request response',
+      signal,
+    })
+    commitId = readHeadSha(pullRequest)
+    if (!commitId) {
+      throw new Error(
+        `GitHub returned no head commit SHA for pull request ${params.owner}/${params.repo}#${params.pullNumber}. Set commitId to comment on a specific commit.`
+      )
+    }
+  }
+
+  const response = await secureGitHubRequest(commentEndpointUrl(params), {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(commentRequestBody(params, commitId)),
+    signal,
+  })
+  await assertGitHubResponseOk(response, 'Failed to create comment', signal)
+  return readCommentPayload(
+    await readResponseJsonWithLimit<unknown>(response, {
+      maxBytes: MAX_COMMIT_RESPONSE_BYTES,
+      label: 'GitHub comment response',
+      signal,
+    })
+  )
+}
+
+export async function executeGitHubCommentOperation(
+  params: CreateCommentParams,
+  signal?: AbortSignal
+): Promise<ToolResponse> {
+  const data = await createComment(params, signal)
+  return {
+    success: true,
+    output: {
+      content: `Comment created: "${data.body}"`,
+      metadata: {
+        id: data.id,
+        html_url: data.html_url,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        path: data.path,
+        line: data.line || data.position,
+        side: data.side,
+        commit_id: data.commit_id,
+      },
+    },
+  }
+}
+
+export async function executeGitHubCommentV2Operation(
+  params: CreateCommentParams,
+  signal?: AbortSignal
+): Promise<ToolResponse> {
+  const data = await createComment(params, signal)
+  return {
+    success: true,
+    output: {
+      id: data.id,
+      body: data.body,
+      html_url: data.html_url,
+      user: data.user,
+      path: data.path ?? null,
+      line: data.line ?? data.position ?? null,
+      side: data.side ?? null,
+      commit_id: data.commit_id ?? null,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    },
+  }
 }
 
 async function fetchChangedFileContent(

@@ -416,12 +416,12 @@ export function PreviewWorkflow({
 
         // Check for direct error on the subflow block itself (e.g., loop resolution errors)
         // before falling back to children-derived status
-        const directExecution = blockExecutionMap.get(blockId)
+        const blockExecution = blockExecutionMap.get(blockId)
         const subflowExecutionStatus: ExecutionStatus | undefined =
-          directExecution?.status === 'error'
+          blockExecution?.status === 'error'
             ? 'error'
             : (getSubflowExecutionStatus(blockId) ??
-              (directExecution ? (directExecution.status as ExecutionStatus) : undefined))
+              (blockExecution ? (blockExecution.status as ExecutionStatus) : undefined))
 
         nodeArray.push({
           id: blockId,

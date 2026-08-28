@@ -1,19 +1,12 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  asNumber,
-  cbInsightsRequest,
-  compactBody,
-  parseIdListParam,
-  requireOrgId,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-interface CbInsightsOrgManagementParams extends CbInsightsOrgParams {
+export interface CbInsightsOrgManagementParams extends CbInsightsOrgParams {
   titleIds?: number[] | string
 }
 
-export const cbinsightsGetOrgManagementAndBoardTool: ToolConfig<
+export const cbinsightsGetOrgManagementAndBoardTool: InternalToolConfig<
   CbInsightsOrgManagementParams,
   ToolResponse
 > = {
@@ -51,22 +44,8 @@ export const cbinsightsGetOrgManagementAndBoardTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ people?: unknown; mosaicManagement?: unknown }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/managementandboard`,
-        body: compactBody({ titleIds: parseIdListParam(params.titleIds, 'titleIds') }),
-      },
-      (data) => ({
-        people: asArray(data.people),
-        mosaicManagement: asNumber(data.mosaicManagement),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

@@ -1,13 +1,13 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, compactBody, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-interface CbInsightsCommercialMaturityHistoryParams extends CbInsightsOrgParams {
+export interface CbInsightsCommercialMaturityHistoryParams extends CbInsightsOrgParams {
   startDate?: string
   endDate?: string
 }
 
-export const cbinsightsGetCommercialMaturityHistoryTool: ToolConfig<
+export const cbinsightsGetCommercialMaturityHistoryTool: InternalToolConfig<
   CbInsightsCommercialMaturityHistoryParams,
   ToolResponse
 > = {
@@ -53,22 +53,8 @@ export const cbinsightsGetCommercialMaturityHistoryTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ commercialMaturityHistory?: unknown }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/commercialmaturityhistory`,
-        body: compactBody({
-          startDate: params.startDate?.trim(),
-          endDate: params.endDate?.trim(),
-        }),
-      },
-      (data) => ({ commercialMaturityHistory: asArray(data.commercialMaturityHistory) }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

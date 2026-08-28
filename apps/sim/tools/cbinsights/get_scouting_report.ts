@@ -1,14 +1,11 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import {
-  asRecord,
-  asString,
-  cbInsightsRequest,
-  requireOrgId,
-  SCOUTING_REPORT_TIMEOUT_MS,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetScoutingReportTool: ToolConfig<CbInsightsOrgParams, ToolResponse> = {
+export const cbinsightsGetScoutingReportTool: InternalToolConfig<
+  CbInsightsOrgParams,
+  ToolResponse
+> = {
   id: 'cbinsights_get_scouting_report',
   name: 'CB Insights Get Scouting Report',
   description:
@@ -37,27 +34,8 @@ export const cbinsightsGetScoutingReportTool: ToolConfig<CbInsightsOrgParams, To
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      orgInfo?: unknown
-      reportMarkdown?: unknown
-      reportJson?: unknown
-    }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/scoutingreport`,
-        timeoutMs: SCOUTING_REPORT_TIMEOUT_MS,
-      },
-      (data) => ({
-        orgInfo: asRecord(data.orgInfo),
-        reportMarkdown: asString(data.reportMarkdown),
-        reportJson: asString(data.reportJson),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {
