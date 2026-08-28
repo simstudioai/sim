@@ -21,6 +21,7 @@ import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryStates } from 'nuqs'
+import type { AuditLogPage } from '@/lib/api/contracts/audit-logs'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -240,6 +241,24 @@ interface AuditLogsProps {
   organizationId: string
 }
 
+/**
+ * Entries the feed is allowed to present.
+ *
+ * A disabled query still serves whatever is cached under its key, and an unresolved
+ * workspace scope resolves to the same key as the unscoped feed — so an admin looking
+ * at the organization-wide feed who then followed a stale scoped link kept those rows
+ * on screen, with Export still armed against them. The scope a link asks for is a
+ * ceiling, so when it cannot be honoured the feed presents nothing rather than
+ * whatever it happens to be holding.
+ */
+export function presentableAuditEntries(
+  pages: AuditLogPage[] | undefined,
+  isScopeAnswerable: boolean
+): EnterpriseAuditLogEntry[] {
+  if (!isScopeAnswerable || !pages) return []
+  return pages.flatMap((page) => page.data)
+}
+
 export function AuditLogs({ organizationId }: AuditLogsProps) {
   const [urlFilters, setUrlFilters] = useQueryStates(auditLogFilterParsers, auditLogFilterUrlKeys)
   const { types: selectedTypes } = urlFilters
@@ -314,6 +333,9 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
    */
   const isWorkspaceScopeUnresolved =
     Boolean(workspaceScope) && !isWorkspaceScopePending && !scopedWorkspace
+
+  /** The feed can answer the scope the URL asks for — the gate on reading or exporting. */
+  const isScopeAnswerable = !isWorkspaceScopePending && !isWorkspaceScopeUnresolved
   const {
     data,
     isLoading,
@@ -324,10 +346,10 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
     refetch,
   } = useAuditLogs(organizationId, filters, !isWorkspaceScopePending && !isWorkspaceScopeUnresolved)
 
-  const allEntries = useMemo(() => {
-    if (!data?.pages) return []
-    return data.pages.flatMap((page) => page.data)
-  }, [data])
+  const allEntries = useMemo(
+    () => presentableAuditEntries(data?.pages, isScopeAnswerable),
+    [data, isScopeAnswerable]
+  )
 
   const typeDisplayLabel =
     selectedTypes.length === 0
@@ -425,7 +447,13 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
           text: 'Export',
           icon: Download,
           onSelect: () => void handleExportCsv(),
-          disabled: allEntries.length === 0 || isExporting || isPlaceholderData,
+          /*
+            `isScopeAnswerable` explicitly, not just via the empty `allEntries` it
+            implies: the export is the action that leaves the building, so the
+            condition that makes it safe belongs where it is read.
+          */
+          disabled:
+            !isScopeAnswerable || allEntries.length === 0 || isExporting || isPlaceholderData,
         },
       ]}
     >
