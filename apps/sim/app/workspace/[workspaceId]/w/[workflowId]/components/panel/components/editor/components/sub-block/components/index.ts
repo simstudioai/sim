@@ -1,3 +1,4 @@
+export { AgentSessionSelector } from './agent-session-selector'
 export { CheckboxList } from './checkbox-list'
 export { Code } from './code'
 export { ComboBox } from './combobox'

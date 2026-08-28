@@ -681,6 +681,22 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
+    case 'agent-session-selector': {
+      if (typeof value !== 'string') {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid agent session value for field "${fieldName}" - expected a string`,
+          },
+        }
+      }
+      return { valid: true, value: value.trim() }
+    }
+
     // Selector types - allow strings (IDs) or arrays of strings
     case 'oauth-input':
     case 'knowledge-base-selector':

@@ -140,7 +140,7 @@ describe('resolveWorkspaceSandbox', () => {
     expect(mockSelect).not.toHaveBeenCalled()
   })
 
-  it.each(['mothership', 'doc', 'pi'] as const)(
+  it.each(['mothership', 'doc', 'pi', 'codex'] as const)(
     'ignores a selection for the %s kind',
     async (kind) => {
       const resolved = await resolveWorkspaceSandbox({

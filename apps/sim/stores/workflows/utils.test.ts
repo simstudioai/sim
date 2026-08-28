@@ -288,6 +288,49 @@ describe('getUniqueBlockName', () => {
 describe('regenerateBlockIds', () => {
   const positionOffset = { x: 50, y: 50 }
 
+  it('remaps a copied Codex group to one fresh agent identity', () => {
+    const blocksToCopy = {
+      'codex-a': createBlock({
+        id: 'codex-a',
+        type: 'codex',
+        name: 'Codex A',
+        subBlocks: {
+          agentId: { id: 'agentId', type: 'agent-session-selector', value: 'shared-agent' },
+        },
+      }),
+      'codex-b': createBlock({
+        id: 'codex-b',
+        type: 'codex',
+        name: 'Codex B',
+        subBlocks: {
+          agentId: { id: 'agentId', type: 'agent-session-selector', value: 'shared-agent' },
+        },
+      }),
+    }
+
+    const result = regenerateBlockIds(
+      blocksToCopy,
+      [],
+      {},
+      {},
+      {
+        'codex-a': { agentId: 'shared-agent' },
+        'codex-b': { agentId: 'shared-agent' },
+      },
+      positionOffset,
+      {},
+      getUniqueBlockName
+    )
+    const newA = result.idMap.get('codex-a')!
+    const newB = result.idMap.get('codex-b')!
+    const copiedAgentId = result.subBlockValues[newA].agentId
+
+    expect(copiedAgentId).toBe(result.subBlockValues[newB].agentId)
+    expect(copiedAgentId).not.toBe('shared-agent')
+    expect(result.blocks[newA].subBlocks.agentId.value).toBe(copiedAgentId)
+    expect(result.blocks[newB].subBlocks.agentId.value).toBe(copiedAgentId)
+  })
+
   it('should preserve parentId and use same offset when duplicating a block inside an existing subflow', () => {
     const loopId = 'loop-1'
     const childId = 'child-1'

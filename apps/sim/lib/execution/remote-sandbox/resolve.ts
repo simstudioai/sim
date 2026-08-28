@@ -190,7 +190,7 @@ export async function resolveWorkspaceSandbox(args: {
 }): Promise<ResolvedSandbox | null> {
   const { kind, language, workspaceId, sandboxId } = args
   if (!sandboxId) return null
-  // Mothership, doc, and Pi keep their vetted images unconditionally.
+  // Mothership, doc, Pi, and Codex keep their vetted images unconditionally.
   if (!SANDBOX_AWARE_KINDS.has(kind)) return null
   if (!workspaceId) {
     throw new Error('A sandbox was selected but this execution has no workspace to resolve it in')

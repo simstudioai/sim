@@ -3,7 +3,7 @@
  */
 import { loggerMock } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
 const { mockCancellationSubscribers, mockIsExecutionCancelled } = vi.hoisted(() => ({
@@ -806,6 +806,27 @@ describe('ExecutionEngine', () => {
       await runPromise
 
       expect(mockCancellationSubscribers.size).toBe(0)
+    })
+
+    it('awaits and clears execution-scoped runtime resources', async () => {
+      const cleanup = vi.fn().mockResolvedValue(undefined)
+      const resources = {
+        values: new Map<string, unknown>([['agent', { sandboxId: 'sandbox-1' }]]),
+        cleanupCallbacks: new Set([cleanup]),
+      }
+      const startNode = createMockNode('start', 'starter')
+      const engine = new ExecutionEngine(
+        createMockContext({ runtimeResources: resources }),
+        createMockDAG([startNode]),
+        createMockEdgeManager(),
+        createMockNodeOrchestrator()
+      )
+
+      await engine.run('start')
+
+      expect(cleanup).toHaveBeenCalledOnce()
+      expect(resources.values.size).toBe(0)
+      expect(resources.cleanupCallbacks.size).toBe(0)
     })
 
     it('honours the durable backstop when cancelled before subscribing', async () => {

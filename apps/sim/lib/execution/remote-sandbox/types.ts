@@ -8,7 +8,7 @@ import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
  * template/snapshot id is unset, so LLM-authored code can never land in a
  * provider's unvetted default image.
  */
-export type SandboxKind = 'code' | 'shell' | 'mothership' | 'doc' | 'pi'
+export type SandboxKind = 'code' | 'shell' | 'mothership' | 'doc' | 'pi' | 'codex'
 
 export type SandboxProviderId = 'e2b' | 'daytona'
 
@@ -188,7 +188,7 @@ export interface CreateSandboxOptions {
   language?: CodeLanguage
   /**
    * Provider image to create from, overriding the env-configured template.
-   * Honored for `code` and `shell` only: Mothership, doc, and Pi keep their
+   * Honored for `code` and `shell` only: Mothership, doc, Pi, and Codex keep their
    * vetted images unconditionally, so a user's dependency set can never
    * displace those server-owned runtimes.
    */

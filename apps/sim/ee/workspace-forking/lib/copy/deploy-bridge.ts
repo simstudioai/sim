@@ -27,6 +27,8 @@ export interface DeployedWorkflowSummary {
   description: string | null
   folderId: string | null
   sortOrder: number
+  /** Workflow/Agent Codex overlay document. */
+  codexConfig?: unknown
   /** Whether the deployed API accepts unauthenticated calls; carried onto sync targets. */
   isPublicApi: boolean
 }
@@ -54,6 +56,7 @@ export async function listDeployedWorkflows(
       description: workflow.description,
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
+      codexConfig: workflow.codexConfig,
       isPublicApi: workflow.isPublicApi,
     })
     .from(workflow)

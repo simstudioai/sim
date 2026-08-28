@@ -36,6 +36,7 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   secrets: 'secrets',
   'credential-groups': 'credential-groups',
   byok: 'byok',
+  codex: 'codex',
   sandboxes: 'sandboxes',
   'custom-tools': 'custom-tools',
   mcp: 'mcp',

@@ -492,6 +492,43 @@ describe('workflow store', () => {
         expect(blocks[duplicatedId].position.x).not.toBe(0)
       }
     })
+
+    it('gives an explicitly shared Codex block an independent agent identity', () => {
+      const { duplicateBlock } = useWorkflowStore.getState()
+      useWorkflowRegistry.setState({ activeWorkflowId: 'wf-codex' })
+      useWorkflowStore.setState({
+        currentWorkflowId: 'wf-codex',
+        blocks: {
+          original: {
+            id: 'original',
+            type: 'codex',
+            name: 'Codex',
+            position: { x: 0, y: 0 },
+            subBlocks: {
+              agentId: {
+                id: 'agentId',
+                type: 'agent-session-selector',
+                value: 'shared-agent',
+              },
+            },
+            outputs: {},
+            enabled: true,
+          },
+        },
+      })
+      useSubBlockStore.setState({
+        workflowValues: { 'wf-codex': { original: { agentId: 'shared-agent' } } },
+      })
+
+      duplicateBlock('original')
+
+      const { blocks } = useWorkflowStore.getState()
+      const duplicatedId = Object.keys(blocks).find((id) => id !== 'original')!
+      const values = useSubBlockStore.getState().workflowValues['wf-codex']
+      expect(values[duplicatedId].agentId).not.toBe('shared-agent')
+      expect(blocks[duplicatedId].subBlocks.agentId.value).toBe(values[duplicatedId].agentId)
+      expect(values.original.agentId).toBe('shared-agent')
+    })
   })
 
   describe('duplicateBlock cloned webhook path', () => {

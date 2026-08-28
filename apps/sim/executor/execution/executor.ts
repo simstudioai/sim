@@ -493,6 +493,9 @@ export class DAGExecutor {
         : new Set(),
       // Deliberately not restored from a snapshot: it is a cache, so a resumed run re-resolves.
       toolBindingLabelCache: new Map(),
+      // Runtime handles cannot cross a pause/restart boundary. A resumed execution creates a fresh
+      // registry and every registered resource is closed by ExecutionEngine before it returns.
+      runtimeResources: { values: new Map(), cleanupCallbacks: new Set() },
       loopExecutions: snapshotState?.loopExecutions
         ? new Map(
             Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [

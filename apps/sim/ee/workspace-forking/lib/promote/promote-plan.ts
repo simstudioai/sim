@@ -39,6 +39,8 @@ export interface ForkPromotePlanItem {
     description: string | null
     folderId: string | null
     sortOrder: number
+    /** Sparse workflow/Agent Codex overlays promoted with the workflow. */
+    codexConfig?: unknown
     /** Source's public-API flag, carried onto the written target (see copyWorkflowStateIntoTarget). */
     isPublicApi: boolean
   }
@@ -211,6 +213,7 @@ export function buildForkPromotePlanItems(params: {
         description: source.description,
         folderId: source.folderId,
         sortOrder: source.sortOrder,
+        codexConfig: source.codexConfig,
         isPublicApi: source.isPublicApi,
       },
     })

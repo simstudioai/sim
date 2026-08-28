@@ -27,6 +27,8 @@ export interface WorkspaceWithOwner {
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
   allowPersonalApiKeys: boolean
+  /** Shared Codex defaults, selected only where workspace copies need them. */
+  codexConfig?: unknown
   archivedAt?: Date | null
 }
 
@@ -93,6 +95,7 @@ async function selectWorkspaceWithOwner(
       workspaceMode: workspace.workspaceMode,
       billedAccountUserId: workspace.billedAccountUserId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      codexConfig: workspace.codexConfig,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)

@@ -294,6 +294,40 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   sap_concur: [{ from: 'forwardId', to: '_removed_forwardId' }],
 }
 
+/**
+ * Newly introduced state-bearing fields that existing saved blocks need before
+ * a collaborative setter can address them. Keep this explicit: automatically
+ * adding every future registry field would turn harmless UI additions into
+ * workflow-wide persistence migrations.
+ */
+const SUBBLOCK_ADDITIONS: Record<
+  string,
+  ReadonlyArray<{ id: string; type: BlockState['subBlocks'][string]['type']; value: unknown }>
+> = {
+  codex: [{ id: 'agentConfig', type: 'short-input', value: null }],
+}
+
+function addMissingSubblocks(
+  blockType: string,
+  subBlocks: Record<string, BlockState['subBlocks'][string]>
+): { subBlocks: Record<string, BlockState['subBlocks'][string]>; added: boolean } {
+  const additions = SUBBLOCK_ADDITIONS[blockType]
+  if (!additions?.some(({ id }) => !Object.hasOwn(subBlocks, id))) {
+    return { subBlocks, added: false }
+  }
+
+  const result = { ...subBlocks }
+  for (const addition of additions) {
+    if (Object.hasOwn(result, addition.id)) continue
+    result[addition.id] = {
+      id: addition.id,
+      type: addition.type,
+      value: addition.value as BlockState['subBlocks'][string]['value'],
+    }
+  }
+  return { subBlocks: result, added: true }
+}
+
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */
 function storedSubblockValue(entry: unknown): unknown {
   if (isPlainRecord(entry)) return Object.hasOwn(entry, 'value') ? entry.value : null
@@ -485,8 +519,9 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       ? migrateBlockSubblockIds(block.type, block.subBlocks, migrations)
       : { subBlocks: block.subBlocks, migrated: false }
     const purged = dropParkedSubblocks(renamed.subBlocks)
-    const changedSubBlocks = renamed.migrated || purged.dropped
-    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
+    const added = addMissingSubblocks(block.type, purged.subBlocks)
+    const changedSubBlocks = renamed.migrated || purged.dropped || added.added
+    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: added.subBlocks } : block
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
     const blockMigrated = changedSubBlocks || sanitized.changed
 
@@ -499,6 +534,12 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       }
       if (renamed.migrated) {
         logger.info('Migrated legacy subblock IDs', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
+      if (added.added) {
+        logger.info('Added state required by a new block field', {
           blockId: block.id,
           blockType: block.type,
         })

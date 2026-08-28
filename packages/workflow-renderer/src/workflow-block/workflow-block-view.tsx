@@ -477,6 +477,8 @@ export interface WorkflowBlockViewProps {
    * right. Hidden when it matches the block name to avoid duplication.
    */
   typeLabel?: string
+  /** Optional domain-specific status tag placed beside the block-kind tag. */
+  headerBadge?: ReactNode
   /**
    * Natural-language summary of what the block does, with inline value
    * chips. When present it replaces the statement line and field rows;
@@ -558,6 +560,7 @@ export function WorkflowBlockView({
   rows,
   chips,
   typeLabel,
+  headerBadge,
   sentence,
   hasErrorConnection = false,
   errorOutputEnabled = false,
@@ -958,6 +961,7 @@ export function WorkflowBlockView({
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
             {!isEnabled && <BlockStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <BlockStateIndicator label='Locked' Icon={Lock} />}
+            {headerBadge}
             <WorkflowTypeTag
               type={type}
               typeLabel={typeLabel}

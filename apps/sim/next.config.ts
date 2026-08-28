@@ -228,7 +228,7 @@ const nextConfig: NextConfig = {
       ...(env.NEXT_PUBLIC_APP_URL
         ? (() => {
             try {
-              return [new URL(env.NEXT_PUBLIC_APP_URL).host]
+              return [new URL(env.NEXT_PUBLIC_APP_URL).hostname]
             } catch {
               return []
             }

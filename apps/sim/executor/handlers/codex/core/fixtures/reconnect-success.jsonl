@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"019c9f8d-0bb8-7490-90c5-0514d2b465fe"}
+{"type":"turn.started"}
+{"type":"error","message":"Reconnecting... 1/5"}
+{"type":"error","message":"Reconnecting... 2/5"}
+{"type":"item.completed","item":{"id":"message-1","type":"agent_message","text":"Recovered and completed"}}
+{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":40,"cache_write_input_tokens":0,"output_tokens":35,"reasoning_output_tokens":12}}

@@ -401,6 +401,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'workflows.mdx',
   'workflows/blocks/agent.mdx',
   'workflows/blocks/api.mdx',
+  'workflows/blocks/codex.mdx',
   'workflows/blocks/condition.mdx',
   'workflows/blocks/credential.mdx',
   'workflows/blocks/evaluator.mdx',

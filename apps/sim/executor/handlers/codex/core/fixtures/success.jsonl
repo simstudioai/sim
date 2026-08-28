@@ -1,0 +1,9 @@
+{"type":"thread.started","thread_id":"019c9f8d-0bb8-7490-90c5-0514d2b465fe"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item-1","type":"command_execution","command":"rg -n TODO src","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.updated","item":{"id":"item-1","type":"command_execution","command":"rg -n TODO src","aggregated_output":"src/a.ts:1:TODO","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item-1","type":"command_execution","command":"rg -n TODO src","aggregated_output":"src/a.ts:1:TODO\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item-2","type":"file_change","changes":[{"path":"src/a.ts","kind":"update"}],"status":"completed"}}
+{"type":"item.completed","item":{"id":"item-3","type":"reasoning","text":"I checked the relevant call sites."}}
+{"type":"item.completed","item":{"id":"item-4","type":"agent_message","text":"## Plan\n\n1. Update `src/a.ts`."}}
+{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":40,"cache_write_input_tokens":10,"output_tokens":35,"reasoning_output_tokens":12}}

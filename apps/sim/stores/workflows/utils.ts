@@ -2,6 +2,7 @@ import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
+import { remapCopiedAgentSessions } from '@/lib/workflows/agent-sessions'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
@@ -451,6 +452,14 @@ export function regenerateBlockIds(
         block.data = { ...block.data, parentId: undefined, extent: undefined }
       }
     }
+  })
+
+  remapCopiedAgentSessions({
+    sourceBlocks: blocks,
+    copiedBlocks: newBlocks,
+    blockIdMap,
+    sourceSubBlockValues: subBlockValues,
+    copiedSubBlockValues: newSubBlockValues,
   })
 
   const newEdges = edges.map((edge) => {

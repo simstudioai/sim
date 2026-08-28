@@ -115,6 +115,7 @@ const EVAL_INPUT_FIELD_TITLES: Record<string, string> = {
 }
 
 const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
+  'agent-session-selector',
   'dropdown',
   'checkbox-list',
   'grouped-checkbox-list',

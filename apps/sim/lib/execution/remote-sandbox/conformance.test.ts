@@ -48,6 +48,7 @@ const {
   mockEnv: {
     SANDBOX_PROVIDER: 'e2b' as string | undefined,
     PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
+    CODEX_SANDBOX_LIFETIME_MS: undefined as string | undefined,
     E2B_ENABLED: 'true',
     E2B_API_KEY: 'test-key',
     E2B_FUNCTION_TEMPLATE_ID: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479' as
@@ -57,11 +58,13 @@ const {
     MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-shell',
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID: 'mothership-docs',
     E2B_PI_TEMPLATE_ID: 'sim-pi',
+    E2B_CODEX_TEMPLATE_ID: 'sim-codex' as string | undefined,
     DAYTONA_API_KEY: 'test-key',
     DAYTONA_FUNCTION_SNAPSHOT_ID: '7d9d12d6-5f2a-44df-9cc2-a20203f3813b' as string | undefined,
     DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1' as string | undefined,
     DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1' as string | undefined,
     DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1' as string | undefined,
+    DAYTONA_CODEX_SNAPSHOT_ID: 'sim-codex:v1' as string | undefined,
   },
   mockE2BCreate: vi.fn(),
   mockE2BRunCode: vi.fn(),
@@ -113,6 +116,7 @@ vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
 
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
+  createCodexSandbox,
   executeInSandbox,
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
@@ -1665,7 +1669,7 @@ describe('custom dependency sets', () => {
     }
   })
 
-  it('selects E2B for doc and Pi sandboxes without a Function template', async () => {
+  it('selects E2B for doc, Pi, and Codex sandboxes without a Function template', async () => {
     useProvider('e2b')
     const original = mockEnv.E2B_FUNCTION_TEMPLATE_ID
     mockEnv.E2B_FUNCTION_TEMPLATE_ID = undefined
@@ -1673,13 +1677,16 @@ describe('custom dependency sets', () => {
       const provider = resolveProvider()
       const doc = await provider.create('doc')
       const pi = await provider.create('pi')
+      const codex = await provider.create('codex')
 
       expect(provider.id).toBe('e2b')
       expect(mockE2BCreate).toHaveBeenNthCalledWith(1, 'mothership-docs', expect.anything())
       expect(mockE2BCreate).toHaveBeenNthCalledWith(2, 'sim-pi', expect.anything())
+      expect(mockE2BCreate).toHaveBeenNthCalledWith(3, 'sim-codex', expect.anything())
       await expect(provider.create('code')).rejects.toThrow(/E2B_FUNCTION_TEMPLATE_ID is unset/)
       await doc.kill()
       await pi.kill()
+      await codex.kill()
     } finally {
       mockEnv.E2B_FUNCTION_TEMPLATE_ID = original
     }
@@ -1737,7 +1744,7 @@ describe('custom dependency sets', () => {
     }
   })
 
-  it('selects Daytona for doc and Pi sandboxes without a Function snapshot', async () => {
+  it('selects Daytona for doc, Pi, and Codex sandboxes without a Function snapshot', async () => {
     useProvider('daytona')
     const original = mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID
     mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID = undefined
@@ -1745,6 +1752,7 @@ describe('custom dependency sets', () => {
       const provider = resolveProvider()
       const doc = await provider.create('doc')
       const pi = await provider.create('pi')
+      const codex = await provider.create('codex')
 
       expect(provider.id).toBe('daytona')
       expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
@@ -1755,9 +1763,14 @@ describe('custom dependency sets', () => {
         2,
         expect.objectContaining({ snapshot: 'sim-pi:v1' })
       )
+      expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({ snapshot: 'sim-codex:v1' })
+      )
       await expect(provider.create('code')).rejects.toThrow(/DAYTONA_FUNCTION_SNAPSHOT_ID is unset/)
       await doc.kill()
       await pi.kill()
+      await codex.kill()
     } finally {
       mockEnv.DAYTONA_FUNCTION_SNAPSHOT_ID = original
     }
@@ -2329,4 +2342,35 @@ describe('Pi sandbox lifetime', () => {
       })
     )
   })
+})
+
+describe('Codex sandbox lifetime', () => {
+  it.each([
+    ['e2b', 'sim-codex'],
+    ['daytona', 'sim-codex:v1'],
+  ] as const)(
+    'uses the dedicated image and remains live until its owner closes it [%s]',
+    async (provider, image) => {
+      useProvider(provider)
+
+      const sandbox = await createCodexSandbox({ lifetimeMs: 4 * 60 * 1000 })
+
+      if (provider === 'e2b') {
+        expect(mockE2BCreate).toHaveBeenCalledWith(
+          image,
+          expect.objectContaining({ timeoutMs: 4 * 60 * 1000 })
+        )
+        expect(mockE2BKill).not.toHaveBeenCalled()
+        await sandbox.close()
+        expect(mockE2BKill).toHaveBeenCalled()
+      } else {
+        expect(mockDaytonaCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ snapshot: image, ephemeral: true, ttlMinutes: 4 })
+        )
+        expect(mockDelete).not.toHaveBeenCalled()
+        await sandbox.close()
+        expect(mockDelete).toHaveBeenCalled()
+      }
+    }
+  )
 })

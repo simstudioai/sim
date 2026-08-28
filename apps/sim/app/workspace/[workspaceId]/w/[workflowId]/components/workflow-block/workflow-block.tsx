@@ -1,4 +1,5 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { ChipTag, Tooltip } from '@sim/emcn'
 import {
   ArrowLeftRight,
   ArrowUpDown,
@@ -34,6 +35,7 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureEvent } from '@/lib/posthog/client'
+import { getAgentSessionColor, resolveAgentSessionId } from '@/lib/workflows/agent-sessions'
 import { getCardSubBlocks } from '@/lib/workflows/blocks/canvas-card-fields'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
@@ -110,6 +112,7 @@ import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedule
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useAgentSessionCatalog } from '@/hooks/use-agent-session-catalog'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { getModelSunsetStatus } from '@/providers/models'
@@ -126,8 +129,55 @@ const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /** Stable empty map for rows that never resolve MCP tool names */
 const EMPTY_MCP_TOOL_NAMES: ReadonlyMap<string, string> = new Map()
+const EMPTY_AGENT_SESSION_FIELDS: readonly string[] = []
 
 type MetaIcon = ComponentType<{ className?: string }>
+
+interface AgentSessionBadgeProps {
+  blockId: string
+  blockType: string
+  config: BlockConfig
+  value: unknown
+}
+
+/** Compact canvas identity for stateful agent blocks; internal IDs stay hidden. */
+function AgentSessionBadge({ blockId, blockType, config, value }: AgentSessionBadgeProps) {
+  const selector = config.subBlocks.find((subBlock) => subBlock.type === 'agent-session-selector')
+  const { currentSession } = useAgentSessionCatalog({
+    blockId,
+    blockType,
+    sessionSubBlockId: selector?.id ?? 'agentId',
+    compatibleSubBlockIds: selector?.agentSessionFields ?? EMPTY_AGENT_SESSION_FIELDS,
+    previewValue: value,
+  })
+  if (!selector) return null
+
+  const fallbackId = resolveAgentSessionId(blockId, value)
+  const label = currentSession?.label ?? 'Agent 1'
+  const color = currentSession?.color ?? getAgentSessionColor(fallbackId)
+  const memberCount = currentSession?.blockIds.length ?? 1
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <ChipTag
+          variant='brand'
+          brandColor={color}
+          brandForeground='light'
+          className='flex-shrink-0'
+          aria-label={`${label}, used by ${memberCount} workflow ${memberCount === 1 ? 'step' : 'steps'}`}
+        >
+          {label}
+        </ChipTag>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>
+        <span className='text-sm'>
+          {memberCount === 1 ? 'Independent agent' : `Shared by ${memberCount} workflow steps`}
+        </span>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 /** Leading icons for compact meta rows, keyed by subblock id. */
 const SUBBLOCK_META_ICONS_BY_ID: Record<string, MetaIcon> = {
@@ -1310,7 +1360,17 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }
       rows={rows}
       chips={chips}
-      typeLabel={canvasPresentation.typeLabel}
+      typeLabel={type === 'codex' ? undefined : canvasPresentation.typeLabel}
+      headerBadge={
+        type === 'codex' ? (
+          <AgentSessionBadge
+            blockId={id}
+            blockType={type}
+            config={config}
+            value={subBlockState.agentId?.value}
+          />
+        ) : undefined
+      }
       sentence={sentence}
       hasErrorConnection={hasErrorConnection}
       errorOutputEnabled={errorOutputEnabled}

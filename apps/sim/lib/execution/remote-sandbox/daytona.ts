@@ -97,7 +97,7 @@ function snapshotFor(kind: SandboxKind, imageRef?: string): string {
     return snapshot
   }
   // An operator-supplied snapshot may only displace the dedicated Function base.
-  // Mothership, doc, and Pi keep their vetted snapshots unconditionally, so
+  // Mothership, doc, Pi, and Codex keep their vetted snapshots unconditionally, so
   // nothing a workspace configures can land under those server-owned runtimes.
   if (imageRef && (kind === 'code' || kind === 'shell')) {
     return imageRef
@@ -109,17 +109,26 @@ function snapshotFor(kind: SandboxKind, imageRef?: string): string {
       ? env.DAYTONA_DOC_SNAPSHOT_ID
       : kind === 'pi'
         ? env.DAYTONA_PI_SNAPSHOT_ID
-        : env.DAYTONA_FUNCTION_SNAPSHOT_ID
+        : kind === 'codex'
+          ? env.DAYTONA_CODEX_SNAPSHOT_ID
+          : env.DAYTONA_FUNCTION_SNAPSHOT_ID
   if (!snapshot) {
     const varName =
       kind === 'doc'
         ? 'DAYTONA_DOC_SNAPSHOT_ID'
         : kind === 'pi'
           ? 'DAYTONA_PI_SNAPSHOT_ID'
-          : 'DAYTONA_FUNCTION_SNAPSHOT_ID'
+          : kind === 'codex'
+            ? 'DAYTONA_CODEX_SNAPSHOT_ID'
+            : 'DAYTONA_FUNCTION_SNAPSHOT_ID'
     throw new Error(`Daytona sandbox not configured (${varName} is unset)`)
   }
-  if (kind !== 'doc' && kind !== 'pi' && !isImmutableDaytonaSnapshotRef(snapshot)) {
+  if (
+    kind !== 'doc' &&
+    kind !== 'pi' &&
+    kind !== 'codex' &&
+    !isImmutableDaytonaSnapshotRef(snapshot)
+  ) {
     throw new Error(
       `Daytona sandbox not configured (DAYTONA_FUNCTION_SNAPSHOT_ID ${IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR})`
     )

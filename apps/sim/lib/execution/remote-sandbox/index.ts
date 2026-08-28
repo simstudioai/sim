@@ -9,6 +9,7 @@ import {
 import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import { resolveCodexSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/codex-lifetime'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
@@ -770,15 +771,15 @@ export function executeShellInSandbox(
   )
 }
 
-/** Result of one command run inside a Pi sandbox. */
-export interface PiSandboxCommandResult {
+/** Result of one command run inside a coding-agent sandbox. */
+export interface CodingAgentSandboxCommandResult {
   stdout: string
   stderr: string
   exitCode: number
 }
 
-/** Runs commands and moves files inside a live Pi sandbox. */
-export interface PiSandboxRunner {
+/** Runs commands and moves files inside a live coding-agent sandbox. */
+export interface CodingAgentSandboxRunner {
   run(
     command: string,
     options: {
@@ -787,7 +788,7 @@ export interface PiSandboxRunner {
       onStdout?: (chunk: string) => void
       onStderr?: (chunk: string) => void
     }
-  ): Promise<PiSandboxCommandResult>
+  ): Promise<CodingAgentSandboxCommandResult>
   readFile(path: string): Promise<string>
   /**
    * Writes a file via the sandbox filesystem API. Bytes go through the provider
@@ -796,6 +797,63 @@ export interface PiSandboxRunner {
    * fixed path.
    */
   writeFile(path: string, content: string): Promise<void>
+}
+
+/** A coding-agent runner whose sandbox lifetime is owned by the caller. */
+export interface ManagedCodingAgentSandboxRunner extends CodingAgentSandboxRunner {
+  readonly sandboxId: string
+  close(): Promise<void>
+}
+
+export type PiSandboxCommandResult = CodingAgentSandboxCommandResult
+export type PiSandboxRunner = CodingAgentSandboxRunner
+export type CodexSandboxCommandResult = CodingAgentSandboxCommandResult
+export type CodexSandboxRunner = CodingAgentSandboxRunner
+
+async function createCodingAgentSandbox(
+  kind: 'pi' | 'codex',
+  label: 'Pi' | 'Codex',
+  lifetimeMs: number
+): Promise<ManagedCodingAgentSandboxRunner> {
+  const sandbox = await createSandbox(kind, { lifetimeMs })
+  logger.info(`Started ${label} sandbox`, { sandboxId: sandbox.sandboxId, lifetimeMs })
+
+  return {
+    sandboxId: sandbox.sandboxId,
+    run: (command, options) =>
+      sandbox.runCommand(command, {
+        envs: options.envs,
+        timeoutMs: options.timeoutMs,
+        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+        rootUser: true,
+        onStdout: options.onStdout,
+        onStderr: options.onStderr,
+      }),
+    readFile: (path) => sandbox.readFile(path),
+    writeFile: (path, content) => sandbox.writeFile(path, content),
+    close: async () => {
+      try {
+        await sandbox.kill()
+      } catch {
+        await sandbox.kill().catch(() => {})
+      }
+    },
+  }
+}
+
+async function withCodingAgentSandbox<T>(
+  kind: 'pi' | 'codex',
+  label: 'Pi' | 'Codex',
+  lifetimeMs: number,
+  fn: (runner: CodingAgentSandboxRunner) => Promise<T>
+): Promise<T> {
+  const runner = await createCodingAgentSandbox(kind, label, lifetimeMs)
+
+  try {
+    return await fn(runner)
+  } finally {
+    await runner.close()
+  }
 }
 
 /**
@@ -818,30 +876,14 @@ export async function withPiSandbox<T>(
 ): Promise<T> {
   const lifetimeMs =
     options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
-  const sandbox = await createSandbox('pi', { lifetimeMs })
-  logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
+  return withCodingAgentSandbox('pi', 'Pi', lifetimeMs, fn)
+}
 
-  const runner: PiSandboxRunner = {
-    run: (command, options) =>
-      sandbox.runCommand(command, {
-        envs: options.envs,
-        timeoutMs: options.timeoutMs,
-        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
-        rootUser: true,
-        onStdout: options.onStdout,
-        onStderr: options.onStderr,
-      }),
-    readFile: (path) => sandbox.readFile(path),
-    writeFile: (path, content) => sandbox.writeFile(path, content),
-  }
-
-  try {
-    return await fn(runner)
-  } finally {
-    try {
-      await sandbox.kill()
-    } catch {
-      await sandbox.kill().catch(() => {})
-    }
-  }
+/** Starts a Codex sandbox that may serve multiple turns until {@link close} is called. */
+export async function createCodexSandbox(options: {
+  lifetimeMs?: number
+}): Promise<ManagedCodingAgentSandboxRunner> {
+  const lifetimeMs =
+    options.lifetimeMs !== undefined ? options.lifetimeMs : resolveCodexSandboxLifetimeMs()
+  return createCodingAgentSandbox('codex', 'Codex', lifetimeMs)
 }
