@@ -26,7 +26,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentAsync: mockProcessDocumentAsync,
 }))
 
-import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import {
   PermanentDocumentProcessingError,
@@ -329,6 +329,27 @@ describe('knowledge processing worker', () => {
       outcome: 'usage_limit',
       error: 'Usage limit exceeded. Upgrade to continue.',
     })
+  })
+
+  it('returns an actionable outcome when customer-managed embedding credentials are rejected', async () => {
+    mockProcessDocumentAsync.mockRejectedValue(
+      new EmbeddingAPIError('Embedding API failed: 401', 401, true)
+    )
+
+    await expect(runDocumentProcessing(WORKSPACE_PAYLOAD)).resolves.toMatchObject({
+      success: false,
+      outcome: 'customer_configuration',
+      code: 'embedding_credentials_rejected',
+      error:
+        'The configured embedding API key was rejected. Update the key and retry this document.',
+    })
+  })
+
+  it('preserves task failure for rejected platform embedding credentials', async () => {
+    const platformError = new EmbeddingAPIError('Embedding API failed: 401', 401)
+    mockProcessDocumentAsync.mockRejectedValue(platformError)
+
+    await expect(runDocumentProcessing(WORKSPACE_PAYLOAD)).rejects.toBe(platformError)
   })
 
   it('preserves normal retries for transient failures', async () => {
