@@ -18,14 +18,14 @@ The **Parallel block** is a container that runs the block inside it concurrently
     Runs a fixed number of identical instances at once. If the count is larger than the batch size, Sim runs serial batches and preserves the original result order.
 
     <div className="flex justify-center">
-      <Image src="/static/blocks/parallel-1.png" alt="Count-based parallel execution" width={500} height={400} className="my-6" />
+      <Image src="/static/blocks/parallel-1.png" alt="Count-based parallel execution" width={500} height={231} className="my-6" />
     </div>
   </Tab>
   <Tab>
     Distributes a collection across instances — each one processes a single item as `<parallel.currentItem>`. Large collections run in serial batches, preserving each item's index.
 
     <div className="flex justify-center">
-      <Image src="/static/blocks/parallel-2.png" alt="Collection-based parallel execution" width={500} height={400} className="my-6" />
+      <Image src="/static/blocks/parallel-2.png" alt="Collection-based parallel execution" width={500} height={220} className="my-6" />
     </div>
   </Tab>
 </Tabs>

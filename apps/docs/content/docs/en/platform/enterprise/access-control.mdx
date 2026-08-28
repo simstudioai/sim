@@ -37,7 +37,7 @@ When a user runs a workflow or uses Chat, Sim reads the resolved group's configu
 
 Go to **Settings → Enterprise → Access Control** from any workspace in your organization. Permission groups are defined once at the organization level and apply to every workspace under it. Only organization owners and admins can manage them.
 
-<Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={500} />
+<Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={477} />
 
 ### 2. Create a permission group
 
@@ -55,7 +55,7 @@ A workspace-scoped group with **no members** applies to everyone in its workspac
 
 Controls which AI model providers members of this group can use.
 
-<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={500} /> The list shows all providers available in Sim.
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={430} /> The list shows all providers available in Sim.
 
 - **All checked (default):** All providers are allowed.
 - **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
@@ -64,7 +64,7 @@ Controls which AI model providers members of this group can use.
 
 Controls which workflow blocks members can place and execute.
 
-<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={634} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
 - **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
@@ -77,7 +77,7 @@ Controls which workflow blocks members can place and execute.
 
 Controls visibility of platform features and modules.
 
-<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={500} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={566} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
 
 **Sidebar**
 

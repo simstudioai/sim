@@ -15,8 +15,8 @@ The **Logs page** lists every run across your workspace, one row per run. The [L
 <Image
   src="/static/logs/workspace-logs.png"
   alt="The Logs page: one row per run with workflow, date, status, cost in credits, trigger, and duration"
-  width={900}
-  height={481}
+  width={1064}
+  height={800}
 />
 
 ## What a log records
@@ -33,12 +33,12 @@ Open a run and **Log Details** shows the trace. The **Trace** tab lists each blo
 
 <Image
   src="/static/logs/log-trace.png"
-  alt="Log Details with the Trace tab open: a CRM sync run's spans, each block with its duration, 11.61s total"
-  width={900}
-  height={471}
+  alt="The current Log Details Trace tab showing workflow, agent, model, and tool spans with their durations"
+  width={518}
+  height={540}
 />
 
-This is the level you debug at, because a run fails when one of its blocks fails, and a block usually fails because of the input it received. In this run, one glance at the spans shows where the time went: the HealingAgent took 7.83s of the 11.61s total.
+This is the level you debug at, because a run fails when one of its blocks fails, and a block usually fails because of the input it received. In this run, one glance at the spans shows where the time went: Agent 1 took 7.84s of the 7.86s total.
 
 ### Input and output
 

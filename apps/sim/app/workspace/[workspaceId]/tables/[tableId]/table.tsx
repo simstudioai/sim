@@ -71,11 +71,11 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  ColumnDropdown,
   ColumnsMenu,
   EnrichmentDetails,
   EnrichmentsSidebar,
   LockSettingsModal,
-  NewColumnDropdown,
   RowModal,
   RunStatusControl,
   SaveViewModal,
@@ -1372,7 +1372,7 @@ export function Table({
   // table is schema-locked and explains itself instead of disappearing.
   const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
-    <NewColumnDropdown
+    <ColumnDropdown
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}

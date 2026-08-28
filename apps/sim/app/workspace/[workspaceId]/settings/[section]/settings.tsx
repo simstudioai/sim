@@ -104,6 +104,9 @@ const DataRetentionSettings = dynamic(() =>
 const DataDrainsSettings = dynamic(() =>
   import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
 )
+const UsageMonitoring = dynamic(() =>
+  import('@/ee/organization-usage/components/usage-monitoring').then((m) => m.UsageMonitoring)
+)
 const Desktop = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then((m) => m.Desktop)
 )
@@ -171,6 +174,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'custom-blocks' && <CustomBlocks />}
       {effectiveSection === 'audit-logs' && organizationId && (
         <AuditLogs organizationId={organizationId} />
+      )}
+      {effectiveSection === 'usage' && organizationId && (
+        <UsageMonitoring organizationId={organizationId} workspaceId={hostContext.workspace.id} />
       )}
       {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
       {isBillingEnabled && effectiveSection === 'billing' && (

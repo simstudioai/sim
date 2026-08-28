@@ -197,6 +197,34 @@ describe('calculateCostSummary', () => {
     expect(result.models['gpt-4'].total).toBe(0.03)
   })
 
+  test('keeps tokens for a zero-cost BYOK span so unbilled usage stays reportable', () => {
+    // A BYOK model resolves through notBilledCost(), which zeroes every cost field
+    // but leaves `cost` DEFINED and the token counts intact. hasBillableCost() tests
+    // `cost !== undefined`, not `cost.total > 0`, which is the only reason this span
+    // reaches the summary at all. Narrowing that predicate would silently stop the
+    // organization usage panel from ever seeing BYOK volume.
+    const traceSpans = [
+      {
+        id: 'span-1',
+        name: 'Agent Block',
+        type: 'agent',
+        model: 'claude-sonnet-4',
+        cost: { input: 0, output: 0, total: 0 },
+        tokens: { input: 1200, output: 340, total: 1540 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
+    expect(result.workflowLedgerModels['claude-sonnet-4']).toMatchObject({
+      total: 0,
+      tokens: { input: 1200, output: 340, total: 1540 },
+    })
+    expect(result.totalPromptTokens).toBe(1200)
+    expect(result.totalCompletionTokens).toBe(340)
+  })
+
   test('should calculate cost from multiple spans', () => {
     const traceSpans = [
       {

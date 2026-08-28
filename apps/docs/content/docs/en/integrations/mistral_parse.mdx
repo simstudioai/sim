@@ -43,10 +43,7 @@ Parse PDF documents using Mistral OCR API
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Normalized UserFile from file upload or file reference |
 | `resultType` | string | No | Type of parsed result \(markdown, text, or json\). Defaults to markdown. |
-| `includeImageBase64` | boolean | No | Include base64-encoded images in the response |
 | `pages` | array | No | Specific pages to process \(array of page numbers, starting from 0\) |
-| `imageLimit` | number | No | Maximum number of images to extract from the PDF |
-| `imageMinSize` | number | No | Minimum height and width of images to extract from the PDF |
 | `apiKey` | string | Yes | Mistral API key \(MISTRAL_API_KEY\) |
 
 #### Output
@@ -62,15 +59,15 @@ Parse PDF documents using Mistral OCR API
 |     ↳ `top_left_y` | number | Top-left Y coordinate in pixels |
 |     ↳ `bottom_right_x` | number | Bottom-right X coordinate in pixels |
 |     ↳ `bottom_right_y` | number | Bottom-right Y coordinate in pixels |
-|     ↳ `image_base64` | string | Base64-encoded image data \(when include_image_base64=true\) |
+|     ↳ `image_base64` | string | Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled |
 |   ↳ `dimensions` | object | Page dimensions |
 |     ↳ `dpi` | number | Dots per inch |
 |     ↳ `height` | number | Page height in pixels |
 |     ↳ `width` | number | Page width in pixels |
-|   ↳ `tables` | array | Extracted tables as HTML/markdown \(when table_format is set\). Referenced via placeholders like \[tbl-0.html\] |
+|   ↳ `tables` | array | Separate table objects, referenced from the markdown via placeholders like \[tbl-0.html\]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty |
 |   ↳ `hyperlinks` | array | Array of URL strings detected in the page \(e.g., \["https://...", "mailto:..."\]\) |
-|   ↳ `header` | string | Page header content \(when extract_header=true\) |
-|   ↳ `footer` | string | Page footer content \(when extract_footer=true\) |
+|   ↳ `header` | string | Page header content. Mistral returns it only when extract_header is true \(it defaults to false\); Sim never sets it, so this is not returned |
+|   ↳ `footer` | string | Page footer content. Mistral returns it only when extract_footer is true \(it defaults to false\); Sim never sets it, so this is not returned |
 | `model` | string | Mistral OCR model identifier \(e.g., mistral-ocr-latest\) |
 | `usage_info` | object | Usage and processing statistics |
 |   ↳ `pages_processed` | number | Total number of pages processed |

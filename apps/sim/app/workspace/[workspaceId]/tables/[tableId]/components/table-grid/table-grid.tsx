@@ -57,8 +57,8 @@ import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
+import { ColumnDropdown } from '../column-dropdown'
 import { ContextMenu } from '../context-menu'
-import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -898,7 +898,11 @@ export function TableGrid({
    *  so solo editing never pays the map build. */
   const columnIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
+    if (remoteSelections.length > 0) {
+      displayColumns.forEach((col, index) => {
+        map.set(col.key, index)
+      })
+    }
     return map
   }, [displayColumns, remoteSelections.length])
 
@@ -907,7 +911,11 @@ export function TableGrid({
    *  solo editing never pays the O(n) map build on a refetch. */
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    if (remoteSelections.length > 0) {
+      rows.forEach((row, index) => {
+        map.set(row.id, index)
+      })
+    }
     return map
   }, [rows, remoteSelections.length])
 
@@ -2251,7 +2259,9 @@ export function TableGrid({
       const draggedGid = colByName.get(dragged)?.workflowGroupId
 
       const orderIndex = new Map<string, number>()
-      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+      currentOrder.forEach((n, i) => {
+        orderIndex.set(n, i)
+      })
 
       // Compute the contiguous run covering the dragged column. For a plain
       // column this is just [fromIndex, fromIndex]. For a group member it spans
@@ -4853,7 +4863,7 @@ export function TableGrid({
                         )
                       })}
                       {userPermissions.canEdit && (
-                        <NewColumnDropdown
+                        <ColumnDropdown
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}

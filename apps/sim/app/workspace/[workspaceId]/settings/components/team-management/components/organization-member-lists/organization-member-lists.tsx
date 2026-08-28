@@ -20,6 +20,10 @@ import type {
 } from '@/lib/api/contracts/organization'
 import type { Member } from '@/lib/workspaces/organization'
 import {
+  ManageCreditsModal,
+  type ManageCreditsTarget,
+} from '@/app/workspace/[workspaceId]/settings/components/manage-credits-modal'
+import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
@@ -27,10 +31,6 @@ import {
   type RowAction,
   RowActionsMenu,
 } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  ManageCreditsModal,
-  type ManageCreditsTarget,
-} from '@/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal'
 import {
   useRemoveWorkspaceMember,
   useUpdateWorkspacePermissions,

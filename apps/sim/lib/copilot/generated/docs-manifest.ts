@@ -369,6 +369,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/enterprise/self-hosted.mdx',
   'platform/enterprise/session-policies.mdx',
   'platform/enterprise/sso.mdx',
+  'platform/enterprise/usage-tracking.mdx',
   'platform/enterprise/verified-domains.mdx',
   'platform/enterprise/whitelabeling.mdx',
   'platform/organization.mdx',

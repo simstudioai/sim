@@ -1,6 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { assertValidTimezone } from '@/lib/core/utils/timezone'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -57,14 +58,6 @@ export interface LogStatsResponse {
 }
 
 const MAX_WORKFLOWS = 100
-
-function assertValidTimezone(timezone: string): void {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
-  } catch {
-    throw new Error(`Invalid timezone: ${timezone}. Use an IANA name like "America/Los_Angeles".`)
-  }
-}
 
 interface StatsAccumulator {
   executions: number

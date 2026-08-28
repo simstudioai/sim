@@ -752,7 +752,7 @@ export const simProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Cursor, Claude Code, Claude Desktop, and VS Code',
+          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Codex, Cursor, Claude Code, Claude Desktop, and VS Code',
         shortValue: 'Deployed workflows publish as MCP server tools',
         confidence: 'verified',
         sources: [

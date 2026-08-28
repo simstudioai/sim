@@ -1,7 +1,8 @@
 import React from 'react'
 import { Badge } from '@sim/emcn'
-import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
+import { formatChartLatency } from '@/components/charts/chart-format'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
@@ -199,13 +200,16 @@ export function parseDuration(log: LogWithDuration): number | null {
 }
 
 /**
- * Format latency value for display in dashboard UI
+ * Format latency value for display in dashboard UI.
+ *
+ * Delegates so the axis ticks and the surrounding table can never disagree about
+ * what a duration reads as.
+ *
  * @param ms - Latency in milliseconds (number)
  * @returns Formatted latency string
  */
 export function formatLatency(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return '—'
-  return formatDuration(ms, { precision: 2 }) ?? '—'
+  return formatChartLatency(ms)
 }
 
 export const formatDate = (dateString: string) => {

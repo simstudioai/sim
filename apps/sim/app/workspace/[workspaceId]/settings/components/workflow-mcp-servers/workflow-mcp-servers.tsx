@@ -76,7 +76,7 @@ interface ServerDetailViewProps {
   isDeleting: boolean
 }
 
-type McpClientType = 'sim' | 'cursor' | 'claude-code' | 'claude-desktop' | 'vscode'
+type McpClientType = 'sim' | 'cursor' | 'codex' | 'claude-code' | 'claude-desktop' | 'vscode'
 
 function ServerDetailView({
   canManage,
@@ -276,6 +276,14 @@ function ServerDetailView({
           return `claude mcp add "${safeName}" --url "${mcpServerUrl}"`
         }
         return `claude mcp add "${safeName}" --url "${mcpServerUrl}" --header "X-API-Key:$SIM_API_KEY"`
+      }
+
+      if (client === 'codex') {
+        return [
+          `[mcp_servers."${safeName}"]`,
+          `url = "${mcpServerUrl}"`,
+          ...(isPublic ? [] : ['env_http_headers = { "X-API-Key" = "SIM_API_KEY" }']),
+        ].join('\n')
       }
 
       if (client === 'cursor') {
@@ -502,6 +510,7 @@ function ServerDetailView({
                     onValueChange={(v) => setActiveConfigTab(v as McpClientType)}
                   >
                     <ButtonGroupItem value='cursor'>Cursor</ButtonGroupItem>
+                    <ButtonGroupItem value='codex'>Codex</ButtonGroupItem>
                     <ButtonGroupItem value='claude-code'>Claude Code</ButtonGroupItem>
                     <ButtonGroupItem value='claude-desktop'>Claude Desktop</ButtonGroupItem>
                     <ButtonGroupItem value='vscode'>VS Code</ButtonGroupItem>
@@ -589,7 +598,13 @@ function ServerDetailView({
                     <div className='relative'>
                       <Code.Viewer
                         code={getConfigSnippet(activeConfigTab, server.isPublic, server.name)}
-                        language={activeConfigTab === 'claude-code' ? 'javascript' : 'json'}
+                        language={
+                          activeConfigTab === 'claude-code'
+                            ? 'bash'
+                            : activeConfigTab === 'codex'
+                              ? 'toml'
+                              : 'json'
+                        }
                         wrapText
                         className='!min-h-0 rounded-sm border border-[var(--border-1)]'
                       />
@@ -606,9 +621,21 @@ function ServerDetailView({
                         </a>
                       )}
                     </div>
+                    {activeConfigTab === 'codex' && server.isPublic && (
+                      <p className='mt-2 text-[var(--text-muted)] text-caption'>
+                        Add this to <span className='font-mono'>~/.codex/config.toml</span>.
+                      </p>
+                    )}
                     {!server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
-                        Replace $SIM_API_KEY with your API key
+                        {activeConfigTab === 'codex' ? (
+                          <>
+                            Add this to <span className='font-mono'>~/.codex/config.toml</span> and
+                            set the SIM_API_KEY environment variable with an existing API key
+                          </>
+                        ) : (
+                          'Replace $SIM_API_KEY with your API key'
+                        )}
                         {canManage && (
                           <>
                             , or{' '}
@@ -621,6 +648,7 @@ function ServerDetailView({
                             </button>
                           </>
                         )}
+                        {activeConfigTab === 'codex' && '.'}
                       </p>
                     )}
                   </div>
