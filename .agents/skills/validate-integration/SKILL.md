@@ -38,7 +38,7 @@ packages/deployment-config/src/service-account-providers.generated.ts # Generate
 packages/deployment-config/src/service-account-metadata.ts # Handwritten deployment policy
 ```
 
-If the block or its triggers use a `selectorKey`, also apply the `validate-selector` skill and read
+If the block, its triggers, or connector fields use a `selectorKey`, also apply the `validate-selector` skill and read
 the key's entry in `apps/sim/lib/selectors/manifest.ts`, its server attachment and provider listing
 primitive, and the shared context builder. There is no client provider selector registry.
 

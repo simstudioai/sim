@@ -443,6 +443,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .set({
             blockId,
             provider,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             providerConfig: configToSave,
             isActive: true,
             updatedAt: new Date(),

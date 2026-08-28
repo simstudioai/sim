@@ -137,4 +137,73 @@ describe('POST /api/webhooks polling configuration', () => {
       deploymentVersionId: 'deployment-1',
     })
   })
+
+  it('repairs an existing IMAP webhook deployment binding before polling setup', async () => {
+    const existingWebhook = {
+      id: 'webhook-1',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'imap-hook',
+      provider: 'imap',
+      deploymentVersionId: null,
+      providerConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
+    ])
+    queueTableRows(webhook, [{ id: existingWebhook.id }])
+    queueTableRows(webhook, [existingWebhook])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const updatedValues = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...existingWebhook,
+          deploymentVersionId: updatedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'imap-hook',
+          provider: 'imap',
+          providerConfig: existingWebhook.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+
+    const repairedWebhook = {
+      ...existingWebhook,
+      deploymentVersionId: 'deployment-1',
+    }
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+    expect(mocks.configurePolling).toHaveBeenCalledWith({
+      webhook: repairedWebhook,
+      requestId: 'mock-request-id',
+      userId: 'actor-1',
+      workspaceId: 'canonical-workspace',
+      deploymentVersionId: 'deployment-1',
+    })
+  })
 })
