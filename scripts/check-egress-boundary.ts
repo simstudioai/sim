@@ -35,9 +35,14 @@ const SCAN_DIRS = [
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 
-/** Raw HTTP transports. Reaching one directly bypasses DNS pinning. */
+/**
+ * Raw HTTP transports. Reaching one directly bypasses DNS pinning.
+ *
+ * Matched against the whole source rather than line by line, because an import
+ * list broken across lines would otherwise slip past.
+ */
 const TRANSPORT_IMPORT =
-  /^\s*import\s[^'"]*from\s+['"](?:node:)?(http|https|undici|http-proxy-agent|https-proxy-agent)['"]/
+  /^[ \t]*import\b[\s\S]*?from\s*['"](?:node:)?(?:http|https|undici|http-proxy-agent|https-proxy-agent)['"]/gm
 
 /**
  * Modules allowed to hold a transport import, each because it *is* part of the
@@ -78,11 +83,15 @@ function main() {
       const rel = path.relative(ROOT, file).split(path.sep).join('/')
       if (ALLOWED.has(rel)) continue
       scanned++
-      const lines = readFileSync(file, 'utf8').split('\n')
-      for (let i = 0; i < lines.length; i++) {
-        if (TRANSPORT_IMPORT.test(lines[i])) {
-          violations.push({ file: rel, line: i + 1, snippet: lines[i].trim() })
-        }
+      const source = readFileSync(file, 'utf8')
+      TRANSPORT_IMPORT.lastIndex = 0
+      for (const match of source.matchAll(TRANSPORT_IMPORT)) {
+        const line = source.slice(0, match.index).split('\n').length
+        violations.push({
+          file: rel,
+          line,
+          snippet: match[0].replace(/\s+/g, ' ').trim(),
+        })
       }
     }
   }

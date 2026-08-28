@@ -103,6 +103,15 @@ describe('cloud metadata is never reachable', () => {
   it('blocks the AWS IPv6 metadata address', () => {
     expect(reason(hosted, 'https://[fd00:ec2::254]/')).toBe('address-metadata')
   })
+
+  it.each([
+    ['::a9fe:a9fe', 'the IPv4-compatible form the URL parser normalizes to'],
+    ['::ffff:169.254.169.254', 'the IPv4-mapped form'],
+    ['::169.254.169.254', 'written long-hand'],
+  ])('blocks %s — %s', (address) => {
+    const permissive = createEgressPolicy({ allowedHosts: 'metadata.internal' })
+    expect(reason(permissive, 'https://metadata.internal/', address)).toBe('address-metadata')
+  })
 })
 
 describe('operator allowlist — the self-hosted posture', () => {
@@ -189,6 +198,14 @@ describe('loopback is vouched by name, never by resolved address', () => {
 
   it('is absent when the policy does not permit loopback', () => {
     expect(reason(hosted, 'http://localhost:11434/api', '127.0.0.1')).toBe('insecure-scheme')
+  })
+
+  it('refuses when a resolver answers localhost with a routable address', () => {
+    // The carve-out is for the loopback interface, not for whatever a resolver
+    // decides `localhost` means today.
+    expect(reason(selfHostedLoopback, 'https://localhost/api', '93.184.216.34')).toBe(null)
+    expect(reason(selfHostedLoopback, 'https://localhost/api', '10.0.0.7')).toBe('address-blocked')
+    expect(reason(selfHostedLoopback, 'http://localhost/api', '10.0.0.7')).toBe('insecure-scheme')
   })
 })
 

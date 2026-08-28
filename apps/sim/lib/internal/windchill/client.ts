@@ -320,7 +320,9 @@ export async function uploadWindchillContent({
   const stageTwoResponse = await secureFetchWithValidation(
     descriptor.replicaUrl,
     {
-      profile: 'configuredEndpoint',
+      // Windchill hands this URL back in the Stage 1 response, so it is
+      // response-derived rather than configured.
+      profile: 'contentFetch',
       method: 'POST',
       headers: { 'Content-Type': multipart.contentType, Accept: 'application/json' },
       body: multipart.body,

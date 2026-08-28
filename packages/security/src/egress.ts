@@ -252,11 +252,41 @@ function matchesRangeAllowlist(address: string, policy: EgressPolicy): boolean {
   )
 }
 
-function isMetadataAddress(address: string): boolean {
+/**
+ * Canonical form of an address, folding every IPv4-in-IPv6 spelling down to the
+ * IPv4 it carries. `ipaddr.process` handles the IPv4-mapped form (`::ffff:x`)
+ * but leaves the deprecated IPv4-compatible one (`::a.b.c.d`, which the WHATWG
+ * URL parser normalizes to `::a9fe:a9fe`), so comparing without this misses the
+ * metadata endpoint written that way.
+ */
+function canonicalAddress(address: string): string | null {
   const clean = unwrapIpv6Brackets(address)
-  if (!ipaddr.isValid(clean)) return false
-  const normalized = ipaddr.process(clean).toString()
-  return METADATA_ADDRESSES.some((candidate) => ipaddr.process(candidate).toString() === normalized)
+  if (!ipaddr.isValid(clean)) return null
+
+  const parsed = ipaddr.process(clean)
+  if (parsed.kind() === 'ipv6') {
+    const parts = (parsed as ipaddr.IPv6).parts
+    if (parts.slice(0, 6).every((part) => part === 0)) {
+      return ipaddr
+        .fromByteArray([
+          (parts[6] >> 8) & 0xff,
+          parts[6] & 0xff,
+          (parts[7] >> 8) & 0xff,
+          parts[7] & 0xff,
+        ])
+        .toString()
+    }
+  }
+  return parsed.toString()
+}
+
+const CANONICAL_METADATA_ADDRESSES: ReadonlySet<string> = new Set(
+  METADATA_ADDRESSES.map((address) => canonicalAddress(address) ?? address)
+)
+
+function isMetadataAddress(address: string): boolean {
+  const canonical = canonicalAddress(address)
+  return canonical !== null && CANONICAL_METADATA_ADDRESSES.has(canonical)
 }
 
 /**
@@ -281,7 +311,14 @@ function isLoopbackDestination(host: string): boolean {
 
 function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): boolean {
   if (matchesHostAllowlist(url.hostname, policy)) return true
-  if (policy.allowLoopback && isLoopbackDestination(url.hostname)) return true
+
+  if (policy.allowLoopback && isLoopbackDestination(url.hostname)) {
+    // The address must land on loopback too, so a resolver answering
+    // `localhost` with a routable address cannot borrow the carve-out. Before
+    // DNS there is no address to judge, and evaluateAddress rules later.
+    return address === undefined || isLoopbackIp(unwrapIpv6Brackets(address))
+  }
+
   if (address === undefined) return false
   if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return true
   return matchesRangeAllowlist(address, policy)
