@@ -167,6 +167,9 @@ export interface ColumnTypeDefinition {
     context?: NormalizeDateCellOptions
   ): CoerceResult
 
+  /** Import-only normalization when invalid raw text must survive for row-level validation. */
+  coerceForImport?(value: unknown, context?: NormalizeDateCellOptions): Exclude<JsonValue, Date>
+
   /** Source-owned normalization applied before checking or rewriting a type conversion. */
   valueForConversion?(value: JsonValue, target: ColumnDefinition): JsonValue
 

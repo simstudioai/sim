@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ColumnDefinition } from '@/lib/table'
-import { columnTypeOptionsForTable } from './column-types'
+import { columnTypeOptionsForTable } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar/column-types'
 
 describe('columnTypeOptionsForTable', () => {
   const ttlColumn: ColumnDefinition = { name: 'expires_at', type: 'ttl' }

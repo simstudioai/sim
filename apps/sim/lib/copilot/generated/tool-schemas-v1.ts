@@ -3028,6 +3028,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  load_slide_layout: {
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            "Layout name exactly as it appears in the Layout Library index (e.g. 'metric-cards').",
+        },
+      },
+      required: ['name'],
+    },
+    resultSchema: undefined,
+  },
   manage_credential: {
     parameters: {
       type: 'object',
