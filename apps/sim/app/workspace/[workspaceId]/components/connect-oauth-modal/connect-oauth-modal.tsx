@@ -224,24 +224,20 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   const newScopes = !isConnect ? (props.newScopes ?? EMPTY_SCOPES) : EMPTY_SCOPES
 
-  const newScopesSet = useMemo(
-    () => new Set([...newScopes].filter((scope) => !isHiddenScope(scope))),
-    [newScopes]
+  const newScopesSet = new Set(newScopes.filter((scope) => !isHiddenScope(scope)))
+  const displayScopes = [...dataverseEnvironmentForm.effectiveScopes].filter(
+    (scope) => !isHiddenScope(scope)
   )
 
-  const displayScopes = useMemo(() => {
-    const filtered = [...dataverseEnvironmentForm.effectiveScopes].filter(
-      (scope) => !isHiddenScope(scope)
-    )
-    if (isConnect) return filtered
-    return filtered.sort((a, b) => {
+  if (!isConnect) {
+    displayScopes.sort((a, b) => {
       const aIsNew = newScopesSet.has(a)
       const bIsNew = newScopesSet.has(b)
       if (aIsNew && !bIsNew) return -1
       if (!aIsNew && bIsNew) return 1
       return 0
     })
-  }, [isConnect, dataverseEnvironmentForm.effectiveScopes, newScopesSet])
+  }
 
   /**
    * Initialize the connect form once per open session, after credentials have

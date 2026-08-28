@@ -53,7 +53,6 @@ export function assertMicrosoftDataverseWebOAuthAvailable(): void {
   }
 }
 
-/** Starts the environment-bound Dataverse OAuth flow without changing the generic OAuth hook. */
 export function useConnectMicrosoftDataverseOAuthService() {
   const queryClient = useQueryClient()
 

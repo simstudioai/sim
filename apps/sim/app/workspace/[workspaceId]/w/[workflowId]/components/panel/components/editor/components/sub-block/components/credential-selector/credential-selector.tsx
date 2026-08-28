@@ -63,10 +63,7 @@ export function CredentialSelector({
   const label = subBlock.placeholder || 'Select credential'
   const serviceId = subBlock.serviceId || ''
   const isAllCredentials = !serviceId
-  const effectiveProviderId = useMemo(
-    () => getProviderIdFromServiceId(serviceId) as OAuthProvider,
-    [serviceId]
-  )
+  const effectiveProviderId = getProviderIdFromServiceId(serviceId) as OAuthProvider
 
   const { depsSatisfied, dependsOn, dependencyValues } = useDependsOnGate(blockId, subBlock, {
     disabled,
