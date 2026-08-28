@@ -102,6 +102,38 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
     })
   })
 
+  it('forwards the principal-bound legacy execution actor for an actorless principal', async () => {
+    const context = executionContext()
+    const actorlessPrincipal = {
+      ...principal,
+      subjectUserId: undefined,
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        compatibilityActor: {
+          kind: 'legacy_execution_user' as const,
+          userId: 'user-1',
+        },
+      },
+    }
+    mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
+
+    await readAvailableCustomToolByIdOrTitleAsExecutor({
+      context,
+      identifier: tool.id,
+      lookup: 'id',
+    })
+
+    expect(mocks.readUseCase.execute).toHaveBeenCalledWith({
+      principal: actorlessPrincipal,
+      input: {
+        workspaceId: principal.workspaceId,
+        identifier: tool.id,
+        lookup: 'id',
+      },
+    })
+  })
+
   it('stops before principal construction when execution is already cancelled', async () => {
     const controller = new AbortController()
     controller.abort(new Error('cancelled'))
