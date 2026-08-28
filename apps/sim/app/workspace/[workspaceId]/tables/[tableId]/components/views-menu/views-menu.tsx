@@ -8,6 +8,7 @@ import {
   chipContentLabelClass,
   chipVariants,
   cn,
+  dropdownMenuRowClass,
   OverflowText,
   POPOVER_ANIMATION_CLASSES,
   Popover,
@@ -27,7 +28,7 @@ export const ALL_ROWS_VIEW_LABEL = 'All'
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120
 
-/** Rendered width of one action button (`p-1` + `size-3` glyph) plus its `gap-0.5`.
+/** Rendered width of one 20px action button plus its `gap-0.5`.
  *  The row reserves `actionCount` of these, so keep it in step with the button
  *  classes below — the overlay is absolutely positioned and can't size the spacer. */
 const VIEW_ACTION_SLOT_PX = 22
@@ -137,16 +138,16 @@ export const ViewsMenu = memo(function ViewsMenu({
         border
         className={cn(
           POPOVER_ANIMATION_CLASSES,
-          'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+          'bg-[var(--bg)] p-1 text-[var(--text-body)] shadow-sm dark:bg-[var(--bg)]'
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
         onFocusCapture={cancelScheduledClose}
       >
-        <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
+        <PopoverSection className='flex h-[28px] items-center px-2 py-0 text-[var(--text-muted)] text-caption'>
           Views
         </PopoverSection>
-        <div className='flex flex-col gap-0.5'>
+        <div className='flex flex-col'>
           {!hasDefaultView && (
             <ViewRow
               label={ALL_ROWS_VIEW_LABEL}
@@ -194,13 +195,10 @@ export const ViewsMenu = memo(function ViewsMenu({
         </div>
         {canEdit && (
           <>
-            <div className='my-1 h-px bg-[var(--border)]' />
-            <PopoverItem
-              onClick={() => runAndClose(onNewView)}
-              className='h-7 items-center gap-1.5 px-1.5 py-0 text-xs'
-            >
+            <div className='my-1 h-px bg-[var(--border-1)]' />
+            <PopoverItem onClick={() => runAndClose(onNewView)} className={dropdownMenuRowClass}>
               <span className='flex size-[14px] shrink-0 items-center justify-center'>
-                <Plus className='size-3 text-[var(--text-icon)]' />
+                <Plus className='size-[14px] text-[var(--text-icon)]' />
               </span>
               <OverflowText label='New view' className='flex-1 text-left' />
             </PopoverItem>
@@ -268,10 +266,10 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
       <PopoverItem
         active={isActive}
         onClick={onSelect}
-        className='h-7 min-w-0 flex-1 items-center gap-1.5 px-1.5 py-0 text-xs'
+        className={cn(dropdownMenuRowClass, 'flex-1')}
       >
         <span className='flex size-[14px] shrink-0 items-center justify-center'>
-          {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
+          {isActive && <Check className='size-[14px] text-[var(--text-icon)]' />}
         </span>
         <OverflowText label={label} className='flex-1 text-left' />
         {actionCount > 0 && (
@@ -283,7 +281,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
         )}
       </PopoverItem>
       {actionCount > 0 && (
-        <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5'>
+        <div className='pointer-events-none absolute right-1 flex items-center gap-0.5'>
           {actions?.map((action) => {
             // Disabled via aria-disabled, not the `disabled` attribute: the button
             // must keep receiving hover and focus events so the tooltip can explain
@@ -311,7 +309,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
                     : 'group-focus-within/view:opacity-100 group-hover/view:opacity-100'
                 )}
               >
-                <action.icon className='size-3' />
+                <action.icon className='size-[14px]' />
               </Button>
             )
             return action.disabledReason ? (
@@ -344,7 +342,7 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
                 defaultState.onSetDefault?.()
               }}
             >
-              <Pin className={cn('size-3', defaultState.isDefault && 'fill-current')} />
+              <Pin className={cn('size-[14px]', defaultState.isDefault && 'fill-current')} />
             </Button>
           )}
         </div>

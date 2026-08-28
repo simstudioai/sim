@@ -100,6 +100,7 @@ describe('OverflowText', () => {
     expect(label.classList.contains('text-sm')).toBe(true)
     expect(label.className).toContain('-webkit-mask-image:linear-gradient')
     expect(label.className).toContain('mask-image:linear-gradient')
+    expect(label.className).toContain('100%_-_16px')
 
     act(() => {
       label.dispatchEvent(

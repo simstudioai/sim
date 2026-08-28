@@ -562,7 +562,7 @@ function BreadcrumbLocationPopover({
           border
           className={cn(
             POPOVER_ANIMATION_CLASSES,
-            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm dark:[--surface-hover:var(--surface-4)]'
           )}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}
