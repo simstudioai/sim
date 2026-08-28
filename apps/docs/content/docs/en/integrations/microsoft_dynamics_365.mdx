@@ -5,7 +5,7 @@ description: Manage customers, sales pipelines, and support cases in Dynamics 36
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="microsoft_dynamics_365"
   color="#FFFFFF"
 />
@@ -21,6 +21,7 @@ Two block operations intentionally reuse the new CRM tools under a simpler CRM l
 Connect one credential per Dynamics environment. The credential is bound to that environment during Microsoft OAuth, and CRM requests refuse a different environment. This release supports public-cloud Dataverse hosts only.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API. List, search, create, retrieve, and update accounts, contacts, leads, opportunities, and cases; assign records to users or teams; qualify leads; close opportunities; and resolve cases. Connect a separate Microsoft credential for each environment from this Dynamics integration page or from its workflow block; existing generic Dataverse credentials remain unchanged and are not automatically rebound. This version supports public-cloud Dynamics environments; national clouds require separate OAuth authorities. Dataverse Search must be enabled for search, and lifecycle actions require the corresponding Dynamics 365 app, security role, and record privileges.
@@ -31,13 +32,12 @@ Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API
 
 ### List Microsoft Dynamics 365 CRM Records
 
-Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination.
+Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
@@ -63,13 +63,12 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 
 ### Get Microsoft Dynamics 365 CRM Record
 
-Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.
+Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to retrieve |
@@ -86,13 +85,12 @@ Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $s
 
 ### Create Microsoft Dynamics 365 CRM Record
 
-Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object.
+Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `data` | object | Yes | Record data as a JSON object with column names as keys |
@@ -107,13 +105,12 @@ Create a new record in a Microsoft Dataverse table. Requires the entity set name
 
 ### Update Microsoft Dynamics 365 CRM Record
 
-Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.
+Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to update |
@@ -134,7 +131,6 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `searchTerm` | string | Yes | Search text \(1-100 chars\). Supports simple syntax: + \(AND\), \| \(OR\), - \(NOT\), * \(wildcard\), "exact phrase" |
 | `entities` | string | No | JSON array of search entity configs. Each object: \{"name":"account","selectColumns":\["name"\],"searchColumns":\["name"\],"filter":"statecode eq 0"\} |
@@ -170,7 +166,6 @@ Qualify a Dynamics 365 Sales lead and optionally create linked account, contact,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `leadId` | string | Yes | GUID of the lead to qualify |
 | `createAccount` | boolean | Yes | Whether to create an account from the lead |
@@ -199,7 +194,6 @@ Close a Dynamics 365 Sales opportunity as won or lost.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `opportunityId` | string | Yes | GUID of the opportunity to close |
 | `outcome` | string | Yes | Opportunity outcome: won or lost |
@@ -223,7 +217,6 @@ Resolve and close a Dynamics 365 Customer Service case.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Trusted Dynamics 365 environment bound to the selected OAuth credential |
 | `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `caseId` | string | Yes | GUID of the case to close |
 | `subject` | string | Yes | Subject for the case-resolution activity \(maximum 200 characters\) |
@@ -237,3 +230,5 @@ Resolve and close a Dynamics 365 Customer Service case.
 | --------- | ---- | ----------- |
 | `caseId` | string | GUID of the closed case |
 | `success` | boolean | Whether the case was closed successfully |
+
+

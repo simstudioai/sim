@@ -14501,19 +14501,19 @@
       "operations": [
         {
           "name": "List Records",
-          "description": "Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination."
+          "description": "Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time."
         },
         {
           "name": "Get Record",
-          "description": "Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options."
+          "description": "Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options."
         },
         {
           "name": "Create Record",
-          "description": "Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object."
+          "description": "Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names."
         },
         {
           "name": "Update Record",
-          "description": "Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change."
+          "description": "Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change."
         },
         {
           "name": "Search Records",
@@ -14521,11 +14521,11 @@
         },
         {
           "name": "List Owners",
-          "description": "Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination."
+          "description": "Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time."
         },
         {
           "name": "Assign Record",
-          "description": "Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change."
+          "description": "Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change."
         },
         {
           "name": "Qualify Lead",

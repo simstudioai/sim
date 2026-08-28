@@ -299,7 +299,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON object for a Dynamics 365 Dataverse record. Use logical column names, preserve any custom column names supplied by the user, and return only valid JSON.',
+          'Generate a JSON object for a Dynamics 365 Dataverse record. Use logical column names and preserve any custom column names supplied by the user. Return ONLY valid JSON - no explanations, no extra text.',
         placeholder: 'Describe the CRM fields to create or update...',
         generationType: 'json-object',
       },
@@ -314,7 +314,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a comma-separated list of Dynamics 365 Dataverse logical column names. Return only the comma-separated names.',
+          'Generate a comma-separated list of Dynamics 365 Dataverse logical column names, for example name,telephone1,emailaddress1. Return ONLY the comma-separated names - no explanations, no extra text.',
         placeholder: 'Describe the columns to retrieve...',
         generationType: 'odata-expression',
       },
@@ -329,7 +329,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Dataverse OData $filter expression using logical column names. Return only the expression without the $filter= prefix.',
+          "Generate a Dataverse OData $filter expression using logical column names, for example statecode eq 0 and contains(name,'Contoso'). Return ONLY the expression without the $filter= prefix - no explanations, no extra text.",
         placeholder: 'Describe which CRM records to include...',
         generationType: 'odata-expression',
       },
@@ -344,7 +344,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Dataverse OData $orderby expression using logical column names. Return only the expression without the $orderby= prefix.',
+          'Generate a Dataverse OData $orderby expression using logical column names, for example createdon desc,name asc. Return ONLY the expression without the $orderby= prefix - no explanations, no extra text.',
         placeholder: 'Describe how to sort the records...',
         generationType: 'odata-expression',
       },
@@ -359,7 +359,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Dataverse OData $expand expression for the requested relationships. Return only the expression without the $expand= prefix.',
+          'Generate a Dataverse OData $expand expression for the requested relationships, for example primarycontactid($select=fullname,emailaddress1). Return ONLY the expression without the $expand= prefix - no explanations, no extra text.',
         placeholder: 'Describe which related records to include...',
         generationType: 'odata-expression',
       },
@@ -423,6 +423,54 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       value: () => 'any',
       condition: { field: 'operation', value: 'search_records' },
       mode: 'advanced',
+    },
+    {
+      id: 'searchFilter',
+      title: 'Search Filter',
+      type: 'short-input',
+      placeholder: 'statecode eq 0',
+      description: 'Global OData filter applied to the selected record type.',
+      condition: { field: 'operation', value: 'search_records' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Dataverse Search OData filter using logical column names, for example statecode eq 0 and createdon ge 2024-01-01. Return ONLY the expression - no explanations, no extra text.',
+        placeholder: 'Describe which search results to include...',
+        generationType: 'odata-expression',
+      },
+    },
+    {
+      id: 'searchFacets',
+      title: 'Search Facets',
+      type: 'long-input',
+      placeholder: '["entityname,count:100","ownerid,count:100"]',
+      description: 'JSON array of Dataverse Search facet specifications.',
+      condition: { field: 'operation', value: 'search_records' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Dataverse Search facet specifications, for example ["entityname,count:100","ownerid,count:100"]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe how to group the search results...',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'searchOrderBy',
+      title: 'Search Order By',
+      type: 'short-input',
+      placeholder: '["createdon desc"]',
+      description: 'JSON array of Dataverse Search sort expressions.',
+      condition: { field: 'operation', value: 'search_records' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Dataverse Search sort expressions using logical column names, for example ["createdon desc"]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe how to sort the search results...',
+        generationType: 'json-array',
+      },
     },
     {
       id: 'searchSkip',
@@ -791,6 +839,15 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
               entities: JSON.stringify([{ name: recordType.logicalName }]),
               top,
               ...(skip !== undefined && { skip }),
+              ...(optionalString(params.searchFilter) && {
+                filter: optionalString(params.searchFilter),
+              }),
+              ...(optionalString(params.searchFacets) && {
+                facets: optionalString(params.searchFacets),
+              }),
+              ...(optionalString(params.searchOrderBy) && {
+                orderBy: optionalString(params.searchOrderBy),
+              }),
               searchMode: requiredString(params.searchMode ?? 'any', 'Search mode'),
               searchType: requiredString(params.searchType ?? 'simple', 'Query type'),
             }
@@ -958,6 +1015,12 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
     },
     searchTerm: { type: 'string', description: 'Dataverse Search query text' },
     searchSkip: { type: 'string', description: 'Number of earlier search results to skip' },
+    searchFilter: { type: 'string', description: 'Global OData filter for Dataverse Search' },
+    searchFacets: { type: 'string', description: 'JSON array of Dataverse Search facets' },
+    searchOrderBy: {
+      type: 'string',
+      description: 'JSON array of Dataverse Search sort expressions',
+    },
     searchMode: { type: 'string', description: 'Search mode: any or all' },
     searchType: { type: 'string', description: 'Search query type: simple or lucene' },
     ownerType: { type: 'string', description: 'Owner type: user or team' },

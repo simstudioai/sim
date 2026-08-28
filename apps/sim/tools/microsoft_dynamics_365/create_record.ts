@@ -22,7 +22,7 @@ export const microsoftDynamics365CreateRecordTool: ToolConfig<
   id: 'microsoft_dynamics_365_create_record',
   name: 'Create Microsoft Dynamics 365 CRM Record',
   description:
-    'Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object.',
+    'Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'microsoft-dataverse' },

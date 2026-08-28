@@ -258,9 +258,7 @@ export function extractMicrosoftDataverseEnvironmentUrl(
     const candidate = value.slice(DATAVERSE_INSTANCE_MARKER_PREFIX.length)
     try {
       origins.add(normalizeMicrosoftDataverseEnvironmentUrl(candidate))
-    } catch {
-      // Ignore unrelated or hostile scopes rather than treating them as a trusted token audience.
-    }
+    } catch {}
   }
 
   if (origins.size > 1) {

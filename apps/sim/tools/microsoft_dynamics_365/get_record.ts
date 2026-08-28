@@ -22,7 +22,7 @@ export const microsoftDynamics365GetRecordTool: ToolConfig<
   id: 'microsoft_dynamics_365_get_record',
   name: 'Get Microsoft Dynamics 365 CRM Record',
   description:
-    'Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options.',
+    'Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'microsoft-dataverse' },

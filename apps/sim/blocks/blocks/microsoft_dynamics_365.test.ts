@@ -243,8 +243,16 @@ describe('MicrosoftDynamics365Block', () => {
         recordType: 'account',
         searchTerm: 'Contoso',
         searchSkip: '0',
+        searchFilter: ' statecode eq 0 ',
+        searchFacets: ' ["ownerid,count:100"] ',
+        searchOrderBy: ' ["createdon desc"] ',
       })
-    ).toMatchObject({ skip: 0 })
+    ).toMatchObject({
+      skip: 0,
+      filter: 'statecode eq 0',
+      facets: '["ownerid,count:100"]',
+      orderBy: '["createdon desc"]',
+    })
     expect(() =>
       mapParams({
         operation: 'search_records',

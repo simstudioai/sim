@@ -379,6 +379,9 @@ describe('microsoft_dynamics_365_update_record errors', () => {
       success: true,
       output: { recordId: LEAD_ID, success: true },
     })
+    await expect(
+      microsoftDynamics365UpdateRecordTool.transformResponse!(new Response(null, { status: 204 }))
+    ).rejects.toThrow('Missing Dataverse update record response context')
   })
 
   it('surfaces bounded provider errors', async () => {

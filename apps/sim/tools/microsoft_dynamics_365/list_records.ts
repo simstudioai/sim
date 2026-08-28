@@ -89,7 +89,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
   id: 'microsoft_dynamics_365_list_records',
   name: 'List Microsoft Dynamics 365 CRM Records',
   description:
-    'Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination.',
+    'Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'microsoft-dataverse' },

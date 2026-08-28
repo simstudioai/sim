@@ -26,11 +26,11 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
-import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   MicrosoftDataverseEnvironmentField,
   useMicrosoftDataverseEnvironmentForm,
 } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import {
   assertMicrosoftDataverseWebOAuthAvailable,

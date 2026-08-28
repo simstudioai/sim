@@ -21,7 +21,7 @@ export const microsoftDynamics365UpdateRecordTool: ToolConfig<
   id: 'microsoft_dynamics_365_update_record',
   name: 'Update Microsoft Dynamics 365 CRM Record',
   description:
-    'Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change.',
+    'Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change.',
   version: '1.0.0',
 
   oauth: { required: true, provider: 'microsoft-dataverse' },
@@ -111,7 +111,10 @@ export const microsoftDynamics365UpdateRecordTool: ToolConfig<
       )
     }
 
-    const recordId = params ? normalizeDataverseGuid(params.recordId, 'recordId') : ''
+    if (!params) {
+      throw new Error('Missing Dataverse update record response context')
+    }
+    const recordId = normalizeDataverseGuid(params.recordId, 'recordId')
 
     return {
       success: true,
