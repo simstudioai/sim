@@ -45,6 +45,7 @@ export const executeGetZoneSettingsOperation: InternalToolOperationImplementatio
         }
         return { settingId, setting: mapZoneSetting(settingId, data.result) }
       } catch (error) {
+        signal?.throwIfAborted()
         return {
           settingId,
           error: getErrorMessage(error, `Failed to read zone setting ${settingId}`),

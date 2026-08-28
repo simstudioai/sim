@@ -75,6 +75,14 @@ describe('executeRunTaskOperation', () => {
       error: undefined,
     })
     expect(mockFetch).toHaveBeenCalledTimes(3)
+    for (const [, request] of mockFetch.mock.calls) {
+      expect(request).toEqual(
+        expect.objectContaining({
+          redirect: 'error',
+          headers: expect.objectContaining({ 'X-Browser-Use-API-Key': 'api-key' }),
+        })
+      )
+    }
   })
 
   it('rejects a malformed successful create-task response', async () => {
@@ -115,5 +123,58 @@ describe('executeRunTaskOperation', () => {
       },
       error: 'Error creating task: provider unavailable',
     })
+  })
+
+  it.each([
+    ['an HTTP error', new Response('rejected', { status: 400, statusText: 'Bad Request' })],
+    ['a schema-invalid success', jsonResponse({ sessionId: 'session-1' })],
+  ])('stops a profile session when task creation returns %s', async (_case, taskResponse) => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ id: 'profile-session' }))
+      .mockResolvedValueOnce(taskResponse)
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    const result = await executeRunTaskOperation({
+      task: 'Open the page',
+      apiKey: 'api-key',
+      profile_id: 'profile-1',
+    })
+
+    expect(result.success).toBe(false)
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      3,
+      'https://api.browser-use.com/api/v2/sessions/profile-session',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'stop' }),
+        redirect: 'error',
+      })
+    )
+  })
+
+  it('propagates cancellation while still stopping a created profile session', async () => {
+    const controller = new AbortController()
+    const abortError = new DOMException('cancelled', 'AbortError')
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ id: 'profile-session' }))
+      .mockImplementationOnce(async (_input, request) => {
+        expect(request?.signal).toBe(controller.signal)
+        controller.abort(abortError)
+        throw abortError
+      })
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await expect(
+      executeRunTaskOperation(
+        { task: 'Open the page', apiKey: 'api-key', profile_id: 'profile-1' },
+        controller.signal
+      )
+    ).rejects.toBe(abortError)
+
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      3,
+      'https://api.browser-use.com/api/v2/sessions/profile-session',
+      expect.objectContaining({ method: 'PATCH', redirect: 'error' })
+    )
   })
 })

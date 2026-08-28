@@ -11,6 +11,7 @@ import {
   parseIdListParam,
   parseIntegerParam,
   parseNumberParam,
+  parseOptionalOrgIds,
   parseStringListParam,
 } from '@/tools/cbinsights/utils'
 
@@ -19,7 +20,7 @@ export const executeCbinsightsSearchFirmographicsOperation: InternalToolOperatio
 > = async (params, signal) => {
   const filters = compactBody({
     keyword: params.keyword?.trim(),
-    orgIds: parseIdListParam(params.orgIds, 'orgIds'),
+    orgIds: parseOptionalOrgIds(params.orgIds),
     orgNames: parseStringListParam(params.orgNames, 'orgNames'),
     urls: parseStringListParam(params.urls, 'urls'),
     tickers: parseStringListParam(params.tickers, 'tickers'),

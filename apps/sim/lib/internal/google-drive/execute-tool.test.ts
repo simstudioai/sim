@@ -7,12 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   exportFile: vi.fn(),
+  move: vi.fn(),
   upload: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/google-drive/operations', () => ({
   executeGoogleDriveDownload: mocks.download,
   executeGoogleDriveExport: mocks.exportFile,
+  executeGoogleDriveMove: mocks.move,
   executeGoogleDriveUpload: mocks.upload,
 }))
 
@@ -24,6 +26,11 @@ import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/t
 const INPUTS = {
   google_drive_download: { accessToken: 'token', fileId: 'file-1' },
   google_drive_export: { accessToken: 'token', fileId: 'file-1', mimeType: 'application/pdf' },
+  google_drive_move: {
+    accessToken: 'token',
+    fileId: 'file-1',
+    destinationFolderId: 'folder-1',
+  },
   google_drive_upload: {
     accessToken: 'token',
     fileName: 'notes.txt',
@@ -34,6 +41,7 @@ const INPUTS = {
 const OPERATIONS = {
   google_drive_download: mocks.download,
   google_drive_export: mocks.exportFile,
+  google_drive_move: mocks.move,
   google_drive_upload: mocks.upload,
 } as const
 
@@ -116,6 +124,24 @@ describe('executeGoogleDriveTool', () => {
     await expect(response.json()).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('Google Drive export'),
+    })
+  })
+
+  it('maps oversized move responses to 413', async () => {
+    mocks.move.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'Google Drive move response',
+        maxBytes: 10,
+        observedBytes: 11,
+      })
+    )
+
+    const response = await executeGoogleDriveTool(request('google_drive_move'))
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('Google Drive move response'),
     })
   })
 

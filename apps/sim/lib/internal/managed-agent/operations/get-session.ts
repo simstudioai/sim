@@ -33,7 +33,8 @@ export const executeManagedAgentGetSessionOperation: InternalToolOperationImplem
       ...(signal ? { signal } : {}),
     })
 
-    const requiresAction = snapshot.stopReason?.type === REQUIRES_ACTION
+    const requiresAction =
+      snapshot.status === 'idle' && snapshot.stopReason?.type === REQUIRES_ACTION
     const eventIds = snapshot.stopReason?.eventIds ?? []
     // Only pay for the events call when the session is actually blocked.
     const pendingTools =

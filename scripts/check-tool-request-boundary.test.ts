@@ -28,6 +28,18 @@ describe('tool self-hop audit', () => {
     ])
   })
 
+  it('rejects the retired direct execution method signature', () => {
+    const audit = auditToolSelfHops(`
+      interface LegacyTool {
+        directExecution(params: unknown): Promise<unknown>
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({ reason: 'retired-direct-execution' }),
+    ])
+  })
+
   it('allows ordinary operation implementations', () => {
     const audit = auditToolSelfHops(`
       const tool = {

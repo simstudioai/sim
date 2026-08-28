@@ -84,8 +84,9 @@ function unexpectedResponse(request: InternalToolOperationCall, error: unknown):
     toolId: request.toolId,
   })
   const status =
-    ['google_drive_download', 'google_drive_export'].includes(request.toolId) &&
-    isPayloadSizeLimitError(error)
+    ['google_drive_download', 'google_drive_export', 'google_drive_move'].includes(
+      request.toolId
+    ) && isPayloadSizeLimitError(error)
       ? 413
       : 500
   return Response.json({ success: false, error: message }, { status })

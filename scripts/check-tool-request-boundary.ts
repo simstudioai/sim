@@ -1606,7 +1606,9 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
 
   const visit = (node: SyntaxNode) => {
     if (
-      ['ObjectProperty', 'ObjectMethod', 'TSPropertySignature'].includes(node.type) &&
+      ['ObjectProperty', 'ObjectMethod', 'TSPropertySignature', 'TSMethodSignature'].includes(
+        node.type
+      ) &&
       getStaticPropertyName(node) === 'directExecution'
     ) {
       const location = node.start ?? node.loc?.start.line ?? -1

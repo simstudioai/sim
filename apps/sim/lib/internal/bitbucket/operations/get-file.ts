@@ -21,7 +21,7 @@ export const executeBitbucketGetFileOperation: InternalToolOperationImplementati
     fileUrl(params, true),
     bitbucketHeaders(params.accessToken),
     256 * 1024,
-    { signal }
+    { stripAuthOnRedirect: true, signal }
   )
   await assertBitbucketResponseOk(metadataResponse)
   const metadata = normalizeBitbucketFileMetadata(await bitbucketJson(metadataResponse))

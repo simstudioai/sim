@@ -132,4 +132,27 @@ describe('addUserAppRoleAssignmentTool principalId', () => {
       )
     ).rejects.toThrow('Invalid value specified.')
   })
+
+  it('does not turn an aborted response-body read into a successful assignment', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        controller.abort(new DOMException('cancelled', 'AbortError'))
+        throw controller.signal.reason
+      },
+    } as Response)
+
+    await expect(
+      run(
+        {
+          accessToken: 'token',
+          userId: OBJECT_ID,
+          resourceId: RESOURCE_ID,
+          appRoleId: APP_ROLE_ID,
+        },
+        controller.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
 })

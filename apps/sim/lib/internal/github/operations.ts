@@ -147,7 +147,7 @@ function commentRequestBody(
   params: CreateCommentParams,
   commitId: string | undefined
 ): FileCommentBody | ReviewCommentBody {
-  if (params.commentType === 'file_comment') return fileCommentBody(params, commitId)
+  if (isFileCommentRequest(params)) return fileCommentBody(params, commitId)
   return { body: params.body, event: 'COMMENT' }
 }
 

@@ -5,7 +5,7 @@ import { fetchSlackMessagesPaginated, resolvePositiveInt } from '@/tools/slack/u
 
 export const executeSlackGetThreadRepliesOperation: InternalToolOperationImplementation<
   SlackGetThreadRepliesParams
-> = async (params: SlackGetThreadRepliesParams) => {
+> = async (params: SlackGetThreadRepliesParams, signal) => {
   const token = params.accessToken || params.botToken
   if (!token) {
     throw new Error('Missing Slack credentials. Provide an OAuth connection or a bot token.')
@@ -25,6 +25,7 @@ export const executeSlackGetThreadRepliesOperation: InternalToolOperationImpleme
     cursor: params.cursor,
     maxPages: resolvePositiveInt(params.maxPages, DEFAULT_MAX_PAGES),
     missingScopeHint: 'channels:history, groups:history, im:history, mpim:history',
+    signal,
   })
 
   const messages = result.messages

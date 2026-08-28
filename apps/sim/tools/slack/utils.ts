@@ -1,4 +1,4 @@
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { parseRetryAfter } from '@sim/utils/retry'
 import type { SlackCanvasFile } from '@/tools/slack/types'
 
@@ -103,6 +103,8 @@ export interface SlackPaginateOptions {
   maxPages: number
   /** Human-readable scope hint surfaced on `missing_scope`. */
   missingScopeHint: string
+  /** Cancels provider requests and rate-limit waits. */
+  signal?: AbortSignal
 }
 
 export interface SlackPaginateResult {
@@ -144,18 +146,21 @@ export async function fetchSlackMessagesPaginated(
       response = await fetch(url.toString(), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
+        signal: opts.signal,
       })
 
       if (response.status === 429 && attempt < SLACK_RATE_LIMIT_MAX_RETRIES) {
         attempt += 1
         const retryAfter = parseRetryAfter(response.headers.get('retry-after')) ?? 1000
-        await sleep(retryAfter)
+        await interruptibleSleep(retryAfter, opts.signal)
+        opts.signal?.throwIfAborted()
         continue
       }
       break
     }
 
     const data = await response.json()
+    opts.signal?.throwIfAborted()
 
     if (!data.ok) {
       if (data.error === 'missing_scope') {

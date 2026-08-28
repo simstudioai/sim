@@ -9,7 +9,8 @@ import { encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
 export const executeStorageUpdateBucketOperation: InternalToolOperationImplementation<
   SupabaseStorageUpdateBucketParams
 > = async (
-  params: SupabaseStorageUpdateBucketParams
+  params: SupabaseStorageUpdateBucketParams,
+  signal
 ): Promise<SupabaseStorageUpdateBucketResponse> => {
   const baseUrl = supabaseBaseUrl(params.projectId)
   const bucket = encodeStorageSegment(params.bucket)
@@ -23,6 +24,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
       method: 'GET',
       headers,
+      signal,
     })
 
     if (!currentResponse.ok) {
@@ -37,7 +39,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     // entirely — treat that the same as "not provided" so it falls
     // back to the bucket's current value instead of coercing to 0/false.
     const hasValue = (value: unknown): boolean =>
-      value !== undefined && value !== null && value !== ''
+      value !== undefined && value !== null && (typeof value !== 'string' || value.trim() !== '')
 
     const payload: any = {
       id: params.bucket,
@@ -55,6 +57,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),
+      signal,
     })
 
     if (!updateResponse.ok) {
@@ -63,6 +66,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     }
 
     const data = await updateResponse.json()
+    signal?.throwIfAborted()
 
     return {
       success: true,
@@ -73,6 +77,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       error: undefined,
     }
   } catch (error) {
+    signal?.throwIfAborted()
     return {
       success: false,
       output: {

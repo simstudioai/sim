@@ -72,20 +72,64 @@ interface BrowserUseTaskRequest {
   metadata?: Record<string, string>
 }
 
+interface BrowserUseFetchOptions {
+  method?: 'GET' | 'POST' | 'PATCH'
+  body?: unknown
+  signal?: AbortSignal
+}
+
+async function fetchBrowserUse(
+  path: string,
+  apiKey: string,
+  options: BrowserUseFetchOptions = {}
+): Promise<Response> {
+  options.signal?.throwIfAborted()
+  const hasBody = options.body !== undefined
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: options.method ?? 'GET',
+    headers: {
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      'X-Browser-Use-API-Key': apiKey,
+    },
+    ...(hasBody ? { body: JSON.stringify(options.body) } : {}),
+    redirect: 'error',
+    signal: options.signal,
+  })
+  options.signal?.throwIfAborted()
+  return response
+}
+
+async function waitForNextPoll(signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await sleep(POLL_INTERVAL_MS)
+    return
+  }
+  signal.throwIfAborted()
+
+  let abortHandler: (() => void) | undefined
+  const aborted = new Promise<never>((_, reject) => {
+    abortHandler = () =>
+      reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+    signal.addEventListener('abort', abortHandler, { once: true })
+  })
+
+  try {
+    await Promise.race([sleep(POLL_INTERVAL_MS), aborted])
+  } finally {
+    if (abortHandler) signal.removeEventListener('abort', abortHandler)
+  }
+}
+
 async function createSessionWithProfile(
   profileId: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ): Promise<{ sessionId: string } | { error: string }> {
   try {
-    const response = await fetch(`${API_BASE}/sessions`, {
+    const response = await fetchBrowserUse('/sessions', apiKey, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Browser-Use-API-Key': apiKey,
-      },
-      body: JSON.stringify({
-        profileId: profileId.trim(),
-      }),
+      body: { profileId: profileId.trim() },
+      signal,
     })
 
     if (!response.ok) {
@@ -95,6 +139,7 @@ async function createSessionWithProfile(
     }
 
     const parsed = createSessionResponseSchema.safeParse(await response.json())
+    signal?.throwIfAborted()
     if (!parsed.success) {
       logger.error('BrowserUse returned an invalid create-session response')
       return { error: 'BrowserUse returned an invalid create-session response' }
@@ -103,6 +148,7 @@ async function createSessionWithProfile(
     logger.info(`Created session ${data.id} with profile ${profileId}`)
     return { sessionId: data.id }
   } catch (error: unknown) {
+    signal?.throwIfAborted()
     logger.error('Error creating session with profile:', error)
     return { error: `Error creating session: ${getErrorMessage(error, 'Unknown error')}` }
   }
@@ -110,13 +156,9 @@ async function createSessionWithProfile(
 
 async function stopSession(sessionId: string, apiKey: string): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const response = await fetchBrowserUse(`/sessions/${encodeURIComponent(sessionId)}`, apiKey, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Browser-Use-API-Key': apiKey,
-      },
-      body: JSON.stringify({ action: 'stop' }),
+      body: { action: 'stop' },
     })
 
     if (response.ok) {
@@ -131,17 +173,18 @@ async function stopSession(sessionId: string, apiKey: string): Promise<void> {
 
 async function fetchSessionLiveUrl(
   sessionId: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ): Promise<{ liveUrl: string | null; publicShareUrl: string | null }> {
   try {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-      method: 'GET',
-      headers: { 'X-Browser-Use-API-Key': apiKey },
+    const response = await fetchBrowserUse(`/sessions/${encodeURIComponent(sessionId)}`, apiKey, {
+      signal,
     })
     if (!response.ok) {
       return { liveUrl: null, publicShareUrl: null }
     }
     const parsed = sessionDetailsResponseSchema.safeParse(await response.json())
+    signal?.throwIfAborted()
     if (!parsed.success) {
       logger.warn(`BrowserUse returned an invalid session response for ${sessionId}`)
       return { liveUrl: null, publicShareUrl: null }
@@ -152,6 +195,7 @@ async function fetchSessionLiveUrl(
       publicShareUrl: data.publicShareUrl ?? null,
     }
   } catch (error: unknown) {
+    signal?.throwIfAborted()
     logger.warn(`Error fetching session ${sessionId}:`, error)
     return { liveUrl: null, publicShareUrl: null }
   }
@@ -230,14 +274,14 @@ function buildRequestBody(
 
 async function fetchTaskStatus(
   taskId: string,
-  apiKey: string
+  apiKey: string,
+  signal?: AbortSignal
 ): Promise<
   { ok: true; data: z.infer<typeof taskStatusResponseSchema> } | { ok: false; error: string }
 > {
   try {
-    const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
-      method: 'GET',
-      headers: { 'X-Browser-Use-API-Key': apiKey },
+    const response = await fetchBrowserUse(`/tasks/${encodeURIComponent(taskId)}`, apiKey, {
+      signal,
     })
 
     if (!response.ok) {
@@ -245,11 +289,13 @@ async function fetchTaskStatus(
     }
 
     const parsed = taskStatusResponseSchema.safeParse(await response.json())
+    signal?.throwIfAborted()
     if (!parsed.success) {
       return { ok: false, error: 'BrowserUse returned an invalid task-status response' }
     }
     return { ok: true, data: parsed.data }
   } catch (error: unknown) {
+    signal?.throwIfAborted()
     return { ok: false, error: getErrorMessage(error, 'Network error') }
   }
 }
@@ -264,7 +310,11 @@ interface PollResult {
   error?: string
 }
 
-async function pollForCompletion(taskId: string, apiKey: string): Promise<PollResult> {
+async function pollForCompletion(
+  taskId: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<PollResult> {
   let consecutiveErrors = 0
   let sessionId: string | null = null
   let liveUrl: string | null = null
@@ -272,7 +322,8 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
   const startTime = Date.now()
 
   while (Date.now() - startTime < MAX_POLL_TIME_MS) {
-    const result = await fetchTaskStatus(taskId, apiKey)
+    signal?.throwIfAborted()
+    const result = await fetchTaskStatus(taskId, apiKey, signal)
 
     if (!result.ok) {
       consecutiveErrors++
@@ -292,7 +343,7 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
         }
       }
 
-      await sleep(POLL_INTERVAL_MS)
+      await waitForNextPoll(signal)
       continue
     }
 
@@ -304,7 +355,7 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
     logger.info(`BrowserUse task ${taskId} status: ${status}`)
 
     if (sessionId && !liveUrl) {
-      const session = await fetchSessionLiveUrl(sessionId, apiKey)
+      const session = await fetchSessionLiveUrl(sessionId, apiKey, signal)
       if (session.liveUrl) {
         liveUrl = session.liveUrl
         logger.info(`BrowserUse live URL: ${liveUrl}`)
@@ -323,10 +374,10 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
       }
     }
 
-    await sleep(POLL_INTERVAL_MS)
+    await waitForNextPoll(signal)
   }
 
-  const finalResult = await fetchTaskStatus(taskId, apiKey)
+  const finalResult = await fetchTaskStatus(taskId, apiKey, signal)
   if (finalResult.ok && ['finished', 'failed', 'stopped'].includes(finalResult.data.status)) {
     return {
       success: finalResult.data.status === 'finished',
@@ -349,15 +400,20 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
   }
 }
 
-async function createShareUrl(sessionId: string, apiKey: string): Promise<string | null> {
+async function createShareUrl(
+  sessionId: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<string | null> {
   try {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/public-share`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Browser-Use-API-Key': apiKey,
-      },
-    })
+    const response = await fetchBrowserUse(
+      `/sessions/${encodeURIComponent(sessionId)}/public-share`,
+      apiKey,
+      {
+        method: 'POST',
+        signal,
+      }
+    )
 
     if (!response.ok) {
       logger.warn(`Failed to create share URL for session ${sessionId}: ${response.statusText}`)
@@ -365,12 +421,14 @@ async function createShareUrl(sessionId: string, apiKey: string): Promise<string
     }
 
     const parsed = shareResponseSchema.safeParse(await response.json())
+    signal?.throwIfAborted()
     if (!parsed.success) {
       logger.warn(`BrowserUse returned an invalid share response for session ${sessionId}`)
       return null
     }
     return parsed.data.shareUrl ?? null
   } catch (error: unknown) {
+    signal?.throwIfAborted()
     logger.warn(`Error creating share URL for session ${sessionId}:`, error)
     return null
   }
@@ -390,29 +448,28 @@ function emptyOutput(): BrowserUseRunTaskResponse['output'] {
 
 export const executeRunTaskOperation: InternalToolOperationImplementation<
   BrowserUseRunTaskParams
-> = async (params: BrowserUseRunTaskParams): Promise<BrowserUseRunTaskResponse> => {
+> = async (
+  params: BrowserUseRunTaskParams,
+  signal?: AbortSignal
+): Promise<BrowserUseRunTaskResponse> => {
   let sessionId: string | undefined
 
   if (params.profile_id) {
     logger.info(`Creating session with profile ID: ${params.profile_id}`)
-    const sessionResult = await createSessionWithProfile(params.profile_id, params.apiKey)
+    const sessionResult = await createSessionWithProfile(params.profile_id, params.apiKey, signal)
     if ('error' in sessionResult) {
       return { success: false, output: emptyOutput(), error: sessionResult.error }
     }
     sessionId = sessionResult.sessionId
   }
 
-  const requestBody = buildRequestBody(params, sessionId)
-  logger.info('Creating BrowserUse task', { hasSession: !!sessionId })
-
   try {
-    const response = await fetch(`${API_BASE}/tasks`, {
+    const requestBody = buildRequestBody(params, sessionId)
+    logger.info('Creating BrowserUse task', { hasSession: !!sessionId })
+    const response = await fetchBrowserUse('/tasks', params.apiKey, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Browser-Use-API-Key': params.apiKey,
-      },
-      body: JSON.stringify(requestBody),
+      body: requestBody,
+      signal,
     })
 
     if (!response.ok) {
@@ -426,6 +483,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     }
 
     const parsed = createTaskResponseSchema.safeParse(await response.json())
+    signal?.throwIfAborted()
     if (!parsed.success) {
       logger.error('BrowserUse returned an invalid create-task response')
       return {
@@ -439,16 +497,12 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     const initialSessionId = sessionId ?? data.sessionId ?? null
     logger.info(`Created BrowserUse task ${taskId}`, { sessionId: initialSessionId })
 
-    const result = await pollForCompletion(taskId, params.apiKey)
+    const result = await pollForCompletion(taskId, params.apiKey, signal)
 
     const finalSessionId = result.sessionId ?? initialSessionId
     const shareUrl =
       result.publicShareUrl ??
-      (finalSessionId ? await createShareUrl(finalSessionId, params.apiKey) : null)
-
-    if (sessionId) {
-      await stopSession(sessionId, params.apiKey)
-    }
+      (finalSessionId ? await createShareUrl(finalSessionId, params.apiKey, signal) : null)
 
     return {
       success: result.success && !result.error,
@@ -464,14 +518,16 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
       error: result.error,
     }
   } catch (error: unknown) {
+    signal?.throwIfAborted()
     logger.error('Error creating BrowserUse task:', error)
-    if (sessionId) {
-      await stopSession(sessionId, params.apiKey)
-    }
     return {
       success: false,
       output: emptyOutput(),
       error: `Error creating task: ${getErrorMessage(error, 'Unknown error')}`,
+    }
+  } finally {
+    if (sessionId) {
+      await stopSession(sessionId, params.apiKey)
     }
   }
 }

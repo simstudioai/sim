@@ -676,7 +676,7 @@ describe('Bitbucket source tools', () => {
       `https://api.bitbucket.org/2.0/repositories/acme%20team/sdk%2Fcore/src/${FEATURE_SHA}/assets/logo.png?format=meta`,
       expect.objectContaining({ Authorization: 'Bearer oauth-token' }),
       256 * 1024,
-      { signal: undefined }
+      { stripAuthOnRedirect: true, signal: undefined }
     )
   })
 

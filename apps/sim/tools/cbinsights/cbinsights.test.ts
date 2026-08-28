@@ -3,6 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeCbinsightsChatOperation } from '@/lib/internal/cbinsights/operations/chat'
+import { executeCbinsightsGetCommercialMaturityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-commercial-maturity-history'
 import { executeCbinsightsGetOrgFundingsOperation } from '@/lib/internal/cbinsights/operations/get-org-fundings'
 import { executeCbinsightsGetOrgOutlookOperation } from '@/lib/internal/cbinsights/operations/get-org-outlook'
 import { executeCbinsightsListBusinessRelationshipsOperation } from '@/lib/internal/cbinsights/operations/list-business-relationships'
@@ -213,6 +214,30 @@ describe('cbinsights request building', () => {
     await expect(
       executeCbinsightsListFundingsOperation({ ...CREDS, orgIds } as never)
     ).rejects.toThrow(/at most 100 organization IDs/)
+  })
+
+  it('rejects more than 100 firmographics organization IDs before spending a round trip', async () => {
+    mockFetch([AUTH_OK])
+    const orgIds = Array.from({ length: 101 }, (_, index) => index + 1)
+    await expect(
+      executeCbinsightsSearchFirmographicsOperation({ ...CREDS, orgIds } as never)
+    ).rejects.toThrow(/at most 100 organization IDs/)
+    expect(calls).toHaveLength(0)
+  })
+
+  it.each([
+    ['startDate', 20260725],
+    ['endDate', { date: '2026-08-28' }],
+  ])('rejects a non-string commercial maturity %s', async (field, value) => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsGetCommercialMaturityHistoryOperation({
+        ...CREDS,
+        orgId: 129410,
+        [field]: value,
+      } as never)
+    ).rejects.toThrow(new RegExp(`"${field}" must be a string`))
+    expect(calls).toHaveLength(0)
   })
 
   /*

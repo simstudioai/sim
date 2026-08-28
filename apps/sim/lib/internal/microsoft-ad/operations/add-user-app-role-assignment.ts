@@ -27,7 +27,11 @@ export const executeAddUserAppRoleAssignmentOperation: InternalToolOperationImpl
       signal,
     }
   )
-  const body = await response.json().catch(() => ({}))
+  const body = await response.json().catch(() => {
+    signal?.throwIfAborted()
+    return {}
+  })
+  signal?.throwIfAborted()
   if (!response.ok) {
     throw new Error(extractGraphErrorMessage(body, 'Failed to grant the app role to the user'))
   }

@@ -173,7 +173,7 @@ describe('github_comment routing', () => {
       {
         url: 'https://api.github.com/repos/octo/demo/pulls/7/reviews',
         method: 'POST',
-        body: { body: 'Looks good', line: 42, side: 'RIGHT' },
+        body: { body: 'Looks good', event: 'COMMENT' },
         signal: undefined,
       },
     ])

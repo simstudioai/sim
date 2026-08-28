@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SalesforceUpdateCustomFieldParams,
@@ -15,7 +16,7 @@ const logger = createLogger('SalesforceUpdateCustomField')
 
 export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationImplementation<
   SalesforceUpdateCustomFieldParams
-> = async (params): Promise<SalesforceUpdateCustomFieldResponse> => {
+> = async (params, signal): Promise<SalesforceUpdateCustomFieldResponse> => {
   const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
   const fieldId = requireId(params.fieldId, 'Field ID')
   const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
@@ -24,8 +25,17 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
     'Content-Type': 'application/json',
   }
 
-  const readResponse = await fetch(url, { headers })
-  const existing = await readResponse.json().catch(() => ({}))
+  const readResponse = await fetch(url, { headers, signal })
+  let existing: unknown
+  try {
+    existing = await readResponse.json()
+  } catch {
+    signal?.throwIfAborted()
+    if (readResponse.ok) {
+      throw new Error('Salesforce returned malformed JSON while loading custom field metadata')
+    }
+    existing = {}
+  }
   if (!readResponse.ok) {
     const errorMessage = extractErrorMessage(
       existing,
@@ -35,16 +45,24 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
     logger.error('Failed to read custom field metadata', { status: readResponse.status })
     throw new Error(errorMessage)
   }
+  signal?.throwIfAborted()
+  if (!isRecordLike(existing) || !isRecordLike(existing.Metadata)) {
+    throw new Error('Salesforce returned no custom field metadata to update')
+  }
 
-  const metadata = mergeCustomFieldMetadata(existing?.Metadata, params)
+  const metadata = mergeCustomFieldMetadata(existing.Metadata, params)
 
   const patchResponse = await fetch(url, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({ Metadata: metadata }),
+    signal,
   })
   if (!patchResponse.ok) {
-    const errorData = await patchResponse.json().catch(() => ({}))
+    const errorData = await patchResponse.json().catch(() => {
+      signal?.throwIfAborted()
+      return {}
+    })
     const errorMessage = extractErrorMessage(
       errorData,
       patchResponse.status,

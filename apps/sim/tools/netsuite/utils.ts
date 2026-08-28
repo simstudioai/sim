@@ -113,15 +113,31 @@ export function buildSubresourcePath(value: string): Array<{ value: string; labe
 }
 
 export function normalizePagination(
-  requestedLimit?: number,
-  requestedOffset?: number
+  requestedLimit?: unknown,
+  requestedOffset?: unknown
 ): { limit: number; offset: number } {
-  const limit = requestedLimit ?? DEFAULT_PAGE_LIMIT
-  const offset = requestedOffset ?? 0
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) {
+  const limitInput =
+    typeof requestedLimit === 'string' && requestedLimit.trim() === '' ? undefined : requestedLimit
+  const offsetInput =
+    typeof requestedOffset === 'string' && requestedOffset.trim() === ''
+      ? undefined
+      : requestedOffset
+  const limit = limitInput ?? DEFAULT_PAGE_LIMIT
+  const offset = offsetInput ?? 0
+  if (
+    typeof limit !== 'number' ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_PAGE_LIMIT
+  ) {
     throw new Error(`Limit must be an integer between 1 and ${MAX_PAGE_LIMIT}`)
   }
-  if (!Number.isInteger(offset) || offset < 0 || offset % limit !== 0) {
+  if (
+    typeof offset !== 'number' ||
+    !Number.isInteger(offset) ||
+    offset < 0 ||
+    offset % limit !== 0
+  ) {
     throw new Error('Offset must be a non-negative integer divisible by limit')
   }
   if (offset + limit > MAX_RESULT_COUNT) {
