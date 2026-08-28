@@ -14,6 +14,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 import { secureFetchWithRetry } from './secure-fetch.server'
 import {
   fetchWithRetry,
+  getRetryAfterMs,
   type HTTPError,
   hasRateLimitEvidence,
   isRetryableError,
@@ -535,10 +536,14 @@ describe('fetchWithRetry rate-limit handling', () => {
       .mockResolvedValueOnce(response(200))
     globalThis.fetch = fetchMock
 
-    await expect(fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY)).rejects.toThrow(
-      'HTTP 403'
+    const error = await fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY).then(
+      () => undefined,
+      (caught) => caught as Error
     )
 
+    expect(error?.message).toBe('HTTP 403 - upstream rate limit exceeded')
+    expect(getRetryAfterMs(error)).toBeGreaterThan(899_000)
+    expect(getRetryAfterMs(error)).toBeLessThanOrEqual(900_000)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -599,6 +604,20 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(error?.headers?.get('x-ratelimit-remaining')).toBe('0')
     expect(Object.keys(error as object)).not.toContain('headers')
   })
+})
+
+describe('getRetryAfterMs', () => {
+  it('finds a validated retry delay through an error cause chain', () => {
+    const providerError = Object.assign(new Error('rate limited'), { retryAfterMs: 45_000 })
+    expect(getRetryAfterMs(new Error('connector failed', { cause: providerError }))).toBe(45_000)
+  })
+
+  it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, '30000'])(
+    'ignores an invalid retry delay: %s',
+    (retryAfterMs) => {
+      expect(getRetryAfterMs(Object.assign(new Error('invalid'), { retryAfterMs }))).toBeUndefined()
+    }
+  )
 })
 
 describe('retryWithExponentialBackoff retry budget', () => {

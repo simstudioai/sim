@@ -203,8 +203,15 @@ export function selectAtlassianCloudId(
   domain: string,
   product: string
 ): string {
-  if (!Array.isArray(resources) || resources.length === 0) {
-    throw new Error(`No ${product} resources found`)
+  if (!Array.isArray(resources)) {
+    throw new Error(`Invalid ${product} accessible-resources response`)
+  }
+
+  if (resources.length === 0) {
+    throw new Error(
+      `No ${product} sites are accessible to this credential. ` +
+        'Reconnect the credential and grant access to the configured Atlassian site.'
+    )
   }
 
   const siteUrl = normalizeAtlassianSiteUrl(domain)
