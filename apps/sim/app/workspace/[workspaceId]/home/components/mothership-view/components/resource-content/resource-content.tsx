@@ -733,6 +733,7 @@ function EmbeddedFile({
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
         collaborative
+        enableFind
       />
     </div>
   )
