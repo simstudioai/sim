@@ -2674,6 +2674,11 @@ describe('Internal Route Trust', () => {
       'http://localhost:3000/api/v1/workflows/test',
       'toolUrl'
     )
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/workflows/test',
+      '93.184.216.34',
+      expect.objectContaining({ assertRedirectTarget: undefined })
+    )
   })
 
   it('rejects an integration request that resolves back to this Sim instance', async () => {
@@ -2702,6 +2707,40 @@ describe('Internal Route Trust', () => {
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     } finally {
       Reflect.deleteProperty(tools, 'test_same_origin_integration')
+    }
+  })
+
+  it('rejects an integration redirect that resolves back to this Sim instance', async () => {
+    const mockTool = {
+      id: 'test_same_origin_redirect',
+      name: 'Same Origin Redirect Integration',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'https://api.example.com/download',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_same_origin_redirect = mockTool
+
+    try {
+      const result = await executeTool('test_same_origin_redirect', {})
+
+      expect(result.success).toBe(true)
+      const secureFetchOptions = mockSecureFetchWithPinnedIP.mock.calls.at(-1)?.[2]
+      expect(secureFetchOptions?.assertRedirectTarget).toBeTypeOf('function')
+      expect(() =>
+        secureFetchOptions?.assertRedirectTarget?.('http://localhost:3000/api/tools/test')
+      ).toThrow(
+        'External integration tools cannot target this Sim instance; use an internal operation'
+      )
+      expect(() =>
+        secureFetchOptions?.assertRedirectTarget?.('https://provider.example.com/download')
+      ).not.toThrow()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_same_origin_redirect')
     }
   })
 

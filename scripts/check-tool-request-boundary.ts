@@ -124,6 +124,7 @@ function unwrapExpression(expression: SyntaxNode): SyntaxNode {
 function getStaticPropertyName(property: SyntaxNode): string | undefined {
   if (!isSyntaxNode(property.key)) return undefined
   const key = property.key
+  if (property.computed === true) return getStaticString(key)
   if (key.type === 'Identifier' && typeof key.name === 'string') return key.name
   if (key.type === 'StringLiteral' && typeof key.value === 'string') return key.value
   return undefined
@@ -1278,11 +1279,28 @@ function functionContainsInternalRoute(
   return found
 }
 
-function getToolId(object: SyntaxNode): string | undefined {
+function resolveStaticStringExpression(
+  expression: SyntaxNode,
+  resolver: SelfHopResolver,
+  seen = new Set<string>()
+): string | undefined {
+  const value = unwrapExpression(expression)
+  const staticValue = getStaticString(value)
+  if (staticValue !== undefined) return staticValue
+  if (value.type !== 'Identifier' || typeof value.name !== 'string') return undefined
+  const key = `${resolver.file}:static-string:${value.name}`
+  if (seen.has(key)) return undefined
+  const binding = resolveScopedIdentifier(value.name, resolver)
+  if (!binding) return undefined
+  const nextSeen = new Set(seen)
+  nextSeen.add(key)
+  return resolveStaticStringExpression(binding.expression, binding.resolver, nextSeen)
+}
+
+function getToolId(object: SyntaxNode, resolver: SelfHopResolver): string | undefined {
   const idProperty = getObjectProperty(object, 'id')
   if (!idProperty || !isSyntaxNode(idProperty.value)) return undefined
-  const value = unwrapExpression(idProperty.value)
-  return value.type === 'StringLiteral' && typeof value.value === 'string' ? value.value : undefined
+  return resolveStaticStringExpression(idProperty.value, resolver)
 }
 
 interface ScopedExpression {
@@ -1531,11 +1549,15 @@ function getResolvedObjectProperties(
   const lastIndex = endIndex ?? properties.length - 1
   for (let index = lastIndex; index >= 0; index -= 1) {
     const property = properties[index]
-    if (
-      (property.type === 'ObjectProperty' || property.type === 'ObjectMethod') &&
-      getStaticPropertyName(property) === name
-    ) {
-      return { properties: [{ property, request }], complete: true }
+    if (property.type === 'ObjectProperty' || property.type === 'ObjectMethod') {
+      const propertyName = getStaticPropertyName(property)
+      if (propertyName === name) {
+        return { properties: [{ property, request }], complete: true }
+      }
+      if (property.computed === true && propertyName === undefined) {
+        const earlier = getResolvedObjectProperties(request, name, seen, index - 1)
+        return { properties: earlier.properties, complete: false }
+      }
     }
     if (property.type !== 'SpreadElement' || !isSyntaxNode(property.argument)) continue
     const key = `${request.resolver.file}:spread:${property.start ?? index}:${name}`
@@ -1582,8 +1604,10 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
 
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ObjectExpression') {
-      const toolId = getToolId(node)
-      if (toolId) {
+      const idProperty = getObjectProperty(node, 'id')
+      const toolId = idProperty ? getToolId(node, resolver) : undefined
+      const directRequestProperty = getObjectProperty(node, 'request')
+      if (idProperty && (toolId !== undefined || directRequestProperty)) {
         const toolObject: ResolvedRequestObject = {
           expression: node,
           resolver,

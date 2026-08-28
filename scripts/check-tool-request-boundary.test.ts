@@ -632,6 +632,76 @@ describe('tool self-hop audit', () => {
     }
   )
 
+  it('resolves a constant tool ID before applying the same-origin allowlist', () => {
+    const audit = auditToolSelfHops(`
+      const TOOL_ID = 'http_request'
+      const tool = {
+        id: TOOL_ID,
+        request: {
+          allowSameOrigin: true,
+          url: (params) => params.url,
+          method: 'POST',
+          headers: () => ({}),
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([])
+  })
+
+  it('audits a same-origin request when the tool ID is an expression', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: flag ? 'first_tool' : 'second_tool',
+        request: { url: '/api/tools/test', method: 'POST', headers: () => ({}) },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({ reason: 'same-origin-tool-request' }),
+    ])
+  })
+
+  it('fails closed on a computed request property key', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        [runtimeRequestKey]: {
+          url: 'https://provider.example.com',
+          method: 'POST',
+          headers: () => ({}),
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
+  })
+
+  it('fails closed on a computed request URL key', () => {
+    const audit = auditToolSelfHops(`
+      const tool = {
+        id: 'test_tool',
+        request: {
+          [runtimeUrlKey]: '/api/tools/test',
+          method: 'POST',
+          headers: () => ({}),
+        },
+      }
+    `)
+
+    expect(audit.violations).toEqual([
+      expect.objectContaining({
+        toolId: 'test_tool',
+        reason: 'unresolved-request-policy',
+      }),
+    ])
+  })
+
   it('rejects request.internal even when the URL comes only from a spread', () => {
     const audit = auditToolSelfHops(`
       const externalRequest = { url: 'https://api.example.com/v1/items' }

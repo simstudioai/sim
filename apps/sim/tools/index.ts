@@ -2686,6 +2686,14 @@ async function executeToolRequest(
           proxyUrl: proxyOption,
           stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
           redirectPolicy: requestParams.redirectPolicy,
+          assertRedirectTarget:
+            tool.request.allowSameOrigin === true
+              ? undefined
+              : (redirectUrl) => {
+                  if (isSelfOriginUrl(redirectUrl)) {
+                    throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+                  }
+                },
         })
 
         const responseHeaders = new Headers(secureResponse.headers.toRecord())
