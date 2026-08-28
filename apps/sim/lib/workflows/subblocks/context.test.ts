@@ -230,8 +230,22 @@ describe('buildSelectorContextFromBlock', () => {
     })
   })
 
-  it('projects Slack raw-token and trigger credential sources into the canonical field', () => {
-    const action = buildSelectorContextFromBlock(
+  it('projects only the active Slack auth source plus trigger credentials', () => {
+    const oauthAction = buildSelectorContextFromBlock(
+      'slack',
+      subBlocksFromValues({
+        authMethod: 'oauth',
+        credential: 'active-oauth',
+        botToken: 'xoxb-dormant',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['authMethod', 'credential', 'botToken'],
+      }
+    )
+    expect(oauthAction.oauthCredential).toBe('active-oauth')
+
+    const botAction = buildSelectorContextFromBlock(
       'slack',
       subBlocksFromValues({
         authMethod: 'bot_token',
@@ -243,12 +257,12 @@ describe('buildSelectorContextFromBlock', () => {
         dependsOn: ['authMethod', 'credential', 'botToken'],
       }
     )
-    expect(action.oauthCredential).toBe('{{SLACK_BOT_TOKEN}}')
+    expect(botAction.oauthCredential).toBe('{{SLACK_BOT_TOKEN}}')
 
     const trigger = buildSelectorContextFromBlock(
-      'slack',
+      'slack_v2',
       subBlocksFromValues({
-        eventType: 'message.channels',
+        eventType: 'message',
         customBotCredential: '{{SLACK_TRIGGER_CREDENTIAL}}',
       }),
       {

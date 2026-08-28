@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/contracts'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
-import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -80,7 +80,7 @@ export function useSavePersonalEnvironment() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
         queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: selectorKeys.all }),
+        invalidateSelectorQueries(queryClient),
       ])
     },
   })
@@ -110,7 +110,7 @@ export function useUpsertWorkspaceEnvironment() {
         queryClient.invalidateQueries({
           queryKey: environmentKeys.workspace(variables.workspaceId),
         }),
-        queryClient.invalidateQueries({ queryKey: selectorKeys.all }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
@@ -139,7 +139,7 @@ export function useRemoveWorkspaceEnvironment() {
         queryClient.invalidateQueries({
           queryKey: environmentKeys.workspace(variables.workspaceId),
         }),
-        queryClient.invalidateQueries({ queryKey: selectorKeys.all }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }

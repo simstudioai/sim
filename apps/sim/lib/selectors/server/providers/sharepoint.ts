@@ -16,10 +16,16 @@ import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/
 
 type SharePointSelectorKey = Extract<ServerSelectorKey, 'sharepoint.lists' | 'sharepoint.sites'>
 
-const credential = {
+const sharepointCredential = {
   kind: 'stored',
   field: 'oauthCredential',
   serviceIds: ['sharepoint'],
+} as const
+
+const siteCredential = {
+  kind: 'stored',
+  field: 'oauthCredential',
+  serviceIds: ['sharepoint', 'microsoft-excel'],
 } as const
 
 async function graphToken(args: ExecuteServerSelectorArgs): Promise<string> {
@@ -76,12 +82,12 @@ async function listSites(args: ExecuteServerSelectorArgs): Promise<SafeSelectorO
 
 export const sharepointSelectorAttachments = {
   'sharepoint.lists': {
-    credential,
+    credential: sharepointCredential,
     destination: 'fixed',
     execute: async (args) => flatSelectorResult(args.request, await listLists(args), true),
   },
   'sharepoint.sites': {
-    credential,
+    credential: siteCredential,
     destination: 'fixed',
     execute: async (args) => flatSelectorResult(args.request, await listSites(args), true),
   },

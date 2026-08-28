@@ -2,7 +2,7 @@ import { listCredentialGroupSettings } from '@/lib/credential-groups/application
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { listInternalCredentials } from '@/lib/credentials/application/credential-crud'
 import { fetchOpenRouterEmbeddingModelCatalog } from '@/lib/embeddings/openrouter-model-catalog.server'
-import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
+import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import {
   listKnowledgeDocuments,
@@ -243,15 +243,11 @@ export const internalSelectorAttachments = {
   'workspace.secretNames': {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
-      const snapshot = await getEffectiveEnvironmentSnapshot(args.requesterUserId, args.workspaceId)
-      for (const value of Object.values(snapshot.personalDecrypted)) args.protectedValues.add(value)
-      for (const value of Object.values(snapshot.workspaceDecrypted))
-        args.protectedValues.add(value)
-      const names = new Set([
-        ...Object.keys(snapshot.personalDecrypted),
-        ...Object.keys(snapshot.workspaceDecrypted),
-      ])
-      return listSelectorResult([...names].sort().map((name) => ({ id: name, label: name })))
+      const names = await getEffectiveEnvironmentVariableNames(
+        args.requesterUserId,
+        args.workspaceId
+      )
+      return listSelectorResult(names.map((name) => ({ id: name, label: name })))
     },
   },
   'workspace.rawSecretNames': {

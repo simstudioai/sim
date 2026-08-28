@@ -142,11 +142,25 @@ export async function getEnvironmentVariableKeys(userId: string): Promise<{
   }
 }
 
-export async function getPersonalAndWorkspaceEnv(
+interface AccessibleEncryptedEnvironment {
+  personalEncrypted: Record<string, string>
+  workspaceEncrypted: Record<string, string>
+  personalOwners: Record<string, string>
+  workspaceUnredactedKeys: string[]
+}
+
+/**
+ * Loads only the encrypted environment slices the caller may use.
+ *
+ * Keeping this before decryption gives name-only consumers the exact same workspace,
+ * credential, shared-personal precedence, and stored-value checks as runtime resolution
+ * without exposing plaintext or touching the decrypted snapshot cache.
+ */
+async function loadAccessibleEncryptedEnvironment(
   userId: string,
   workspaceId?: string,
   options?: { workspaceAccess?: WorkspaceAccess }
-): Promise<EnvironmentResolutionSnapshot> {
+): Promise<AccessibleEncryptedEnvironment> {
   let workspaceCanAdmin = false
   if (workspaceId) {
     const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
@@ -237,6 +251,42 @@ export async function getPersonalAndWorkspaceEnv(
         )
   }
 
+  return {
+    personalEncrypted,
+    workspaceEncrypted,
+    personalOwners,
+    workspaceUnredactedKeys: accessibleEnvCredentials
+      .filter((row) => row.type === 'env_workspace' && row.unredacted)
+      .map((row) => row.envKey),
+  }
+}
+
+/**
+ * Lists the effective environment names visible to a caller without decrypting values.
+ * This deliberately performs a fresh ACL-aware encrypted lookup instead of populating or
+ * reading the short-lived decrypted environment snapshot cache.
+ */
+export async function getEffectiveEnvironmentVariableNames(
+  userId: string,
+  workspaceId?: string
+): Promise<string[]> {
+  const { personalEncrypted, workspaceEncrypted } = await loadAccessibleEncryptedEnvironment(
+    userId,
+    workspaceId
+  )
+  return [
+    ...new Set([...Object.keys(personalEncrypted), ...Object.keys(workspaceEncrypted)]),
+  ].sort()
+}
+
+export async function getPersonalAndWorkspaceEnv(
+  userId: string,
+  workspaceId?: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
+): Promise<EnvironmentResolutionSnapshot> {
+  const { personalEncrypted, workspaceEncrypted, personalOwners, workspaceUnredactedKeys } =
+    await loadAccessibleEncryptedEnvironment(userId, workspaceId, options)
+
   const decryptionFailures: string[] = []
 
   const decryptAll = async (src: Record<string, string>, source: 'personal' | 'workspace') => {
@@ -283,9 +333,7 @@ export async function getPersonalAndWorkspaceEnv(
     personalOwners,
     conflicts,
     decryptionFailures,
-    workspaceUnredactedKeys: accessibleEnvCredentials
-      .filter((row) => row.type === 'env_workspace' && row.unredacted)
-      .map((row) => row.envKey),
+    workspaceUnredactedKeys,
   }
 }
 

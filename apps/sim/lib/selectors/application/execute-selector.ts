@@ -17,7 +17,8 @@ import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-
 import { resolveSelectorReferences } from '@/lib/selectors/server/references'
 import { getServerSelectorAttachment } from '@/lib/selectors/server/registry'
 import { sanitizeSelectorResult } from '@/lib/selectors/server/sanitize'
-import type { SelectorExecutionResult } from '@/lib/selectors/types'
+import type { ResolvedSelectorReference } from '@/lib/selectors/server/types'
+import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 
 const logger = createLogger('ExecuteSelector')
 
@@ -54,6 +55,45 @@ function validateAuthorizedInput(
   }
 }
 
+function restoreReferencedDetailValues(input: {
+  originalRequest: SelectorRequest
+  resolvedRequest: SelectorRequest
+  result: SelectorExecutionResult
+  references: ReadonlyMap<string, ResolvedSelectorReference>
+}): SelectorExecutionResult {
+  if (
+    input.originalRequest.kind !== 'detail' ||
+    input.resolvedRequest.kind !== 'detail' ||
+    input.result.kind !== 'detail' ||
+    !input.result.item ||
+    !input.references.has('request.id')
+  ) {
+    return input.result
+  }
+
+  const item = input.result.item
+  const resolvedId = input.resolvedRequest.id
+  const originalId = input.originalRequest.id
+  const meta = item.meta
+    ? Object.fromEntries(
+        Object.entries(item.meta).map(([key, value]) => [
+          key,
+          value === resolvedId ? originalId : value,
+        ])
+      )
+    : undefined
+
+  return {
+    kind: 'detail',
+    item: {
+      ...item,
+      id: originalId,
+      label: item.label === resolvedId ? originalId : item.label,
+      ...(meta ? { meta } : {}),
+    },
+  }
+}
+
 async function executeAuthorizedSelector(args: {
   principal: { kind: 'session'; userId: string; sessionId: string }
   input: ExecuteSelectorInput
@@ -87,19 +127,25 @@ async function executeAuthorizedSelector(args: {
         })
       : undefined
 
+    const providerResult = await attachment.execute({
+      selectorKey: args.input.selectorKey as ServerSelectorKey,
+      context: resolved.context,
+      request: resolved.request,
+      scope: args.input.scope,
+      workspaceId: args.context.workspaceId,
+      principal: args.principal,
+      requesterUserId: args.principal.userId,
+      credential,
+      references: resolved.references,
+      signal: args.input.signal,
+      protectedValues,
+    })
     const result = sanitizeSelectorResult(
-      await attachment.execute({
-        selectorKey: args.input.selectorKey as ServerSelectorKey,
-        context: resolved.context,
-        request: resolved.request,
-        scope: args.input.scope,
-        workspaceId: args.context.workspaceId,
-        principal: args.principal,
-        requesterUserId: args.principal.userId,
-        credential,
+      restoreReferencedDetailValues({
+        originalRequest: args.input.request,
+        resolvedRequest: resolved.request,
+        result: providerResult,
         references: resolved.references,
-        signal: args.input.signal,
-        protectedValues,
       }),
       protectedValues
     )

@@ -371,6 +371,11 @@ const plannerCredential = microsoftCredential('microsoft-planner')
 const outlookCredential = microsoftCredential('outlook')
 const teamsCredential = microsoftCredential('microsoft-teams')
 const oneDriveCredential = microsoftCredential('onedrive')
+const oneDriveFolderCredential: SelectorCredentialPolicy = {
+  kind: 'stored',
+  field: 'oauthCredential',
+  serviceIds: ['onedrive', 'microsoft-word'],
+}
 const excelCredential = microsoftCredential('microsoft-excel')
 const wordCredential = microsoftCredential('microsoft-word')
 
@@ -416,7 +421,7 @@ export const microsoftSelectorAttachments = {
     execute: async (args) => flatSelectorResult(args.request, await listOneDriveFiles(args)),
   },
   'onedrive.folders': {
-    credential: oneDriveCredential,
+    credential: oneDriveFolderCredential,
     destination: 'fixed',
     execute: async (args) => flatSelectorResult(args.request, await listOneDriveFolders(args)),
   },

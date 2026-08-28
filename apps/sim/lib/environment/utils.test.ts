@@ -50,12 +50,130 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   getEffectiveDecryptedEnv,
   getEffectiveEnvironmentSnapshot,
+  getEffectiveEnvironmentVariableNames,
   getExecutionEnvironment,
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
   upsertWorkspaceEnvVars,
   WorkspaceEnvAccessError,
 } from '@/lib/environment/utils'
+
+describe('getEffectiveEnvironmentVariableNames', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    invalidateEffectiveDecryptedEnvCache({ userId: 'names-user' })
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockReset()
+  })
+
+  it('lists only stored, accessible names across personal and workspace scopes without decryption', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'WORKSPACE_VISIBLE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'DUPLICATE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'MISSING_WORKSPACE',
+        envOwnerUserId: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        unredacted: false,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_PRESENT',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED_MISSING',
+        envOwnerUserId: 'owner-3',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+    queueTableRows(environment, [
+      { variables: { OWN_ONLY: 'own-cipher', DUPLICATE: 'duplicate-cipher' } },
+    ])
+    queueTableRows(workspaceEnvironment, [
+      {
+        variables: {
+          WORKSPACE_VISIBLE: 'workspace-cipher',
+          DUPLICATE: 'duplicate-workspace-cipher',
+          WORKSPACE_HIDDEN: 'hidden-cipher',
+        },
+      },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED_PRESENT: 'shared-cipher' } },
+      { userId: 'owner-3', variables: { UNRELATED: 'unrelated-cipher' } },
+    ])
+
+    await expect(
+      getEffectiveEnvironmentVariableNames('names-user', 'workspace-1')
+    ).resolves.toEqual(['DUPLICATE', 'OWN_ONLY', 'SHARED_PRESENT', 'WORKSPACE_VISIBLE'])
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+
+    // A later snapshot performs a fresh lookup, proving the names read did not warm its LRU.
+    queueTableRows(environment, [{ variables: { FRESH_PERSONAL: 'fresh-personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [
+      { variables: { WORKSPACE_VISIBLE: 'fresh-workspace-cipher' } },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED_PRESENT: 'fresh-shared-cipher' } },
+      { userId: 'owner-3', variables: {} },
+    ])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+
+    await expect(
+      getEffectiveEnvironmentSnapshot('names-user', 'workspace-1')
+    ).resolves.toMatchObject({
+      personalEncrypted: {
+        FRESH_PERSONAL: 'fresh-personal-cipher',
+        SHARED_PRESENT: 'fresh-shared-cipher',
+      },
+      workspaceEncrypted: { WORKSPACE_VISIBLE: 'fresh-workspace-cipher' },
+    })
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledTimes(3)
+  })
+
+  it('includes stored legacy workspace names for a workspace admin', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: true,
+    })
+    queueTableRows(environment, [{ variables: {} }])
+    queueTableRows(workspaceEnvironment, [
+      { variables: { LEGACY_KEY: 'legacy-cipher', CURRENT_KEY: 'current-cipher' } },
+    ])
+
+    await expect(
+      getEffectiveEnvironmentVariableNames('names-user', 'workspace-1')
+    ).resolves.toEqual(['CURRENT_KEY', 'LEGACY_KEY'])
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+})
 
 describe('getPersonalAndWorkspaceEnv access filtering', () => {
   beforeEach(() => {

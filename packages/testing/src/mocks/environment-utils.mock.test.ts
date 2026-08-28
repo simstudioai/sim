@@ -32,6 +32,9 @@ describe('environment-utils mock', () => {
       conflicts: [],
       decryptionFailures: [],
     })
+    await expect(
+      environmentUtilsMock.getEffectiveEnvironmentVariableNames('user-1')
+    ).resolves.toEqual([])
     await expect(environmentUtilsMock.upsertPersonalEnvVars('user-1', {})).resolves.toEqual({
       added: [],
       updated: [],

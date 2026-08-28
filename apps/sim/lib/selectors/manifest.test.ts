@@ -43,4 +43,19 @@ describe('selector manifest', () => {
       'imap.mailboxes',
     ])
   })
+
+  it('keeps shared Microsoft selectors bound only to their intended credential families', () => {
+    expect(serverSelectorRegistry['onedrive.files'].credential?.serviceIds).toEqual(['onedrive'])
+    expect(serverSelectorRegistry['onedrive.folders'].credential?.serviceIds).toEqual([
+      'onedrive',
+      'microsoft-word',
+    ])
+    expect(serverSelectorRegistry['sharepoint.lists'].credential?.serviceIds).toEqual([
+      'sharepoint',
+    ])
+    expect(serverSelectorRegistry['sharepoint.sites'].credential?.serviceIds).toEqual([
+      'sharepoint',
+      'microsoft-excel',
+    ])
+  })
 })

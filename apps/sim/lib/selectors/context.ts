@@ -150,6 +150,7 @@ export function buildSelectorContextFromValues(
         )
         continue
       }
+      if (!configById.has(dependency)) continue
       candidate[dependency] = input.values[dependency]
     }
   } else {

@@ -43,6 +43,7 @@ import {
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
+import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 /** Stable identity while a folder list loads, so `select` isn't re-keyed on it. */
@@ -58,7 +59,7 @@ export interface WorkflowSearchResolvedResource {
 }
 
 export const workflowSearchReplaceKeys = {
-  all: ['workflow-search-replace'] as const,
+  all: selectorQueryRoots.workflowSearchReplace,
   resourceDetails: () => [...workflowSearchReplaceKeys.all, 'resource-detail'] as const,
   oauthDetails: (workflowId?: string) =>
     [...workflowSearchReplaceKeys.resourceDetails(), 'oauth', workflowId ?? ''] as const,
