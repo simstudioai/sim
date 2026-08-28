@@ -498,7 +498,7 @@ describe('isolated-vm scheduler', () => {
     expect(result.error?.message).toContain('Too many concurrent')
   })
 
-  it('fails closed when Redis is configured but unavailable', async () => {
+  it('falls back to local limits when no Redis client is available', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -516,14 +516,11 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-down',
     })
 
-    expect(result.error).toMatchObject({
-      isSystemError: true,
-      message: 'Code execution coordination is temporarily unavailable. Please try again later.',
-    })
-    expect(result.result).toBeNull()
+    expect(result.error).toBeUndefined()
+    expect(result.result).toBe('ok')
   })
 
-  it('fails closed when Redis lease evaluation errors', async () => {
+  it('falls back to local limits when the lease evaluation errors', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -548,10 +545,68 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:redis-error',
     })
 
-    expect(result.error).toMatchObject({
-      isSystemError: true,
-      message: 'Code execution coordination is temporarily unavailable. Please try again later.',
+    expect(result.error).toBeUndefined()
+    expect(result.result).toBe('ok')
+  })
+
+  it('falls back to local limits when the lease round trip exceeds its deadline', async () => {
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        // Never settles, so only the deadline can decide the outcome.
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          return new Promise<number>(() => {})
+        }
+        return 1
+      },
     })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-9',
+      ownerKey: 'user:redis-slow',
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.result).toBe('ok')
+  })
+
+  it('still rejects when Redis answers that the owner is over its lease limit', async () => {
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
+        REDIS_URL: 'redis://localhost:6379',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          return 0
+        }
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-10',
+      ownerKey: 'user:over-limit',
+    })
+
+    expect(result.error?.message).toContain('Too many concurrent')
     expect(result.result).toBeNull()
   })
 
