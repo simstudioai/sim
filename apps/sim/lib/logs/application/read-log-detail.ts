@@ -1,4 +1,4 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
@@ -77,8 +77,10 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: logDelegationAuthorization<ReadLogDetailContext>(),
   async execute({ principal, input, context }) {
     input.signal?.throwIfAborted()
+    // Attribution, not authorization: an actorless run (a schedule, or a webhook
+    // with no external subject) reads its own workspace's logs with no user to name.
     const detail = await readLogDetail({
-      viewerUserId: requirePrincipalSubjectUserId(principal),
+      viewerUserId: resolvePrincipalSubjectUserId(principal),
       workspaceId: context.workspaceId,
       lookupColumn: input.lookupColumn,
       lookupValue: input.lookupValue,

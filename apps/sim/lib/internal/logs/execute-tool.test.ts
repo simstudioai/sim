@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  PrincipalSubjectUserRequiredError,
+  type WorkflowExecutionDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
@@ -168,5 +171,25 @@ describe('executeLogsTool', () => {
     })
     expect(invalidResponse.status).toBe(500)
     expect(await invalidResponse.json()).toEqual({ error: 'Failed to fetch log' })
+  })
+
+  it('names the missing identity instead of answering an opaque 500', async () => {
+    // The regression this guards: an operation that still demands a person answered
+    // every scheduled run with `Failed to fetch log`, which says nothing about why.
+    mocks.getRun.mockRejectedValueOnce(new PrincipalSubjectUserRequiredError('delegated'))
+
+    const response = await executeLogsTool({
+      toolId: 'logs_get_run_details',
+      input: { executionId: 'execution-1' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error:
+        'This tool requires a user identity, and this run has none — scheduled and webhook triggers run without a user',
+    })
   })
 })

@@ -20,6 +20,7 @@ export function resolveKnowledgeAttributedUserId(
   principal: Principal,
   context: KnowledgeResourceContext
 ): string {
+  // actorless-unsupported: a workspace-less knowledge base bills its owner directly, with no workspace to attribute to
   if (context.workspaceId === undefined) return requirePrincipalSubjectUserId(principal)
   return resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,

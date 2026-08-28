@@ -70,6 +70,7 @@ async function resolveAvailableToolContext(args: {
   const workspace = await resolveWorkspaceContext(args.workspaceId)
   const tool = await getCustomToolById({
     toolId: args.toolId,
+    // actorless-unsupported: a custom tool is owned by one user; an actorless run has no library to look in
     userId: requirePrincipalSubjectUserId(args.principal),
     workspaceId: workspace.workspaceId,
   })
@@ -129,6 +130,7 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   authorizationOptions,
   async execute({ principal, context }) {
     const tools = await listCustomTools({
+      // actorless-unsupported: the listing is the acting user's own tool library, which an actorless run does not have
       userId: requirePrincipalSubjectUserId(principal),
       workspaceId: context.workspaceId,
     })
@@ -353,6 +355,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
+        // actorless-unsupported: editing a tool is scoped to its owner; an actorless run owns none
         userId: requirePrincipalSubjectUserId(principal),
         title,
         schema: input.schema ?? context.tool.schema,
@@ -422,6 +425,7 @@ export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
     const deleted = await deleteCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
+      // actorless-unsupported: deleting a tool is scoped to its owner; an actorless run owns none
       userId: requirePrincipalSubjectUserId(principal),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')

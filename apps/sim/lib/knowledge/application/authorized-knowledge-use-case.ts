@@ -126,6 +126,7 @@ export function defineAuthorizedKnowledgeUseCase<
       if (isLegacyPersonalKnowledgeContext(context)) {
         if (
           principal.kind === 'workspace_api_key' ||
+          // actorless-unsupported: a legacy personal knowledge base has exactly one owner, so an actorless caller is never it
           requirePrincipalSubjectUserId(principal) !== context.legacyPersonalOwnerUserId
         ) {
           throw new OrchestrationError('not_found', 'Knowledge base not found')

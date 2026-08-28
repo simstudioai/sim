@@ -1,11 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
-import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
+import {
+  mcpServerDelegationPolicy,
+  requireMcpCredentialUserId,
+} from '@/lib/mcp/application/authorization'
 import {
   type McpServerContext,
   type McpWorkspaceContext,
@@ -88,6 +91,13 @@ export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
 
 export interface DiscoverMcpToolsInput {
   workspaceId: string
+  /**
+   * The user whose MCP credentials apply. See `ExecuteMcpToolInput.credentialUserId`:
+   * discovery resolves the same third-party credentials, so an actorless run's
+   * surface supplies the workflow's own user, and the principal's subject wins
+   * whenever it has one.
+   */
+  credentialUserId?: string
   refresh?: boolean
 }
 
@@ -98,7 +108,7 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const tools = await mcpService.discoverTools(
-      requirePrincipalSubjectUserId(principal),
+      requireMcpCredentialUserId(principal, input.credentialUserId),
       context.workspaceId,
       /**
        * A public `refresh` skips the positive cache but keeps the failure
@@ -114,6 +124,13 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
 export interface DiscoverMcpServerToolsInput {
   workspaceId: string
   serverId: string
+  /**
+   * The user whose MCP credentials apply. See `ExecuteMcpToolInput.credentialUserId`:
+   * discovery resolves the same third-party credentials, so an actorless run's
+   * surface supplies the workflow's own user, and the principal's subject wins
+   * whenever it has one.
+   */
+  credentialUserId?: string
   refresh?: boolean
 }
 
@@ -151,7 +168,7 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     const tools = await mcpService.discoverServerTools(
-      requirePrincipalSubjectUserId(principal),
+      requireMcpCredentialUserId(principal, input.credentialUserId),
       context.server.id,
       context.workspaceId,
       /**
