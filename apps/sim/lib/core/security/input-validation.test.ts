@@ -571,11 +571,6 @@ describe('validateDatabaseHost', () => {
 
   describe('deprecated ALLOW_PRIVATE_DATABASE_HOSTS alias', () => {
     afterEach(() => {
-      envFlagsMock.egressAllowedHosts = undefined
-      envFlagsMock.egressAllowedIpRanges = undefined
-    })
-
-    afterEach(() => {
       envFlagsMock.legacyPrivateDatabaseAccess = false
     })
 
