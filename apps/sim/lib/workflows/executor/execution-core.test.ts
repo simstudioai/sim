@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import {
   environmentUtilsMockFns,
   loggerMock,
@@ -432,6 +433,107 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.isDeployedContext).toBe(
         expectedIsDeployedContext
       )
+    }
+  )
+
+  it.each([
+    {
+      name: 'schedule',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'schedule',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'webhook with a verified external subject',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'slack-user-1',
+        },
+      },
+      triggerType: 'webhook',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'workspace API key',
+      principal: {
+        kind: 'workspace_api_key' as const,
+        workspaceId: 'workspace-1',
+        keyId: 'workspace-key-1',
+      },
+      triggerType: 'api',
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'anonymous public API',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'public_api' as const,
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      },
+      triggerType: 'api',
+      isPublicApiAccess: true,
+    },
+  ] satisfies Array<{
+    name: string
+    principal: WorkflowExecutionPrincipal
+    triggerType: 'api' | 'schedule' | 'webhook'
+    isPublicApiAccess: boolean
+  }>)(
+    'preserves the exact $name principal and deployed workflow authority in executor delegation',
+    async ({ principal, triggerType, isPublicApiAccess }) => {
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      })
+
+      const snapshot = createSnapshot()
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: {
+            ...snapshot.metadata,
+            userId: 'billing-actor',
+            principal,
+            triggerType,
+            useDraftState: false,
+            isPublicApiAccess,
+          },
+        } as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      expect(contextExtensions.principal).toBe(principal)
+      expect(contextExtensions.executorDelegationOrigin.principal).toBe(principal)
+      expect(contextExtensions.executorDelegationOrigin).toEqual({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal,
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'dep-1',
+        },
+      })
     }
   )
 

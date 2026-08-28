@@ -45,6 +45,17 @@ const BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
 }
 
 function createInput(registry: ResolvedSecretTraceRegistry) {
+  const executionContext = {
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    executionId: 'execution-1',
+    userId: 'user-1',
+    executorDelegationOrigin: {
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    },
+  }
   return {
     userInput: 'secret-value __var_FOREIGN',
     knowledgeBaseId: 'kb-1',
@@ -54,6 +65,7 @@ function createInput(registry: ResolvedSecretTraceRegistry) {
     workflowId: 'workflow-1',
     workspaceId: 'workspace-1',
     actorUserId: 'user-1',
+    executionContext,
     billingAttribution: BILLING_ATTRIBUTION,
     requestId: 'request-1',
     resolvedSecretTraceRegistry: registry,
@@ -117,9 +129,11 @@ describe('validateHallucination', () => {
       knowledgeBaseIds: ['kb-1'],
       query: 'secret-value __var_FOREIGN',
       topK: 10,
-      userId: 'user-1',
       workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
+      context: expect.objectContaining({
+        workflowId: 'workflow-1',
+        executorDelegationOrigin: expect.objectContaining({ workflowId: 'workflow-1' }),
+      }),
       billingAttribution: BILLING_ATTRIBUTION,
       resolvedSecretTraceRegistry: registry,
       modelInputPaths: [['input']],

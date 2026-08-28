@@ -79,9 +79,10 @@ const {
   }
 })
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-  verifyWorkspaceFileAccess: mockVerifyWorkspaceFileAccess,
+vi.mock('@/lib/execution/payloads/materialization.server', () => ({
+  assertUserFileContentAccess: async (file: { key: string }) => {
+    if (!(await mockVerifyFileAccess(file.key))) throw new Error('File not found')
+  },
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -170,7 +171,8 @@ async function POST(request: NextRequest): Promise<Response> {
     workspaceId: parsed.data.workspaceId || 'workspace-id',
     workflowId: parsed.data.workflowId || 'workflow-id',
     executionId: parsed.data.executionId || 'execution-id',
-    userId: 'test-user-id',
+    attributedUserId: 'test-user-id',
+    fileAccessUserId: 'test-user-id',
     signal: request.signal,
   })
 }

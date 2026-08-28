@@ -788,6 +788,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
   'workspace-logos',
 ])
 
+/** Whether a trusted storage context is world-readable. */
+export function isPublicStorageContext(context: StorageContext): boolean {
+  return PUBLIC_STORAGE_CONTEXTS.has(context)
+}
+
 /**
  * Resolve the storage context for a stored file from its trusted key prefix.
  *
@@ -811,7 +816,7 @@ export function resolveTrustedFileContext(key: string, context?: string): Storag
   try {
     return inferContextFromKey(key)
   } catch (error) {
-    if (context && !PUBLIC_STORAGE_CONTEXTS.has(context as StorageContext)) {
+    if (context && !isPublicStorageContext(context as StorageContext)) {
       return context as StorageContext
     }
     throw error

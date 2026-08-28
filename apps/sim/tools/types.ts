@@ -3,6 +3,7 @@ import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
@@ -55,6 +56,7 @@ export type WorkflowToolExecutionContext = {
   workflowId?: string
   executionId?: string
   userId?: string
+  executorDelegationOrigin?: ExecutorDelegationOrigin
 }
 
 export type OutputType =
@@ -182,6 +184,11 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /**
+     * Allows the resolved request URL to target this Sim instance. Reserved for generic,
+     * user-directed HTTP capabilities; integration tools must use an in-process operation.
+     */
+    allowSameOrigin?: true
     /** Defines the exact request fields that may become model-visible. */
     modelInput?:
       | {

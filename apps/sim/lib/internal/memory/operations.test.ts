@@ -11,7 +11,13 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   remove: vi.fn(),
   requestsProvenance: vi.fn(),
+  suppliesWriteProvenance: vi.fn(),
   readWriteProvenance: vi.fn(),
+  requireBillingAttribution: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  requireWorkspaceBillingAttributionHeader: mocks.requireBillingAttribution,
 }))
 
 vi.mock('@/lib/memory/application/use-cases', () => ({
@@ -23,6 +29,7 @@ vi.mock('@/lib/memory/application/use-cases', () => ({
 
 vi.mock('@/lib/internal/memory/provenance', () => ({
   memoryToolRequestsProvenance: mocks.requestsProvenance,
+  memoryToolSuppliesWriteProvenance: mocks.suppliesWriteProvenance,
   readMemoryWriteProvenance: mocks.readWriteProvenance,
 }))
 
@@ -61,7 +68,12 @@ describe('Memory direct operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requestsProvenance.mockReturnValue(false)
+    mocks.suppliesWriteProvenance.mockReturnValue(false)
     mocks.readWriteProvenance.mockReturnValue(undefined)
+    mocks.requireBillingAttribution.mockReturnValue({
+      billedAccountUserId: 'billing-owner',
+      workspaceId: 'workspace-canonical',
+    })
     mocks.append.mockResolvedValue({ record: RECORD })
     mocks.list.mockResolvedValue({ records: [RECORD] })
     mocks.read.mockResolvedValue({ record: RECORD })
@@ -71,6 +83,7 @@ describe('Memory direct operations', () => {
   it('binds append authority and provenance to the canonical delegated workspace', async () => {
     const writeProvenance = { status: 'exact', entries: [] }
     mocks.requestsProvenance.mockReturnValue(true)
+    mocks.suppliesWriteProvenance.mockReturnValue(true)
     mocks.readWriteProvenance.mockReturnValue(writeProvenance)
 
     await executeMemoryAdd(
@@ -87,9 +100,24 @@ describe('Memory direct operations', () => {
       input: expect.objectContaining({
         workspaceId: 'workspace-canonical',
         key: 'conversation-1',
-        writeProvenance,
+        resolveWriteProvenance: expect.any(Function),
+        resolveBillingAttribution: expect.any(Function),
         includePersistedSecretProvenance: true,
       }),
+    })
+    const input = mocks.append.mock.calls[0]?.[0].input
+    const scope = { userId: 'billing-owner', workspaceId: 'workspace-canonical' }
+    expect(input.resolveWriteProvenance(scope)).toBe(writeProvenance)
+    expect(mocks.readWriteProvenance).toHaveBeenCalledWith(
+      expect.any(Headers),
+      expect.objectContaining({ key: 'conversation-1' }),
+      scope
+    )
+    await expect(input.resolveBillingAttribution('workspace-canonical')).resolves.toMatchObject({
+      billedAccountUserId: 'billing-owner',
+    })
+    expect(mocks.requireBillingAttribution).toHaveBeenCalledWith(expect.any(Headers), {
+      workspaceId: 'workspace-canonical',
     })
   })
 

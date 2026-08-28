@@ -69,4 +69,18 @@ describe('getAvailableCustomTool', () => {
 
     expect(mocks.select).toHaveBeenCalledTimes(2)
   })
+
+  it('does not expose a personal fallback to an actorless workflow execution', async () => {
+    mocks.select.mockReturnValueOnce(selection([]))
+
+    await expect(
+      getAvailableCustomTool({
+        identifier: personalTool.id,
+        workspaceId: workspaceTool.workspaceId,
+        lookup: 'id',
+      })
+    ).resolves.toBeNull()
+
+    expect(mocks.select).toHaveBeenCalledTimes(1)
+  })
 })

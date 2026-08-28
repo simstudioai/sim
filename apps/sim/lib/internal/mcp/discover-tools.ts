@@ -1,29 +1,24 @@
-import { createExecutorPrincipal } from '@/lib/internal/principals/executor'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
 
 export interface DiscoverMcpServerToolsAsExecutorInput {
-  userId: string
   workspaceId: string
-  workflowId: string
-  executionId?: string
+  context: InternalToolOperationContext
   serverId: string
   signal?: AbortSignal
 }
 
 export async function discoverMcpServerToolsAsExecutor({
-  userId,
   workspaceId,
-  workflowId,
-  executionId,
+  context,
   serverId,
   signal,
 }: DiscoverMcpServerToolsAsExecutorInput) {
   signal?.throwIfAborted()
-  const principal = await createExecutorPrincipal({
-    userId,
-    workflowId,
-    ...(executionId ? { executionId } : {}),
+  const principal = await createExecutorPrincipalFromExecutionContext({
+    context,
     audience: MCP_SERVER_DELEGATION_AUDIENCE,
   })
 

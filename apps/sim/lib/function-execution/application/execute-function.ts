@@ -1,4 +1,4 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
 import { type FunctionExecuteBody, functionExecuteBodySchema } from '@/lib/api/contracts'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -35,7 +35,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {
     delegation: functionExecutionDelegationPolicy,
   },
-  execute: async ({ principal, input }): Promise<Response> => {
+  execute: async ({ principal, input, context }): Promise<Response> => {
     const parsedBody = functionExecuteBodySchema.safeParse(input.body)
     if (!parsedBody.success) {
       throw new OrchestrationError(
@@ -44,6 +44,10 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
       )
     }
     const { executeFunctionRequest } = await import('@/lib/function-execution/execute-request')
+    const { attributedUserId } = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: context.billedAccountUserId,
+    })
+    const subject = resolvePrincipalSubject(principal)
     return executeFunctionRequest(
       {
         headers: input.headers,
@@ -51,7 +55,9 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
       },
       parsedBody.data,
       {
-        userId: requirePrincipalSubjectUserId(principal),
+        attributedUserId,
+        principal,
+        ...(subject?.kind === 'sim_user' ? { fileAccessUserId: subject.userId } : {}),
         ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
       }
     )

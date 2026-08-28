@@ -56,6 +56,29 @@ async function startRecordingServer(hops: RecordedHop[]): Promise<string> {
 }
 
 describe('secureFetchWithPinnedIP redirect replay', () => {
+  it('rejects a redirect target before following it', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    const origin = await startServer((req, res) => {
+      req.resume()
+      res.writeHead(302, { location: `${target}/after` })
+      res.end()
+    })
+    const assertRedirectTarget = vi.fn((url: string) => {
+      if (url === `${target}/after`) throw new Error('redirect target rejected')
+    })
+
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        allowHttp: true,
+        assertRedirectTarget,
+      })
+    ).rejects.toThrow('redirect target rejected')
+
+    expect(assertRedirectTarget).toHaveBeenCalledWith(`${target}/after`)
+    expect(hops).toEqual([])
+  })
+
   it('preserves historical replay when no redirect policy is present', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)

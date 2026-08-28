@@ -1283,10 +1283,14 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return discoverMcpServerToolsAsExecutor({
-      userId: ctx.userId,
       workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+      context: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
+      },
       serverId,
       signal: ctx.abortSignal,
     })
@@ -1349,6 +1353,7 @@ export class AgentBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
       },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>

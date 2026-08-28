@@ -279,7 +279,7 @@ export type AvailableCustomToolLookup = 'id' | 'id_or_title'
 
 export async function getAvailableCustomTool(params: {
   identifier: string
-  userId: string
+  userId?: string
   workspaceId: string
   lookup: AvailableCustomToolLookup
 }) {
@@ -294,6 +294,7 @@ export async function getAvailableCustomTool(params: {
     .where(and(eq(customTools.workspaceId, params.workspaceId), identifierCondition))
     .limit(1)
   if (workspaceTool[0]) return workspaceTool[0]
+  if (!params.userId) return null
 
   const legacyTool = await db
     .select()

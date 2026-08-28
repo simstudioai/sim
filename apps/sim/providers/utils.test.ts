@@ -1967,6 +1967,13 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
+          executorDelegationOrigin: {
+            subjectUserId: 'user-1',
+            workflowId: 'parent-workflow',
+            executionId: 'execution-1',
+            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
+          },
         },
         readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
@@ -1979,6 +1986,13 @@ describe('workflow executor metadata delegation', () => {
         workflowId: 'parent-workflow',
         workspaceId: 'workspace-1',
         executionId: 'execution-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'parent-workflow',
+          executionId: 'execution-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
+        },
       }
     )
     expect(result).toMatchObject({
@@ -2003,6 +2017,13 @@ describe('workflow executor metadata delegation', () => {
           workspaceId: 'workspace-1',
           executionId: 'execution-1',
           userId: 'user-1',
+          executorDelegationOrigin: {
+            subjectUserId: 'user-1',
+            workflowId: 'current-workflow',
+            executionId: 'execution-1',
+            principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
+          },
         },
         readWorkflowMetadata: workflowMetadataMocks.readWorkflowMetadataForTool,
       }
@@ -2015,6 +2036,13 @@ describe('workflow executor metadata delegation', () => {
         workflowId: 'current-workflow',
         workspaceId: 'workspace-1',
         executionId: 'execution-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'current-workflow',
+          executionId: 'execution-1',
+          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          currentWorkflow: { workflowId: 'current-workflow', mode: 'draft' },
+        },
       }
     )
   })

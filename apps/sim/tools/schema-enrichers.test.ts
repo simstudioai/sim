@@ -27,6 +27,12 @@ const ORIGINAL_SCHEMA = {
   required: [],
 }
 
+const EXECUTOR_ORIGIN = {
+  subjectUserId: 'user-1',
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+}
+
 describe('enrichTableToolSchema', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -50,14 +56,19 @@ describe('enrichTableToolSchema', () => {
         userId: 'user-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
       }
     )
 
     expect(mockReadTableSchemaAsExecutor).toHaveBeenCalledWith({
       tableId: 'table-1',
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      context: {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
+      },
     })
     expect(result.description).toContain('Table "Customers" columns:')
     expect(result.parameters.required).toContain('filter')
@@ -74,6 +85,7 @@ describe('enrichTableToolSchema', () => {
         workspaceId: 'workspace-1',
         userId: 'user-1',
         workflowId: 'workflow-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
       })
     ).rejects.toThrow('Table not found')
   })
@@ -81,7 +93,7 @@ describe('enrichTableToolSchema', () => {
   it('fails when trusted execution identity is missing', async () => {
     await expect(
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
-    ).rejects.toThrow('User ID is required to enrich table tool schema for table-1')
+    ).rejects.toThrow('Workflow ID is required to enrich table tool schema for table-1')
   })
 })
 
@@ -99,14 +111,19 @@ describe('enrichKBTagsSchema', () => {
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
       executionId: 'execution-1',
+      executorDelegationOrigin: EXECUTOR_ORIGIN,
     })
 
     expect(mockListKnowledgeTagsAsExecutor).toHaveBeenCalledWith({
       knowledgeBaseId: 'kb-1',
-      userId: 'user-1',
       workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      context: {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
+      },
     })
     expect(result?.properties).toEqual({ Client: { type: 'string', description: 'text tag' } })
   })
@@ -118,23 +135,35 @@ describe('enrichKBTagsSchema', () => {
       userId: 'user-1',
       workspaceId: 'workspace-1',
       workflowId: 'workflow-1',
+      executorDelegationOrigin: EXECUTOR_ORIGIN,
     })
 
     expect(mockListKnowledgeTagsAsExecutor).toHaveBeenCalledWith({
       knowledgeBaseId: 'kb-1',
-      userId: 'user-1',
       workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
+      context: {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
+      },
     })
   })
 
   it.each([
-    ['no acting user', { workspaceId: 'workspace-1', workflowId: 'workflow-1' }],
+    ['no execution authority', { workspaceId: 'workspace-1', workflowId: 'workflow-1' }],
     [
       'no acting workflow to bind the delegation on',
-      { workspaceId: 'workspace-1', userId: 'user-1' },
+      { workspaceId: 'workspace-1', userId: 'user-1', executorDelegationOrigin: EXECUTOR_ORIGIN },
     ],
-    ['no acting workspace', { userId: 'user-1', workflowId: 'workflow-1' }],
+    [
+      'no acting workspace',
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        executorDelegationOrigin: EXECUTOR_ORIGIN,
+      },
+    ],
   ])('skips enrichment with %s rather than issuing an unauthorized read', async (_, context) => {
     await expect(enrichKBTagsSchema('kb-1', context)).resolves.toBeNull()
     expect(mockListKnowledgeTagsAsExecutor).not.toHaveBeenCalled()
