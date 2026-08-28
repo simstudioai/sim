@@ -39,7 +39,12 @@ export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   'member',
   'workspace',
   'model',
-  'byok',
+  /*
+    'byok' is withheld, not removed: no usage has been recorded against a
+    bring-your-own-key provider yet, so the tab could only show its empty state.
+    Re-add it here once the ledger carries BYOK rows — the dimension, its labels,
+    its token unit, and the breakdown query all still work.
+  */
 ]
 
 export const USAGE_TAB_LABELS: Record<UsageTab, string> = {
@@ -69,6 +74,17 @@ export const USAGE_TAB_EMPTY_COPY: Record<UsageBreakdownDimension, string> = {
   byok: 'No usage on your own provider keys in this period.',
   source: 'Nothing consumed credits in this period.',
 }
+
+/**
+ * Rows per breakdown before and after the `Other` row is expanded.
+ *
+ * The collapsed count keeps a tab to one screen; the expanded one is the contract's
+ * own ceiling (`usageLimitSchema(50, 10)`), so asking for more would be refused. A
+ * dimension with more than {@link EXPANDED_ROW_COUNT} distinct rows still shows an
+ * `Other` row after expanding, which is the honest result rather than a bug.
+ */
+export const COLLAPSED_ROW_COUNT = 10
+export const EXPANDED_ROW_COUNT = 50
 
 export const DEFAULT_USAGE_PRESET = 'current-period' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB

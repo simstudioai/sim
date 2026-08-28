@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import * as toolMetadata from '@/tools/metadata'
 import {
@@ -634,6 +635,13 @@ describe('Tool Parameters Utils', () => {
 
     describe('createLLMToolSchema - child workflow input enrichment', () => {
       const mockReadWorkflowInputFields = vi.fn()
+      const executorDelegationOrigin: ExecutorDelegationOrigin = {
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow',
+        executionId: 'execution-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        currentWorkflow: { workflowId: 'parent-workflow', mode: 'draft' },
+      }
 
       beforeEach(() => {
         mockReadWorkflowInputFields.mockReset()
@@ -652,6 +660,7 @@ describe('Tool Parameters Utils', () => {
             workflowId: 'parent-workflow',
             executionId: 'execution-1',
             workspaceId: 'workspace-1',
+            executorDelegationOrigin,
           },
           mockReadWorkflowInputFields
         )
@@ -661,6 +670,7 @@ describe('Tool Parameters Utils', () => {
           workflowId: 'parent-workflow',
           executionId: 'execution-1',
           workspaceId: 'workspace-1',
+          executorDelegationOrigin,
         })
         expect(schema.properties.inputMapping.properties).toEqual({
           email: { type: 'string', description: 'Recipient address' },
@@ -673,7 +683,12 @@ describe('Tool Parameters Utils', () => {
         await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'parent-workflow' },
-          { userId: 'user-1', workflowId: 'parent-workflow', executionId: 'execution-1' },
+          {
+            userId: 'user-1',
+            workflowId: 'parent-workflow',
+            executionId: 'execution-1',
+            executorDelegationOrigin,
+          },
           mockReadWorkflowInputFields
         )
 
@@ -681,10 +696,11 @@ describe('Tool Parameters Utils', () => {
           userId: 'user-1',
           workflowId: 'parent-workflow',
           executionId: 'execution-1',
+          executorDelegationOrigin,
         })
       })
 
-      it('leaves inputMapping untyped and issues no request without an execution subject', async () => {
+      it('leaves inputMapping untyped and issues no request without trusted execution authority', async () => {
         const { schema } = await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'child-workflow' },
@@ -702,10 +718,19 @@ describe('Tool Parameters Utils', () => {
         const { schema } = await createLLMToolSchema(
           mockWorkflowExecutorConfig,
           { workflowId: 'child-workflow' },
-          { userId: 'user-1', workflowId: 'parent-workflow' },
+          {
+            userId: 'user-1',
+            workflowId: 'parent-workflow',
+            executorDelegationOrigin,
+          },
           mockReadWorkflowInputFields
         )
 
+        expect(mockReadWorkflowInputFields).toHaveBeenCalledWith('child-workflow', {
+          userId: 'user-1',
+          workflowId: 'parent-workflow',
+          executorDelegationOrigin,
+        })
         expect(schema.properties.inputMapping.properties).toBeUndefined()
       })
     })

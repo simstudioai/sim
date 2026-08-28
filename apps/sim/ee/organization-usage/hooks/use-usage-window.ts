@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useQueryStates } from 'nuqs'
 import {
   MAX_CUSTOM_RANGE_DAYS,
@@ -32,7 +31,7 @@ function isCalendarDate(value: string | null): value is string {
  * guard exists to provide. Duplicated deliberately, and narrowly: these are the three
  * conditions that turn a link into an error rather than into different data.
  */
-function isUsableCustomRange(start: string | null, end: string | null): boolean {
+export function isUsableCustomRange(start: string | null, end: string | null): boolean {
   if (!isCalendarDate(start) || !isCalendarDate(end)) return false
   const from = new Date(`${start}T00:00:00.000Z`).getTime()
   const to = new Date(`${end}T00:00:00.000Z`).getTime()
@@ -63,16 +62,18 @@ export function useUsageWindow() {
   const preset: UsageWindowPreset =
     state.preset === 'custom' && !isResolvedCustom ? DEFAULT_USAGE_PRESET : state.preset
 
-  const window = useMemo<OrganizationUsageWindowKey>(
-    () => ({
-      preset,
-      ...(isResolvedCustom
-        ? { startDate: state.startDate ?? undefined, endDate: state.endDate ?? undefined }
-        : {}),
-      timezone,
-    }),
-    [preset, isResolvedCustom, state.startDate, state.endDate, timezone]
-  )
+  /*
+    Not memoized: this object is only ever hashed, never compared by identity —
+    React Query hashes a query key structurally, and the panel reads the primitive
+    fields off it directly.
+  */
+  const window: OrganizationUsageWindowKey = {
+    preset,
+    ...(isResolvedCustom
+      ? { startDate: state.startDate ?? undefined, endDate: state.endDate ?? undefined }
+      : {}),
+    timezone,
+  }
 
   const periodLabel = isResolvedCustom
     ? `${formatDateShort(state.startDate as string)} - ${formatDateShort(state.endDate as string)}`
@@ -82,6 +83,7 @@ export function useUsageWindow() {
     window,
     tab: state.tab,
     workspace: state.workspace,
+    expanded: state.expanded,
     /**
      * The *resolved* preset, not the raw URL value. A partial custom deep link
      * queries the current period, so surfacing `state.preset` left the picker

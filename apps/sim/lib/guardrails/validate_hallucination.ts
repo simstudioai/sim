@@ -6,6 +6,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { searchKnowledgeAsExecutor } from '@/lib/internal/knowledge/search'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -46,6 +47,7 @@ export interface HallucinationValidationInput {
   workflowId?: string
   workspaceId?: string
   actorUserId: string
+  executionContext: InternalToolOperationContext
   billingAttribution: BillingAttributionSnapshot
   requestId: string
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
@@ -65,7 +67,7 @@ async function queryKnowledgeBase(
   query: string,
   topK: number,
   requestId: string,
-  actorUserId: string,
+  executionContext: InternalToolOperationContext,
   billingAttribution: BillingAttributionSnapshot,
   workflowId: string | undefined,
   workspaceId: string | undefined,
@@ -80,9 +82,8 @@ async function queryKnowledgeBase(
       knowledgeBaseIds: [knowledgeBaseId],
       query,
       topK,
-      userId: actorUserId,
       workspaceId,
-      workflowId,
+      context: executionContext,
       billingAttribution,
       resolvedSecretTraceRegistry,
       modelInputPaths: HALLUCINATION_INPUT_PATHS,
@@ -266,6 +267,7 @@ export async function validateHallucination(
     workflowId,
     workspaceId,
     actorUserId,
+    executionContext,
     billingAttribution,
     requestId,
     resolvedSecretTraceRegistry,
@@ -292,7 +294,7 @@ export async function validateHallucination(
       userInput,
       topK,
       requestId,
-      actorUserId,
+      executionContext,
       billingAttribution,
       workflowId,
       workspaceId,

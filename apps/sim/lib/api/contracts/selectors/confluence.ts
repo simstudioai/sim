@@ -348,14 +348,16 @@ export const confluencePageSelectorContract = definePostSelector(
   z.object({ id: z.string(), title: z.string() }).passthrough()
 )
 
-export const confluenceUpdatePageContract = defineConfluencePutContract(
-  '/api/tools/confluence/page',
-  confluenceUpdatePageBodySchema
-)
-export const confluenceDeletePageContract = defineConfluenceDeleteContract(
-  '/api/tools/confluence/page',
-  confluenceDeletePageBodySchema
-)
+/**
+ * Page update and delete have no contract because they have no route: the
+ * `PUT`/`DELETE` handlers on `/api/tools/confluence/page` were retired when the
+ * tool moved in process, and the surviving selector `POST` on that path would
+ * answer either verb with 405. `lib/internal/confluence/execute-tool.ts`
+ * validates both against `confluenceUpdatePageBodySchema` /
+ * `confluenceDeletePageBodySchema` directly.
+ */
+export type ConfluenceUpdatePageBody = z.output<typeof confluenceUpdatePageBodySchema>
+export type ConfluenceDeletePageBody = z.output<typeof confluenceDeletePageBodySchema>
 export const confluenceDeleteAttachmentContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/attachment',
   confluenceDeleteAttachmentBodySchema
@@ -510,8 +512,6 @@ export const confluenceUserContract = defineConfluencePostContract(
 )
 
 export type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
-export type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
-export type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
 export type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
 export type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
 export type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>

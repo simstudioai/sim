@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
@@ -985,6 +986,8 @@ const BODY_SIZE_LIMIT_ERROR_MESSAGE =
 
 const RESPONSE_SIZE_LIMIT_ERROR_MESSAGE =
   'Tool response size limit exceeded (10MB). The response is too large to keep in workflow data. Reduce the response size or return a file reference instead.'
+const SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE =
+  'External integration tools cannot target this Sim instance; use an internal operation'
 
 /**
  * Validates request body size and throws a user-friendly error if exceeded
@@ -2356,11 +2359,29 @@ function isErrorResponse(
 
 /**
  * Checks whether a fully resolved URL points back to this Sim instance.
+ * Loopback aliases are equivalent when protocol and port match because they
+ * address the same self-hosted listener even when their origin strings differ.
  * Used to propagate cycle-detection headers on API blocks that target
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
+  return [getBaseUrl(), getInternalApiBaseUrl()].some((baseUrl) => {
+    if (isSameOrigin(url, baseUrl)) return true
+
+    try {
+      const target = new URL(url)
+      const base = new URL(baseUrl)
+      if (target.protocol !== base.protocol || target.port !== base.port) return false
+
+      const targetHostname = unwrapIpv6Brackets(target.hostname.toLowerCase())
+      const baseHostname = unwrapIpv6Brackets(base.hostname.toLowerCase())
+      const targetIsLoopback = targetHostname === 'localhost' || isLoopbackIp(targetHostname)
+      const baseIsLoopback = baseHostname === 'localhost' || isLoopbackIp(baseHostname)
+      return targetIsLoopback && baseIsLoopback
+    } catch {
+      return false
+    }
+  })
 }
 
 interface ResolvedRetryConfig {
@@ -2627,8 +2648,13 @@ async function executeToolRequest(
     const requestParams = prepareToolRequest(tool, params, resolvedSecretTraceRegistry)
     const { headers } = requestParams
     const fullUrl = new URL(requestParams.url).toString()
+    const targetsThisSimInstance = isSelfOriginUrl(fullUrl)
 
-    if (isSelfOriginUrl(fullUrl)) {
+    if (targetsThisSimInstance && tool.request.allowSameOrigin !== true) {
+      throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+    }
+
+    if (targetsThisSimInstance) {
       const callChain = params._context?.callChain as string[] | undefined
       if (callChain && callChain.length > 0) {
         headers.set(SIM_VIA_HEADER, serializeCallChain(callChain))
@@ -2679,6 +2705,14 @@ async function executeToolRequest(
           proxyUrl: proxyOption,
           stripAuthOnRedirect: requestParams.stripAuthOnRedirect,
           redirectPolicy: requestParams.redirectPolicy,
+          assertRedirectTarget:
+            tool.request.allowSameOrigin === true
+              ? undefined
+              : (redirectUrl) => {
+                  if (isSelfOriginUrl(redirectUrl)) {
+                    throw new Error(SAME_ORIGIN_EXTERNAL_TOOL_ERROR_MESSAGE)
+                  }
+                },
         })
 
         const responseHeaders = new Headers(secureResponse.headers.toRecord())

@@ -3,7 +3,7 @@ import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primiti
 import { AWS_REGION_PATTERN, toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
-import { FileInputSchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const textractQuerySchema = z.object({
   Text: z.string().min(1),
@@ -110,19 +110,6 @@ export const textractAnalyzeIdBodySchema = z
     }
   })
 
-export const mistralParseBodySchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required').optional(),
-  fileData: FileInputSchema.optional(),
-  file: FileInputSchema.optional(),
-  resultType: z.string().optional(),
-  pages: z.array(z.number()).optional(),
-  includeImageBase64: z.boolean().optional(),
-  imageLimit: z.number().optional(),
-  imageMinSize: z.number().optional(),
-  [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
-})
-
 export const textractParseContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/textract/parse',
@@ -141,12 +128,5 @@ export const textractAnalyzeIdContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/textract/analyze-id',
   body: textractAnalyzeIdBodySchema,
-  response: { mode: 'json', schema: toolJsonResponseSchema },
-})
-
-export const mistralParseContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/mistral/parse',
-  body: mistralParseBodySchema,
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })

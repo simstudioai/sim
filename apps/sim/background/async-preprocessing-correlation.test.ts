@@ -227,6 +227,74 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it.each([
+    {
+      name: 'workspace API key',
+      serializedPrincipal: {
+        version: 1 as const,
+        principal: {
+          kind: 'workspace_api_key' as const,
+          workspaceId: 'workspace-1',
+          keyId: 'workspace-key-1',
+        },
+      },
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'public API system',
+      serializedPrincipal: {
+        version: 1 as const,
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'public_api' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      },
+      isPublicApiAccess: true,
+    },
+  ])(
+    'restores the exact serialized $name principal before Trigger worker execution',
+    async ({ serializedPrincipal, isPublicApiAccess }) => {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: true,
+        actorUserId: 'actor-1',
+        workflowRecord: {
+          id: 'workflow-1',
+          userId: 'owner-1',
+          workspaceId: 'workspace-1',
+          variables: {},
+        },
+        billingAttribution,
+        executionTimeout: {},
+      })
+      mockExecuteWorkflowCore.mockResolvedValueOnce({
+        success: true,
+        status: 'success',
+        output: { ok: true },
+        metadata: { duration: 10, userId: 'actor-1' },
+      })
+
+      await executeWorkflowJob({
+        principal: serializedPrincipal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: `execution-${serializedPrincipal.principal.kind}`,
+        requestId: `request-${serializedPrincipal.principal.kind}`,
+        isPublicApiAccess,
+      })
+
+      const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+      expect(executionMetadata.userId).toBe('actor-1')
+      expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+      expect(executionMetadata.isPublicApiAccess).toBe(isPublicApiAccess)
+      expect(executionMetadata.principal).not.toHaveProperty('userId')
+    }
+  )
+
   it('restores a legacy authenticated workflow job as its recorded user actor', async () => {
     mockPreprocessExecution.mockResolvedValueOnce({
       success: true,
@@ -545,6 +613,14 @@ describe('async preprocessing correlation threading', () => {
         loggingSession,
       })
     )
+    const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+    expect(executionMetadata.userId).toBe('actor-2')
+    expect(executionMetadata.principal).toEqual({
+      kind: 'system',
+      serviceId: 'schedule',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    })
   })
 
   it('passes workflow correlation into preprocessing', async () => {

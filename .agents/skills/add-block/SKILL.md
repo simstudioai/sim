@@ -1056,6 +1056,10 @@ After creating the block, you MUST validate it against every tool it references:
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
 5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 6. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs
+7. **Verify the tool execution boundary** — blocks never create or call API routes. Every referenced
+   tool must already be either a registered `InternalToolConfig.operation` or an absolute external
+   HTTP(S) `ToolConfig.request`. If transport needs to change, use the `add-tools` skill; do not add a
+   same-origin `/api/...` hop from the block.
 
 ## Option Lists: `selectorKey` or `options`, never a per-block fetcher
 

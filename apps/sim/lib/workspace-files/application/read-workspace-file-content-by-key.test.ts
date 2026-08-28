@@ -27,7 +27,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import {
+  readWorkspaceFileContentByKey,
+  readWorkspaceFileRecordByKey,
+} from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const context = {
@@ -91,5 +94,75 @@ describe('readWorkspaceFileContentByKey', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.fetchContent).not.toHaveBeenCalled()
+  })
+
+  it('authorizes an exact-key record read for a workspace API key without a human fallback', async () => {
+    await expect(
+      readWorkspaceFileRecordByKey.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: file.workspaceId,
+          keyId: 'key-1',
+        },
+        input: { key: file.key, assertedWorkspaceId: file.workspaceId },
+      })
+    ).resolves.toEqual({ file })
+
+    expect(mocks.getMetadata).toHaveBeenCalledWith(file.key, 'workspace')
+    expect(mocks.loadContext).toHaveBeenCalledWith(file.id)
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.getFile).toHaveBeenCalledWith(file.workspaceId, file.id, {
+      throwOnError: true,
+    })
+    expect(mocks.fetchContent).not.toHaveBeenCalled()
+  })
+
+  it('authorizes an actorless deployment executor by its preserved workflow authority', async () => {
+    await expect(
+      readWorkspaceFileRecordByKey.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'executor',
+          workspaceId: file.workspaceId,
+          delegationId: 'execution-file-read:request-1',
+          audience: 'sim:workspace-files',
+          issuedAt: new Date(Date.now() - 1_000),
+          expiresAt: new Date(Date.now() + 60_000),
+          delegationContext: {
+            kind: 'workflow_execution',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            principal: {
+              kind: 'system',
+              serviceId: 'schedule',
+              workspaceId: file.workspaceId,
+              workflowId: 'workflow-1',
+            },
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+          },
+        },
+        input: { key: file.key, assertedWorkspaceId: file.workspaceId },
+      })
+    ).resolves.toEqual({ file })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.fetchContent).not.toHaveBeenCalled()
+  })
+
+  it('conceals an exact key asserted under a different workspace before authorization', async () => {
+    await expect(
+      readWorkspaceFileRecordByKey.execute({
+        principal,
+        input: { key: file.key, assertedWorkspaceId: 'workspace-other' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.getFile).not.toHaveBeenCalled()
   })
 })

@@ -15,6 +15,14 @@ describe('Vanta internal tool declarations', () => {
     }
   })
 
+  it('leaves mimeType an ordinary operation parameter the base64 path can set', () => {
+    expect(vantaUploadDocumentFileTool.params.mimeType.visibility).toBe('user-or-llm')
+  })
+
+  it('hides only the system-injected file content', () => {
+    expect(vantaUploadDocumentFileTool.params.fileContent.visibility).toBe('hidden')
+  })
+
   it('preserves resolved secrets, variables, and protected file references verbatim', () => {
     const file = { key: 'workspace/file.txt', name: 'file.txt', size: 4 }
     expect(

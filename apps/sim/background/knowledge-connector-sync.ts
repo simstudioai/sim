@@ -98,7 +98,14 @@ export async function executeConnectorSyncJob(payload: unknown) {
 export const knowledgeConnectorSync = task({
   id: 'knowledge-connector-sync',
   maxDuration: CONNECTOR_SYNC_MAX_DURATION_SECONDS,
-  machine: 'large-2x',
+  /**
+   * Sized from production telemetry: peak sampled RSS 2.6 GB and peak 1.4 vCPU,
+   * so `large-1x` holds ~3x memory and ~2.8x CPU headroom. No `outOfMemory`
+   * escalation: an OOM is a SIGKILL, so the run never reaches the terminal
+   * write that clears `syncLockToken`, and the escalated attempt would find the
+   * row still `syncing` and skip. The stale-lock reaper owns that recovery.
+   */
+  machine: 'large-1x',
   retry: {
     maxAttempts: 3,
     factor: 2,

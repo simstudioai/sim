@@ -109,9 +109,17 @@ export function ManageCreditsModal({
           value={isLoading ? 'Loading…' : creditsUsed}
           copyLabel='Copy credits used'
         />
+        {/*
+          Text with a numeric input mode, not `inputType='number'` — the same choice
+          the retry settings field documents. The native stepper is all the number
+          type buys, and it paints browser chrome inside a flat chip surface. It also
+          reports `''` for anything the browser considers invalid, so a typo arrived
+          here indistinguishable from a cleared field and saved as "no limit"; as text
+          it reaches the `Number.isInteger` check below and is refused.
+        */}
         <ChipModalField
           type='input'
-          inputType='number'
+          inputMode='numeric'
           title={
             <span className='inline-flex items-center gap-1.5'>
               Credit limit

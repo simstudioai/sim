@@ -60,6 +60,7 @@ const {
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
   mockExecuteFunction,
+  mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
 } = vi.hoisted(() => ({
@@ -80,6 +81,7 @@ const {
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
+  mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
 }))
@@ -129,6 +131,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
+}))
+
+vi.mock('@/lib/internal/principals/executor', () => ({
+  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipalFromExecutionContext,
 }))
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
@@ -187,6 +193,7 @@ const mockRegistryTools: Record<string, any> = {
       retryNonIdempotent: { type: 'boolean' },
     },
     request: {
+      allowSameOrigin: true,
       url: (p: any) => p.url || '/api/test',
       method: (p: any) => p.method || 'GET',
       headers: (p: any) => p.headers || { 'Content-Type': 'application/json' },
@@ -480,6 +487,30 @@ beforeEach(() => {
       }
     )
   )
+  mockCreateExecutorPrincipalFromExecutionContext.mockImplementation(
+    async ({ context, audience, resourceScope }) => {
+      const origin = context.executorDelegationOrigin
+      if (!origin) throw new Error('Executor delegation origin is required')
+      return {
+        kind: 'delegated' as const,
+        serviceId: 'executor',
+        ...(origin.subjectUserId ? { subjectUserId: origin.subjectUserId } : {}),
+        workspaceId: context.workspaceId,
+        delegationId: 'test-executor-delegation',
+        audience,
+        issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+        expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+        ...(resourceScope ? { resourceScope } : {}),
+        delegationContext: {
+          kind: 'workflow_execution' as const,
+          workflowId: origin.workflowId,
+          ...(origin.executionId ? { executionId: origin.executionId } : {}),
+          ...(origin.principal ? { principal: origin.principal } : {}),
+          ...(origin.currentWorkflow ? { currentWorkflow: origin.currentWorkflow } : {}),
+        },
+      }
+    }
+  )
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -546,13 +577,31 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
     metadata: overrides?.metadata,
     environmentVariables: overrides?.environmentVariables,
   })
+  const principal =
+    overrides?.principal ??
+    (overrides?.userId
+      ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
+      : undefined)
+  const executorDelegationOrigin =
+    overrides?.executorDelegationOrigin ??
+    (principal
+      ? {
+          subjectUserId: overrides?.userId,
+          workflowId: overrides?.workflowId ?? ctx.workflowId,
+          executionId: overrides?.executionId ?? ctx.executionId,
+          principal,
+        }
+      : undefined)
   return {
     ...ctx,
     workspaceId: 'workspace-456',
+    principal,
+    executorDelegationOrigin,
     ...overrides,
     metadata: {
       ...ctx.metadata,
       ...overrides?.metadata,
+      principal: overrides?.metadata?.principal ?? principal,
       billingAttribution: overrides?.metadata?.billingAttribution ?? TEST_BILLING_ATTRIBUTION,
     },
   } as ExecutionContext
@@ -815,7 +864,6 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: 'user-1',
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],
@@ -823,6 +871,7 @@ describe('executeTool Function', () => {
         },
       },
     })
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -900,7 +949,6 @@ describe('executeTool Function', () => {
               __blockRef_0: { field: 'resolved-output' },
               __blockRef_1: largeValueRef,
             },
-            userId: 'user-1',
             workspaceId: 'workspace-456',
             workflowId: 'workflow-1',
             executionId: 'execution-1',
@@ -912,6 +960,7 @@ describe('executeTool Function', () => {
         }),
       })
     )
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -994,7 +1043,6 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: 'user-1',
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],
@@ -1003,6 +1051,7 @@ describe('executeTool Function', () => {
         },
       },
     })
+    expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
@@ -2612,6 +2661,148 @@ describe('Internal Route Trust', () => {
     expect(result.error).toContain('External tool requests require an absolute HTTP(S) URL')
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('allows the generic HTTP tool to target this Sim instance through a loopback alias', async () => {
+    const result = await executeTool('http_request', {
+      url: 'http://127.0.0.2:3000/api/v1/workflows/test',
+      method: 'GET',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'http://127.0.0.2:3000/api/v1/workflows/test',
+      'toolUrl'
+    )
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'http://127.0.0.2:3000/api/v1/workflows/test',
+      '93.184.216.34',
+      expect.objectContaining({ assertRedirectTarget: undefined })
+    )
+  })
+
+  it('rejects an integration request that resolves back to this Sim instance', async () => {
+    const mockTool = {
+      id: 'test_same_origin_integration',
+      name: 'Same Origin Integration',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'http://localhost:3000/api/tools/test',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_same_origin_integration = mockTool
+
+    try {
+      const result = await executeTool('test_same_origin_integration', {})
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain(
+        'External integration tools cannot target this Sim instance; use an internal operation'
+      )
+      expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_same_origin_integration')
+    }
+  })
+
+  it.each(['127.0.0.1', '127.0.0.2', '[::1]'])(
+    'rejects the loopback alias %s for a self-hosted Sim listener',
+    async (hostname) => {
+      const mockTool = {
+        id: 'test_loopback_alias_integration',
+        name: 'Loopback Alias Integration',
+        description: 'Regression fixture',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: () => `http://${hostname}:3000/api/tools/test`,
+          method: 'GET' as const,
+          headers: () => ({}),
+        },
+      }
+      ;(tools as Record<string, unknown>).test_loopback_alias_integration = mockTool
+
+      try {
+        const result = await executeTool('test_loopback_alias_integration', {})
+
+        expect(result.success).toBe(false)
+        expect(result.error).toContain(
+          'External integration tools cannot target this Sim instance; use an internal operation'
+        )
+        expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+        expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(tools, 'test_loopback_alias_integration')
+      }
+    }
+  )
+
+  it('allows a self-hosted provider on a different loopback port', async () => {
+    const mockTool = {
+      id: 'test_local_provider',
+      name: 'Local Provider',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'http://127.0.0.1:4000/api/provider',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_local_provider = mockTool
+
+    try {
+      const result = await executeTool('test_local_provider', {})
+
+      expect(result.success).toBe(true)
+      expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
+        'http://127.0.0.1:4000/api/provider',
+        'toolUrl'
+      )
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_local_provider')
+    }
+  })
+
+  it('rejects an integration redirect that resolves back to this Sim instance', async () => {
+    const mockTool = {
+      id: 'test_same_origin_redirect',
+      name: 'Same Origin Redirect Integration',
+      description: 'Regression fixture',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: () => 'https://api.example.com/download',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+    }
+    ;(tools as Record<string, unknown>).test_same_origin_redirect = mockTool
+
+    try {
+      const result = await executeTool('test_same_origin_redirect', {})
+
+      expect(result.success).toBe(true)
+      const secureFetchOptions = mockSecureFetchWithPinnedIP.mock.calls.at(-1)?.[2]
+      expect(secureFetchOptions?.assertRedirectTarget).toBeTypeOf('function')
+      expect(() =>
+        secureFetchOptions?.assertRedirectTarget?.('http://127.0.0.2:3000/api/tools/test')
+      ).toThrow(
+        'External integration tools cannot target this Sim instance; use an internal operation'
+      )
+      expect(() =>
+        secureFetchOptions?.assertRedirectTarget?.('https://provider.example.com/download')
+      ).not.toThrow()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_same_origin_redirect')
+    }
   })
 
   it('transports only active provenance selected for an internal model input', async () => {

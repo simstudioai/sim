@@ -20,8 +20,16 @@ on:
   # created, prevents developers from introducing new vulnerabilities."
   push:
     branches: [main]
+  # main only, not staging. Feature PRs land on staging and are ~90% of PR scan
+  # volume, and every one of them is scanned again — against the exact tree being
+  # promoted — when the staging->main PR opens. Scanning at the promotion
+  # boundary defers the signal rather than dropping it.
+  #
+  # Deliberately a branch cut and not an activity-type cut: dropping
+  # `synchronize` would have scanned each PR's first commit and never its final
+  # state, which is backwards, since review fixups land in later pushes.
   pull_request:
-    branches: [main, staging]
+    branches: [main]
     # `ready_for_review` is not a default activity type, so it has to be listed
     # alongside the defaults it replaces. Without it, a PR opened as a draft and
     # then marked ready is skipped by the job-level draft guard and never
@@ -41,7 +49,15 @@ on:
     # Safety net behind the push trigger, and the thing that keeps the
     # default-branch alert view fresh when main is quiet. Only fires once this
     # file is on the default branch — schedule events ignore other branches.
-    - cron: '17 8 * * 1'
+    #
+    # Daily rather than weekly. Pushes to main are rare, and with PR scans now
+    # limited to main the alert view leans on this more than it used to; a week
+    # is too long to leave it stale. It also reseeds the overlay-base database
+    # that PR runs restore from — that cache key embeds the CodeQL bundle
+    # version, so a bundle bump invalidates it, and an unused Actions cache is
+    # evicted after 7 days. One 8 vCPU default-branch scan a day is a few
+    # dollars a month against a PR scan that halves when the base is warm.
+    - cron: '17 8 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -54,7 +70,12 @@ permissions:
 jobs:
   analyze:
     name: Analyze ${{ matrix.language }}
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # Sized per language, not per workflow. The two analyses are nothing alike:
+    # javascript-typescript peaks at 19.5 GB (p95 over 3090 runs), so it needs
+    # the 8 vCPU tier's 30.4 GB and would OOM on the 4 vCPU tier's 15.2 GB; the
+    # actions analysis peaks at 1.3 GB and averages 22% CPU over a 39s median
+    # run, so 8 vCPU was 4x more machine than it ever used.
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || 'ubuntu-latest' }}
     timeout-minutes: 60
     if: github.event.pull_request.draft != true
     permissions:
@@ -71,7 +92,11 @@ jobs:
         # entries default setup listed were one analysis, not three.
         # `javascript-typescript` is the documented spelling. Python dropped:
         # 7 files in the tree.
-        language: [javascript-typescript, actions]
+        include:
+          - language: javascript-typescript
+            bs_runner: blacksmith-8vcpu-ubuntu-2404
+          - language: actions
+            bs_runner: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Checkout repository

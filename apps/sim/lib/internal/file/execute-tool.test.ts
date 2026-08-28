@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
@@ -39,6 +40,19 @@ const MANAGE_INPUTS = {
 
 const PARSER_TOOL_IDS = ['file_fetch', 'file_parser', 'file_parser_v2', 'file_parser_v3'] as const
 
+const BILLING_ATTRIBUTION = {
+  actorUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'user', id: 'workspace-owner' },
+  billingPeriod: {
+    start: '2026-08-01T00:00:00.000Z',
+    end: '2026-09-01T00:00:00.000Z',
+  },
+  payerSubscription: null,
+} satisfies BillingAttributionSnapshot
+
 function request(
   toolId: string,
   input: unknown,
@@ -53,6 +67,14 @@ function request(
       executionId: 'execution-1',
       userId: 'user-1',
       workspaceId: 'workspace-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+      executorDelegationOrigin: {
+        subjectUserId: 'user-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+      },
     },
     requestId: 'request-1',
     ...overrides,
@@ -80,7 +102,8 @@ describe('executeFileTool', () => {
       expect.objectContaining(input),
       expect.objectContaining({
         workspaceId: 'workspace-1',
-        userId: 'user-1',
+        attributedUserId: 'user-1',
+        fileAccessUserId: 'user-1',
         requestId: 'request-1',
       })
     )
@@ -99,7 +122,8 @@ describe('executeFileTool', () => {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        userId: 'user-1',
+        attributedUserId: 'user-1',
+        fileAccessUserId: 'user-1',
       })
     )
     expect(mocks.executeManage).not.toHaveBeenCalled()
@@ -117,6 +141,12 @@ describe('executeFileTool', () => {
   })
 
   it('uses the delegation origin as the file authorization subject in child workflows', async () => {
+    mocks.createPrincipal.mockResolvedValueOnce({
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'invoking-user',
+      workspaceId: 'workspace-1',
+    })
     await executeFileTool(
       request('file_get', MANAGE_INPUTS.file_get, {
         context: {
@@ -135,14 +165,79 @@ describe('executeFileTool', () => {
 
     expect(mocks.executeManage).toHaveBeenCalledWith(
       expect.objectContaining(MANAGE_INPUTS.file_get),
-      expect.objectContaining({ userId: 'invoking-user' })
+      expect.objectContaining({
+        attributedUserId: 'invoking-user',
+        fileAccessUserId: 'invoking-user',
+      })
     )
   })
 
-  it('rejects missing trusted identity before principal construction', async () => {
+  it('uses compatibility attribution without replacing an actorless deployed principal', async () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'schedule' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-1',
+        },
+      },
+    }
+    mocks.createPrincipal.mockResolvedValueOnce(principal)
+
+    await executeFileTool(
+      request('file_decompress', MANAGE_INPUTS.file_decompress, {
+        context: {
+          ...createExecutionContext({ workflowId: 'workflow-1' }),
+          executionId: 'execution-1',
+          userId: 'legacy-actor',
+          workspaceId: 'workspace-1',
+          billingAttribution: BILLING_ATTRIBUTION,
+          executorDelegationOrigin: {
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            principal: principal.delegationContext.principal,
+            currentWorkflow: principal.delegationContext.currentWorkflow,
+          },
+        },
+      })
+    )
+
+    expect(mocks.executeManage).toHaveBeenCalledWith(
+      expect.objectContaining(MANAGE_INPUTS.file_decompress),
+      expect.objectContaining({
+        principal,
+        attributedUserId: 'workspace-owner',
+        fileAccessUserId: undefined,
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
+
+  it('rejects missing trusted identity during principal construction', async () => {
     const response = await executeFileTool(
       request('file_get', MANAGE_INPUTS.file_get, {
-        context: { ...createExecutionContext({ workflowId: 'workflow-1' }), userId: undefined },
+        context: {
+          ...createExecutionContext({ workflowId: 'workflow-1' }),
+          workspaceId: 'workspace-1',
+          userId: undefined,
+          executorDelegationOrigin: undefined,
+        },
       })
     )
 

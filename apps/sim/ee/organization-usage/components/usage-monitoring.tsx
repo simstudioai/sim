@@ -6,6 +6,7 @@ import {
   Calendar,
   ChipCombobox,
   ChipModalTabs,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -18,16 +19,20 @@ import {
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isAuditLogsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import {
   ManageCreditsModal,
   type ManageCreditsTarget,
 } from '@/app/workspace/[workspaceId]/settings/components/manage-credits-modal'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { serializeAuditLogFilters } from '@/ee/audit-logs/search-params'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
+import { UsageSourceMix } from '@/ee/organization-usage/components/usage-source-mix'
 import { UsageSummary } from '@/ee/organization-usage/components/usage-summary'
 import {
+  COLLAPSED_ROW_COUNT,
+  EXPANDED_ROW_COUNT,
   PERIOD_OPTIONS,
   USAGE_OVERVIEW_TAB,
   USAGE_SECTION_LABELS,
@@ -36,6 +41,7 @@ import {
   type UsageTab,
 } from '@/ee/organization-usage/constants'
 import { useUsageWindow } from '@/ee/organization-usage/hooks/use-usage-window'
+import { serializeOrganizationUsageParams } from '@/ee/organization-usage/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 import {
   useOrganizationUsageBreakdown,
@@ -63,7 +69,7 @@ function UsageSection({
   return (
     <SettingsSection
       label={USAGE_SECTION_LABELS[dimension]}
-      action={<span className='text-[var(--text-muted)] text-caption'>{unit}</span>}
+      action={<span className='text-[var(--text-muted)] text-small'>{unit}</span>}
     >
       {children}
     </SettingsSection>
@@ -72,8 +78,13 @@ function UsageSection({
 
 interface UsageMonitoringProps {
   organizationId: string
-  /** Set by the settings section switch; the sub-route lives under this workspace. */
-  workspaceId: string
+  /**
+   * Base path of the events drill-down, built by the settings switch the same way it
+   * builds `creditUsageHref` and `billingHref`. The panel appends its own window.
+   */
+  eventsHref: string
+  /** Base path of the audit-logs section, which the workspace drill-down scopes. */
+  auditLogsHref: string
 }
 
 /**
@@ -84,11 +95,16 @@ interface UsageMonitoringProps {
  * Only the visible tab's dimension is fetched, which is also the performance story —
  * half the dimensions heap-scan the ledger, and a tab nobody opens never pays for one.
  */
-export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoringProps) {
+export function UsageMonitoring({
+  organizationId,
+  eventsHref: eventsBaseHref,
+  auditLogsHref: auditLogsBaseHref,
+}: UsageMonitoringProps) {
   const router = useRouter()
-  const { window, tab, workspace, preset, startDate, endDate, periodLabel, setState } =
+  const { window, tab, workspace, expanded, preset, startDate, endDate, periodLabel, setState } =
     useUsageWindow()
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   /** The member whose credit limit is being edited, or null when the modal is closed. */
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
@@ -115,11 +131,17 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   const summary = useOrganizationUsageSummary(organizationId, window)
   /**
    * Kept alive in the drill-down purely to name it. The rule is to store the id and
-   * derive the entity from the loaded list; arriving by click serves this from cache,
-   * and arriving by deep link fetches it once.
+   * derive the entity from the loaded list.
+   *
+   * Pinned to the full page rather than to the panel's current row limit: the id can
+   * come from an expanded list or from a bookmark, and a lookup that only held the
+   * top ten resolved nothing for either — which reads as the drill-down refusing to
+   * open, since `isWorkspaceDetail` gates on the name. Requesting the ceiling means a
+   * click from an expanded list is served from that list's own cache entry.
    */
   const workspaceList = useOrganizationUsageBreakdown(organizationId, window, 'workspace', {
     enabled: isWorkspaceSelected,
+    limit: EXPANDED_ROW_COUNT,
   })
   const workspaceName = workspaceList.data?.rows.find((row) => row.id === workspace)?.label
   /**
@@ -135,16 +157,62 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
       ? 'workflow'
       : (tab as UsageBreakdownDimension)
 
+  /**
+   * Per breakdown, not per page: the drill-down shows two lists at once, so opening
+   * one tail has to leave its neighbour at the count it was rendered with.
+   */
+  const rowLimitFor = (target: UsageBreakdownDimension) =>
+    expanded.includes(target) ? EXPANDED_ROW_COUNT : COLLAPSED_ROW_COUNT
+
+  /**
+   * Opens one list's tail, unless it is already at the API's ceiling — past that the
+   * `Other` row is a true remainder and the control would do nothing. `undefined`
+   * rather than a no-op handler, so the row renders as text instead of as a button.
+   */
+  const expandOtherFor = (target: UsageBreakdownDimension) =>
+    rowLimitFor(target) < EXPANDED_ROW_COUNT
+      ? () => void setState({ expanded: [...expanded, target] })
+      : undefined
+
   const breakdown = useOrganizationUsageBreakdown(organizationId, window, dimension, {
+    limit: rowLimitFor(dimension),
     ...(isWorkspaceDetail && workspace ? { workspaceId: workspace } : {}),
   })
   const workspaceSources = useOrganizationUsageBreakdown(organizationId, window, 'source', {
     enabled: isWorkspaceDetail,
+    limit: rowLimitFor('source'),
     ...(workspace ? { workspaceId: workspace } : {}),
   })
   // Already cached by Members and Billing, so the meter costs nothing extra and
   // cannot report a different allowance than they do.
   const billing = useOrganizationBilling(organizationId)
+
+  /**
+   * The organization audit feed, narrowed to the workspace being drilled into.
+   *
+   * Only offered where that section exists. Usage and Audit logs carry the same
+   * hosted and enterprise gates, so reaching this panel already proves both — but
+   * their self-hosted overrides are separate flags, and an install with usage
+   * monitoring on and audit logs off would have been handed an action pointing at a
+   * section it had switched off. The window is deliberately not carried across: the
+   * audit feed speaks in rolling ranges (`Past 30 days`) and this panel in billing
+   * periods, so there is no honest mapping for `current-period`.
+   */
+  const auditLogsHref =
+    isHosted || isAuditLogsEnabled
+      ? serializeAuditLogFilters(auditLogsBaseHref, { workspace })
+      : null
+
+  /**
+   * The drill-down is the same window, in more detail. Without the params it read its
+   * own defaults and silently showed the current period while the panel behind it
+   * showed a custom range — two pages disagreeing about what "this" means.
+   */
+  const eventsHref = serializeOrganizationUsageParams(eventsBaseHref, {
+    preset: window.preset,
+    startDate: window.startDate ?? null,
+    endDate: window.endDate ?? null,
+  })
 
   const handlePeriodChange = (value: string) => {
     if (value === 'custom') {
@@ -173,6 +241,8 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   }
 
   const handleExport = async () => {
+    if (isExporting) return
+    setIsExporting(true)
     // The organization is the path segment below; the query no longer carries a
     // second copy of it.
     const params = new URLSearchParams({
@@ -211,6 +281,8 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
       URL.revokeObjectURL(url)
     } catch {
       toast.error('Failed to export usage')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -221,19 +293,33 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   if (isWorkspaceDetail && workspace) {
     return (
       <SettingsPanel
-        // Opening pushed nothing (filters replace), so closing replaces too.
+        // Opening pushes (the drill-down is a destination, not a filter), so closing
+        // replaces — the rule for a selected entity in `sim-url-state.md`.
         back={{
           text: 'Workspaces',
           icon: ArrowLeft,
-          onSelect: () => void setState({ workspace: null }),
+          onSelect: () => void setState({ workspace: null, expanded: null }),
         }}
         title={workspaceName ?? 'Workspace usage'}
-        actions={[
-          {
-            text: 'Open logs',
-            onSelect: () => router.push(`/workspace/${workspace}/logs`),
-          },
-        ]}
+        actions={
+          auditLogsHref
+            ? [
+                {
+                  /*
+                    The organization's audit feed, scoped to this workspace — not
+                    `/workspace/<id>/logs`. Organization admin is not workspace
+                    membership, and `WorkspaceLayout` answers a non-member with
+                    `WorkspaceAccessDenied`, so the run-logs route was a one-way trip
+                    to a dead end for any workspace the admin had not joined. Audit
+                    logs live in the settings section the admin is already inside.
+                  */
+                  text: 'Open logs',
+                  onSelect: () => router.push(auditLogsHref),
+                  onPrefetch: () => router.prefetch(auditLogsHref),
+                },
+              ]
+            : []
+        }
       >
         {/*
           Sources first, because in most workspaces the majority of usage is Chat
@@ -247,6 +333,8 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
             breakdown={workspaceSources.data}
             isLoading={workspaceSources.isLoading}
             isError={workspaceSources.isError}
+            isPlaceholderData={workspaceSources.isPlaceholderData}
+            onExpandOther={expandOtherFor('source')}
           />
         </UsageSection>
         <UsageSection dimension='workflow' unit='credits'>
@@ -255,6 +343,8 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
             breakdown={breakdown.data}
             isLoading={breakdown.isLoading}
             isError={breakdown.isError}
+            isPlaceholderData={breakdown.isPlaceholderData}
+            onExpandOther={expandOtherFor('workflow')}
           />
         </UsageSection>
       </SettingsPanel>
@@ -262,54 +352,67 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
   }
 
   return (
-    <SettingsPanel
-      actions={[
-        {
-          text: 'All events',
-          onSelect: () => router.push(`/workspace/${workspaceId}/settings/usage/events`),
-        },
-        {
-          text: 'Export',
-          icon: Download,
-          onSelect: () => void handleExport(),
-        },
-      ]}
-    >
-      <div className='flex items-center justify-between gap-2'>
-        <ChipModalTabs
-          tabs={TABS}
-          value={tab}
-          onChange={(value) => void setState({ tab: value as UsageTab, workspace: null })}
-        />
-        <div className='relative flex-shrink-0'>
-          {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
+    <>
+      <SettingsPanel
+        actions={[
+          {
+            text: 'All events',
+            onSelect: () => router.push(eventsHref),
+            onPrefetch: () => router.prefetch(eventsHref),
+          },
+          {
+            text: 'Export',
+            icon: Download,
+            onSelect: () => void handleExport(),
+            disabled: summary.isLoading || isExporting,
+          },
+        ]}
+      >
+        <div className='flex items-center justify-between gap-2'>
+          <ChipModalTabs
+            tabs={TABS}
+            value={tab}
+            /*
+            `expanded` describes one list, so it is cleared with the list. Carrying it
+            across meant landing on a different tab already opened to fifty rows.
+          */
+            onChange={(value) =>
+              void setState({ tab: value as UsageTab, workspace: null, expanded: null })
+            }
+          />
+          <div className='relative flex-shrink-0'>
+            {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
               DropdownMenu, modal by default) — a modal trigger closing in the
               same tick that opens the Calendar popover below traps it behind
               the modal's focus lock, so "Custom range" silently does nothing. */}
-          <ChipCombobox
-            options={PERIOD_OPTIONS}
-            value={preset}
-            onChange={handlePeriodChange}
-            /*
+            <ChipCombobox
+              options={PERIOD_OPTIONS}
+              value={preset}
+              onChange={handlePeriodChange}
+              /*
               The visible layer is masked, so the interactive layer owns the one
               reachable tooltip — a custom range's label truncates, and without
               `overlayLabel` its full value was unreadable.
             */
-            overlayLabel={periodLabel}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{periodLabel}</span>
-            }
-            align='end'
-          />
-          <Popover
-            open={datePickerOpen}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) setDatePickerOpen(false)
-            }}
-          >
-            <PopoverAnchor className='pointer-events-none absolute inset-0' />
-            <PopoverContent align='end' sideOffset={4} className='w-auto p-0'>
-              {/*
+              overlayLabel={periodLabel}
+              overlayContent={
+                <OverflowText
+                  label={periodLabel}
+                  className='block w-full text-[var(--text-primary)]'
+                  tooltipEnabled={false}
+                />
+              }
+              align='end'
+            />
+            <Popover
+              open={datePickerOpen}
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setDatePickerOpen(false)
+              }}
+            >
+              <PopoverAnchor className='pointer-events-none absolute inset-0' />
+              <PopoverContent align='end' sideOffset={4} className='w-auto p-0'>
+                {/*
                 No `showTime`: the panel buckets by calendar day, so a time of day is
                 precision it cannot render. It also emitted the end bound as an
                 inclusive `…T23:59:59` local wall time, which the window resolver then
@@ -318,87 +421,130 @@ export function UsageMonitoring({ organizationId, workspaceId }: UsageMonitoring
                 rejected. Bare `YYYY-MM-DD` bounds parse as UTC midnight, matching the
                 rest of the window logic.
               */}
-              <Calendar
-                mode='range'
-                startDate={startDate ?? undefined}
-                endDate={endDate ?? undefined}
-                onRangeChange={handleDateRangeApply}
-                onCancel={() => setDatePickerOpen(false)}
-              />
-            </PopoverContent>
-          </Popover>
+                <Calendar
+                  mode='range'
+                  startDate={startDate ?? undefined}
+                  endDate={endDate ?? undefined}
+                  onRangeChange={handleDateRangeApply}
+                  onCancel={() => setDatePickerOpen(false)}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
 
-      {isOverview ? (
-        <>
-          {/*
+        {isOverview ? (
+          <>
+            {/*
             The allowance is a per-billing-period figure, so it is only comparable
             to the current period's total. Against a rolling window or a custom
             range it measures a different span than the limit covers — a 30-day
             window spanning two periods could read "Over limit" while neither
             period was — so those windows show the figure without an allowance.
           */}
-          <UsageSummary
-            summary={summary.data}
-            limitCredits={
-              preset === 'current-period' && billing.data?.data?.totalUsageLimit != null
-                ? dollarsToCredits(billing.data.data.totalUsageLimit)
-                : null
-            }
-            isLoading={summary.isLoading}
-            isError={summary.isError}
-          />
-          {/*
+            <SettingsSection label={periodLabel}>
+              <UsageSummary
+                summary={summary.data}
+                limitCredits={
+                  preset === 'current-period' && billing.data?.data?.totalUsageLimit != null
+                    ? dollarsToCredits(billing.data.data.totalUsageLimit)
+                    : null
+                }
+                isLoading={summary.isLoading}
+                isError={summary.isError}
+              />
+            </SettingsSection>
+            {/*
             "What kind of work was this?" belongs beside the total it explains, not
             behind a tab — it is the second half of the same sentence.
+
+            One section, two readings of it: the list ranks the sources, the web shows
+            whether spend is concentrated or spread. Two `SettingsSection`s side by
+            side would have drawn two half-width hairlines on one line — every other
+            rule in this panel spans the column — and left one header carrying the
+            `credits` unit while its neighbour, showing the same data, carried none.
+
+            `auto-fit` on a track minimum rather than a `lg:` breakpoint: the settings
+            content column is a fixed `max-w-[48rem]`, so viewport width says nothing
+            about how wide this actually is. Same rule as `RESOURCE_LIST_GRID`.
           */}
-          <UsageSection dimension='source' unit='credits'>
+            <UsageSection dimension='source' unit='credits'>
+              {/*
+                `min(320px, 100%)` rather than a bare `320px`: a track minimum is a
+                hard floor, so on a column narrower than the minimum the grid would
+                be wider than its container and overflow. Capping the floor at the
+                available width collapses it to one column instead.
+              */}
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-x-6 gap-y-7'>
+                <UsageConsumers
+                  dimension='source'
+                  breakdown={breakdown.data}
+                  isLoading={breakdown.isLoading}
+                  isError={breakdown.isError}
+                  isPlaceholderData={breakdown.isPlaceholderData}
+                  onExpandOther={expandOtherFor('source')}
+                />
+                <UsageSourceMix
+                  breakdown={breakdown.data}
+                  isLoading={breakdown.isLoading}
+                  isError={breakdown.isError}
+                />
+              </div>
+            </UsageSection>
+          </>
+        ) : (
+          <UsageSection dimension={dimension} unit={dimension === 'byok' ? 'tokens' : 'credits'}>
             <UsageConsumers
-              dimension='source'
+              dimension={dimension}
               breakdown={breakdown.data}
               isLoading={breakdown.isLoading}
               isError={breakdown.isError}
+              isPlaceholderData={breakdown.isPlaceholderData}
+              onExpandOther={expandOtherFor(dimension)}
+              {...(tab === 'workspace'
+                ? {
+                    /*
+                      `push`, not the group's default `replace`: this opens a
+                      destination with its own back chip, and replacing meant browser
+                      Back skipped the Workspaces list and left settings entirely.
+                    */
+                    onSelectRow: (row) =>
+                      void setState({ workspace: row.id, expanded: null }, { history: 'push' }),
+                  }
+                : {})}
+              {...(canManageCredits
+                ? {
+                    rowActions: (row) => [
+                      {
+                        label: 'Manage credits',
+                        onSelect: () => setCreditsTarget({ userId: row.id, name: row.label }),
+                      },
+                    ],
+                  }
+                : {})}
             />
           </UsageSection>
-        </>
-      ) : (
-        <UsageSection dimension={dimension} unit={dimension === 'byok' ? 'tokens' : 'credits'}>
-          <UsageConsumers
-            dimension={dimension}
-            breakdown={breakdown.data}
-            isLoading={breakdown.isLoading}
-            isError={breakdown.isError}
-            {...(tab === 'workspace'
-              ? { onSelectRow: (row) => void setState({ workspace: row.id }) }
-              : {})}
-            {...(canManageCredits
-              ? {
-                  rowActions: (row) => [
-                    {
-                      label: 'Manage credits',
-                      onSelect: () => setCreditsTarget({ userId: row.id, name: row.label }),
-                    },
-                  ],
-                }
-              : {})}
-          />
-        </UsageSection>
-      )}
-
+        )}
+      </SettingsPanel>
       {/*
+        A sibling of the panel, not a child. `SettingsPanel` renders its children
+        straight into the shell's gap-7 content column, so a modal mounted inside it
+        is a body slot that contributes to that spacing.
+
         The same modal the Members settings page opens, driven by the same hooks —
         setting a cap here and there is one implementation, not two.
       */}
-      <ManageCreditsModal
-        key={creditsTarget?.userId ?? 'none'}
-        open={creditsTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setCreditsTarget(null)
-        }}
-        organizationId={organizationId}
-        member={creditsTarget}
-      />
-    </SettingsPanel>
+      {canManageCredits && (
+        <ManageCreditsModal
+          key={creditsTarget?.userId ?? 'none'}
+          open={creditsTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setCreditsTarget(null)
+          }}
+          organizationId={organizationId}
+          member={creditsTarget}
+        />
+      )}
+    </>
   )
 }

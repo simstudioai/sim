@@ -1,5 +1,3 @@
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromPrivateBundle,
@@ -14,7 +12,10 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   serializePrivateToolMetadataResponseEnvelope,
 } from '@/lib/execution/private-tool-metadata'
-import type { MemoryReadProvenance } from '@/lib/memory/application/use-cases'
+import type {
+  MemoryLegacyProvenanceScope,
+  MemoryReadProvenance,
+} from '@/lib/memory/application/use-cases'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export class MemoryProvenanceError extends Error {
@@ -24,10 +25,14 @@ export class MemoryProvenanceError extends Error {
   }
 }
 
+export function memoryToolSuppliesWriteProvenance(headers: Headers, payload: unknown): boolean {
+  return inspectPrivateSecretProvenanceRequest(headers, payload).status !== 'unsupported'
+}
+
 export function readMemoryWriteProvenance(
   headers: Headers,
   payload: unknown,
-  principal: WorkflowExecutionDelegatedPrincipal
+  scope: MemoryLegacyProvenanceScope
 ): DurableSecretProvenance | undefined {
   const inspection = inspectPrivateSecretProvenanceRequest(headers, payload)
   if (inspection.status === 'unsupported') return undefined
@@ -37,10 +42,7 @@ export function readMemoryWriteProvenance(
   if (!inspection.value.complete) return { status: 'unknown' }
   if (inspection.value.selections.length !== 1) throw new MemoryProvenanceError()
 
-  const provenance = durableSecretProvenanceFromPrivateBundle(inspection.value, 'data', {
-    userId: requirePrincipalSubjectUserId(principal),
-    workspaceId: principal.workspaceId,
-  })
+  const provenance = durableSecretProvenanceFromPrivateBundle(inspection.value, 'data', scope)
   if (!provenance) throw new MemoryProvenanceError()
   return provenance
 }
@@ -58,14 +60,12 @@ export function memoryToolRequestsProvenance(headers: Headers): boolean {
 export async function createMemoryToolResponse(
   body: Record<string, unknown>,
   provenance: MemoryReadProvenance[] | undefined,
-  principal: WorkflowExecutionDelegatedPrincipal
+  scope: MemoryLegacyProvenanceScope | undefined
 ): Promise<Response> {
   if (provenance === undefined) return Response.json(body)
+  if (!scope) throw new MemoryProvenanceError()
 
-  const registry = new ResolvedSecretTraceRegistry([], {
-    userId: requirePrincipalSubjectUserId(principal),
-    workspaceId: principal.workspaceId,
-  })
+  const registry = new ResolvedSecretTraceRegistry([], scope)
   for (const item of provenance) {
     await importDurableSecretProvenance(registry, item.provenance, item.data, 'memory', {
       reportUnrecorded: false,

@@ -4,12 +4,9 @@ import {
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import {
-  attachRetryHeaders,
-  type HTTPError,
+  createRetryableHttpError,
   isRetryableError,
   type RetryOptions,
-  readBoundedHttpErrorBody,
-  resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 
@@ -56,17 +53,7 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response)
-      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
-      error.status = response.status
-      attachRetryHeaders(error, response.headers)
-
-      const waitMs = resolveRetryDelayMs(response.headers)
-      if (waitMs !== undefined) {
-        error.retryAfterMs = waitMs
-      }
-
-      throw error
+      throw await createRetryableHttpError(response)
     }
 
     return response

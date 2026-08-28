@@ -346,6 +346,51 @@ describe('executeWebhookJob fault vs error handling', () => {
     )
   })
 
+  it('restores the exact serialized webhook principal without substituting the billing actor', async () => {
+    const serializedPrincipal = {
+      version: 1 as const,
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'slack-user-1',
+        },
+      },
+    }
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      provider: 'slack',
+      principal: serializedPrincipal,
+    })
+
+    const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+    expect(executionMetadata.userId).toBe('user-1')
+    expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+    expect(executionMetadata.principal).not.toHaveProperty('userId')
+  })
+
   it('persists the reconstructed legacy principal on setup retries', async () => {
     executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
       success: false,

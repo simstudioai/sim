@@ -48,7 +48,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'The page token to use for pagination',
     },
   },

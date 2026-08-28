@@ -17,6 +17,7 @@ import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
+import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
 import {
   PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -70,7 +71,6 @@ import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/up
 import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
-import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import {
   ResolvedSecretTraceProvenanceAccumulator,
@@ -85,10 +85,40 @@ export type FileManageOperationInput = ContractBody<typeof fileManageContract>
 export interface FileManageOperationContext {
   principal: Principal
   workspaceId: string
-  userId: string
+  attributedUserId: string
+  fileAccessUserId?: string
+  workflowId: string
+  executionId?: string
+  largeValueExecutionIds?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
   headers: Headers
   requestId: string
   signal?: AbortSignal
+}
+
+async function assertOperationFileAccess(
+  file: Pick<UserFile, 'key' | 'context'>,
+  context: FileManageOperationContext
+): Promise<Response | null> {
+  try {
+    await assertUserFileContentAccess(file, {
+      principal: context.principal,
+      workspaceId: context.workspaceId,
+      workflowId: context.workflowId,
+      executionId: context.executionId,
+      largeValueExecutionIds: context.largeValueExecutionIds,
+      fileKeys: context.fileKeys,
+      allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+      userId: context.fileAccessUserId,
+      requestId: context.requestId,
+      logger,
+    })
+    return null
+  } catch {
+    logger.warn('File access denied', { key: file.key, requestId: context.requestId })
+    return Response.json({ success: false, error: 'File not found' }, { status: 404 })
+  }
 }
 
 const workspaceFileToUserFile = (file: Awaited<ReturnType<typeof getWorkspaceFile>>) => {
@@ -467,7 +497,7 @@ export async function executeFileManageOperation(
   body: FileManageOperationInput,
   context: FileManageOperationContext
 ): Promise<Response> {
-  const { headers, principal, requestId, signal, userId, workspaceId } = context
+  const { attributedUserId: userId, headers, principal, requestId, signal, workspaceId } = context
   signal?.throwIfAborted()
   if (body.workspaceId && body.workspaceId !== workspaceId) {
     return Response.json({ success: false, error: 'Workspace access denied' }, { status: 403 })
@@ -682,7 +712,9 @@ export async function executeFileManageOperation(
         let totalBytes = 0
         for (const source of sources) {
           signal?.throwIfAborted()
-          const denied = await assertToolFileAccess(source.file.key, userId, requestId, logger)
+          const denied = source.identity
+            ? null
+            : await assertOperationFileAccess(source.file, context)
           if (denied) {
             const deniedBody = (await denied.clone().json()) as Record<string, unknown>
             return contentResponse(deniedBody, {
@@ -1019,11 +1051,12 @@ export async function executeFileManageOperation(
         const selectedArchiveSources = await Promise.all(
           selectedInputFiles.map((file) => bindSelectedContentFile(principal, workspaceId, file))
         )
+        const archiveSources = canonicalArchiveSources.concat(selectedArchiveSources)
         const archiveProvenance = await deriveWorkspaceFileSecretProvenance({
           principal,
           workspaceId,
           targetOwnerUserId: userId,
-          sources: canonicalArchiveSources.concat(selectedArchiveSources),
+          sources: archiveSources,
         })
 
         // Mirror the workspace folder layout, dropping the ancestor chain the whole
@@ -1037,7 +1070,9 @@ export async function executeFileManageOperation(
         let totalBytes = 0
         for (const [index, userFile] of userFiles.entries()) {
           signal?.throwIfAborted()
-          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+          const denied = archiveSources[index]?.identity
+            ? null
+            : await assertOperationFileAccess(userFile, context)
           if (denied) return denied
 
           // Generated docs store their generation source, not the rendered binary, so
@@ -1168,9 +1203,6 @@ export async function executeFileManageOperation(
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
         }
 
-        const denied = await assertToolFileAccess(archive.key, userId, requestId, logger)
-        if (denied) return denied
-
         const canonicalArchiveSource: FileContentSource[] = workspaceFiles.flatMap((file) => {
           const userFile = workspaceFileToUserFile(file)
           if (!file || !userFile) return []
@@ -1185,11 +1217,16 @@ export async function executeFileManageOperation(
         const selectedArchiveSource = await Promise.all(
           selectedInputFiles.map((file) => bindSelectedContentFile(principal, workspaceId, file))
         )
+        const archiveSource = canonicalArchiveSource.concat(selectedArchiveSource)[0]
+        if (!archiveSource?.identity) {
+          const denied = await assertOperationFileAccess(archive, context)
+          if (denied) return denied
+        }
         const archiveProvenance = await deriveWorkspaceFileSecretProvenance({
           principal,
           workspaceId,
           targetOwnerUserId: userId,
-          sources: canonicalArchiveSource.concat(selectedArchiveSource),
+          sources: archiveSource ? [archiveSource] : [],
         })
 
         const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {

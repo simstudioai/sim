@@ -7,7 +7,6 @@ import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 
 const {
   mockAssertActiveWorkspaceAccess,
-  mockAssertToolFileAccess,
   mockDownloadServableFileFromStorage,
   mockDownloadFileFromStorage,
   mockDecompressArchiveBufferToWorkspaceFiles,
@@ -20,12 +19,12 @@ const {
   mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
   mockGetWorkspaceFile,
+  mockVerifyFileAccess,
   mockResolveWorkspaceFileReference,
   mockUpdateWorkspaceFileContent,
   mockUploadWorkspaceFile,
 } = vi.hoisted(() => ({
   mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockAssertToolFileAccess: vi.fn(),
   mockDownloadServableFileFromStorage: vi.fn(),
   mockDownloadFileFromStorage: vi.fn(),
   mockDecompressArchiveBufferToWorkspaceFiles: vi.fn(),
@@ -38,6 +37,7 @@ const {
   mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
+  mockVerifyFileAccess: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockUpdateWorkspaceFileContent: vi.fn(),
   mockUploadWorkspaceFile: vi.fn(),
@@ -159,7 +159,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: (...args: unknown[]) => mockAssertToolFileAccess(...args),
+  verifyFileAccess: (...args: unknown[]) => mockVerifyFileAccess(...args),
 }))
 
 import { fileManageBodySchema } from '@/lib/api/contracts/tools/file'
@@ -183,7 +183,9 @@ async function POST(request: Request): Promise<Response> {
       delegationId: 'test-file-operation',
     }),
     workspaceId,
-    userId: 'user-1',
+    attributedUserId: 'user-1',
+    fileAccessUserId: 'user-1',
+    workflowId: 'workflow-1',
     headers: request.headers,
     requestId: 'request-1',
     signal: request.signal,
@@ -214,6 +216,34 @@ function workspaceFile(id: string, ownerUserId = 'user-1') {
   }
 }
 
+function actorlessDeploymentPrincipal(workspaceId = 'workspace-1') {
+  return {
+    kind: 'delegated' as const,
+    serviceId: 'executor' as const,
+    workspaceId,
+    delegationId: 'delegation-1',
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(Date.now() - 1_000),
+    expiresAt: new Date(Date.now() + 60_000),
+    delegationContext: {
+      kind: 'workflow_execution' as const,
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId,
+        workflowId: 'workflow-1',
+      },
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment' as const,
+        deploymentVersionId: 'deployment-1',
+      },
+    },
+  }
+}
+
 describe('file manage operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -224,6 +254,7 @@ describe('file manage operations', () => {
     })
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
     mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    mockVerifyFileAccess.mockResolvedValue(true)
     mockGetWorkspaceFile.mockImplementation(async (_workspaceId: string, fileId: string) =>
       workspaceFile(fileId)
     )
@@ -240,7 +271,6 @@ describe('file manage operations', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'user-1',
     }))
-    mockAssertToolFileAccess.mockResolvedValue(undefined)
     mockEnsureWorkspaceFileFolderPath.mockImplementation(
       async ({ input }: { input: { pathSegments: string[] } }) => ({
         folderId: input.pathSegments.length === 0 ? null : 'folder-1',
@@ -740,6 +770,83 @@ describe('file manage operations', () => {
         },
       })
     )
+  })
+
+  it('decompresses a canonical workspace archive for an actorless deployed execution', async () => {
+    const archiveBuffer = Buffer.from('archive-bytes')
+    const principal = actorlessDeploymentPrincipal()
+    mockDownloadFileFromStorage.mockResolvedValue(archiveBuffer)
+    mockGetWorkspaceFile.mockResolvedValue({
+      ...workspaceFile('archive'),
+      name: 'archive.zip',
+      type: 'application/zip',
+    })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
+      status: 'exact',
+      entries: [],
+    })
+    mockDecompressArchiveBufferToWorkspaceFiles.mockResolvedValue({
+      extracted: [
+        {
+          ...workspaceFile('child'),
+          url: '/api/files/serve/child',
+          context: 'workspace',
+        },
+      ],
+      skipped: 0,
+      skippedUnsafePaths: [],
+    })
+
+    const response = await executeFileManageOperation(
+      fileManageBodySchema.parse({
+        operation: 'decompress',
+        workspaceId: 'workspace-1',
+        fileId: 'archive',
+      }),
+      {
+        principal,
+        workspaceId: 'workspace-1',
+        attributedUserId: 'workspace-owner',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        headers: new Headers(),
+        requestId: 'request-actorless',
+      }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'archive', {
+      throwOnError: true,
+    })
+    expect(mockDecompressArchiveBufferToWorkspaceFiles).toHaveBeenCalledWith(
+      archiveBuffer,
+      expect.objectContaining({ principal, workspaceId: 'workspace-1' })
+    )
+  })
+
+  it('rejects an actorless deployment principal bound to a different workspace', async () => {
+    const response = await executeFileManageOperation(
+      fileManageBodySchema.parse({
+        operation: 'decompress',
+        workspaceId: 'workspace-1',
+        fileId: 'archive',
+      }),
+      {
+        principal: actorlessDeploymentPrincipal('workspace-2'),
+        workspaceId: 'workspace-1',
+        attributedUserId: 'workspace-owner',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        headers: new Headers(),
+        requestId: 'request-cross-workspace',
+      }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDecompressArchiveBufferToWorkspaceFiles).not.toHaveBeenCalled()
   })
 
   it('omits source scope when canonical files have different owners', async () => {

@@ -37,8 +37,15 @@ export const organizationUsageKeys = {
     [
       ...organizationUsageKeys.breakdowns(organizationId, window),
       dimension,
-      limit,
       workspaceId ?? '',
+      /*
+        Last deliberately: it is the one segment the breakdown's `placeholderData`
+        ignores, so the list's identity is a plain prefix rather than an index-based
+        filter that would silently drop `workspaceId` if a segment were ever appended.
+        It also lets an invalidation target one dimension and workspace across every
+        row limit.
+      */
+      limit,
     ] as const,
   events: (organizationId: string, window: OrganizationUsageWindowKey, sources: string[]) =>
     [...organizationUsageKeys.all(organizationId), 'events', window, sources] as const,

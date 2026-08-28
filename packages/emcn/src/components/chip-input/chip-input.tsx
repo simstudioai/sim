@@ -28,7 +28,7 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
@@ -65,7 +65,8 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   ) => (
     <div
       className={cn(
-        'flex h-[30px] w-full items-center gap-1.5 px-2',
+        'flex w-full',
+        chipGeometryClass,
         chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',

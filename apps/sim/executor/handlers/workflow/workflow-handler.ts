@@ -1,4 +1,3 @@
-import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -330,20 +329,18 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (!ctx.principal) {
         throw new Error('Workflow child loading requires an execution principal')
       }
-      const principalSubject = resolvePrincipalSubject(ctx.principal)
-      const workflowReadDelegationOrigin: ExecutorDelegationOrigin = isCustomBlock
-        ? {
-            ...(loadUserId ? { subjectUserId: loadUserId } : {}),
-            workflowId,
-          }
-        : (ctx.executorDelegationOrigin ?? {
-            ...(principalSubject?.kind === 'sim_user'
-              ? { subjectUserId: principalSubject.userId }
-              : {}),
-            workflowId: ctx.workflowId,
-            ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
-            principal: ctx.principal,
-          })
+      let workflowReadDelegationOrigin: ExecutorDelegationOrigin
+      if (isCustomBlock) {
+        workflowReadDelegationOrigin = {
+          ...(loadUserId ? { subjectUserId: loadUserId } : {}),
+          workflowId,
+        }
+      } else {
+        if (!ctx.executorDelegationOrigin) {
+          throw new Error('Child workflow loading requires executor delegation authority')
+        }
+        workflowReadDelegationOrigin = ctx.executorDelegationOrigin
+      }
       if (!isCustomBlock) childExecutorDelegationOrigin = workflowReadDelegationOrigin
       // A custom block runs the source's latest deployment; if the source has been
       // undeployed there's nothing to run. `BoundarySafeError` marks the message as

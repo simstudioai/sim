@@ -8,19 +8,21 @@ import {
   formatChartTimestamp,
 } from '@/components/charts/chart-format'
 import {
+  CHART_AXIS_LABEL_GAP,
   CHART_DEFAULT_HEIGHT,
   CHART_GRID_FRACTIONS,
-  CHART_PADDING,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
   chartPlotBand,
   formatTimeTick,
+  resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
 } from '@/components/charts/chart-geometry'
 import {
   ChartTooltip,
   ChartTooltipRow,
+  estimateTooltipHeight,
   estimateTooltipWidth,
   positionChartTooltip,
 } from '@/components/charts/chart-tooltip'
@@ -47,6 +49,17 @@ interface BarChartProps {
   highlightIndex?: number
 }
 
+/** Tick and tooltip text for a bucket's value, in the caller's unit. */
+function formatBarValue(value: number | undefined, unit: string | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const suffix = (unit ?? '').toLowerCase()
+  if (suffix.includes('%')) return `${value.toFixed(1)}%`
+  if (suffix === 'latency') return formatChartLatency(value)
+  if (suffix.includes('ms')) return `${Math.round(value)}ms`
+  if (suffix === 'credits') return formatChartCompactNumber(value)
+  return `${Math.round(value)}${unit ?? ''}`
+}
+
 /**
  * Discrete time buckets as bars.
  *
@@ -71,16 +84,11 @@ function BarChartComponent({
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
-  const padding = CHART_PADDING
-  const chartWidth = width - padding.left - padding.right
-  const chartHeight = height - padding.top - padding.bottom
   const { yMin, yMax } = chartPlotBand(height)
   const isDark = useIsDarkTheme()
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
 
-  const colorTokens = useMemo(() => ({ base: color }), [color])
-  const resolvedColors = useResolvedChartColors(colorTokens)
+  const resolvedColors = useResolvedChartColors({ base: color })
   const resolvedColor = resolvedColors.base || color
 
   const hasExternalWrapper = !label
@@ -100,9 +108,23 @@ function BarChartComponent({
     return peak <= 0 ? 1 : peak * 1.1
   }, [data])
 
+  const padding = resolveChartPadding([formatBarValue(maxValue, unit), '0'])
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
   /** Slot geometry: every bucket owns an equal slice, with the bar centred in it. */
   const slot = data.length > 0 ? Math.max(1, chartWidth) / data.length : 0
   const barWidth = Math.max(1, Math.min(24, slot * 0.7))
+
+  /**
+   * Bars own a slot, so the hovered bucket is which slot the cursor is in — not the
+   * nearest sample, which is how a line chart resolves it. Derived, so a resize
+   * mid-hover cannot leave an index disagreeing with the slot geometry.
+   */
+  const hoverIndex =
+    hoverPos === null || data.length === 0 || slot <= 0
+      ? null
+      : Math.max(0, Math.min(data.length - 1, Math.floor((hoverPos.x - padding.left) / slot)))
 
   const bars = useMemo(
     () =>
@@ -127,21 +149,14 @@ function BarChartComponent({
     [data, slot, barWidth, maxValue, chartHeight, height, padding.left, padding.top, yMin, yMax]
   )
 
-  const formatValue = (value?: number) => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
-    const suffix = (unit ?? '').toLowerCase()
-    if (suffix.includes('%')) return `${value.toFixed(1)}%`
-    if (suffix === 'latency') return formatChartLatency(value)
-    if (suffix.includes('ms')) return `${Math.round(value)}ms`
-    if (suffix === 'credits') return formatChartCompactNumber(value)
-    return `${Math.round(value)}${unit ?? ''}`
-  }
-
   if (containerWidth === null) {
     return (
       <div
         ref={containerRef}
-        className={cn('w-full', !hasExternalWrapper && 'rounded-lg border bg-card p-4')}
+        className={cn(
+          'w-full',
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
+        )}
         style={{ height }}
       />
     )
@@ -156,7 +171,7 @@ function BarChartComponent({
         ref={containerRef}
         className={cn(
           'flex w-full items-center justify-center',
-          !hasExternalWrapper && 'rounded-lg border bg-card p-4'
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
         )}
         /*
           Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
@@ -185,8 +200,8 @@ function BarChartComponent({
           contradicted the constant's own note that the chart "scrolls rather than
           compresses". At or above the floor there is no overflow and nothing changes.
         */
-        'w-full overflow-x-auto',
-        !hasExternalWrapper && 'rounded-[11px] border bg-card p-4 shadow-sm'
+        'w-full overflow-x-auto overflow-y-hidden',
+        !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'
       )}
     >
       {!hasExternalWrapper && (
@@ -202,20 +217,9 @@ function BarChartComponent({
           onMouseMove={(e) => {
             if (bars.length === 0 || slot <= 0) return
             const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
-            const x = e.clientX - rect.left
-            // Bars own a slot, so the hovered bucket is which slot the cursor is in —
-            // not the nearest sample, which is how a line chart resolves it.
-            const index = Math.max(
-              0,
-              Math.min(data.length - 1, Math.floor((x - padding.left) / slot))
-            )
-            setHoverIndex(index)
-            setHoverPos({ x, y: e.clientY - rect.top })
+            setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
           }}
-          onMouseLeave={() => {
-            setHoverIndex(null)
-            setHoverPos(null)
-          }}
+          onMouseLeave={() => setHoverPos(null)}
         >
           <defs>
             <linearGradient id={`bar-${uniqueId}`} x1='0' x2='0' y1='0' y2='1'>
@@ -229,7 +233,7 @@ function BarChartComponent({
             y1={padding.top}
             x2={padding.left}
             y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
+            stroke='var(--border)'
             strokeWidth='1'
           />
 
@@ -240,7 +244,7 @@ function BarChartComponent({
               y1={padding.top + chartHeight * fraction}
               x2={width - padding.right}
               y2={padding.top + chartHeight * fraction}
-              stroke='hsl(var(--muted))'
+              stroke='var(--border)'
               strokeOpacity='0.35'
               strokeWidth='1'
             />
@@ -313,7 +317,7 @@ function BarChartComponent({
           })}
 
           <text
-            x={padding.left - 8}
+            x={padding.left - CHART_AXIS_LABEL_GAP}
             y={padding.top}
             textAnchor='end'
             fontSize={CHART_TICK_FONT_SIZE}
@@ -321,10 +325,10 @@ function BarChartComponent({
           >
             {/* Same formatter the tooltip uses, or the axis and the hover disagree
                 about what the numbers mean on any non-`credits` unit. */}
-            {formatValue(maxValue)}
+            {formatBarValue(maxValue, unit)}
           </text>
           <text
-            x={padding.left - 8}
+            x={padding.left - CHART_AXIS_LABEL_GAP}
             y={height - padding.bottom}
             textAnchor='end'
             fontSize={CHART_TICK_FONT_SIZE}
@@ -338,7 +342,7 @@ function BarChartComponent({
             y1={height - padding.bottom}
             x2={width - padding.right}
             y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
+            stroke='var(--border)'
             strokeWidth='1'
           />
         </svg>
@@ -347,20 +351,19 @@ function BarChartComponent({
           bars[hoverIndex] &&
           (() => {
             const bar = bars[hoverIndex]
-            const value = formatValue(bar.point.value)
+            const value = formatBarValue(bar.point.value, unit)
+            const date = formatChartTimestamp(bar.point.timestamp)
             const { left, top } = positionChartTooltip({
               anchorX: hoverPos?.x ?? bar.x,
               anchorY: hoverPos?.y ?? bar.y,
               width,
               height,
               tooltipMaxWidth: estimateTooltipWidth(value.length),
+              tooltipHeight: estimateTooltipHeight(1, Boolean(date)),
+              padding,
             })
             return (
-              <ChartTooltip
-                left={left}
-                top={top}
-                date={formatChartTimestamp(bar.point.timestamp) || undefined}
-              >
+              <ChartTooltip left={left} top={top} date={date || undefined}>
                 <ChartTooltipRow color={resolvedColor} value={value} />
               </ChartTooltip>
             )

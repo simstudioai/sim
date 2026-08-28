@@ -1,3 +1,8 @@
+import {
+  PrincipalSubjectUserRequiredError,
+  resolvePrincipalAttribution,
+  resolvePrincipalSubject,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
@@ -37,8 +42,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  const userId = request.context.executorDelegationOrigin?.subjectUserId ?? request.context.userId
-  if (!workspaceId || !userId) {
+  if (!workspaceId || !request.context.executorDelegationOrigin) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 
@@ -58,6 +62,11 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
       context: request.context,
       audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     })
+    const { attributedUserId } = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: request.context.billingAttribution?.billedAccountUserId,
+    })
+    const subject = resolvePrincipalSubject(principal)
+    const fileAccessUserId = subject?.kind === 'sim_user' ? subject.userId : undefined
     request.signal?.throwIfAborted()
     let response: Response
     if (parserInput) {
@@ -66,7 +75,12 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         workspaceId,
         workflowId: request.context.workflowId,
         executionId: request.context.executionId,
-        userId,
+        attributedUserId,
+        fileAccessUserId,
+        largeValueExecutionIds: request.context.largeValueExecutionIds,
+        fileKeys: request.context.fileKeys,
+        allowLargeValueWorkflowScope: request.context.allowLargeValueWorkflowScope,
+        requestId: request.requestId,
         signal: request.signal,
       })
     } else {
@@ -74,7 +88,13 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
       response = await executeFileManageOperation(manageInput.data, {
         principal,
         workspaceId,
-        userId,
+        attributedUserId,
+        fileAccessUserId,
+        workflowId: request.context.workflowId,
+        executionId: request.context.executionId,
+        largeValueExecutionIds: request.context.largeValueExecutionIds,
+        fileKeys: request.context.fileKeys,
+        allowLargeValueWorkflowScope: request.context.allowLargeValueWorkflowScope,
         headers: request.headers,
         requestId: request.requestId,
         signal: request.signal,
@@ -86,6 +106,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     request.signal?.throwIfAborted()
     if (
       error instanceof InvalidInternalDelegationBindingError ||
+      error instanceof PrincipalSubjectUserRequiredError ||
       (error instanceof Error && error.message === 'Authentication required')
     ) {
       return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })

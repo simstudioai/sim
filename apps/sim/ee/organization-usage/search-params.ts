@@ -1,5 +1,8 @@
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
-import { USAGE_WINDOW_PRESETS } from '@/lib/api/contracts/organization-usage'
+import { createSerializer, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import {
+  USAGE_BREAKDOWN_DIMENSIONS,
+  USAGE_WINDOW_PRESETS,
+} from '@/lib/api/contracts/organization-usage'
 import { parseAsDateString } from '@/app/workspace/[workspaceId]/logs/search-params'
 import {
   DEFAULT_USAGE_PRESET,
@@ -26,6 +29,17 @@ export const organizationUsageParsers = {
    * list rather than rendering an empty drill-down.
    */
   workspace: parseAsString,
+  /**
+   * Which breakdowns have had their `Other` row opened, named by dimension. In the URL
+   * because it is shareable view-state like every other filter here — and because it
+   * changes which rows the page fetched, so a shared link that omitted it would not
+   * show the list the sender was looking at.
+   *
+   * A list, not a flag: the workspace drill-down renders two breakdowns at once, and
+   * one boolean meant opening either tail silently opened the other's — refetching a
+   * list nobody asked to expand, and leaving its `Other` row as inert text.
+   */
+  expanded: parseAsArrayOf(parseAsStringLiteral(USAGE_BREAKDOWN_DIMENSIONS)).withDefault([]),
 } as const
 
 /** Filter view-state: clean URLs, no back-stack churn, kebab-case URL keys. */
@@ -38,3 +52,14 @@ export const organizationUsageUrlKeys = {
     endDate: 'end-date',
   },
 } as const
+
+/**
+ * Outbound links into the usage drill-downs, serialized from the same parser map the
+ * destination reads. Hand-writing the wire keys duplicated the `urlKeys` remap, so
+ * renaming `start-date` would have silently dropped the window from every such link —
+ * exactly the panel/drill-down disagreement the events href exists to prevent.
+ */
+export const serializeOrganizationUsageParams = createSerializer(organizationUsageParsers, {
+  clearOnDefault: true,
+  urlKeys: organizationUsageUrlKeys.urlKeys,
+})

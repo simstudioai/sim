@@ -135,7 +135,13 @@ export async function runDocumentProcessing(
 export const processDocument = task({
   id: 'knowledge-process-document',
   maxDuration: envNumber(env.KB_CONFIG_MAX_DURATION, 600),
-  machine: 'large-1x', // 4 vCPU, 8GB RAM - needed for large PDF processing
+  /**
+   * Sized from production telemetry: peak sampled RSS 902 MB and peak 1.2 vCPU
+   * across a corpus where no document exceeded 2 GB, so `medium-2x` holds ~4x
+   * memory and ~1.7x CPU headroom over the observed worst case. The prior
+   * `large-1x` reserved 8 GB against a worst case using an eighth of it.
+   */
+  machine: 'medium-2x',
   retry: {
     maxAttempts: envNumber(env.KB_CONFIG_MAX_ATTEMPTS, 3),
     factor: envNumber(env.KB_CONFIG_RETRY_FACTOR, 2),

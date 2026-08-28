@@ -70,6 +70,11 @@ export async function resolveVantaUploadFile(
         signal: context.signal,
       })
       context.signal?.throwIfAborted()
+      /**
+       * Every return path of `downloadServableFileFromStorage` yields a non-empty content
+       * type, so `resolved.contentType` always wins. The remaining operands are defensive
+       * fallbacks kept in place in case that guarantee is ever relaxed.
+       */
       return {
         buffer: resolved.buffer,
         fileName: input.fileName || userFile.name,

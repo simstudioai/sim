@@ -36,7 +36,7 @@ export function internalKnowledgeActorUserId(principal: Principal): string {
 }
 
 export function internalKnowledgeProvenanceUserId(
-  request: NextRequest,
+  headers: Headers,
   principal: Principal,
   workspaceId: string | undefined
 ): string {
@@ -46,8 +46,7 @@ export function internalKnowledgeProvenanceUserId(
   if (!workspaceId) {
     throw new Error('Delegated Knowledge provenance requires a workspace scope')
   }
-  return requireWorkspaceBillingAttributionHeader(request.headers, { workspaceId })
-    .billedAccountUserId
+  return requireWorkspaceBillingAttributionHeader(headers, { workspaceId }).billedAccountUserId
 }
 
 export function internalKnowledgeAuthType(principal: Principal): AuthTypeValue {
