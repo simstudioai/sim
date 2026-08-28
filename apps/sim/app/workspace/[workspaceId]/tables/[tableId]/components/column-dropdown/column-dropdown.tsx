@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Plus,
 } from '@sim/emcn'
@@ -19,7 +18,7 @@ import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
-interface NewColumnDropdownProps {
+interface ColumnDropdownProps {
   /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
    *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
   trigger: 'header' | 'inline-header'
@@ -42,7 +41,7 @@ interface NewColumnDropdownProps {
  * Lists every column type plus "Workflow" and "Enrichments"; picking a type
  * opens the right sidebar pre-seeded.
  */
-export function NewColumnDropdown({
+export function ColumnDropdown({
   trigger,
   disabled,
   onPickType,
@@ -50,7 +49,7 @@ export function NewColumnDropdown({
   onPickEnrichment,
   blocked,
   onBlocked,
-}: NewColumnDropdownProps) {
+}: ColumnDropdownProps) {
   const triggerButton =
     trigger === 'header' ? (
       <button
@@ -86,18 +85,7 @@ export function NewColumnDropdown({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
-      {/* Taller than the 240px shared default: the full type list is 9 items
-          (295px with its separator and padding), so the default cut the last
-          two off behind a scrollbar. Sized here rather than in the shared
-          component, which every other dropdown in the app relies on. */}
-      <DropdownMenuContent align='start' side='bottom' sideOffset={4} className='max-h-[320px]'>
-        <>
-          <DropdownMenuItem onSelect={onPickEnrichment}>
-            <Sparkles className='size-[14px] text-[var(--text-icon)]' />
-            Enrichments
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-        </>
+      <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
         {COLUMN_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
           const onSelect =
@@ -111,6 +99,10 @@ export function NewColumnDropdown({
             </DropdownMenuItem>
           )
         })}
+        <DropdownMenuItem onSelect={onPickEnrichment}>
+          <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+          Enrichments
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
