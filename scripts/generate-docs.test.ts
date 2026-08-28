@@ -697,3 +697,230 @@ describe('mapper param shapes', () => {
     expect(ids).not.toContain('ghostString')
   })
 })
+
+describe('a source the scanner cannot get through is reported, not swallowed', () => {
+  /**
+   * When `blankStringsAndComments` bails, both the `subBlocks` scan and the mapper scan come
+   * back empty for the same reason. Reported as a plain `ids: null` that is indistinguishable
+   * from a spread-only `subBlocks` array, the block's mapper renames are dropped in silence.
+   */
+  const unterminated = `subBlocks: [{ id: 'a' }],
+    tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },
+    longDescription: 'never closed`
+
+  it('sets parseError so the caller warns', () => {
+    const supplied = extractBlockSuppliedParamIds(unterminated, 'GhostBlock')
+
+    expect(supplied.parseError).not.toBeNull()
+    expect(supplied.parseError).toMatch(/GhostBlock: source ends inside an unterminated/)
+    expect(supplied.ids).toBeNull()
+  })
+
+  it('still reports null with no parseError for a spread-only subBlocks array', () => {
+    const supplied = extractBlockSuppliedParamIds(
+      "subBlocks: [...NotionBlock.subBlocks], tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },",
+      'SpreadBlock'
+    )
+
+    expect(supplied.parseError).toBeNull()
+    expect(supplied.ids).toBeNull()
+    expect(supplied.mapperIds).toContain('renamedByMapper')
+  })
+})
+
+describe('the generated catalog ordering is locale-independent', () => {
+  /**
+   * `localeCompare` with no locale argument uses the runtime default, which varies with `LANG`
+   * and the ICU build. Against the real catalog names, `tr-TR` (dotted/dotless I), `lt-LT`,
+   * `cs-CZ` (the `ch` digraph) and `et-EE` each reorder the array, so a contributor on one of
+   * those locales would regenerate a different `integrations.json` and fail CI with no obvious
+   * cause. Every `localeCompare` in the generator must therefore name its locale as a literal;
+   * a bare `localeCompare()`, `localeCompare(b)` or a locale read from a variable all fall
+   * back to the default, so the arguments are matched whole rather than pattern-matched.
+   *
+   * A source grep is the only assertion that can catch an unpinned comparator. CI runs under
+   * an `en-US` default, where an unpinned `localeCompare` returns exactly what the pinned one
+   * does, so no behavioural comparison against real catalog names discriminates there; and
+   * comparing the committed `integrations.json` against the comparator that produced it agrees
+   * by construction whatever the comparator does. Both of those were asserted here and were
+   * removed for claiming a guarantee they did not hold.
+   */
+  it('leaves no unpinned localeCompare in the generator', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'generate-docs.ts'), 'utf-8')
+
+    const calls = [...source.matchAll(/\blocaleCompare\(([^)]*)\)/g)].map(([, args]) => args)
+
+    expect(calls.length).toBeGreaterThan(0)
+    for (const args of calls) expect(args).toMatch(/,\s*'[a-zA-Z-]+'\s*$/)
+  })
+})
+
+describe('the scanner survives regex literals in a block config', () => {
+  /**
+   * `blankStringsAndComments` used to be a single regex with no concept of a regex literal, so
+   * `/don't/` opened a phantom string that swallowed the following subBlocks, and a character
+   * class like `/[}]/` closed the enclosing object early. Both returned a short list with no
+   * warning — a confident wrong answer, which is the one outcome the filter must never produce.
+   */
+  it('does not let an apostrophe inside a regex swallow later subBlocks', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', condition: (v) => /don't/.test(v) }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not let a brace inside a character class close the object early', () => {
+    const ids = extractUserSettableParamIds("subBlocks: [{ id: 'a', v: /[}]/ }, { id: 'b' }],")
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('still reads a division as arithmetic rather than a regex', () => {
+    const ids = extractUserSettableParamIds('subBlocks: [{ id: "a", n: total / 2 }, { id: "b" }],')
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not mistake a protocol slash inside a string for a comment', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', url: 'https://example.com/x' }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('reports UNKNOWN rather than guessing when a literal never terminates', () => {
+    expect(extractUserSettableParamIds("subBlocks: [{ id: 'a }],")).toBeNull()
+  })
+
+  /**
+   * A `/` directly after a division operator is an operand position, so it opens a regex.
+   * Without `'/'` in `REGEX_ALLOWED_AFTER` the third slash of `x / y / /re/` lexes as a
+   * second division, the character class is left in the structural view and its `}` closes
+   * the object early — a short list with no warning.
+   */
+  it('reads a regex that follows a division operator', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', v: x / y / /[}]/.source }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  /**
+   * `'+'` and `'-'` are in `REGEX_ALLOWED_AFTER` for the binary operators, so the previous
+   * significant character alone reads the `/` after a postfix `i++` as opening a regex. The
+   * phantom regex then runs to the end of the input and the scan reports the block unreadable.
+   */
+  it('still reads a division after a postfix increment or decrement', () => {
+    for (const op of ['++', '--']) {
+      const ids = extractUserSettableParamIds(
+        `subBlocks: [{ id: 'a', n: (i) => i${op} / 2 }, { id: 'b' }],`
+      )
+
+      expect(ids, op).toEqual(['a', 'b'])
+    }
+  })
+
+  /**
+   * The shape Prettier produces when a `.match()` argument does not fit on one line, as in
+   * `blocks/table.ts` and `blocks/table_v2.ts`. A newline is recorded as the previous
+   * significant character rather than skipped, so the `(` does not carry the decision — only
+   * the `'\n'` entry in `REGEX_ALLOWED_AFTER` keeps this lexing as a regex.
+   */
+  it('reads a regex that a formatter has wrapped onto its own line', () => {
+    const ids = extractUserSettableParamIds(
+      ["subBlocks: [{ id: 'a', v: (s) => s.match(", '  /[}]/', ") }, { id: 'b' }],"].join('\n')
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('the scanner reads a regex that opens in keyword position', () => {
+  /**
+   * The scanner chose regex-vs-division from the previous significant character alone, so a
+   * regex in operand position was lexed as a division off the keyword's last letter and its
+   * body was left in the structural view — a brace inside it then closed the object early.
+   */
+  it('does not let a brace inside a regex after return close the object early', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', condition: (v) => { return /}/.test(v) } }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('treats every operand-position keyword as opening a regex', () => {
+    const keywords = [
+      'return',
+      'typeof',
+      'case',
+      'in',
+      'of',
+      'new',
+      'delete',
+      'void',
+      'instanceof',
+      'do',
+      'else',
+      'yield',
+      'await',
+    ]
+
+    for (const keyword of keywords) {
+      const ids = extractUserSettableParamIds(
+        `subBlocks: [{ id: 'a', v: (x) => ${keyword} /}/.source }, { id: 'b' }],`
+      )
+
+      expect(ids, keyword).toEqual(['a', 'b'])
+    }
+  })
+
+  /**
+   * The fixture leaves an odd number of `/` on the line, so a mis-lexed regex runs on to the
+   * end of the input rather than closing on a second slash. A self-cancelling pair like
+   * `counts.in / 2, m: preturn / 2` passes with the guard removed, because the phantom regex
+   * spans only `2, m: preturn ` and blanks nothing structural.
+   */
+  it('still reads a division after a property or an identifier that merely ends in a keyword', () => {
+    expect(
+      extractUserSettableParamIds("subBlocks: [{ id: 'a', n: counts.in / 2 }, { id: 'b' }],")
+    ).toEqual(['a', 'b'])
+    expect(
+      extractUserSettableParamIds("subBlocks: [{ id: 'a', n: preturn / 2 }, { id: 'b' }],")
+    ).toEqual(['a', 'b'])
+  })
+})
+
+describe('template interpolation is lexed rather than brace-counted', () => {
+  /**
+   * The `${}` depth counter was not string-aware, so a brace inside a quoted expression
+   * miscounted, the closing backtick was never found and the whole block was reported
+   * unreadable — which silently stops filtering resolver-derived hidden params for it.
+   */
+  it('does not lose the closing backtick to an opening brace inside a quoted expression', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', label: `${format('{')}` }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('does not let a closing brace inside a quoted expression end the interpolation', () => {
+    const ids = extractUserSettableParamIds(
+      'subBlocks: [{ id: \'a\', label: `${format("}") + "{"}` }, { id: \'b\' }],'
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  it('lexes a regex, a comment and a nested template inside the expression', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', label: `${/[{]/.source /* { */ + `${'{'}`}` }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+})

@@ -652,7 +652,7 @@ function writeIconMapping(iconMapping: Record<string, IconRef>): void {
 
     // Generate mapping with direct references (no dynamic access for tree shaking)
     const mappingEntries = Object.entries(withAliases)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareCatalogNames(a, b))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -714,6 +714,7 @@ export function extractUserSettableParamIds(
   blockName = 'block'
 ): string[] | null {
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return null
   const keyMatch = /\bsubBlocks\s*:/.exec(scannable)
   if (!keyMatch) return []
 
@@ -997,6 +998,7 @@ function collectShorthandPropertyNames(body: string, into: Set<string>): void {
  */
 export function extractMapperWrittenParamIds(blockContent: string): string[] {
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return []
   const ids = new Set<string>()
 
   for (const [start, end] of findMapperBodyRanges(scannable)) {
@@ -1076,6 +1078,21 @@ export function extractBlockSuppliedParamIds(
   blockContent: string,
   blockName = 'block'
 ): BlockSuppliedParams {
+  /**
+   * A source the blanking scanner cannot get through — it ends inside an unterminated string,
+   * template literal or comment — makes both scans below report "nothing found" for the same
+   * reason. It is caught here so it is reported as a parse failure. Left to the branches below
+   * it would be indistinguishable from a spread-only `subBlocks` array whose block has no
+   * mapper, and the block's renames would be dropped without a word.
+   */
+  if (blankStringsAndComments(blockContent) === null) {
+    return {
+      ids: null,
+      mapperIds: [],
+      parseError: `${blockName}: source ends inside an unterminated string, template literal or comment, so neither its subBlocks array nor its params mapper could be read`,
+    }
+  }
+
   const mapperIds = extractMapperWrittenParamIds(blockContent)
 
   try {
@@ -1254,26 +1271,322 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 }
 
 /**
- * Length-preserving copy of `content` with string-literal and comment
- * interiors blanked out, so delimiter scans cannot be tripped by braces or
- * quotes inside them. Indices into the result line up with indices into
- * `content`.
+ * The catalog and every generated mapping are sorted with an explicit `en-US` collation.
+ * `localeCompare` with no locale uses the runtime default, which varies with `LANG` and the
+ * ICU build: `tr-TR`, `lt-LT`, `cs-CZ` and `et-EE` each reorder the real integration names, so
+ * a contributor on one of those locales would regenerate a different artifact and fail CI with
+ * no obvious cause.
  */
-function blankStringsAndComments(content: string): string {
-  return content.replace(
-    /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
-    (match: string, quote: string | undefined) => {
-      const blanked = match.replace(/[^\n]/g, ' ')
-      /**
-       * A comment has no delimiters worth preserving, so it is blanked whole. Keeping
-       * its final character would leak arbitrary source text — commented-out code ending
-       * in `[` or `{` leaves an unbalanced bracket that derails every scan downstream.
-       * A quoted string keeps its own quotes so callers can still see where it began.
-       */
-      if (quote === undefined) return blanked
-      return quote + blanked.slice(1, -1) + quote
+function compareCatalogNames(a: string, b: string): number {
+  return a.localeCompare(b, 'en-US')
+}
+
+/**
+ * Characters after which a `/` begins a regex literal rather than a division.
+ *
+ * `'\n'` is deliberate and load-bearing: a line-leading `/` is treated as opening a regex.
+ * A newline is recorded as the previous significant character rather than skipped, so this
+ * entry — not the `(` before it — is what decides a wrapped `value.match(` newline `/re/`.
+ * Prettier and Biome both emit a binary `/` at end-of-line, never at the start of the next
+ * one, so in this repo's formatted sources every line-leading `/` really is a regex, without
+ * exception — `blocks/table.ts` and `blocks/table_v2.ts` both wrap a `.match(` argument this
+ * way, and removing `'\n'` makes them lex as division and silently mis-scan. It is a
+ * deliberate trade: a hand-wrapped `b` newline `/ c / d` would be blanked as a regex body,
+ * which no formatted file in this repo produces.
+ */
+const REGEX_ALLOWED_AFTER = new Set([
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '~',
+  '^',
+  '<',
+  '>',
+  '\n',
+])
+
+/**
+ * Keywords after which a `/` begins a regex literal rather than a division. In every one of
+ * these positions an operand is expected, so `return /x/`, `typeof /x/` or `case /x/` opens a
+ * regex — a check on the previous character alone reads the keyword's last letter as an
+ * identifier and lexes the `/` as division.
+ */
+const REGEX_START_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'case',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'instanceof',
+  'do',
+  'else',
+  'yield',
+  'await',
+])
+
+/**
+ * Whether the word immediately before `index` is a {@link REGEX_START_KEYWORDS} keyword.
+ * A property access (`counts.in / 2`) is excluded, since there the word is an identifier
+ * and the `/` really is a division.
+ */
+function precededByRegexStartKeyword(content: string, index: number): boolean {
+  let j = index - 1
+  while (j >= 0 && /\s/.test(content[j])) j--
+  const wordEnd = j + 1
+  while (j >= 0 && /[A-Za-z0-9_$]/.test(content[j])) j--
+  if (!REGEX_START_KEYWORDS.has(content.slice(j + 1, wordEnd))) return false
+  return content[j] !== '.' && content[j] !== '#'
+}
+
+/** Index just past a `//` comment opening at `start`. */
+function scanLineComment(content: string, start: number): number {
+  const newline = content.indexOf('\n', start)
+  return newline === -1 ? content.length : newline
+}
+
+/** Index just past the block comment opening at `start`, or null when it never closes. */
+function scanBlockComment(content: string, start: number): number | null {
+  const close = content.indexOf('*/', start + 2)
+  return close === -1 ? null : close + 2
+}
+
+/** Index just past a regex literal (and its flags) opening at `start`, or null when unterminated. */
+function scanRegexLiteral(content: string, start: number): number | null {
+  let j = start + 1
+  let inClass = false
+  let closed = false
+  while (j < content.length) {
+    const c = content[j]
+    if (c === '\\') {
+      j += 2
+      continue
     }
+    if (c === '\n') break
+    if (c === '[') inClass = true
+    else if (c === ']') inClass = false
+    else if (c === '/' && !inClass) {
+      closed = true
+      break
+    }
+    j++
+  }
+  if (!closed) return null
+  j++
+  while (j < content.length && /[a-z]/.test(content[j])) j++
+  return j
+}
+
+/** Index OF the closing quote of the string opening at `start`, or null when unterminated. */
+function scanQuoted(content: string, start: number): number | null {
+  const quote = content[start]
+  let j = start + 1
+  while (j < content.length) {
+    if (content[j] === '\\') {
+      j += 2
+      continue
+    }
+    if (content[j] === '\n') break
+    if (content[j] === quote) return j
+    j++
+  }
+  return null
+}
+
+/** Index OF the closing backtick of the template literal opening at `start`, or null. */
+function scanTemplateLiteral(content: string, start: number): number | null {
+  let j = start + 1
+  while (j < content.length) {
+    const c = content[j]
+    if (c === '\\') {
+      j += 2
+      continue
+    }
+    if (c === '`') return j
+    if (c === '$' && content[j + 1] === '{') {
+      const end = scanTemplateExpression(content, j + 2)
+      if (end === null) return null
+      j = end
+      continue
+    }
+    j++
+  }
+  return null
+}
+
+/**
+ * Index just past the `}` that closes the `${` expression starting at `start`, or null.
+ *
+ * The expression is lexed with the same primitives as top-level code, so a brace inside a
+ * nested string, comment, regex or template never counts toward the depth — a plain counter
+ * loses the closing backtick of `` `${ f("}") }` `` and reports the whole block unreadable.
+ */
+function scanTemplateExpression(content: string, start: number): number | null {
+  let j = start
+  let depth = 0
+  let prevSignificant = ''
+  while (j < content.length) {
+    const c = content[j]
+
+    if (c === '/' && content[j + 1] === '/') {
+      j = scanLineComment(content, j)
+      continue
+    }
+    if (c === '/' && content[j + 1] === '*') {
+      const end = scanBlockComment(content, j)
+      if (end === null) return null
+      j = end
+      continue
+    }
+    if (c === '/' && startsRegexLiteral(content, j, prevSignificant)) {
+      const end = scanRegexLiteral(content, j)
+      if (end === null) return null
+      prevSignificant = ')'
+      j = end
+      continue
+    }
+    if (c === "'" || c === '"') {
+      const close = scanQuoted(content, j)
+      if (close === null) return null
+      prevSignificant = c
+      j = close + 1
+      continue
+    }
+    if (c === '`') {
+      const close = scanTemplateLiteral(content, j)
+      if (close === null) return null
+      prevSignificant = '`'
+      j = close + 1
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}') {
+      if (depth === 0) return j + 1
+      depth--
+    }
+
+    if (!/\s/.test(c)) prevSignificant = c
+    else if (c === '\n') prevSignificant = '\n'
+    j++
+  }
+  return null
+}
+
+/**
+ * Whether the word immediately before `index` ends in a postfix `++` or `--`.
+ * {@link REGEX_ALLOWED_AFTER} holds `'+'` and `'-'` for the binary operators, but a postfix
+ * increment produces a value, so the `/` in `i++ / a` is a division. Only the two-character
+ * form is matched — a single `+`/`-` stays an operator position.
+ */
+function precededByPostfixUpdate(content: string, index: number): boolean {
+  let j = index - 1
+  while (j >= 0 && /\s/.test(content[j])) j--
+  const c = content[j]
+  return (c === '+' || c === '-') && content[j - 1] === c
+}
+
+/** Whether the `/` at `index` opens a regex literal rather than a division. */
+function startsRegexLiteral(content: string, index: number, prevSignificant: string): boolean {
+  if (
+    (prevSignificant === '+' || prevSignificant === '-') &&
+    precededByPostfixUpdate(content, index)
   )
+    return false
+  return (
+    prevSignificant === '' ||
+    REGEX_ALLOWED_AFTER.has(prevSignificant) ||
+    precededByRegexStartKeyword(content, index)
+  )
+}
+
+/**
+ * Blank out string literals, template literals, comments and regex literals so a structural
+ * scan sees only code punctuation. Length and newlines are preserved, which the `readLiteral`
+ * index-mapping call sites depend on.
+ *
+ * Quoted strings keep their delimiters so callers can still see where one began; comments and
+ * regex literals are blanked whole, because their final character is arbitrary source text —
+ * commented-out code ending in `[`, or a character class like `/[}]/`, otherwise leaves an
+ * unbalanced bracket that derails every downstream scan.
+ *
+ * Returns `null` when the scan ends inside an unterminated construct, which means the input
+ * was not what we assumed and no structural conclusion drawn from it can be trusted.
+ */
+function blankStringsAndComments(content: string): string | null {
+  const out = content.split('')
+  const blank = (start: number, end: number) => {
+    for (let k = start; k < end && k < out.length; k++) if (out[k] !== '\n') out[k] = ' '
+  }
+
+  let i = 0
+  let prevSignificant = ''
+  while (i < content.length) {
+    const char = content[i]
+
+    if (char === '/' && content[i + 1] === '/') {
+      const end = scanLineComment(content, i)
+      blank(i, end)
+      i = end
+      continue
+    }
+
+    if (char === '/' && content[i + 1] === '*') {
+      const end = scanBlockComment(content, i)
+      if (end === null) return null
+      blank(i, end)
+      i = end
+      continue
+    }
+
+    if (char === '/' && startsRegexLiteral(content, i, prevSignificant)) {
+      const end = scanRegexLiteral(content, i)
+      if (end === null) return null
+      blank(i, end)
+      prevSignificant = ')'
+      i = end
+      continue
+    }
+
+    if (char === "'" || char === '"') {
+      const close = scanQuoted(content, i)
+      if (close === null) return null
+      blank(i + 1, close)
+      prevSignificant = char
+      i = close + 1
+      continue
+    }
+
+    if (char === '`') {
+      const close = scanTemplateLiteral(content, i)
+      if (close === null) return null
+      blank(i + 1, close)
+      prevSignificant = '`'
+      i = close + 1
+      continue
+    }
+
+    if (!/\s/.test(char)) prevSignificant = char
+    else if (char === '\n') prevSignificant = '\n'
+    i++
+  }
+
+  return out.join('')
 }
 
 /**
@@ -1288,6 +1601,7 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
   if (!typeMatch) return undefined
 
   const scannable = blankStringsAndComments(blockContent)
+  if (scannable === null) return undefined
   let depth = 0
   let objectStart = -1
   for (let i = typeMatch.index; i >= 0; i--) {
@@ -1433,7 +1747,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): voi
 
     const imports = renderIconImports(Object.values(iconMapping))
     const mappingEntries = Object.entries(iconMapping)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareCatalogNames(a, b))
       .map(([blockType, iconRef]) => `  ${formatIconMapKey(blockType)}: ${iconRef.name},`)
       .join('\n')
 
@@ -1608,7 +1922,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
       }
     }
 
-    integrations.sort((a, b) => a.name.localeCompare(b.name))
+    integrations.sort((a, b) => compareCatalogNames(a.name, b.name))
 
     const jsonPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integrations.json')
     // `JSON.stringify` always expands every array across multiple lines, but Biome's
@@ -1829,12 +2143,13 @@ function extractBlockConfigFromContent(
       userSettableParamIds = null
     } else if (supplied.ids === null) {
       /**
-       * The block's `subBlocks` array holds only spreads of fields arrays this scanner cannot
-       * follow. A config-level spread base still contributes its readable fields, so the filter
-       * stays on against those plus the mapper's renames; with no base there is nothing to
-       * filter against and the filter is switched off. No warning: unlike the `parseError`
-       * cases the array itself parsed fine, and every field it names is documented through the
-       * spread source's own page.
+       * With `parseError` null, the only remaining cause is a `subBlocks` array holding just
+       * spreads of fields arrays this scanner cannot follow — a source the scanner could not
+       * get through at all is reported as a `parseError` by `extractBlockSuppliedParamIds` and
+       * handled above. A config-level spread base still contributes its readable fields, so the
+       * filter stays on against those plus the mapper's renames; with no base there is nothing
+       * to filter against and the filter is switched off. No warning: the array itself parsed
+       * fine, and every field it names is documented through the spread source's own page.
        */
       userSettableParamIds =
         baseSettableParamIds.length > 0
@@ -4322,7 +4637,7 @@ function groupTriggersByProvider(
     }
     groups.set(
       provider,
-      [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
+      [...byName.values()].sort((a, b) => compareCatalogNames(a.name, b.name))
     )
   }
   return groups
