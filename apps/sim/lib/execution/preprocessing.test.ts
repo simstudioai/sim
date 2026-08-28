@@ -62,6 +62,7 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 }))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
+import { UsageReservationUnavailableError } from '@/lib/billing/calculations/usage-reservation'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { preprocessExecution, WORKFLOW_NOT_DEPLOYED_CODE } from './preprocessing'
 
@@ -287,6 +288,38 @@ describe('preprocessExecution suppressRetryableFailureLogs option', () => {
       },
     })
     expect(loggingSession.safeStart).not.toHaveBeenCalled()
+  })
+
+  it('skips the failure row when admission infrastructure is unavailable and a retry remains', async () => {
+    mockReserveExecutionSlot.mockRejectedValueOnce(
+      new UsageReservationUnavailableError('Usage admission is temporarily unavailable.')
+    )
+    const loggingSession = makeLoggingSession()
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      suppressRetryableFailureLogs: true,
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 503, retryable: true } })
+    expect(loggingSession.safeStart).not.toHaveBeenCalled()
+  })
+
+  it('records the failure row for an unavailable admission when no retry remains', async () => {
+    mockReserveExecutionSlot.mockRejectedValueOnce(
+      new UsageReservationUnavailableError('Usage admission is temporarily unavailable.')
+    )
+    const loggingSession = makeLoggingSession()
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      suppressRetryableFailureLogs: false,
+      loggingSession: loggingSession as any,
+    })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 503, retryable: true } })
+    expect(loggingSession.safeStart).toHaveBeenCalled()
   })
 
   it('still records non-retryable failures while suppression is on', async () => {

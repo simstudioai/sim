@@ -822,32 +822,38 @@ export async function preprocessExecution(
        * admission infrastructure was unreachable left no execution log at all,
        * so it disappeared from the workspace's logs rather than showing as a
        * failure — the denial branch twenty lines up always recorded one.
+       *
+       * Unlike that branch, this one has to honor the suppression: its denial
+       * descriptors are 402/429, while this failure is 503 and retryable, which
+       * is precisely what a requeuing caller defers. Recording here regardless
+       * would write a terminal failure for an execution about to be retried.
        */
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: actorUserId,
-        workspaceId,
-        errorMessage: unavailable.message,
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
-
-      return {
-        success: false,
-        error: {
-          message: unavailable.message,
-          statusCode: unavailable.statusCode,
+      const unavailableFailure: PreprocessExecutionError = {
+        message: unavailable.message,
+        statusCode: unavailable.statusCode,
+        code: unavailable.code,
+        retryable: unavailable.retryable,
+        ...retryAfterMsFrom(unavailable.retryAfterSeconds),
+        cause: {
           code: unavailable.code,
-          retryable: unavailable.retryable,
-          ...retryAfterMsFrom(unavailable.retryAfterSeconds),
-          cause: {
-            code: unavailable.code,
-          },
         },
       }
+
+      if (!isFailureLogSuppressed(unavailableFailure)) {
+        await recordPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage: unavailable.message,
+          loggingSession: providedLoggingSession,
+          triggerData,
+        })
+      }
+
+      return { success: false, error: unavailableFailure }
     }
   }
 
