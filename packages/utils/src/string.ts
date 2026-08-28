@@ -217,14 +217,26 @@ export function foldSearchWhitespace(value: string): string {
  * case-sensitively. The whole-string form is tried first because it is a single
  * intrinsic and is length-preserving for every input that contains no such code
  * point, i.e. essentially all of them.
+ *
+ * The fallback still reads each character's replacement out of the whole-string
+ * result rather than lowercasing it in isolation, because some lowercasing is
+ * context-sensitive: a word-final `\u03a3` lowercases to `\u03c2` in the string
+ * but to `\u03c3` on its own. Folding character by character would make one
+ * expanding code point elsewhere in the string silently change how every sigma
+ * in it matches.
  */
 function lowerPreservingLength(value: string): string {
   const lowered = value.toLowerCase()
   if (lowered.length === value.length) return lowered
   let result = ''
+  let loweredOffset = 0
   for (const char of value) {
     const loweredChar = char.toLowerCase()
-    result += loweredChar.length === char.length ? loweredChar : char
+    result +=
+      loweredChar.length === char.length
+        ? lowered.slice(loweredOffset, loweredOffset + loweredChar.length)
+        : char
+    loweredOffset += loweredChar.length
   }
   return result
 }

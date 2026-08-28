@@ -1215,13 +1215,19 @@ export function LoadedRichMarkdownEditor({
 
   useSelectionCopyBridge(containerRef, buildSelectionContext)
 
-  const find = useMarkdownFind({ editor, enabled: enableFind })
-
   // Show the read-only placeholder (the already-fetched markdown) whenever a collaborative doc has not yet
   // seeded — including during an agent stream that begins before the seed lands. Streamed diffs are held
   // until `collabReady` (see the streaming effect), so before then the editor is empty; the placeholder
   // shows the base content until the seed swaps it in, avoiding both a blank frame and a garbled merge.
   const showPlaceholder = collaborationEnabled && !collabReady
+
+  /**
+   * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
+   * editor, not to `editor` — which is still empty and hidden — so searching `editor` would answer
+   * "No results" for text the user can see. Declining the shortcut hands it back to the browser, whose
+   * native find reads the rendered placeholder correctly; it becomes ours once the seed lands.
+   */
+  const find = useMarkdownFind({ editor, enabled: enableFind && !showPlaceholder })
 
   return (
     // The find bar is a sibling of the scroller, not a child: pinned inside `containerRef` it would

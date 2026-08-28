@@ -96,6 +96,15 @@ describe('RichMarkdownFind', () => {
     expect(paintedMatches(instance)).toEqual(['[x]'])
   })
 
+  it('searches a term applied before any other transaction', () => {
+    // The hook re-applies a pending term the moment the editor exists; setting a query as the very
+    // first thing that happens to a fresh editor must land, not wait for a later transaction.
+    const instance = mountEditor('alpha beta')
+    setFindQuery(instance, 'beta')
+    expect(getFindTally(instance.state).matches).toHaveLength(1)
+    expect(paintedMatches(instance)).toEqual(['[beta]'])
+  })
+
   it('clears every highlight when the term is emptied', () => {
     const instance = mountEditor('alpha')
     setFindQuery(instance, 'alpha')

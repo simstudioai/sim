@@ -105,6 +105,18 @@ export function useMarkdownFind({
     }
   }, [editor, isOpen, syncTally])
 
+  /**
+   * Re-applies the live term to a newly arrived editor. `useEditor` returns null on the first render,
+   * so a term typed into the bar before the editor mounts would be held in React and never searched,
+   * leaving the bar at "No results" until the next keystroke pushed it through.
+   */
+  const queryRef = useRef(query)
+  queryRef.current = query
+  useEffect(() => {
+    if (!editor || queryRef.current.length === 0) return
+    setFindQuery(editor, queryRef.current)
+  }, [editor])
+
   const setQuery = useCallback(
     (next: string) => {
       setQueryState(next)
