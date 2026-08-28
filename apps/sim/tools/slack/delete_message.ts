@@ -1,8 +1,8 @@
 import type { SlackDeleteMessageParams, SlackDeleteMessageResponse } from '@/tools/slack/types'
 import { MESSAGE_METADATA_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackDeleteMessageTool: ToolConfig<
+export const slackDeleteMessageTool: InternalToolConfig<
   SlackDeleteMessageParams,
   SlackDeleteMessageResponse
 > = {
@@ -49,13 +49,8 @@ export const slackDeleteMessageTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/slack/delete-message',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackDeleteMessageParams) => ({
+  operation: {
+    input: (params: SlackDeleteMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel?.trim(),
       timestamp: params.timestamp?.trim(),

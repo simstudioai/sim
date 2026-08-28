@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 
 export const FALAI_HOSTED_KEY_MARKUP_MULTIPLIER = 1.5
 export const FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS = 0.05
@@ -9,6 +14,7 @@ export const FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS = 0.02
 export const FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS = 0.25
 const FALAI_BILLING_EVENT_ATTEMPTS = 2
 const FALAI_BILLING_EVENT_RETRY_MS = 500
+const FALAI_PRICING_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
 const logger = createLogger('FalAIPricing')
 
 export interface FalAICostMetadata {
@@ -83,7 +89,8 @@ function parseBillingEvent(value: unknown): FalAIBillingEvent | undefined {
 
 async function fetchFalAIBillingEvent(
   apiKey: string,
-  requestId: string
+  requestId: string,
+  signal?: AbortSignal
 ): Promise<FalAIBillingEvent | undefined> {
   const url = new URL('https://api.fal.ai/v1/models/billing-events')
   url.searchParams.set('request_id', requestId)
@@ -95,8 +102,10 @@ async function fetchFalAIBillingEvent(
       headers: {
         Authorization: `Key ${apiKey}`,
       },
+      signal,
     })
   } catch (error) {
+    signal?.throwIfAborted()
     logger.warn('Failed to fetch Fal.ai billing event', {
       requestId,
       error: getErrorMessage(error, 'Unknown error'),
@@ -106,7 +115,11 @@ async function fetchFalAIBillingEvent(
 
   if (!response.ok) return undefined
 
-  const data = await response.json().catch((error) => {
+  const data = await readResponseJsonWithLimit(response, {
+    maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
+    label: 'Fal.ai billing event response',
+  }).catch((error) => {
+    signal?.throwIfAborted()
     logger.warn('Failed to parse Fal.ai billing event response', {
       requestId,
       error: getErrorMessage(error, 'Unknown error'),
@@ -120,7 +133,8 @@ async function fetchFalAIBillingEvent(
 
 async function estimateFalAICallCost(
   apiKey: string,
-  endpointId: string
+  endpointId: string,
+  signal?: AbortSignal
 ): Promise<{ costDollars?: number; error?: string }> {
   let response: Response
   try {
@@ -138,17 +152,25 @@ async function estimateFalAICallCost(
           },
         },
       }),
+      signal,
     })
   } catch (error) {
+    signal?.throwIfAborted()
     return { error: getErrorMessage(error, 'Unknown error') }
   }
 
   if (!response.ok) {
-    const error = await response.text().catch(() => '')
+    const error = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Fal.ai pricing estimate error response',
+    }).catch(() => '')
     return { error: `Fal.ai pricing estimate failed: ${response.status} ${error}` }
   }
 
-  const data = (await response.json()) as unknown
+  const data = await readResponseJsonWithLimit(response, {
+    maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
+    label: 'Fal.ai pricing estimate response',
+  })
   const totalCost = isRecordLike(data) ? getNumber(data.total_cost) : undefined
   if (totalCost === undefined) {
     return { error: 'Fal.ai pricing estimate missing total_cost' }
@@ -161,13 +183,16 @@ export async function getFalAICostMetadata({
   apiKey,
   endpointId,
   requestId,
+  signal,
 }: {
   apiKey: string
   endpointId: string
   requestId: string
+  signal?: AbortSignal
 }): Promise<FalAICostMetadata> {
+  signal?.throwIfAborted()
   for (let attempt = 0; attempt < FALAI_BILLING_EVENT_ATTEMPTS; attempt++) {
-    const event = await fetchFalAIBillingEvent(apiKey, requestId)
+    const event = await fetchFalAIBillingEvent(apiKey, requestId, signal)
     if (event) {
       return {
         endpointId: event.endpoint_id,
@@ -182,11 +207,12 @@ export async function getFalAICostMetadata({
     }
 
     if (attempt < FALAI_BILLING_EVENT_ATTEMPTS - 1) {
-      await sleep(FALAI_BILLING_EVENT_RETRY_MS)
+      await interruptibleSleep(FALAI_BILLING_EVENT_RETRY_MS, signal)
+      signal?.throwIfAborted()
     }
   }
 
-  const estimate = await estimateFalAICallCost(apiKey, endpointId)
+  const estimate = await estimateFalAICallCost(apiKey, endpointId, signal)
   if (estimate.costDollars !== undefined) {
     return {
       endpointId,

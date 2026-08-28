@@ -1,7 +1,10 @@
 import type { JsmDeleteObjectParams, JsmDeleteObjectResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmDeleteObjectTool: ToolConfig<JsmDeleteObjectParams, JsmDeleteObjectResponse> = {
+export const jsmDeleteObjectTool: InternalToolConfig<
+  JsmDeleteObjectParams,
+  JsmDeleteObjectResponse
+> = {
   id: 'jsm_delete_object',
   name: 'JSM Delete Asset Object',
   description: 'Delete an Assets (Insight/CMDB) object by ID',
@@ -45,11 +48,8 @@ export const jsmDeleteObjectTool: ToolConfig<JsmDeleteObjectParams, JsmDeleteObj
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/object/delete',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

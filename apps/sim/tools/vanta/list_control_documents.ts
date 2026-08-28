@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   VANTA_DOCUMENT_OUTPUT_PROPERTIES,
   VANTA_PAGE_INFO_OUTPUT_PROPERTIES,
@@ -7,9 +7,9 @@ import type {
   VantaListControlDocumentsParams,
   VantaListDocumentsResponse,
 } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaListControlDocumentsTool: ToolConfig<
+export const vantaListControlDocumentsTool: InternalToolConfig<
   VantaListControlDocumentsParams,
   VantaListDocumentsResponse
 > = {
@@ -58,11 +58,8 @@ export const vantaListControlDocumentsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_list_control_documents',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

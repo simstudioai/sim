@@ -1,14 +1,10 @@
-import type { ListBudgetCategoriesParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListBudgetCategoriesParams, SapConcurResponse } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listBudgetCategoriesTool: ToolConfig<
+export const listBudgetCategoriesTool: InternalToolConfig<
   ListBudgetCategoriesParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_list_budget_categories',
   name: 'SAP Concur List Budget Categories',
@@ -58,17 +54,14 @@ export const listBudgetCategoriesTool: ToolConfig<
       description: 'Company UUID for multi-company access tokens',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/budget/v4/budgetCategory`,
       method: 'GET',
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

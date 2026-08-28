@@ -1,7 +1,7 @@
 import type { OutlookDraftParams, OutlookDraftResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftResponse> = {
+export const outlookDraftTool: InternalToolConfig<OutlookDraftParams, OutlookDraftResponse> = {
   id: 'outlook_draft',
   name: 'Outlook Draft',
   description: 'Draft emails using Outlook',
@@ -63,13 +63,8 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/draft',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookDraftParams) => {
+  operation: {
+    input: (params: OutlookDraftParams) => {
       return {
         accessToken: params.accessToken,
         to: params.to,

@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListSpacePermissionsParams {
   accessToken: string
@@ -28,7 +28,7 @@ export interface ConfluenceListSpacePermissionsResponse {
   }
 }
 
-export const confluenceListSpacePermissionsTool: ToolConfig<
+export const confluenceListSpacePermissionsTool: InternalToolConfig<
   ConfluenceListSpacePermissionsParams,
   ConfluenceListSpacePermissionsResponse
 > = {
@@ -82,16 +82,8 @@ export const confluenceListSpacePermissionsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/space-permissions',
-    method: 'POST',
-    headers: (params: ConfluenceListSpacePermissionsParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceListSpacePermissionsParams) => ({
+  operation: {
+    input: (params: ConfluenceListSpacePermissionsParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

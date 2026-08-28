@@ -1,11 +1,6 @@
-import type { ODataQueryParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ODataQueryParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
 function normalizeQuery(
   query: ODataQueryParams['query']
@@ -24,11 +19,11 @@ function normalizeQuery(
   return result
 }
 
-export const odataQueryTool: ToolConfig<ODataQueryParams, SapProxyResponse> = {
+export const odataQueryTool: InternalToolConfig<ODataQueryParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_odata_query',
   name: 'SAP S/4HANA OData Query',
   description:
-    'Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data.',
+    'Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The integration handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data.',
   version: '1.0.0',
   params: {
     subdomain: {
@@ -132,15 +127,12 @@ export const odataQueryTool: ToolConfig<ODataQueryParams, SapProxyResponse> = {
         'ETag value for the If-Match header (required by SAP for PATCH/PUT/DELETE on existing entities)',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query = normalizeQuery(params.query) ?? {}
       if (!('$format' in query)) query.$format = 'json'
       const requestBody: Record<string, unknown> = {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: params.service,
         path: params.path,
         method: params.method || 'GET',
@@ -152,7 +144,6 @@ export const odataQueryTool: ToolConfig<ODataQueryParams, SapProxyResponse> = {
       return requestBody
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

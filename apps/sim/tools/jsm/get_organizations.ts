@@ -1,8 +1,8 @@
 import type { JsmGetOrganizationsParams, JsmGetOrganizationsResponse } from '@/tools/jsm/types'
 import { ORGANIZATION_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetOrganizationsTool: ToolConfig<
+export const jsmGetOrganizationsTool: InternalToolConfig<
   JsmGetOrganizationsParams,
   JsmGetOrganizationsResponse
 > = {
@@ -55,13 +55,8 @@ export const jsmGetOrganizationsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/organizations',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

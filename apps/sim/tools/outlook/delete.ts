@@ -1,7 +1,7 @@
 import type { OutlookDeleteParams, OutlookDeleteResponse } from '@/tools/outlook/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const outlookDeleteTool: ToolConfig<OutlookDeleteParams, OutlookDeleteResponse> = {
+export const outlookDeleteTool: InternalToolConfig<OutlookDeleteParams, OutlookDeleteResponse> = {
   id: 'outlook_delete',
   name: 'Outlook Delete',
   description: 'Delete an Outlook message (move to Deleted Items)',
@@ -27,13 +27,8 @@ export const outlookDeleteTool: ToolConfig<OutlookDeleteParams, OutlookDeleteRes
     },
   },
 
-  request: {
-    url: '/api/tools/outlook/delete',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: OutlookDeleteParams) => ({
+  operation: {
+    input: (params: OutlookDeleteParams) => ({
       accessToken: params.accessToken,
       messageId: params.messageId,
     }),

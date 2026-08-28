@@ -22,8 +22,7 @@ interface FalVideoModelConfig {
   supportsPromptOptimizer?: boolean
 }
 
-// Endpoints mirror app/api/tools/video/route.ts (FALAI_MODEL_CONFIGS), scoped to
-// the latest-gen models the generate_video tool exposes.
+/** Latest-generation models exposed by the Copilot video operation. */
 const VIDEO_MODELS: Record<string, FalVideoModelConfig> = {
   'veo-3.1': {
     endpoint: 'fal-ai/veo3.1',

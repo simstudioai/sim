@@ -1,5 +1,5 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileManageSharingParams {
   fileId?: string
@@ -9,10 +9,9 @@ interface FileManageSharingParams {
   password?: string
   allowedEmails?: string[]
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResponse> = {
+export const fileManageSharingTool: InternalToolConfig<FileManageSharingParams, ToolResponse> = {
   id: 'file_manage_sharing',
   name: 'Manage Sharing',
   description:
@@ -60,11 +59,8 @@ export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResp
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'manage_sharing',
       fileId: params.fileId,
       fileInput: params.fileInput,
@@ -72,7 +68,7 @@ export const fileManageSharingTool: ToolConfig<FileManageSharingParams, ToolResp
       authType: params.authType,
       password: params.password,
       allowedEmails: params.allowedEmails,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 

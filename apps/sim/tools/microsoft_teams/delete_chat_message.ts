@@ -2,9 +2,9 @@ import type {
   MicrosoftTeamsDeleteMessageParams,
   MicrosoftTeamsDeleteResponse,
 } from '@/tools/microsoft_teams/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteChatMessageTool: ToolConfig<
+export const deleteChatMessageTool: InternalToolConfig<
   MicrosoftTeamsDeleteMessageParams,
   MicrosoftTeamsDeleteResponse
 > = {
@@ -46,31 +46,20 @@ export const deleteChatMessageTool: ToolConfig<
     messageId: { type: 'string', description: 'ID of the deleted message' },
   },
 
-  request: {
-    internal: true,
-    url: (params) => {
+  operation: {
+    input: (params) => {
       const chatId = params.chatId?.trim()
       const messageId = params.messageId?.trim()
       if (!chatId || !messageId) {
         throw new Error('Chat ID and Message ID are required')
       }
-      return '/api/tools/microsoft_teams/delete_chat_message'
-    },
-    method: 'POST',
-    headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
       return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
-    body: (params) => {
-      return {
         accessToken: params.accessToken,
-        chatId: params.chatId,
-        messageId: params.messageId,
+        chatId,
+        messageId,
       }
     },
   },

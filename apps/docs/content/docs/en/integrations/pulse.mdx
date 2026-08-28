@@ -39,11 +39,20 @@ Integrate Pulse into the workflow. Extract text from PDF documents, images, and 
 
 ### Pulse Document Parser
 
+Parse documents (PDF, images, Office docs) using Pulse OCR API
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `file` | file | Yes | Document to be processed |
+| `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
+| `extractFigure` | boolean | No | Enable figure extraction from the document |
+| `figureDescription` | boolean | No | Generate descriptions/captions for extracted figures |
+| `returnHtml` | boolean | No | Include HTML in the response |
+| `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
+| `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
+| `apiKey` | string | Yes | Pulse API key |
 
 #### Output
 

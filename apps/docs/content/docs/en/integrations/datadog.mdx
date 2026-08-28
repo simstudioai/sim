@@ -124,7 +124,7 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Monitor name |
 | `type` | string | Yes | Monitor type: metric alert, service check, event alert, process alert, log alert, query alert, composite, synthetics alert, slo alert |
-| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20", "logs\(\"status:error\"\).index\(\"main\"\).rollup\(\"count\"\).last\(\"5m\"\) &gt; 100"\) |
+| `query` | string | Yes | Monitor query \(e.g., "avg\(last_5m\):avg:system.cpu.idle\{*\} &lt; 20", "logs\("status:error"\).index\("main"\).rollup\("count"\).last\("5m"\) &gt; 100"\) |
 | `message` | string | No | Message to include with notifications. Can include @-mentions and markdown. |
 | `tags` | string | No | Comma-separated list of tags |
 | `priority` | number | No | Monitor priority \(1-5, where 1 is highest\) |

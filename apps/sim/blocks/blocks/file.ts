@@ -827,8 +827,7 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
           const fileUrl = resolveHttpFileUrl(params.fileUrl)
 
           return {
-            filePath: fileUrl,
-            fileType: params.fileType || 'auto',
+            fileUrl,
             headers: params.headers,
             workspaceId: params._context?.workspaceId,
             workflowId: params._context?.workflowId,
@@ -1357,8 +1356,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           const fileUrl = resolveHttpFileUrl(params.fileUrl)
 
           return {
-            filePath: fileUrl,
-            fileType: params.fileType || 'auto',
+            fileUrl,
             headers: params.headers,
             workspaceId: params._context?.workspaceId,
             workflowId: params._context?.workflowId,

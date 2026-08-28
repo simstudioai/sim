@@ -5,9 +5,9 @@ import {
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
 import { transformPageData } from '@/tools/confluence/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const confluenceRetrieveTool: ToolConfig<
+export const confluenceRetrieveTool: InternalToolConfig<
   ConfluenceRetrieveParams,
   ConfluenceRetrieveResponse
 > = {
@@ -49,19 +49,8 @@ export const confluenceRetrieveTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceRetrieveParams) => {
-      return '/api/tools/confluence/page'
-    },
-    method: 'POST',
-    headers: (params: ConfluenceRetrieveParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceRetrieveParams) => {
+  operation: {
+    input: (params: ConfluenceRetrieveParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

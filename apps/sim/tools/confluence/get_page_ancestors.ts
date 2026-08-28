@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPageAncestorsParams {
   accessToken: string
@@ -24,7 +24,7 @@ export interface ConfluenceGetPageAncestorsResponse {
   }
 }
 
-export const confluenceGetPageAncestorsTool: ToolConfig<
+export const confluenceGetPageAncestorsTool: InternalToolConfig<
   ConfluenceGetPageAncestorsParams,
   ConfluenceGetPageAncestorsResponse
 > = {
@@ -73,16 +73,8 @@ export const confluenceGetPageAncestorsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-ancestors',
-    method: 'POST',
-    headers: (params: ConfluenceGetPageAncestorsParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceGetPageAncestorsParams) => ({
+  operation: {
+    input: (params: ConfluenceGetPageAncestorsParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

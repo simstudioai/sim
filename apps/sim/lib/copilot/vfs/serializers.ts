@@ -27,7 +27,7 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
-import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
+import type { ExecutableToolConfig, ToolHostingCondition } from '@/tools/types'
 import { buildSlackManifest, SLACK_CAPABILITIES } from '@/triggers/slack/capabilities'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
@@ -85,7 +85,7 @@ export function describeServiceAccountForOAuthProvider(
 
 export interface ComponentSerializationOptions {
   hosted?: boolean
-  toolConfigs?: ReadonlyMap<string, ToolConfig>
+  toolConfigs?: ReadonlyMap<string, ExecutableToolConfig>
   ownerBlockType?: string
   /** Product-gated inputs removed from both subBlocks and the input schema. */
   hiddenInputIds?: ReadonlySet<string>
@@ -116,7 +116,7 @@ export interface ComponentSerializationOptions {
  * ToolConfig.hosting remains the source of truth for every hosted-key integration.
  */
 export function serializeToolAuth(
-  tool: ToolConfig,
+  tool: ExecutableToolConfig,
   hosted = isHosted,
   ownerBlockType?: string
 ): VfsToolAuth | undefined {
@@ -831,7 +831,7 @@ export function serializeApiKeys(
 }
 
 interface ApiKeyIntegrationTool {
-  config: ToolConfig
+  config: ExecutableToolConfig
   service: string
   operation: string
 }
@@ -1156,7 +1156,7 @@ export function serializeSandboxCatalog(strategy: 'prebuilt' | 'runtime'): strin
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */
 export function serializeIntegrationSchema(
-  tool: ToolConfig,
+  tool: ExecutableToolConfig,
   options?: Pick<ComponentSerializationOptions, 'hosted' | 'ownerBlockType'> & {
     oauthAvailable?: boolean
   }

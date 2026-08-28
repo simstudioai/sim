@@ -2,22 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
-  PRIVATE_MODEL_INPUT_STATE_HEADER,
-  PROJECTED_MODEL_INPUT_PATHS_V1,
-} from '@/lib/execution/model-input-provenance'
-import {
-  RESOLVED_SECRET_PROVENANCE_FIELD,
-  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-} from '@/lib/execution/private-tool-metadata'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { llmChatTool } from '@/tools/llm/chat'
-import { prepareToolRequest } from '@/tools/request-transport'
+import { projectToolModelInputParams } from '@/tools/request-transport'
 
-describe('llmChatTool.request.modelInput', () => {
+describe('llmChatTool.operation', () => {
   it('selects only prompt fields for exact model-facing projection', () => {
-    const modelInput = llmChatTool.request.modelInput
+    const modelInput = llmChatTool.operation.modelInput
     expect(modelInput?.mode).toBe('project')
     if (modelInput?.mode !== 'project') throw new Error('Unexpected model input mode')
 
@@ -31,7 +22,7 @@ describe('llmChatTool.request.modelInput', () => {
     ).toEqual({ systemPrompt: 'system', context: 'user' })
   })
 
-  it('projects active prompt secrets before the provider route while preserving raw params', () => {
+  it('projects active prompt secrets before materializing provider input', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'PROMPT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-value' },
     ])
@@ -44,39 +35,32 @@ describe('llmChatTool.request.modelInput', () => {
       apiKey: 'credential',
     }
 
-    const request = prepareToolRequest(llmChatTool, params, registry)
-    const body = JSON.parse(request.body ?? '{}')
+    const projected = projectToolModelInputParams(llmChatTool, params, registry)
+    const input = llmChatTool.operation.input(projected) as Record<string, unknown>
 
-    expect(body.systemPrompt).toBe('ordinary system prompt')
-    expect(JSON.parse(body.context)).toEqual([{ role: 'user', content: '{{PROMPT_SECRET}}' }])
-    expect(body.apiKey).toBe('credential')
-    expect(request.headers.get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
-      RESOLVED_SECRET_PROVENANCE_METADATA_V1
-    )
-    expect(request.headers.get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBe(
-      PROJECTED_MODEL_INPUT_PATHS_V1
-    )
-    expect(body[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual(
-      expect.objectContaining({ version: 1, complete: true })
-    )
+    expect(input.systemPrompt).toBe('ordinary system prompt')
+    expect(JSON.parse(input.context as string)).toEqual([
+      { role: 'user', content: '{{PROMPT_SECRET}}' },
+    ])
+    expect(input.apiKey).toBe('credential')
     expect(params.context).toBe('secret-value')
   })
 
-  it('preserves the headerless legacy request when no registry is available', () => {
-    const request = prepareToolRequest(llmChatTool, {
+  it('materializes provider input without HTTP metadata or caller-supplied scope', () => {
+    const input = llmChatTool.operation.input({
       model: 'gpt-4o',
       systemPrompt: 'legacy system prompt',
       context: 'legacy context',
       apiKey: 'credential',
-    })
+      _context: { workspaceId: 'untrusted-workspace', workflowId: 'untrusted-workflow' },
+    }) as Record<string, unknown>
 
-    expect(request.headers.has(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(false)
-    expect(request.headers.has(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBe(false)
-    expect(JSON.parse(request.body ?? '{}')).toEqual(
-      expect.objectContaining({
-        systemPrompt: 'legacy system prompt',
-        context: JSON.stringify([{ role: 'user', content: 'legacy context' }]),
-      })
-    )
+    expect(input).toMatchObject({
+      systemPrompt: 'legacy system prompt',
+      context: JSON.stringify([{ role: 'user', content: 'legacy context' }]),
+    })
+    expect(input).not.toHaveProperty('workspaceId')
+    expect(input).not.toHaveProperty('workflowId')
+    expect(llmChatTool).not.toHaveProperty('request')
   })
 })

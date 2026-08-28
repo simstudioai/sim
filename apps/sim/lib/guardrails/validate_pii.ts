@@ -4,6 +4,7 @@ import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 
 const logger = createLogger('PIIValidator')
 
@@ -53,6 +54,7 @@ export interface PIIValidationInput {
   /** User-supplied custom regex patterns applied alongside `entityTypes`. */
   customPatterns?: CustomPiiPattern[]
   requestId: string
+  abortSignal?: AbortSignal
 }
 
 interface DetectedPIIEntity {
@@ -85,7 +87,8 @@ async function analyze(
   text: string,
   entityTypes: string[],
   language: string,
-  patterns?: CustomPiiPattern[]
+  patterns?: CustomPiiPattern[],
+  signal?: AbortSignal
 ): Promise<AnalyzerSpan[]> {
   // Guardrails convention: an empty selection means "detect all". Sending no
   // `entities` keeps that, and the server still runs the custom recognizers under
@@ -103,6 +106,7 @@ async function analyze(
       ...(entities ? { entities } : {}),
       ...(patterns?.length ? { patterns } : {}),
     }),
+    signal,
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -230,7 +234,8 @@ async function redactBatch(
 async function anonymize(
   text: string,
   spans: AnalyzerSpan[],
-  patterns?: CustomPiiPattern[]
+  patterns?: CustomPiiPattern[],
+  signal?: AbortSignal
 ): Promise<string> {
   if (spans.length === 0) return text
 
@@ -243,6 +248,7 @@ async function anonymize(
       analyzer_results: spans,
       ...(patterns?.length ? { patterns } : {}),
     }),
+    signal,
   })
   if (!response.ok) {
     const detail = await response.text().catch(() => '')
@@ -259,7 +265,7 @@ async function anonymize(
  * - mask: passes and returns masked text with PII replaced by `<ENTITY_TYPE>`
  */
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
-  const { text, entityTypes, mode, language = 'en', customPatterns, requestId } = input
+  const { text, entityTypes, mode, language = 'en', customPatterns, requestId, abortSignal } = input
 
   logger.info(`[${requestId}] Starting PII validation`, {
     textLength: text.length,
@@ -270,7 +276,9 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   })
 
   try {
-    const spans = await analyze(text, entityTypes, language, customPatterns)
+    abortSignal?.throwIfAborted()
+    const spans = await analyze(text, entityTypes, language, customPatterns, abortSignal)
+    abortSignal?.throwIfAborted()
 
     const detectedEntities: DetectedPIIEntity[] = spans.map((s) => ({
       type: displayEntityType(s.entity_type, customPatterns),
@@ -300,7 +308,8 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 
     // mask mode: the anonymizer replaces every span with `<ENTITY_TYPE>` (or the
     // pattern's `replacement` for custom-pattern spans).
-    const maskedText = await anonymize(text, spans, customPatterns)
+    const maskedText = await anonymize(text, spans, customPatterns, abortSignal)
+    abortSignal?.throwIfAborted()
     logger.info(`[${requestId}] PII validation completed`, {
       passed: true,
       detectedCount: detectedEntities.length,
@@ -308,6 +317,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
     })
     return { passed: true, detectedEntities, maskedText }
   } catch (error) {
+    if (isAbortError(error) || abortSignal?.aborted) throw error
     logger.error(`[${requestId}] PII validation failed`, { error: getErrorMessage(error) })
     return {
       passed: false,

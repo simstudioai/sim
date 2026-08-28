@@ -5,7 +5,7 @@ import type {
   TextractParserOutput,
   TextractParserV2Input,
 } from '@/tools/textract/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('TextractParserTool')
 
@@ -30,7 +30,7 @@ function rebuildTextractQueries(original: TextractQuery[], projected: unknown): 
   return original.map((query, index) => ({ ...query, Text: projected[index] }))
 }
 
-export const textractParserTool: ToolConfig<TextractParserInput, TextractParserOutput> = {
+export const textractParserTool: InternalToolConfig<TextractParserInput, TextractParserOutput> = {
   id: 'textract_parser',
   name: 'AWS Textract Parser',
   description: 'Parse documents using AWS Textract OCR and document analysis',
@@ -107,7 +107,7 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => {
@@ -121,15 +121,7 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
         }
       },
     },
-    url: '/api/tools/textract/parse',
-    method: 'POST',
-    headers: () => {
-      return {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      }
-    },
-    body: (params) => {
+    input: (params) => {
       const processingMode = params.processingMode || 'sync'
 
       const requestBody: Record<string, unknown> = {
@@ -327,55 +319,56 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
   },
 }
 
-export const textractParserV2Tool: ToolConfig<TextractParserV2Input, TextractParserOutput> = {
-  ...textractParserTool,
-  id: 'textract_parser_v2',
-  name: 'AWS Textract Parser',
-  params: {
-    accessKeyId: textractParserTool.params.accessKeyId,
-    secretAccessKey: textractParserTool.params.secretAccessKey,
-    region: textractParserTool.params.region,
-    processingMode: textractParserTool.params.processingMode,
-    file: {
-      type: 'file',
-      required: false,
-      visibility: 'hidden',
-      description: 'Document to be processed (JPEG, PNG, or single-page PDF).',
+export const textractParserV2Tool: InternalToolConfig<TextractParserV2Input, TextractParserOutput> =
+  {
+    ...textractParserTool,
+    id: 'textract_parser_v2',
+    name: 'AWS Textract Parser',
+    params: {
+      accessKeyId: textractParserTool.params.accessKeyId,
+      secretAccessKey: textractParserTool.params.secretAccessKey,
+      region: textractParserTool.params.region,
+      processingMode: textractParserTool.params.processingMode,
+      file: {
+        type: 'file',
+        required: false,
+        visibility: 'hidden',
+        description: 'Document to be processed (JPEG, PNG, or single-page PDF).',
+      },
+      s3Uri: textractParserTool.params.s3Uri,
+      featureTypes: textractParserTool.params.featureTypes,
+      queries: textractParserTool.params.queries,
     },
-    s3Uri: textractParserTool.params.s3Uri,
-    featureTypes: textractParserTool.params.featureTypes,
-    queries: textractParserTool.params.queries,
-  },
-  request: {
-    ...textractParserTool.request,
-    body: (params: TextractParserV2Input) => {
-      const processingMode = params.processingMode || 'sync'
+    operation: {
+      ...textractParserTool.operation,
+      input: (params: TextractParserV2Input) => {
+        const processingMode = params.processingMode || 'sync'
 
-      const requestBody: Record<string, unknown> = {
-        accessKeyId: params.accessKeyId?.trim(),
-        secretAccessKey: params.secretAccessKey?.trim(),
-        region: params.region?.trim(),
-        processingMode,
-      }
-
-      if (processingMode === 'async') {
-        requestBody.s3Uri = params.s3Uri?.trim()
-      } else {
-        if (!params.file || typeof params.file !== 'object') {
-          throw new Error('Document file is required for single-page processing')
+        const requestBody: Record<string, unknown> = {
+          accessKeyId: params.accessKeyId?.trim(),
+          secretAccessKey: params.secretAccessKey?.trim(),
+          region: params.region?.trim(),
+          processingMode,
         }
-        requestBody.file = params.file
-      }
 
-      if (params.featureTypes && Array.isArray(params.featureTypes)) {
-        requestBody.featureTypes = params.featureTypes
-      }
+        if (processingMode === 'async') {
+          requestBody.s3Uri = params.s3Uri?.trim()
+        } else {
+          if (!params.file || typeof params.file !== 'object') {
+            throw new Error('Document file is required for single-page processing')
+          }
+          requestBody.file = params.file
+        }
 
-      if (params.queries && Array.isArray(params.queries)) {
-        requestBody.queries = params.queries
-      }
+        if (params.featureTypes && Array.isArray(params.featureTypes)) {
+          requestBody.featureTypes = params.featureTypes
+        }
 
-      return requestBody
+        if (params.queries && Array.isArray(params.queries)) {
+          requestBody.queries = params.queries
+        }
+
+        return requestBody
+      },
     },
-  },
-}
+  }

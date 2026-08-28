@@ -2,9 +2,12 @@ import type {
   ClickHouseMessageResponse,
   ClickHouseRenameTableParams,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const renameTableTool: ToolConfig<ClickHouseRenameTableParams, ClickHouseMessageResponse> = {
+export const renameTableTool: InternalToolConfig<
+  ClickHouseRenameTableParams,
+  ClickHouseMessageResponse
+> = {
   id: 'clickhouse_rename_table',
   name: 'ClickHouse Rename Table',
   description: 'Rename a ClickHouse table',
@@ -61,13 +64,8 @@ export const renameTableTool: ToolConfig<ClickHouseRenameTableParams, ClickHouse
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/rename-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

@@ -2,9 +2,9 @@ import type {
   OnePasswordGetItemFileParams,
   OnePasswordGetItemFileResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getItemFileTool: ToolConfig<
+export const getItemFileTool: InternalToolConfig<
   OnePasswordGetItemFileParams,
   OnePasswordGetItemFileResponse
 > = {
@@ -57,11 +57,8 @@ export const getItemFileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/get-item-file',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

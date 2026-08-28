@@ -2,9 +2,9 @@ import type {
   CrowdStrikePerformHostGroupActionParams,
   CrowdStrikePerformHostGroupActionResponse,
 } from '@/tools/crowdstrike/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const crowdstrikePerformHostGroupActionTool: ToolConfig<
+export const crowdstrikePerformHostGroupActionTool: InternalToolConfig<
   CrowdStrikePerformHostGroupActionParams,
   CrowdStrikePerformHostGroupActionResponse
 > = {
@@ -54,13 +54,8 @@ export const crowdstrikePerformHostGroupActionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/crowdstrike/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       actionName: params.actionName,
       cloud: params.cloud,
       clientId: params.clientId,

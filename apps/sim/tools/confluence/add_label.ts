@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceAddLabelParams {
   accessToken: string
@@ -20,7 +20,7 @@ export interface ConfluenceAddLabelResponse {
   }
 }
 
-export const confluenceAddLabelTool: ToolConfig<
+export const confluenceAddLabelTool: InternalToolConfig<
   ConfluenceAddLabelParams,
   ConfluenceAddLabelResponse
 > = {
@@ -74,16 +74,8 @@ export const confluenceAddLabelTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/labels',
-    method: 'POST',
-    headers: (params: ConfluenceAddLabelParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceAddLabelParams) => ({
+  operation: {
+    input: (params: ConfluenceAddLabelParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

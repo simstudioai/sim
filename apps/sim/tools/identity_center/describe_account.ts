@@ -2,9 +2,9 @@ import type {
   IdentityCenterDescribeAccountParams,
   IdentityCenterDescribeAccountResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeAccountTool: ToolConfig<
+export const describeAccountTool: InternalToolConfig<
   IdentityCenterDescribeAccountParams,
   IdentityCenterDescribeAccountResponse
 > = {
@@ -40,11 +40,8 @@ export const describeAccountTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/describe-account',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

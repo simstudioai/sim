@@ -3,7 +3,7 @@ import {
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetBlogPostParams {
   accessToken: string
@@ -35,7 +35,7 @@ export interface ConfluenceGetBlogPostResponse {
   }
 }
 
-export const confluenceGetBlogPostTool: ToolConfig<
+export const confluenceGetBlogPostTool: InternalToolConfig<
   ConfluenceGetBlogPostParams,
   ConfluenceGetBlogPostResponse
 > = {
@@ -83,16 +83,8 @@ export const confluenceGetBlogPostTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/blogposts',
-    method: 'POST',
-    headers: (params: ConfluenceGetBlogPostParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceGetBlogPostParams) => ({
+  operation: {
+    input: (params: ConfluenceGetBlogPostParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       blogPostId: params.blogPostId?.trim(),

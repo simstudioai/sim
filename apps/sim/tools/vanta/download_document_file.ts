@@ -1,11 +1,11 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   VantaDownloadDocumentFileParams,
   VantaDownloadDocumentFileResponse,
 } from '@/tools/vanta/types'
 import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaDownloadDocumentFileTool: ToolConfig<
+export const vantaDownloadDocumentFileTool: InternalToolConfig<
   VantaDownloadDocumentFileParams,
   VantaDownloadDocumentFileResponse
 > = {
@@ -48,11 +48,8 @@ export const vantaDownloadDocumentFileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/vanta/download',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       clientId: params.clientId,
       clientSecret: params.clientSecret,
       region: params.region,

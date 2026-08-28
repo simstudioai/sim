@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeletePagePropertyParams {
   accessToken: string
@@ -19,7 +19,7 @@ export interface ConfluenceDeletePagePropertyResponse {
   }
 }
 
-export const confluenceDeletePagePropertyTool: ToolConfig<
+export const confluenceDeletePagePropertyTool: InternalToolConfig<
   ConfluenceDeletePagePropertyParams,
   ConfluenceDeletePagePropertyResponse
 > = {
@@ -67,15 +67,8 @@ export const confluenceDeletePagePropertyTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/page-properties',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeletePagePropertyParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceDeletePagePropertyParams) => ({
+  operation: {
+    input: (params: ConfluenceDeletePagePropertyParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

@@ -89,23 +89,49 @@ describe('provider runtime context', () => {
     expect(toolCall?.[2]?.resolvedSecretTraceRegistry).not.toBe(registry)
   })
 
-  it('passes the trusted execution context to provider-emitted tool calls', async () => {
+  it('passes Function inputs and the complete trusted execution context to provider-emitted calls', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    const executionContext = createExecutionContext({
-      workflowId: 'workflow-parent',
-      environmentVariables: {},
-    })
+    const abortController = new AbortController()
+    const executionContext = {
+      ...createExecutionContext({
+        workflowId: 'workflow-parent',
+        environmentVariables: {},
+      }),
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      largeValueExecutionIds: ['execution-1'],
+      largeValueKeys: ['lv_ABCDEFGHIJKL'],
+      fileKeys: ['file-1'],
+      allowLargeValueWorkflowScope: true,
+      abortSignal: abortController.signal,
+    }
+    const params = {
+      code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
+      envVars: { API_KEY: 'resolved-secret' },
+      workflowVariables: { customer: 'Ada' },
+      contextVariables: { __blockRef_0: { field: 'resolved-output' } },
+    }
+    const rawResponse = {
+      success: true,
+      output: { result: ['resolved-secret', 'resolved-output', 'Ada'] },
+      largeValueKeys: ['lv_RESULTVALUE1'],
+      fileKeys: ['file-result'],
+    }
+    mockExecuteTool.mockResolvedValueOnce(rawResponse)
 
-    await runWithProviderRuntimeContext(
+    const result = await runWithProviderRuntimeContext(
       { executionContext, resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('protected-tool', {})
+      () => executeProviderToolWithInput('function_execute', params)
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'protected-tool',
-      {},
+      'function_execute',
+      params,
       expect.objectContaining({ executionContext })
     )
+    expect(result.rawResponse).toBe(rawResponse)
+    expect(result.modelResponse).toEqual(rawResponse)
   })
 
   it('resolves a provider-only alias before executing the canonical tool', async () => {

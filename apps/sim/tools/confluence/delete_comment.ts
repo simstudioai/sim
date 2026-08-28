@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteCommentParams {
   accessToken: string
@@ -16,7 +16,7 @@ export interface ConfluenceDeleteCommentResponse {
   }
 }
 
-export const confluenceDeleteCommentTool: ToolConfig<
+export const confluenceDeleteCommentTool: InternalToolConfig<
   ConfluenceDeleteCommentParams,
   ConfluenceDeleteCommentResponse
 > = {
@@ -58,17 +58,8 @@ export const confluenceDeleteCommentTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/comment',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeleteCommentParams) => {
-      return {
-        Accept: 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
-    body: (params: ConfluenceDeleteCommentParams) => {
+  operation: {
+    input: (params: ConfluenceDeleteCommentParams) => {
       return {
         domain: params.domain,
         accessToken: params.accessToken,

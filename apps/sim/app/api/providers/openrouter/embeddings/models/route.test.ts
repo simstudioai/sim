@@ -32,18 +32,15 @@ describe('GET /api/providers/openrouter/embeddings/models', () => {
   })
 
   it('returns every unique embedding model with the OpenRouter prefix', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({
+    mockFetch.mockResolvedValue(
+      Response.json({
         data: [
           { id: 'qwen/qwen3-embedding-8b', context_length: 32768 },
           { id: 'openai/text-embedding-3-small', context_length: 8192 },
           { id: 'qwen/qwen3-embedding-8b', context_length: 32768 },
         ],
-      }),
-    })
+      })
+    )
 
     const response = await GET(request(), undefined as never)
 
@@ -68,11 +65,9 @@ describe('GET /api/providers/openrouter/embeddings/models', () => {
   })
 
   it('fails fast when OpenRouter rejects the model-list request', async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable',
-    })
+    mockFetch.mockResolvedValue(
+      new Response(null, { status: 503, statusText: 'Service Unavailable' })
+    )
 
     const response = await GET(request(), undefined as never)
 

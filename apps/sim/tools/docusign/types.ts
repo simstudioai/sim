@@ -125,7 +125,6 @@ export interface DocuSignDownloadDocumentParams {
   accessToken: string
   envelopeId: string
   documentId?: string
-  _context?: Record<string, unknown>
 }
 
 export interface DocuSignListTemplatesParams {

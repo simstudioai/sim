@@ -4,16 +4,17 @@
 import { describe, expect, it } from 'vitest'
 import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 
-describe('tableQueryRowsV2Tool request body', () => {
-  it('normalizes a root condition before sending the request', () => {
-    const body = tableQueryRowsV2Tool.request.body!({
+describe('tableQueryRowsV2Tool operation input', () => {
+  it('normalizes a root condition before execution', () => {
+    const input = tableQueryRowsV2Tool.operation.input({
       tableId: 'tbl_1',
       filter: { field: 'status', op: 'eq', value: 'active' },
       columns: ['col_status'],
       _context: { workspaceId: 'ws-1' },
     })
 
-    expect(body).toEqual({
+    expect(input).toEqual({
+      tableId: 'tbl_1',
       workspaceId: 'ws-1',
       predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
       columns: ['col_status'],
@@ -27,18 +28,18 @@ describe('tableQueryRowsV2Tool request body', () => {
         { field: 'status', op: 'eq' as const, value: 'pending' },
       ],
     }
-    const body = tableQueryRowsV2Tool.request.body!({
+    const input = tableQueryRowsV2Tool.operation.input({
       tableId: 'tbl_1',
       filter,
       _context: { workspaceId: 'ws-1' },
     })
 
-    expect((body as { predicate: unknown }).predicate).toBe(filter)
+    expect((input as { predicate: unknown }).predicate).toBe(filter)
   })
 
   it('fails fast on a malformed filter before issuing the request', () => {
     expect(() =>
-      tableQueryRowsV2Tool.request.body!({
+      tableQueryRowsV2Tool.operation.input({
         tableId: 'tbl_1',
         filter: { status: 'active' } as never,
         _context: { workspaceId: 'ws-1' },
@@ -47,13 +48,13 @@ describe('tableQueryRowsV2Tool request body', () => {
   })
 
   it.each([undefined, []])('omits columns when the selection is %j', (columns) => {
-    const body = tableQueryRowsV2Tool.request.body!({
+    const input = tableQueryRowsV2Tool.operation.input({
       tableId: 'tbl_1',
       columns,
       _context: { workspaceId: 'ws-1' },
     })
 
-    expect(body).toEqual({ workspaceId: 'ws-1' })
+    expect(input).toEqual({ tableId: 'tbl_1', workspaceId: 'ws-1' })
   })
 })
 

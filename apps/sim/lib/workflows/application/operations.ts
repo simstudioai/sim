@@ -15,6 +15,11 @@ const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+const WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
 const COPILOT_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
@@ -231,13 +236,13 @@ export const workflowOperations = {
     id: 'workflows.deploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
-    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   undeploy: defineWorkspaceOperation({
     id: 'workflows.undeploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
-    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   deployChat: defineWorkspaceOperation({
     id: 'workflows.chat.deploy',
@@ -269,7 +274,7 @@ export const workflowOperations = {
     id: 'workflows.versions.activate',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
-    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   revertVersion: defineWorkspaceOperation({
     id: 'workflows.versions.revert',
@@ -287,13 +292,13 @@ export const workflowOperations = {
     id: 'workflows.versions.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
   readVersion: defineWorkspaceOperation({
     id: 'workflows.versions.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
   compareReferences: defineWorkspaceOperation({
     id: 'workflows.versions.compare_references',

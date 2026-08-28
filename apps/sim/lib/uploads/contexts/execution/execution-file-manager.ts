@@ -140,9 +140,10 @@ export async function uploadExecutionFile(
  */
 export async function downloadExecutionFile(
   userFile: UserFile,
-  options: { maxBytes?: number } = {}
+  options: { maxBytes?: number; signal?: AbortSignal } = {}
 ): Promise<Buffer> {
   logger.info(`Downloading execution file: ${userFile.name}`)
+  options.signal?.throwIfAborted()
 
   try {
     const StorageService = await getStorageService()
@@ -150,13 +151,16 @@ export async function downloadExecutionFile(
       key: userFile.key,
       context: 'execution',
       ...(options.maxBytes === undefined ? {} : { maxBytes: options.maxBytes }),
+      ...(options.signal ? { signal: options.signal } : {}),
     })
+    options.signal?.throwIfAborted()
 
     logger.info(
       `Successfully downloaded execution file: ${userFile.name} (${fileBuffer.length} bytes)`
     )
     return fileBuffer
   } catch (error) {
+    options.signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error)) {
       throw error
     }

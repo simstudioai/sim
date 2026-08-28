@@ -35,7 +35,6 @@ import {
   confluenceSpacesSelectorContract,
 } from '@/lib/api/contracts/selectors/confluence'
 import {
-  gmailLabelSelectorContract,
   gmailLabelsSelectorContract,
   googleCalendarSelectorContract,
   googleDriveFileSelectorContract,
@@ -76,7 +75,6 @@ import {
   microsoftPlannerTasksSelectorContract,
   microsoftTeamsSelectorContract,
   onedriveFilesSelectorContract,
-  onedriveFolderSelectorContract,
   onedriveFoldersSelectorContract,
   outlookCalendarsSelectorContract,
   outlookFoldersSelectorContract,
@@ -93,7 +91,6 @@ import {
 import { pipedrivePipelinesSelectorContract } from '@/lib/api/contracts/selectors/pipedrive'
 import {
   sharepointListsSelectorContract,
-  sharepointSiteSelectorContract,
   sharepointSitesSelectorContract,
 } from '@/lib/api/contracts/selectors/sharepoint'
 import {
@@ -104,7 +101,6 @@ import {
 import { snowflakeObjectsSelectorContract } from '@/lib/api/contracts/selectors/snowflake'
 import { trelloBoardsSelectorContract } from '@/lib/api/contracts/selectors/trello'
 import {
-  wealthboxItemContract,
   wealthboxItemsSelectorContract,
   wealthboxOAuthItemContract,
   wealthboxOAuthItemsContract,
@@ -179,7 +175,6 @@ export const selectorContractsByPath = {
   '/api/tools/notion/pages': notionPagesSelectorContract,
   '/api/tools/pipedrive/pipelines': pipedrivePipelinesSelectorContract,
   '/api/tools/sharepoint/lists': sharepointListsSelectorContract,
-  '/api/tools/sharepoint/site': sharepointSiteSelectorContract,
   '/api/tools/sharepoint/sites': sharepointSitesSelectorContract,
   '/api/tools/trello/boards': trelloBoardsSelectorContract,
   '/api/tools/zoho_desk/organizations': zohoDeskOrganizationsSelectorContract,
@@ -191,7 +186,6 @@ export const selectorContractsByPath = {
   '/api/tools/slack/users': slackUsersSelectorContract,
   '/api/tools/slack/users:detail': slackUserSelectorContract,
   '/api/tools/gmail/labels': gmailLabelsSelectorContract,
-  '/api/tools/gmail/label': gmailLabelSelectorContract,
   '/api/tools/hubspot/properties': hubspotPropertiesSelectorContract,
   '/api/tools/hubspot/lists': hubspotListsSelectorContract,
   '/api/tools/hubspot/pipelines': hubspotPipelinesSelectorContract,
@@ -203,7 +197,6 @@ export const selectorContractsByPath = {
   '/api/tools/microsoft-teams/chats': microsoftChatsSelectorContract,
   '/api/tools/microsoft-teams/channels': microsoftChannelsSelectorContract,
   '/api/tools/wealthbox/items': wealthboxItemsSelectorContract,
-  '/api/tools/wealthbox/item': wealthboxItemContract,
   '/api/auth/oauth/wealthbox/items': wealthboxOAuthItemsContract,
   '/api/auth/oauth/wealthbox/item': wealthboxOAuthItemContract,
   '/api/tools/jira/projects': jiraProjectsSelectorContract,
@@ -218,7 +211,6 @@ export const selectorContractsByPath = {
   '/api/tools/confluence/pages': confluencePagesSelectorContract,
   '/api/tools/confluence/page': confluencePageSelectorContract,
   '/api/tools/onedrive/files': onedriveFilesSelectorContract,
-  '/api/tools/onedrive/folder': onedriveFolderSelectorContract,
   '/api/tools/onedrive/folders': onedriveFoldersSelectorContract,
   '/api/tools/drive/files': googleDriveFilesSelectorContract,
   '/api/tools/drive/file': googleDriveFileSelectorContract,

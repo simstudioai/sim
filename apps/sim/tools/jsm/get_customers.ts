@@ -1,8 +1,11 @@
 import type { JsmGetCustomersParams, JsmGetCustomersResponse } from '@/tools/jsm/types'
 import { CUSTOMER_ITEM_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmGetCustomersTool: ToolConfig<JsmGetCustomersParams, JsmGetCustomersResponse> = {
+export const jsmGetCustomersTool: InternalToolConfig<
+  JsmGetCustomersParams,
+  JsmGetCustomersResponse
+> = {
   id: 'jsm_get_customers',
   name: 'JSM Get Customers',
   description: 'Get customers for a service desk in Jira Service Management',
@@ -58,13 +61,8 @@ export const jsmGetCustomersTool: ToolConfig<JsmGetCustomersParams, JsmGetCustom
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/customers',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

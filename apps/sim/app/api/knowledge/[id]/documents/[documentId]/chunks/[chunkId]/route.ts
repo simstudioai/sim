@@ -17,15 +17,15 @@ import {
   internalKnowledgeSessionOrExecutorAuth,
 } from '@/lib/knowledge/api/route-policies'
 import {
+  finalizeKnowledgePersistedResponse,
+  resolveKnowledgeWriteSecretProvenance,
+} from '@/lib/knowledge/api/secret-provenance'
+import {
   deleteKnowledgeChunk,
   readKnowledgeChunk,
   updateKnowledgeChunk,
 } from '@/lib/knowledge/application/chunks'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import {
-  finalizeKnowledgePersistedResponse,
-  resolveKnowledgeWriteSecretProvenance,
-} from '@/app/api/knowledge/secret-provenance'
 
 function resolveContentProvenance(
   request: NextRequest,
@@ -35,7 +35,7 @@ function resolveContentProvenance(
   includeContent: boolean
 ) {
   const resolved = resolveKnowledgeWriteSecretProvenance({
-    request,
+    headers: request.headers,
     payload,
     authType: internalKnowledgeAuthType(principal),
     userId: internalKnowledgeProvenanceUserId(request, principal, workspaceId),
@@ -63,7 +63,7 @@ export const GET = defineInternalJsonRoute({
   present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
   finalizeResponse: ({ request, principal, result, body }) =>
     finalizeKnowledgePersistedResponse({
-      request,
+      headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
       workspaceId: result.workspaceId,
@@ -100,7 +100,7 @@ export const PUT = defineInternalJsonRoute({
   present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
   finalizeResponse: ({ request, principal, result, body }) =>
     finalizeKnowledgePersistedResponse({
-      request,
+      headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
       workspaceId: result.workspaceId,

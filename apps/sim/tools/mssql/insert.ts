@@ -1,7 +1,7 @@
 import type { MSSQLInsertParams, MSSQLInsertResponse } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
+export const insertTool: InternalToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
   id: 'mssql_insert',
   name: 'Microsoft SQL Server Insert',
   description: 'Insert data into a Microsoft SQL Server table',
@@ -73,13 +73,8 @@ export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

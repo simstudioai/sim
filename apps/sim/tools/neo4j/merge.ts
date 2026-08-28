@@ -1,7 +1,7 @@
 import type { Neo4jMergeParams, Neo4jResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const mergeTool: ToolConfig<Neo4jMergeParams, Neo4jResponse> = {
+export const mergeTool: InternalToolConfig<Neo4jMergeParams, Neo4jResponse> = {
   id: 'neo4j_merge',
   name: 'Neo4j Merge',
   description:
@@ -61,13 +61,8 @@ export const mergeTool: ToolConfig<Neo4jMergeParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/merge',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

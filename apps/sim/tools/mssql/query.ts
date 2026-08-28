@@ -1,7 +1,7 @@
 import type { MSSQLQueryParams, MSSQLQueryResponse } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<MSSQLQueryParams, MSSQLQueryResponse> = {
+export const queryTool: InternalToolConfig<MSSQLQueryParams, MSSQLQueryResponse> = {
   id: 'mssql_query',
   name: 'Microsoft SQL Server Query',
   description: 'Execute a SELECT query on a Microsoft SQL Server database',
@@ -68,13 +68,8 @@ export const queryTool: ToolConfig<MSSQLQueryParams, MSSQLQueryResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

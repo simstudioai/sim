@@ -1,14 +1,12 @@
-import type { GetSalesOrderParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetSalesOrderParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 import {
-  baseProxyBody,
   buildEntityQuery,
+  buildSapOperationBaseInput,
   quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getSalesOrderTool: ToolConfig<GetSalesOrderParams, SapProxyResponse> = {
+export const getSalesOrderTool: InternalToolConfig<GetSalesOrderParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_get_sales_order',
   name: 'SAP S/4HANA Get Sales Order',
   description:
@@ -95,19 +93,15 @@ export const getSalesOrderTool: ToolConfig<GetSalesOrderParams, SapProxyResponse
       description: 'Comma-separated navigation properties to expand (e.g., "to_Item")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_SALES_ORDER_SRV',
       path: `/A_SalesOrder(${quoteOdataKey(params.salesOrder)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

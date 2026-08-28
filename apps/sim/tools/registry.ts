@@ -5231,7 +5231,7 @@ import {
   typeformResponsesTool,
   typeformUpdateFormTool,
 } from '@/tools/typeform'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import {
   upstashRedisCommandTool,
   upstashRedisDeleteTool,
@@ -5605,7 +5605,7 @@ import {
 } from '@/tools/zoominfo'
 
 // Registry of all available tools
-export const tools: Record<string, ToolConfig> = {
+export const tools: Record<string, ExecutableToolConfig> = {
   a2a_cancel_task: a2aCancelTaskTool,
   a2a_get_agent_card: a2aGetAgentCardTool,
   a2a_get_task: a2aGetTaskTool,

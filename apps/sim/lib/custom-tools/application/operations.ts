@@ -28,6 +28,13 @@ export const customToolOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  readAvailableByIdOrTitle: defineWorkspaceOperation({
+    id: 'custom_tools.read_available_by_id_or_title',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot', 'executor'],
+  }),
   create: defineWorkspaceOperation({
     id: 'custom_tools.create',
     minimumRole: 'write',

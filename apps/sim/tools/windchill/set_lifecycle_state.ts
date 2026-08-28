@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_SINGLE_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillSetLifecycleStateTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillSetLifecycleStateTool: InternalToolConfig<
+  WindchillParams,
+  WindchillResponse
+> = {
   id: 'windchill_set_lifecycle_state',
   name: 'Windchill Set Lifecycle State',
   description: 'Transition a document to a valid lifecycle state',
@@ -53,12 +56,8 @@ export const windchillSetLifecycleStateTool: ToolConfig<WindchillParams, Windchi
       description: 'Display value of the target lifecycle state',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_set_lifecycle_state', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_set_lifecycle_state', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_set_lifecycle_state', response),

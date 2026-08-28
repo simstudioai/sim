@@ -9,7 +9,7 @@
  */
 
 import type { TSchema } from 'typebox'
-import type { SSHConnectionConfig } from '@/app/api/tools/ssh/utils'
+import type { SSHConnectionConfig } from '@/lib/internal/ssh/client'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/core/events'
 import type { PiSearchProvider } from '@/executor/handlers/pi/core/keys'

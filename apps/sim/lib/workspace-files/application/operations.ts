@@ -132,7 +132,7 @@ export const fileOperations = {
     id: 'files.share.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   updateShare: defineWorkspaceOperation({
     id: 'files.share.update',

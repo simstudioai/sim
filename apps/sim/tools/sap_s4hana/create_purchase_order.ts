@@ -1,13 +1,11 @@
-import type { CreatePurchaseOrderParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreatePurchaseOrderParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapProxyResponse> = {
+export const createPurchaseOrderTool: InternalToolConfig<
+  CreatePurchaseOrderParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_create_purchase_order',
   name: 'SAP S/4HANA Create Purchase Order',
   description:
@@ -113,11 +111,8 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
         'A_PurchaseOrder body containing to_PurchaseOrderItem deep-insert items (required by SAP) plus any additional header fields, e.g., {"to_PurchaseOrderItem":[{"PurchaseOrderItem":"10","Material":"TG11","OrderQuantity":"5","Plant":"1010","PurchaseOrderQuantityUnit":"PC","NetPriceAmount":"100.00","DocumentCurrency":"USD"}]}.',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const extra = parseJsonInput<Record<string, unknown>>(params.body, 'body') ?? {}
       const items = Array.isArray(extra.to_PurchaseOrderItem) ? extra.to_PurchaseOrderItem : null
       if (!items || items.length === 0) {
@@ -134,7 +129,7 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
         Supplier: params.supplier,
       }
       return {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: 'API_PURCHASEORDER_PROCESS_SRV',
         path: '/A_PurchaseOrder',
         method: 'POST',
@@ -143,7 +138,6 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
       }
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

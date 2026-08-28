@@ -1,5 +1,5 @@
 import { PAGE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceGetPagesByLabelParams {
   accessToken: string
@@ -33,7 +33,7 @@ export interface ConfluenceGetPagesByLabelResponse {
   }
 }
 
-export const confluenceGetPagesByLabelTool: ToolConfig<
+export const confluenceGetPagesByLabelTool: InternalToolConfig<
   ConfluenceGetPagesByLabelParams,
   ConfluenceGetPagesByLabelResponse
 > = {
@@ -87,9 +87,8 @@ export const confluenceGetPagesByLabelTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceGetPagesByLabelParams) => {
+  operation: {
+    input: (params: ConfluenceGetPagesByLabelParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -102,13 +101,8 @@ export const confluenceGetPagesByLabelTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/pages-by-label?${query.toString()}`
+      return Object.fromEntries(query)
     },
-    method: 'GET',
-    headers: (params: ConfluenceGetPagesByLabelParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
   },
 
   transformResponse: async (response: Response) => {

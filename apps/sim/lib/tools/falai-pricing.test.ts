@@ -10,7 +10,9 @@ import {
 } from './falai-pricing'
 
 // Avoid the real inter-attempt backoff so the fallback path resolves instantly.
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@sim/utils/helpers', () => ({
+  interruptibleSleep: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('getFalAICostMetadata fallback floor', () => {
   const originalFetch = global.fetch
