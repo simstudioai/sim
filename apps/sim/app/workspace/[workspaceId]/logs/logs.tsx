@@ -1228,8 +1228,8 @@ export default function Logs() {
           filterTags={filterTags}
         />
         {isDashboardView ? (
-          <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-            <div className='flex min-h-0 flex-1 flex-col px-6'>
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6'>
               <Dashboard
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
