@@ -407,6 +407,40 @@ describe('executeLambdaTool', () => {
     expect(mockOperations.executeLambdaInvoke).not.toHaveBeenCalled()
   })
 
+  it('rejects a one-sided VPC change that would half-detach the function', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_configuration',
+        input: { ...CONNECTION, functionName: 'alpha', vpcSubnetIds: [] },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(JSON.stringify(await response.json())).toContain('must be supplied together')
+    expect(mockOperations.executeLambdaUpdateFunctionConfiguration).not.toHaveBeenCalled()
+  })
+
+  it('accepts a full VPC detach when both lists are cleared', async () => {
+    mockOperations.executeLambdaUpdateFunctionConfiguration.mockResolvedValue({
+      success: true,
+      output: {},
+    })
+
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_configuration',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          vpcSubnetIds: [],
+          vpcSecurityGroupIds: [],
+        },
+      })
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('rejects create_function with a Zip package but no runtime or handler', async () => {
     const response = await executeLambdaTool(
       createRequest({

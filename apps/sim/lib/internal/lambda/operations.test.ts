@@ -313,7 +313,7 @@ describe('Lambda operations', () => {
       expect(input.LoggingConfig).toBeUndefined()
     })
 
-    it('builds a VPC config from a subnet list alone', async () => {
+    it('never emits a half-configured VPC attachment', async () => {
       mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
 
       await executeLambdaCreateFunction({
@@ -323,7 +323,23 @@ describe('Lambda operations', () => {
         vpcSubnetIds: ['subnet-1'],
       })
 
-      expect(sentInput().VpcConfig).toEqual({ SubnetIds: ['subnet-1'] })
+      expect(sentInput().VpcConfig).toEqual({
+        SubnetIds: ['subnet-1'],
+        SecurityGroupIds: [],
+      })
+    })
+
+    it('sends both lists empty when only one side is cleared', async () => {
+      mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
+
+      await executeLambdaCreateFunction({
+        ...CONNECTION,
+        functionName: 'alpha',
+        role: 'arn:aws:iam::1:role/exec',
+        vpcSubnetIds: [],
+      })
+
+      expect(sentInput().VpcConfig).toEqual({ SubnetIds: [], SecurityGroupIds: [] })
     })
   })
 

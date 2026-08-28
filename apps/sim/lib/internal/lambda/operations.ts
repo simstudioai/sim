@@ -167,12 +167,17 @@ function toCors(input: {
   return Object.keys(cors).length > 0 ? cors : undefined
 }
 
-/** Builds the SDK `VpcConfig` wrapper, omitted entirely when neither list was supplied. */
+/**
+ * Builds the SDK `VpcConfig` wrapper, omitted entirely when neither list was supplied.
+ * A Lambda VPC attachment is a unit, so both lists are always sent together — emitting only
+ * one of them would leave a half-configured attachment. The contract already rejects a
+ * one-sided request; the defaults here keep that guarantee if it is ever called directly.
+ */
 function toVpcConfig(subnetIds?: string[], securityGroupIds?: string[]) {
   if (!subnetIds && !securityGroupIds) return undefined
   return {
-    ...(subnetIds ? { SubnetIds: subnetIds } : {}),
-    ...(securityGroupIds ? { SecurityGroupIds: securityGroupIds } : {}),
+    SubnetIds: subnetIds ?? [],
+    SecurityGroupIds: securityGroupIds ?? [],
   }
 }
 

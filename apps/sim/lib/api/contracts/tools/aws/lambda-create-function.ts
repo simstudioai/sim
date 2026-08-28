@@ -96,6 +96,16 @@ const CreateFunctionSchema = z
         })
       }
     }
+    const hasSubnets = value.vpcSubnetIds !== undefined
+    const hasSecurityGroups = value.vpcSecurityGroupIds !== undefined
+    if (hasSubnets !== hasSecurityGroups) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [hasSubnets ? 'vpcSecurityGroupIds' : 'vpcSubnetIds'],
+        message:
+          'vpcSubnetIds and vpcSecurityGroupIds must be supplied together: send both lists to attach a VPC, or both empty to detach',
+      })
+    }
   })
 
 const CreateFunctionResponseSchema = z.object({
