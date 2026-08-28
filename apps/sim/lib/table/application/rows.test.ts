@@ -199,6 +199,33 @@ const TABLE: TableDefinition = {
 }
 
 const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const GENERIC_WEBHOOK_EXECUTOR = {
+  kind: 'delegated' as const,
+  serviceId: 'executor' as const,
+  workspaceId: TABLE.workspaceId,
+  delegationId: 'executor-1',
+  audience: 'sim:tables',
+  issuedAt: new Date('2026-01-01'),
+  expiresAt: new Date('2099-01-01'),
+  resourceScope: { tableId: TABLE.id },
+  delegationContext: {
+    kind: 'workflow_execution' as const,
+    workflowId: 'workflow-1',
+    currentWorkflow: {
+      workflowId: 'workflow-1',
+      mode: 'deployment' as const,
+      deploymentVersionId: 'deployment-1',
+    },
+    principal: {
+      kind: 'system' as const,
+      serviceId: 'webhook' as const,
+      workspaceId: TABLE.workspaceId,
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      provider: 'generic',
+    },
+  },
+}
 
 /**
  * The active-table context every row command resolves before it does any work.
@@ -366,7 +393,7 @@ describe('replaceProjectedWireRows application command', () => {
     )
     expect(mockIsScopeCompatible).toHaveBeenCalledWith(
       { userId: 'user-1', workspaceId: TABLE.workspaceId },
-      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+      { workspaceId: TABLE.workspaceId }
     )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
@@ -404,7 +431,7 @@ describe('replaceProjectedWireRows application command', () => {
 
     expect(mockIsScopeCompatible).toHaveBeenCalledWith(
       { userId: 'user-1', workspaceId: 'workspace-other' },
-      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+      { workspaceId: TABLE.workspaceId }
     )
     expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
       expect.anything(),
@@ -985,6 +1012,20 @@ describe('table row write secret provenance defaulting', () => {
 
     expect(mockUpdateRow).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: unknown }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('authorizes a generic webhook by deployment and uses the billing owner for storage attribution', async () => {
+    await upsertTableRow.execute({
+      principal: GENERIC_WEBHOOK_EXECUTOR,
+      input: { tableId: TABLE.id, data: { name: 'Ada' } },
+    })
+
+    expect(mockUpsertRow).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'billing-owner-1' }),
       TABLE,
       expect.any(String),
       {}

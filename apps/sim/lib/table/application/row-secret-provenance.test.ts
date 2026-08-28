@@ -36,12 +36,28 @@ const SESSION = { kind: 'session' as const, userId: 'user-1', sessionId: 'sessio
 const EXECUTOR = {
   kind: 'delegated' as const,
   serviceId: 'executor' as const,
-  subjectUserId: 'user-1',
   workspaceId: 'workspace-1',
   delegationId: 'delegation-1',
   audience: 'table',
   issuedAt: new Date('2026-01-01'),
-  expiresAt: new Date('2026-01-02'),
+  expiresAt: new Date('2099-01-02'),
+  delegationContext: {
+    kind: 'workflow_execution' as const,
+    workflowId: 'workflow-1',
+    currentWorkflow: {
+      workflowId: 'workflow-1',
+      mode: 'deployment' as const,
+      deploymentVersionId: 'deployment-1',
+    },
+    principal: {
+      kind: 'system' as const,
+      serviceId: 'webhook' as const,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      webhookId: 'webhook-1',
+      provider: 'generic',
+    },
+  },
 }
 
 /**
@@ -175,7 +191,7 @@ describe('row write provenance', () => {
     expect(stamps[0]).toEqual({ complete: true, columns: { col_aaa: traceProvenance() } })
   })
 
-  it('checks the scope against the acting principal, not a billing owner', () => {
+  it('checks a deployed actorless execution against its authorized workspace', () => {
     resolve({
       principal: EXECUTOR,
       envelope: {
@@ -191,7 +207,7 @@ describe('row write provenance', () => {
 
     expect(mocks.scopeCompatible).toHaveBeenCalledWith(
       { userId: 'billing-owner', workspaceId: 'workspace-1' },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      { workspaceId: 'workspace-1' }
     )
   })
 

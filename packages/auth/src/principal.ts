@@ -493,6 +493,11 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
   }
 }
 
+/**
+ * Projects an already-authorized principal into a legacy user attribution field.
+ * A workspace billing owner may fill that field for actorless delegated execution,
+ * but never changes the principal, audit actor, or authorization decision.
+ */
 export function resolvePrincipalAttribution(
   principal: Principal,
   context: PrincipalAttributionContext = {}
@@ -512,9 +517,13 @@ export function resolvePrincipalAttribution(
     }
     case 'system':
       throw new Error('System principals do not support user attribution')
-    case 'delegated':
-      if (!actor.subjectUserId) throw new PrincipalSubjectUserRequiredError(actor.kind)
-      return { actor, attributedUserId: actor.subjectUserId }
+    case 'delegated': {
+      if (actor.subjectUserId) return { actor, attributedUserId: actor.subjectUserId }
+      if (actor.serviceId !== 'executor') throw new PrincipalSubjectUserRequiredError(actor.kind)
+      const attributedUserId = context.workspaceBillingOwnerUserId
+      if (!attributedUserId) throw new PrincipalSubjectUserRequiredError(actor.kind)
+      return { actor, attributedUserId }
+    }
     case 'credential_group_enrollment':
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }

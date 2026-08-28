@@ -8,8 +8,8 @@ import {
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  internalKnowledgeActorUserId,
   internalKnowledgeAuthType,
+  internalKnowledgeProvenanceUserId,
   toInternalKnowledgeChunk,
 } from '@/lib/knowledge/api/internal-route'
 import {
@@ -39,7 +39,7 @@ function resolveContentProvenance(
     request,
     payload,
     authType: internalKnowledgeAuthType(principal),
-    userId: internalKnowledgeActorUserId(principal),
+    userId: internalKnowledgeProvenanceUserId(request, principal, workspaceId),
     ...(workspaceId ? { workspaceId } : {}),
     selectionKeys: includeContent ? ['chunk-content'] : [],
   })
@@ -70,7 +70,7 @@ export const GET = defineInternalJsonRoute({
     finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeActorUserId(principal),
+      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       chunks: result.chunks.map((chunk) => ({
