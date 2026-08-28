@@ -143,15 +143,29 @@ export async function readUsageBreakdown(
   if (dimension === 'workflow') conditions.push(isNotNull(usageLog.workflowId))
 
   if (!MODEL_DIMENSIONS.has(dimension)) {
-    return executor
-      .select({
-        key: sql<string | null>`${column}`,
-        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-        events: sql<number>`COUNT(*)`.mapWith(Number),
-      })
-      .from(usageLog)
-      .where(and(...conditions))
-      .groupBy(column)
+    return (
+      executor
+        .select({
+          key: sql<string | null>`${column}`,
+          cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+          events: sql<number>`COUNT(*)`.mapWith(Number),
+        })
+        .from(usageLog)
+        .where(and(...conditions))
+        .groupBy(column)
+        /**
+         * Drops groups whose every row is reporting-only. Unbilled rows carry a user,
+         * a workspace, a workflow and `source = 'workflow'` like any other, so without
+         * this a BYOK-only member appeared in a credit-denominated list at 0 credits.
+         *
+         * As a `HAVING` on the aggregate rather than a `category` predicate on purpose:
+         * `category` is not in `usage_log_billing_entity_created_at_cost_idx`, so
+         * filtering on it would force a heap fetch on `member` and `source` — the two
+         * dimensions that are index-only today. `cost` is in that index, and only an
+         * unbilled row can sum to zero, since `recordUsage` admits nothing else at zero.
+         */
+        .having(sql`COALESCE(SUM(${usageLog.cost}), 0) > 0`)
+    )
   }
 
   // Already heap-reading `description`, so summing `metadata` costs nothing extra —

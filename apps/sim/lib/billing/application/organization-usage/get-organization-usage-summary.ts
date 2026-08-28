@@ -12,7 +12,7 @@ import {
   usageWindowBounds,
 } from '@/lib/billing/core/usage-analytics'
 import { readUsageTimeSeries, readUsageTotals } from '@/lib/billing/core/usage-analytics-queries'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 
 export interface OrganizationUsageSummaryInput {
   organizationId: string
@@ -73,6 +73,27 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
     ])
 
     const bounds = usageWindowBounds(window)
+    /**
+     * One apportionment across the buckets, not a per-bucket round.
+     *
+     * A day costing less than half a credit rounds to zero on its own, so an
+     * organization spending a fraction of a credit a day drew a flat empty chart under
+     * a positive headline — the reader's conclusion being that the chart is broken.
+     * Largest-remainder distributes the period's rounded total across its buckets, so
+     * the bars sum to the headline and a nonzero day is never drawn as zero.
+     *
+     * Same routine, and the same reasoning, as the breakdown's rows-plus-remainder.
+     */
+    const densified = densifyUsageSeries(seriesRows, window, bucket, input.timezone)
+    const apportioned = apportionCredits(
+      densified.map((point, index) => ({ key: `b:${index}` as const, dollars: point.cost }))
+    )
+    const bucketCredits = densified.map((point, index) => ({
+      timestamp: point.timestamp,
+      credits: apportioned[`b:${index}`] ?? 0,
+      events: point.events,
+    }))
+
     return {
       window: {
         start: bounds.start.toISOString(),
@@ -82,10 +103,9 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       bucket,
       totals: { credits: dollarsToCredits(totals.cost) },
       previousTotals: previous ? { credits: dollarsToCredits(previous.cost) } : null,
-      // Same timezone the query grouped by, or the series keys cannot match its rows.
-      series: densifyUsageSeries(seriesRows, window, bucket, input.timezone).map((point) => ({
+      series: bucketCredits.map((point) => ({
         timestamp: point.timestamp,
-        credits: dollarsToCredits(point.cost),
+        credits: point.credits,
         events: point.events,
       })),
     }

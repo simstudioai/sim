@@ -469,10 +469,21 @@ export function foldUsageBreakdown(
 
   const visible = ranked.slice(0, limit)
   const hidden = ranked.slice(limit)
-  const share = (cost: number) => (totalCost > 0 ? cost / totalCost : 0)
+  /**
+   * Share is measured in whatever the list is ranked by, because it is what draws the
+   * bar. On BYOK every row costs zero, so a cost-based share made every provider's bar
+   * identical — the minimum width — and the ranking above became invisible.
+   */
+  const shareTotal =
+    rankBy === 'tokens' ? ranked.reduce((sum, row) => sum + row.tokens, 0) : totalCost
+  const share = (row: { cost: number; tokens: number }) =>
+    shareTotal > 0 ? (rankBy === 'tokens' ? row.tokens : row.cost) / shareTotal : 0
 
   return {
-    rows: visible.map(({ tokens: _tokens, ...row }) => ({ ...row, share: share(row.cost) })),
+    rows: visible.map(({ tokens: _tokens, ...row }) => ({
+      ...row,
+      share: share({ cost: row.cost, tokens: _tokens }),
+    })),
     other: {
       cost: hidden.reduce((sum, row) => sum + row.cost, 0),
       events: hidden.reduce((sum, row) => sum + row.events, 0),

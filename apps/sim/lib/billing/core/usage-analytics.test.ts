@@ -439,6 +439,18 @@ describe('foldUsageBreakdown', () => {
       { key: 'claude', cost: '0', events: 1, inputTokens: 700, outputTokens: 300 },
       { key: 'gemini', cost: '0', events: 1, inputTokens: 20, outputTokens: 5 },
     ]
+    const fold = foldUsageBreakdown(byokRows, 0, labelFor, 3, 'tokens')
+    // Share is measured in the ranking unit, or every BYOK bar renders identical:
+    // a cost-based share is 0/0 for every provider.
+    expect(fold.rows.map((row) => row.share)).toEqual([1000 / 1175, 150 / 1175, 25 / 1175])
+  })
+
+  it('carries the omitted rows tokens, so a zero-cost dimension still adds up', () => {
+    const byokRows = [
+      { key: 'gpt-4o', cost: '0', events: 1, inputTokens: 100, outputTokens: 50 },
+      { key: 'claude', cost: '0', events: 1, inputTokens: 700, outputTokens: 300 },
+      { key: 'gemini', cost: '0', events: 1, inputTokens: 20, outputTokens: 5 },
+    ]
     const fold = foldUsageBreakdown(byokRows, 0, labelFor, 1, 'tokens')
     // Ranked by tokens, so the biggest provider is the one shown...
     expect(fold.rows.map((row) => row.id)).toEqual(['claude'])
