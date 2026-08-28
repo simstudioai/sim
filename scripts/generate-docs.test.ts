@@ -111,6 +111,56 @@ describe('documentation input parameter parsing', () => {
     ])
   })
 
+  /**
+   * Pins the hidden-param filter on the source-parsing path in {@link extractToolInfo}. Tools
+   * with an entry in tool-metadata.ts never reach it, so it must be driven with synthetic
+   * source rather than through `getToolInfo`. Without this the filter can be deleted outright
+   * and the whole suite stays green.
+   */
+  describe('the hidden-param filter on the source-parsing path', () => {
+    const source = `
+        export const exampleTool = {
+          id: 'example_send',
+          description: 'Send an example',
+          params: {
+            message: {
+              type: 'string',
+              required: true,
+              description: 'The message',
+            },
+            apiKey: {
+              type: 'string',
+              required: true,
+              visibility: 'hidden',
+              description: 'The API key the block injects',
+            },
+            instanceUrl: {
+              type: 'string',
+              required: true,
+              visibility: 'hidden',
+              description: 'Resolved from the credential',
+            },
+          },
+          outputs: {},
+        }
+      `
+
+    const paramNames = (ids: ReadonlySet<string> | null) =>
+      extractToolInfo('example_send', source, '', '', '', ids)?.params.map(({ name }) => name)
+
+    it('drops a hidden param the block does not supply', () => {
+      expect(paramNames(new Set(['message']))).toEqual(['message'])
+    })
+
+    it('keeps a hidden param the block exposes as its own field', () => {
+      expect(paramNames(new Set(['message', 'apiKey']))).toEqual(['message', 'apiKey'])
+    })
+
+    it('keeps every param when the block-supplied set is UNKNOWN', () => {
+      expect(paramNames(null)).toEqual(['message', 'apiKey', 'instanceUrl'])
+    })
+  })
+
   it('stops at legacy request metadata after a comment', () => {
     const tool = extractToolInfo(
       'example_send',
@@ -275,18 +325,42 @@ describe('subBlock param extraction', () => {
     expect(ids).toContain('inputFormat')
   })
 
-  it('returns no ids for blocks whose subBlocks array holds only spreads', () => {
+  it('returns no ids for blocks whose subBlocks array is genuinely empty', () => {
+    for (const blockFile of ['chat_trigger.ts', 'manual_trigger.ts']) {
+      expect(extractUserSettableParamIds(blockSource(blockFile))).toEqual([])
+    }
+  })
+
+  /**
+   * The spreads name fields arrays this scanner never follows, so what the block supplies is
+   * UNKNOWN. Answering `[]` asserts the block supplies nothing, and the hidden-param filter
+   * reads that as licence to strip every hidden param from every tool the block owns — silently,
+   * with no `parseError` and so no warning. `NotionV2Block` has exactly this shape and is only
+   * harmless today because no `notion_*` tool carries a hidden param besides `accessToken`.
+   */
+  it('reports a subBlocks array of only unfollowable spreads as UNKNOWN, not empty', () => {
     for (const blockFile of [
       'imap.ts',
-      'chat_trigger.ts',
       'generic_webhook.ts',
-      'manual_trigger.ts',
       'circleback.ts',
       'rss.ts',
       'sim_workspace_event.ts',
     ]) {
-      expect(extractUserSettableParamIds(blockSource(blockFile))).toEqual([])
+      expect(extractUserSettableParamIds(blockSource(blockFile))).toBeNull()
     }
+
+    const supplied = extractBlockSuppliedParamIds(
+      `subBlocks: [...NotionBlock.subBlocks],`,
+      'NotionV2'
+    )
+    expect(supplied.ids).toBeNull()
+    expect(supplied.parseError).toBeNull()
+  })
+
+  it('still returns the inline ids when a spread sits alongside them', () => {
+    expect(
+      extractUserSettableParamIds(`subBlocks: [...Base.subBlocks, { id: 'operation' }],`)
+    ).toEqual(['operation'])
   })
 
   it('ignores an id inside a comment or string literal at the top level of a subBlock', () => {
@@ -342,20 +416,26 @@ describe('subBlock param extraction', () => {
       ).toThrow(/SlackV2: subBlocks/)
     })
 
-    it('still returns no ids for an array of nothing but named fields arrays', () => {
+    /**
+     * The elements name fields arrays, so the array parsed fine and there is nothing to warn
+     * about — but this scanner never follows a spread, so the fields are UNKNOWN rather than
+     * absent. `[]` would be a confident wrong answer that strips every hidden param the block's
+     * tools declare.
+     */
+    it('reports an array of nothing but named fields arrays as UNKNOWN', () => {
       expect(
         extractUserSettableParamIds(
           `subBlocks: [\n  ...NotionBlock.subBlocks,\n  ...getTrigger('notion_page_created').subBlocks,\n],`,
           'NotionV2'
         )
-      ).toEqual([])
+      ).toBeNull()
 
       expect(
         extractUserSettableParamIds(
           `subBlocks: [\n  ...LinearBlock.subBlocks.filter((sb) => !sb.id?.startsWith('webhookSecret')),\n],`,
           'LinearV2'
         )
-      ).toEqual([])
+      ).toBeNull()
     })
 
     it('does not fail a block that overrides a spread subBlock instead of naming an id', () => {
@@ -364,7 +444,7 @@ describe('subBlock param extraction', () => {
           `subBlocks: [\n  ...Base.subBlocks.map((sb) => (sb.id === 'x' ? { ...sb, required: true } : sb)),\n],`,
           'OverridingV2'
         )
-      ).toEqual([])
+      ).toBeNull()
     })
 
     it('leaves a readable array alone even when it also spreads an opaque helper', () => {

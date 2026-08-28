@@ -703,8 +703,16 @@ const subBlockParseWarnings = new Set<string>()
  * Brace matching runs on a blanked copy so braces inside string literals and comments
  * cannot skew it; only depth-1 properties of each subBlock are read, so `id` fields on
  * nested `options`/`condition` objects are never mistaken for the subBlock's own id.
+ *
+ * Returns `null` for UNKNOWN — an array whose elements are all spreads of fields arrays this
+ * scanner cannot follow (`...NotionBlock.subBlocks`, `...getTrigger('x').subBlocks`). `[]` is
+ * reserved for a block that genuinely exposes no fields, because `[]` strips every hidden param
+ * from the page. Throws {@link SubBlockParseError} when the array is there but unreadable.
  */
-export function extractUserSettableParamIds(blockContent: string, blockName = 'block'): string[] {
+export function extractUserSettableParamIds(
+  blockContent: string,
+  blockName = 'block'
+): string[] | null {
   const scannable = blankStringsAndComments(blockContent)
   const keyMatch = /\bsubBlocks\s*:/.exec(scannable)
   if (!keyMatch) return []
@@ -831,10 +839,11 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
    * bare helper call (`...getSlackV2ActionSubBlocks()`) hides whatever fields the helper builds,
    * and used to yield a silent empty array indistinguishable from a spread-only block.
    */
-  const opaque = elementHeads
+  const segments = elementHeads
     .split(',')
     .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0 && !segment.includes('.subBlocks'))
+    .filter((segment) => segment.length > 0)
+  const opaque = segments.filter((segment) => !segment.includes('.subBlocks'))
   if (opaque.length > 0) {
     throw new SubBlockParseError(
       `${blockName}: subBlocks array yielded no ids and element${
@@ -842,6 +851,15 @@ export function extractUserSettableParamIds(blockContent: string, blockName = 'b
       } ${opaque.map((segment) => `\`${segment}\``).join(', ')} do not name a fields array`
     )
   }
+
+  /**
+   * Every element named a fields array this scanner cannot follow, so the block's fields are
+   * UNKNOWN, not empty. Returning `[]` here would assert the block supplies nothing and strip
+   * every hidden param from its tools' Input tables with no warning — the silent false-drop the
+   * `null` state exists to prevent. Only a genuinely empty array (`subBlocks: []`) reaches the
+   * `[]` below.
+   */
+  if (segments.length > 0) return null
 
   return []
 }
@@ -1026,7 +1044,9 @@ export function extractMapperWrittenParamIds(blockContent: string): string[] {
 /** What {@link extractBlockSuppliedParamIds} could and could not read off a block. */
 export interface BlockSuppliedParams {
   /**
-   * Every param the block supplies, or `null` when its `subBlocks` array could not be read.
+   * Every param the block supplies, or `null` when what its `subBlocks` array contributes is
+   * unknown — either the array could not be read (`parseError` set) or it holds only spreads of
+   * fields arrays this scanner cannot follow (`parseError` null).
    *
    * `null` is UNKNOWN and is deliberately distinct from `[]`: an empty array asserts the block
    * supplies nothing, which strips every hidden param from the page, while `null` says the scan
@@ -1060,6 +1080,7 @@ export function extractBlockSuppliedParamIds(
 
   try {
     const settableIds = extractUserSettableParamIds(blockContent, blockName)
+    if (settableIds === null) return { ids: null, mapperIds, parseError: null }
     return { ids: [...new Set([...settableIds, ...mapperIds])], mapperIds, parseError: null }
   } catch (error) {
     if (!(error instanceof SubBlockParseError)) throw error
@@ -1806,8 +1827,21 @@ function extractBlockConfigFromContent(
       userSettableParamIds = fallback
     } else if (baseParamIds === null) {
       userSettableParamIds = null
+    } else if (supplied.ids === null) {
+      /**
+       * The block's `subBlocks` array holds only spreads of fields arrays this scanner cannot
+       * follow. A config-level spread base still contributes its readable fields, so the filter
+       * stays on against those plus the mapper's renames; with no base there is nothing to
+       * filter against and the filter is switched off. No warning: unlike the `parseError`
+       * cases the array itself parsed fine, and every field it names is documented through the
+       * spread source's own page.
+       */
+      userSettableParamIds =
+        baseSettableParamIds.length > 0
+          ? [...new Set([...baseSettableParamIds, ...supplied.mapperIds])]
+          : null
     } else {
-      userSettableParamIds = [...new Set([...(supplied.ids ?? []), ...baseSettableParamIds])]
+      userSettableParamIds = [...new Set([...supplied.ids, ...baseSettableParamIds])]
     }
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
