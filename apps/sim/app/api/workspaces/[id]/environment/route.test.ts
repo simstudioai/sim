@@ -56,6 +56,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
       personalDecrypted: { PERSONAL: 'personal-secret', SHARED_PERSONAL: 'shared-secret' },
       personalOwners: { PERSONAL: 'u-1', SHARED_PERSONAL: 'owner-2' },
       conflicts: [],
+      workspaceUnredactedKeys: [],
     })
     mockGetPersonalEnvKeyRawAccess.mockResolvedValue({
       ownedKeys: new Set(['PERSONAL']),
@@ -93,6 +94,26 @@ describe('GET /api/workspaces/[id]/environment', () => {
     mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
       adminKeys: new Set(['OPENAI_API_KEY']),
       knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+    })
+
+    const { body } = await callGet()
+
+    expect(body.data.workspace.OPENAI_API_KEY).toBe('sk-secret')
+    expect(body.data.workspace.DATABASE_URL).toBe('')
+  })
+
+  it('reveals an unredacted workspace value to a read-only credential member', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
+      adminKeys: new Set<string>(),
+      knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
+    })
+    mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+      workspaceDecrypted: { OPENAI_API_KEY: 'sk-secret', DATABASE_URL: 'postgres://secret' },
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      workspaceUnredactedKeys: ['OPENAI_API_KEY'],
     })
 
     const { body } = await callGet()
