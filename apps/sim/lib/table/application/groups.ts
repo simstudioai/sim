@@ -35,7 +35,7 @@ import {
 } from '@/lib/table/workflow-groups/service'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
-import { loadResolvedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import { loadResolvedDeployedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig } from '@/enrichments/types'
 
@@ -64,7 +64,7 @@ async function resolveWorkflowForAuthorizedTableCommand(
     workflowId,
     assertedWorkspaceId: workspaceId,
   })
-  return loadResolvedWorkflowOutputs(workflowContext)
+  return loadResolvedDeployedWorkflowOutputs(workflowContext)
 }
 
 async function resolveRelatedWorkflowForTableRoute(
