@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { z } from 'zod'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
-import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
+import type {
+  BrowserUseRunTaskParams,
+  BrowserUseRunTaskResponse,
+  BrowserUseTaskStep,
+} from '@/tools/browser_use/types'
 
 const logger = createLogger('BrowserUseTool')
 
@@ -10,6 +16,61 @@ const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = getMaxExecutionTimeout()
 const MAX_CONSECUTIVE_ERRORS = 3
 const API_BASE = 'https://api.browser-use.com/api/v2'
+
+const createSessionResponseSchema = z.object({
+  id: z.string().min(1),
+})
+
+const sessionDetailsResponseSchema = z.object({
+  liveUrl: z.string().nullable().optional(),
+  publicShareUrl: z.string().nullable().optional(),
+})
+
+const taskStepSchema: z.ZodType<BrowserUseTaskStep> = z
+  .object({
+    number: z.number(),
+    memory: z.string(),
+    evaluationPreviousGoal: z.string(),
+    nextGoal: z.string(),
+    url: z.string(),
+    screenshotUrl: z.string().nullable().optional(),
+    actions: z.array(z.string()),
+    duration: z.number().nullable().optional(),
+  })
+  .passthrough()
+
+const taskStatusResponseSchema = z.object({
+  status: z.string(),
+  sessionId: z.string().nullable().optional(),
+  output: z.unknown().optional(),
+  steps: z.array(taskStepSchema).optional(),
+})
+
+const createTaskResponseSchema = z.object({
+  id: z.string().min(1),
+  sessionId: z.string().nullable().optional(),
+})
+
+const shareResponseSchema = z.object({
+  shareUrl: z.string().nullable().optional(),
+})
+
+interface BrowserUseTaskRequest {
+  task: string
+  sessionId?: string
+  llm?: string
+  startUrl?: string
+  maxSteps?: number
+  structuredOutput?: string
+  flashMode?: boolean
+  thinking?: boolean
+  vision?: boolean | 'auto'
+  systemPromptExtension?: string
+  highlightElements?: boolean
+  allowedDomains?: string[]
+  secrets?: Record<string, unknown>
+  metadata?: Record<string, string>
+}
 
 async function createSessionWithProfile(
   profileId: string,
@@ -33,12 +94,17 @@ async function createSessionWithProfile(
       return { error: `Failed to create session with profile: ${response.statusText}` }
     }
 
-    const data = (await response.json()) as { id: string }
+    const parsed = createSessionResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      logger.error('BrowserUse returned an invalid create-session response')
+      return { error: 'BrowserUse returned an invalid create-session response' }
+    }
+    const data = parsed.data
     logger.info(`Created session ${data.id} with profile ${profileId}`)
     return { sessionId: data.id }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Error creating session with profile:', error)
-    return { error: `Error creating session: ${error.message}` }
+    return { error: `Error creating session: ${getErrorMessage(error, 'Unknown error')}` }
   }
 }
 
@@ -58,7 +124,7 @@ async function stopSession(sessionId: string, apiKey: string): Promise<void> {
     } else {
       logger.warn(`Failed to stop session ${sessionId}: ${response.statusText}`)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.warn(`Error stopping session ${sessionId}:`, error)
   }
 }
@@ -75,27 +141,38 @@ async function fetchSessionLiveUrl(
     if (!response.ok) {
       return { liveUrl: null, publicShareUrl: null }
     }
-    const data = (await response.json()) as { liveUrl?: string; publicShareUrl?: string }
+    const parsed = sessionDetailsResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      logger.warn(`BrowserUse returned an invalid session response for ${sessionId}`)
+      return { liveUrl: null, publicShareUrl: null }
+    }
+    const data = parsed.data
     return {
       liveUrl: data.liveUrl ?? null,
       publicShareUrl: data.publicShareUrl ?? null,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.warn(`Error fetching session ${sessionId}:`, error)
     return { liveUrl: null, publicShareUrl: null }
   }
 }
 
-function normalizeSecrets(variables: BrowserUseRunTaskParams['variables']): Record<string, string> {
-  const secrets: Record<string, string> = {}
+function normalizeSecrets(
+  variables: BrowserUseRunTaskParams['variables']
+): Record<string, unknown> {
+  const secrets: Record<string, unknown> = {}
   if (!variables) return secrets
 
   if (Array.isArray(variables)) {
-    for (const row of variables as Array<Record<string, any>>) {
-      if (row?.cells?.Key && row.cells.Value !== undefined) {
-        secrets[row.cells.Key] = row.cells.Value
-      } else if (row?.Key && row.Value !== undefined) {
-        secrets[row.Key] = row.Value
+    for (const row of variables) {
+      const cells =
+        typeof row.cells === 'object' && row.cells !== null
+          ? (row.cells as Record<string, unknown>)
+          : undefined
+      const key = cells?.Key ?? row.Key
+      const value = cells?.Value ?? row.Value
+      if (key && value !== undefined) {
+        secrets[String(key)] = value
       }
     }
   } else if (typeof variables === 'object') {
@@ -120,8 +197,8 @@ function parseAllowedDomains(input?: string | string[]): string[] | undefined {
 function buildRequestBody(
   params: BrowserUseRunTaskParams,
   sessionId?: string
-): Record<string, any> {
-  const body: Record<string, any> = { task: params.task }
+): BrowserUseTaskRequest {
+  const body: BrowserUseTaskRequest = { task: params.task }
 
   if (sessionId) body.sessionId = sessionId
   if (params.model) body.llm = params.model
@@ -154,7 +231,9 @@ function buildRequestBody(
 async function fetchTaskStatus(
   taskId: string,
   apiKey: string
-): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: z.infer<typeof taskStatusResponseSchema> } | { ok: false; error: string }
+> {
   try {
     const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
       method: 'GET',
@@ -165,16 +244,20 @@ async function fetchTaskStatus(
       return { ok: false, error: `HTTP ${response.status}: ${response.statusText}` }
     }
 
-    return { ok: true, data: await response.json() }
-  } catch (error: any) {
-    return { ok: false, error: error.message || 'Network error' }
+    const parsed = taskStatusResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      return { ok: false, error: 'BrowserUse returned an invalid task-status response' }
+    }
+    return { ok: true, data: parsed.data }
+  } catch (error: unknown) {
+    return { ok: false, error: getErrorMessage(error, 'Network error') }
   }
 }
 
 interface PollResult {
   success: boolean
-  output: any
-  steps: any[]
+  output: unknown
+  steps: BrowserUseTaskStep[]
   sessionId: string | null
   liveUrl: string | null
   publicShareUrl: string | null
@@ -233,7 +316,7 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
       return {
         success: status === 'finished',
         output: taskData.output ?? null,
-        steps: taskData.steps || [],
+        steps: taskData.steps ?? [],
         sessionId,
         liveUrl,
         publicShareUrl,
@@ -248,7 +331,7 @@ async function pollForCompletion(taskId: string, apiKey: string): Promise<PollRe
     return {
       success: finalResult.data.status === 'finished',
       output: finalResult.data.output ?? null,
-      steps: finalResult.data.steps || [],
+      steps: finalResult.data.steps ?? [],
       sessionId: finalResult.data.sessionId ?? sessionId,
       liveUrl,
       publicShareUrl,
@@ -281,9 +364,13 @@ async function createShareUrl(sessionId: string, apiKey: string): Promise<string
       return null
     }
 
-    const data = (await response.json()) as { shareUrl?: string; shareToken?: string }
-    return data.shareUrl ?? null
-  } catch (error: any) {
+    const parsed = shareResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      logger.warn(`BrowserUse returned an invalid share response for session ${sessionId}`)
+      return null
+    }
+    return parsed.data.shareUrl ?? null
+  } catch (error: unknown) {
     logger.warn(`Error creating share URL for session ${sessionId}:`, error)
     return null
   }
@@ -338,7 +425,16 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
       }
     }
 
-    const data = (await response.json()) as { id: string; sessionId?: string }
+    const parsed = createTaskResponseSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      logger.error('BrowserUse returned an invalid create-task response')
+      return {
+        success: false,
+        output: emptyOutput(),
+        error: 'BrowserUse returned an invalid create-task response',
+      }
+    }
+    const data = parsed.data
     const taskId = data.id
     const initialSessionId = sessionId ?? data.sessionId ?? null
     logger.info(`Created BrowserUse task ${taskId}`, { sessionId: initialSessionId })
@@ -367,7 +463,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
       },
       error: result.error,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Error creating BrowserUse task:', error)
     if (sessionId) {
       await stopSession(sessionId, params.apiKey)
@@ -375,7 +471,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     return {
       success: false,
       output: emptyOutput(),
-      error: `Error creating task: ${error.message}`,
+      error: `Error creating task: ${getErrorMessage(error, 'Unknown error')}`,
     }
   }
 }
