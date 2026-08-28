@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 import {
-  compareCatalogNames,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractToolInfo,
@@ -735,28 +734,16 @@ describe('the generated catalog ordering is locale-independent', () => {
    * and the ICU build. Against the real catalog names, `tr-TR` (dotted/dotless I), `lt-LT`,
    * `cs-CZ` (the `ch` digraph) and `et-EE` each reorder the array, so a contributor on one of
    * those locales would regenerate a different `integrations.json` and fail CI with no obvious
-   * cause.
-   */
-  it('pins the generator comparator to en-US regardless of the runtime default', () => {
-    /** `I` sorts after `i` in `en-US` but before it in `tr-TR`, which has a dotless `ı`. */
-    expect(compareCatalogNames('Intercom', 'incident.io')).toBeGreaterThan(0)
-    /** `ch` is a single letter after `h` in `cs-CZ`; in `en-US` it stays under `c`. */
-    expect(compareCatalogNames('Chargebee', 'HubSpot')).toBeLessThan(0)
-  })
-
-  it('sorts integrations.json with the generator comparator', () => {
-    const catalogPath = path.join(__dirname, '../packages/deployment-config/src/integrations.json')
-    const names = (
-      JSON.parse(fs.readFileSync(catalogPath, 'utf-8')).integrations as Array<{ name: string }>
-    ).map(({ name }) => name)
-
-    expect(names).toEqual([...names].sort(compareCatalogNames))
-  })
-
-  /**
-   * Every `localeCompare` in the generator must name its locale as a literal. A bare
-   * `localeCompare()`, `localeCompare(b)` or a locale read from a variable all fall back to
-   * the runtime default, so the arguments are matched whole rather than pattern-matched.
+   * cause. Every `localeCompare` in the generator must therefore name its locale as a literal;
+   * a bare `localeCompare()`, `localeCompare(b)` or a locale read from a variable all fall
+   * back to the default, so the arguments are matched whole rather than pattern-matched.
+   *
+   * A source grep is the only assertion that can catch an unpinned comparator. CI runs under
+   * an `en-US` default, where an unpinned `localeCompare` returns exactly what the pinned one
+   * does, so no behavioural comparison against real catalog names discriminates there; and
+   * comparing the committed `integrations.json` against the comparator that produced it agrees
+   * by construction whatever the comparator does. Both of those were asserted here and were
+   * removed for claiming a guarantee they did not hold.
    */
   it('leaves no unpinned localeCompare in the generator', () => {
     const source = fs.readFileSync(path.join(__dirname, 'generate-docs.ts'), 'utf-8')
@@ -806,6 +793,49 @@ describe('the scanner survives regex literals in a block config', () => {
   it('reports UNKNOWN rather than guessing when a literal never terminates', () => {
     expect(extractUserSettableParamIds("subBlocks: [{ id: 'a }],")).toBeNull()
   })
+
+  /**
+   * A `/` directly after a division operator is an operand position, so it opens a regex.
+   * Without `'/'` in `REGEX_ALLOWED_AFTER` the third slash of `x / y / /re/` lexes as a
+   * second division, the character class is left in the structural view and its `}` closes
+   * the object early — a short list with no warning.
+   */
+  it('reads a regex that follows a division operator', () => {
+    const ids = extractUserSettableParamIds(
+      "subBlocks: [{ id: 'a', v: x / y / /[}]/.source }, { id: 'b' }],"
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
+
+  /**
+   * `'+'` and `'-'` are in `REGEX_ALLOWED_AFTER` for the binary operators, so the previous
+   * significant character alone reads the `/` after a postfix `i++` as opening a regex. The
+   * phantom regex then runs to the end of the input and the scan reports the block unreadable.
+   */
+  it('still reads a division after a postfix increment or decrement', () => {
+    for (const op of ['++', '--']) {
+      const ids = extractUserSettableParamIds(
+        `subBlocks: [{ id: 'a', n: (i) => i${op} / 2 }, { id: 'b' }],`
+      )
+
+      expect(ids, op).toEqual(['a', 'b'])
+    }
+  })
+
+  /**
+   * The shape Prettier produces when a `.match()` argument does not fit on one line, as in
+   * `blocks/table.ts` and `blocks/table_v2.ts`. A newline is recorded as the previous
+   * significant character rather than skipped, so the `(` does not carry the decision — only
+   * the `'\n'` entry in `REGEX_ALLOWED_AFTER` keeps this lexing as a regex.
+   */
+  it('reads a regex that a formatter has wrapped onto its own line', () => {
+    const ids = extractUserSettableParamIds(
+      ["subBlocks: [{ id: 'a', v: (s) => s.match(", '  /[}]/', ") }, { id: 'b' }],"].join('\n')
+    )
+
+    expect(ids).toEqual(['a', 'b'])
+  })
 })
 
 describe('the scanner reads a regex that opens in keyword position', () => {
@@ -848,12 +878,19 @@ describe('the scanner reads a regex that opens in keyword position', () => {
     }
   })
 
+  /**
+   * The fixture leaves an odd number of `/` on the line, so a mis-lexed regex runs on to the
+   * end of the input rather than closing on a second slash. A self-cancelling pair like
+   * `counts.in / 2, m: preturn / 2` passes with the guard removed, because the phantom regex
+   * spans only `2, m: preturn ` and blanks nothing structural.
+   */
   it('still reads a division after a property or an identifier that merely ends in a keyword', () => {
-    const ids = extractUserSettableParamIds(
-      "subBlocks: [{ id: 'a', n: counts.in / 2, m: preturn / 2 }, { id: 'b' }],"
-    )
-
-    expect(ids).toEqual(['a', 'b'])
+    expect(
+      extractUserSettableParamIds("subBlocks: [{ id: 'a', n: counts.in / 2 }, { id: 'b' }],")
+    ).toEqual(['a', 'b'])
+    expect(
+      extractUserSettableParamIds("subBlocks: [{ id: 'a', n: preturn / 2 }, { id: 'b' }],")
+    ).toEqual(['a', 'b'])
   })
 })
 

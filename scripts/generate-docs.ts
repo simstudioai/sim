@@ -1277,7 +1277,7 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
  * a contributor on one of those locales would regenerate a different artifact and fail CI with
  * no obvious cause.
  */
-export function compareCatalogNames(a: string, b: string): number {
+function compareCatalogNames(a: string, b: string): number {
   return a.localeCompare(b, 'en-US')
 }
 
@@ -1285,13 +1285,14 @@ export function compareCatalogNames(a: string, b: string): number {
  * Characters after which a `/` begins a regex literal rather than a division.
  *
  * `'\n'` is deliberate and load-bearing: a line-leading `/` is treated as opening a regex.
+ * A newline is recorded as the previous significant character rather than skipped, so this
+ * entry — not the `(` before it — is what decides a wrapped `value.match(` newline `/re/`.
  * Prettier and Biome both emit a binary `/` at end-of-line, never at the start of the next
- * one, so in this repo's formatted sources every line-leading `/` really is a regex — all 17
- * occurrences across `apps/sim/blocks/blocks/*.ts` are, including the ones at
- * `blocks/table.ts:31` and `blocks/table_v2.ts:37` that this set exists to get right. Removing
- * `'\n'` makes those two blocks lex as division and silently mis-scan. It is a deliberate
- * trade: a hand-wrapped `b` newline `/ c / d` would be blanked as a regex body, which no
- * formatted file in this repo produces.
+ * one, so in this repo's formatted sources every line-leading `/` really is a regex, without
+ * exception — `blocks/table.ts` and `blocks/table_v2.ts` both wrap a `.match(` argument this
+ * way, and removing `'\n'` makes them lex as division and silently mis-scan. It is a
+ * deliberate trade: a hand-wrapped `b` newline `/ c / d` would be blanked as a regex body,
+ * which no formatted file in this repo produces.
  */
 const REGEX_ALLOWED_AFTER = new Set([
   '(',
@@ -1309,6 +1310,7 @@ const REGEX_ALLOWED_AFTER = new Set([
   '+',
   '-',
   '*',
+  '/',
   '%',
   '~',
   '^',
@@ -1486,8 +1488,26 @@ function scanTemplateExpression(content: string, start: number): number | null {
   return null
 }
 
+/**
+ * Whether the word immediately before `index` ends in a postfix `++` or `--`.
+ * {@link REGEX_ALLOWED_AFTER} holds `'+'` and `'-'` for the binary operators, but a postfix
+ * increment produces a value, so the `/` in `i++ / a` is a division. Only the two-character
+ * form is matched — a single `+`/`-` stays an operator position.
+ */
+function precededByPostfixUpdate(content: string, index: number): boolean {
+  let j = index - 1
+  while (j >= 0 && /\s/.test(content[j])) j--
+  const c = content[j]
+  return (c === '+' || c === '-') && content[j - 1] === c
+}
+
 /** Whether the `/` at `index` opens a regex literal rather than a division. */
 function startsRegexLiteral(content: string, index: number, prevSignificant: string): boolean {
+  if (
+    (prevSignificant === '+' || prevSignificant === '-') &&
+    precededByPostfixUpdate(content, index)
+  )
+    return false
   return (
     prevSignificant === '' ||
     REGEX_ALLOWED_AFTER.has(prevSignificant) ||
