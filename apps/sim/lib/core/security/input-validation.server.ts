@@ -1054,21 +1054,23 @@ export async function secureFetchWithPinnedIP(
             if (redirectHeaders && hop.dropBody) {
               redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
             }
-            if (
-              redirectHeaders &&
-              redirectPolicy &&
-              isCrossOrigin &&
-              (redirectPolicy.mode === 'standard' ||
-                !redirectPolicy.sendCredentialsOnCrossOriginRedirect)
-            ) {
-              const sensitiveHeaders = redirectPolicy.sendCredentialsOnCrossOriginRedirect
-                ? ['host']
-                : [
-                    'host',
-                    ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
-                    ...(redirectPolicy.sensitiveHeaders ?? []),
-                  ]
-              redirectHeaders = stripHeaders(redirectHeaders, sensitiveHeaders)
+            // Credentials are dropped on a cross-origin hop unless a policy
+            // explicitly asks to keep them. Gating this on a policy being
+            // supplied at all, as it once was, meant the many callers that pass
+            // none handed their Authorization header to whatever host the
+            // redirect named. `host` always goes: it describes the old origin.
+            if (redirectHeaders && isCrossOrigin) {
+              const keepCredentials = redirectPolicy?.sendCredentialsOnCrossOriginRedirect === true
+              redirectHeaders = stripHeaders(
+                redirectHeaders,
+                keepCredentials
+                  ? ['host']
+                  : [
+                      'host',
+                      ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
+                      ...(redirectPolicy?.sensitiveHeaders ?? []),
+                    ]
+              )
             }
             if (redirectHeaders && options.stripAuthOnRedirect) {
               redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])

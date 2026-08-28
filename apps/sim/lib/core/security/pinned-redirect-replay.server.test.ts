@@ -81,7 +81,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     expect(hops).toEqual([])
   })
 
-  it('preserves historical replay when no redirect policy is present', async () => {
+  it('replays method and body without a policy, but not credentials cross-origin', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)
     const origin = await startServer((req, res) => {
@@ -103,10 +103,34 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
 
     expect(response.status).toBe(200)
     expect(hops).toHaveLength(1)
+    // Legacy replay semantics: the method and body survive a 303.
     expect(hops[0].method).toBe('POST')
     expect(hops[0].body).toBe('{"message":"legacy"}')
-    expect(hops[0].headers.authorization).toBe('Bearer legacy-token')
-    expect(hops[0].headers.host).toBe('legacy.example')
+    // ...but the credentials do not travel to another origin just because this
+    // caller passed no redirect policy.
+    expect(hops[0].headers.authorization).toBeUndefined()
+    expect(hops[0].headers.host).not.toBe('legacy.example')
+  })
+
+  it('keeps credentials cross-origin only when a policy explicitly opts in', async () => {
+    const hops: RecordedHop[] = []
+    const target = await startRecordingServer(hops)
+    const origin = await startServer((req, res) => {
+      req.resume()
+      res.writeHead(303, { location: `${target}/after` })
+      res.end()
+    })
+
+    await secureFetchWithPinnedIP(origin, '127.0.0.1', {
+      method: 'POST',
+      body: '{"message":"opt-in"}',
+      headers: { Authorization: 'Bearer keep-me', 'Content-Type': 'application/json' },
+      redirectPolicy: { mode: 'legacy', sendCredentialsOnCrossOriginRedirect: true },
+      profile: 'configuredEndpoint',
+    })
+
+    expect(hops).toHaveLength(1)
+    expect(hops[0].headers.authorization).toBe('Bearer keep-me')
   })
 
   it('lets a legacy block withhold credentials without changing its replay semantics', async () => {
