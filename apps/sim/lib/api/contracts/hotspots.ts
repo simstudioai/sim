@@ -20,6 +20,35 @@ const guardrailsMaskBatchResponseSchema = z.object({
   masked: z.array(z.string()),
 })
 
+export const guardrailsPiiValidateBodySchema = z
+  .object({
+    text: z.string().max(10_000_000, 'Text is too long'),
+    entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(200),
+    mode: z.enum(['block', 'mask']),
+    language: z.string().min(1, 'Language cannot be empty').max(20).optional(),
+    customPatterns: z.array(customPatternSchema).max(20).optional(),
+  })
+  .strict()
+
+export const detectedPiiEntitySchema = z
+  .object({
+    type: z.string().min(1, 'Entity type cannot be empty').max(100),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().nonnegative(),
+    score: z.number().min(0).max(1),
+    text: z.string().max(10_000_000, 'Detected text is too long'),
+  })
+  .strict()
+
+export const guardrailsPiiValidateResponseSchema = z
+  .object({
+    passed: z.boolean(),
+    error: z.string().max(1_000).optional(),
+    detectedEntities: z.array(detectedPiiEntitySchema),
+    maskedText: z.string().max(10_000_000, 'Masked text is too long').optional(),
+  })
+  .strict()
+
 /**
  * Internal batch PII masking. Called server-to-server (internal JWT) from the
  * log-redaction persist path so Presidio always runs in the app container,
@@ -37,6 +66,23 @@ export const guardrailsMaskBatchContract = defineRouteContract({
 
 export type GuardrailsMaskBatchBody = z.input<typeof guardrailsMaskBatchBodySchema>
 export type GuardrailsMaskBatchResult = z.output<typeof guardrailsMaskBatchResponseSchema>
+
+/**
+ * Internal single-text PII validation. The workflow executor can run outside
+ * the app network, while only the app task can reach the Presidio service.
+ */
+export const guardrailsPiiValidateContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/guardrails/pii/validate',
+  body: guardrailsPiiValidateBodySchema,
+  response: {
+    mode: 'json',
+    schema: guardrailsPiiValidateResponseSchema,
+  },
+})
+
+export type GuardrailsPiiValidateBody = z.input<typeof guardrailsPiiValidateBodySchema>
+export type GuardrailsPiiValidateResult = z.output<typeof guardrailsPiiValidateResponseSchema>
 
 const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),

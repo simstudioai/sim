@@ -12,11 +12,10 @@ import {
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
-import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
-import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
+import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
 import { GuardrailsOperationError } from '@/lib/internal/guardrails/errors'
 import type { GuardrailsValidationInput } from '@/lib/internal/guardrails/input'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
@@ -250,15 +249,16 @@ async function executeValidation(
     })
   }
   if (input.validationType === 'pii') {
-    return validatePII({
-      text: inputString,
-      entityTypes: input.piiEntityTypes || [],
-      mode: input.piiMode === 'mask' ? 'mask' : 'block',
-      language: input.piiLanguage || 'en',
-      customPatterns: input.piiCustomPatterns as CustomPiiPattern[] | undefined,
-      requestId: context.requestId,
-      abortSignal: context.signal,
-    })
+    return validatePIIViaHttp(
+      {
+        text: inputString,
+        entityTypes: input.piiEntityTypes || [],
+        mode: input.piiMode === 'mask' ? 'mask' : 'block',
+        language: input.piiLanguage || 'en',
+        customPatterns: input.piiCustomPatterns,
+      },
+      context.signal
+    )
   }
   return { passed: false, error: 'Unknown validation type' }
 }
