@@ -31,6 +31,7 @@ vi.mock('@sim/security/ssrf', () => ({
   isPrivateIp: (ip: string) => ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 
@@ -55,7 +56,9 @@ describe('createGuardedMcpFetch', () => {
     // No dispatcher options: no `allowH2` opt-in (h1.1 default) and no Agent-level
     // maxResponseSize — the standalone GET SSE stream must stream unbounded (the body cap
     // is applied per-response to non-GET exchanges instead).
-    expect(mockCreateGuardedFetchWithDispatcher).toHaveBeenCalledWith()
+    expect(mockCreateGuardedFetchWithDispatcher).toHaveBeenCalledWith({
+      profile: 'selfHostedService',
+    })
 
     void close()
     expect(mockDestroy).toHaveBeenCalledTimes(1)

@@ -147,7 +147,9 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
         'azureEndpoint',
         'configuredEndpoint'
       )
-      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+        profile: 'configuredEndpoint',
+      })
       expect(responsesConfig().fetch).toBe(sentinelFetch)
     })
 
@@ -203,7 +205,9 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
         })
       )
 
-      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+        profile: 'configuredEndpoint',
+      })
       expect(azureOpenAIArgs[0]).toMatchObject({ fetch: sentinelFetch })
     })
 

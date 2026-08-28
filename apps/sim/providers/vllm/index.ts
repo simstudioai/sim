@@ -143,7 +143,7 @@ export const vllmProvider: ProviderConfig = {
         throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
       }
       pinnedIP = validation.resolvedIP
-      pinnedFetch = createPinnedFetch(pinnedIP)
+      pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'selfHostedService' })
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'

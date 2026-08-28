@@ -132,6 +132,11 @@ export interface EgressPolicy {
    * address check outright; a named allowlist is the supported form.
    */
   readonly allowPrivate: boolean
+  /**
+   * Whether the non-HTTP service ports are refused on an unvouched destination.
+   * False for operator-run services, which legitimately bind arbitrary ports.
+   */
+  readonly denyServicePorts: boolean
   readonly allowedHosts: readonly HostPattern[]
   readonly allowedRanges: readonly CidrRange[]
 }
@@ -151,6 +156,8 @@ export interface EgressPolicySpec {
   readonly allowLoopback?: boolean
   /** Whether every private address is vouched for. See {@link EgressPolicy.allowPrivate}. */
   readonly allowPrivate?: boolean
+  /** Whether to refuse the non-HTTP service ports. Defaults to `true`. */
+  readonly denyServicePorts?: boolean
   /**
    * Names of the settings these lists came from, used verbatim in the error a
    * malformed entry throws so the operator knows which value to fix.
@@ -221,6 +228,7 @@ export function createEgressPolicy(spec: EgressPolicySpec = {}): EgressPolicy {
     insecureHttp: spec.insecureHttp ?? 'never',
     allowLoopback: spec.allowLoopback ?? false,
     allowPrivate: spec.allowPrivate ?? false,
+    denyServicePorts: spec.denyServicePorts ?? true,
     allowedHosts: splitEntries(spec.allowedHosts).map((entry) =>
       parseHostPattern(entry, sourceNames.hosts)
     ),
@@ -333,7 +341,7 @@ function checkSchemeAndPort(url: URL, vouched: boolean, policy: EgressPolicy): E
     return deny('insecure-scheme', `plain http to ${url.hostname}`)
   }
 
-  if (!vouched && url.port) {
+  if (policy.denyServicePorts && !vouched && url.port) {
     const port = Number.parseInt(url.port, 10)
     if (DENIED_PORTS.has(port)) {
       return deny('port-denied', `port ${port}`)

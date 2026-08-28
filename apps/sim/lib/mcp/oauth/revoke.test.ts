@@ -44,6 +44,7 @@ vi.mock('@sim/security/ssrf', () => ({
   isPrivateIp: (ip: string) => ip.startsWith('127.') || ip.startsWith('10.') || ip === '::1',
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({

@@ -82,7 +82,9 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
       'azureEndpoint',
       'configuredEndpoint'
     )
-    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+    expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+      profile: 'configuredEndpoint',
+    })
     expect(buildClientOptions()).toMatchObject({ fetch: sentinelFetch })
   })
 

@@ -334,13 +334,13 @@ describe('validateMcpServerSsrf', () => {
     expect(mockDnsLookup).not.toHaveBeenCalled()
   })
 
-  it('returns null for localhost URLs without DNS lookup', async () => {
-    await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBeNull()
-    expect(mockDnsLookup).not.toHaveBeenCalled()
+  it('pins a localhost URL rather than leaving it unguarded', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBe('127.0.0.1')
   })
 
-  it('returns null for 127.0.0.1 literal without DNS lookup', async () => {
-    await expect(validateMcpServerSsrf('http://127.0.0.1:8080/mcp')).resolves.toBeNull()
+  it('pins a loopback literal without a DNS lookup', async () => {
+    await expect(validateMcpServerSsrf('http://127.0.0.1:8080/mcp')).resolves.toBe('127.0.0.1')
     expect(mockDnsLookup).not.toHaveBeenCalled()
   })
 
@@ -423,9 +423,22 @@ describe('validateMcpServerSsrf', () => {
     )
   })
 
-  it('returns resolved IP for URLs resolving to loopback on self-hosted (localhost alias)', async () => {
+  it('refuses a DNS alias that resolves to loopback unless it is allowlisted', async () => {
+    // The loopback carve-out keys off the hostname, so a name pointed at
+    // loopback is named in EGRESS_ALLOWED_HOSTS or it is not reachable.
     mockDnsLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
-    await expect(validateMcpServerSsrf('http://my-local-alias:3000/mcp')).resolves.toBe('127.0.0.1')
+    await expect(validateMcpServerSsrf('http://my-local-alias:3000/mcp')).rejects.toThrow(
+      McpSsrfError
+    )
+
+    setEnvFlags({ egressAllowedHosts: 'my-local-alias' })
+    try {
+      await expect(validateMcpServerSsrf('http://my-local-alias:3000/mcp')).resolves.toBe(
+        '127.0.0.1'
+      )
+    } finally {
+      setEnvFlags({ egressAllowedHosts: undefined })
+    }
   })
 
   it('throws for malformed URLs', async () => {
@@ -466,9 +479,12 @@ describe('validateMcpServerSsrf', () => {
       expect(mockDnsLookup).not.toHaveBeenCalled()
     })
 
-    it('skips loopback check on hosted when allowlist is configured', async () => {
+    it('still refuses loopback on hosted when a domain allowlist is configured', async () => {
+      // The domain allowlist governs which domains may be used. It is not a
+      // substitute for the address check, which it used to disable entirely.
       mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['localhost'])
-      await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBeNull()
+      mockDnsLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+      await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).rejects.toThrow(McpSsrfError)
     })
 
     it('still blocks RFC-1918 IP literals on hosted (regression)', async () => {
@@ -499,26 +515,29 @@ describe('validateMcpServerSsrf', () => {
       setEnvFlags({ isHosted: false })
     })
 
-    it('still allows localhost URLs (returns null, no pinning needed)', async () => {
-      await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBeNull()
-    })
-
-    it('still allows 127.0.0.1 URLs (returns null, no pinning needed)', async () => {
-      await expect(validateMcpServerSsrf('http://127.0.0.1:8080/mcp')).resolves.toBeNull()
-    })
-
-    it('returns resolved loopback IP for DNS aliases (caller pins)', async () => {
+    it('still reaches a local MCP server, now pinned rather than unguarded', async () => {
       mockDnsLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
-      await expect(validateMcpServerSsrf('http://my-local-alias/mcp')).resolves.toBe('127.0.0.1')
+      await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBe('127.0.0.1')
+      await expect(validateMcpServerSsrf('http://127.0.0.1:8080/mcp')).resolves.toBe('127.0.0.1')
+    })
+
+    it('reaches a private MCP server once the operator allowlists it', async () => {
+      setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
+      try {
+        await expect(validateMcpServerSsrf('http://10.0.0.9:3000/mcp')).resolves.toBe('10.0.0.9')
+      } finally {
+        setEnvFlags({ egressAllowedIpRanges: undefined })
+      }
     })
   })
 
-  it('skips all checks when ALLOWED_MCP_DOMAINS is configured', async () => {
+  it('applies the address check even when ALLOWED_MCP_DOMAINS is configured', async () => {
+    // Configuring the domain list used to disable this entirely, which left an
+    // allowlisted domain free to redirect at anything, metadata included.
     mockGetAllowedMcpDomainsFromEnv.mockReturnValue(['internal.corp'])
-    await expect(validateMcpServerSsrf('http://10.0.0.1/mcp')).resolves.toBeNull()
-    await expect(
-      validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')
-    ).resolves.toBeNull()
-    expect(mockDnsLookup).not.toHaveBeenCalled()
+    await expect(validateMcpServerSsrf('http://10.0.0.1/mcp')).rejects.toThrow(McpSsrfError)
+    await expect(validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(
+      McpSsrfError
+    )
   })
 })

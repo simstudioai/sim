@@ -99,6 +99,7 @@ vi.mock('@/lib/mcp/connection-manager', () => ({
 }))
 
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
   isMcpDomainAllowed: (...args: unknown[]) => mockIsDomainAllowed(...args),
   validateMcpDomain: (...args: unknown[]) => mockValidateDomain(...args),
   validateMcpServerSsrf: (...args: unknown[]) => mockValidateSsrf(...args),

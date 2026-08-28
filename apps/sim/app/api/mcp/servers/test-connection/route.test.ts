@@ -50,6 +50,7 @@ vi.mock('@/lib/mcp/client', () => ({
 }))
 
 vi.mock('@/lib/mcp/domain-check', () => ({
+  MCP_EGRESS_PROFILE: 'selfHostedService',
   McpDnsResolutionError: class extends Error {},
   McpDomainNotAllowedError: class extends Error {},
   McpSsrfError: MockMcpSsrfError,

@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 import { Readable } from 'node:stream'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciRequest, capturedAgentOptions } = vi.hoisted(() => {
   const capturedAgentOptions: unknown[] = []
@@ -47,6 +48,8 @@ function undiciReply(statusCode: number, headers: Record<string, string>, body: 
   return { statusCode, headers, body, trailers: {}, opaque: null, context: {} }
 }
 
+afterEach(resetEnvFlagsMock)
+
 describe('createPinnedFetch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -55,7 +58,7 @@ describe('createPinnedFetch', () => {
   })
 
   it('builds an undici Agent whose pinned lookup always resolves to the validated IP', async () => {
-    createPinnedFetch('203.0.113.10')
+    createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
 
     expect(capturedAgentOptions).toHaveLength(1)
     const { connect } = capturedAgentOptions[0] as { connect: { lookup: PinnedLookup } }
@@ -66,23 +69,23 @@ describe('createPinnedFetch', () => {
         resolve({ address, family })
       )
     })
-    expect(resolved).toEqual({ address: '203.0.113.10', family: 4 })
+    expect(resolved).toEqual({ address: '93.184.216.34', family: 4 })
   })
 
   it('defaults allowH2 to false so existing consumers are unchanged', () => {
-    createPinnedFetch('203.0.113.10')
+    createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
     const opts = capturedAgentOptions[0] as { allowH2?: boolean }
     expect(opts.allowH2).toBe(false)
   })
 
   it('opts the Agent into HTTP/2 when allowH2 is requested', () => {
-    createPinnedFetch('203.0.113.10', { allowH2: true })
+    createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint', allowH2: true })
     const opts = capturedAgentOptions[0] as { allowH2?: boolean }
     expect(opts.allowH2).toBe(true)
   })
 
   it('uses IPv6 family when the validated IP is IPv6', async () => {
-    createPinnedFetch('2606:4700:4700::1111')
+    createPinnedFetch('2606:4700:4700::1111', { profile: 'configuredEndpoint' })
     const { connect } = capturedAgentOptions[0] as { connect: { lookup: PinnedLookup } }
     const resolved = await new Promise<{ address: string; family: number }>((resolve) => {
       connect.lookup('example.com', {}, (_err, address, family) => resolve({ address, family }))
@@ -91,7 +94,7 @@ describe('createPinnedFetch', () => {
   })
 
   it('dispatches through the pinned Agent, preserving init', async () => {
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
     const controller = new AbortController()
 
     await pinned('https://myresource.openai.azure.com/openai/v1/responses', {
@@ -115,7 +118,7 @@ describe('createPinnedFetch', () => {
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(302, { location: 'https://login.example.com/' }, byteStream(''))
     )
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
 
     const response = await pinned('https://mcp.example.com/', { redirect: 'manual' })
 
@@ -128,7 +131,7 @@ describe('createPinnedFetch', () => {
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(302, { location: 'https://login.example.com/' }, byteStream(''))
     )
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
 
     const response = await pinned(new Request('https://mcp.example.com/', { redirect: 'manual' }))
 
@@ -142,7 +145,7 @@ describe('createPinnedFetch', () => {
         undiciReply(307, { location: 'https://other-origin.example/final' }, byteStream(''))
       )
       .mockResolvedValueOnce(undiciReply(200, {}, byteStream('done')))
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
 
     const response = await pinned('https://azure.example.com/v1/responses', {
       method: 'GET',
@@ -163,12 +166,13 @@ describe('createPinnedFetch', () => {
     expect(await response.text()).toBe('done')
   })
 
-  it('does NOT block a private IP-literal URL (self-hosted-private MCP carve-out)', async () => {
+  it('reaches a private IP-literal URL the operator allowlisted', async () => {
+    setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('mcp')))
-    const pinned = createPinnedFetch('10.0.0.5')
+    const pinned = createPinnedFetch('10.0.0.5', { profile: 'configuredEndpoint' })
 
-    // A self-hosted MCP configured with a private IP-literal URL must still connect — the old
-    // undici.fetch path never ran the SSRF initial-target check that would otherwise block it.
+    // A self-hosted MCP on a private address connects because the deployment
+    // named that range, not because the address happened to be the pinned one.
     const response = await pinned('http://10.0.0.5:3000/mcp', { method: 'POST', body: '{}' })
 
     expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
@@ -176,13 +180,14 @@ describe('createPinnedFetch', () => {
     expect(await response.text()).toBe('mcp')
   })
 
-  it('follows a redirect that stays on the pinned private IP (self-hosted MCP alias)', async () => {
+  it('follows a redirect that stays inside the allowlisted range', async () => {
+    setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
     mockUndiciRequest
       .mockResolvedValueOnce(
         undiciReply(301, { location: 'http://10.0.0.5:3000/mcp/' }, byteStream(''))
       )
       .mockResolvedValueOnce(undiciReply(200, {}, byteStream('mcp')))
-    const pinned = createPinnedFetch('10.0.0.5')
+    const pinned = createPinnedFetch('10.0.0.5', { profile: 'configuredEndpoint' })
 
     const response = await pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })
 
@@ -191,21 +196,22 @@ describe('createPinnedFetch', () => {
     expect(await response.text()).toBe('mcp')
   })
 
-  it('STILL blocks a redirect to a different private IP (no metadata-IP escape)', async () => {
+  it('still blocks a redirect to a private IP outside the allowlist', async () => {
+    setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(302, { location: 'http://169.254.169.254/latest/meta-data/' }, byteStream(''))
     )
-    const pinned = createPinnedFetch('10.0.0.5')
+    const pinned = createPinnedFetch('10.0.0.5', { profile: 'configuredEndpoint' })
 
     await expect(pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })).rejects.toThrow(
-      /private or reserved/
+      /cloud metadata endpoint/
     )
     // The initial request happened; the redirect to the metadata IP was refused.
     expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
   })
 
   it('reuses one dispatcher across all calls of a single instance', async () => {
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
     await pinned('https://example.com/a')
     await pinned('https://example.com/b')
 
@@ -216,8 +222,8 @@ describe('createPinnedFetch', () => {
   })
 
   it('creates an independent dispatcher per instance', async () => {
-    const a = createPinnedFetch('203.0.113.10')
-    const b = createPinnedFetch('203.0.113.10')
+    const a = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
+    const b = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
     await a('https://example.com/a')
     await b('https://example.com/b')
 
@@ -229,7 +235,7 @@ describe('createPinnedFetch', () => {
 
   it('returns a streaming Response built from the undici.request body', async () => {
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(201, {}, byteStream('pong')))
-    const pinned = createPinnedFetch('203.0.113.10')
+    const pinned = createPinnedFetch('93.184.216.34', { profile: 'configuredEndpoint' })
     const response = await pinned('https://example.com')
     expect(response.status).toBe(201)
     expect(await response.text()).toBe('pong')

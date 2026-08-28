@@ -1,11 +1,17 @@
 import { createLogger } from '@sim/logger'
-import { resolveHostAddresses } from '@sim/security/dns'
-import { isIpLiteral, isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
-import { toError } from '@sim/utils/errors'
-import { getAllowedMcpDomainsFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/env-flags'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')
+
+/**
+ * An MCP server URL is a configured endpoint for software commonly self-hosted:
+ * plain HTTP and an arbitrary port are ordinary, and reaching one on a private
+ * address is a matter of the operator naming it in the egress allowlist.
+ */
+export const MCP_EGRESS_PROFILE: EgressProfile = 'selfHostedService'
 
 export class McpDomainNotAllowedError extends Error {
   constructor(domain: string) {
@@ -98,111 +104,40 @@ export function validateMcpDomain(url: string | undefined): void {
 }
 
 /**
- * Returns true if the hostname is localhost or a loopback IP literal (full
- * 127.0.0.0/8 range, or ::1). Expects IPv6 brackets to already be stripped.
- */
-function isLocalhostHostname(hostname: string): boolean {
-  const clean = hostname.toLowerCase()
-  if (clean === 'localhost') return true
-  return isLoopbackIp(clean)
-}
-
-/**
- * Validates an MCP server URL against SSRF attacks by resolving DNS and
- * rejecting private/reserved IP ranges (RFC-1918, link-local, cloud metadata).
+ * Validates an MCP server URL against the deployment's egress policy and returns
+ * the address to pin.
  *
- * Only active when ALLOWED_MCP_DOMAINS is **not configured**. When an admin
- * has set an explicit domain allowlist, they control which domains are
- * reachable and private-network MCP servers are legitimate. Applying SSRF
- * blocking on top of an admin-curated list would break self-hosted
- * deployments where MCP servers run on internal networks.
+ * Domain governance (`ALLOWED_MCP_DOMAINS`) and this check are separate
+ * questions and both apply: an allowlisted domain still has to resolve somewhere
+ * the deployment permits. They used to be alternatives — configuring the domain
+ * list disabled this entirely — which left an allowlisted domain free to redirect
+ * anywhere, cloud metadata included.
  *
- * Does NOT enforce protocol (HTTP is allowed) or block service ports — MCP
- * servers legitimately run on HTTP and on arbitrary ports.
+ * Returns null only when the hostname still contains an unresolved env-var
+ * reference. That URL is checked again after resolution, at which point it takes
+ * the normal path.
  *
- * Localhost/loopback is allowed for local dev MCP servers in self-hosted
- * deployments, but blocked on the hosted environment (sim.ai) where users
- * must not be able to reach the server's own loopback interface.
- * URLs with env var references in the hostname are skipped — they will be
- * validated after resolution at execution time.
- *
- * Returns the resolved IP (or the literal itself for IP-literal URLs) as a
- * non-null **policy signal**: the SSRF guard is active for this server. A public
- * resolution selects the validate-at-connect guarded fetch — DNS-rebinding TOCTOU
- * and redirect escapes are prevented by re-validating every socket connect and
- * following redirects under per-hop validation (see `createSsrfGuardedMcpFetch` /
- * `followRedirectsGuarded`), NOT by pinning to this address. The value is literally
- * pinned only for the self-hosted private/loopback carve-out (a policy-permitted
- * DNS alias the guarded lookup would otherwise filter). Returns null when the guard
- * is unnecessary or impossible: no URL, allowlist-only mode, env-var hostnames
- * (validated later), and localhost on self-hosted (no rebinding risk against a
- * fixed loopback).
- *
- * @throws McpSsrfError if the URL resolves to a blocked IP address
+ * @throws McpSsrfError when the policy refuses the destination
+ * @throws McpDnsResolutionError when the hostname cannot be resolved
  */
 export async function validateMcpServerSsrf(url: string | undefined): Promise<string | null> {
   if (!url) return null
-  if (getAllowedMcpDomainsFromEnv() !== null) return null
   if (hasEnvVarInHostname(url)) return null
 
-  let hostname: string
-  try {
-    hostname = new URL(url).hostname
-  } catch {
-    throw new McpSsrfError('MCP server URL is not a valid URL')
-  }
+  const validation = await validateUrlWithDNS(url, 'MCP server URL', MCP_EGRESS_PROFILE)
+  if (validation.isValid) return validation.resolvedIP!
 
-  const cleanHostname = unwrapIpv6Brackets(hostname)
-
-  if (isLocalhostHostname(cleanHostname)) {
-    if (isHosted) {
-      throw new McpSsrfError('MCP server URL cannot point to a loopback address')
+  const error = validation.error ?? 'MCP server URL is not reachable'
+  if (error.includes('could not be resolved')) {
+    let hostname = url
+    try {
+      hostname = new URL(url).hostname
+    } catch {
+      // Fall back to the raw URL in the message.
     }
-    return null
+    logger.warn('DNS lookup failed for MCP server URL', { hostname })
+    throw new McpDnsResolutionError(hostname)
   }
-
-  if (isIpLiteral(cleanHostname)) {
-    if (isPrivateIp(cleanHostname)) {
-      throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
-    }
-    // Public IP literal: pin to this exact address so the caller's pinned fetch
-    // (createPinnedFetch) keeps every redirect hop on it. Returning null here
-    // would fall back to the default fetch, which follows a 3xx redirect to a
-    // private/metadata host and escapes SSRF controls.
-    return cleanHostname
-  }
-
-  let addresses: string[]
-  let address: string
-  try {
-    const resolved = await resolveHostAddresses(cleanHostname)
-    addresses = resolved.addresses
-    address = resolved.preferred
-  } catch (error) {
-    logger.warn('DNS lookup failed for MCP server URL', {
-      hostname,
-      error: toError(error).message,
-    })
-    throw new McpDnsResolutionError(cleanHostname)
-  }
-
-  for (const candidate of addresses) {
-    if (isLoopbackIp(candidate)) {
-      if (isHosted) {
-        logger.warn('MCP server URL resolves to loopback address', {
-          hostname,
-          resolvedIP: candidate,
-        })
-        throw new McpSsrfError('MCP server URL resolves to a loopback address')
-      }
-    } else if (isPrivateIp(candidate)) {
-      logger.warn('MCP server URL resolves to blocked IP address', {
-        hostname,
-        resolvedIP: candidate,
-      })
-      throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
-    }
-  }
-
-  return address
+  logger.warn('MCP server URL refused by egress policy', { error })
+  throw new McpSsrfError(error)
 }

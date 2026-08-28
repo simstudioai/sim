@@ -151,7 +151,7 @@ export async function resolveBitbucketPullRequestRedirect(
 
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(
     initialValidation.resolvedIP,
-    { maxResponseSize: 64 * 1024 }
+    { profile: 'configuredEndpoint', maxResponseSize: 64 * 1024 }
   )
   let initial: Response | null = null
   let initialStatus: number | null = null

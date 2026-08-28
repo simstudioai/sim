@@ -10,7 +10,6 @@ import { isIpLiteral, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf
 import { toError } from '@sim/utils/errors'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
-import * as ipaddr from 'ipaddr.js'
 import {
   Agent,
   type Dispatcher,
@@ -484,23 +483,21 @@ const MAX_GUARDED_REDIRECTS = 5
  * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
  * targets are covered by {@link createSsrfGuardedLookup} at connect time.
  */
-function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
+function assertGuardedRedirectTarget(url: URL, profile: EgressProfile): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
   const host = unwrapIpv6Brackets(url.hostname)
-  if (ipaddr.isValid(host) && isPrivateIp(host)) {
-    // The pinned-private carve-out permits exactly its own validated IP as a target (a
-    // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
-    // else private (a redirect to e.g. the cloud metadata IP is still blocked).
-    if (
-      allowedPinnedIp &&
-      ipaddr.isValid(allowedPinnedIp) &&
-      ipaddr.process(host).toString() === ipaddr.process(allowedPinnedIp).toString()
-    ) {
-      return
-    }
-    throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
+  if (!isIpLiteral(host)) return
+
+  // The request's own policy decides, which is how a self-hosted server on a
+  // permitted private address stays reachable across a hop. It replaced a
+  // carve-out that permitted one pinned IP and could not express anything else.
+  const decision = checkResolvedEgress(url, host, profile)
+  if (!decision.allowed) {
+    throw new Error(
+      `Blocked by SSRF policy: ${describeEgressDenial(decision, 'redirect', profile)}`
+    )
   }
 }
 
@@ -566,14 +563,12 @@ export async function followRedirectsGuarded(
   rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
   input: string,
   init: UndiciRequestInit,
-  options?: { allowRedirectToIp?: string }
+  profile: EgressProfile
 ): Promise<Response> {
   let currentUrl = new URL(input)
   // The initial URL gets the same IP-literal check as redirect hops, so the exported guard is
-  // self-contained even when a caller skips its own up-front validation. `allowRedirectToIp`
-  // (the pinned-private MCP carve-out's validated IP) permits that one private target — both the
-  // initial URL and any hop that stays on it — while everything else private stays blocked.
-  assertGuardedRedirectTarget(currentUrl, options?.allowRedirectToIp)
+  // self-contained even when a caller skips its own up-front validation.
+  assertGuardedRedirectTarget(currentUrl, profile)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -601,7 +596,7 @@ export async function followRedirectsGuarded(
       throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
     }
     const nextUrl = new URL(location, currentUrl)
-    assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
+    assertGuardedRedirectTarget(nextUrl, profile)
     const hopPolicy = resolveRedirectHop({
       status,
       method,
@@ -855,14 +850,17 @@ async function liftFetchArgs(
  * targets can't bypass the lookup and custom headers never cross origins. See
  * {@link createPinnedFetchWithDispatcher} for the `maxResponseSize` semantics.
  */
-export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize?: number }): {
+export function createSsrfGuardedFetchWithDispatcher(options: {
+  profile: EgressProfile
+  maxResponseSize?: number
+}): {
   fetch: typeof fetch
   dispatcher: Agent
 } {
   const dispatcher = new Agent({
     allowH2: false,
     connect: { lookup: createSsrfGuardedLookup() },
-    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+    ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
   const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
@@ -871,8 +869,13 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
 
   const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const { target, effectiveInit } = await liftFetchArgs(input, init)
-    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
+    return followRedirectsGuarded(
+      rawFetch,
+      target,
+      // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+      effectiveInit as unknown as UndiciRequestInit,
+      options.profile
+    )
   }
 
   return { fetch: guarded, dispatcher }
@@ -904,7 +907,7 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
  */
 export function createPinnedFetch(
   resolvedIP: string,
-  options?: { allowH2?: boolean }
+  options: { profile: EgressProfile; allowH2?: boolean }
 ): typeof fetch {
   return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
 }
@@ -922,12 +925,12 @@ export function createPinnedFetch(
  */
 export function createPinnedFetchWithDispatcher(
   resolvedIP: string,
-  options?: { allowH2?: boolean; maxResponseSize?: number }
+  options: { profile: EgressProfile; allowH2?: boolean; maxResponseSize?: number }
 ): { fetch: typeof fetch; dispatcher: Agent } {
   const dispatcher = new Agent({
-    allowH2: options?.allowH2 ?? false,
+    allowH2: options.allowH2 ?? false,
     connect: { lookup: createPinnedLookup(resolvedIP) },
-    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+    ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
   const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
@@ -961,11 +964,7 @@ export function createPinnedFetchWithDispatcher(
       }
       return response
     }
-    // Permit this pinned IP as a redirect/initial target even when it's private (the
-    // self-hosted MCP carve-out on a private/loopback IP, and same-host redirects that stay on
-    // it) — otherwise the guarded policy would block a self-hosted server reaching itself. Any
-    // OTHER private target (e.g. a redirect to the cloud metadata IP) is still blocked.
-    return followRedirectsGuarded(rawFetch, target, undiciInit, { allowRedirectToIp: resolvedIP })
+    return followRedirectsGuarded(rawFetch, target, undiciInit, options.profile)
   }
 
   return { fetch: pinned, dispatcher }

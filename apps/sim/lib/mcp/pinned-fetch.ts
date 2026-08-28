@@ -6,7 +6,7 @@ import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
 } from '@/lib/core/security/input-validation.server'
-import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
+import { MCP_EGRESS_PROFILE, validateMcpServerSsrf } from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthFetch')
@@ -95,7 +95,9 @@ function capResponseBody(response: Response, maxBytes: number): Response {
  * behavior and its security property for exactly this carve-out.
  */
 export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch {
-  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
+  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP, {
+    profile: MCP_EGRESS_PROFILE,
+  })
   const capped: typeof fetch = async (input, init) => {
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
     const response = await pinnedFetch(input, init)
@@ -107,7 +109,9 @@ export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch
 }
 
 export function createGuardedMcpFetch(): GuardedMcpFetch {
-  const { fetch: guardedFetch, dispatcher } = createSsrfGuardedFetchWithDispatcher()
+  const { fetch: guardedFetch, dispatcher } = createSsrfGuardedFetchWithDispatcher({
+    profile: MCP_EGRESS_PROFILE,
+  })
   // Per-request phase logging: a stalled transport request (e.g. a first `initialize` that hangs
   // to the client timeout) shows whether it stalls BEFORE response headers ("request" with no
   // "response headers" = connect/request stall) or AFTER ("response headers" then the SDK's
@@ -297,12 +301,14 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
         // would filter the address, and an unguarded fallback would reopen rebinding —
         // keep the legacy pin to the validated address for exactly this case.
         const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
+          profile: MCP_EGRESS_PROFILE,
           maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
         })
         dispatcher = pinned.dispatcher
         response = await withDeadline(pinned.fetch(url, { ...init, signal }), signal)
       } else if (resolvedIP) {
         const guarded = createSsrfGuardedFetchWithDispatcher({
+          profile: MCP_EGRESS_PROFILE,
           maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
         })
         dispatcher = guarded.dispatcher

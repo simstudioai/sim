@@ -191,7 +191,9 @@ describe('vllmProvider', () => {
         'vLLM endpoint',
         'selfHostedService'
       )
-      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+        profile: 'selfHostedService',
+      })
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
       expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
     })

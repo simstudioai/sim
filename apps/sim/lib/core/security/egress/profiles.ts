@@ -41,9 +41,10 @@ import {
  *   exactly where Sim's own database and Redis listen, so reaching them has to
  *   be named rather than assumed.
  * - `selfHostedService` — a configured endpoint for software normally run
- *   on-prem without TLS: vLLM, Jupyter, 1Password Connect, ClickHouse. Same
- *   reachability as `configuredEndpoint`, but plain HTTP is expected rather than
- *   conditional, which is what these integrations relied on before.
+ *   on-prem: vLLM, Jupyter, 1Password Connect, ClickHouse, an MCP server. Same
+ *   reachability as `configuredEndpoint`, but plain HTTP and an arbitrary port
+ *   are expected rather than conditional, because that is how these are
+ *   ordinarily deployed inside a network.
  * - `proxy` — the egress proxy itself. Held to the strictest rule of all,
  *   because it is the component that decides where everything else may go: plain
  *   HTTP by protocol, but public destinations only, and no allowlist.
@@ -67,14 +68,19 @@ interface ProfileSpec {
   readonly honorsAllowlist: boolean
   /** When plain HTTP is acceptable for this provenance. */
   readonly insecureHttp: InsecureHttpPolicy
+  /** Whether the non-HTTP service ports are refused. Defaults to refusing them. */
+  readonly denyServicePorts?: boolean
   /**
-   * Whether loopback is reachable without being allowlisted. True off the hosted
-   * platform for the two profiles whose URLs someone deliberately configured —
+   * Whether loopback is reachable without being allowlisted, off the hosted
+   * platform. True for the profiles whose URLs someone deliberately configured —
    * a single-tenant deployment pointing at its own `localhost` (Ollama, a local
-   * Jupyter, a sidecar) is the ordinary case. Never true for `contentFetch`, and
-   * never true on the hosted platform, where `localhost` is Sim's own process.
+   * Jupyter, a sidecar) is the ordinary case. Never for `contentFetch`, and never
+   * on the hosted platform, where `localhost` is Sim's own process.
+   *
+   * Combined with the posture at build time rather than captured here, so the
+   * hosted branch is reachable from a test.
    */
-  readonly allowLoopback: boolean
+  readonly allowLoopbackOffHosted: boolean
   /**
    * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` applies. Only
    * `databaseHost` sets this, because that is the only thing the flag ever
@@ -87,18 +93,27 @@ const PROFILE_SPECS: Record<EgressProfile, ProfileSpec> = {
   configuredEndpoint: {
     honorsAllowlist: true,
     insecureHttp: 'whenVouched',
-    allowLoopback: !isHosted,
+    allowLoopbackOffHosted: true,
   },
-  selfHostedService: { honorsAllowlist: true, insecureHttp: 'always', allowLoopback: !isHosted },
-  requestTarget: { honorsAllowlist: true, insecureHttp: 'whenVouched', allowLoopback: !isHosted },
-  contentFetch: { honorsAllowlist: false, insecureHttp: 'never', allowLoopback: false },
+  selfHostedService: {
+    honorsAllowlist: true,
+    insecureHttp: 'always',
+    allowLoopbackOffHosted: true,
+    denyServicePorts: false,
+  },
+  requestTarget: {
+    honorsAllowlist: true,
+    insecureHttp: 'whenVouched',
+    allowLoopbackOffHosted: true,
+  },
+  contentFetch: { honorsAllowlist: false, insecureHttp: 'never', allowLoopbackOffHosted: false },
   databaseHost: {
     honorsAllowlist: true,
     insecureHttp: 'whenVouched',
-    allowLoopback: false,
+    allowLoopbackOffHosted: false,
     honorsLegacyPrivateFlag: true,
   },
-  proxy: { honorsAllowlist: false, insecureHttp: 'always', allowLoopback: false },
+  proxy: { honorsAllowlist: false, insecureHttp: 'always', allowLoopbackOffHosted: false },
 }
 
 const SOURCE_NAMES = {
@@ -110,6 +125,7 @@ interface DeploymentConfig {
   readonly hosts: string | undefined
   readonly ranges: string | undefined
   readonly legacyPrivate: boolean
+  readonly hosted: boolean
 }
 
 function readDeploymentConfig(): DeploymentConfig {
@@ -117,6 +133,7 @@ function readDeploymentConfig(): DeploymentConfig {
     hosts: getEgressAllowedHosts(),
     ranges: getEgressAllowedIpRanges(),
     legacyPrivate: isLegacyPrivateDatabaseAccessAllowed(),
+    hosted: isHosted,
   }
 }
 
@@ -130,8 +147,9 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
           allowedHosts: spec.honorsAllowlist ? config.hosts : undefined,
           allowedRanges: spec.honorsAllowlist ? config.ranges : undefined,
           insecureHttp: spec.insecureHttp,
-          allowLoopback: spec.allowLoopback,
+          allowLoopback: spec.allowLoopbackOffHosted && !config.hosted,
           allowPrivate: Boolean(spec.honorsLegacyPrivateFlag && config.legacyPrivate),
+          denyServicePorts: spec.denyServicePorts ?? true,
           sourceNames: SOURCE_NAMES,
         }),
       ]
@@ -140,7 +158,12 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
 }
 
 function sameConfig(a: DeploymentConfig, b: DeploymentConfig): boolean {
-  return a.hosts === b.hosts && a.ranges === b.ranges && a.legacyPrivate === b.legacyPrivate
+  return (
+    a.hosts === b.hosts &&
+    a.ranges === b.ranges &&
+    a.legacyPrivate === b.legacyPrivate &&
+    a.hosted === b.hosted
+  )
 }
 
 /**
@@ -193,7 +216,7 @@ export function describeEgressDenial(
   // No remedy is offered on the hosted platform, where the allowlist variables
   // are ignored and pointing at them would send the reader somewhere useless.
   const remedy =
-    !spec.honorsAllowlist || isHosted
+    !spec.honorsAllowlist || config.hosted
       ? ''
       : config.hosts || config.ranges
         ? ` It is not covered by ${SOURCE_NAMES.hosts} or ${SOURCE_NAMES.ranges}.`
