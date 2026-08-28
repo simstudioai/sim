@@ -167,27 +167,102 @@ function isInternalPathExpression(expression: SyntaxNode): boolean {
   return false
 }
 
-function getUrlConstructionPrefix(node: SyntaxNode): string | undefined {
-  const current = unwrapExpression(node)
-  if (
-    current.type !== 'NewExpression' ||
-    !isSyntaxNode(current.callee) ||
-    current.callee.type !== 'Identifier' ||
-    current.callee.name !== 'URL' ||
-    !Array.isArray(current.arguments) ||
-    current.arguments.length === 0 ||
-    !isSyntaxNode(current.arguments[0])
-  ) {
-    return undefined
-  }
-  return getStringPrefix(current.arguments[0])
-}
-
 function isInternalUrlConstruction(node: SyntaxNode): boolean {
-  return getUrlConstructionPrefix(node)?.startsWith('/api/') === true
+  const current = unwrapExpression(node)
+  return (
+    current.type === 'NewExpression' &&
+    isSyntaxNode(current.callee) &&
+    current.callee.type === 'Identifier' &&
+    current.callee.name === 'URL' &&
+    Array.isArray(current.arguments) &&
+    current.arguments.length > 0 &&
+    isSyntaxNode(current.arguments[0]) &&
+    isInternalPathExpression(current.arguments[0])
+  )
 }
 
-function functionContainsInternalRoute(fn: SyntaxNode): boolean {
+function collectTopLevelBindings(program: SyntaxNode): Map<string, SyntaxNode> {
+  const bindings = new Map<string, SyntaxNode>()
+  const statements = Array.isArray(program.body) ? program.body : []
+  for (const statement of statements) {
+    if (!isSyntaxNode(statement)) continue
+    if (
+      statement.type === 'FunctionDeclaration' &&
+      isSyntaxNode(statement.id) &&
+      statement.id.type === 'Identifier' &&
+      typeof statement.id.name === 'string'
+    ) {
+      bindings.set(statement.id.name, statement)
+      continue
+    }
+    if (statement.type !== 'VariableDeclaration' || !Array.isArray(statement.declarations)) {
+      continue
+    }
+    for (const declaration of statement.declarations) {
+      if (
+        isSyntaxNode(declaration) &&
+        declaration.type === 'VariableDeclarator' &&
+        isSyntaxNode(declaration.id) &&
+        declaration.id.type === 'Identifier' &&
+        typeof declaration.id.name === 'string' &&
+        isSyntaxNode(declaration.init)
+      ) {
+        bindings.set(declaration.id.name, declaration.init)
+      }
+    }
+  }
+  return bindings
+}
+
+function expressionContainsInternalRoute(
+  expression: SyntaxNode,
+  bindings: ReadonlyMap<string, SyntaxNode>,
+  seen = new Set<string>()
+): boolean {
+  const current = unwrapExpression(expression)
+  if (isInternalPathExpression(current) || isInternalUrlConstruction(current)) return true
+
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    if (seen.has(current.name)) return false
+    const binding = bindings.get(current.name)
+    if (!binding) return false
+    const nextSeen = new Set(seen)
+    nextSeen.add(current.name)
+    return expressionContainsInternalRoute(binding, bindings, nextSeen)
+  }
+
+  if (
+    current.type === 'CallExpression' ||
+    current.type === 'OptionalCallExpression' ||
+    current.type === 'NewExpression'
+  ) {
+    if (!isSyntaxNode(current.callee)) return false
+    const callee = unwrapExpression(current.callee)
+    if (callee.type === 'Identifier') {
+      return expressionContainsInternalRoute(callee, bindings, seen)
+    }
+    const access = getStaticMemberAccess(callee)
+    return access ? expressionContainsInternalRoute(access.target, bindings, seen) : false
+  }
+
+  if (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
+    const access = getStaticMemberAccess(current)
+    return access ? expressionContainsInternalRoute(access.target, bindings, seen) : false
+  }
+
+  if (
+    ['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
+  ) {
+    return functionContainsInternalRoute(current, bindings, seen)
+  }
+  return false
+}
+
+function functionContainsInternalRoute(
+  fn: SyntaxNode,
+  bindings: ReadonlyMap<string, SyntaxNode>,
+  seen: ReadonlySet<string>
+): boolean {
   const current = unwrapExpression(fn)
   if (
     !['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
@@ -196,7 +271,12 @@ function functionContainsInternalRoute(fn: SyntaxNode): boolean {
   }
   if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
     const body = unwrapExpression(current.body)
-    if (body.type !== 'BlockStatement' && isInternalPathExpression(body)) return true
+    if (
+      body.type !== 'BlockStatement' &&
+      expressionContainsInternalRoute(body, bindings, new Set(seen))
+    ) {
+      return true
+    }
   }
 
   let found = false
@@ -205,7 +285,7 @@ function functionContainsInternalRoute(fn: SyntaxNode): boolean {
     if (
       node.type === 'ReturnStatement' &&
       isSyntaxNode(node.argument) &&
-      isInternalPathExpression(node.argument)
+      expressionContainsInternalRoute(node.argument, bindings, new Set(seen))
     ) {
       found = true
       return
@@ -242,6 +322,7 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
   const violations: ToolSelfHopViolation[] = []
   let detectedSelfHops = 0
   let legacyInternalPolicies = 0
+  const bindings = collectTopLevelBindings(syntaxTree.program)
 
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ObjectExpression') {
@@ -249,18 +330,24 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
       if (requestProperty && isSyntaxNode(requestProperty.value)) {
         const request = unwrapExpression(requestProperty.value)
         const urlProperty = getObjectProperty(request, 'url')
+        const internalProperty = getObjectProperty(request, 'internal')
+        if (internalProperty) {
+          legacyInternalPolicies += 1
+          violations.push({
+            file,
+            line: internalProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+            toolId: getToolId(node),
+            reason: 'legacy-internal-policy',
+          })
+        }
         if (!urlProperty) {
           for (const child of getChildNodes(node)) visit(child)
           return
         }
-        const internalProperty = getObjectProperty(request, 'internal')
         const url = urlProperty?.value
         const currentUrl = isSyntaxNode(url) ? unwrapExpression(url) : undefined
         const hasInternalRoute =
-          currentUrl !== undefined &&
-          (isInternalPathExpression(currentUrl) ||
-            isInternalUrlConstruction(currentUrl) ||
-            functionContainsInternalRoute(currentUrl))
+          currentUrl !== undefined && expressionContainsInternalRoute(currentUrl, bindings)
 
         if (hasInternalRoute) {
           detectedSelfHops += 1
@@ -269,15 +356,6 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
             line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
             toolId: getToolId(node),
             reason: 'same-origin-tool-request',
-          })
-        }
-        if (internalProperty) {
-          legacyInternalPolicies += 1
-          violations.push({
-            file,
-            line: internalProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-            toolId: getToolId(node),
-            reason: 'legacy-internal-policy',
           })
         }
       }

@@ -1,4 +1,4 @@
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
 import { type FunctionExecuteBody, functionExecuteBodySchema } from '@/lib/api/contracts'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -47,6 +47,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
     const { attributedUserId } = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const subject = resolvePrincipalSubject(principal)
     return executeFunctionRequest(
       {
         headers: input.headers,
@@ -56,6 +57,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
       {
         attributedUserId,
         principal,
+        ...(subject?.kind === 'sim_user' ? { fileAccessUserId: subject.userId } : {}),
         ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
       }
     )

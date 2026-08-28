@@ -974,7 +974,8 @@ interface FunctionRouteExecutionContext {
   largeValueKeys?: string[]
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
-  userId?: string
+  attributedUserId: string
+  fileAccessUserId?: string
   requestId: string
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
@@ -1075,6 +1076,7 @@ function createFunctionRuntimeBrokers(
   const largeValueKeys = context.largeValueKeys
   const fileKeys = context.fileKeys
   const base = {
+    principal: context.principal,
     requestId: context.requestId,
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
@@ -1083,7 +1085,7 @@ function createFunctionRuntimeBrokers(
     largeValueKeys,
     fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
-    userId: context.userId,
+    userId: context.fileAccessUserId,
     logger,
   }
 
@@ -1155,7 +1157,7 @@ async function compactFunctionRouteBody<T>(
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
     executionId: context.executionId,
-    userId: context.userId,
+    userId: context.attributedUserId,
     preserveRoot: true,
     requireDurable: Boolean(context.workspaceId && context.workflowId && context.executionId),
   })
@@ -1824,6 +1826,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
 
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
+  fileAccessUserId?: string
   principal: DelegatedPrincipal
   sandboxProfile?: 'mothership'
 }
@@ -2004,7 +2007,8 @@ export async function executeFunctionRequest(
       largeValueKeys,
       fileKeys,
       allowLargeValueWorkflowScope,
-      userId: auth.attributedUserId,
+      attributedUserId: auth.attributedUserId,
+      fileAccessUserId: auth.fileAccessUserId,
       requestId,
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,

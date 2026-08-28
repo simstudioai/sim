@@ -64,6 +64,45 @@ describe('executeFunction', () => {
       allowPersonalApiKeys: true,
     })
     mocks.executeRequest.mockResolvedValue(Response.json({ success: true }))
+    mocks.resolvePermission.mockResolvedValue('write')
+  })
+
+  it('uses only the real workflow subject for legacy file contexts', async () => {
+    const humanPrincipal: WorkflowExecutionDelegatedPrincipal = {
+      ...principal,
+      subjectUserId: 'invoking-user',
+      delegationContext: {
+        ...principal.delegationContext!,
+        principal: {
+          kind: 'session',
+          userId: 'invoking-user',
+          sessionId: 'session-1',
+        },
+      },
+    }
+
+    await executeFunction.execute({
+      principal: humanPrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        body: {
+          code: 'return 1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+        },
+        headers: new Headers(),
+      },
+    })
+
+    expect(mocks.executeRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        attributedUserId: 'invoking-user',
+        fileAccessUserId: 'invoking-user',
+        principal: humanPrincipal,
+      })
+    )
   })
 
   it('keeps an actorless deployed principal authoritative and attributes legacy work afterward', async () => {

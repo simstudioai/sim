@@ -95,7 +95,8 @@ describe('executeFileTool', () => {
       expect.objectContaining(input),
       expect.objectContaining({
         workspaceId: 'workspace-1',
-        userId: 'user-1',
+        attributedUserId: 'user-1',
+        fileAccessUserId: 'user-1',
         requestId: 'request-1',
       })
     )
@@ -114,7 +115,8 @@ describe('executeFileTool', () => {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-        userId: 'user-1',
+        attributedUserId: 'user-1',
+        fileAccessUserId: 'user-1',
       })
     )
     expect(mocks.executeManage).not.toHaveBeenCalled()
@@ -156,7 +158,10 @@ describe('executeFileTool', () => {
 
     expect(mocks.executeManage).toHaveBeenCalledWith(
       expect.objectContaining(MANAGE_INPUTS.file_get),
-      expect.objectContaining({ userId: 'invoking-user' })
+      expect.objectContaining({
+        attributedUserId: 'invoking-user',
+        fileAccessUserId: 'invoking-user',
+      })
     )
   })
 
@@ -210,7 +215,8 @@ describe('executeFileTool', () => {
       expect.objectContaining(MANAGE_INPUTS.file_decompress),
       expect.objectContaining({
         principal,
-        userId: 'workspace-owner',
+        attributedUserId: 'workspace-owner',
+        fileAccessUserId: undefined,
         workspaceId: 'workspace-1',
       })
     )

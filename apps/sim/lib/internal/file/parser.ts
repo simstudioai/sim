@@ -11,6 +11,10 @@ import type { ContractBody } from '@/lib/api/contracts'
 import type { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  assertUserFileContentAccess,
+  type ExecutionMaterializationContext,
+} from '@/lib/execution/payloads/materialization.server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { isFileParserError } from '@/lib/file-parsers/errors'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
@@ -31,7 +35,6 @@ import {
   isInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileNameByKey } from '@/lib/workspace-files/application/read-workspace-file-name-by-key'
-import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import '@/lib/uploads/core/setup.server'
 
@@ -60,8 +63,19 @@ export interface FileParserOperationContext {
   workspaceId: string
   workflowId: string
   executionId?: string
-  userId: string
+  attributedUserId: string
+  fileAccessUserId?: string
+  largeValueExecutionIds?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
+  requestId?: string
   signal?: AbortSignal
+}
+
+type FileReadAccessContext = ExecutionMaterializationContext & {
+  principal: Principal
+  workspaceId: string
+  workflowId: string
 }
 
 interface ParseResult {
@@ -102,7 +116,18 @@ export async function executeFileParserOperation(
     if (input.executionId && input.executionId !== context.executionId) {
       return Response.json({ success: false, error: 'Execution access denied' }, { status: 403 })
     }
-    const { userId, workspaceId } = context
+    const { attributedUserId, workspaceId } = context
+    const fileReadAccess: FileReadAccessContext = {
+      principal: context.principal,
+      workspaceId,
+      workflowId: context.workflowId,
+      executionId: context.executionId,
+      largeValueExecutionIds: context.largeValueExecutionIds,
+      fileKeys: context.fileKeys,
+      allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+      userId: context.fileAccessUserId,
+      requestId: context.requestId,
+    }
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return Response.json({ success: false, error: 'No file path provided' }, { status: 400 })
@@ -116,7 +141,7 @@ export async function executeFileParserOperation(
       filePath,
       fileType,
       workspaceId,
-      userId,
+      userId: attributedUserId,
       hasExecutionContext: !!executionContext,
       hasHeaders: Boolean(headers && Object.keys(headers).length > 0),
     })
@@ -145,7 +170,8 @@ export async function executeFileParserOperation(
           singlePath,
           fileType,
           workspaceId,
-          userId,
+          attributedUserId,
+          fileReadAccess,
           context.principal,
           executionContext,
           headers,
@@ -198,7 +224,8 @@ export async function executeFileParserOperation(
       filePath,
       fileType,
       workspaceId,
-      userId,
+      attributedUserId,
+      fileReadAccess,
       context.principal,
       executionContext,
       headers,
@@ -247,7 +274,8 @@ async function parseFileSingle(
   filePath: string,
   fileType: string,
   workspaceId: string,
-  userId: string,
+  attributedUserId: string,
+  fileReadAccess: FileReadAccessContext,
   principal: Principal,
   executionContext?: ExecutionContext,
   headers?: Record<string, string>,
@@ -287,7 +315,8 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      userId,
+      attributedUserId,
+      fileReadAccess,
       principal,
       workspaceId,
       executionContext,
@@ -302,7 +331,7 @@ async function parseFileSingle(
       filePath,
       fileType,
       workspaceId,
-      userId,
+      attributedUserId,
       executionContext,
       headers,
       signal,
@@ -315,7 +344,8 @@ async function parseFileSingle(
     return handleCloudFile(
       filePath,
       fileType,
-      userId,
+      attributedUserId,
+      fileReadAccess,
       principal,
       workspaceId,
       executionContext,
@@ -328,7 +358,8 @@ async function parseFileSingle(
   return handleLocalFile(
     filePath,
     fileType,
-    userId,
+    attributedUserId,
+    fileReadAccess,
     executionContext,
     signal,
     maxDownloadBytes,
@@ -599,7 +630,8 @@ async function handleExternalUrl(
 async function handleCloudFile(
   filePath: string,
   fileType: string,
-  userId: string,
+  attributedUserId: string,
+  fileReadAccess: FileReadAccessContext,
   principal: Principal,
   workspaceId: string,
   executionContext?: ExecutionContext,
@@ -615,16 +647,10 @@ async function handleCloudFile(
 
     const context = inferContextFromKey(cloudKey)
 
-    const hasAccess = await verifyFileAccess(
-      cloudKey,
-      userId,
-      undefined, // customConfig
-      context, // context
-      false // isLocal
-    )
-
-    if (!hasAccess) {
-      logger.warn('Unauthorized cloud file parse attempt', { userId, key: cloudKey, context })
+    try {
+      await assertUserFileContentAccess({ key: cloudKey, context }, fileReadAccess)
+    } catch {
+      logger.warn('Unauthorized cloud file parse attempt', { key: cloudKey, context })
       return {
         success: false,
         error: 'File not found',
@@ -705,7 +731,7 @@ async function handleCloudFile(
             fileBuffer,
             filename,
             mimeType,
-            userId
+            attributedUserId
           )
           logger.info(`Copied file to execution storage: ${filename}`, { key: userFile.key })
         } catch (uploadError) {
@@ -806,7 +832,8 @@ async function handleCloudFile(
 async function handleLocalFile(
   filePath: string,
   fileType: string,
-  userId: string,
+  attributedUserId: string,
+  fileReadAccess: FileReadAccessContext,
   executionContext?: ExecutionContext,
   signal?: AbortSignal,
   maxDownloadBytes = MAX_DOWNLOAD_SIZE_BYTES,
@@ -818,16 +845,10 @@ async function handleLocalFile(
     const filename = storageKey.split('/').pop() || storageKey
 
     const context = inferContextFromKey(storageKey)
-    const hasAccess = await verifyFileAccess(
-      storageKey,
-      userId,
-      undefined, // customConfig
-      context, // context
-      true // isLocal
-    )
-
-    if (!hasAccess) {
-      logger.warn('Unauthorized local file parse attempt', { userId, filename })
+    try {
+      await assertUserFileContentAccess({ key: storageKey, context }, fileReadAccess)
+    } catch {
+      logger.warn('Unauthorized local file parse attempt', { filename })
       return {
         success: false,
         error: 'File not found',
@@ -867,7 +888,7 @@ async function handleLocalFile(
           fileBuffer,
           filename,
           mimeType,
-          userId
+          attributedUserId
         )
         logger.info(`Stored local file in execution storage: ${filename}`, { key: userFile.key })
       } catch (uploadError) {
