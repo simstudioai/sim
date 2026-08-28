@@ -43,6 +43,7 @@ async function revertSavedWebhook(
       .update(webhook)
       .set({
         workflowId: existingWebhook.workflowId,
+        deploymentVersionId: existingWebhook.deploymentVersionId,
         blockId: existingWebhook.blockId,
         path: existingWebhook.path,
         provider: existingWebhook.provider,

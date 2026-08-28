@@ -206,4 +206,68 @@ describe('POST /api/webhooks polling configuration', () => {
       deploymentVersionId: 'deployment-1',
     })
   })
+
+  it('restores the previous IMAP deployment binding when polling setup fails', async () => {
+    const existingWebhook = {
+      id: 'webhook-1',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'imap-hook',
+      provider: 'imap',
+      deploymentVersionId: null,
+      providerConfig: {
+        host: '{{IMAP_HOST}}',
+        username: '{{IMAP_USERNAME}}',
+        password: '{{IMAP_PASSWORD}}',
+      },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'canonical-workspace',
+        deploymentVersionId: 'deployment-1',
+      },
+    ])
+    queueTableRows(webhook, [{ id: existingWebhook.id }])
+    queueTableRows(webhook, [existingWebhook])
+    dbChainMockFns.returning.mockImplementationOnce(async () => {
+      const updatedValues = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+        deploymentVersionId?: string | null
+      }
+      return [
+        {
+          ...existingWebhook,
+          deploymentVersionId: updatedValues.deploymentVersionId ?? null,
+        },
+      ]
+    })
+    mocks.configurePolling.mockResolvedValue(false)
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'imap-hook',
+          provider: 'imap',
+          providerConfig: existingWebhook.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+
+    expect(response.status).toBe(500)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ deploymentVersionId: 'deployment-1' })
+    )
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ deploymentVersionId: null })
+    )
+  })
 })
