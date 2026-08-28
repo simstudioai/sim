@@ -19,6 +19,22 @@ export interface SecureGitHubRequestOptions {
 }
 
 /**
+ * GitHub's API rejects a request without a User-Agent with 403 "Request forbidden by
+ * administrative rules". The declarative transport sets `User-Agent: Sim` for every
+ * tool it formats; a tool on this helper bypasses that, and the guarded fetch builds
+ * its request with raw `node:https`, which adds no default. Bun's `node:http` shim
+ * does inject its own `Bun/x.y.z`, so the call happens to work in production today —
+ * but that silently replaces Sim's attribution and does not hold under Node.
+ *
+ * Set here rather than in each caller's header map so every future tool on this
+ * helper inherits it. A caller that supplies its own User-Agent, in any casing, wins.
+ */
+function withUserAgent(headers: Record<string, string>): Record<string, string> {
+  const hasUserAgent = Object.keys(headers).some((name) => name.toLowerCase() === 'user-agent')
+  return hasUserAgent ? headers : { ...headers, 'User-Agent': 'Sim' }
+}
+
+/**
  * Executes one DNS-validated, IP-pinned GitHub request for a tool that cannot use
  * the declarative transport — a multi-phase tool running under `directExecution`.
  *
@@ -28,11 +44,19 @@ export interface SecureGitHubRequestOptions {
  *
  * The redirect policy is explicit because omitting it leaves the workspace's GitHub
  * token on the request across a cross-origin hop — the transport only strips
- * credentials when a policy is present. `standard` also refuses to replay the POST
- * a 301/302 downgrades, which is the same non-idempotency reasoning as the missing
- * retry loop above. `stripAuthOnRedirect` is deliberately NOT set: it drops the
- * token on every hop, and GitHub redirects same-origin for legitimate reasons (a
- * renamed repository answers 301 within api.github.com), so an unauthenticated
+ * credentials when a policy is present. `legacy` is chosen over `standard` for the
+ * method rules: `standard` rewrites a redirected POST to a bodyless GET on 301/302
+ * regardless of origin, and GitHub answers 301 within api.github.com for a renamed
+ * repository, so a comment POST there would be replayed as a GET of the comment
+ * list — a JSON array that fails the tool's payload shape check and reports success
+ * with no comment created. `legacy` keeps the method and body across that hop.
+ *
+ * Credential stripping is unaffected by the mode: the guarded follower strips
+ * Authorization, Proxy-Authorization and Cookie on a cross-origin hop whenever
+ * `sendCredentialsOnCrossOriginRedirect` is false, in either mode.
+ *
+ * `stripAuthOnRedirect` is deliberately NOT set: it drops the token on every hop,
+ * including the legitimate same-origin renamed-repository 301, so an unauthenticated
  * replay there would turn a working call into a 401.
  */
 export async function secureGitHubRequest(
@@ -46,10 +70,10 @@ export async function secureGitHubRequest(
 
   const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
     method: options.method ?? 'GET',
-    headers: options.headers,
+    headers: withUserAgent(options.headers),
     body: options.body,
     maxResponseBytes: options.maxResponseBytes ?? GITHUB_MAX_RESPONSE_BYTES,
-    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
+    redirectPolicy: { mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false },
     signal: options.signal,
   })
 
