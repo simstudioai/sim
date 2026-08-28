@@ -61,7 +61,10 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
-import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import {
+  describeWithholdingCause,
+  inspectToolResultForCopilot,
+} from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -737,15 +740,20 @@ async function executeToolAndReportInner(
     toolSpan.attributes = {
       ...toolSpan.attributes,
       ...summarizeToolResultForSpan(copilotResult),
-      ...(projection.safe ? {} : { resultWithheld: true }),
+      ...(projection.safe
+        ? {}
+        : { resultWithheld: true, ...describeWithholdingCause(projection.cause) }),
     }
     if (!projection.safe) {
       // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
       // ok and the model just sees a bare `{success: true}` with no output.
+      // The cause is what says whether a guard latched, no catalog was built,
+      // or the payload itself was unprojectable — three different fixes.
       logger.warn('Tool result withheld by egress projection', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
+        ...describeWithholdingCause(projection.cause),
       })
     }
 

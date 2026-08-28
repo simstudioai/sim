@@ -68,6 +68,7 @@ import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
+import { readAttemptedExecutionId } from '@/executor/utils/errors'
 
 const principal = {
   kind: 'delegated' as const,
@@ -304,5 +305,90 @@ describe('Copilot workflow run application commands', () => {
         },
       })
     ).rejects.toThrow('database unavailable')
+  })
+
+  /**
+   * A caller whose result was withheld decides about retry from one fact: whether a run
+   * exists. This layer owns that answer, because it is the last place that can distinguish
+   * "we never handed the work to the executor" from "we did".
+   *
+   * Deliberately coarse. A preflight refusal inside `executeWorkflow` also names the run,
+   * costing the caller one lookup; establishing anything finer would take a callback on
+   * every block of every execution in the product.
+   */
+  describe('naming the run a failure belongs to', () => {
+    const runInput = {
+      workflowId: 'workflow-1',
+      useDraftState: true,
+      lifecycle,
+      hasWorkflowInput: false,
+      useMockPayload: true,
+    }
+
+    const failWith = (input = runInput) =>
+      runWorkflowFromCopilot.execute({ principal, input }).catch((thrown) => thrown)
+
+    it('names the run once it has been handed to the executor', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(new Error('database unavailable'))
+
+      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
+    })
+
+    /**
+     * Deliberate, and the one place this contract is deliberately coarse: `executeWorkflow`
+     * validates its own arguments before creating anything, and those failures still name
+     * the run. `attempted` means "zero or one executions exist under this id, resolve it",
+     * so the caller resolves, finds nothing, and retries — correct, at the cost of a lookup.
+     *
+     * Paying to avoid that lookup means an executor-side dispatch marker, which is a
+     * callback on every block of every execution in the product. It would also buy nothing:
+     * all four preflight throws are invariant violations — no workspace id, no billing
+     * attribution, no principal, attribution mismatch — so a retry fails identically.
+     */
+    it('names the run for a failure inside the executor call, whatever its cause', async () => {
+      mocks.executeWorkflow.mockRejectedValueOnce(
+        new Error('Billing attribution is required for workspace execution')
+      )
+
+      expect(readAttemptedExecutionId(await failWith())).toBe('child-execution-1')
+    })
+
+    it('names the run when the crossing threw after it already returned', async () => {
+      // Only the post-run crossing throws; the catch re-enters this same method to record
+      // the failed crossing, and throwing again there would replace the error the id is on.
+      let crossings = 0
+      const registry = {
+        exportProvenanceForValue: () => undefined,
+        beginPendingActivation: () => () => {},
+        importCrossingProvenance: () => {
+          if (crossings++ === 0) throw new Error('crossing import failed')
+        },
+      }
+
+      const error = await failWith({
+        ...runInput,
+        lifecycle: { resolvedSecretTraceRegistry: registry },
+      } as typeof runInput)
+
+      expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
+    })
+
+    it('names nothing when admission refused the run before it could start', async () => {
+      mocks.admission.mockRejectedValueOnce(new Error('Usage limit exceeded'))
+
+      const error = await failWith()
+
+      expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+      expect(readAttemptedExecutionId(error)).toBeUndefined()
+    })
+
+    it('names nothing when authorization refused the run', async () => {
+      mocks.permission.mockResolvedValue('read')
+
+      const error = await failWith()
+
+      expect(mocks.admission).not.toHaveBeenCalled()
+      expect(readAttemptedExecutionId(error)).toBeUndefined()
+    })
   })
 })
