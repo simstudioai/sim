@@ -5,10 +5,21 @@ export type CredentialGroupsAvailability =
   | { available: true }
   | { available: false; reason: 'feature_disabled' | 'enterprise_plan_required' }
 
-export async function resolveCredentialGroupsAvailability(ownerBilling: {
-  isEnterprise: boolean
-}): Promise<CredentialGroupsAvailability> {
-  if (!(await isFeatureEnabled('credential-groups'))) {
+/**
+ * The workspace the gate is evaluated for. `workspaceId` is required so no call
+ * site can silently fall back to the global clause and reveal the feature to a
+ * workspace the AppConfig `credential-groups` allowlist does not name.
+ */
+export interface CredentialGroupsAvailabilityInput {
+  workspaceId: string
+  ownerBilling: { isEnterprise: boolean }
+}
+
+export async function resolveCredentialGroupsAvailability({
+  workspaceId,
+  ownerBilling,
+}: CredentialGroupsAvailabilityInput): Promise<CredentialGroupsAvailability> {
+  if (!(await isFeatureEnabled('credential-groups', { workspaceId }))) {
     return { available: false, reason: 'feature_disabled' }
   }
   if (isHosted && !ownerBilling.isEnterprise) {
@@ -17,9 +28,12 @@ export async function resolveCredentialGroupsAvailability(ownerBilling: {
   return { available: true }
 }
 
-/** Credential Groups are globally gated and restricted to Enterprise workspaces on Sim Cloud. */
-export async function isCredentialGroupsAvailable(ownerBilling: {
-  isEnterprise: boolean
-}): Promise<boolean> {
-  return (await resolveCredentialGroupsAvailability(ownerBilling)).available
+/**
+ * Credential Groups are gated per workspace (globally or by the AppConfig
+ * `workspaceIds` allowlist) and restricted to Enterprise workspaces on Sim Cloud.
+ */
+export async function isCredentialGroupsAvailable(
+  input: CredentialGroupsAvailabilityInput
+): Promise<boolean> {
+  return (await resolveCredentialGroupsAvailability(input)).available
 }

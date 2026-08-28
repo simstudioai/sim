@@ -94,7 +94,12 @@ export function ownedAttachableWorkspacesWhere({
   )
 }
 
-/** Locks workspace rows before any payer or membership mutation. */
+/**
+ * Locks workspace rows before any payer or membership mutation. `FOR NO KEY
+ * UPDATE` keeps this compatible with the implicit foreign-key `FOR KEY SHARE`
+ * concurrent writers hold; see the module header of
+ * `lib/billing/storage/tracking.ts`.
+ */
 async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string[]): Promise<void> {
   if (workspaceIds.length === 0) return
   await tx
@@ -102,7 +107,7 @@ async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string
     .from(workspace)
     .where(inArray(workspace.id, [...workspaceIds].sort()))
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 }
 
 interface AttachOwnedWorkspacesToOrganizationParams {
@@ -243,7 +248,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       )
     )
     .orderBy(asc(workspace.id))
-    .for('update')
+    .for('no key update')
 
   if (ownedWorkspaces.length === 0) {
     return {

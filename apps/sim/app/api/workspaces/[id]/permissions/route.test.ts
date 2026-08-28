@@ -73,7 +73,7 @@ function queuePersonalWorkspace(
 ) {
   const workspaceRow = { ownerId: OWNER_ID, billedAccountUserId, organizationId: null }
   queueTableRows(schemaMock.workspace, [workspaceRow])
-  /** The in-transaction re-read of the same row, taken `FOR UPDATE`. */
+  /** The in-transaction re-read of the same row, taken `FOR NO KEY UPDATE`. */
   permissionsMockFns.mockGetWorkspaceWithOwner.mockResolvedValue({
     id: WORKSPACE_ID,
     ...workspaceRow,

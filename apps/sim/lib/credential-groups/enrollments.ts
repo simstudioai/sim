@@ -227,7 +227,8 @@ async function resolvePublicEnrollmentRowByIdentity(
   if (row.enrollment.invitationExpiresAt.getTime() <= Date.now()) return null
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(row.workspaceId)
-  if (!(await isCredentialGroupsAvailable(ownerBilling))) return null
+  if (!(await isCredentialGroupsAvailable({ workspaceId: row.workspaceId, ownerBilling })))
+    return null
   return row
 }
 

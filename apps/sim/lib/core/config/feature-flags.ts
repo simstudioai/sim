@@ -13,8 +13,8 @@ const FEATURE_FLAGS_PROFILE = 'feature-flags'
 
 /**
  * A single flag's gating rule. A flag is ON for a context when ANY clause matches:
- * the global `enabled` default, the org/user allowlists, or `adminEnabled` for
- * platform admins. An absent clause never matches. Shape shared with the other
+ * the global `enabled` default, the workspace/org/user allowlists, or
+ * `adminEnabled` for platform admins. An absent clause never matches. Shape shared with the other
  * AppConfig gating documents via {@link AppConfigGateRule}.
  */
 export type FeatureFlagRule = AppConfigGateRule
@@ -33,7 +33,7 @@ export type FeatureFlagContext = AppConfigGateContext
  * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
  * without APPCONFIG_*). A truthy secret turns the flag on globally.
  *
- * Gating by org/user/admin is available ONLY through the hosted AppConfig document
+ * Gating by workspace/org/user/admin is available ONLY through the hosted AppConfig document
  * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
  * admin access from a code literal. To add a flag, register its name and the secret
  * to fall back on.
@@ -44,7 +44,7 @@ export type FeatureFlagContext = AppConfigGateContext
  * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
  * globally).
  *
- * Gating by org/user/admin is deliberately NOT part of a definition — it lives only
+ * Gating by workspace/org/user/admin is deliberately NOT part of a definition — it lives only
  * in the hosted AppConfig document, so no environment can grant access from a code
  * literal.
  */
@@ -75,7 +75,8 @@ const FEATURE_FLAGS = {
   'credential-groups': {
     description:
       'Workspace-owned collections that gather managed OAuth credentials from external users. ' +
-      'Global on/off only; hosted workspaces must also have an Enterprise subscription.',
+      'Gated by workspaceId via AppConfig (or globally); hosted workspaces must also have an ' +
+      'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
   },
 } satisfies Record<string, FeatureFlagDefinition>
@@ -108,8 +109,8 @@ async function resolveAdmin(userId: string): Promise<boolean> {
 }
 
 /**
- * The admin clause is resolved last and lazily: a global/userId/orgId match
- * short-circuits before any DB read, a rule without `adminEnabled` never queries,
+ * The admin clause is resolved last and lazily: a global/userId/orgId/workspaceId
+ * match short-circuits before any DB read, a rule without `adminEnabled` never queries,
  * and a missing `userId` resolves to `false` without a query.
  */
 async function evaluate(

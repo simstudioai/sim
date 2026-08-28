@@ -502,6 +502,12 @@ export async function moveWorkspaceToOrganization(params: {
           throw new InvitationSetChangedError(currentInvitationIds)
         }
 
+        /**
+         * `FOR NO KEY UPDATE`, not `FOR UPDATE`: the workspace row is a
+         * foreign-key parent, so concurrent writers hold an implicit
+         * `FOR KEY SHARE` on it. See the module header of
+         * `lib/billing/storage/tracking.ts`.
+         */
         const [workspaceRow] = await tx
           .select({
             id: workspace.id,
@@ -513,7 +519,7 @@ export async function moveWorkspaceToOrganization(params: {
           })
           .from(workspace)
           .where(eq(workspace.id, params.workspaceId))
-          .for('update')
+          .for('no key update')
           .limit(1)
 
         if (!workspaceRow) {
