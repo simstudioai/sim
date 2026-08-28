@@ -101,6 +101,7 @@ export class DAGExecutor {
     this.registerRestoredClonedSubflows(context.subflowParentMap, restoredClonedSubflows)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
+    this.contextExtensions.onBlocksMayRun?.()
     return await engine.run(triggerBlockId)
   }
 
@@ -258,6 +259,7 @@ export class DAGExecutor {
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
     const engine = this.buildExecutionPipeline(context, dag, state, filteredSnapshot)
+    this.contextExtensions.onBlocksMayRun?.()
     const result = await engine.run()
     if (result.metadata) {
       result.metadata.largeValueKeys = context.largeValueKeys

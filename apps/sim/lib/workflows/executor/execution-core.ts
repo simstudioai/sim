@@ -961,6 +961,19 @@ async function executeWorkflowCoreImpl(
 
     const principalSubject = resolvePrincipalSubject(metadata.principal)
     const contextExtensions: ContextExtensions = {
+      /**
+       * The only honest answer to "could a side effect have occurred", and the executor is
+       * the only thing that knows it: everything before this — DAG construction, snapshot
+       * restoration, pipeline assembly — can reject a request having changed nothing.
+       *
+       * The logging session was the wrong proxy in both directions. `safeStart`'s result is
+       * never checked, so blocks run even when it fails, reporting that nothing started for
+       * a run that did; and it flips before trigger resolution and serialization, reporting
+       * a run for failures that never reached a block.
+       */
+      onBlocksMayRun: () => {
+        executorStarted = true
+      },
       stream: !!onStream,
       selectedOutputs,
       executionId,
@@ -1052,14 +1065,6 @@ async function executeWorkflowCoreImpl(
       contextExtensions,
     })
 
-    /**
-     * The last statement before a block can run, and therefore the only honest answer to
-     * "could a side effect have occurred". The logging session is the wrong proxy in both
-     * directions: `safeStart`'s result is never checked, so blocks execute even when it
-     * fails — reporting nothing started for a run that did — and it flips before trigger
-     * resolution and serialization, reporting a run for failures that never reached a block.
-     */
-    executorStarted = true
     const result = runFromBlock
       ? ((await executorInstance.executeFromBlock(
           workflowId,

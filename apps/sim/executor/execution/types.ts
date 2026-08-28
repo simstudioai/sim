@@ -238,6 +238,16 @@ export interface PiiBlockOutputRedaction {
 }
 
 export interface ContextExtensions {
+  /**
+   * Fired once, immediately before the engine may run a block.
+   *
+   * Everything the executor does first — DAG construction, snapshot restoration, pipeline
+   * assembly — can reject a request having changed nothing, so a caller that needs to know
+   * whether a side effect was possible cannot infer it from having called `execute`. Only
+   * the executor knows where that line falls, so it reports it rather than being guessed at
+   * from the outside.
+   */
+  onBlocksMayRun?: () => void
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
