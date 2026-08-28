@@ -60,7 +60,7 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   tables: {
     type: 'array',
     description:
-      'Extracted tables as HTML/markdown, referenced via placeholders like [tbl-0.html]. Sim sends no table-extraction option, so this is empty',
+      'Separate table objects, referenced from the markdown via placeholders like [tbl-0.html]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty',
   },
   hyperlinks: {
     type: 'array',
@@ -70,13 +70,13 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   header: {
     type: 'string',
     description:
-      'Page header content. Sim sends no header-extraction option, so this is not returned',
+      'Page header content. Mistral returns it only when extract_header is true (it defaults to false); Sim never sets it, so this is not returned',
     optional: true,
   },
   footer: {
     type: 'string',
     description:
-      'Page footer content. Sim sends no footer-extraction option, so this is not returned',
+      'Page footer content. Mistral returns it only when extract_footer is true (it defaults to false); Sim never sets it, so this is not returned',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
