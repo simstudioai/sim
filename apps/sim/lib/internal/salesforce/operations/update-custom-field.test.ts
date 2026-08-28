@@ -71,4 +71,16 @@ describe('salesforce update custom field operation', () => {
     )
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('rejects a field ID that could escape the CustomField path before provider work', async () => {
+    const fetchMock = vi.mocked(fetch)
+
+    await expect(
+      executeSalesforceUpdateCustomFieldOperation({
+        ...PARAMS,
+        fieldId: '../CustomObject',
+      } as never)
+    ).rejects.toThrow('Field ID must be a 15- or 18-character Salesforce record ID')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

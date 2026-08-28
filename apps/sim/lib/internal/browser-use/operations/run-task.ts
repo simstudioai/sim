@@ -45,6 +45,7 @@ const taskStatusResponseSchema = z.object({
   output: z.unknown().optional(),
   steps: z.array(taskStepSchema).optional(),
 })
+const SESSION_CLEANUP_TIMEOUT_MS = 10_000
 
 const createTaskResponseSchema = z.object({
   id: z.string().min(1),
@@ -159,6 +160,7 @@ async function stopSession(sessionId: string, apiKey: string): Promise<void> {
     const response = await fetchBrowserUse(`/sessions/${encodeURIComponent(sessionId)}`, apiKey, {
       method: 'PATCH',
       body: { action: 'stop' },
+      signal: AbortSignal.timeout(SESSION_CLEANUP_TIMEOUT_MS),
     })
 
     if (response.ok) {
@@ -313,10 +315,11 @@ interface PollResult {
 async function pollForCompletion(
   taskId: string,
   apiKey: string,
+  initialSessionId: string | null,
   signal?: AbortSignal
 ): Promise<PollResult> {
   let consecutiveErrors = 0
-  let sessionId: string | null = null
+  let sessionId = initialSessionId
   let liveUrl: string | null = null
   let publicShareUrl: string | null = null
   const startTime = Date.now()
@@ -364,13 +367,20 @@ async function pollForCompletion(
     }
 
     if (['finished', 'failed', 'stopped'].includes(status)) {
+      const output = taskData.output ?? null
       return {
         success: status === 'finished',
-        output: taskData.output ?? null,
+        output,
         steps: taskData.steps ?? [],
         sessionId,
         liveUrl,
         publicShareUrl,
+        error:
+          status === 'finished'
+            ? undefined
+            : typeof output === 'string' && output.trim()
+              ? `BrowserUse task ${status}: ${output.trim()}`
+              : `BrowserUse task ${status}`,
       }
     }
 
@@ -379,13 +389,21 @@ async function pollForCompletion(
 
   const finalResult = await fetchTaskStatus(taskId, apiKey, signal)
   if (finalResult.ok && ['finished', 'failed', 'stopped'].includes(finalResult.data.status)) {
+    const status = finalResult.data.status
+    const output = finalResult.data.output ?? null
     return {
-      success: finalResult.data.status === 'finished',
-      output: finalResult.data.output ?? null,
+      success: status === 'finished',
+      output,
       steps: finalResult.data.steps ?? [],
       sessionId: finalResult.data.sessionId ?? sessionId,
       liveUrl,
       publicShareUrl,
+      error:
+        status === 'finished'
+          ? undefined
+          : typeof output === 'string' && output.trim()
+            ? `BrowserUse task ${status}: ${output.trim()}`
+            : `BrowserUse task ${status}`,
     }
   }
 
@@ -497,7 +515,7 @@ export const executeRunTaskOperation: InternalToolOperationImplementation<
     const initialSessionId = sessionId ?? data.sessionId ?? null
     logger.info(`Created BrowserUse task ${taskId}`, { sessionId: initialSessionId })
 
-    const result = await pollForCompletion(taskId, params.apiKey, signal)
+    const result = await pollForCompletion(taskId, params.apiKey, initialSessionId, signal)
 
     const finalSessionId = result.sessionId ?? initialSessionId
     const shareUrl =

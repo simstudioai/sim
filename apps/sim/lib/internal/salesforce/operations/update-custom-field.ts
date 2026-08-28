@@ -13,13 +13,17 @@ import {
 } from '@/tools/salesforce/utils'
 
 const logger = createLogger('SalesforceUpdateCustomField')
+const SALESFORCE_RECORD_ID_PATTERN = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/
 
 export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationImplementation<
   SalesforceUpdateCustomFieldParams
 > = async (params, signal): Promise<SalesforceUpdateCustomFieldResponse> => {
   const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
   const fieldId = requireId(params.fieldId, 'Field ID')
-  const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
+  if (!SALESFORCE_RECORD_ID_PATTERN.test(fieldId)) {
+    throw new Error('Field ID must be a 15- or 18-character Salesforce record ID')
+  }
+  const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${encodeURIComponent(fieldId)}`
   const headers = {
     Authorization: `Bearer ${params.accessToken}`,
     'Content-Type': 'application/json',

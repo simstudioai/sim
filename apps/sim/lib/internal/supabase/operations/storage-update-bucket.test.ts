@@ -49,6 +49,36 @@ describe('executeStorageUpdateBucketOperation', () => {
     expect(payload.file_size_limit).toBe(4096)
   })
 
+  it('rejects a nonnumeric file limit before updating the bucket', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ public: false, file_size_limit: 4096 }))
+
+    const result = await executeStorageUpdateBucketOperation({
+      ...INPUT,
+      fileSizeLimit: 'not-a-number' as never,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'File size limit must be a finite number',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([true, [], {}, '0x100'])('rejects a non-decimal file limit %j', async (fileSizeLimit) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ public: false, file_size_limit: 4096 }))
+
+    const result = await executeStorageUpdateBucketOperation({
+      ...INPUT,
+      fileSizeLimit: fileSizeLimit as never,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'File size limit must be a finite number',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('propagates cancellation instead of returning a failed tool envelope', async () => {
     const controller = new AbortController()
     fetchMock.mockImplementationOnce(async (_url, init) => {

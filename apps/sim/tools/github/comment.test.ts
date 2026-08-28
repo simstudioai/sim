@@ -48,6 +48,15 @@ function createdCommentResponse(): Response {
   })
 }
 
+function createdReviewResponse(): Response {
+  return Response.json({
+    id: 100,
+    body: 'Nice',
+    html_url: 'https://github.com/octo/demo/pull/7#pullrequestreview-100',
+    submitted_at: '2026-01-02T00:00:00Z',
+  })
+}
+
 interface RecordedCall {
   url: string
   method: string
@@ -230,6 +239,40 @@ describe('github_comment routing', () => {
     ])
   })
 
+  it('creates a file-level comment when no diff line is supplied', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await executeGitHubCommentOperation({
+      ...FILE_COMMENT_PARAMS,
+      commitId: OTHER_SHA,
+      line: undefined,
+    })
+
+    expect(calls()[0].body).toEqual({
+      body: 'Looks good',
+      commit_id: OTHER_SHA,
+      path: 'src/main.ts',
+      subject_type: 'file',
+    })
+  })
+
+  it('normalizes review submitted_at into the documented timestamps', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdReviewResponse())
+
+    const result = await executeGitHubCommentV2Operation({
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 7,
+      body: 'Nice',
+      apiKey: 'ghp_test',
+    })
+
+    expect(result.output).toMatchObject({
+      created_at: '2026-01-02T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    })
+  })
+
   it('resolves the head SHA for the v2 tool as well', async () => {
     secureGitHubRequest
       .mockResolvedValueOnce(pullRequestResponse())
@@ -353,8 +396,8 @@ describe('github_comment line coercion', () => {
     expect(secureGitHubRequest).not.toHaveBeenCalled()
   })
 
-  it('omits a blank or unparseable line rather than sending NaN', async () => {
-    for (const line of ['', '   ', 'abc', undefined, null]) {
+  it('creates a file-level comment for an omitted or blank line', async () => {
+    for (const line of ['', '   ', undefined, null]) {
       secureGitHubRequest.mockReset()
       secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
@@ -364,8 +407,31 @@ describe('github_comment line coercion', () => {
         line: line as unknown as number,
       })
 
+      expect(calls()[0].body).toMatchObject({ subject_type: 'file' })
       expect(calls()[0].body).not.toHaveProperty('line')
     }
+  })
+
+  it('rejects an invalid nonnumeric line instead of changing it to a file-level comment', async () => {
+    await expect(
+      executeGitHubCommentOperation({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: 'abc' as unknown as number,
+      })
+    ).rejects.toThrow('GitHub line must be a valid number, but line was abc')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-positive line before provider work', async () => {
+    await expect(
+      executeGitHubCommentOperation({
+        ...FILE_COMMENT_PARAMS,
+        commitId: OTHER_SHA,
+        line: 0,
+      })
+    ).rejects.toThrow('GitHub line numbers must be positive integers')
+    expect(secureGitHubRequest).not.toHaveBeenCalled()
   })
 })
 

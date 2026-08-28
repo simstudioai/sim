@@ -85,6 +85,56 @@ describe('executeRunTaskOperation', () => {
     }
   })
 
+  it('uses the created profile session to fetch the live URL when task status omits it', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ id: 'profile-session' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'task-1' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'finished', output: 'done' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          liveUrl: 'https://live.browser-use.com/profile-session',
+          publicShareUrl: 'https://browser-use.com/share/profile-session',
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    const result = await executeRunTaskOperation({
+      task: 'Open the page',
+      apiKey: 'api-key',
+      profile_id: 'profile-1',
+    })
+
+    expect(result.output).toMatchObject({
+      sessionId: 'profile-session',
+      liveUrl: 'https://live.browser-use.com/profile-session',
+      shareUrl: 'https://browser-use.com/share/profile-session',
+    })
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      4,
+      'https://api.browser-use.com/api/v2/sessions/profile-session',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('returns an actionable error for a terminal failed task', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ id: 'task-1' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ status: 'failed', output: 'Navigation could not reach the target' })
+      )
+
+    const result = await executeRunTaskOperation({ task: 'Open the page', apiKey: 'api-key' })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'BrowserUse task failed: Navigation could not reach the target',
+      output: {
+        success: false,
+        output: 'Navigation could not reach the target',
+      },
+    })
+  })
+
   it('rejects a malformed successful create-task response', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 'session-1' }))
 
@@ -148,6 +198,7 @@ describe('executeRunTaskOperation', () => {
         method: 'PATCH',
         body: JSON.stringify({ action: 'stop' }),
         redirect: 'error',
+        signal: expect.any(AbortSignal),
       })
     )
   })
@@ -174,7 +225,12 @@ describe('executeRunTaskOperation', () => {
     expect(mockFetch).toHaveBeenNthCalledWith(
       3,
       'https://api.browser-use.com/api/v2/sessions/profile-session',
-      expect.objectContaining({ method: 'PATCH', redirect: 'error' })
+      expect.objectContaining({
+        method: 'PATCH',
+        redirect: 'error',
+        signal: expect.any(AbortSignal),
+      })
     )
+    expect(mockFetch.mock.calls[2]?.[1]?.signal).not.toBe(controller.signal)
   })
 })

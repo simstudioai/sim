@@ -862,7 +862,9 @@ describe('NetSuite shared executor', () => {
 describe('NetSuite request bounds', () => {
   it("applies Sim's page-size default within Oracle's paging limits", () => {
     expect(normalizePagination()).toEqual({ limit: 100, offset: 0 })
-    expect(normalizePagination('', '   ')).toEqual({ limit: 100, offset: 0 })
+    expect(normalizePagination('', '')).toEqual({ limit: 100, offset: 0 })
+    expect(() => normalizePagination('   ', 0)).toThrow('Limit')
+    expect(() => normalizePagination(100, '   ')).toThrow('Offset')
     expect(() => normalizePagination(0, 0)).toThrow('Limit')
     expect(normalizePagination(1_000, 2_000)).toEqual({ limit: 1_000, offset: 2_000 })
     expect(normalizePagination(1_000, 99_000)).toEqual({ limit: 1_000, offset: 99_000 })

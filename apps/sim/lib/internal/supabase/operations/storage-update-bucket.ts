@@ -40,14 +40,24 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     // back to the bucket's current value instead of coercing to 0/false.
     const hasValue = (value: unknown): boolean =>
       value !== undefined && value !== null && (typeof value !== 'string' || value.trim() !== '')
+    const rawFileSizeLimit: unknown = params.fileSizeLimit
+    const fileSizeLimit = hasValue(rawFileSizeLimit)
+      ? typeof rawFileSizeLimit === 'number'
+        ? rawFileSizeLimit
+        : typeof rawFileSizeLimit === 'string' &&
+            /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(rawFileSizeLimit.trim())
+          ? Number(rawFileSizeLimit)
+          : Number.NaN
+      : undefined
+    if (fileSizeLimit !== undefined && !Number.isFinite(fileSizeLimit)) {
+      throw new Error('File size limit must be a finite number')
+    }
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       id: params.bucket,
       name: params.bucket,
       public: hasValue(params.isPublic) ? params.isPublic : Boolean(current.public),
-      file_size_limit: hasValue(params.fileSizeLimit)
-        ? Number(params.fileSizeLimit)
-        : (current.file_size_limit ?? null),
+      file_size_limit: fileSizeLimit ?? current.file_size_limit ?? null,
       allowed_mime_types: hasValue(params.allowedMimeTypes)
         ? params.allowedMimeTypes
         : (current.allowed_mime_types ?? null),

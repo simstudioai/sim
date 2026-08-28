@@ -29,13 +29,15 @@ interface ReviewCommentBody {
   event: 'COMMENT'
 }
 
-interface FileCommentBody {
+interface FileCommentBodyBase {
   body: string
   commit_id: string | undefined
   path: string | undefined
-  line: number | undefined
-  side: string
 }
+
+type FileCommentBody =
+  | (FileCommentBodyBase & { subject_type: 'file' })
+  | (FileCommentBodyBase & { line: number; side: string })
 
 interface GitHubCommentPayload {
   id?: number
@@ -112,10 +114,16 @@ function toLineNumber(value: unknown): number | undefined {
   if (typeof value === 'number') {
     parsed = value
   } else {
-    if (typeof value !== 'string' || !value.trim()) return undefined
+    if (value === undefined || value === null) return undefined
+    if (typeof value !== 'string') {
+      throw new Error('GitHub line must be a positive integer')
+    }
+    if (!value.trim()) return undefined
     parsed = Number(value.trim())
   }
-  if (!Number.isFinite(parsed)) return undefined
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`GitHub line must be a valid number, but line was ${String(value)}`)
+  }
   if (!Number.isInteger(parsed)) {
     throw new Error(
       `GitHub line numbers are whole numbers, but line was ${parsed}. Set line to the integer line number in the diff.`
@@ -128,13 +136,15 @@ function fileCommentBody(
   params: CreateCommentParams,
   commitId: string | undefined
 ): FileCommentBody {
-  return {
+  const base = {
     body: params.body,
     commit_id: commitId,
     path: params.path,
-    line: toLineNumber(params.line),
-    side: params.side || 'RIGHT',
   }
+  const line = toLineNumber(params.line)
+  if (line === undefined) return { ...base, subject_type: 'file' }
+  if (line < 1) throw new Error('GitHub line numbers must be positive integers')
+  return { ...base, line, side: params.side || 'RIGHT' }
 }
 
 function commentEndpointUrl(params: CreateCommentParams): string {
@@ -169,6 +179,7 @@ function readNumber(record: Record<string, unknown>, key: string): number | unde
 
 function readCommentPayload(value: unknown): GitHubCommentPayload {
   if (!isRecordLike(value)) return {}
+  const submittedAt = readString(value, 'submitted_at')
   return {
     id: readNumber(value, 'id'),
     body: readString(value, 'body'),
@@ -179,8 +190,8 @@ function readCommentPayload(value: unknown): GitHubCommentPayload {
     position: readNumber(value, 'position'),
     side: readString(value, 'side'),
     commit_id: readString(value, 'commit_id'),
-    created_at: readString(value, 'created_at'),
-    updated_at: readString(value, 'updated_at'),
+    created_at: readString(value, 'created_at') ?? submittedAt,
+    updated_at: readString(value, 'updated_at') ?? submittedAt,
   }
 }
 

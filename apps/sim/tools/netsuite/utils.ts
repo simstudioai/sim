@@ -116,12 +116,8 @@ export function normalizePagination(
   requestedLimit?: unknown,
   requestedOffset?: unknown
 ): { limit: number; offset: number } {
-  const limitInput =
-    typeof requestedLimit === 'string' && requestedLimit.trim() === '' ? undefined : requestedLimit
-  const offsetInput =
-    typeof requestedOffset === 'string' && requestedOffset.trim() === ''
-      ? undefined
-      : requestedOffset
+  const limitInput = requestedLimit === '' ? undefined : requestedLimit
+  const offsetInput = requestedOffset === '' ? undefined : requestedOffset
   const limit = limitInput ?? DEFAULT_PAGE_LIMIT
   const offset = offsetInput ?? 0
   if (
