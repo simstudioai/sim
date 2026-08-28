@@ -194,6 +194,7 @@ interface WorkspaceVariableRowProps {
   pendingKeyValue: string
   hasCredential: boolean
   canEdit: boolean
+  canReveal: boolean
   /** Renaming creates a new key + deletes the old, so it also needs create access. */
   canRename: boolean
   onRenameStart: (key: string) => void
@@ -211,6 +212,7 @@ function WorkspaceVariableRow({
   pendingKeyValue,
   hasCredential,
   canEdit,
+  canReveal,
   canRename,
   onRenameStart,
   onPendingKeyChange,
@@ -252,6 +254,7 @@ function WorkspaceVariableRow({
         value={value}
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
+        canReveal={canReveal}
         name={`workspace_env_value_${envKey}_${autofillSalt}`}
       />
       <SecretRowMenu
@@ -1035,6 +1038,7 @@ export function SecretsManager() {
                   ).map(([key, value]) => {
                     const cred = workspaceEnvKeyToCredential.get(key)
                     const canEditRow = canCreateWorkspaceSecret && cred?.role === 'admin'
+                    const canRevealRow = canEditRow || Boolean(cred?.unredacted)
                     return (
                       <WorkspaceVariableRow
                         key={key}
@@ -1044,15 +1048,14 @@ export function SecretsManager() {
                         pendingKeyValue={pendingKeyValue}
                         hasCredential={Boolean(cred)}
                         canEdit={canEditRow}
+                        canReveal={canRevealRow}
                         canRename={canCreateWorkspaceSecret && canEditRow}
                         onRenameStart={setRenamingKey}
                         onPendingKeyChange={setPendingKeyValue}
                         onRenameEnd={handleWorkspaceKeyRename}
                         onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
-                        onViewDetails={
-                          canCreateWorkspaceSecret && cred ? handleViewDetails : undefined
-                        }
+                        onViewDetails={cred ? handleViewDetails : undefined}
                       />
                     )
                   })}

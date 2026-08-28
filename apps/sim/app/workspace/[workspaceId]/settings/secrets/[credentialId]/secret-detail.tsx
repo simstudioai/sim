@@ -248,6 +248,7 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}
+            canReveal={!isPersonal && credential.unredacted}
             unmasked={valueField.isConflicted}
             readOnly={valueField.isConflicted}
             placeholder='Enter value'
