@@ -180,7 +180,7 @@ describe('generic selector queries', () => {
     expect(serializedKeys(hook.queryClient)).not.toContain('private phrase')
   })
 
-  it('uses distinct opaque revisions for dependency changes and later mounts', async () => {
+  it('uses distinct opaque revisions without retaining obsolete query closures', async () => {
     mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items: [] })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     let credential = '{{FIRST_SHARED_CREDENTIAL}}'
@@ -195,7 +195,17 @@ describe('generic selector queries', () => {
     credential = '{{SECOND_SHARED_CREDENTIAL}}'
     first.rerender(useHook)
     await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(2))
+    await waitFor(() => {
+      const revisions = queryClient
+        .getQueryCache()
+        .getAll()
+        .map((query) => query.queryKey)
+        .filter((key) => key.at(-1) !== 'paged')
+        .map((key) => key.at(-1))
+      expect(new Set(revisions).size).toBe(1)
+    })
     first.unmount()
+    await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0))
 
     const second = renderHookWithClient(useHook, queryClient)
     await waitFor(() => expect(mockExecuteSelectorRequest).toHaveBeenCalledTimes(3))
@@ -205,10 +215,30 @@ describe('generic selector queries', () => {
       .getAll()
       .map((query) => query.queryKey)
     const revisions = keys.filter((key) => key.at(-1) !== 'paged').map((key) => key.at(-1))
-    expect(new Set(revisions).size).toBe(3)
+    expect(new Set(revisions).size).toBe(1)
     expect(serializedKeys(queryClient)).not.toContain('SHARED_CREDENTIAL')
     second.unmount()
   })
+
+  it.each(['gmail.labels', 'bitbucket.workspaces'] as const)(
+    'does not manually refetch the unready %s selector',
+    async (selectorKey) => {
+      mockExecuteSelectorRequest.mockResolvedValue({ kind: 'list', items: [] })
+      const hook = renderHookWithClient(() =>
+        useSelectorOptions(selectorKey, {
+          context: { workspaceId: 'workspace-1' },
+          surfaceId: `connector:${selectorKey}:field`,
+        })
+      )
+
+      act(() => hook.getResult().refetch())
+      await act(async () => {
+        await sleep(5)
+      })
+
+      expect(mockExecuteSelectorRequest).not.toHaveBeenCalled()
+    }
+  )
 
   it('progressively drains paginated selectors without putting cursors in the base key', async () => {
     mockExecuteSelectorRequest.mockImplementation(

@@ -140,4 +140,22 @@ describe('sanitizeSelectorResult', () => {
       )
     ).toThrow(SelectorOptionsUnavailableError)
   })
+
+  it('rejects metadata strings larger than the response contract permits', () => {
+    expect(() =>
+      sanitizeSelectorResult(
+        {
+          kind: 'list',
+          items: [
+            {
+              id: 'resource-1',
+              label: 'Resource one',
+              meta: { description: 'x'.repeat(16 * 1024 + 1) },
+            },
+          ],
+        },
+        createSelectorProtectedValues()
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+  })
 })

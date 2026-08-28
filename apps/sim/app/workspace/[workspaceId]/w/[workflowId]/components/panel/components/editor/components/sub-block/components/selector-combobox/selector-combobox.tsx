@@ -2,7 +2,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox as EditableCombobox } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
-import type { SelectorKey } from '@/lib/selectors/manifest'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
@@ -13,6 +13,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import {
   type SelectorClientContext,
   useSelectorOptionDetail,
+  useSelectorOptionDetails,
   useSelectorOptionMap,
   useSelectorOptions,
 } from '@/hooks/queries/selectors'
@@ -25,7 +26,7 @@ interface SelectorComboboxProps {
   selectorContext: SelectorClientContext
   disabled?: boolean
   isPreview?: boolean
-  previewValue?: string | null
+  previewValue?: string | string[] | null
   placeholder?: string
   readOnly?: boolean
   onOptionChange?: (value: string) => void
@@ -51,6 +52,7 @@ export function SelectorCombobox({
   multiSelect = false,
 }: SelectorComboboxProps) {
   const activeSearchTarget = useActiveSearchTarget()
+  const manifest = getSelectorManifestEntry(selectorKey)
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | string[] | null | undefined>(
     blockId,
     subBlock.id
@@ -63,6 +65,23 @@ export function SelectorCombobox({
     : isPreview
       ? previewedValue
       : storeValue
+  const selectedValues = useMemo<string[]>(() => {
+    if (!multiSelect) return []
+    const source = isPreview ? previewValue : storeValueRaw
+    if (Array.isArray(source)) return source.map(String)
+    if (typeof source === 'string' && source.length > 0) {
+      return source
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+    }
+    return []
+  }, [multiSelect, isPreview, previewValue, storeValueRaw])
+  const detailId = activeValue && !activeValue.startsWith('<') ? activeValue : undefined
+  const multiDetailIds = useMemo(
+    () => selectedValues.filter((id) => !id.startsWith('<')),
+    [selectedValues]
+  )
   const [searchTerm, setSearchTerm] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [multiInput, setMultiInput] = useState('')
@@ -79,6 +98,11 @@ export function SelectorCombobox({
   const debouncedSearch = useDebounce(trimmedSearch, SEARCH_DEBOUNCE_MS)
   const activeSearch = trimmedSearch === '' ? '' : debouncedSearch
   const surfaceId = `${blockId}:${subBlock.id}`
+  const listInteractionEnabled = !disabled && !isPreview && !readOnly
+  const listHydrationEnabled =
+    !listInteractionEnabled &&
+    !manifest.supportsDetail &&
+    Boolean(detailId || multiDetailIds.length > 0)
   const {
     data: options = [],
     isLoading,
@@ -86,21 +110,35 @@ export function SelectorCombobox({
     error,
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
-    search: allowSearch ? activeSearch : undefined,
-    enabled: !disabled,
+    search: listInteractionEnabled && allowSearch ? activeSearch : undefined,
+    enabled: listInteractionEnabled || listHydrationEnabled,
     surfaceId,
   })
-  const { data: detailOption } = useSelectorOptionDetail(selectorKey, {
+  const { data: detailOption, isLoading: isLoadingDetail } = useSelectorOptionDetail(selectorKey, {
     context: selectorContext,
-    detailId: activeValue,
-    enabled: !disabled,
+    detailId,
+    enabled: manifest.supportsDetail && Boolean(detailId),
     surfaceId,
   })
-  const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
+  const detailOptions = useSelectorOptionDetails(selectorKey, {
+    context: selectorContext,
+    detailIds: multiDetailIds,
+    enabled: manifest.supportsDetail && multiSelect && multiDetailIds.length > 0,
+    surfaceId,
+  })
+  const optionsWithDetails = useMemo(() => {
+    const merged = new Map(options.map((option) => [option.id, option]))
+    for (const option of detailOptions) {
+      if (!merged.has(option.id)) merged.set(option.id, option)
+    }
+    return [...merged.values()]
+  }, [detailOptions, options])
+  const optionMap = useSelectorOptionMap(optionsWithDetails, detailOption ?? undefined)
   const hasMissingOption =
     Boolean(activeValue) &&
     Boolean(missingOptionLabel) &&
     !isLoading &&
+    !isLoadingDetail &&
     !hasMore &&
     !optionMap.get(activeValue!)
   const selectedLabel: string = activeValue
@@ -155,19 +193,6 @@ export function SelectorCombobox({
     },
     [setStoreValue, onOptionChange, readOnly, disabled]
   )
-
-  const selectedValues = useMemo<string[]>(() => {
-    if (!multiSelect) return []
-    const source = isPreview ? previewValue : storeValueRaw
-    if (Array.isArray(source)) return source.map(String)
-    if (typeof source === 'string' && source.length > 0) {
-      return source
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean)
-    }
-    return []
-  }, [multiSelect, isPreview, previewValue, storeValueRaw])
 
   const handleMultiChange = useCallback(
     (values: string[]) => {

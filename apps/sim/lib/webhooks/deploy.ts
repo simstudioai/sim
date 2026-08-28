@@ -661,7 +661,7 @@ async function configurePollingIfNeeded(
   provider: string,
   savedWebhook: Record<string, unknown>,
   requestId: string,
-  actor: { userId: string; workspaceId?: string | null; deploymentVersionId?: string | null }
+  actor: { userId: string; workspaceId: string | null; deploymentVersionId?: string | null }
 ): Promise<TriggerSaveError | null> {
   const handler = getProviderHandler(provider)
   if (!handler.configurePolling) {

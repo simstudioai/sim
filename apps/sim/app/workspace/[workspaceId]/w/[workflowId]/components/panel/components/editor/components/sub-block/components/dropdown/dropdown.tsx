@@ -162,6 +162,7 @@ export const Dropdown = memo(function Dropdown({
     hasLoadedOptions,
     fetchError,
     hydratedOption,
+    hydratedOptions,
     isDynamic,
     refetch: refetchOptions,
   } = useFetchedOptions({
@@ -173,6 +174,7 @@ export const Dropdown = memo(function Dropdown({
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
     valueToHydrate: singleValue,
+    valuesToHydrate: multiValues ?? undefined,
     localOptions: evaluatedOptions,
   })
 
@@ -205,6 +207,13 @@ export const Dropdown = memo(function Dropdown({
       }
     }
 
+    for (const option of hydratedOptions) {
+      const alreadyPresent = opts.some((existing) =>
+        typeof existing === 'string' ? existing === option.id : existing.id === option.id
+      )
+      if (!alreadyPresent) opts = [option, ...opts]
+    }
+
     // A multi-select can only drop a value by clicking its row; a selection the
     // loaded list no longer carries gets one so it can be removed in place.
     if (multiValues && isDynamic) {
@@ -223,6 +232,7 @@ export const Dropdown = memo(function Dropdown({
     normalizedFetchedOptions,
     evaluatedOptions,
     hydratedOption,
+    hydratedOptions,
     multiValues,
     hasLoadedOptions,
   ])

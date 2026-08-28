@@ -23,22 +23,9 @@ import {
   createSecureImapClient,
   type ImapConnectionPolicyError,
   normalizeLiteralImapConnection,
+  normalizeResolvedImapConnection,
   resolveImapConnectionForActor,
 } from '@/lib/imap/connection.server'
-
-function environmentSnapshot(overrides: Record<string, unknown> = {}) {
-  return {
-    personalEncrypted: {},
-    workspaceEncrypted: {},
-    personalDecrypted: {},
-    workspaceDecrypted: {},
-    personalOwners: {},
-    conflicts: [],
-    decryptionFailures: [],
-    workspaceUnredactedKeys: [],
-    ...overrides,
-  }
-}
 
 describe('IMAP connection policy', () => {
   beforeEach(() => {
@@ -104,19 +91,17 @@ describe('IMAP connection policy', () => {
   })
 
   it('resolves exact personal and visible shared references for the deployment actor', async () => {
-    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
-      environmentSnapshot({
-        personalDecrypted: { PERSONAL_PASSWORD: 'personal-password' },
-        workspaceDecrypted: {
-          SHARED_HOST: 'imap.shared.example',
-          SHARED_PORT: '143',
-          SHARED_SECURE: 'false',
-          SHARED_USERNAME: 'shared-user',
-        },
-        personalOwners: { PERSONAL_PASSWORD: 'actor-1' },
-        workspaceUnredactedKeys: ['SHARED_USERNAME'],
-      })
-    )
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
+      PERSONAL_PASSWORD: {
+        value: 'personal-password',
+        scope: 'personal',
+        visible: true,
+      },
+      SHARED_HOST: { value: 'imap.shared.example', scope: 'workspace', visible: false },
+      SHARED_PORT: { value: '143', scope: 'workspace', visible: false },
+      SHARED_SECURE: { value: 'false', scope: 'workspace', visible: false },
+      SHARED_USERNAME: { value: 'shared-user', scope: 'workspace', visible: true },
+    })
 
     await expect(
       resolveImapConnectionForActor({
@@ -137,18 +122,18 @@ describe('IMAP connection policy', () => {
       username: 'shared-user',
       password: 'personal-password',
     })
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith(
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
       'actor-1',
-      'workspace-1'
+      'workspace-1',
+      ['SHARED_HOST', 'SHARED_PORT', 'SHARED_SECURE', 'SHARED_USERNAME', 'PERSONAL_PASSWORD']
     )
+    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
   it('rejects hidden shared username and password references before DNS or ImapFlow', async () => {
-    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
-      environmentSnapshot({
-        workspaceDecrypted: { HIDDEN_AUTH: 'use-only-secret' },
-      })
-    )
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValue({
+      HIDDEN_AUTH: { value: 'use-only-secret', scope: 'workspace', visible: false },
+    })
 
     for (const field of ['username', 'password'] as const) {
       const connection = {
@@ -172,5 +157,62 @@ describe('IMAP connection policy', () => {
 
     expect(mockValidateDatabaseHost).not.toHaveBeenCalled()
     expect(mockImapFlow).not.toHaveBeenCalled()
+  })
+
+  it('permits braces introduced by authorized resolution while keeping raw literals strict', () => {
+    expect(
+      normalizeResolvedImapConnection({
+        host: 'imap.example.com',
+        username: 'mailbox-user',
+        password: 'literal{{brace}}secret',
+      })
+    ).toMatchObject({ password: 'literal{{brace}}secret' })
+
+    expect(() =>
+      normalizeLiteralImapConnection({
+        host: 'imap.example.com',
+        username: 'mailbox-user',
+        password: 'literal{{brace}}secret',
+      })
+    ).toThrowError(
+      expect.objectContaining<Partial<ImapConnectionPolicyError>>({
+        name: 'ImapConnectionPolicyError',
+        code: 'context',
+      })
+    )
+  })
+
+  it('reauthorizes requested references on every resolution and fails closed after revocation', async () => {
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+      .mockResolvedValueOnce({
+        PASSWORD: { value: 'visible-password', scope: 'workspace', visible: true },
+      })
+      .mockResolvedValueOnce({
+        PASSWORD: { value: 'hidden-password', scope: 'workspace', visible: false },
+      })
+    const input = {
+      connection: {
+        host: 'imap.example.com',
+        username: 'mailbox-user',
+        password: '{{PASSWORD}}',
+      },
+      actorUserId: 'actor-1',
+      workspaceId: 'workspace-1',
+    }
+
+    await expect(resolveImapConnectionForActor(input)).resolves.toMatchObject({
+      password: 'visible-password',
+    })
+    await expect(resolveImapConnectionForActor(input)).rejects.toMatchObject<
+      Partial<ImapConnectionPolicyError>
+    >({
+      name: 'ImapConnectionPolicyError',
+      code: 'hidden_auth',
+    })
+
+    expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledTimes(
+      2
+    )
+    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 })

@@ -47,7 +47,11 @@ describe('JSM server selector adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-    mockResolveJsmAuth.mockResolvedValue({ accessToken: 'server-only-token' })
+    mockResolveJsmAuth.mockResolvedValue({
+      accessToken: 'server-only-token',
+      cloudId: 'cloud-1',
+      domain: 'example.atlassian.net',
+    })
     mockResolveCloudId.mockResolvedValue('cloud-1')
   })
 
@@ -82,5 +86,12 @@ describe('JSM server selector adapters', () => {
     const secondUrl = new URL(String(mockFetch.mock.calls[1]?.[0]))
     expect(firstUrl.search).toBe('?start=0&limit=100')
     expect(secondUrl.search).toBe('?start=1&limit=100')
+    expect(mockResolveCloudId).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'example.atlassian.net',
+        providedCloudId: 'cloud-1',
+        providedDomain: 'example.atlassian.net',
+      })
+    )
   })
 })

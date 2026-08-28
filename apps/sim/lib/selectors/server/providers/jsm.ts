@@ -64,6 +64,7 @@ async function resolveJsmAuth(args: ExecuteServerSelectorArgs) {
     accessToken: bundle.accessToken,
     domain: args.context.domain,
     providedCloudId: bundle.cloudId,
+    providedDomain: bundle.domain,
     product: 'Jira',
     signal: args.signal,
   })

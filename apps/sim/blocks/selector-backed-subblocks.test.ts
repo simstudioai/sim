@@ -86,22 +86,15 @@ describe('selector-backed sub-blocks', () => {
     }
   })
 
-  it('declares optional cascade fields whose values change provider enumeration', () => {
-    const cases = [{ block: 'microsoft_excel', subBlock: 'spreadsheetId', dependency: 'driveId' }]
+  it('projects the optional Excel drive without requiring it for OneDrive readiness', () => {
+    const match = selectorBacked.find(
+      ({ block, sub }) => block === 'microsoft_excel' && sub.id === 'spreadsheetId'
+    )
 
-    for (const expected of cases) {
-      const match = selectorBacked.find(
-        ({ block, sub }) => block === expected.block && sub.id === expected.subBlock
-      )
-      expect(match, `${expected.block}.${expected.subBlock} is missing`).toBeDefined()
-      const dependsOn = match?.sub.dependsOn
-      const declared = Array.isArray(dependsOn)
-        ? dependsOn
-        : [...(dependsOn?.all ?? []), ...(dependsOn?.any ?? [])]
-      expect(
-        declared,
-        `${expected.block}.${expected.subBlock} must send ${expected.dependency}`
-      ).toContain(expected.dependency)
-    }
+    expect(match, 'microsoft_excel.spreadsheetId is missing').toBeDefined()
+    expect(match?.sub.dependsOn).toEqual({
+      all: ['credential'],
+      any: ['credential', 'driveId'],
+    })
   })
 })

@@ -45,6 +45,7 @@ export async function resolveSelectorCredentialBundle(input: {
   if (!bundle?.accessToken) throw new SelectorConnectionUnavailableError()
 
   input.protectedValues.add(bundle.accessToken)
+  input.protectedValues.add(bundle.cloudId)
   input.protectedValues.add(bundle.domain)
   input.protectedValues.add(bundle.instanceUrl)
   input.protectedValues.add(bundle.apiDomain)

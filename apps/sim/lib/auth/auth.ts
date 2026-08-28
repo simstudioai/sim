@@ -112,6 +112,7 @@ import {
   isMicrosoftProvider,
   mapMicrosoftProfileToUser,
 } from '@/lib/oauth/microsoft'
+import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
 import {
   isSalesforceLoginOrigin,
   isSalesforceOAuthProviderId,
@@ -119,7 +120,6 @@ import {
   withSalesforceInstanceScope,
 } from '@/lib/oauth/salesforce'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
-import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
@@ -486,7 +486,7 @@ export const auth = betterAuth({
                 // Clear the dead flag before fanning out: the connect itself
                 // proves the installation has live tokens, and a fan-out
                 // failure must not leave the hour-long flag blocking refreshes.
-                await clearDeadFlag(`slack:${teamId}`)
+                await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
                 await fanOutSlackTokenChain(teamId, {
                   accessToken: account.accessToken,
                   refreshToken: account.refreshToken ?? null,

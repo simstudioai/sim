@@ -1,4 +1,4 @@
-import { listImapMailboxes, normalizeLiteralImapConnection } from '@/lib/imap/connection.server'
+import { listImapMailboxes, normalizeResolvedImapConnection } from '@/lib/imap/connection.server'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { listSelectorResult, type ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
 
@@ -12,7 +12,7 @@ export const imapSelectorAttachments = {
       })
       if (hiddenSharedAuth) throw new SelectorConnectionUnavailableError()
 
-      const connection = normalizeLiteralImapConnection({
+      const connection = normalizeResolvedImapConnection({
         host: args.context.host,
         port: args.context.port,
         secure: args.context.secure,

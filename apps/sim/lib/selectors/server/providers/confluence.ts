@@ -75,6 +75,7 @@ async function resolveConfluenceAuth(args: ExecuteServerSelectorArgs) {
     accessToken: bundle.accessToken,
     domain,
     providedCloudId: bundle.cloudId,
+    providedDomain: bundle.domain,
     product: 'Confluence',
     signal: args.signal,
   })

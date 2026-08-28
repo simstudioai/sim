@@ -28,6 +28,7 @@ import {
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
@@ -53,7 +54,8 @@ export interface CredentialTokenResolutionOptions {
   /**
    * Selector execution may receive a credential/account id through a hidden
    * workspace environment reference. In that mode identifiers are omitted
-   * from diagnostics and HMACed before they are used as cache or lock keys.
+   * from diagnostics. Refresh coordination identities are private in every
+   * mode so selector and ordinary calls share the same locks and dead flags.
    */
   privacyMode?: 'selector'
 }
@@ -787,10 +789,7 @@ async function performCoalescedRefresh({
    */
   const slackTeamId = isSlackProvider(providerId) ? extractSlackTeamId(providerAccountId) : null
   const rawScopeKey = slackTeamId ? `slack:${slackTeamId}` : accountId
-  const scopeKey =
-    privacyMode === 'selector'
-      ? privateCredentialIdentity('selector-oauth-refresh', rawScopeKey)
-      : rawScopeKey
+  const scopeKey = getOAuthRefreshCoordinationIdentity(rawScopeKey)
 
   const logContext = {
     ...(requestId ? { requestId } : {}),

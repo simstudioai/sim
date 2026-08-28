@@ -768,28 +768,29 @@ export function getToolInputParamConfigs({
   if (!toolParams && !subBlocksResult) return genericFallback()
 
   if (!subBlocksResult?.subBlocks.length) {
-    const fallbackCanonicalIndex = buildCanonicalIndex([])
-    return displayParams
+    const fallbackConfigs = displayParams
       .filter((param) => isVisibleToolParameter(param, values))
-      .map((param) => {
-        const config = buildToolInputSearchConfig(param)
-        return {
-          paramId: param.id,
-          authoritative: true,
-          config,
-          value: parseToolParamValue(toolParamValues[param.id], config.type),
-          selectorContext:
-            config.selectorKey || config.dependsOn
-              ? buildSelectorContext({
-                  subBlockConfig: config,
-                  subBlockValues: values,
-                  contextConfigs: [config],
-                  canonicalIndex: fallbackCanonicalIndex,
-                  canonicalModes: scopedCanonicalModes,
-                })
-              : undefined,
-        }
-      })
+      .map((param) => ({ param, config: buildToolInputSearchConfig(param) }))
+    const contextConfigs = fallbackConfigs.map(({ config }) => config)
+    const fallbackCanonicalIndex = buildCanonicalIndex(contextConfigs)
+    return fallbackConfigs.map(({ param, config }) => {
+      return {
+        paramId: param.id,
+        authoritative: true,
+        config,
+        value: parseToolParamValue(toolParamValues[param.id], config.type),
+        selectorContext:
+          config.selectorKey || config.dependsOn
+            ? buildSelectorContext({
+                subBlockConfig: config,
+                subBlockValues: values,
+                contextConfigs,
+                canonicalIndex: fallbackCanonicalIndex,
+                canonicalModes: scopedCanonicalModes,
+              })
+            : undefined,
+      }
+    })
   }
 
   // canonical-index-unscoped: a nested tool's params are always the action surface

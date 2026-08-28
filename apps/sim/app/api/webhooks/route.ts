@@ -506,6 +506,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const success = await pollingHandler.configurePolling({
             webhook: savedWebhook,
             requestId,
+            userId,
+            workspaceId:
+              typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : null,
           })
 
           if (!success) {

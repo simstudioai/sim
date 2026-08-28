@@ -70,11 +70,10 @@ export const imapHandler: WebhookProviderHandler = {
         secure?: boolean
       }
       const hasReferences = hasImapEnvironmentReferences(connection)
-      if (hasReferences && !userId) return false
       const resolved = hasReferences
         ? await resolveImapConnectionForActor({
             connection,
-            actorUserId: userId!,
+            actorUserId: userId,
             workspaceId,
           })
         : normalizeLiteralImapConnection(connection)

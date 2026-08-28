@@ -55,12 +55,11 @@ function sanitizeMeta(
     if (typeof entry === 'number' && !Number.isFinite(entry)) {
       throw new SelectorOptionsUnavailableError()
     }
-    if (
-      typeof entry === 'string' &&
-      protectedValues.contains(entry) &&
-      entry !== allowedExactValue
-    ) {
-      throw new SelectorOptionsUnavailableError()
+    if (typeof entry === 'string') {
+      if (entry.length > MAX_OPTION_TEXT) throw new SelectorOptionsUnavailableError()
+      if (protectedValues.contains(entry) && entry !== allowedExactValue) {
+        throw new SelectorOptionsUnavailableError()
+      }
     }
     meta[key] = entry as SafeOptionMetaValue
   }

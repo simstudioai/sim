@@ -2,12 +2,13 @@
 
 import { useMemo } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { SelectorKey } from '@/lib/selectors/manifest'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { getBlock } from '@/blocks/registry'
 import {
   type SelectorClientContext,
   useSelectorOptionDetail,
+  useSelectorOptionDetails,
   useSelectorOptions,
 } from '@/hooks/queries/selectors'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -30,6 +31,7 @@ interface UseFetchedOptionsProps {
   isPreview: boolean
   disabled: boolean
   valueToHydrate: string | null | undefined
+  valuesToHydrate?: readonly string[]
   localOptions: readonly LocalOption[]
 }
 
@@ -40,6 +42,7 @@ export interface UseFetchedOptionsResult {
   hasLoadedOptions: boolean
   fetchError: string | null
   hydratedOption: FetchedOption | null
+  hydratedOptions: FetchedOption[]
   missingOptionId: string | null
   refetch: () => void
 }
@@ -62,6 +65,7 @@ export function useFetchedOptions({
   isPreview,
   disabled,
   valueToHydrate,
+  valuesToHydrate,
   localOptions,
 }: UseFetchedOptionsProps): UseFetchedOptionsResult {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -71,6 +75,7 @@ export function useFetchedOptions({
     activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
   )
   const effectiveKey = selectorKey ?? 'workspace.triggerTypes'
+  const manifest = getSelectorManifestEntry(effectiveKey)
 
   const context = useMemo<SelectorClientContext>(() => {
     if (!selectorKey || !block?.type) return {}
@@ -107,18 +112,41 @@ export function useFetchedOptions({
     workspaceId,
   ])
 
-  const enabled = Boolean(selectorKey) && !isPreview && !disabled
   const surfaceId = `${blockId}:${subBlockId}`
-  const list = useSelectorOptions(effectiveKey, { context, enabled, surfaceId })
   const hydrate = Boolean(
     valueToHydrate &&
       !valueToHydrate.startsWith('<') &&
       !hasLocalOption(localOptions, valueToHydrate)
   )
+  const detailIds = useMemo(
+    () =>
+      (valuesToHydrate ?? []).filter(
+        (id) => id && !id.startsWith('<') && !hasLocalOption(localOptions, id)
+      ),
+    [localOptions, valuesToHydrate]
+  )
+  const listInteractionEnabled = Boolean(selectorKey) && !isPreview && !disabled
+  const listHydrationEnabled = Boolean(
+    selectorKey &&
+      !listInteractionEnabled &&
+      !manifest.supportsDetail &&
+      (hydrate || detailIds.length > 0)
+  )
+  const list = useSelectorOptions(effectiveKey, {
+    context,
+    enabled: listInteractionEnabled || listHydrationEnabled,
+    surfaceId,
+  })
   const detail = useSelectorOptionDetail(effectiveKey, {
     context,
-    detailId: valueToHydrate ?? undefined,
-    enabled: enabled && hydrate,
+    detailId: manifest.supportsDetail ? (valueToHydrate ?? undefined) : undefined,
+    enabled: Boolean(selectorKey) && manifest.supportsDetail && hydrate,
+    surfaceId,
+  })
+  const details = useSelectorOptionDetails(effectiveKey, {
+    context,
+    detailIds,
+    enabled: Boolean(selectorKey) && manifest.supportsDetail && detailIds.length > 0,
     surfaceId,
   })
 
@@ -129,6 +157,7 @@ export function useFetchedOptions({
     hasLoadedOptions: list.isSuccess,
     fetchError: list.error ? getErrorMessage(list.error, 'Failed to fetch options') : null,
     hydratedOption: detail.data ?? null,
+    hydratedOptions: details,
     missingOptionId:
       hydrate && detail.isFetched && !detail.isLoading && detail.data === null
         ? (valueToHydrate ?? null)

@@ -6,7 +6,10 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import {
+  fetchProviderJson,
+  fetchProviderJsonWithStatus,
+} from '@/lib/selectors/server/providers/provider-http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,
@@ -248,32 +251,20 @@ async function fetchDriveDetail(
 ): Promise<DriveFile> {
   const id = requireGoogleId(fileId)
   const headers = { Authorization: `Bearer ${accessToken}` }
-  let response: Response
-  try {
-    response = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType,shortcutDetails&supportsAllDrives=true`,
-      { headers, redirect: 'error', signal: args.signal }
-    )
-  } catch (error) {
-    if (args.signal?.aborted) throw error
-    throw new SelectorOptionsUnavailableError()
-  }
+  const result = await fetchProviderJsonWithStatus<DriveFile>(
+    `https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType,shortcutDetails&supportsAllDrives=true`,
+    { headers, redirect: 'error', signal: args.signal },
+    { passthroughStatuses: [404] }
+  )
 
-  if (response.status === 404) {
+  if (!result.ok) {
     const drive = await fetchProviderJson<{ id: string; name: string }>(
       `https://www.googleapis.com/drive/v3/drives/${id}?fields=id,name`,
       { headers, signal: args.signal }
     )
     return { id: drive.id, name: drive.name, mimeType: 'application/vnd.google-apps.folder' }
   }
-  if (!response.ok) throw new SelectorOptionsUnavailableError()
-
-  let file: DriveFile
-  try {
-    file = (await response.json()) as DriveFile
-  } catch {
-    throw new SelectorOptionsUnavailableError()
-  }
+  const file = result.data
   const targetId =
     file.mimeType === 'application/vnd.google-apps.shortcut'
       ? file.shortcutDetails?.targetId

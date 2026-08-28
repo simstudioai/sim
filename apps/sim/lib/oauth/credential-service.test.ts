@@ -179,19 +179,23 @@ describe('resolveCredentialAccessToken selector privacy', () => {
     }
   })
 
-  it('preserves the existing raw refresh identity and diagnostics outside selector mode', async () => {
+  it('shares private refresh coordination across privacy modes without changing ordinary diagnostics', async () => {
+    const privateGoogle = await observeRefresh('google', 'selector')
     const google = await observeRefresh('google')
-    expect(google.cacheKey).toBe(RAW_ACCOUNT_ID)
-    expect(google.coalescingKey).toBe(`oauth:refresh:${RAW_ACCOUNT_ID}`)
+    expect(google.cacheKey).toBe(privateGoogle.cacheKey)
+    expect(google.coalescingKey).toBe(privateGoogle.coalescingKey)
     expect(google.lockKey).toBe(google.coalescingKey)
+    expect(google.coalescingKey).not.toContain(RAW_ACCOUNT_ID)
     expect(google.logs).toContain(RAW_ACCOUNT_ID)
     expect(google.logs).toContain(RAW_USER_ID)
     expect(google.logs).toContain(RAW_PROVIDER_ERROR)
 
+    const privateSlack = await observeRefresh('slack', 'selector')
     const slack = await observeRefresh('slack')
-    expect(slack.cacheKey).toBe(`slack:${RAW_SLACK_TEAM_ID}`)
-    expect(slack.coalescingKey).toBe(`oauth:refresh:slack:${RAW_SLACK_TEAM_ID}`)
+    expect(slack.cacheKey).toBe(privateSlack.cacheKey)
+    expect(slack.coalescingKey).toBe(privateSlack.coalescingKey)
     expect(slack.lockKey).toBe(slack.coalescingKey)
+    expect(slack.coalescingKey).not.toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_SLACK_TEAM_ID)
     expect(slack.logs).toContain(RAW_PROVIDER_ERROR)
   })

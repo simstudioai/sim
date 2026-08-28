@@ -170,7 +170,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
-      dependsOn: ['credential', 'driveId'],
+      dependsOn: { all: ['credential'], any: ['credential', 'driveId'] },
       mode: 'basic',
     },
     {

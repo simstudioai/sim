@@ -86,8 +86,8 @@ export interface PollingConfigContext {
   webhook: Record<string, unknown>
   requestId: string
   /** Deployment actor used to validate reference-backed polling configuration. */
-  userId?: string
-  workspaceId?: string | null
+  userId: string
+  workspaceId: string | null
   deploymentVersionId?: string | null
   /**
    * Stable registration preparation supplies a generation-fenced persistence callback.

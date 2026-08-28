@@ -1,5 +1,6 @@
-import { selectAtlassianCloudId } from '@/lib/atlassian/discovery'
+import { normalizeAtlassianSiteUrl, selectAtlassianCloudId } from '@/lib/atlassian/discovery'
 import {
+  SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
@@ -30,10 +31,22 @@ export async function resolveSelectorAtlassianCloudId(input: {
   accessToken: string
   domain: string | undefined
   providedCloudId?: string
+  providedDomain?: string
   product: 'Jira' | 'Confluence'
   signal?: AbortSignal
 }): Promise<string> {
-  if (input.providedCloudId) return requireCloudId(input.providedCloudId)
+  if (input.providedCloudId) {
+    const contextDomain = input.domain?.trim()
+    const credentialDomain = input.providedDomain?.trim()
+    if (
+      !contextDomain ||
+      !credentialDomain ||
+      normalizeAtlassianSiteUrl(contextDomain) !== normalizeAtlassianSiteUrl(credentialDomain)
+    ) {
+      throw new SelectorConnectionUnavailableError()
+    }
+    return requireCloudId(input.providedCloudId)
+  }
 
   const domain = input.domain?.trim()
   if (!domain) throw new SelectorContextUnavailableError()

@@ -72,7 +72,8 @@ async function fetchZoho(
       stripAuthOnRedirect: true,
       signal: args.signal,
     })
-  } catch {
+  } catch (error) {
+    if (args.signal?.aborted) throw error
     throw new SelectorOptionsUnavailableError()
   }
   if (response.status === 204) return { status: 204, data: [] }

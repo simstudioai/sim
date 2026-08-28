@@ -13,6 +13,7 @@ const { fetched } = vi.hoisted(() => ({
     isLoadingOptions: false,
     hasLoadedOptions: true,
     fetchError: null as string | null,
+    hydratedOptions: [] as { id: string; label: string }[],
   },
 }))
 
@@ -52,6 +53,7 @@ vi.mock(
       hasLoadedOptions: fetched.hasLoadedOptions,
       fetchError: fetched.fetchError,
       hydratedOption: null,
+      hydratedOptions: fetched.hydratedOptions,
       missingOptionId: null,
       refetch: () => {},
     }),
@@ -139,6 +141,17 @@ describe('Dropdown multi-select stale selections', () => {
       expect(html).toContain('data-value="col_gone"')
     } finally {
       fetched.options = previous
+    }
+  })
+
+  it('uses hydrated labels for selected values missing from the loaded list', () => {
+    fetched.hydratedOptions = [{ id: 'col_gone', label: 'Former column' }]
+    try {
+      const html = render()
+      expect(html).toContain('Former column [selected]')
+      expect(html).toContain('<span class="truncate">Former column</span>')
+    } finally {
+      fetched.hydratedOptions = []
     }
   })
 })

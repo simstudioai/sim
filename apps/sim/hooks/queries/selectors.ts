@@ -144,6 +144,7 @@ export function useSelectorOptions(
     },
     enabled: !supportsPagination && prepared.ready,
     staleTime: prepared.manifest.staleTime,
+    gcTime: 0,
   })
 
   const pagedQuery = useInfiniteQuery<SelectorPage>({
@@ -168,6 +169,7 @@ export function useSelectorOptions(
     initialPageParam: undefined as string | undefined,
     enabled: supportsPagination && prepared.ready,
     staleTime: prepared.manifest.staleTime,
+    gcTime: 0,
   })
 
   const pageCount = pagedQuery.data?.pages.length ?? 0
@@ -208,6 +210,7 @@ export function useSelectorOptions(
       error: (pagedQuery.error as Error | null) ?? null,
       isSuccess: pagedQuery.isSuccess,
       refetch: () => {
+        if (!prepared.ready) return
         void pagedQuery.refetch()
       },
     }
@@ -222,6 +225,7 @@ export function useSelectorOptions(
     error: (flatQuery.error as Error | null) ?? null,
     isSuccess: flatQuery.isSuccess,
     refetch: () => {
+      if (!prepared.ready) return
       void flatQuery.refetch()
     },
   }
@@ -259,6 +263,7 @@ export function useSelectorOptionDetail(
     },
     enabled,
     staleTime: prepared.manifest.staleTime,
+    gcTime: 0,
   })
 }
 
@@ -292,6 +297,7 @@ export function useSelectorOptionDetails(
       },
       enabled: prepared.ready && prepared.manifest.supportsDetail && args.enabled !== false,
       staleTime: prepared.manifest.staleTime,
+      gcTime: 0,
     })),
   })
   return useMemo(() => results.flatMap((result) => (result.data ? [result.data] : [])), [results])

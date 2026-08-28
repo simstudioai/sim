@@ -80,4 +80,45 @@ describe('IMAP runtime polling policy', () => {
     expect(logged).not.toContain('literal-password')
     expect(logged).not.toContain('Referenced IMAP authentication requires redeployment')
   })
+
+  it('uses the deployment actor and canonical workflow workspace for each referenced poll', async () => {
+    const mockLimit = vi.fn().mockResolvedValue([{ createdBy: 'deployment-actor' }])
+    const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
+    const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
+    mockDbSelect.mockReturnValue({ from: mockFrom })
+    mockResolveImapConnectionForActor.mockResolvedValue({
+      host: 'imap.example.com',
+      port: 993,
+      secure: true,
+      username: 'resolved-user',
+      password: 'resolved-password',
+    })
+    mockCreateSecureImapClient.mockRejectedValue(new Error('connection unavailable'))
+
+    const result = await imapPollingHandler.pollWebhook({
+      webhookData: {
+        id: 'webhook-1',
+        deploymentVersionId: 'deployment-1',
+        providerConfig: {
+          host: '{{IMAP_HOST}}',
+          username: '{{IMAP_USERNAME}}',
+          password: '{{IMAP_PASSWORD}}',
+        },
+      } as never,
+      workflowData: { id: 'workflow-1', workspaceId: 'canonical-workspace' } as never,
+      requestId: 'request-1',
+      logger: mockLogger as never,
+    })
+
+    expect(result).toBe('failure')
+    expect(mockResolveImapConnectionForActor).toHaveBeenCalledWith({
+      connection: expect.objectContaining({ password: '{{IMAP_PASSWORD}}' }),
+      actorUserId: 'deployment-actor',
+      workspaceId: 'canonical-workspace',
+    })
+    expect(mockCreateSecureImapClient).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'resolved-user', password: 'resolved-password' })
+    )
+    expect(mockMarkWebhookFailed).toHaveBeenCalledWith('webhook-1', mockLogger)
+  })
 })

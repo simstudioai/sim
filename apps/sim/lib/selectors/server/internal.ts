@@ -10,6 +10,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import type { InternalSelectorKey } from '@/lib/selectors/manifest'
+import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,
@@ -21,8 +22,9 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
-const MAX_WORKFLOW_PAGES = 20
 const WORKFLOW_PAGE_SIZE = 250
+const MAX_WORKFLOWS = 10_000
+const MAX_WORKFLOW_PAGES = MAX_WORKFLOWS / WORKFLOW_PAGE_SIZE
 const KNOWLEDGE_PAGE_SIZE = 100
 
 function labelWorkflow(
@@ -61,6 +63,7 @@ async function loadWorkflows(
     cursorKeys = result.nextCursorKeys
     if (!cursorKeys) break
   }
+  if (cursorKeys) throw new SelectorOptionsUnavailableError()
   return workflows
 }
 

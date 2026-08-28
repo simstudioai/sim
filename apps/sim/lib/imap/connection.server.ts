@@ -1,6 +1,6 @@
 import { ImapFlow } from 'imapflow'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
-import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
+import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 
 const EXACT_ENVIRONMENT_REFERENCE = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/
 
@@ -65,43 +65,56 @@ export async function resolveImapConnectionForActor(input: {
     return normalizeLiteralImapConnection(input.connection)
   }
 
-  const snapshot = await getEffectiveEnvironmentSnapshot(
+  const referenceNames = [
+    ...new Set(
+      [
+        input.connection.host,
+        input.connection.port,
+        input.connection.secure,
+        input.connection.username,
+        input.connection.password,
+      ].flatMap((value) => {
+        if (typeof value !== 'string') return []
+        const match = EXACT_ENVIRONMENT_REFERENCE.exec(value)
+        if (match) return [match[1]]
+        if (containsTemplateDelimiter(value)) throw new ImapConnectionPolicyError('context')
+        return []
+      })
+    ),
+  ]
+  const resolvedVariables = await resolveEffectiveEnvironmentVariables(
     input.actorUserId,
-    input.workspaceId ?? undefined
+    input.workspaceId ?? undefined,
+    referenceNames
   )
-  const visibleWorkspaceNames = new Set(snapshot.workspaceUnredactedKeys)
 
   const resolve = (field: 'host' | 'port' | 'secure' | 'username' | 'password', value: unknown) => {
     if (typeof value !== 'string') return value
     const match = EXACT_ENVIRONMENT_REFERENCE.exec(value)
-    if (!match) {
-      if (containsTemplateDelimiter(value)) throw new ImapConnectionPolicyError('context')
-      return value
-    }
+    if (!match) return value
     const name = match[1]
-    const workspaceReference = Object.hasOwn(snapshot.workspaceDecrypted, name)
-    const resolved = workspaceReference
-      ? snapshot.workspaceDecrypted[name]
-      : snapshot.personalDecrypted[name]
-    if (resolved === undefined) throw new ImapConnectionPolicyError('context')
-    if (
-      (field === 'username' || field === 'password') &&
-      (workspaceReference
-        ? !visibleWorkspaceNames.has(name)
-        : snapshot.personalOwners[name] !== input.actorUserId)
-    ) {
+    const variable = Object.hasOwn(resolvedVariables, name) ? resolvedVariables[name] : undefined
+    if (!variable) throw new ImapConnectionPolicyError('context')
+    if ((field === 'username' || field === 'password') && !variable.visible) {
       throw new ImapConnectionPolicyError('hidden_auth')
     }
-    return resolved
+    return variable.value
   }
 
-  return normalizeConnection({
+  return normalizeResolvedImapConnection({
     host: resolve('host', input.connection.host),
     port: resolve('port', input.connection.port),
     secure: resolve('secure', input.connection.secure),
     username: resolve('username', input.connection.username),
     password: resolve('password', input.connection.password),
   })
+}
+
+/** Normalizes values only after exact environment references have been resolved and authorized. */
+export function normalizeResolvedImapConnection(
+  input: ImapConnectionInput
+): ResolvedImapConnection {
+  return normalizeConnection(input)
 }
 
 export function normalizeLiteralImapConnection(input: ImapConnectionInput): ResolvedImapConnection {
