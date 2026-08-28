@@ -141,28 +141,32 @@ export const createFunctionTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'Instruction set architecture: x86_64 or arm64',
+      description:
+        'Instruction set architecture: x86_64 or arm64 Pass [] to remove all of them on an update.',
     },
     layers: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'ARNs of layer versions to add to the function execution environment',
+      description:
+        'ARNs of layer versions to add to the function execution environment Pass [] to remove all of them on an update.',
     },
     vpcSubnetIds: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'VPC subnet IDs the function should attach to',
+      description:
+        'VPC subnet IDs the function should attach to Pass [] to remove all of them on an update.',
     },
     vpcSecurityGroupIds: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'VPC security group IDs the function should use',
+      description:
+        'VPC security group IDs the function should use Pass [] to remove all of them on an update.',
     },
     tracingMode: {
       type: 'string',

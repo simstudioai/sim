@@ -48,6 +48,7 @@ import {
   executeLambdaListTags,
   executeLambdaTagResource,
   executeLambdaUntagResource,
+  executeLambdaUpdateEventSourceMapping,
   executeLambdaUpdateFunctionConfiguration,
 } from '@/lib/internal/lambda/operations'
 
@@ -337,6 +338,51 @@ describe('Lambda operations', () => {
       })
 
       expect(sentInput().Environment).toEqual({ Variables: {} })
+    })
+  })
+
+  describe('clearing collection-valued settings', () => {
+    it('sends an empty layer and VPC list so the update actually removes them', async () => {
+      mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
+
+      await executeLambdaUpdateFunctionConfiguration({
+        ...CONNECTION,
+        functionName: 'alpha',
+        layers: [],
+        vpcSubnetIds: [],
+        vpcSecurityGroupIds: [],
+      })
+
+      const input = sentInput()
+      expect(input.Layers).toEqual([])
+      expect(input.VpcConfig).toEqual({ SubnetIds: [], SecurityGroupIds: [] })
+    })
+
+    it('omits the same fields when they were left unset', async () => {
+      mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
+
+      await executeLambdaUpdateFunctionConfiguration({ ...CONNECTION, functionName: 'alpha' })
+
+      const input = sentInput()
+      expect(input.Layers).toBeUndefined()
+      expect(input.VpcConfig).toBeUndefined()
+    })
+
+    it('sends empty filter criteria and source access configs on an event source update', async () => {
+      mocks.send.mockResolvedValue({ UUID: 'esm-1' })
+
+      await executeLambdaUpdateEventSourceMapping({
+        ...CONNECTION,
+        uuid: 'esm-1',
+        filterPatterns: [],
+        sourceAccessConfigurations: [],
+        functionResponseTypes: [],
+      })
+
+      const input = sentInput()
+      expect(input.FilterCriteria).toEqual({ Filters: [] })
+      expect(input.SourceAccessConfigurations).toEqual([])
+      expect(input.FunctionResponseTypes).toEqual([])
     })
   })
 

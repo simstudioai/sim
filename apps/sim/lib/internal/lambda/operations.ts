@@ -211,7 +211,7 @@ function toDocumentDbConfig(input: {
 function toSourceAccessConfigurations(
   configs?: Array<{ type: string; uri: string }>
 ): SourceAccessConfiguration[] | undefined {
-  if (!configs || configs.length === 0) return undefined
+  if (!configs) return undefined
   return configs.map((config) => ({
     Type: config.type as SourceAccessType,
     URI: config.uri,

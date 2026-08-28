@@ -167,10 +167,10 @@ Create a Lambda function from a deployment package in Amazon S3 or a container i
 | `publish` | boolean | No | Publish the first version of the function atomically with creation |
 | `environment` | json | No | Environment variables as a flat key/value JSON object |
 | `tags` | json | No | Tags to apply to the function, as a flat key/value JSON object |
-| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 |
-| `layers` | array | No | ARNs of layer versions to add to the function execution environment |
-| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to |
-| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use |
+| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 Pass \[\] to remove all of them on an update. |
+| `layers` | array | No | ARNs of layer versions to add to the function execution environment Pass \[\] to remove all of them on an update. |
+| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to Pass \[\] to remove all of them on an update. |
+| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use Pass \[\] to remove all of them on an update. |
 | `tracingMode` | string | No | X-Ray tracing mode: Active samples and traces requests, PassThrough only traces sampled requests |
 | `deadLetterTargetArn` | string | No | ARN of an SQS queue or SNS topic that receives failed asynchronous invocations |
 | `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt environment variables and snapshots |
@@ -201,7 +201,7 @@ Update a function's deployment package from Amazon S3 or a container image
 | `s3ObjectVersion` | string | No | Version of the Amazon S3 object to use |
 | `imageUri` | string | No | Amazon ECR URI of the container image to deploy |
 | `sourceKmsKeyArn` | string | No | ARN of the KMS customer managed key that encrypts the function's .zip deployment package |
-| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 |
+| `architectures` | array | No | Instruction set architecture: x86_64 or arm64 Pass \[\] to remove all of them on an update. |
 | `publish` | boolean | No | Publish a new version after updating the code |
 | `dryRun` | boolean | No | Validate the request without updating the function |
 | `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
@@ -232,9 +232,9 @@ Update a function's settings such as memory, timeout, role, and environment vari
 | `memorySize` | number | No | Memory available to the function at runtime in MB \(128-32768\) |
 | `ephemeralStorageSize` | number | No | Size of the /tmp directory in MB \(512-10240\) |
 | `environment` | json | No | Environment variables as a flat key/value JSON object. Replaces the existing set |
-| `layers` | array | No | ARNs of layer versions to add to the function execution environment |
-| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to |
-| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use |
+| `layers` | array | No | ARNs of layer versions to add to the function execution environment Pass \[\] to remove all of them on an update. |
+| `vpcSubnetIds` | array | No | VPC subnet IDs the function should attach to Pass \[\] to remove all of them on an update. |
+| `vpcSecurityGroupIds` | array | No | VPC security group IDs the function should use Pass \[\] to remove all of them on an update. |
 | `tracingMode` | string | No | X-Ray tracing mode: Active samples and traces requests, PassThrough only traces sampled requests |
 | `deadLetterTargetArn` | string | No | ARN of an SQS queue or SNS topic that receives failed asynchronous invocations |
 | `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt environment variables and snapshots |
@@ -521,13 +521,13 @@ Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a functi
 | `maximumConcurrency` | number | No | Maximum concurrent function invocations from an SQS event source \(2-1000\) |
 | `topics` | array | No | Kafka topic names to consume |
 | `queues` | array | No | Amazon MQ broker destination queue names |
-| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting |
-| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function |
+| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting Pass \[\] to remove all of them on an update. |
+| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function. Pass \[\] to remove all filters on an update. |
 | `onSuccessDestination` | string | No | ARN of the destination that receives successfully processed records |
 | `onFailureDestination` | string | No | ARN of the destination that receives discarded records |
 | `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt filter criteria |
 | `tags` | json | No | Tags to apply to the event source mapping, as a flat key/value JSON object |
-| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\) |
+| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\). Pass \[\] to remove all of them on an update. |
 | `documentDbDatabaseName` | string | No | DocumentDB database to consume the change stream from |
 | `documentDbCollectionName` | string | No | DocumentDB collection to consume. Omit to consume the whole database |
 | `documentDbFullDocument` | string | No | UpdateLookup sends the full document on update, Default sends only the change delta |
@@ -582,12 +582,12 @@ Update the batching, retry, filtering, or enabled state of an event source mappi
 | `bisectBatchOnFunctionError` | boolean | No | Split a failing batch in two and retry each half |
 | `tumblingWindowInSeconds` | number | No | Duration of a processing window for stream aggregation \(0-900\) |
 | `maximumConcurrency` | number | No | Maximum concurrent function invocations from an SQS event source \(2-1000\) |
-| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting |
-| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function |
+| `functionResponseTypes` | array | No | Set to ReportBatchItemFailures to enable partial batch reporting Pass \[\] to remove all of them on an update. |
+| `filterPatterns` | array | No | Event filter patterns, each a JSON string, that decide which records reach the function. Pass \[\] to remove all filters on an update. |
 | `onSuccessDestination` | string | No | ARN of the destination that receives successfully processed records |
 | `onFailureDestination` | string | No | ARN of the destination that receives discarded records |
 | `kmsKeyArn` | string | No | ARN of the KMS customer managed key used to encrypt filter criteria |
-| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\) |
+| `sourceAccessConfigurations` | json | No | Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" \(e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET\) and "uri" \(the Secrets Manager or VPC resource ARN\). Pass \[\] to remove all of them on an update. |
 | `documentDbDatabaseName` | string | No | DocumentDB database to consume the change stream from |
 | `documentDbCollectionName` | string | No | DocumentDB collection to consume. Omit to consume the whole database |
 | `documentDbFullDocument` | string | No | UpdateLookup sends the full document on update, Default sends only the change delta |

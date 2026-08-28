@@ -76,7 +76,8 @@ export const updateFunctionCodeTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'Instruction set architecture: x86_64 or arm64',
+      description:
+        'Instruction set architecture: x86_64 or arm64 Pass [] to remove all of them on an update.',
     },
     publish: {
       type: 'boolean',

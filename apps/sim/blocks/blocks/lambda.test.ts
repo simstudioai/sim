@@ -215,6 +215,47 @@ describe('LambdaBlock params mapping', () => {
     expect(merged.architectures).toEqual(['arm64'])
   })
 
+  it('clears a collection when the field holds an explicit empty-array literal', () => {
+    const merged = merge({
+      ...CONNECTION,
+      operation: 'update_function_configuration',
+      functionName: 'alpha',
+      layers: '[]',
+      vpcSubnetIds: ' [] ',
+    })
+
+    expect(merged.layers).toEqual([])
+    expect(merged.vpcSubnetIds).toEqual([])
+  })
+
+  it('leaves a blank collection unchanged rather than clearing it', () => {
+    const merged = merge({
+      ...CONNECTION,
+      operation: 'update_function_configuration',
+      functionName: 'alpha',
+      layers: '',
+      vpcSubnetIds: null,
+      vpcSecurityGroupIds: undefined,
+    })
+
+    expect(merged.layers).toBeUndefined()
+    expect(merged.vpcSubnetIds).toBeUndefined()
+    expect(merged.vpcSecurityGroupIds).toBeUndefined()
+  })
+
+  it('clears filter patterns and source access configs from an empty JSON array', () => {
+    const merged = merge({
+      ...CONNECTION,
+      operation: 'update_event_source_mapping',
+      uuid: 'esm-1',
+      filterPatterns: '[]',
+      sourceAccessConfigurations: '[]',
+    })
+
+    expect(merged.filterPatterns).toEqual([])
+    expect(merged.sourceAccessConfigurations).toEqual([])
+  })
+
   it('drops a list field that is only separators', () => {
     const merged = merge({
       ...CONNECTION,

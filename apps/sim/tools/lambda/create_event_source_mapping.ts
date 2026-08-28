@@ -132,7 +132,8 @@ export const createEventSourceMappingTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       items: { type: 'string' },
-      description: 'Set to ReportBatchItemFailures to enable partial batch reporting',
+      description:
+        'Set to ReportBatchItemFailures to enable partial batch reporting Pass [] to remove all of them on an update.',
     },
     filterPatterns: {
       type: 'array',
@@ -140,7 +141,7 @@ export const createEventSourceMappingTool: InternalToolConfig<
       visibility: 'user-or-llm',
       items: { type: 'string' },
       description:
-        'Event filter patterns, each a JSON string, that decide which records reach the function',
+        'Event filter patterns, each a JSON string, that decide which records reach the function. Pass [] to remove all filters on an update.',
     },
     onSuccessDestination: {
       type: 'string',
@@ -171,7 +172,7 @@ export const createEventSourceMappingTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" (e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET) and "uri" (the Secrets Manager or VPC resource ARN)',
+        'Authentication for an Amazon MQ or self-managed Kafka source, as a JSON array of objects with "type" (e.g. BASIC_AUTH, SASL_SCRAM_512_AUTH, VPC_SUBNET) and "uri" (the Secrets Manager or VPC resource ARN). Pass [] to remove all of them on an update.',
     },
     documentDbDatabaseName: {
       type: 'string',

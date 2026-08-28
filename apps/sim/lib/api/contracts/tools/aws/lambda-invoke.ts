@@ -21,7 +21,6 @@ const InvokeResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     statusCode: z.number().nullable(),
-    // untyped-response: the function's own response body is arbitrary user-defined JSON
     payload: z.unknown(),
     functionError: z.string().nullable(),
     logResult: z.string().nullable(),

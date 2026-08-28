@@ -402,6 +402,9 @@ const OPERATION_PARAMS: Record<string, readonly ParamName[]> = {
   ],
 }
 
+/** Literal a user types into a list field to clear it on an update, distinct from leaving it blank. */
+const EMPTY_COLLECTION = '[]'
+
 function coerceParam(name: ParamName, value: unknown): unknown {
   if (value === undefined || value === null || value === '') return undefined
   const kind: ParamKind = PARAM_KINDS[name]
@@ -418,10 +421,10 @@ function coerceParam(name: ParamName, value: unknown): unknown {
       return undefined
     }
     case 'array': {
-      if (Array.isArray(value)) {
-        const items = value.map((item) => String(item).trim()).filter(Boolean)
-        return items.length > 0 ? items : undefined
-      }
+      if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+      // An explicit empty-array literal clears the collection on an update. A blank field is
+      // "leave unchanged" and must stay undefined, or every update would wipe the setting.
+      if (String(value).trim() === EMPTY_COLLECTION) return []
       const items = String(value)
         .split(',')
         .map((item) => item.trim())
@@ -433,7 +436,6 @@ function coerceParam(name: ParamName, value: unknown): unknown {
       if (!Array.isArray(parsed)) {
         throw new Error(`${name} must be a JSON array`)
       }
-      if (parsed.length === 0) return undefined
       return parsed.map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
     }
     case 'json':
@@ -1159,7 +1161,7 @@ export const LambdaBlock: BlockConfig<
       id: 'layers',
       title: 'Layer ARNs',
       type: 'short-input',
-      placeholder: 'arn:aws:lambda:us-east-1:123456789012:layer:my-layer:1',
+      placeholder: 'arn:aws:lambda:us-east-1:123456789012:layer:my-layer:1, or [] to clear',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1170,7 +1172,7 @@ export const LambdaBlock: BlockConfig<
       id: 'vpcSubnetIds',
       title: 'VPC Subnet IDs',
       type: 'short-input',
-      placeholder: 'subnet-abc123,subnet-def456',
+      placeholder: 'subnet-abc123,subnet-def456, or [] to clear',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1181,7 +1183,7 @@ export const LambdaBlock: BlockConfig<
       id: 'vpcSecurityGroupIds',
       title: 'VPC Security Group IDs',
       type: 'short-input',
-      placeholder: 'sg-abc123,sg-def456',
+      placeholder: 'sg-abc123,sg-def456, or [] to clear',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1567,7 +1569,7 @@ export const LambdaBlock: BlockConfig<
       id: 'functionResponseTypes',
       title: 'Function Response Types',
       type: 'short-input',
-      placeholder: 'ReportBatchItemFailures',
+      placeholder: 'ReportBatchItemFailures, or [] to clear',
       mode: 'advanced',
       condition: {
         field: 'operation',
