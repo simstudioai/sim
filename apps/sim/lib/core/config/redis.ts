@@ -49,9 +49,13 @@ const REDIS_CONNECT_TIMEOUT_MS = 10_000
  * never received the command, with a stack containing only ioredis timer
  * frames.
  *
- * Production handshakes to ElastiCache measure 2-6s when several connections
- * are opened at once, so a 5s command timeout failed roughly 3% of cold-start
- * commands on Trigger.dev workers, which open a fresh connection per run.
+ * The gap between opening a connection and servicing its `connect` callback is
+ * measured in seconds during an initialization burst — not because the network
+ * or the server is slow (the `INFO` round-trip that follows completes in ~10ms,
+ * and the server sits near-idle), but because the callback cannot run while the
+ * main thread is saturated. This deadline is wall-clock, so it spans that delay
+ * whether the cause is the network or a busy event loop, which is exactly why it
+ * has to leave room beyond the connect budget.
  */
 export const REDIS_COMMAND_TIMEOUT_MS = 15_000
 
@@ -262,18 +266,20 @@ export function getRedisClient(): Redis | null {
  * issued: ioredis arms it in `sendCommand` before it checks whether the socket
  * is writable, so the budget covers handshake and offline-queue wait as well as
  * execution. A process whose first command lands on a cold client therefore
- * spends most of that budget on the TLS handshake, which measures 2-6s against
- * ElastiCache when several connections open at once.
+ * spends that budget waiting for the connection rather than running the command.
  *
- * Warming at process start moves that cost off the first command's clock, which
- * is the connection-reuse practice AWS recommends: establishing a TCP+TLS
- * connection is far more expensive than the commands that run over it, so it
- * should be paid once per process rather than once per unit of work.
+ * Warming separates the two: the wait becomes connection setup, bounded by
+ * `connectTimeout`, instead of eating a command's deadline. It also follows the
+ * connection-reuse practice AWS recommends — establishing a connection costs far
+ * more than the commands that run over it, so it belongs once per process rather
+ * than once per unit of work. Note this does not make the connection ready any
+ * sooner when the delay is a saturated event loop rather than the network; it
+ * only stops that delay from being charged to a command.
  *
  * Best effort by design — resolves rather than rejects on failure, and is
  * bounded by the connect budget, so neither a degraded Redis nor a missing
  * configuration can stop a process from starting. Callers that skip warming
- * still work; they just pay the handshake on their first command as before.
+ * still work; they just wait on their first command as before.
  *
  * Memoized per client: a warm process returns immediately, and a forced
  * reconnect clears it so the replacement connection is warmed in turn.

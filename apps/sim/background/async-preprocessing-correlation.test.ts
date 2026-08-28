@@ -771,4 +771,49 @@ describe('async preprocessing correlation threading', () => {
       })
     )
   })
+
+  it('keeps the enqueuer admission when a reservation refresh throws', async () => {
+    // A throw is ambiguous: the refresh mutates the local reservation and the
+    // pointer separately, so it can fail after the slot's TTL was extended.
+    mockRefreshExecutionSlotExpiry.mockRejectedValueOnce(new Error('Command timed out'))
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await expect(
+      executeWorkflowJob({
+        principal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: 'execution-refresh-throw',
+        requestId: 'request-refresh-throw',
+        admissionCompleted: true,
+        executionTimeoutMs: 60_000,
+      })
+    ).resolves.toEqual(expect.objectContaining({ success: true }))
+
+    // Re-admitting would spend another rate-limit token and could reject a run
+    // that still holds a valid slot.
+    expect(mockPreprocessExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ checkRateLimit: false, skipUsageLimits: true })
+    )
+  })
 })

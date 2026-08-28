@@ -165,15 +165,6 @@ export async function executeWorkflowJob(
     const executionDeadlineAt = getExecutionDeadlineAt(timeoutController.signal)?.getTime()
     let admissionCompleted = payload.admissionCompleted === true
     if (admissionCompleted && executionDeadlineAt !== undefined) {
-      /**
-       * A refresh that *returns* false already degrades into repeating usage
-       * admission below. A refresh that *throws* — a Redis timeout on the first
-       * command this fresh worker process issues — used to kill the run here,
-       * before the logging session exists, so the execution left no log row at
-       * all and simply vanished from the workspace's logs. Route both outcomes
-       * into the same re-admission path: preprocessing owns the reservation
-       * retry, and any failure it hits is recorded against a live session.
-       */
       try {
         admissionCompleted = await refreshExecutionSlotExpiry(
           executionId,
@@ -186,8 +177,23 @@ export async function executeWorkflowJob(
           })
         }
       } catch (error) {
-        admissionCompleted = false
-        logger.warn('Reservation refresh failed; repeating usage admission', {
+        /**
+         * Only a `false` return proves the reservation is gone, and that is the
+         * one outcome re-admission is right for. A throw does not: the refresh
+         * is several separate Redis mutations, so it can fail after the slot's
+         * TTL was already extended, and a client-side command timeout abandons
+         * a call the server may still have applied. Re-admitting on that
+         * ambiguity would spend another rate-limit token and could reject a run
+         * that still holds a perfectly valid slot, so keep the admission the
+         * enqueuing surface already completed.
+         *
+         * Worst case the slot lapses before the run ends, which under-counts
+         * concurrency for this one execution; the later release is already a
+         * no-op when the reservation is gone. Previously this threw before the
+         * logging session existed, so the run left no log row at all and simply
+         * vanished from the workspace's logs.
+         */
+        logger.warn('Reservation refresh failed; continuing on the existing admission', {
           workflowId,
           executionId,
           error: toError(error).message,
