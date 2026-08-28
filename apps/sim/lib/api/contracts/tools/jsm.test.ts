@@ -13,7 +13,7 @@ import {
   jsmRequestTypesToolBodySchema,
   jsmServiceDeskScopedBodySchema,
   jsmServiceDesksBodySchema,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 
 const credentials = {
   domain: 'example.atlassian.net',

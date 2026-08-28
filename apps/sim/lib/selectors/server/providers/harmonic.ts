@@ -1,8 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
-import {
-  HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS,
-  harmonicPeopleSavedSearchProviderSchema,
-} from '@/lib/api/contracts/selectors/harmonic'
+import { z } from 'zod'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -17,9 +14,28 @@ import {
 type HarmonicSelectorKey = Extract<ServerSelectorKey, 'harmonic.savedSearches'>
 
 const HARMONIC_URL = 'https://api.harmonic.ai/savedSearches'
+const HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS = 500
 const MAX_RESPONSE_BYTES = 1024 * 1024
 const MAX_PROVIDER_ROWS = 2_000
 const FETCH_TIMEOUT_MS = 10_000
+
+const harmonicSavedSearchUrnSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(512)
+  .regex(/^urn:harmonic:saved_search:[^\s]+$/, 'Invalid Harmonic saved-search URN')
+const harmonicSavedSearchNameSchema = z.string().trim().min(1).max(1_000)
+
+/** Validates the documented fields consumed from a PERSONS saved-search row. */
+const harmonicPeopleSavedSearchProviderSchema = z
+  .object({
+    id: z.number().int().safe(),
+    entity_urn: harmonicSavedSearchUrnSchema,
+    name: harmonicSavedSearchNameSchema,
+    type: z.literal('PERSONS'),
+  })
+  .passthrough()
 
 interface SavedSearch {
   id: string

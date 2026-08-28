@@ -39,7 +39,7 @@ import {
   jsmTransitionContract,
   jsmTransitionsContract,
   jsmUpdateObjectContract,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import {
   executeJsmCreateObject,
   executeJsmDeleteObject,

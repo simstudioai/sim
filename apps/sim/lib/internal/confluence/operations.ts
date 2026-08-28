@@ -41,7 +41,7 @@ import type {
   ConfluenceUpdateSpaceBody,
   ConfluenceUploadAttachmentBody,
   ConfluenceUserBody,
-} from '@/lib/api/contracts/selectors/confluence'
+} from '@/lib/api/contracts/tools/confluence'
 import {
   validateAlphanumericId,
   validateNumericId,

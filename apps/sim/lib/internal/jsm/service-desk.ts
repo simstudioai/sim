@@ -15,7 +15,7 @@ import type {
   JsmSlaBody,
   JsmTransitionBody,
   JsmTransitionsBody,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import {
   validateAlphanumericId,
   validateEnum,

@@ -1,7 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import { definePostSelector } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody } from '@/lib/api/contracts/types'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const jsmBaseBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
@@ -279,7 +279,16 @@ export const jsmDeleteObjectBodySchema = jsmAssetsBaseBodySchema.extend({
 })
 
 export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
-  definePostSelector(path, body, z.unknown())
+  defineRouteContract({
+    method: 'POST',
+    path,
+    body,
+    response: {
+      mode: 'json',
+      // untyped-response: shared JSM helper covers distinct Atlassian payloads for every operation
+      schema: z.unknown(),
+    },
+  })
 
 export const jsmServiceDesksContract = defineJsmToolContract(
   '/api/tools/jsm/servicedesks',

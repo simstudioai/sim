@@ -1,14 +1,23 @@
 import { z } from 'zod'
-import { definePostSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
-import type {
-  ContractBody,
-  ContractBodyInput,
-  ContractJsonResponse,
-} from '@/lib/api/contracts/types'
+import type { ContractBody } from '@/lib/api/contracts/types'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 const cloudwatchLogGroupSchema = z.object({ logGroupName: z.string() }).passthrough()
 const cloudwatchLogStreamSchema = z.object({ logStreamName: z.string() }).passthrough()
+const optionalString = z.string().optional()
+
+const definePostToolContract = <TBody extends z.ZodType, TResponse extends z.ZodType>(
+  path: string,
+  body: TBody,
+  response: TResponse
+) =>
+  defineRouteContract({
+    method: 'POST',
+    path,
+    body,
+    response: { mode: 'json', schema: response },
+  })
 
 /**
  * AWS region with format validation. Matches the route-level check via
@@ -42,7 +51,7 @@ export const cloudwatchLogStreamsBodySchema = cloudwatchLogGroupsBodySchema.exte
   logGroupName: z.string().min(1, 'Log group name is required'),
 })
 
-export const cloudwatchLogGroupsSelectorContract = definePostSelector(
+export const cloudwatchLogGroupsContract = definePostToolContract(
   '/api/tools/cloudwatch/describe-log-groups',
   cloudwatchLogGroupsBodySchema,
   z
@@ -53,7 +62,7 @@ export const cloudwatchLogGroupsSelectorContract = definePostSelector(
     .passthrough()
 )
 
-export const cloudwatchLogStreamsSelectorContract = definePostSelector(
+export const cloudwatchLogStreamsContract = definePostToolContract(
   '/api/tools/cloudwatch/describe-log-streams',
   cloudwatchLogStreamsBodySchema,
   z
@@ -64,21 +73,5 @@ export const cloudwatchLogStreamsSelectorContract = definePostSelector(
     .passthrough()
 )
 
-export type CloudwatchLogGroupsSelectorResponse = ContractJsonResponse<
-  typeof cloudwatchLogGroupsSelectorContract
->
-export type CloudwatchLogStreamsSelectorResponse = ContractJsonResponse<
-  typeof cloudwatchLogStreamsSelectorContract
->
-export type CloudwatchLogGroupsSelectorRequest = ContractBodyInput<
-  typeof cloudwatchLogGroupsSelectorContract
->
-export type CloudwatchLogGroupsSelectorBody = ContractBody<
-  typeof cloudwatchLogGroupsSelectorContract
->
-export type CloudwatchLogStreamsSelectorRequest = ContractBodyInput<
-  typeof cloudwatchLogStreamsSelectorContract
->
-export type CloudwatchLogStreamsSelectorBody = ContractBody<
-  typeof cloudwatchLogStreamsSelectorContract
->
+export type CloudwatchLogGroupsBody = ContractBody<typeof cloudwatchLogGroupsContract>
+export type CloudwatchLogStreamsBody = ContractBody<typeof cloudwatchLogStreamsContract>

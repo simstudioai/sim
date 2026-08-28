@@ -1,8 +1,9 @@
 import { z } from 'zod'
-import { definePostSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
-import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
+import type { ContractBody, ContractQuery } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+
+const optionalString = z.string().optional()
 
 /**
  * Refines a `pageId` field to match Confluence's alphanumeric format
@@ -342,16 +343,20 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
-export const confluencePageSelectorContract = definePostSelector(
-  '/api/tools/confluence/page',
-  confluencePageBodySchema,
-  z.object({ id: z.string(), title: z.string() }).passthrough()
-)
+export const confluencePageContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/confluence/page',
+  body: confluencePageBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ id: z.string(), title: z.string() }).passthrough(),
+  },
+})
 
 /**
  * Page update and delete have no contract because they have no route: the
  * `PUT`/`DELETE` handlers on `/api/tools/confluence/page` were retired when the
- * tool moved in process, and the surviving selector `POST` on that path would
+ * tool moved in process, and the surviving compatibility `POST` on that path would
  * answer either verb with 405. `lib/internal/confluence/execute-tool.ts`
  * validates both against `confluenceUpdatePageBodySchema` /
  * `confluenceDeletePageBodySchema` directly.
@@ -511,7 +516,7 @@ export const confluenceUserContract = defineConfluencePostContract(
   confluenceUserBodySchema
 )
 
-export type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
+export type ConfluencePageBody = ContractBody<typeof confluencePageContract>
 export type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
 export type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
 export type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>
@@ -560,6 +565,3 @@ export type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpace
 export type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
 export type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
 export type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
-export type ConfluencePageSelectorResponse = ContractJsonResponse<
-  typeof confluencePageSelectorContract
->

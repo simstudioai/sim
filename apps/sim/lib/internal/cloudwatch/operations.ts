@@ -17,10 +17,6 @@ import {
   StartQueryCommand,
 } from '@aws-sdk/client-cloudwatch-logs'
 import { createLogger } from '@sim/logger'
-import type {
-  CloudwatchLogGroupsSelectorBody,
-  CloudwatchLogStreamsSelectorBody,
-} from '@/lib/api/contracts/selectors/cloudwatch'
 import type { AwsCloudwatchDescribeAlarmHistoryBody } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarm-history'
 import type { AwsCloudwatchDescribeAlarmsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarms'
 import type { AwsCloudwatchFilterLogEventsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-filter-log-events'
@@ -32,6 +28,10 @@ import type { AwsCloudwatchPutLogGroupRetentionBody } from '@/lib/api/contracts/
 import type { AwsCloudwatchPutMetricDataBody } from '@/lib/api/contracts/tools/aws/cloudwatch-put-metric-data'
 import type { AwsCloudwatchQueryLogsBody } from '@/lib/api/contracts/tools/aws/cloudwatch-query-logs'
 import type { AwsCloudwatchUnmuteAlarmBody } from '@/lib/api/contracts/tools/aws/cloudwatch-unmute-alarm'
+import type {
+  CloudwatchLogGroupsBody,
+  CloudwatchLogStreamsBody,
+} from '@/lib/api/contracts/tools/cloudwatch'
 import {
   createCloudWatchClient,
   createCloudWatchLogsClient,
@@ -165,7 +165,7 @@ export async function executeCloudwatchDescribeAlarms(
 }
 
 export async function executeCloudwatchDescribeLogGroups(
-  input: CloudwatchLogGroupsSelectorBody,
+  input: CloudwatchLogGroupsBody,
   signal?: AbortSignal
 ) {
   const client = createCloudWatchLogsClient(input)
@@ -220,7 +220,7 @@ export async function executeCloudwatchDescribeLogGroups(
 }
 
 export async function executeCloudwatchDescribeLogStreams(
-  input: CloudwatchLogStreamsSelectorBody,
+  input: CloudwatchLogStreamsBody,
   signal?: AbortSignal
 ) {
   const client = createCloudWatchLogsClient(input)
