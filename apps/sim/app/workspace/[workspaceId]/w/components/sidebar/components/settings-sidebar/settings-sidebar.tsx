@@ -17,14 +17,16 @@ import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
-import { isHosted } from '@/lib/core/config/env-flags'
+import {
+  isBillingEnabled as isBillingEnabledAtModuleInit,
+  isHosted as isHostedAtModuleInit,
+} from '@/lib/core/config/env-flags'
 import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   allNavigationItems,
-  isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
@@ -122,6 +124,13 @@ export function SettingsSidebar({
 
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
+  /**
+   * Server-resolved, not the `NEXT_PUBLIC_*` module constants: those read false on
+   * the `__next_error__` 404 document, which renders Sim Cloud's sidebar as
+   * self-hosted. Constants are the fallback for a host context predating the field.
+   */
+  const isHosted = hostContext.deployment?.isHosted ?? isHostedAtModuleInit
+  const isBillingEnabled = hostContext.deployment?.billingEnabled ?? isBillingEnabledAtModuleInit
   const { data: generalSettings } = useGeneralSettings()
   const { data: inboxConfig } = useInboxConfig(workspaceId)
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
@@ -147,10 +156,14 @@ export function SettingsSidebar({
     if (isHosted) return null
     if (!userId || isLoadingSSO) return null
     return ssoProvidersData?.providers?.some((p) => p.userId === userId) || false
-  }, [userId, ssoProvidersData?.providers, isLoadingSSO])
+  }, [isHosted, userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (item.requiresSelfHosted && isHosted) {
+        return false
+      }
+
       if (item.requiresDesktopSurface && !desktopSurfaces[item.requiresDesktopSurface]) {
         return false
       }
@@ -247,6 +260,8 @@ export function SettingsSidebar({
       return true
     })
   }, [
+    isHosted,
+    isBillingEnabled,
     hasTeamPlan,
     hasEnterprisePlan,
     isEnterprisePlan,

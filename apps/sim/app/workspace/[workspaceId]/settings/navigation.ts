@@ -1,5 +1,5 @@
 import {
-  buildUnifiedSettingsNavigation,
+  buildUnifiedSettingsCatalog,
   SETTINGS_NAVIGATION_BILLING_ENABLED,
   toSettingsHeaderMeta,
   type UnifiedNavigationSection,
@@ -23,7 +23,8 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'platform', title: 'Platform' },
 ]
 
-export const allNavigationItems: NavigationItem[] = buildUnifiedSettingsNavigation()
+/** Unfiltered — the sidebar applies deployment and entitlement visibility from the host context. */
+export const allNavigationItems: NavigationItem[] = buildUnifiedSettingsCatalog()
 
 /**
  * Catalog entries indexed by id. Every routed navigation resolves a section, so the

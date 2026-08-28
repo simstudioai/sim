@@ -8,7 +8,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
-  buildUnifiedSettingsNavigation,
+  buildUnifiedSettingsCatalog,
   canMutateWorkspaceSettingsSection,
   getAccountSettingsHref,
   getOrganizationSettingsHref,
@@ -39,12 +39,12 @@ afterAll(() => {
 describe('settings navigation boundaries', () => {
   it('keeps Custom Blocks opt-in on self-hosted deployments', () => {
     expect(
-      buildUnifiedSettingsNavigation().find(({ id }) => id === 'custom-blocks')?.selfHostedOverride
+      buildUnifiedSettingsCatalog().find(({ id }) => id === 'custom-blocks')?.selfHostedOverride
     ).toBe(false)
   })
 
   it('preserves the order of all four settings catalogs', () => {
-    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
+    expect(buildUnifiedSettingsCatalog().map(({ id }) => id)).toEqual([
       'general',
       'desktop',
       'browser',
@@ -115,7 +115,7 @@ describe('settings navigation boundaries', () => {
   it('keeps the Sandboxes section in the legacy self-hosted defaults', () => {
     setEnv({ NEXT_PUBLIC_SANDBOXES_ENABLED: undefined, NEXT_PUBLIC_E2B_ENABLED: undefined })
 
-    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toContain('sandboxes')
+    expect(buildUnifiedSettingsCatalog().map(({ id }) => id)).toContain('sandboxes')
     expect(
       resolveWorkspaceNavigation({
         permission: 'admin',
@@ -135,13 +135,13 @@ describe('settings navigation boundaries', () => {
   /**
    * The Self-host section links out to the managed service that issues this
    * deployment's Chat keys. On Sim Cloud that surface is reached from the
-   * account plane instead, so the section must not exist there at all — in the
-   * sidebar catalog or in the workspace-plane gate the route consults.
+   * account plane instead, so the workspace-plane gate the route consults must
+   * drop it there. The catalog keeps it either way — see the test below.
    */
   it('shows the Self-host section only on a self-hosted deployment', () => {
     setEnvFlags({ isHosted: false })
 
-    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toContain('self-host')
+    expect(buildUnifiedSettingsCatalog().map(({ id }) => id)).toContain('self-host')
     expect(
       resolveWorkspaceNavigation({
         permission: 'admin',
@@ -158,10 +158,14 @@ describe('settings navigation boundaries', () => {
     ).toContain('self-host')
   })
 
-  it('drops the Self-host section on hosted Sim', () => {
+  /**
+   * The catalog keeps the section on hosted Sim so the route can tell an
+   * unavailable section from an unknown one and redirect instead of 404ing.
+   */
+  it('drops the Self-host section from the hosted workspace gate but keeps it in the catalog', () => {
     setEnvFlags({ isHosted: true })
 
-    expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).not.toContain('self-host')
+    expect(buildUnifiedSettingsCatalog().map(({ id }) => id)).toContain('self-host')
     expect(
       resolveWorkspaceNavigation({
         permission: 'admin',
@@ -184,7 +188,7 @@ describe('settings navigation boundaries', () => {
    * one colored item in a monochrome icon column.
    */
   it('marks the Self hosting section with a currentColor line icon', () => {
-    const selfHost = buildUnifiedSettingsNavigation().find(({ id }) => id === 'self-host')
+    const selfHost = buildUnifiedSettingsCatalog().find(({ id }) => id === 'self-host')
     const markup = renderToStaticMarkup(createElement(selfHost!.icon, {}))
 
     expect(selfHost?.label).toBe('Self hosting')
@@ -215,7 +219,7 @@ describe('settings navigation boundaries', () => {
     expect(new Set(selfHostIds).size).toBe(selfHostIds.length)
     expect(new Set(workspaceIds).size).toBe(workspaceIds.length)
     expect([...unifiedIds].sort()).toEqual(
-      buildUnifiedSettingsNavigation()
+      buildUnifiedSettingsCatalog()
         .map(({ id }) => id)
         .sort()
     )
@@ -242,7 +246,7 @@ describe('settings navigation boundaries', () => {
   })
 
   it('shares labels, icons, and docs links across projections', () => {
-    const unifiedSso = buildUnifiedSettingsNavigation().find(({ id }) => id === 'sso')
+    const unifiedSso = buildUnifiedSettingsCatalog().find(({ id }) => id === 'sso')
     const organizationSso = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'sso')
 
     expect(organizationSso?.label).toBe(unifiedSso?.label)
@@ -252,7 +256,7 @@ describe('settings navigation boundaries', () => {
 
   it('uses scope-specific labels consistently across settings surfaces', () => {
     const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
-    const unifiedOrganization = buildUnifiedSettingsNavigation().find(
+    const unifiedOrganization = buildUnifiedSettingsCatalog().find(
       ({ id }) => id === 'organization'
     )
 

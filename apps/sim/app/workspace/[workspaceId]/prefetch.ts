@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
-import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
+import {
+  getWorkspaceHostContextContract,
+  listWorkspacesContract,
+  type WorkspaceHostContext,
+} from '@/lib/api/contracts/workspaces'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getUserProfile } from '@/lib/users/queries'
@@ -40,7 +44,11 @@ export function prefetchWorkspaceHostContext(
 ): Promise<WorkspaceHostContext | null> {
   return queryClient.fetchQuery({
     queryKey: workspaceHostKeys.detail(workspaceId),
-    queryFn: () => getWorkspaceHostContextForViewer(workspaceId, userId),
+    /** Parsed through the response schema so the seed matches a client fetch, as the list seed does. */
+    queryFn: async () => {
+      const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+      return hostContext && getWorkspaceHostContextContract.response.schema.parse(hostContext)
+    },
     staleTime: WORKSPACE_HOST_CONTEXT_STALE_TIME,
   })
 }

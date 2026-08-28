@@ -32,7 +32,9 @@ export function canViewWorkspaceBillingSettings(
   hostContext: WorkspaceHostContext,
   viewerUserId?: string | null
 ): boolean {
-  return isBillingEnabled && canManageWorkspaceBilling(hostContext, viewerUserId)
+  // Constant reads false on the `__next_error__` 404 document; see `deployment` in the contract.
+  const billingEnabled = hostContext.deployment?.billingEnabled ?? isBillingEnabled
+  return billingEnabled && canManageWorkspaceBilling(hostContext, viewerUserId)
 }
 
 /**

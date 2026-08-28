@@ -830,12 +830,19 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
   },
 ]
 
-export function buildUnifiedSettingsNavigation(): UnifiedSettingsNavigationItem[] {
+/**
+ * Every unified section this build knows how to render, including ones the
+ * current deployment does not offer.
+ *
+ * Route resolution reads this rather than the filtered navigation so an
+ * unavailable section stays a *known* segment the page gate can redirect to
+ * General. Resolving it to nothing answers 404 instead — and a 404 document
+ * breaks every `NEXT_PUBLIC_*` read (see `deployment` in
+ * `@/lib/api/contracts/workspaces`).
+ */
+export function buildUnifiedSettingsCatalog(): UnifiedSettingsNavigationItem[] {
   return SETTINGS_SECTION_REGISTRY.flatMap(({ label, icon, docsLink, unified }) => {
     if (!unified) return []
-    // Dropped here so the sidebar, the route's `parseSection` gate, and section
-    // metadata all agree that the section does not exist on Sim Cloud.
-    if (unified.requiresSelfHosted && isHosted) return []
     const { group, ...item } = unified
     return [
       {

@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -47,6 +48,10 @@ async function resolveWorkspaceHostContextForViewer(
     },
     features: {
       credentialGroups: credentialGroupsAvailable,
+    },
+    deployment: {
+      isHosted,
+      billingEnabled: isBillingEnabled,
     },
   }
 }

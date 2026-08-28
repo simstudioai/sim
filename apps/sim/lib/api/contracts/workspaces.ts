@@ -274,6 +274,23 @@ export const workspaceHostContextSchema = z.object({
       credentialGroups: z.boolean(),
     })
     .optional(),
+  /**
+   * Deployment shape, resolved per request from `process.env` on the server.
+   *
+   * The client-side `NEXT_PUBLIC_*` module constants cannot be trusted for this:
+   * they are frozen at module init, and on Next's `__next_error__` document — the
+   * shell every 404 renders from — the root layout never runs, so `window.__ENV`
+   * is unassigned and every read comes back undefined.
+   *
+   * Optional for rolling compatibility; consumers fall back to those constants,
+   * which are correct on every document that runs the root layout.
+   */
+  deployment: z
+    .object({
+      isHosted: z.boolean(),
+      billingEnabled: z.boolean(),
+    })
+    .optional(),
 })
 
 export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>
