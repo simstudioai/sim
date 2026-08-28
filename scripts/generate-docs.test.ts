@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 import {
+  extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractUserSettableParamIds,
   getToolInfo,
@@ -248,17 +249,17 @@ describe('hidden params supplied by the block mapper', () => {
     fs.readFileSync(path.join(import.meta.dirname, '../apps/sim/blocks/blocks', blockFile), 'utf-8')
 
   const paramNames = async (toolId: string, blockFile: string) => {
-    const info = await getToolInfo(toolId, extractBlockSuppliedParamIds(blockSource(blockFile)))
+    const info = await getToolInfo(toolId, extractBlockSuppliedParamIds(blockSource(blockFile)).ids)
     return info?.params.map((param) => param.name) ?? []
   }
 
   it("keeps Cal.com's required attendee, assembled as result.attendee in the mapper", async () => {
-    expect(extractBlockSuppliedParamIds(blockSource('calcom.ts'))).toContain('attendee')
+    expect(extractBlockSuppliedParamIds(blockSource('calcom.ts')).ids).toContain('attendee')
     await expect(paramNames('calcom_create_booking', 'calcom.ts')).resolves.toContain('attendee')
   })
 
   it("keeps JSM's workspaceId, renamed from assetWorkspaceId in the mapper", async () => {
-    expect(extractBlockSuppliedParamIds(blockSource('jira_service_management.ts'))).toContain(
+    expect(extractBlockSuppliedParamIds(blockSource('jira_service_management.ts')).ids).toContain(
       'workspaceId'
     )
     await expect(
@@ -267,7 +268,7 @@ describe('hidden params supplied by the block mapper', () => {
   })
 
   it('keeps the file params Textract renames from its document field', async () => {
-    const ids = extractBlockSuppliedParamIds(blockSource('textract.ts'))
+    const ids = extractBlockSuppliedParamIds(blockSource('textract.ts')).ids
     expect(ids).toContain('file')
     expect(ids).toContain('fileBack')
     expect(ids).toContain('filePathBack')
@@ -307,7 +308,7 @@ describe('hidden params supplied by the block mapper', () => {
   })
 
   it('finds the real mapper past a decoy params key that is not a mapper', () => {
-    const ids = extractBlockSuppliedParamIds(`
+    const { ids } = extractBlockSuppliedParamIds(`
       subBlocks: [{ id: 'operation' }],
       tools: {
         config: {
@@ -320,7 +321,7 @@ describe('hidden params supplied by the block mapper', () => {
   })
 
   it('reads an async mapper body', () => {
-    const ids = extractBlockSuppliedParamIds(`
+    const { ids } = extractBlockSuppliedParamIds(`
       subBlocks: [{ id: 'operation' }],
       tools: {
         config: {
@@ -332,7 +333,7 @@ describe('hidden params supplied by the block mapper', () => {
   })
 
   it('ignores a commented-out mapper assignment', () => {
-    const ids = extractBlockSuppliedParamIds(`
+    const { ids } = extractBlockSuppliedParamIds(`
       subBlocks: [{ id: 'operation' }],
       tools: {
         config: {
@@ -347,5 +348,138 @@ describe('hidden params supplied by the block mapper', () => {
     `)
     expect(ids).toContain('realOne')
     expect(ids).not.toContain('commentedOut')
+  })
+})
+
+describe('an unreadable subBlocks array', () => {
+  /**
+   * Every shape ships in the tree today (`SlackV2Block`, `VideoGeneratorV3Block`, the
+   * `COMMON_SUBBLOCKS` spread and a backtick id), and each one used to end the run for the
+   * whole repository unless the block happened to spread a base whose fields were readable.
+   */
+  const unreadable: [string, string][] = [
+    ['a bare identifier', 'subBlocks: myFields,'],
+    ['a helper call', 'subBlocks: withFalAIModelOptions(Base.subBlocks, MODELS),'],
+    ['a spread of an opaque constant', 'subBlocks: [...COMMON_SUBBLOCKS],'],
+    ['a backtick id', 'subBlocks: [{ id: `operation` }],'],
+  ]
+
+  it.each(unreadable)('reports %s as UNKNOWN instead of throwing', (_label, source) => {
+    const supplied = extractBlockSuppliedParamIds(source, 'Widget')
+
+    expect(supplied.ids).toBeNull()
+    expect(supplied.parseError).toMatch(/Widget/)
+  })
+
+  it('still collects the mapper-written ids when only the subBlocks scan failed', () => {
+    const supplied = extractBlockSuppliedParamIds(
+      `
+      subBlocks: myFields,
+      tools: {
+        config: {
+          params: (params) => ({ renamed: params.original }),
+        },
+      },
+    `,
+      'Widget'
+    )
+
+    expect(supplied.ids).toBeNull()
+    expect(supplied.mapperIds).toContain('renamed')
+  })
+
+  const syntheticBlock = (name: string, body: string) => `
+    import type { BlockConfig } from '@/blocks/types'
+
+    export const ${name}Block: BlockConfig = {
+      type: '${name.toLowerCase()}',
+      name: '${name}',
+      description: 'A synthetic block',
+      tools: { access: ['${name.toLowerCase()}_do'] },
+      ${body}
+    }
+  `
+
+  it('leaves userSettableParamIds UNKNOWN on the block config it produces', () => {
+    const [unknownConfig] = extractAllBlockConfigs(syntheticBlock('Opaque', 'subBlocks: myFields,'))
+    expect(unknownConfig.userSettableParamIds).toBeNull()
+
+    const [readableConfig] = extractAllBlockConfigs(
+      syntheticBlock('Readable', `subBlocks: [{ id: 'query' }],`)
+    )
+    expect(readableConfig.userSettableParamIds).toEqual(['query'])
+  })
+
+  /**
+   * The whole point of the UNKNOWN state: `[]` asserts the block supplies nothing and strips
+   * every hidden param, so the two must not be spelled the same way.
+   */
+  it('disables the hidden-param filter, where an empty list applies it', async () => {
+    const unfiltered = await getToolInfo('jira_retrieve', null)
+    expect(unfiltered?.params.map((param) => param.name)).toContain('cloudId')
+
+    const filtered = await getToolInfo('jira_retrieve', [])
+    expect(filtered?.params.map((param) => param.name)).not.toContain('cloudId')
+  })
+
+  it('defaults to not filtering when no param ids are passed at all', async () => {
+    const info = await getToolInfo('jira_retrieve')
+    expect(info?.params.map((param) => param.name)).toContain('cloudId')
+  })
+})
+
+describe('mapper param shapes', () => {
+  const mapperBlock = (body: string) => `
+    subBlocks: [{ id: 'doc' }],
+    tools: {
+      config: {
+        params: (params) => ${body},
+      },
+    },
+  `
+
+  it('reads a shorthand property', () => {
+    const { ids } = extractBlockSuppliedParamIds(
+      mapperBlock('{\n  const file = params.doc\n  return { file }\n}')
+    )
+    expect(ids).toContain('doc')
+    expect(ids).toContain('file')
+  })
+
+  it('reads a shorthand property alongside a spread and a named key', () => {
+    const { ids } = extractBlockSuppliedParamIds(mapperBlock('({ ...rest, file, other: 1 })'))
+    expect(ids).toEqual(expect.arrayContaining(['file', 'other']))
+    expect(ids).not.toContain('rest')
+  })
+
+  it('reads a shorthand property listed after another shorthand', () => {
+    const { ids } = extractBlockSuppliedParamIds(mapperBlock('({ first, file })'))
+    expect(ids).toEqual(expect.arrayContaining(['first', 'file']))
+  })
+
+  it('reads a computed string assignment', () => {
+    const { ids } = extractBlockSuppliedParamIds(
+      mapperBlock(
+        "{\n  const result: Record<string, unknown> = {}\n  result['file'] = params.doc\n  return result\n}"
+      )
+    )
+    expect(ids).toContain('file')
+  })
+
+  it('does not take a call argument list for a shorthand property', () => {
+    const { ids } = extractBlockSuppliedParamIds(
+      mapperBlock('({ file: buildFile(alpha, beta, gamma) })')
+    )
+    expect(ids).toContain('file')
+    expect(ids).not.toContain('beta')
+  })
+
+  it('ignores a shorthand property inside a comment or a string', () => {
+    const { ids } = extractBlockSuppliedParamIds(
+      mapperBlock("({\n  // { ghostComment }\n  note: '{ ghostString }',\n  file,\n})")
+    )
+    expect(ids).toContain('file')
+    expect(ids).not.toContain('ghostComment')
+    expect(ids).not.toContain('ghostString')
   })
 })
