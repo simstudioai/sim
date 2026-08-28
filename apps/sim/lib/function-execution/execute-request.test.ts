@@ -14,6 +14,7 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
@@ -26,17 +27,6 @@ import {
   SandboxOutputFileError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
-
-function grantedAccess(workspaceId: string) {
-  return {
-    exists: true,
-    hasAccess: true,
-    canWrite: true,
-    canAdmin: false,
-    workspace: { id: workspaceId },
-    permission: 'admin',
-  }
-}
 
 const {
   mockExecuteInSandbox,
@@ -51,8 +41,6 @@ const {
   mockUploadFile,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
-  mockCheckWorkspaceAccess,
-  mockResolveWorkspaceAccess,
 } = vi.hoisted(() => ({
   mockExecuteInSandbox: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
@@ -71,13 +59,6 @@ const {
   mockUploadFile: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -189,7 +170,22 @@ async function POST(request: NextRequest): Promise<Response> {
   }
 
   return executeFunctionRequest({ headers: request.headers, signal: request.signal }, parsed.data, {
-    userId: auth.userId,
+    attributedUserId: auth.userId,
+    principal: {
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: auth.userId,
+      workspaceId: parsed.data.workspaceId ?? 'workspace-test',
+      delegationId: 'function-test',
+      audience: 'sim:function-executions',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: parsed.data.workflowId ?? 'workflow-test',
+        ...(parsed.data.executionId ? { executionId: parsed.data.executionId } : {}),
+      },
+    },
     ...(auth.sandboxProfile === 'mothership' ? { sandboxProfile: 'mothership' } : {}),
   })
 }
@@ -207,9 +203,6 @@ describe('Function execution request', () => {
       userId: 'user-123',
       authType: 'internal_jwt',
     })
-
-    mockCheckWorkspaceAccess.mockImplementation(async (id: string) => grantedAccess(id))
-    mockResolveWorkspaceAccess.mockImplementation(async (id: string) => grantedAccess(id))
 
     mockExecuteInIsolatedVM.mockResolvedValue({ result: 'test', stdout: '' })
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
@@ -282,31 +275,7 @@ describe('Function execution request', () => {
       expect(data).toHaveProperty('error', 'Unauthorized')
     })
 
-    it('rejects a body-supplied workspaceId the acting user is not a member of', async () => {
-      mockCheckWorkspaceAccess.mockResolvedValue({
-        exists: true,
-        hasAccess: false,
-        canWrite: false,
-        canAdmin: false,
-        workspace: { id: 'workspace-victim' },
-        permission: null,
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'return "test"',
-        workspaceId: 'workspace-victim',
-      })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(403)
-      expect(data).toHaveProperty('error', 'Workspace access denied')
-      expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('workspace-victim', 'user-123')
-      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
-    })
-
-    it('rejects a sandbox output export into a workspace the acting user cannot write to', async () => {
+    it('rejects a sandbox output export through the workspace-file application policy', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
@@ -314,16 +283,9 @@ describe('Function execution request', () => {
         sandboxId: 'sandbox-123',
         exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
       })
-      const readOnly = {
-        exists: true,
-        hasAccess: true,
-        canWrite: false,
-        canAdmin: false,
-        workspace: { id: 'workspace-victim' },
-        permission: 'read',
-      }
-      mockCheckWorkspaceAccess.mockResolvedValue(readOnly)
-      mockResolveWorkspaceAccess.mockResolvedValue(readOnly)
+      mockWriteWorkspaceFileByPath.mockRejectedValueOnce(
+        new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+      )
 
       const req = createMockRequest('POST', {
         code: 'print("done")',
@@ -338,45 +300,8 @@ describe('Function execution request', () => {
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data).toHaveProperty('error', 'Workspace access denied')
-      expect(mockValidateWorkspaceFileWriteTarget).not.toHaveBeenCalled()
-      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
-    })
-
-    it('rejects an export whose workspace is derived from a body-supplied workflowId', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockResolvedValueOnce({
-        result: 'done',
-        stdout: 'ok',
-        sandboxId: 'sandbox-123',
-        exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
-      })
-      workflowsUtilsMock.getWorkflowById.mockResolvedValueOnce({
-        id: 'workflow-victim',
-        workspaceId: 'workspace-victim',
-      })
-      mockResolveWorkspaceAccess.mockResolvedValue({
-        exists: true,
-        hasAccess: false,
-        canWrite: false,
-        canAdmin: false,
-        workspace: { id: 'workspace-victim' },
-        permission: null,
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'print("done")',
-        language: 'python',
-        workflowId: 'workflow-victim',
-        outputs: {
-          files: [{ path: 'files/README.md', mode: 'overwrite', sandboxPath: '/tmp/out.txt' }],
-        },
-      })
-
-      const response = await POST(req)
-
-      expect(response.status).toBe(403)
-      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+      expect(data).toHaveProperty('error', 'Insufficient workspace permissions')
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
     })
 
     it('runs import-free JavaScript in isolated-vm without a remote provider', async () => {

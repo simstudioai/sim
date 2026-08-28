@@ -68,6 +68,7 @@ export const executeGuardrailsTool: InternalToolOperationHandler = async (reques
   try {
     const result = await executeGuardrailsValidation(parsed.data, {
       actorUserId: request.context.userId,
+      executionContext: request.context,
       headers: request.headers,
       requestId: request.requestId,
       signal: request.signal,

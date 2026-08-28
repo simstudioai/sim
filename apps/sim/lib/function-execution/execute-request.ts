@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -22,6 +22,7 @@ import {
   isTimeoutAbortReason,
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -84,15 +85,10 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import {
-  checkWorkspaceAccess,
-  resolveWorkspaceAccess,
-  type WorkspaceAccess,
-} from '@/lib/workspaces/permissions/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -970,6 +966,7 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
 }
 
 interface FunctionRouteExecutionContext {
+  principal: DelegatedPrincipal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -1411,21 +1408,8 @@ function exportFailure(
   )
 }
 
-/**
- * Both `workspaceId` and `workflowId` arrive in the request body, so the workspace an export
- * resolves to is caller-controlled either way. Returns null when the acting user cannot write to
- * it, gating the secret-provenance scan and overwrite probe that run before the write itself.
- */
-async function authorizeExportWorkspace(
-  workspaceId: string,
-  authUserId: string,
-  provided?: WorkspaceAccess
-): Promise<WorkspaceAccess | null> {
-  const access = await resolveWorkspaceAccess(workspaceId, authUserId, provided)
-  if (access.exists && access.canWrite) return access
-
-  logger.warn('Sandbox file export denied for workspace', { workspaceId, userId: authUserId })
-  return null
+function workspaceFileExportErrorStatus(error: unknown): number {
+  return asOrchestrationError(error)?.code === 'forbidden' ? 403 : 400
 }
 
 async function maybeExportSandboxFileToWorkspace(args: {
@@ -1433,7 +1417,6 @@ async function maybeExportSandboxFileToWorkspace(args: {
   authUserId: string
   workflowId?: string
   workspaceId?: string
-  workspaceAccess?: WorkspaceAccess
   outputPath?: string
   outputFormat?: string
   outputMimeType?: string
@@ -1449,7 +1432,6 @@ async function maybeExportSandboxFileToWorkspace(args: {
     authUserId,
     workflowId,
     workspaceId,
-    workspaceAccess,
     outputPath,
     outputFormat,
     outputMimeType,
@@ -1483,9 +1465,6 @@ async function maybeExportSandboxFileToWorkspace(args: {
       executionTime
     )
   }
-
-  const access = await authorizeExportWorkspace(resolvedWorkspaceId, authUserId, workspaceAccess)
-  if (!access) return exportFailure('Workspace access denied', 403, stdout, executionTime)
 
   if (exportedFileContent === undefined) {
     return exportFailure(
@@ -1523,9 +1502,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
 
   const mode = outputMode ?? (overwriteFileId ? 'overwrite' : 'create')
   const targetPath = mode === 'create' ? outputPath : overwriteFileId || outputPath
-  const principal = createWorkspaceFileDelegatedPrincipal({
-    serviceId: 'executor',
-    subjectUserId: authUserId,
+  const principal = rebindWorkspaceFileDelegatedPrincipal({
+    principal: routeContext.principal,
     workspaceId: resolvedWorkspaceId,
     delegationId: `function-execute:${routeContext.requestId}`,
     executionId: routeContext.executionId,
@@ -1591,7 +1569,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   } catch (error) {
     return exportFailure(
       getErrorMessage(error, 'Failed to export sandbox file'),
-      400,
+      workspaceFileExportErrorStatus(error),
       stdout,
       executionTime
     )
@@ -1603,7 +1581,6 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   authUserId: string
   workflowId?: string
   workspaceId?: string
-  workspaceAccess?: WorkspaceAccess
   outputFiles: OutputFileDeclaration[]
   exportedFiles?: Record<string, string>
   exportedFileContent?: string
@@ -1628,7 +1605,6 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       authUserId: args.authUserId,
       workflowId: args.workflowId,
       workspaceId: args.workspaceId,
-      workspaceAccess: args.workspaceAccess,
       outputPath: file.formatPath ?? file.path,
       outputFormat: file.format,
       outputMimeType: file.mimeType,
@@ -1652,15 +1628,6 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       args.stdout,
       args.executionTime
     )
-  }
-
-  const access = await authorizeExportWorkspace(
-    resolvedWorkspaceId,
-    args.authUserId,
-    args.workspaceAccess
-  )
-  if (!access) {
-    return exportFailure('Workspace access denied', 403, args.stdout, args.executionTime)
   }
 
   const preparedFiles = []
@@ -1716,9 +1683,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     })
   }
 
-  const principal = createWorkspaceFileDelegatedPrincipal({
-    serviceId: 'executor',
-    subjectUserId: args.authUserId,
+  const principal = rebindWorkspaceFileDelegatedPrincipal({
+    principal: args.routeContext.principal,
     workspaceId: resolvedWorkspaceId,
     delegationId: `function-execute:${args.routeContext.requestId}`,
     executionId: args.routeContext.executionId,
@@ -1738,7 +1704,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   } catch (error) {
     return exportFailure(
       getErrorMessage(error, 'Invalid sandbox output destination'),
-      400,
+      workspaceFileExportErrorStatus(error),
       args.stdout,
       args.executionTime
     )
@@ -1805,7 +1771,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   } catch (error) {
     return exportFailure(
       getErrorMessage(error, 'Failed to export sandbox files'),
-      400,
+      workspaceFileExportErrorStatus(error),
       args.stdout,
       args.executionTime
     )
@@ -1857,17 +1823,12 @@ async function maybeExportSandboxFilesToWorkspace(args: {
 }
 
 export interface TrustedFunctionExecutionAuth {
-  userId: string
+  attributedUserId: string
+  principal: DelegatedPrincipal
   sandboxProfile?: 'mothership'
 }
 
-/**
- * Executes the Function protocol after the caller has authenticated the human subject.
- *
- * The public route uses the legacy internal-token adapter below. Trusted in-process callers use
- * the authorized Function application operation, which supplies this subject without creating a
- * second Sim-to-Sim HTTP request.
- */
+/** Executes the Function protocol after the application operation authorizes its principal. */
 export async function executeFunctionRequest(
   req: FunctionExecutionRequestContext,
   body: ParsedFunctionExecuteBody,
@@ -1963,24 +1924,6 @@ export async function executeFunctionRequest(
       _sandboxFiles,
     } = body
 
-    // The internal JWT carries no workspace scope, so a body-supplied workspaceId would
-    // otherwise be the sole authorization input for sandbox selection and file exports.
-    // Denial is returned rather than thrown: this handler's catch-all would turn a thrown
-    // WorkspaceAccessDeniedError into a 500 before withRouteHandler could map it.
-    const workspaceAccess = workspaceId
-      ? await checkWorkspaceAccess(workspaceId, auth.userId)
-      : undefined
-    if (workspaceAccess && (!workspaceAccess.exists || !workspaceAccess.hasAccess)) {
-      logger.warn(`[${requestId}] Function execution denied for workspace`, {
-        workspaceId,
-        userId: auth.userId,
-      })
-      return NextResponse.json(
-        { success: false, error: 'Workspace access denied' },
-        { status: 403 }
-      )
-    }
-
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
         { success: false, error: 'The Function code sandbox is not configured' },
@@ -2053,6 +1996,7 @@ export async function executeFunctionRequest(
     })
 
     routeContext = {
+      principal: auth.principal,
       workflowId,
       workspaceId,
       executionId,
@@ -2060,7 +2004,7 @@ export async function executeFunctionRequest(
       largeValueKeys,
       fileKeys,
       allowLargeValueWorkflowScope,
-      userId: auth.userId,
+      userId: auth.attributedUserId,
       requestId,
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
@@ -2223,10 +2167,9 @@ export async function executeFunctionRequest(
       if (outputSandboxPaths.length > 0 || outputSandboxPath) {
         const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
           routeContext,
-          authUserId: auth.userId,
+          authUserId: auth.attributedUserId,
           workflowId,
           workspaceId,
-          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,
@@ -2403,10 +2346,9 @@ export async function executeFunctionRequest(
         if (outputSandboxPaths.length > 0 || outputSandboxPath) {
           const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
             routeContext,
-            authUserId: auth.userId,
+            authUserId: auth.attributedUserId,
             workflowId,
             workspaceId,
-            workspaceAccess,
             outputFiles,
             exportedFiles,
             exportedFileContent,
@@ -2494,10 +2436,9 @@ export async function executeFunctionRequest(
       if (outputSandboxPaths.length > 0 || outputSandboxPath) {
         const fileExportResponse = await maybeExportSandboxFilesToWorkspace({
           routeContext,
-          authUserId: auth.userId,
+          authUserId: auth.attributedUserId,
           workflowId,
           workspaceId,
-          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,
@@ -2550,7 +2491,7 @@ export async function executeFunctionRequest(
         runtimeBindings: compilerRuntimeBindings,
         timeoutMs: timeout,
         requestId,
-        ownerKey: `user:${auth.userId}`,
+        ownerKey: `user:${auth.attributedUserId}`,
         ownerWeight: 1,
       },
       { brokers: createFunctionRuntimeBrokers(routeContext), signal: executionSignal }

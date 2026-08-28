@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { createExecutorPrincipal } from '@/lib/internal/principals/executor'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import type {
@@ -11,10 +12,8 @@ export interface SearchKnowledgeAsExecutorInput {
   knowledgeBaseIds: string[]
   query: string
   topK: number
-  userId: string
   workspaceId: string
-  workflowId: string
-  executionId?: string
+  context: InternalToolOperationContext
   billingAttribution: BillingAttributionSnapshot
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
   modelInputPaths: readonly ResolvedSecretInputPath[]
@@ -25,20 +24,16 @@ export async function searchKnowledgeAsExecutor({
   knowledgeBaseIds,
   query,
   topK,
-  userId,
   workspaceId,
-  workflowId,
-  executionId,
+  context,
   billingAttribution,
   resolvedSecretTraceRegistry,
   modelInputPaths,
   signal,
 }: SearchKnowledgeAsExecutorInput) {
   signal?.throwIfAborted()
-  const principal = await createExecutorPrincipal({
-    userId,
-    workflowId,
-    ...(executionId ? { executionId } : {}),
+  const principal = await createExecutorPrincipalFromExecutionContext({
+    context,
     audience: KNOWLEDGE_DELEGATION_AUDIENCE,
   })
   const resultSecretRegistry = resolvedSecretTraceRegistry.forkForInputPaths(modelInputPaths)

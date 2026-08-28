@@ -30,7 +30,7 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
       kind: 'delegated',
       serviceId: 'executor',
-      subjectUserId: claims.subjectUserId,
+      ...(claims.subjectUserId ? { subjectUserId: claims.subjectUserId } : {}),
       workspaceId: 'workspace-canonical',
       delegationId: claims.delegationId,
       audience: options.audience,
@@ -40,7 +40,9 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
       delegationContext: {
         kind: 'workflow_execution',
         workflowId: claims.workflowId,
-        executionId: claims.executionId,
+        ...(claims.executionId ? { executionId: claims.executionId } : {}),
+        ...(claims.principal ? { principal: claims.principal } : {}),
+        ...(claims.currentWorkflow ? { currentWorkflow: claims.currentWorkflow } : {}),
       },
     }))
   })
@@ -68,29 +70,130 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
     )
   })
 
-  it('falls back to the current trusted execution identity when no origin is present', async () => {
+  it.each([
+    {
+      name: 'schedule',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'schedule' as const,
+        workspaceId: 'workspace-canonical',
+        workflowId: 'workflow-origin',
+      },
+    },
+    {
+      name: 'workspace API key',
+      principal: {
+        kind: 'workspace_api_key' as const,
+        workspaceId: 'workspace-canonical',
+        keyId: 'workspace-key-1',
+      },
+    },
+    {
+      name: 'webhook external subject',
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        workspaceId: 'workspace-canonical',
+        workflowId: 'workflow-origin',
+        webhookId: 'webhook-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'external-user-1',
+        },
+      },
+    },
+  ])('preserves an actorless $name principal and deployment authority', async ({ principal }) => {
+    const currentWorkflow = {
+      workflowId: 'workflow-origin',
+      mode: 'deployment' as const,
+      deploymentVersionId: 'deployment-1',
+    }
+
     await createExecutorPrincipalFromExecutionContext({
-      context: executionContext(),
+      context: executionContext({
+        executorDelegationOrigin: {
+          workflowId: 'workflow-origin',
+          executionId: 'execution-origin',
+          principal,
+          currentWorkflow,
+        },
+      }),
       audience: 'sim:tables',
     })
 
     expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
       expect.objectContaining({
-        subjectUserId: 'user-current',
-        workflowId: 'workflow-current',
-        executionId: 'execution-current',
+        workflowId: 'workflow-origin',
+        executionId: 'execution-origin',
+        principal,
+        currentWorkflow,
+      }),
+      { audience: 'sim:tables' }
+    )
+    expect(mockBindInternalExecutorDelegation.mock.calls[0]?.[0]).not.toHaveProperty(
+      'subjectUserId'
+    )
+  })
+
+  it('derives the subject from the preserved human principal', async () => {
+    const principal = {
+      kind: 'session' as const,
+      userId: 'user-origin',
+      sessionId: 'session-origin',
+    }
+
+    await createExecutorPrincipalFromExecutionContext({
+      context: executionContext({
+        executorDelegationOrigin: {
+          workflowId: 'workflow-origin',
+          executionId: 'execution-origin',
+          principal,
+          currentWorkflow: { workflowId: 'workflow-origin', mode: 'draft' },
+        },
+      }),
+      audience: 'sim:tables',
+    })
+
+    expect(mockBindInternalExecutorDelegation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subjectUserId: 'user-origin',
+        principal,
+        currentWorkflow: { workflowId: 'workflow-origin', mode: 'draft' },
       }),
       { audience: 'sim:tables' }
     )
   })
 
-  it('fails closed without an acting user in either trusted identity source', async () => {
+  it('rejects a supplied subject that disagrees with the preserved principal', async () => {
     await expect(
       createExecutorPrincipalFromExecutionContext({
-        context: executionContext({ userId: undefined }),
+        context: executionContext({
+          executorDelegationOrigin: {
+            subjectUserId: 'forged-user',
+            workflowId: 'workflow-origin',
+            principal: {
+              kind: 'session',
+              userId: 'user-origin',
+              sessionId: 'session-origin',
+            },
+          },
+        }),
         audience: 'sim:tables',
       })
-    ).rejects.toThrow('Authentication required')
+    ).rejects.toThrow('Executor subject does not match its workflow principal')
+    expect(mockBindInternalExecutorDelegation).not.toHaveBeenCalled()
+  })
+
+  it('fails closed without a canonical delegation origin', async () => {
+    await expect(
+      createExecutorPrincipalFromExecutionContext({
+        context: executionContext(),
+        audience: 'sim:tables',
+      })
+    ).rejects.toThrow('Executor delegation origin is required')
     expect(mockBindInternalExecutorDelegation).not.toHaveBeenCalled()
   })
 })

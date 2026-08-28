@@ -11,11 +11,11 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { KnowledgeSearchBody } from '@/lib/api/contracts/knowledge/search'
 import { AuthType } from '@/lib/auth/hybrid'
-import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
+import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  internalKnowledgeActorUserId,
   internalKnowledgeAnalytics,
+  internalKnowledgeProvenanceUserId,
   toInternalKnowledgeChunk,
   toInternalKnowledgeConnector,
   toInternalKnowledgeConnectorDetail,
@@ -76,10 +76,7 @@ function throwIfAborted(context: KnowledgeOperationContext): void {
 }
 
 function billingAttribution(context: KnowledgeOperationContext, workspaceId: string) {
-  return requireBillingAttributionHeader(context.headers, {
-    actorUserId: internalKnowledgeActorUserId(context.principal),
-    workspaceId,
-  })
+  return requireWorkspaceBillingAttributionHeader(context.headers, { workspaceId })
 }
 
 function resolveChunkContentProvenance(
@@ -92,7 +89,7 @@ function resolveChunkContentProvenance(
     headers: context.headers,
     payload,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeActorUserId(context.principal),
+    userId: internalKnowledgeProvenanceUserId(context.headers, context.principal, workspaceId),
     ...(workspaceId ? { workspaceId } : {}),
     selectionKeys: includeContent ? ['chunk-content'] : [],
   })
@@ -140,7 +137,11 @@ export async function listDocumentsOperation(
   const finalization = await finalizeKnowledgePersistedResponse({
     headers: context.headers,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeActorUserId(context.principal),
+    userId: internalKnowledgeProvenanceUserId(
+      context.headers,
+      context.principal,
+      result.workspaceId
+    ),
     workspaceId: result.workspaceId,
     body,
     documents: result.documents.map((document) => ({
@@ -235,7 +236,11 @@ export async function readDocumentOperation(
   const finalization = await finalizeKnowledgePersistedResponse({
     headers: context.headers,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeActorUserId(context.principal),
+    userId: internalKnowledgeProvenanceUserId(
+      context.headers,
+      context.principal,
+      result.workspaceId
+    ),
     workspaceId: result.workspaceId,
     body,
     documents: [
@@ -379,7 +384,11 @@ export async function listChunksOperation(
   const finalization = await finalizeKnowledgePersistedResponse({
     headers: context.headers,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeActorUserId(context.principal),
+    userId: internalKnowledgeProvenanceUserId(
+      context.headers,
+      context.principal,
+      result.workspaceId
+    ),
     workspaceId: result.workspaceId,
     body,
     chunks: result.chunks.map((chunk) => ({
@@ -457,7 +466,11 @@ export async function updateChunkOperation(
   const finalization = await finalizeKnowledgePersistedResponse({
     headers: context.headers,
     authType: AuthType.INTERNAL_JWT,
-    userId: internalKnowledgeActorUserId(context.principal),
+    userId: internalKnowledgeProvenanceUserId(
+      context.headers,
+      context.principal,
+      result.workspaceId
+    ),
     workspaceId: result.workspaceId,
     body,
     chunks: [

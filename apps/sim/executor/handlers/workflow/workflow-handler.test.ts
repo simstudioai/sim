@@ -229,8 +229,16 @@ describe('WorkflowBlockHandler', () => {
 
     mockContext = {
       workflowId: 'parent-workflow-id',
+      executionId: 'parent-execution-id',
       userId: 'user-1',
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      executorDelegationOrigin: {
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow-id',
+        executionId: 'parent-execution-id',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
+      },
       blockStates: new Map(),
       blockLogs: [],
       metadata: {
@@ -438,6 +446,7 @@ describe('WorkflowBlockHandler', () => {
             workflowId: 'parent-workflow-id',
             executionId: 'parent-execution-id',
             principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
           },
         })
       )
@@ -2096,6 +2105,7 @@ describe('WorkflowBlockHandler', () => {
             workflowId: 'parent-workflow-id',
             executionId: 'parent-execution-id',
             principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            currentWorkflow: { workflowId: 'parent-workflow-id', mode: 'draft' },
           },
         })
       )

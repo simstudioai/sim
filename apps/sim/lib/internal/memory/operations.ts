@@ -5,14 +5,17 @@ import type {
   deleteMemoryByQueryContract,
   listMemoriesContract,
 } from '@/lib/api/contracts/memory'
+import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import {
   memoryToolRequestsProvenance,
+  memoryToolSuppliesWriteProvenance,
   readMemoryWriteProvenance,
 } from '@/lib/internal/memory/provenance'
 import {
   appendMemoryUseCase,
   deleteMemoryUseCase,
   listMemoriesUseCase,
+  type MemoryLegacyProvenanceScope,
   type MemoryReadProvenance,
   readMemoryUseCase,
 } from '@/lib/memory/application/use-cases'
@@ -26,6 +29,7 @@ export interface MemoryToolOperationContext {
 export interface MemoryToolOperationResult {
   body: Record<string, unknown>
   provenance?: MemoryReadProvenance[]
+  provenanceScope?: MemoryLegacyProvenanceScope
 }
 
 function complete<T>(context: MemoryToolOperationContext, value: T): T {
@@ -38,14 +42,20 @@ export async function executeMemoryAdd(
   context: MemoryToolOperationContext
 ): Promise<MemoryToolOperationResult> {
   const includePersistedSecretProvenance = memoryToolRequestsProvenance(context.headers)
+  const resolveWriteProvenance = memoryToolSuppliesWriteProvenance(context.headers, body)
+    ? (scope: MemoryLegacyProvenanceScope) =>
+        readMemoryWriteProvenance(context.headers, body, scope)
+    : undefined
   const result = await appendMemoryUseCase.execute({
     principal: context.principal,
     input: {
       workspaceId: context.principal.workspaceId,
       key: body.key ?? '',
       data: body.data,
-      writeProvenance: readMemoryWriteProvenance(context.headers, body, context.principal),
+      ...(resolveWriteProvenance ? { resolveWriteProvenance } : {}),
       includePersistedSecretProvenance,
+      resolveBillingAttribution: async (workspaceId) =>
+        requireWorkspaceBillingAttributionHeader(context.headers, { workspaceId }),
       signal: context.signal,
     },
   })
@@ -55,6 +65,7 @@ export async function executeMemoryAdd(
       data: { conversationId: result.record.key, data: result.record.data },
     },
     provenance: result.readProvenance,
+    provenanceScope: result.provenanceScope,
   })
 }
 
@@ -69,6 +80,8 @@ export async function executeMemoryList(
       query: query.query,
       limit: query.limit,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
+      resolveBillingAttribution: async (workspaceId) =>
+        requireWorkspaceBillingAttributionHeader(context.headers, { workspaceId }),
       signal: context.signal,
     },
   })
@@ -83,6 +96,7 @@ export async function executeMemoryList(
       },
     },
     provenance: result.readProvenance,
+    provenanceScope: result.provenanceScope,
   })
 }
 
@@ -96,6 +110,8 @@ export async function executeMemoryGet(
       workspaceId: context.principal.workspaceId,
       key,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
+      resolveBillingAttribution: async (workspaceId) =>
+        requireWorkspaceBillingAttributionHeader(context.headers, { workspaceId }),
       signal: context.signal,
     },
   })
@@ -105,6 +121,7 @@ export async function executeMemoryGet(
       data: result.record ? { conversationId: result.record.key, data: result.record.data } : null,
     },
     provenance: result.readProvenance,
+    provenanceScope: result.provenanceScope,
   })
 }
 

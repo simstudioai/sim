@@ -801,8 +801,8 @@ async function fetchWorkflowInputFields(
   readWorkflowInputFields?: WorkflowInputFieldsReader
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    if (!context.userId || !readWorkflowInputFields) {
-      throw new Error('Workflow input enrichment requires a trusted execution subject')
+    if (!context.executorDelegationOrigin || !readWorkflowInputFields) {
+      throw new Error('Workflow input enrichment requires trusted execution authority')
     }
     return await readWorkflowInputFields(workflowId, context)
   } catch (error) {

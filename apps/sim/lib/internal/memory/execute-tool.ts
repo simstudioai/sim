@@ -135,7 +135,11 @@ export const executeMemoryTool: InternalToolOperationHandler = async (request) =
       string,
       unknown
     >
-    return createMemoryToolResponse(body, dispatched.result.provenance, principal)
+    return createMemoryToolResponse(
+      body,
+      dispatched.result.provenance,
+      dispatched.result.provenanceScope
+    )
   } catch (error) {
     request.signal?.throwIfAborted()
     if (

@@ -38,7 +38,7 @@ function resolveContentProvenance(
     headers: request.headers,
     payload,
     authType: internalKnowledgeAuthType(principal),
-    userId: internalKnowledgeProvenanceUserId(request, principal, workspaceId),
+    userId: internalKnowledgeProvenanceUserId(request.headers, principal, workspaceId),
     ...(workspaceId ? { workspaceId } : {}),
     selectionKeys: includeContent ? ['chunk-content'] : [],
   })
@@ -65,7 +65,7 @@ export const GET = defineInternalJsonRoute({
     finalizeKnowledgePersistedResponse({
       headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       chunks: [
@@ -102,7 +102,7 @@ export const PUT = defineInternalJsonRoute({
     finalizeKnowledgePersistedResponse({
       headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       chunks: [

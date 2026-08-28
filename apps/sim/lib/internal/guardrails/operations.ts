@@ -19,6 +19,7 @@ import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
 import { GuardrailsOperationError } from '@/lib/internal/guardrails/errors'
 import type { GuardrailsValidationInput } from '@/lib/internal/guardrails/input'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import {
   assertPermissionsAllowed,
   ModelNotAllowedError,
@@ -56,6 +57,7 @@ export interface GuardrailsOperationOutput {
 
 export interface GuardrailsOperationContext {
   actorUserId: string
+  executionContext: InternalToolOperationContext
   headers: Headers
   requestId: string
   signal?: AbortSignal
@@ -240,6 +242,7 @@ async function executeValidation(
       workflowId: input.workflowId,
       workspaceId: hallucinationContext.workspaceId,
       actorUserId: context.actorUserId,
+      executionContext: context.executionContext,
       billingAttribution: hallucinationContext.billingAttribution,
       requestId: context.requestId,
       resolvedSecretTraceRegistry: hallucinationContext.resolvedSecretTraceRegistry,

@@ -89,8 +89,8 @@ async function fetchWorkflowMetadata(
   ) => Promise<{ name: string; description: string | null }>
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    if (!executionContext?.userId || !readWorkflowMetadata) {
-      throw new Error('Workflow metadata enrichment requires a trusted execution subject')
+    if (!executionContext?.executorDelegationOrigin || !readWorkflowMetadata) {
+      throw new Error('Workflow metadata enrichment requires trusted execution authority')
     }
     return await readWorkflowMetadata(workflowId, executionContext)
   } catch (error) {

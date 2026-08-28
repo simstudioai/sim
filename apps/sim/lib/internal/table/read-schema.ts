@@ -1,4 +1,5 @@
-import { createExecutorPrincipal } from '@/lib/internal/principals/executor'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { readTableDefinitionUseCase } from '@/lib/table/application/tables'
 import { isColumnType } from '@/lib/table/column-types'
@@ -6,21 +7,15 @@ import type { TableSummary } from '@/lib/table/types'
 
 export interface ReadTableSchemaAsExecutorInput {
   tableId: string
-  userId: string
-  workflowId: string
-  executionId?: string
+  context: InternalToolOperationContext
 }
 
 export async function readTableSchemaAsExecutor({
   tableId,
-  userId,
-  workflowId,
-  executionId,
+  context,
 }: ReadTableSchemaAsExecutorInput): Promise<TableSummary> {
-  const principal = await createExecutorPrincipal({
-    userId,
-    workflowId,
-    ...(executionId ? { executionId } : {}),
+  const principal = await createExecutorPrincipalFromExecutionContext({
+    context,
     audience: TABLE_DELEGATION_AUDIENCE,
     resourceScope: { tableId },
   })

@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipal: mocks.createPrincipal,
+  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
 }))
 
 vi.mock('@/lib/table/application/tables', () => ({
@@ -53,9 +53,14 @@ describe('readTableSchemaAsExecutor', () => {
   it('binds the read to the canonical delegated workspace', async () => {
     const result = await readTableSchemaAsExecutor({
       tableId: 'table-1',
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      context: {
+        workflowId: 'workflow-1',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        },
+      },
     })
 
     expect(mocks.readTable).toHaveBeenCalledWith({
@@ -79,8 +84,13 @@ describe('readTableSchemaAsExecutor', () => {
     await expect(
       readTableSchemaAsExecutor({
         tableId: 'table-1',
-        userId: 'user-1',
-        workflowId: 'workflow-1',
+        context: {
+          workflowId: 'workflow-1',
+          executorDelegationOrigin: {
+            subjectUserId: 'user-1',
+            workflowId: 'workflow-1',
+          },
+        },
       })
     ).rejects.toThrow('Invalid table column 0 while enriching schema for table-1')
   })

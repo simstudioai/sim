@@ -10,19 +10,23 @@ async function fetchTableSchema(
   tableId: string,
   context: WorkflowToolExecutionContext
 ): Promise<TableSummary> {
-  if (!context.userId) {
-    throw new Error(`User ID is required to enrich table tool schema for ${tableId}`)
-  }
   if (!context.workflowId) {
     throw new Error(`Workflow ID is required to enrich table tool schema for ${tableId}`)
+  }
+  if (!context.executorDelegationOrigin) {
+    throw new Error(`Execution authority is required to enrich table tool schema for ${tableId}`)
   }
 
   const { readTableSchemaAsExecutor } = await import('@/lib/internal/table/read-schema')
   return readTableSchemaAsExecutor({
     tableId,
-    userId: context.userId,
-    workflowId: context.workflowId,
-    ...(context.executionId ? { executionId: context.executionId } : {}),
+    context: {
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      executionId: context.executionId,
+      userId: context.userId,
+      executorDelegationOrigin: context.executorDelegationOrigin,
+    },
   })
 }
 
@@ -90,8 +94,10 @@ async function fetchTagDefinitions(
   knowledgeBaseId: string,
   context: WorkflowToolExecutionContext
 ): Promise<TagDefinition[]> {
-  if (!context.userId) {
-    logger.warn(`Skipping tag definition enrichment for KB ${knowledgeBaseId}: no acting user`)
+  if (!context.executorDelegationOrigin) {
+    logger.warn(
+      `Skipping tag definition enrichment for KB ${knowledgeBaseId}: no execution authority`
+    )
     return []
   }
   if (!context.workflowId) {
@@ -107,10 +113,14 @@ async function fetchTagDefinitions(
     const { listKnowledgeTagsAsExecutor } = await import('@/lib/internal/knowledge/list-tags')
     const tagDefinitions = await listKnowledgeTagsAsExecutor({
       knowledgeBaseId,
-      userId: context.userId,
       workspaceId: context.workspaceId,
-      workflowId: context.workflowId,
-      ...(context.executionId ? { executionId: context.executionId } : {}),
+      context: {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        executionId: context.executionId,
+        userId: context.userId,
+        executorDelegationOrigin: context.executorDelegationOrigin,
+      },
     })
     logger.info(`Found ${tagDefinitions.length} tag definitions for KB ${knowledgeBaseId}`)
     return tagDefinitions

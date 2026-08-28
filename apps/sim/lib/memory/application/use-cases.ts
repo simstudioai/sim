@@ -1,10 +1,15 @@
-import type { Principal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalAttribution,
+  resolvePrincipalSubject,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, like, sql } from 'drizzle-orm'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -42,9 +47,35 @@ interface WorkspaceInput {
   workspaceId: string
 }
 
+export interface MemoryLegacyProvenanceScope {
+  userId: string
+  workspaceId: string
+}
+
 interface ReadProvenanceInput {
   includePersistedSecretProvenance?: boolean
+  resolveBillingAttribution?: (workspaceId: string) => Promise<BillingAttributionSnapshot>
   signal?: AbortSignal
+}
+
+async function resolveMemoryLegacyProvenanceScope(
+  principal: Principal,
+  workspaceId: string,
+  resolveBillingAttribution?: ReadProvenanceInput['resolveBillingAttribution']
+): Promise<MemoryLegacyProvenanceScope> {
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind === 'sim_user') return { userId: subject.userId, workspaceId }
+
+  const billingAttribution = resolveBillingAttribution
+    ? assertBillingAttributionSnapshot(await resolveBillingAttribution(workspaceId))
+    : undefined
+  if (billingAttribution && billingAttribution.workspaceId !== workspaceId) {
+    throw new Error('Memory billing attribution does not match its canonical workspace')
+  }
+  const { attributedUserId } = resolvePrincipalAttribution(principal, {
+    workspaceBillingOwnerUserId: billingAttribution?.billedAccountUserId,
+  })
+  return { userId: attributedUserId, workspaceId }
 }
 
 function memoryMessageError(data: unknown): string | null {
@@ -66,8 +97,7 @@ function memoryMessageError(data: unknown): string | null {
 
 async function loadReadProvenance(
   records: MemoryRecord[],
-  principal: Principal,
-  workspaceId: string,
+  scope: MemoryLegacyProvenanceScope,
   signal?: AbortSignal
 ): Promise<MemoryReadProvenance[]> {
   if (records.length === 0) return []
@@ -114,8 +144,8 @@ async function loadReadProvenance(
       surface: 'memory',
       cause: 'durable-provenance-unknown',
       affectedCount: unrecordedCount,
-      workspaceId,
-      actorUserId: requirePrincipalSubjectUserId(principal),
+      workspaceId: scope.workspaceId,
+      actorUserId: scope.userId,
     })
   }
 
@@ -126,10 +156,24 @@ async function readResultProvenance(
   records: MemoryRecord[],
   principal: Principal,
   workspaceId: string,
-  input: ReadProvenanceInput
-): Promise<MemoryReadProvenance[] | undefined> {
-  if (!input.includePersistedSecretProvenance) return undefined
-  return loadReadProvenance(records, principal, workspaceId, input.signal)
+  input: ReadProvenanceInput,
+  existingScope?: MemoryLegacyProvenanceScope
+): Promise<{
+  readProvenance?: MemoryReadProvenance[]
+  provenanceScope?: MemoryLegacyProvenanceScope
+}> {
+  if (!input.includePersistedSecretProvenance) return {}
+  const provenanceScope =
+    existingScope ??
+    (await resolveMemoryLegacyProvenanceScope(
+      principal,
+      workspaceId,
+      input.resolveBillingAttribution
+    ))
+  return {
+    readProvenance: await loadReadProvenance(records, provenanceScope, input.signal),
+    provenanceScope,
+  }
 }
 
 export interface ListMemoriesInput extends WorkspaceInput, ReadProvenanceInput {
@@ -156,9 +200,10 @@ export const listMemoriesUseCase = defineAuthorizedWorkspaceUseCase({
       .orderBy(memory.createdAt)
       .limit(input.limit)
     input.signal?.throwIfAborted()
+    const provenance = await readResultProvenance(records, principal, context.workspaceId, input)
     return {
       records,
-      readProvenance: await readResultProvenance(records, principal, context.workspaceId, input),
+      ...provenance,
     }
   },
 })
@@ -187,9 +232,10 @@ export const readMemoryUseCase = defineAuthorizedWorkspaceUseCase({
       .orderBy(memory.createdAt)
       .limit(1)
     input.signal?.throwIfAborted()
+    const provenance = await readResultProvenance(records, principal, context.workspaceId, input)
     return {
       record: records[0] ?? null,
-      readProvenance: await readResultProvenance(records, principal, context.workspaceId, input),
+      ...provenance,
     }
   },
 })
@@ -198,6 +244,9 @@ export interface AppendMemoryInput extends WorkspaceInput, ReadProvenanceInput {
   key: string
   data: unknown
   writeProvenance?: DurableSecretProvenance
+  resolveWriteProvenance?: (
+    scope: MemoryLegacyProvenanceScope
+  ) => DurableSecretProvenance | undefined
 }
 
 export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
@@ -212,6 +261,17 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
     if (messageError) throw new OrchestrationError('validation', messageError)
 
     input.signal?.throwIfAborted()
+    const provenanceScope = input.resolveWriteProvenance
+      ? await resolveMemoryLegacyProvenanceScope(
+          principal,
+          context.workspaceId,
+          input.resolveBillingAttribution
+        )
+      : undefined
+    const writeProvenance =
+      input.resolveWriteProvenance && provenanceScope
+        ? input.resolveWriteProvenance(provenanceScope)
+        : input.writeProvenance
     const initialData = Array.isArray(input.data) ? input.data : [input.data]
     const now = new Date()
     const id = `mem_${generateId().replace(/-/g, '')}`
@@ -230,7 +290,7 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
           .for('update')
 
         let previousProvenance: DurableSecretProvenance | undefined
-        if (existing && input.writeProvenance) {
+        if (existing && writeProvenance) {
           const [sidecar] = await tx
             .select()
             .from(memorySecretProvenance)
@@ -252,7 +312,7 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
             workspaceId: context.workspaceId,
             key: input.key,
             data: initialData,
-            secretProvenanceVersion: input.writeProvenance ? 1 : null,
+            secretProvenanceVersion: writeProvenance ? 1 : null,
             createdAt: now,
             updatedAt: now,
           })
@@ -260,7 +320,7 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
             target: [memory.workspaceId, memory.key],
             set: {
               data: sql`${memory.data} || ${JSON.stringify(initialData)}::jsonb`,
-              secretProvenanceVersion: input.writeProvenance
+              secretProvenanceVersion: writeProvenance
                 ? 1
                 : (existing?.secretProvenanceVersion ?? null),
               updatedAt: now,
@@ -268,14 +328,14 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
           })
           .returning({ id: memory.id, data: memory.data })
 
-        if (input.writeProvenance) {
+        if (writeProvenance) {
           await replaceMemorySecretProvenanceInTx(
             tx,
             written.id,
             written.data,
             previousProvenance
-              ? mergeDurableSecretProvenance(previousProvenance, input.writeProvenance)
-              : input.writeProvenance
+              ? mergeDurableSecretProvenance(previousProvenance, writeProvenance)
+              : writeProvenance
           )
         }
       })
@@ -302,9 +362,16 @@ export const appendMemoryUseCase = defineAuthorizedWorkspaceUseCase({
     const record = records[0]
     if (!record) throw new Error('Failed to retrieve memory after creation/update')
     input.signal?.throwIfAborted()
+    const provenance = await readResultProvenance(
+      records,
+      principal,
+      context.workspaceId,
+      input,
+      provenanceScope
+    )
     return {
       record,
-      readProvenance: await readResultProvenance(records, principal, context.workspaceId, input),
+      ...provenance,
     }
   },
 })

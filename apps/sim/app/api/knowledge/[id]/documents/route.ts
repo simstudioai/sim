@@ -60,7 +60,7 @@ export const GET = defineInternalJsonRoute({
     finalizeKnowledgePersistedResponse({
       headers: request.headers,
       authType: internalKnowledgeAuthType(principal),
-      userId: internalKnowledgeProvenanceUserId(request, principal, result.workspaceId),
+      userId: internalKnowledgeProvenanceUserId(request.headers, principal, result.workspaceId),
       workspaceId: result.workspaceId,
       body,
       documents: result.documents.map((document) => ({

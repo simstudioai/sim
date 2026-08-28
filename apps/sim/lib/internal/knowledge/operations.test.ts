@@ -4,18 +4,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  requireBillingAttributionHeader: vi.fn(),
+  requireWorkspaceBillingAttributionHeader: vi.fn(),
   listKnowledgeTags: { execute: vi.fn() },
   syncKnowledgeConnector: { execute: vi.fn() },
   connectorSynced: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireBillingAttributionHeader: mocks.requireBillingAttributionHeader,
+  requireWorkspaceBillingAttributionHeader: mocks.requireWorkspaceBillingAttributionHeader,
 }))
 
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
-  internalKnowledgeActorUserId: (principal: { subjectUserId: string }) => principal.subjectUserId,
+  internalKnowledgeProvenanceUserId: (_headers: Headers, principal: { subjectUserId?: string }) =>
+    principal.subjectUserId ?? 'billing-owner',
   internalKnowledgeAnalytics: {
     connectorSynced: mocks.connectorSynced,
     documentDeleted: vi.fn(),
@@ -125,7 +126,7 @@ describe('Knowledge direct operations', () => {
 
   it('restores exact billing attribution before the canonical connector sync use case', async () => {
     const attribution = { actorUserId: 'trusted-user', workspaceId: 'workspace-1' }
-    mocks.requireBillingAttributionHeader.mockReturnValue(attribution)
+    mocks.requireWorkspaceBillingAttributionHeader.mockReturnValue(attribution)
     mocks.syncKnowledgeConnector.execute.mockImplementation(async ({ input }) => {
       await expect(input.resolveBillingAttribution('workspace-1')).resolves.toBe(attribution)
       return {
@@ -139,8 +140,7 @@ describe('Knowledge direct operations', () => {
 
     const result = await syncConnectorOperation('kb-1', 'connector-1', false, context)
 
-    expect(mocks.requireBillingAttributionHeader).toHaveBeenCalledWith(context.headers, {
-      actorUserId: 'trusted-user',
+    expect(mocks.requireWorkspaceBillingAttributionHeader).toHaveBeenCalledWith(context.headers, {
       workspaceId: 'workspace-1',
     })
     expect(mocks.syncKnowledgeConnector.execute).toHaveBeenCalledWith({

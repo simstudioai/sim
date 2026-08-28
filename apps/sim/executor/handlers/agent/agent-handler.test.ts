@@ -3688,9 +3688,11 @@ describe('AgentBlockHandler', () => {
 
       expect(mockDiscoverMcpServerToolsAsExecutor).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: contextWithWorkspace.userId,
           workspaceId: 'test-workspace-123',
-          workflowId: 'test-workflow-456',
+          context: expect.objectContaining({
+            userId: contextWithWorkspace.userId,
+            workflowId: 'test-workflow-456',
+          }),
           serverId: 'mcp-legacy-server',
         })
       )

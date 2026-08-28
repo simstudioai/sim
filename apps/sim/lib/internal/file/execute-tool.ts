@@ -1,3 +1,4 @@
+import { PrincipalSubjectUserRequiredError, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
@@ -37,8 +38,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  const userId = request.context.executorDelegationOrigin?.subjectUserId ?? request.context.userId
-  if (!workspaceId || !userId) {
+  if (!workspaceId) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 
@@ -57,6 +57,9 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
       audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    })
+    const { attributedUserId: userId } = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: request.context.billingAttribution?.billedAccountUserId,
     })
     request.signal?.throwIfAborted()
     let response: Response
@@ -86,6 +89,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     request.signal?.throwIfAborted()
     if (
       error instanceof InvalidInternalDelegationBindingError ||
+      error instanceof PrincipalSubjectUserRequiredError ||
       (error instanceof Error && error.message === 'Authentication required')
     ) {
       return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })

@@ -60,6 +60,7 @@ const {
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
   mockExecuteFunction,
+  mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
 } = vi.hoisted(() => ({
@@ -80,6 +81,7 @@ const {
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
+  mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
 }))
@@ -129,6 +131,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
+}))
+
+vi.mock('@/lib/internal/principals/executor', () => ({
+  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipalFromExecutionContext,
 }))
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
@@ -480,6 +486,30 @@ beforeEach(() => {
       }
     )
   )
+  mockCreateExecutorPrincipalFromExecutionContext.mockImplementation(
+    async ({ context, audience, resourceScope }) => {
+      const origin = context.executorDelegationOrigin
+      if (!origin) throw new Error('Executor delegation origin is required')
+      return {
+        kind: 'delegated' as const,
+        serviceId: 'executor',
+        ...(origin.subjectUserId ? { subjectUserId: origin.subjectUserId } : {}),
+        workspaceId: context.workspaceId,
+        delegationId: 'test-executor-delegation',
+        audience,
+        issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+        expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+        ...(resourceScope ? { resourceScope } : {}),
+        delegationContext: {
+          kind: 'workflow_execution' as const,
+          workflowId: origin.workflowId,
+          ...(origin.executionId ? { executionId: origin.executionId } : {}),
+          ...(origin.principal ? { principal: origin.principal } : {}),
+          ...(origin.currentWorkflow ? { currentWorkflow: origin.currentWorkflow } : {}),
+        },
+      }
+    }
+  )
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -546,13 +576,31 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
     metadata: overrides?.metadata,
     environmentVariables: overrides?.environmentVariables,
   })
+  const principal =
+    overrides?.principal ??
+    (overrides?.userId
+      ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
+      : undefined)
+  const executorDelegationOrigin =
+    overrides?.executorDelegationOrigin ??
+    (principal
+      ? {
+          subjectUserId: overrides?.userId,
+          workflowId: overrides?.workflowId ?? ctx.workflowId,
+          executionId: overrides?.executionId ?? ctx.executionId,
+          principal,
+        }
+      : undefined)
   return {
     ...ctx,
     workspaceId: 'workspace-456',
+    principal,
+    executorDelegationOrigin,
     ...overrides,
     metadata: {
       ...ctx.metadata,
       ...overrides?.metadata,
+      principal: overrides?.metadata?.principal ?? principal,
       billingAttribution: overrides?.metadata?.billingAttribution ?? TEST_BILLING_ATTRIBUTION,
     },
   } as ExecutionContext
@@ -815,7 +863,7 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: 'user-1',
+          userId: undefined,
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],
@@ -900,7 +948,7 @@ describe('executeTool Function', () => {
               __blockRef_0: { field: 'resolved-output' },
               __blockRef_1: largeValueRef,
             },
-            userId: 'user-1',
+            userId: undefined,
             workspaceId: 'workspace-456',
             workflowId: 'workflow-1',
             executionId: 'execution-1',
@@ -994,7 +1042,7 @@ describe('executeTool Function', () => {
           workflowId: 'workflow-1',
           executionId: 'execution-1',
           workspaceId: 'workspace-456',
-          userId: 'user-1',
+          userId: undefined,
           largeValueExecutionIds: ['execution-1'],
           largeValueKeys: ['lv_ABCDEFGHIJKL'],
           fileKeys: ['file-1'],

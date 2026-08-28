@@ -131,6 +131,43 @@ describe('custom tool application use cases', () => {
       expect(mocks.audit).not.toHaveBeenCalled()
     })
 
+    it('authorizes an actorless deployment without enabling personal fallback', async () => {
+      const result = await readAvailableCustomToolByIdOrTitleUseCase.execute({
+        principal: executorPrincipal({
+          subjectUserId: undefined,
+          delegationContext: {
+            kind: 'workflow_execution',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            principal: {
+              kind: 'system',
+              serviceId: 'schedule',
+              workspaceId: workspace.workspaceId,
+              workflowId: 'workflow-1',
+            },
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'version-1',
+            },
+          },
+        }),
+        input: {
+          workspaceId: workspace.workspaceId,
+          identifier: tool.id,
+          lookup: 'id_or_title',
+        },
+      })
+
+      expect(result).toEqual({ tool })
+      expect(mocks.resolvePermission).not.toHaveBeenCalled()
+      expect(mocks.getAvailableTool).toHaveBeenCalledWith({
+        identifier: tool.id,
+        workspaceId: workspace.workspaceId,
+        lookup: 'id_or_title',
+      })
+    })
+
     it('conceals a workspace assertion outside the delegated workspace before lookup', async () => {
       mocks.loadContext.mockResolvedValueOnce({ ...workspace, workspaceId: 'workspace-2' })
 

@@ -37,3 +37,35 @@ export function createWorkspaceFileDelegatedPrincipal(
     },
   }
 }
+
+export interface RebindWorkspaceFileDelegationInput {
+  principal: DelegatedPrincipal
+  workspaceId: string
+  delegationId: string
+  fileId?: string
+  chatId?: string
+  executionId?: string
+}
+
+/** Rebinds an already-authorized service principal without changing its workflow actor. */
+export function rebindWorkspaceFileDelegatedPrincipal(
+  input: RebindWorkspaceFileDelegationInput
+): DelegatedPrincipal {
+  if (input.principal.workspaceId !== input.workspaceId || !input.delegationId) {
+    throw new Error('Workspace file delegation does not match its authorized workspace')
+  }
+  const issuedAt = new Date()
+  return {
+    ...input.principal,
+    workspaceId: input.workspaceId,
+    delegationId: input.delegationId,
+    audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + WORKSPACE_FILE_DELEGATION_TTL_MS),
+    resourceScope: {
+      ...(input.fileId ? { fileId: input.fileId } : {}),
+      ...(input.chatId ? { chatId: input.chatId } : {}),
+      ...(input.executionId ? { executionId: input.executionId } : {}),
+    },
+  }
+}

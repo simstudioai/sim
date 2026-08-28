@@ -97,7 +97,7 @@ describe('internal Knowledge execution attribution', () => {
     await expect(
       resolveInternalKnowledgeBillingAttribution(request(), executor, 'workspace-1')
     ).resolves.toEqual(BILLING_ATTRIBUTION)
-    expect(internalKnowledgeProvenanceUserId(request(), executor, 'workspace-1')).toBe(
+    expect(internalKnowledgeProvenanceUserId(request().headers, executor, 'workspace-1')).toBe(
       'billing-owner-1'
     )
     expect(

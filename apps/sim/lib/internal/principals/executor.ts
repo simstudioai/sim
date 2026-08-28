@@ -1,32 +1,49 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const EXECUTOR_DELEGATION_TTL_MS = 5 * 60 * 1000
 
-export interface CreateExecutorPrincipalInput {
-  userId: string
-  workflowId: string
-  executionId?: string
-  audience: string
-  resourceScope?: DelegatedPrincipal['resourceScope']
+export function resolveExecutorOriginSubject(origin: ExecutorDelegationOrigin): string | undefined {
+  const principalSubject = origin.principal ? resolvePrincipalSubject(origin.principal) : null
+  if (principalSubject?.kind === 'external_user' && origin.subjectUserId) {
+    throw new Error('External workflow subjects cannot be represented as Sim users')
+  }
+  if (!principalSubject && origin.principal && origin.subjectUserId) {
+    throw new Error('Actorless workflow principals cannot be represented as Sim users')
+  }
+  if (
+    principalSubject?.kind === 'sim_user' &&
+    origin.subjectUserId &&
+    origin.subjectUserId !== principalSubject.userId
+  ) {
+    throw new Error('Executor subject does not match its workflow principal')
+  }
+
+  const subjectUserId =
+    principalSubject?.kind === 'sim_user' ? principalSubject.userId : origin.subjectUserId
+  if (!subjectUserId && !origin.principal) throw new Error('Authentication required')
+  return subjectUserId
 }
 
-export async function createExecutorPrincipal({
-  userId,
-  workflowId,
-  executionId,
-  audience,
-  resourceScope,
-}: CreateExecutorPrincipalInput) {
+async function bindExecutorPrincipal(
+  origin: ExecutorDelegationOrigin,
+  audience: string,
+  resourceScope?: DelegatedPrincipal['resourceScope']
+) {
+  if (!origin.workflowId.trim()) throw new Error('Authentication required')
+  const subjectUserId = resolveExecutorOriginSubject(origin)
   const issuedAt = new Date()
   return bindInternalExecutorDelegation(
     {
       serviceId: 'executor',
-      subjectUserId: userId,
-      workflowId,
-      ...(executionId ? { executionId } : {}),
+      ...(subjectUserId ? { subjectUserId } : {}),
+      workflowId: origin.workflowId,
+      ...(origin.executionId ? { executionId: origin.executionId } : {}),
+      ...(origin.principal ? { principal: origin.principal } : {}),
+      ...(origin.currentWorkflow ? { currentWorkflow: origin.currentWorkflow } : {}),
       delegationId: generateId(),
       issuedAt,
       expiresAt: new Date(issuedAt.getTime() + EXECUTOR_DELEGATION_TTL_MS),
@@ -49,18 +66,7 @@ export async function createExecutorPrincipalFromExecutionContext({
   audience,
   resourceScope,
 }: CreateExecutorPrincipalFromExecutionContextInput) {
-  const origin = context.executorDelegationOrigin ?? {
-    subjectUserId: context.userId,
-    workflowId: context.workflowId,
-    executionId: context.executionId,
-  }
-  if (!origin.subjectUserId || !origin.workflowId) throw new Error('Authentication required')
-
-  return createExecutorPrincipal({
-    userId: origin.subjectUserId,
-    workflowId: origin.workflowId,
-    ...(origin.executionId ? { executionId: origin.executionId } : {}),
-    audience,
-    ...(resourceScope ? { resourceScope } : {}),
-  })
+  const origin = context.executorDelegationOrigin
+  if (!origin) throw new Error('Executor delegation origin is required')
+  return bindExecutorPrincipal(origin, audience, resourceScope)
 }

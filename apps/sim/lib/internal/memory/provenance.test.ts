@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -16,20 +15,11 @@ import {
   createMemoryToolResponse,
   MemoryProvenanceError,
   memoryToolRequestsProvenance,
+  memoryToolSuppliesWriteProvenance,
   readMemoryWriteProvenance,
 } from '@/lib/internal/memory/provenance'
 
-const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'billing-actor',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:memory',
-  issuedAt: new Date('2026-08-27T00:00:00.000Z'),
-  expiresAt: new Date('2026-08-27T00:05:00.000Z'),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
-}
+const PROVENANCE_SCOPE = { userId: 'billing-owner', workspaceId: 'workspace-1' }
 
 function privateWritePayload(workspaceId: string) {
   return {
@@ -53,16 +43,20 @@ function privateWritePayload(workspaceId: string) {
 
 describe('Memory direct provenance', () => {
   it('keeps unsupported headerless executor writes on the legacy untracked path', () => {
-    expect(readMemoryWriteProvenance(new Headers(), {}, PRINCIPAL)).toBeUndefined()
+    expect(memoryToolSuppliesWriteProvenance(new Headers(), {})).toBe(false)
+    expect(readMemoryWriteProvenance(new Headers(), {}, PROVENANCE_SCOPE)).toBeUndefined()
   })
 
   it('binds authenticated provenance to the canonical workspace and preserves its source owner', () => {
     const headers = new Headers({
       [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
     })
+    expect(memoryToolSuppliesWriteProvenance(headers, privateWritePayload('workspace-1'))).toBe(
+      true
+    )
 
     expect(
-      readMemoryWriteProvenance(headers, privateWritePayload('workspace-1'), PRINCIPAL)
+      readMemoryWriteProvenance(headers, privateWritePayload('workspace-1'), PROVENANCE_SCOPE)
     ).toEqual({
       status: 'exact',
       entries: [
@@ -75,7 +69,7 @@ describe('Memory direct provenance', () => {
       ],
     })
     expect(() =>
-      readMemoryWriteProvenance(headers, privateWritePayload('workspace-2'), PRINCIPAL)
+      readMemoryWriteProvenance(headers, privateWritePayload('workspace-2'), PROVENANCE_SCOPE)
     ).toThrow(MemoryProvenanceError)
   })
 
@@ -87,13 +81,13 @@ describe('Memory direct provenance', () => {
     expect(memoryToolRequestsProvenance(requestedHeaders)).toBe(true)
 
     const body = { success: true, data: { memories: [] } }
-    const ordinary = await createMemoryToolResponse(body, undefined, PRINCIPAL)
+    const ordinary = await createMemoryToolResponse(body, undefined, undefined)
     expect(await ordinary.json()).toEqual(body)
 
     const privateResponse = await createMemoryToolResponse(
       body,
       [{ data: [], provenance: { status: 'exact', entries: [] } }],
-      PRINCIPAL
+      PROVENANCE_SCOPE
     )
     expect(await privateResponse.json()).toMatchObject({
       ...body,

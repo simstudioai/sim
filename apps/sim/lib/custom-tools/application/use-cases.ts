@@ -3,6 +3,7 @@ import {
   type Principal,
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
+  resolvePrincipalSubject,
 } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
@@ -162,9 +163,10 @@ export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspa
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    const subject = resolvePrincipalSubject(principal)
     const tool = await getAvailableCustomTool({
       identifier: input.identifier,
-      userId: requirePrincipalSubjectUserId(principal),
+      ...(subject?.kind === 'sim_user' ? { userId: subject.userId } : {}),
       workspaceId: context.workspaceId,
       lookup: input.lookup,
     })
