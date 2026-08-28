@@ -122,6 +122,42 @@ const ORG_CONTEXT: StorageBillingContext = {
   customStorageLimitGB: null,
 }
 
+const USER_CONTEXT: StorageBillingContext = {
+  workspaceId: 'workspace-1',
+  billedAccountUserId: 'workspace-owner',
+  billingEntity: { type: 'user', id: 'workspace-owner' },
+  plan: 'pro',
+  customStorageLimitGB: null,
+}
+
+/**
+ * Both payer kinds. The workspace lock is shared, but the payer lock branches
+ * to a different table per kind, so a lock-mode regression on only one of them
+ * has to fail a test.
+ */
+const PAYER_CASES = [
+  {
+    label: 'organization',
+    context: ORG_CONTEXT,
+    workspaceRow: {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: 'workspace-org' as string | null,
+      storageUsedBytes: 1_000,
+    },
+    payerLockRows: [{ id: 'workspace-org', storageUsedBytes: 1_000 }],
+  },
+  {
+    label: 'user',
+    context: USER_CONTEXT,
+    workspaceRow: {
+      billedAccountUserId: 'workspace-owner',
+      organizationId: null as string | null,
+      storageUsedBytes: 1_000,
+    },
+    payerLockRows: [{ id: 'workspace-owner', storageUsedBytes: 1_000 }],
+  },
+] as const
+
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true })
 })
@@ -194,38 +230,30 @@ describe('workspace storage counter mutations', () => {
    * two concurrent uploads take on each other. `FOR NO KEY UPDATE` still
    * conflicts with itself, so the ledgers stay serialized.
    */
-  it('takes every ledger lock as FOR NO KEY UPDATE so it never upgrades a key-share lock', async () => {
-    await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
+  it.each(PAYER_CASES)(
+    'locks the workspace and its $label payer as FOR NO KEY UPDATE',
+    async ({ context, workspaceRow }) => {
+      mockWorkspaceRow.current = { ...workspaceRow }
 
-    expect(mockTxFor).toHaveBeenCalled()
-    for (const call of mockTxFor.mock.calls) {
-      expect(call).toEqual(['no key update'])
+      await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, context, 100)
+
+      expect(mockTxFor.mock.calls).toEqual([['no key update'], ['no key update']])
     }
-  })
+  )
 
-  it('takes batch ledger locks as FOR NO KEY UPDATE', async () => {
-    mockOrderedLockRows.queue = [
-      [
-        {
-          id: 'workspace-1',
-          billedAccountUserId: 'workspace-owner',
-          organizationId: 'workspace-org',
-          storageUsedBytes: 1_000,
-        },
-      ],
-      [{ id: 'workspace-org', storageUsedBytes: 1_000 }],
-    ]
+  it.each(PAYER_CASES)(
+    'locks batched workspace and $label payer ledgers as FOR NO KEY UPDATE',
+    async ({ context, workspaceRow, payerLockRows }) => {
+      mockOrderedLockRows.queue = [[{ id: 'workspace-1', ...workspaceRow }], [...payerLockRows]]
 
-    await applyStorageUsageDeltasInTx(mockTx as unknown as DbOrTx, {
-      workspaceDeltas: [{ context: ORG_CONTEXT, deltaBytes: 100 }],
-      legacyDeltas: [],
-    })
+      await applyStorageUsageDeltasInTx(mockTx as unknown as DbOrTx, {
+        workspaceDeltas: [{ context, deltaBytes: 100 }],
+        legacyDeltas: [],
+      })
 
-    expect(mockTxOrderedFor).toHaveBeenCalled()
-    for (const call of mockTxOrderedFor.mock.calls) {
-      expect(call).toEqual(['no key update'])
+      expect(mockTxOrderedFor.mock.calls).toEqual([['no key update'], ['no key update']])
     }
-  })
+  )
 
   it('serializes quota admission on the locked payer ledger', async () => {
     mockGetStorageLimitForBillingContext.mockReturnValue(1_050)
