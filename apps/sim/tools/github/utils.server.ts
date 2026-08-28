@@ -25,6 +25,15 @@ export interface SecureGitHubRequestOptions {
  * This deliberately carries no retry loop: the tools on this path declare no
  * `request.retry`, so the transport retries them zero times today, and the second
  * phase of a comment flow is a non-idempotent POST that must not be replayed.
+ *
+ * The redirect policy is explicit because omitting it leaves the workspace's GitHub
+ * token on the request across a cross-origin hop — the transport only strips
+ * credentials when a policy is present. `standard` also refuses to replay the POST
+ * a 301/302 downgrades, which is the same non-idempotency reasoning as the missing
+ * retry loop above. `stripAuthOnRedirect` is deliberately NOT set: it drops the
+ * token on every hop, and GitHub redirects same-origin for legitimate reasons (a
+ * renamed repository answers 301 within api.github.com), so an unauthenticated
+ * replay there would turn a working call into a 401.
  */
 export async function secureGitHubRequest(
   url: string,
@@ -40,6 +49,7 @@ export async function secureGitHubRequest(
     headers: options.headers,
     body: options.body,
     maxResponseBytes: options.maxResponseBytes ?? GITHUB_MAX_RESPONSE_BYTES,
+    redirectPolicy: { mode: 'standard', sendCredentialsOnCrossOriginRedirect: false },
     signal: options.signal,
   })
 
