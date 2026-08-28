@@ -275,6 +275,19 @@ export const isSsoEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Is organization usage monitoring enabled.
+ *
+ * Gates the settings section and the API that backs it, so nav and server always
+ * answer the same question — a section visible but rejected (or reachable but
+ * hidden) is exactly what this pairing exists to prevent.
+ */
+export const isUsageMonitoringEnabled = enterpriseFeatureEnabled(
+  'usageMonitoring',
+  env.USAGE_MONITORING_ENABLED,
+  'NEXT_PUBLIC_USAGE_MONITORING_ENABLED'
+)
+
+/**
  * Is access control (permission groups) enabled.
  * Required for permission-group enforcement to run at all off-hosted.
  */

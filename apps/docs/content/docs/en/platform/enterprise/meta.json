@@ -10,6 +10,7 @@
     "custom-blocks",
     "whitelabeling",
     "audit-logs",
+    "usage-tracking",
     "data-retention",
     "data-drains",
     "forks"

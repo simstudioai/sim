@@ -27,6 +27,7 @@ export interface EnvFlagsMockState {
   isTriggerDevEnabled: boolean
   isEnterpriseEnabled: boolean
   isSsoEnabled: boolean
+  isUsageMonitoringEnabled: boolean
   isAccessControlEnabled: boolean
   isOrganizationsEnabled: boolean
   isInboxEnabled: boolean
@@ -75,6 +76,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isTriggerDevEnabled: false,
   isEnterpriseEnabled: false,
   isSsoEnabled: false,
+  isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
   // True with billing off and no flags set — these carry a legacy default of
