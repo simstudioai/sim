@@ -109,7 +109,12 @@ describe('github_comment routing', () => {
     ])
   })
 
-  it('never looks the pull request up for a general PR comment carrying a path', async () => {
+  /**
+   * `POST /pulls/{n}/comments` documents `body`, `commit_id` and `path` as required,
+   * so a review body sent there is a guaranteed 422. The endpoint therefore follows
+   * the comment type, not the presence of a path.
+   */
+  it('keeps a general PR comment carrying a path on the reviews endpoint', async () => {
     secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
 
     await commentTool.directExecution!({
@@ -124,7 +129,29 @@ describe('github_comment routing', () => {
 
     expect(calls()).toEqual([
       {
-        url: 'https://api.github.com/repos/octo/demo/pulls/7/comments',
+        url: 'https://api.github.com/repos/octo/demo/pulls/7/reviews',
+        method: 'POST',
+        body: { body: 'Nice', event: 'COMMENT' },
+        signal: undefined,
+      },
+    ])
+  })
+
+  it('keeps a comment with no type carrying a path on the reviews endpoint', async () => {
+    secureGitHubRequest.mockResolvedValueOnce(createdCommentResponse())
+
+    await commentTool.directExecution!({
+      owner: 'octo',
+      repo: 'demo',
+      pullNumber: 7,
+      body: 'Nice',
+      path: 'src/main.ts',
+      apiKey: 'ghp_test',
+    })
+
+    expect(calls()).toEqual([
+      {
+        url: 'https://api.github.com/repos/octo/demo/pulls/7/reviews',
         method: 'POST',
         body: { body: 'Nice', event: 'COMMENT' },
         signal: undefined,
@@ -212,6 +239,24 @@ describe('github_comment routing', () => {
 
   it('no longer exposes the deprecated position parameter', () => {
     expect(commentTool.params.position).toBeUndefined()
+  })
+
+  it('routes every comment type / path combination to the endpoint that accepts it', () => {
+    const url = commentTool.request.url as (params: CreateCommentParams) => string
+    const base = { owner: 'octo', repo: 'demo', pullNumber: 7, body: 'Nice', apiKey: 'ghp_test' }
+    const reviews = 'https://api.github.com/repos/octo/demo/pulls/7/reviews'
+    const comments = 'https://api.github.com/repos/octo/demo/pulls/7/comments'
+
+    expect(url({ ...base, commitId: OTHER_SHA })).toBe(reviews)
+    expect(url({ ...base, commitId: OTHER_SHA, path: 'src/main.ts' })).toBe(reviews)
+    expect(url({ ...base, commitId: OTHER_SHA, commentType: 'pr_comment' })).toBe(reviews)
+    expect(
+      url({ ...base, commitId: OTHER_SHA, commentType: 'pr_comment', path: 'src/main.ts' })
+    ).toBe(reviews)
+    expect(url({ ...base, commitId: OTHER_SHA, commentType: 'file_comment' })).toBe(reviews)
+    expect(
+      url({ ...base, commitId: OTHER_SHA, commentType: 'file_comment', path: 'src/main.ts' })
+    ).toBe(comments)
   })
 
   it('keeps the declarative request in step with the executed routing', () => {

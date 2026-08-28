@@ -49,17 +49,25 @@ function pullRequestUrl(params: CreateCommentParams): string {
 }
 
 /**
+ * Whether the request is headed for `POST /pulls/{n}/comments`. GitHub documents
+ * `body`, `commit_id` and `path` as required there, so only a file comment that
+ * actually carries a path can use it. `path` is optional on the block, so a file
+ * comment left without one falls back to `/pulls/{n}/reviews`, where GitHub creates
+ * a pending review and neither field is required.
+ */
+function isFileCommentRequest(params: CreateCommentParams): boolean {
+  return params.commentType === 'file_comment' && Boolean(params.path)
+}
+
+/**
  * GitHub requires `commit_id` on a pull request review comment. When the caller did
  * not supply one, the pull request is fetched first so its head SHA can be used —
  * mirroring how Jira resolves a missing `cloudId` from `domain`.
  *
- * The lookup is gated on `path` because only a request headed for the `/comments`
- * endpoint needs a commit SHA. `path` is optional on the block, so a file comment
- * left without one still falls through to `/pulls/{n}/reviews`, where GitHub creates
- * a pending review and `commit_id` is optional.
+ * The lookup is gated on the endpoint, because only `/comments` needs a commit SHA.
  */
 function needsCommitLookup(params: CreateCommentParams): boolean {
-  return params.commentType === 'file_comment' && Boolean(params.path) && !params.commitId
+  return isFileCommentRequest(params) && !params.commitId
 }
 
 /**
@@ -104,12 +112,15 @@ function fileCommentBody(
 }
 
 /**
- * The endpoint the comment itself is posted to. `path` selects the review-comment
- * endpoint; everything else lands on the reviews endpoint, where GitHub creates a
- * pending review whose `commit_id` is optional.
+ * The endpoint the comment itself is posted to. The comment TYPE selects it, not the
+ * mere presence of `path`: a general PR comment sends `{body, event}`, which the
+ * review-comment endpoint rejects with a 422 for the missing `commit_id` and `path`,
+ * so a `pr_comment` that happens to name a file has to stay on `/reviews`.
  */
 function commentEndpointUrl(params: CreateCommentParams): string {
-  return params.path ? `${pullRequestUrl(params)}/comments` : `${pullRequestUrl(params)}/reviews`
+  return isFileCommentRequest(params)
+    ? `${pullRequestUrl(params)}/comments`
+    : `${pullRequestUrl(params)}/reviews`
 }
 
 function commentRequestBody(
