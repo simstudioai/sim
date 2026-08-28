@@ -379,7 +379,7 @@ export async function connectRequest(options: {
     method: options.method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
-    allowHttp: true,
+    profile: 'configuredEndpoint',
     maxResponseBytes: options.maxResponseBytes ?? MAX_JSON_API_RESPONSE_BYTES,
     signal: options.signal,
   })

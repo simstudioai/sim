@@ -116,6 +116,7 @@ export async function createWindchillSession(
   const response = await secureFetchWithValidation(
     `${ptcRoot(params.baseUrl)}/PTC/GetCSRFToken()`,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: createBasicAuthHeader(params.username, params.password),
@@ -172,6 +173,7 @@ export async function windchillMutationRequest({
   const response = await secureFetchWithValidation(
     url,
     {
+      profile: 'configuredEndpoint',
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -318,6 +320,7 @@ export async function uploadWindchillContent({
   const stageTwoResponse = await secureFetchWithValidation(
     descriptor.replicaUrl,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: { 'Content-Type': multipart.contentType, Accept: 'application/json' },
       body: multipart.body,
@@ -377,6 +380,7 @@ export async function resolveWindchillContentUrl({
   const response = await secureFetchWithValidation(
     `${contentPath}/PTC.ApplicationData/Content/URL`,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: createBasicAuthHeader(params.username, params.password),
@@ -435,6 +439,7 @@ export async function downloadWindchillContent({
   const response = await secureFetchWithValidation(
     url,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: { Authorization: createBasicAuthHeader(params.username, params.password) },
       stripAuthOnRedirect: true,

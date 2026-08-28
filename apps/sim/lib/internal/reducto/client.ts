@@ -19,7 +19,11 @@ export async function submitReductoParse(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(REDUCTO_ENDPOINT, 'Reducto API URL')
+  const validation = await validateUrlWithDNS(
+    REDUCTO_ENDPOINT,
+    'Reducto API URL',
+    'configuredEndpoint'
+  )
   signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new ReductoOperationError(502, {
@@ -29,6 +33,7 @@ export async function submitReductoParse(
   }
 
   const response = await secureFetchWithPinnedIP(REDUCTO_ENDPOINT, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

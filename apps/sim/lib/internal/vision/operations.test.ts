@@ -218,7 +218,8 @@ describe('Vision operations', () => {
     )
     expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
       'https://storage.example.com/image.png',
-      'imageUrl'
+      'imageUrl',
+      'contentFetch'
     )
     expect(mocks.analyzeVision).toHaveBeenCalledWith(
       expect.objectContaining({

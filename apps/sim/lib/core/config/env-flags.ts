@@ -134,27 +134,74 @@ if (isTruthy(env.DISABLE_AUTH)) {
     })
 }
 
-/**
- * Whether database/connector tools may connect to private, reserved, or loopback
- * hosts (e.g. Docker/K8s service names, localhost). Off by default: the SSRF guard
- * in {@link validateDatabaseHost} blocks these so an untrusted user cannot pivot
- * into the deployment's internal network. Self-hosted operators can opt in when
- * their database lives on the same private network. Blocked on the hosted platform
- * regardless of the env var, mirroring {@link isAuthDisabled}.
- */
-export const isPrivateDatabaseHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS) && !isHosted
+const legacyPrivateHostsAllowed = isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)
 
-if (isTruthy(env.ALLOW_PRIVATE_DATABASE_HOSTS)) {
+/**
+ * Ranges the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` stood for: it was a
+ * blanket "reach anything private", so it maps to the private and loopback
+ * space in full. Appended to whatever the operator listed explicitly, which is
+ * why an unset flag contributes nothing. Cloud metadata stays unreachable
+ * regardless — that block is not lifted by any allowlist.
+ */
+const LEGACY_PRIVATE_RANGES =
+  '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,169.254.0.0/16,::1/128,fc00::/7,fe80::/10'
+
+function joinConfig(...parts: Array<string | undefined>): string | undefined {
+  const joined = parts.filter((part) => part && part.trim().length > 0).join(',')
+  return joined.length > 0 ? joined : undefined
+}
+
+/**
+ * Destinations on a private network that outbound requests may reach, as raw
+ * operator config. Empty on the hosted platform regardless of what is set, so a
+ * tenant can never pivot into Sim's own network — mirroring {@link isAuthDisabled}.
+ *
+ * Parsing and enforcement live in `@sim/security/egress`; these are passed
+ * through unparsed because `env-flags` is loaded by `next.config.ts` before the
+ * `@/` alias exists and must stay dependency-light.
+ */
+export const egressAllowedHosts = isHosted
+  ? undefined
+  : joinConfig(env.EGRESS_ALLOWED_HOSTS, legacyPrivateHostsAllowed ? 'localhost' : undefined)
+
+export const egressAllowedIpRanges = isHosted
+  ? undefined
+  : joinConfig(
+      env.EGRESS_ALLOWED_IP_RANGES,
+      legacyPrivateHostsAllowed ? LEGACY_PRIVATE_RANGES : undefined
+    )
+
+if (legacyPrivateHostsAllowed) {
   import('@sim/logger')
     .then(({ createLogger }) => {
       const logger = createLogger('EnvFlags')
       if (isHosted) {
         logger.error(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private/reserved database hosts remain blocked for security.'
+          'ALLOW_PRIVATE_DATABASE_HOSTS is set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
         )
       } else {
         logger.warn(
-          'ALLOW_PRIVATE_DATABASE_HOSTS is enabled. Database/connector tools may reach private, reserved, and loopback hosts. Only use this in trusted private networks.'
+          'ALLOW_PRIVATE_DATABASE_HOSTS is deprecated and opens the whole private address space. Replace it with EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES naming only the destinations you need.'
+        )
+      }
+    })
+    .catch(() => {
+      // Fallback during config compilation when logger is unavailable
+    })
+}
+
+if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
+  import('@sim/logger')
+    .then(({ createLogger }) => {
+      const logger = createLogger('EnvFlags')
+      if (isHosted) {
+        logger.error(
+          'EGRESS_ALLOWED_HOSTS/EGRESS_ALLOWED_IP_RANGES are set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
+        )
+      } else {
+        logger.warn(
+          'Private-network egress allowlist is configured. Outbound requests may reach the listed destinations. Only use this on a trusted private network.',
+          { hosts: env.EGRESS_ALLOWED_HOSTS, ipRanges: env.EGRESS_ALLOWED_IP_RANGES }
         )
       }
     })

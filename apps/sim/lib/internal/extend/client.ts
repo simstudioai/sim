@@ -21,7 +21,11 @@ export async function submitExtendParse(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(EXTEND_ENDPOINT, 'Extend API URL')
+  const validation = await validateUrlWithDNS(
+    EXTEND_ENDPOINT,
+    'Extend API URL',
+    'configuredEndpoint'
+  )
   signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new ExtendOperationError(502, { success: false, error: 'Failed to reach Extend API' })
@@ -30,6 +34,7 @@ export async function submitExtendParse(
   let response: Awaited<ReturnType<typeof secureFetchWithPinnedIP>>
   try {
     response = await secureFetchWithPinnedIP(EXTEND_ENDPOINT, validation.resolvedIP, {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

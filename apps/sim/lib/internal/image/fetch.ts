@@ -32,13 +32,14 @@ export async function fetchRemoteImage(
   signal?: AbortSignal
 ): Promise<FetchRemoteImageResult> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(imageUrl, 'imageUrl')
+  const validation = await validateUrlWithDNS(imageUrl, 'imageUrl', 'contentFetch')
   if (!validation.isValid || !validation.resolvedIP) {
     throw new RemoteImageFetchError(validation.error || 'Invalid image URL', 403)
   }
 
   try {
     const response = await secureFetchWithPinnedIP(imageUrl, validation.resolvedIP, {
+      profile: 'contentFetch',
       method: 'GET',
       maxResponseBytes: MAX_REMOTE_IMAGE_BYTES,
       signal,

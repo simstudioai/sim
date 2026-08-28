@@ -64,6 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // IP, blocks private/reserved targets on every hop, and drops the token if
     // a redirect leaves the original origin.
     const response = await secureFetchWithValidation(organizationsUrl.toString(), {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: `Zoho-oauthtoken ${accessToken}`,

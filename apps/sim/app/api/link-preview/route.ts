@@ -53,6 +53,7 @@ function parsePreview(html: string): LinkPreview {
 
 async function fetchPreview(url: string): Promise<LinkPreview> {
   const response = await secureFetchWithValidation(url, {
+    profile: 'requestTarget',
     timeout: FETCH_TIMEOUT_MS,
     maxRedirects: MAX_REDIRECTS,
     maxResponseBytes: MAX_RESPONSE_BYTES,

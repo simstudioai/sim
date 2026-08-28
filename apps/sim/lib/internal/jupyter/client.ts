@@ -43,7 +43,7 @@ export async function requestJupyterApi(
   }
   const url = `${base}/api/${input.path}`
 
-  const urlValidation = await validateUrlWithDNS(url, 'serverUrl', { allowHttp: true })
+  const urlValidation = await validateUrlWithDNS(url, 'serverUrl', 'configuredEndpoint')
   signal?.throwIfAborted()
   if (!urlValidation.isValid || !urlValidation.resolvedIP) {
     throw new InvalidJupyterTargetError(`Invalid Jupyter serverUrl: ${urlValidation.error}`)
@@ -57,7 +57,7 @@ export async function requestJupyterApi(
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     body: hasBody ? JSON.stringify(input.body) : undefined,
-    allowHttp: true,
+    profile: 'configuredEndpoint',
     maxRedirects: 0,
     maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     signal,

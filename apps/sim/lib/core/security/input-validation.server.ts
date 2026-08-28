@@ -6,7 +6,7 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
-import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { isIpLiteral, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
@@ -17,9 +17,10 @@ import {
   type RequestInit as UndiciRequestInit,
   request as undiciRequest,
 } from 'undici'
-import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
+import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
+import { checkResolvedEgress, validateEgressUrl } from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
-import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import type { ValidationResult } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -34,78 +35,27 @@ export interface AsyncValidationResult extends ValidationResult {
 }
 
 /**
- * Validates a URL and resolves its DNS to prevent SSRF via DNS rebinding
+ * Validates a URL, resolves its DNS, and returns the address to pin.
  *
- * This function:
- * 1. Performs basic URL validation (protocol, format)
- * 2. Resolves the hostname to an IP address
- * 3. Validates the resolved IP is not private/reserved
- * 4. Returns the resolved IP for use in the actual request
+ * `profile` states where the URL came from — see {@link EgressProfile}. It is
+ * required because provenance is the only input to the trust decision, and a
+ * wrong guess is silent in both directions: too strict breaks a self-hosted
+ * integration, too loose hands an attacker the internal network.
  *
  * @param url - The URL to validate
  * @param paramName - Name of the parameter for error messages
+ * @param profile - Where this URL came from
  * @returns AsyncValidationResult with resolved IP for DNS pinning
  */
 export async function validateUrlWithDNS(
   url: string | null | undefined,
-  paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  paramName: string,
+  profile: EgressProfile
 ): Promise<AsyncValidationResult> {
-  const basicValidation = validateExternalUrl(url, paramName, options)
-  if (!basicValidation.isValid) {
-    return basicValidation
-  }
-
-  const parsedUrl = new URL(url!)
-  const hostname = parsedUrl.hostname
-
-  const hostnameLower = hostname.toLowerCase()
-  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
-
-  // Whole loopback range — see the matching note in input-validation.ts.
-  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
-
-  try {
-    // Refused records are filtered rather than failing the whole host, matching
-    // createSsrfGuardedLookup below. Pinning to a surviving public address is
-    // just as safe as refusing outright, and rejecting the host would break a
-    // split-horizon resolver that answers with a private record alongside the
-    // public one — with no operator opt-out on this path.
-    const { addresses } = await resolveHostAddresses(cleanHostname)
-    const usable = addresses.filter(
-      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
-    )
-
-    if (usable.length === 0) {
-      logger.warn('URL resolves to blocked IP address', {
-        paramName,
-        hostname,
-        resolvedIP: addresses.find((address) => isPrivateIp(address)),
-      })
-      return {
-        isValid: false,
-        error: `${paramName} resolves to a blocked IP address`,
-      }
-    }
-
-    return {
-      isValid: true,
-      // Re-preferred over the surviving set so the pin is never an address the
-      // filter above just refused.
-      resolvedIP: preferIpv4(usable as [string, ...string[]]),
-      originalHostname: hostname,
-    }
-  } catch (error) {
-    logger.warn('DNS lookup failed for URL', {
-      paramName,
-      hostname,
-      error: toError(error).message,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} hostname could not be resolved`,
-    }
-  }
+  const result = await validateEgressUrl(url, paramName, profile)
+  return result.isValid
+    ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
+    : { isValid: false, error: result.error }
 }
 
 /**
@@ -154,18 +104,16 @@ export async function validateAndPinProxyUrl(
     }
   }
 
-  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', { allowHttp: true })
+  // The `proxy` profile is what holds a proxy to a stricter rule than the
+  // destinations it fronts: plain HTTP by protocol, but public addresses only,
+  // and no operator allowlist — a private proxy host stays blocked even on a
+  // deployment that has allowlisted that range for everything else.
+  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', 'proxy')
   if (!validation.isValid) {
     return { isValid: false, error: validation.error }
   }
 
   const resolvedIP = validation.resolvedIP!
-
-  // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
-  // egress, so loopback/private proxy hosts stay blocked unconditionally.
-  if (isPrivateIp(resolvedIP)) {
-    return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
-  }
 
   // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
   // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
@@ -182,11 +130,16 @@ export async function validateAndPinProxyUrl(
  * database hostnames (e.g. underscores in Docker/K8s service names). It only
  * blocks localhost and private/reserved IPs.
  *
- * Self-hosted operators can set `ALLOW_PRIVATE_DATABASE_HOSTS` to reach databases
- * on their private network (e.g. a Docker/Swarm service name that resolves to an
- * internal IP). The opt-in only bypasses the private/reserved/loopback block; DNS
- * is still resolved so the caller can pin the connection to the resolved IP. The
- * bypass is never honored on the hosted platform (see {@link isPrivateDatabaseHostsAllowed}).
+ * Self-hosted operators reach a database on their private network (e.g. a
+ * Docker/Swarm service name that resolves to an internal IP) by naming it in the
+ * shared egress allowlist — the same one that governs HTTP destinations, because
+ * "may this deployment talk to that host" is one question, not one per protocol.
+ * DNS is still resolved so the caller can pin the connection to the resolved IP,
+ * and the allowlist is never honored on the hosted platform.
+ *
+ * A database host carries no scheme or port of its own, so it is evaluated as an
+ * `https` destination: the address rules and the allowlist apply, the HTTP-only
+ * scheme and port rules do not.
  *
  * @param host - The database hostname to validate
  * @param paramName - Name of the parameter for error messages
@@ -202,35 +155,47 @@ export async function validateDatabaseHost(
 
   const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
-  if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
-    return { isValid: false, error: `${paramName} cannot be localhost` }
+  let asUrl: URL
+  try {
+    asUrl = new URL(
+      `https://${isIpLiteral(cleanHost) && cleanHost.includes(':') ? `[${cleanHost}]` : cleanHost}`
+    )
+  } catch {
+    return { isValid: false, error: `${paramName} is not a valid host` }
   }
 
-  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
-    return { isValid: false, error: `${paramName} cannot be a private IP address` }
+  if (isIpLiteral(cleanHost)) {
+    const decision = checkResolvedEgress(asUrl, cleanHost, 'databaseHost')
+    if (!decision.allowed) {
+      return { isValid: false, error: describeEgressDenial(decision, paramName, 'databaseHost') }
+    }
+    return { isValid: true, resolvedIP: cleanHost, originalHostname: host }
   }
 
   try {
-    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
-    const blockedAddress = isPrivateDatabaseHostsAllowed
-      ? undefined
-      : addresses.find((candidate) => isPrivateIp(candidate))
+    const { addresses } = await resolveHostAddresses(cleanHost)
+    const blocked = addresses.find(
+      (candidate) => !checkResolvedEgress(asUrl, candidate, 'databaseHost').allowed
+    )
 
-    if (blockedAddress !== undefined) {
+    if (blocked !== undefined) {
+      const decision = checkResolvedEgress(asUrl, blocked, 'databaseHost')
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: blockedAddress,
+        resolvedIP: blocked,
       })
       return {
         isValid: false,
-        error: `${paramName} resolves to a blocked IP address`,
+        error: decision.allowed
+          ? `${paramName} resolves to a blocked IP address`
+          : describeEgressDenial(decision, paramName, 'databaseHost'),
       }
     }
 
     return {
       isValid: true,
-      resolvedIP: preferred,
+      resolvedIP: preferIpv4(addresses as [string, ...string[]]),
       originalHostname: host,
     }
   } catch (error) {
@@ -380,6 +345,13 @@ export interface SecureFetchOptions {
    * bypassed (the proxy resolves the target).
    */
   proxyUrl?: string
+  /**
+   * Where this request's URL came from. Carried on the options so the same
+   * policy is re-applied to every redirect hop rather than re-derived — a hop
+   * evaluated under a laxer policy than the origin is how a redirect chain
+   * escapes the guard it started under.
+   */
+  profile: EgressProfile
 }
 
 export class SecureFetchHeaders {
@@ -1012,7 +984,7 @@ export function createPinnedFetchWithDispatcher(
 export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {},
+  options: SecureFetchOptions,
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
@@ -1067,7 +1039,7 @@ export async function secureFetchWithPinnedIP(
           settledReject(error)
           return
         }
-        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile)
           .then((validation) => {
             if (!validation.isValid) {
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
@@ -1102,7 +1074,7 @@ export async function secureFetchWithPinnedIP(
             if (redirectHeaders && options.stripAuthOnRedirect) {
               redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
             }
-            const redirectOptions: SecureFetchOptions & { allowHttp?: boolean } = {
+            const redirectOptions: SecureFetchOptions = {
               ...options,
               method: hop.method,
               body: hop.dropBody ? undefined : options.body,
@@ -1302,19 +1274,17 @@ export async function secureFetchWithPinnedIP(
  * Combines validateUrlWithDNS and secureFetchWithPinnedIP for convenience.
  *
  * @param url - The URL to fetch
- * @param options - Fetch options (method, headers, body, etc.)
+ * @param options - Fetch options, including the required egress `profile`
  * @param paramName - Name of the parameter for error messages (default: 'url')
  * @returns SecureFetchResponse
  * @throws Error if URL validation fails
  */
 export async function secureFetchWithValidation(
   url: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {},
+  options: SecureFetchOptions,
   paramName = 'url'
 ): Promise<SecureFetchResponse> {
-  const validation = await validateUrlWithDNS(url, paramName, {
-    allowHttp: options.allowHttp,
-  })
+  const validation = await validateUrlWithDNS(url, paramName, options.profile)
   if (!validation.isValid) {
     throw new Error(validation.error)
   }

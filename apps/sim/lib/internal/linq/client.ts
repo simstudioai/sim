@@ -86,12 +86,13 @@ export async function uploadLinqAttachmentBytes(
   signal?: AbortSignal
 ): Promise<void> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(registration.uploadUrl, 'uploadUrl')
+  const validation = await validateUrlWithDNS(registration.uploadUrl, 'uploadUrl', 'contentFetch')
   signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new LinqOperationError(validation.error || 'Invalid Linq upload URL', 400)
   }
   const response = await secureFetchWithPinnedIP(registration.uploadUrl, validation.resolvedIP, {
+    profile: 'contentFetch',
     method: registration.httpMethod,
     headers: registration.requiredHeaders,
     body: new Uint8Array(buffer),

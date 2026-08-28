@@ -19,6 +19,7 @@ export async function uploadDataverseFile(
   const response = await secureFetchWithValidation(
     input.uploadUrl,
     {
+      profile: 'contentFetch',
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${input.accessToken}`,

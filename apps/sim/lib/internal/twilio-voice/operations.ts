@@ -50,12 +50,13 @@ async function fetchPinned(
   context: TwilioVoiceOperationContext,
   maxResponseBytes: number
 ) {
-  const validation = await validateUrlWithDNS(url, label)
+  const validation = await validateUrlWithDNS(url, label, 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new TwilioVoiceOperationError(validation.error || `Invalid ${label}`, 400)
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: { Authorization: authHeader },
     maxResponseBytes,

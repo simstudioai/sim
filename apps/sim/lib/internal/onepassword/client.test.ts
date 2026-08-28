@@ -151,7 +151,7 @@ describe('connectRequest', () => {
         'Content-Type': 'application/json',
       },
       body: '{"title":"Example"}',
-      allowHttp: true,
+      profile: 'configuredEndpoint',
       maxResponseBytes: 10 * 1024 * 1024,
       signal: controller.signal,
     })

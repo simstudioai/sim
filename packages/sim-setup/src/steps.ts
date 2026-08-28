@@ -236,12 +236,17 @@ export async function promptSecurity(vars: Map<string, string>): Promise<Securit
     mirrorToRealtime.DISABLE_AUTH = 'true'
   }
 
-  const privateHosts = await p.confirm({
+  const existingEgressHosts = vars.get('EGRESS_ALLOWED_HOSTS')
+  const egressHosts = await p.text({
     message:
-      'Allow DB/connector tools to reach private hosts? (Docker/K8s service names, localhost — loosens the SSRF guard)',
-    initialValue: isTruthy(vars.get('ALLOW_PRIVATE_DATABASE_HOSTS')),
+      'Hosts on your private network that workflows may reach? (comma-separated, blank for none — widens the SSRF guard)',
+    placeholder: 'host.docker.internal,*.svc.cluster.local',
+    initialValue: existingEgressHosts ?? '',
+    defaultValue: '',
   })
-  if (privateHosts) sim.ALLOW_PRIVATE_DATABASE_HOSTS = 'true'
+  if (typeof egressHosts === 'string' && egressHosts.trim()) {
+    sim.EGRESS_ALLOWED_HOSTS = egressHosts.trim()
+  }
 
   const existingAdminKey = vars.get('ADMIN_API_KEY')
   if (!existingAdminKey || isPlaceholder(existingAdminKey)) {

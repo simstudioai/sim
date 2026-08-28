@@ -376,12 +376,13 @@ async function bufferFromImageUrl(
     }
   }
 
-  const urlValidation = await validateUrlWithDNS(url, 'imageUrl')
+  const urlValidation = await validateUrlWithDNS(url, 'imageUrl', 'contentFetch')
   if (!urlValidation.isValid || !urlValidation.resolvedIP) {
     throw new Error(urlValidation.error || 'Generated image URL failed validation')
   }
 
   const imageResponse = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+    profile: 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_IMAGE_BYTES,
     signal,

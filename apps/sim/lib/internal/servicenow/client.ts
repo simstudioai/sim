@@ -30,6 +30,7 @@ export async function uploadServiceNowAttachment(
   const response = await secureFetchWithValidation(
     `${baseUrl}/api/now/attachment/file?${params.toString()}`,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         Authorization: createBasicAuthHeader(input.username, input.password),

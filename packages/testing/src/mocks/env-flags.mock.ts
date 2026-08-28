@@ -18,7 +18,8 @@ export interface EnvFlagsMockState {
   isBillingEnabled: boolean
   isEmailVerificationEnabled: boolean
   isAuthDisabled: boolean
-  isPrivateDatabaseHostsAllowed: boolean
+  egressAllowedHosts: string | undefined
+  egressAllowedIpRanges: string | undefined
   isRegistrationDisabled: boolean
   isEmailPasswordEnabled: boolean
   isSignupMxValidationEnabled: boolean
@@ -67,7 +68,8 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isBillingEnabled: false,
   isEmailVerificationEnabled: false,
   isAuthDisabled: false,
-  isPrivateDatabaseHostsAllowed: false,
+  egressAllowedHosts: undefined,
+  egressAllowedIpRanges: undefined,
   isRegistrationDisabled: false,
   isEmailPasswordEnabled: true,
   isSignupMxValidationEnabled: false,
@@ -158,11 +160,11 @@ export function resetEnvFlagsMock(): void {
  * mocked module and direct assignments (`envFlagsMock.isHosted = true`)
  * delegate to the shared mutable state.
  */
-function flagAccessor(key: keyof EnvFlagsMockState): PropertyDescriptor {
+function flagAccessor<K extends keyof EnvFlagsMockState>(key: K): PropertyDescriptor {
   return {
     enumerable: true,
     get: () => envFlagsState[key],
-    set: (value: boolean) => {
+    set: (value: EnvFlagsMockState[K]) => {
       envFlagsState[key] = value
     },
   }

@@ -134,16 +134,34 @@ Resource ceilings for the in-process path:
 
 ## The SSRF boundary
 
-Sim blocks outbound requests from database and connector tools to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network.
+Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Every outbound request is classified by where its URL came from:
 
-Self-hosted deployments often legitimately need to reach an internal database by service name. That is opt-in:
+| Provenance | Examples | Reaches allowlisted private destinations |
+|---|---|---|
+| Configured endpoint | A self-hosted vLLM, Jupyter, GitHub Enterprise, Grafana, ClickHouse, an MCP server, a connector's host | Yes |
+| Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
+| Database host | A database, cache, or mail connector's host | Yes |
+| Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |
+
+Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited.
+
+Deployments frequently need to reach an internal service by name or address. Name the destinations:
 
 ```bash
-ALLOW_PRIVATE_DATABASE_HOSTS=true
+EGRESS_ALLOWED_HOSTS=host.docker.internal,*.svc.cluster.local
+EGRESS_ALLOWED_IP_RANGES=10.0.0.0/8,192.168.65.254/32
+```
+
+Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+
+To reach a service on the Docker host, pair the allowlist with the host alias that Compose already sets up:
+
+```bash
+EGRESS_ALLOWED_HOSTS=host.docker.internal
 ```
 
 <Callout type="warn">
-  This loosens the SSRF boundary for every workflow author on the instance. Enable it only on a trusted private network, and prefer pairing it with a NetworkPolicy that constrains what the app can actually reach.
+  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach.
 </Callout>
 
 ## Client IP and forwarded headers
@@ -192,5 +210,5 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
   { question: "Can I rotate ENCRYPTION_KEY?", answer: "Not without re-encrypting everything it protects. Changing it makes workspace environment variables, stored provider API keys, MCP OAuth credentials, and deployment secrets permanently unreadable. Treat it as a permanent, backed-up value rather than a rotating secret."},
   { question: "Where does user-authored code run?", answer: "By default in an in-process V8 isolate inside the app container, which isolates at the JS-engine level but shares the container's network and filesystem context. For untrusted authors, or to run Python at all, use E2B or Daytona so each execution runs in a remote sandbox."},
   { question: "Why does the chart's NetworkPolicy allow traffic from any pod?", answer: "networkPolicy.ingressFrom defaults to an empty peer selector as a simple default that works on any cluster. On a shared cluster you should scope it to your ingress controller's namespace."},
-  { question: "What does ALLOW_PRIVATE_DATABASE_HOSTS change?", answer: "It lets database and connector tools reach private, reserved, and loopback addresses — needed to connect to an internal database by Kubernetes service name. It also widens the SSRF boundary for every workflow author, so enable it only on a trusted network."},
+  { question: "How do I reach an internal service from a workflow?", answer: "Name it in EGRESS_ALLOWED_HOSTS (hostnames, leading wildcard allowed) or EGRESS_ALLOWED_IP_RANGES (CIDRs). That permits plain HTTP to it and lifts the blocked-port list for it. Cloud metadata endpoints stay blocked regardless, content fetches never use the allowlist, and both variables are ignored on Sim Cloud."},
 ]} />

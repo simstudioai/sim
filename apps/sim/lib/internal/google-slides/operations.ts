@@ -42,7 +42,11 @@ export async function exportGoogleSlidesPresentation(
   const exportFormat = input.exportFormat ?? 'PDF'
   const mimeType = FORMAT_TO_MIME[exportFormat]
   const exportUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.presentationId)}/export?mimeType=${encodeURIComponent(mimeType)}`
-  const validation = await validateUrlWithDNS(exportUrl, 'googleSlidesExportUrl')
+  const validation = await validateUrlWithDNS(
+    exportUrl,
+    'googleSlidesExportUrl',
+    'configuredEndpoint'
+  )
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new GoogleSlidesOperationError(
@@ -52,6 +56,7 @@ export async function exportGoogleSlidesPresentation(
   }
 
   const response = await secureFetchWithPinnedIP(exportUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_GOOGLE_SLIDES_EXPORT_BYTES,
     signal: context.signal,

@@ -319,10 +319,11 @@ async function fetchChangedFileContent(
 ): Promise<string | undefined> {
   if (file.status === 'removed' || !file.raw_url || remainingBytes <= 0) return undefined
   try {
-    const validation = await validateUrlWithDNS(file.raw_url, 'rawUrl')
+    const validation = await validateUrlWithDNS(file.raw_url, 'rawUrl', 'contentFetch')
     context.signal?.throwIfAborted()
     if (!validation.isValid || !validation.resolvedIP) return undefined
     const response = await secureFetchWithPinnedIP(file.raw_url, validation.resolvedIP, {
+      profile: 'contentFetch',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'X-GitHub-Api-Version': '2022-11-28',
@@ -356,13 +357,14 @@ export async function getGitHubLatestCommit(
   const repo = encodeURIComponent(input.repo)
   const revision = encodeURIComponent(input.branch || 'HEAD')
   const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
-  const validation = await validateUrlWithDNS(commitUrl, 'commitUrl')
+  const validation = await validateUrlWithDNS(commitUrl, 'commitUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new GitHubOperationError(validation.error || 'Invalid GitHub commit URL', 400)
   }
 
   const response = await secureFetchWithPinnedIP(commitUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github.v3+json',

@@ -85,7 +85,7 @@ const s3ConfigSchema = z.object({
     .string()
     .url()
     .refine((v) => v.startsWith('https://'), { message: 'endpoint must use https://' })
-    .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
+    .refine((value) => validateExternalUrl(value, 'endpoint', 'configuredEndpoint').isValid, {
       message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
     })
     .optional(),
@@ -128,7 +128,7 @@ function isS3ServiceException(error: unknown): error is S3ServiceException {
 /** DNS-aware SSRF check: catches hostnames that resolve to internal IPs (the schema check only catches IP literals). */
 async function assertEndpointIsPublic(endpoint: string | undefined): Promise<void> {
   if (!endpoint) return
-  const result = await validateUrlWithDNS(endpoint, 'endpoint')
+  const result = await validateUrlWithDNS(endpoint, 'endpoint', 'configuredEndpoint')
   if (!result.isValid) {
     throw new Error(result.error ?? 'S3 endpoint failed SSRF validation')
   }

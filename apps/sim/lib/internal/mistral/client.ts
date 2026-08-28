@@ -17,7 +17,11 @@ export async function submitMistralOcr(
   maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(MISTRAL_ENDPOINT, 'Mistral API URL')
+  const validation = await validateUrlWithDNS(
+    MISTRAL_ENDPOINT,
+    'Mistral API URL',
+    'configuredEndpoint'
+  )
   signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new MistralOperationError(502, {
@@ -27,6 +31,7 @@ export async function submitMistralOcr(
   }
 
   const response = await secureFetchWithPinnedIP(MISTRAL_ENDPOINT, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

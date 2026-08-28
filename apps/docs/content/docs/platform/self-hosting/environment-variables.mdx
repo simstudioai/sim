@@ -147,7 +147,8 @@ Without a remote provider, user code runs in an in-process V8 isolate inside the
 | `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Webhook-triggered executions in parallel |
 | `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions in parallel |
 | `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Resumed executions in parallel |
-| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | Let database/connector tools reach private, reserved, and loopback hosts. Loosens the SSRF boundary |
+| `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local` |
+| `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8` |
 
 Your reverse proxy's body-size limit must be at least as large as the app limits above. See [Networking](/platform/self-hosting/networking).
 

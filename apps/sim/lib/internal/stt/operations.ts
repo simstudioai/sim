@@ -255,12 +255,13 @@ export async function executeSttOperation(
         }
       }
 
-      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl')
+      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl', 'contentFetch')
       if (!urlValidation.isValid) {
         return Response.json({ error: urlValidation.error }, { status: 400 })
       }
 
       const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
+        profile: 'contentFetch',
         method: 'GET',
         maxResponseBytes: MAX_FILE_SIZE,
         signal,

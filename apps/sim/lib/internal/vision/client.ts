@@ -94,6 +94,7 @@ async function fetchGeminiImage(input: VisionClientInput, signal?: AbortSignal):
   }
 
   const response = await secureFetchWithPinnedIP(input.imageSource, input.remoteImageResolvedIP, {
+    profile: 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
     signal,

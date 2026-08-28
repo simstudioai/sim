@@ -77,7 +77,11 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
       request({ azureEndpoint: 'https://rebind.attacker.tld' })
     )
 
-    expect(mockValidate).toHaveBeenCalledWith('https://rebind.attacker.tld', 'azureEndpoint')
+    expect(mockValidate).toHaveBeenCalledWith(
+      'https://rebind.attacker.tld',
+      'azureEndpoint',
+      'configuredEndpoint'
+    )
     expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
     expect(buildClientOptions()).toMatchObject({ fetch: sentinelFetch })
   })

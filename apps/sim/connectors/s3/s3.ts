@@ -523,7 +523,7 @@ async function listObjectsPage(
 
   const response = await secureFetchWithRetry(
     url,
-    { method: 'GET', headers, stripAuthOnRedirect: true },
+    { profile: 'configuredEndpoint', method: 'GET', headers, stripAuthOnRedirect: true },
     retryOptions
   )
 
@@ -616,6 +616,7 @@ export const s3Connector: ConnectorConfig = {
       const url = buildUrl(ctx, encodedPath, '')
 
       const response = await secureFetchWithRetry(url, {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers,
         stripAuthOnRedirect: true,

@@ -153,13 +153,14 @@ export const emailBisonHandler: WebhookProviderHandler = {
     })
 
     const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
-    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+    const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
       throw new Error('Email Bison Instance URL could not be validated.')
     }
 
     const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       body: JSON.stringify({
@@ -229,7 +230,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
         {},
         apiBaseUrl
       )
-      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl')
+      const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
       if (!urlValidation.isValid) {
         logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
           webhookId: webhook.id,
@@ -240,6 +241,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
       }
 
       const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+        profile: 'configuredEndpoint',
         method: 'DELETE',
         headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
       })

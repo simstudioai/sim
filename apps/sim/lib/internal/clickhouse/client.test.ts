@@ -95,7 +95,7 @@ describe('clickhouseRequest DNS pinning', () => {
 
     const [url, , options] = mockSecureFetchWithPinnedIP.mock.calls[0]
     expect(url).toMatch(/^https:\/\//)
-    expect(options.allowHttp).toBe(false)
+    expect(options.profile).toBe('configuredEndpoint')
   })
 
   it('allows http for the initial request when secure is false', async () => {
@@ -103,7 +103,7 @@ describe('clickhouseRequest DNS pinning', () => {
 
     const [url, , options] = mockSecureFetchWithPinnedIP.mock.calls[0]
     expect(url).toMatch(/^http:\/\//)
-    expect(options.allowHttp).toBe(true)
+    expect(options.profile).toBe('configuredEndpoint')
   })
 
   it('brackets an unbracketed IPv6 literal when constructing the request URL', async () => {

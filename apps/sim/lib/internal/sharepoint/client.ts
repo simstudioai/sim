@@ -94,19 +94,21 @@ export class SharePointClient {
     return `Bearer ${this.accessToken}`
   }
 
+  /** Every URL reaching here is a fixed Microsoft Graph endpoint. */
   private async pinnedFetch(
     url: string,
     paramName: string,
-    options: SecureFetchOptions
+    options: Omit<SecureFetchOptions, 'profile'>
   ): Promise<SecureFetchResponse> {
     this.signal?.throwIfAborted()
-    const validation = await validateUrlWithDNS(url, paramName)
+    const validation = await validateUrlWithDNS(url, paramName, 'configuredEndpoint')
     this.signal?.throwIfAborted()
     if (!validation.isValid || !validation.resolvedIP) {
       throw new SharePointGraphError(validation.error || `Invalid ${paramName}`, 400)
     }
     return secureFetchWithPinnedIP(url, validation.resolvedIP, {
       ...options,
+      profile: 'configuredEndpoint',
       signal: this.signal,
     })
   }
@@ -163,6 +165,7 @@ export class SharePointClient {
     const response = await secureFetchWithValidation(
       url,
       {
+        profile: 'contentFetch',
         method: 'PUT',
         headers: {
           Authorization: this.authorization,

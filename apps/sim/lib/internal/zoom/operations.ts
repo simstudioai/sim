@@ -67,13 +67,14 @@ export async function getZoomMeetingRecordings(
   if (input.ttl) query.set('ttl', String(input.ttl))
   const baseUrl = `https://api.zoom.us/v2/meetings/${encodeURIComponent(input.meetingId)}/recordings`
   const apiUrl = query.size > 0 ? `${baseUrl}?${query}` : baseUrl
-  const validation = await validateUrlWithDNS(apiUrl, 'apiUrl')
+  const validation = await validateUrlWithDNS(apiUrl, 'apiUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new ZoomOperationError(validation.error || 'Invalid Zoom API URL', 400)
   }
 
   const response = await secureFetchWithPinnedIP(apiUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -101,12 +102,17 @@ export async function getZoomMeetingRecordings(
             413
           )
         }
-        const fileValidation = await validateUrlWithDNS(file.download_url, 'downloadUrl')
+        const fileValidation = await validateUrlWithDNS(
+          file.download_url,
+          'downloadUrl',
+          'contentFetch'
+        )
         if (!fileValidation.isValid || !fileValidation.resolvedIP) continue
         const downloadResponse = await secureFetchWithPinnedIP(
           file.download_url,
           fileValidation.resolvedIP,
           {
+            profile: 'contentFetch',
             method: 'GET',
             headers: { Authorization: `Bearer ${input.accessToken}` },
             maxResponseBytes: remainingBytes,

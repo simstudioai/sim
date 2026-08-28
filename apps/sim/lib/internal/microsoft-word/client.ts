@@ -55,15 +55,18 @@ export class GraphRequestError extends Error {
 async function graphFetch(
   url: string,
   paramName: string,
-  options: NonNullable<Parameters<typeof secureFetchWithPinnedIP>[2]>
+  options: Omit<NonNullable<Parameters<typeof secureFetchWithPinnedIP>[2]>, 'profile'>
 ) {
   options.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(url, paramName)
+  const validation = await validateUrlWithDNS(url, paramName, 'configuredEndpoint')
   options.signal?.throwIfAborted()
   if (!validation.isValid) {
     throw new GraphRequestError(validation.error || `Invalid ${paramName}`, 400)
   }
-  return secureFetchWithPinnedIP(url, validation.resolvedIP as string, options)
+  return secureFetchWithPinnedIP(url, validation.resolvedIP as string, {
+    ...options,
+    profile: 'configuredEndpoint',
+  })
 }
 
 /** Reads a Graph error body and raises it as a {@link GraphRequestError}. */

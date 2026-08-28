@@ -41,12 +41,13 @@ async function fetchDocumentBytes(
   signal?: AbortSignal
 ): Promise<{ bytes: Buffer; contentType: string }> {
   signal?.throwIfAborted()
-  const urlValidation = await validateUrlWithDNS(url, 'Document URL')
+  const urlValidation = await validateUrlWithDNS(url, 'Document URL', 'contentFetch')
   if (!urlValidation.isValid) {
     throw new TextractOperationError(urlValidation.error || 'Invalid document URL', 400)
   }
 
   const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+    profile: 'contentFetch',
     method: 'GET',
     signal,
   })
@@ -159,7 +160,7 @@ export async function resolveDocumentInput(
         ),
       }
     } else {
-      const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL')
+      const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL', 'contentFetch')
       if (!urlValidation.isValid) {
         logger.warn(`[${requestId}] SSRF attempt blocked`, {
           userId,

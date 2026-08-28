@@ -101,7 +101,7 @@ async function resolveUrlImage(
   }
 
   context.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(source, 'imageUrl')
+  const validation = await validateUrlWithDNS(source, 'imageUrl', 'contentFetch')
   context.signal?.throwIfAborted()
   if (!validation.isValid) {
     fail(validation.error || 'Invalid image URL', 400, {

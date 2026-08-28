@@ -15,7 +15,8 @@ vi.mock('@sim/security/dns', () => ({
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   isHosted: false,
-  isPrivateDatabaseHostsAllowed: false,
+  egressAllowedHosts: undefined,
+  egressAllowedIpRanges: undefined,
   getProxyUrl: () => undefined,
 }))
 
@@ -70,7 +71,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
 
     await expect(
       secureFetchWithPinnedIP(origin, '127.0.0.1', {
-        allowHttp: true,
+        profile: 'configuredEndpoint',
         assertRedirectTarget,
       })
     ).rejects.toThrow('redirect target rejected')
@@ -96,7 +97,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         'Content-Type': 'application/json',
         Host: 'legacy.example',
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
@@ -130,7 +131,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         sendCredentialsOnCrossOriginRedirect: false,
         sensitiveHeaders: ['x-api-key'],
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -166,7 +167,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         sendCredentialsOnCrossOriginRedirect: false,
         sensitiveHeaders: ['x-api-key'],
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
@@ -202,7 +203,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -227,7 +228,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -255,7 +256,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -283,7 +284,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: true,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)
@@ -321,7 +322,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
         mode: 'standard',
         sendCredentialsOnCrossOriginRedirect: false,
       },
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
@@ -354,7 +355,7 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
       method: 'GET',
       headers: { Authorization: 'Bearer strip-me', 'X-Trace': 'keep-me' },
       stripAuthOnRedirect: true,
-      allowHttp: true,
+      profile: 'configuredEndpoint',
     })
 
     expect(hops).toHaveLength(1)

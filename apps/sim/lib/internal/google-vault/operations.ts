@@ -42,7 +42,7 @@ export async function downloadGoogleVaultExportFile(
   const bucket = encodeURIComponent(input.bucketName)
   const object = encodeURIComponent(input.objectName)
   const downloadUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media`
-  const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl')
+  const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {
     throw new GoogleVaultOperationError(
@@ -52,6 +52,7 @@ export async function downloadGoogleVaultExportFile(
   }
 
   const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,

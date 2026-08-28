@@ -836,17 +836,21 @@ describe('secureFetchWithRetry', () => {
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
   })
 
-  it('forwards allowHttp / timeout / maxResponseBytes to the pinned fetch', async () => {
+  it('forwards the egress profile, timeout and maxResponseBytes to the pinned fetch', async () => {
     mockSecureFetchWithValidation.mockResolvedValue(fakeResponse(200))
 
     await secureFetchWithRetry(
       'http://localhost:9000',
-      { method: 'GET' },
-      { allowHttp: true, timeout: 5000, maxResponseBytes: 1024, ...FAST_RETRY }
+      { method: 'GET', profile: 'configuredEndpoint' },
+      { timeout: 5000, maxResponseBytes: 1024, ...FAST_RETRY }
     )
 
     const [, options] = mockSecureFetchWithValidation.mock.calls[0]
-    expect(options).toMatchObject({ allowHttp: true, timeout: 5000, maxResponseBytes: 1024 })
+    expect(options).toMatchObject({
+      profile: 'configuredEndpoint',
+      timeout: 5000,
+      maxResponseBytes: 1024,
+    })
   })
 
   /**

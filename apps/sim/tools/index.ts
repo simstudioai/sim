@@ -2614,7 +2614,7 @@ async function executeToolRequest(
       const isLastAttempt = attempt === maxAttempts - 1
 
       try {
-        const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
+        const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl', 'requestTarget')
         if (!urlValidation.isValid) {
           throw new Error(`Invalid tool URL: ${urlValidation.error}`)
         }
@@ -2629,6 +2629,7 @@ async function executeToolRequest(
         }
 
         const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
+          profile: 'requestTarget',
           method: requestParams.method,
           headers: headersRecord,
           body: requestParams.body ?? undefined,

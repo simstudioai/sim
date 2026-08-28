@@ -72,10 +72,11 @@ async function resolveMediaKind(args: {
   if (extensionKind) return extensionKind
 
   try {
-    const validation = await validateUrlWithDNS(fileUrl, 'media')
+    const validation = await validateUrlWithDNS(fileUrl, 'media', 'contentFetch')
     context.signal?.throwIfAborted()
     if (validation.isValid && validation.resolvedIP) {
       const probe = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {
+        profile: 'contentFetch',
         method: 'HEAD',
         timeout: MEDIA_PROBE_TIMEOUT_MS,
         signal: context.signal,
