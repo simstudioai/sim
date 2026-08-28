@@ -58,17 +58,35 @@ export function estimateTooltipWidth(longestRowLength: number): number {
   return Math.min(220, Math.max(80, 7 * longestRowLength + 24))
 }
 
+/** Border plus the `py-1.5` the tooltip's own class string sets. */
+const TOOLTIP_CHROME_HEIGHT = 2 + 12
+
 /**
- * Height of the box {@link ChartTooltip} renders, from its own box model: the border
- * and `py-1.5` chrome, the optional date header and its margin, and one line per row.
+ * The `text-micro` date's line box plus its `mb-1`.
+ *
+ * The type scale pairs no line-height with a font size, so a line occupies the
+ * ambient 1.5 rather than the font size itself — 15px for 10px `text-micro`, not 10.
+ */
+const TOOLTIP_DATE_HEIGHT = 15 + 4
+
+/** One `text-xs` row's line box: 11px at the ambient 1.5, rounded up from 16.5. */
+const TOOLTIP_ROW_HEIGHT = 17
+
+/**
+ * Height of the box {@link ChartTooltip} renders, from its own box model.
+ *
  * Estimated rather than measured because the position is computed in the same render
  * that mounts the tooltip — reading a real height would need a second paint, which
- * shows up as the tooltip visibly jumping under the cursor.
+ * shows up as the tooltip visibly jumping under the cursor. Every part rounds up:
+ * this is what {@link positionChartTooltip} clamps against and the chart clips its
+ * overflow, so an underestimate cuts the bottom off the box rather than moving it.
  */
 export function estimateTooltipHeight(rowCount: number, hasDate: boolean): number {
-  const chrome = 2 + 12
-  const dateLine = hasDate ? 14 + 4 : 0
-  return chrome + dateLine + Math.max(1, rowCount) * 16
+  return (
+    TOOLTIP_CHROME_HEIGHT +
+    (hasDate ? TOOLTIP_DATE_HEIGHT : 0) +
+    Math.max(1, rowCount) * TOOLTIP_ROW_HEIGHT
+  )
 }
 
 interface ChartTooltipProps {

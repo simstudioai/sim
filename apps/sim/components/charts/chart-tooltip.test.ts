@@ -91,4 +91,24 @@ describe('estimateTooltipHeight', () => {
   it('reserves a row even when told there are none', () => {
     expect(estimateTooltipHeight(0, false)).toBe(estimateTooltipHeight(1, false))
   })
+
+  /**
+   * The estimate is what the clamp measures against, and the chart clips its overflow,
+   * so it must never come in under the real box — an underestimate cuts the bottom off
+   * rather than moving the box up. Measured here against the box model the tooltip's
+   * own class string implies: `border` + `py-1.5`, a `text-micro` date with `mb-1`,
+   * and one `text-xs` row per value, every line at the ambient 1.5 line-height.
+   */
+  it('never comes in under the box the tooltip actually renders', () => {
+    const chrome = 2 + 6 + 6
+    const dateLine = 10 * 1.5 + 4
+    const rowLine = 11 * 1.5
+
+    for (const rows of [1, 2, 5]) {
+      expect(estimateTooltipHeight(rows, true)).toBeGreaterThanOrEqual(
+        chrome + dateLine + rows * rowLine
+      )
+      expect(estimateTooltipHeight(rows, false)).toBeGreaterThanOrEqual(chrome + rows * rowLine)
+    }
+  })
 })

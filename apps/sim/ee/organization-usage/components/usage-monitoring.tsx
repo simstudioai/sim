@@ -469,7 +469,13 @@ export function UsageMonitoring({
             about how wide this actually is. Same rule as `RESOURCE_LIST_GRID`.
           */}
             <UsageSection dimension='source' unit='credits'>
-              <div className='grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-6 gap-y-7'>
+              {/*
+                `min(320px, 100%)` rather than a bare `320px`: a track minimum is a
+                hard floor, so on a column narrower than the minimum the grid would
+                be wider than its container and overflow. Capping the floor at the
+                available width collapses it to one column instead.
+              */}
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-x-6 gap-y-7'>
                 <UsageConsumers
                   dimension='source'
                   breakdown={breakdown.data}

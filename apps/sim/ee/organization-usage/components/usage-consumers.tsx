@@ -278,12 +278,19 @@ export function UsageConsumers({
                   ? formatChartCompactNumber(breakdown.other.tokens)
                   : breakdown.other.credits.toLocaleString()}
               </span>
-              {onExpandOther ? (
-                <ChevronDown className={disclosureChevronClass} />
-              ) : (
-                trailingSlot && (
-                  <span className={cn(trailingSlot, 'flex-shrink-0')} aria-hidden='true' />
-                )
+              {/*
+                Centred in the slot the rows above reserve rather than sized to the
+                glyph: with a navigable or action-bearing list the reserved slot is
+                wider than the chevron, and drawing it bare pulled this row's figure
+                out of the column.
+              */}
+              {trailingSlot && (
+                <span
+                  className={cn(trailingSlot, 'flex flex-shrink-0 items-center justify-center')}
+                  aria-hidden='true'
+                >
+                  {onExpandOther && <ChevronDown className={disclosureChevronClass} />}
+                </span>
               )}
             </OtherRow>
           )
