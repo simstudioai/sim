@@ -1,8 +1,7 @@
 'use client'
 
-import { memo, useMemo, useRef, useState } from 'react'
+import { memo, useId, useMemo, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
-import { generateShortId } from '@sim/utils/id'
 import {
   formatChartCompactNumber,
   formatChartLatency,
@@ -62,7 +61,12 @@ function LineChartComponent({
   series,
   height = CHART_DEFAULT_HEIGHT,
 }: LineChartProps) {
-  const uniqueId = useRef(`chart-${generateShortId(7)}`).current
+  /*
+    `useId`, not `useRef(generateShortId())`: a ref initializer is evaluated on
+    every render and all but the first result thrown away, and React already has
+    a hook whose whole job is a stable unique id.
+  */
+  const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
   const padding = CHART_PADDING

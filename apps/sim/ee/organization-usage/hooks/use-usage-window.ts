@@ -20,7 +20,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** A `YYYY-MM-DD` that survives a calendar round-trip, matching the contract's rule. */
 function isCalendarDate(value: string | null): value is string {
   if (!value) return false
-  const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
+  const datePart = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value)?.[1]
   if (!datePart) return false
   return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
 }
@@ -53,16 +53,15 @@ export function useUsageWindow() {
   const timezone = getBrowserTimezone()
 
   /**
-   * Both bounds present *and* real calendar dates.
+   * Both bounds present, and a range the API will actually accept.
    *
-   * The contract rejects a date that does not exist (`2026-02-30` parses and rolls
-   * forward, so it has to be refused rather than silently shifted). Without the same
-   * check here, a deep link carrying one satisfied this guard and every query on the
-   * page answered 400 — the partial-link fallback exists precisely so a bad link
-   * degrades to the default window instead.
+   * Every condition the window resolver refuses with a 400 — an unreal date, an
+   * inverted pair, a span past the cap — has to be checked here too, or a bookmarked
+   * link carrying one is marked resolved and fails all four queries on the page. The
+   * fallback exists precisely so a bad link degrades to the default window instead.
    */
   const isResolvedCustom =
-    state.preset === 'custom' && isCalendarDate(state.startDate) && isCalendarDate(state.endDate)
+    state.preset === 'custom' && isUsableCustomRange(state.startDate, state.endDate)
   const preset: UsageWindowPreset =
     state.preset === 'custom' && !isResolvedCustom ? DEFAULT_USAGE_PRESET : state.preset
 

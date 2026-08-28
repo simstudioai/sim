@@ -54,11 +54,14 @@ const isoDateSchema = z
   .refine(
     (value) => {
       if (!value) return true
-      if (Number.isNaN(Date.parse(value))) return false
-      // The leading `YYYY-MM-DD` of either form, so `2026-02-30T00:00:00` is rejected
-      // rather than only the bare `2026-02-30`.
-      const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1]
-      if (!datePart) return true
+      // The `YYYY-MM-DD` prefix is required, not merely checked when present. Letting
+      // anything else through on the grounds that `Date.parse` accepted it meant
+      // `2026-08` was read as August 1 — a window the caller never asked for, returned
+      // as though it had.
+      const datePart = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value)?.[1]
+      if (!datePart) return false
+      // Rolls a nonexistent day forward (`2026-02-30` becomes March 2), so the only
+      // way to reject one is to check that it survives the round trip.
       return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
     },
     { message: 'Expected a real calendar date such as 2026-08-01' }
