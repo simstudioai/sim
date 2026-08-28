@@ -217,4 +217,18 @@ describe('resolveAtlassianCloudId', () => {
       'Invalid Jira accessible-resources response'
     )
   })
+
+  it.each([
+    [{ url: SITE }],
+    [{ id: CLOUD_ID }],
+    [{ id: '', url: SITE }],
+    [{ id: CLOUD_ID, url: '' }],
+    [null],
+  ])('rejects malformed resource entries in an otherwise valid array', async (resources) => {
+    fetchMock.mockResolvedValue(createMockResponse({ json: resources }))
+
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
+      'Invalid Jira accessible-resources response'
+    )
+  })
 })

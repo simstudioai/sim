@@ -547,6 +547,26 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('cancels an omitted rate-limit response body before throwing', async () => {
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(body, {
+        status: 429,
+        headers: { 'retry-after': '900' },
+      })
+    )
+
+    await expect(
+      fetchWithRetry('https://api.github.com/repos', {}, { ...FAST_RETRY, maxRetries: 0 })
+    ).rejects.toThrow('HTTP 429 - upstream rate limit exceeded')
+    expect(cancelled).toBe(true)
+  })
+
   it('waits until an admitted x-rate-limit-reset instant before retrying', async () => {
     vi.useFakeTimers()
     const now = 1_700_000_000_000

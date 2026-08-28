@@ -286,6 +286,16 @@ interface RetryableHttpResponse {
   text?: () => Promise<string>
 }
 
+/** Releases a response stream when its provider-controlled body is intentionally omitted. */
+async function cancelHttpResponseBody(response: RetryableHttpResponse): Promise<void> {
+  if (!response.body) return
+  try {
+    await response.body.cancel()
+  } catch {
+    return
+  }
+}
+
 /**
  * Builds the bounded error shared by direct and SSRF-safe connector fetches.
  * Rate-limit responses are named from trusted status/header evidence while all
@@ -296,6 +306,9 @@ export async function createRetryableHttpError(
 ): Promise<HTTPError> {
   const rateLimited =
     response.status === 429 || (response.status === 403 && hasRateLimitEvidence(response.headers))
+  if (rateLimited) {
+    await cancelHttpResponseBody(response)
+  }
   const diagnostic = rateLimited
     ? 'upstream rate limit exceeded'
     : await readBoundedHttpErrorBody(response)

@@ -102,6 +102,17 @@ interface AccessibleResource {
   url: string
 }
 
+function isAccessibleResource(value: unknown): value is AccessibleResource {
+  if (typeof value !== 'object' || value === null) return false
+  const resource = value as Record<string, unknown>
+  return (
+    typeof resource.id === 'string' &&
+    resource.id.trim().length > 0 &&
+    typeof resource.url === 'string' &&
+    resource.url.trim().length > 0
+  )
+}
+
 interface ResolveAtlassianCloudIdOptions {
   domain: string
   accessToken: string
@@ -203,7 +214,7 @@ export function selectAtlassianCloudId(
   domain: string,
   product: string
 ): string {
-  if (!Array.isArray(resources)) {
+  if (!Array.isArray(resources) || !resources.every(isAccessibleResource)) {
     throw new Error(`Invalid ${product} accessible-resources response`)
   }
 
@@ -215,16 +226,14 @@ export function selectAtlassianCloudId(
   }
 
   const siteUrl = normalizeAtlassianSiteUrl(domain)
-  const match = (resources as AccessibleResource[]).find(
-    (r) => normalizeAtlassianSiteUrl(r.url) === siteUrl
-  )
+  const match = resources.find((r) => normalizeAtlassianSiteUrl(r.url) === siteUrl)
   if (match) return match.id
 
-  if (resources.length === 1) return (resources as AccessibleResource[])[0].id
+  if (resources.length === 1) return resources[0].id
 
   throw new Error(
     `Could not match ${product} domain "${domain}" to any accessible resource. ` +
-      `Available sites: ${(resources as AccessibleResource[]).map((r) => r.url).join(', ')}`
+      `Available sites: ${resources.map((r) => r.url).join(', ')}`
   )
 }
 
