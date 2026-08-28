@@ -3,10 +3,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadServableFileFromStorage, mockResolveWorkspaceFile, mockVerifyFileAccess } =
+const { mockDownloadServableFileFromStorage, mockReadWorkspaceFileByKey, mockVerifyFileAccess } =
   vi.hoisted(() => ({
     mockDownloadServableFileFromStorage: vi.fn(),
-    mockResolveWorkspaceFile: vi.fn(),
+    mockReadWorkspaceFileByKey: vi.fn(),
     mockVerifyFileAccess: vi.fn(),
   }))
 
@@ -18,8 +18,8 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFile,
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
+  readWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
 }))
 
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
@@ -42,7 +42,7 @@ describe('readUserFileContent', () => {
     vi.clearAllMocks()
     generatedPdf.size = PDF_SOURCE.length
     mockVerifyFileAccess.mockResolvedValue(true)
-    mockResolveWorkspaceFile.mockResolvedValue({ id: 'file-1' })
+    mockReadWorkspaceFileByKey.mockResolvedValue({ file: { id: 'file-1' } })
     mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: PDF_BYTES,
       contentType: 'application/pdf',
@@ -102,7 +102,7 @@ describe('readUserFileContent', () => {
       await expect(readUserFileContent(publicFile, { encoding: 'text' })).resolves.toBe('public')
 
       expect(mockVerifyFileAccess).not.toHaveBeenCalled()
-      expect(mockResolveWorkspaceFile).not.toHaveBeenCalled()
+      expect(mockReadWorkspaceFileByKey).not.toHaveBeenCalled()
     }
   )
 
@@ -162,15 +162,42 @@ describe('readUserFileContent', () => {
     })
 
     expect(mockVerifyFileAccess).not.toHaveBeenCalled()
-    expect(mockResolveWorkspaceFile).toHaveBeenCalledWith(
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
       expect.objectContaining({
-        workspaceId: 'workspace-1',
-        reference: generatedPdf.key,
+        input: {
+          key: generatedPdf.key,
+          assertedWorkspaceId: 'workspace-1',
+        },
         principal: expect.objectContaining({
           audience: 'sim:workspace-files',
           delegationContext: principal.delegationContext,
         }),
       })
     )
+  })
+
+  it('authorizes an exact workspace storage key with the workspace-key principal', async () => {
+    const principal = {
+      kind: 'workspace_api_key' as const,
+      workspaceId: 'workspace-1',
+      keyId: 'key-1',
+    }
+
+    await readUserFileContent(generatedPdf, {
+      principal,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      encoding: 'base64',
+    })
+
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith({
+      principal,
+      input: {
+        key: generatedPdf.key,
+        assertedWorkspaceId: 'workspace-1',
+      },
+    })
   })
 })

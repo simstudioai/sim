@@ -5,7 +5,7 @@
  * Tool definitions may not point back to Sim API routes or revive the retired request.internal
  * escape hatch.
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
@@ -21,6 +21,12 @@ const SIM_URL_BUILDER_EXPORTS = new Set(['ensureAbsoluteUrl'])
 const EXECUTOR_HTTP_MODULE = '@/executor/utils/http'
 const EXECUTOR_URL_BUILDER_EXPORTS = new Set(['buildAPIUrl'])
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'])
+const FUNCTION_NODE_TYPES = new Set([
+  'ArrowFunctionExpression',
+  'FunctionExpression',
+  'FunctionDeclaration',
+  'ObjectMethod',
+])
 
 interface Violation {
   file: string
@@ -32,7 +38,7 @@ export interface ToolSelfHopViolation {
   file: string
   line: number
   toolId?: string
-  reason: 'same-origin-tool-request' | 'legacy-internal-policy'
+  reason: 'same-origin-tool-request' | 'legacy-internal-policy' | 'unresolved-request-policy'
 }
 
 export interface ToolSelfHopAudit {
@@ -146,15 +152,82 @@ function getStringPrefix(expression: SyntaxNode): string | undefined {
   return undefined
 }
 
+function getStaticString(expression: SyntaxNode): string | undefined {
+  const current = unwrapExpression(expression)
+  if (current.type === 'StringLiteral' && typeof current.value === 'string') return current.value
+  if (
+    current.type === 'TemplateLiteral' &&
+    Array.isArray(current.expressions) &&
+    current.expressions.length === 0 &&
+    Array.isArray(current.quasis)
+  ) {
+    return current.quasis
+      .filter(isSyntaxNode)
+      .map((quasi) => {
+        const value = quasi.value
+        if (typeof value !== 'object' || value === null) return ''
+        return 'cooked' in value && typeof value.cooked === 'string'
+          ? value.cooked
+          : 'raw' in value && typeof value.raw === 'string'
+            ? value.raw
+            : ''
+      })
+      .join('')
+  }
+  if (
+    current.type === 'BinaryExpression' &&
+    current.operator === '+' &&
+    isSyntaxNode(current.left) &&
+    isSyntaxNode(current.right)
+  ) {
+    const left = getStaticString(current.left)
+    const right = getStaticString(current.right)
+    return left !== undefined && right !== undefined ? left + right : undefined
+  }
+  return undefined
+}
+
 interface SelfHopResolver {
   bindings: ReadonlyMap<string, SyntaxNode>
+  importedBindings: ReadonlyMap<string, ImportedBinding>
   simOriginBindings: ReadonlySet<string>
   simUrlBuilderBindings: ReadonlySet<string>
+  file: string
   locals?: ReadonlyMap<string, SyntaxNode>
+  scopedLocals?: ReadonlyMap<string, ScopedExpression>
+}
+
+interface ImportedBinding {
+  importedName: string
+  source: string
 }
 
 function resolveIdentifier(name: string, resolver: SelfHopResolver): SyntaxNode | undefined {
   return resolver.locals?.get(name) ?? resolver.bindings.get(name)
+}
+
+function resolveScopedIdentifier(
+  name: string,
+  resolver: SelfHopResolver
+): ScopedExpression | undefined {
+  const scopedLocal = resolver.scopedLocals?.get(name)
+  if (scopedLocal) return scopedLocal
+  const local = resolver.locals?.get(name)
+  if (local) return { expression: local, resolver }
+  const binding = resolver.bindings.get(name)
+  if (binding) return { expression: binding, resolver }
+  return loadImportedBinding(name, resolver)
+}
+
+function resolveScopedArgument(
+  expression: SyntaxNode,
+  resolver: SelfHopResolver
+): ScopedExpression {
+  const current = unwrapExpression(expression)
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    return resolveScopedIdentifier(current.name, resolver) ?? { expression: current, resolver }
+  }
+  return { expression: current, resolver }
 }
 
 function isInternalPathExpression(
@@ -163,16 +236,19 @@ function isInternalPathExpression(
   seen = new Set<string>()
 ): boolean {
   const current = unwrapExpression(expression)
+  const staticValue = getStaticString(current)
+  if (staticValue?.startsWith('/api/')) return true
   const prefix = getStringPrefix(current)
   if (prefix?.startsWith('/api/')) return true
 
   if (current.type === 'Identifier' && typeof current.name === 'string') {
-    if (seen.has(current.name)) return false
-    const binding = resolveIdentifier(current.name, resolver)
+    const key = `${resolver.file}:path:${current.name}`
+    if (seen.has(key)) return false
+    const binding = resolveScopedIdentifier(current.name, resolver)
     if (!binding) return false
     const nextSeen = new Set(seen)
-    nextSeen.add(current.name)
-    return isInternalPathExpression(binding, resolver, nextSeen)
+    nextSeen.add(key)
+    return isInternalPathExpression(binding.expression, binding.resolver, nextSeen)
   }
 
   if (current.type === 'ConditionalExpression') {
@@ -206,12 +282,13 @@ function isSimOriginExpression(
 ): boolean {
   const current = unwrapExpression(expression)
   if (current.type === 'Identifier' && typeof current.name === 'string') {
-    if (seen.has(current.name)) return false
-    const binding = resolveIdentifier(current.name, resolver)
+    const key = `${resolver.file}:origin:${current.name}`
+    if (seen.has(key)) return false
+    const binding = resolveScopedIdentifier(current.name, resolver)
     if (!binding) return false
     const nextSeen = new Set(seen)
-    nextSeen.add(current.name)
-    return isSimOriginExpression(binding, resolver, nextSeen)
+    nextSeen.add(key)
+    return isSimOriginExpression(binding.expression, binding.resolver, nextSeen)
   }
   if (current.type === 'CallExpression' || current.type === 'OptionalCallExpression') {
     if (!isSyntaxNode(current.callee)) return false
@@ -222,6 +299,26 @@ function isSimOriginExpression(
       resolver.simOriginBindings.has(callee.name)
     ) {
       return true
+    }
+    if (callee.type === 'Identifier' && typeof callee.name === 'string') {
+      const key = `${resolver.file}:origin-call:${callee.name}`
+      if (seen.has(key)) return false
+      const binding = resolveScopedIdentifier(callee.name, resolver)
+      if (binding && FUNCTION_NODE_TYPES.has(unwrapExpression(binding.expression).type)) {
+        const nextSeen = new Set(seen)
+        nextSeen.add(key)
+        const argumentsList = Array.isArray(current.arguments)
+          ? current.arguments
+              .filter(isSyntaxNode)
+              .map((argument) => resolveScopedArgument(argument, resolver))
+          : []
+        return functionReturnsSimOrigin(
+          binding.expression,
+          binding.resolver,
+          argumentsList,
+          nextSeen
+        )
+      }
     }
   }
   if (current.type === 'ConditionalExpression') {
@@ -242,32 +339,158 @@ function isSimOriginExpression(
   return false
 }
 
+function functionReturnsSimOrigin(
+  fn: SyntaxNode,
+  resolver: SelfHopResolver,
+  argumentsList: readonly ScopedExpression[],
+  seen: ReadonlySet<string>
+): boolean {
+  const current = unwrapExpression(fn)
+  if (!FUNCTION_NODE_TYPES.has(current.type)) return false
+  const locals = new Map(resolver.locals)
+  const scopedLocals = new Map(resolver.scopedLocals)
+  const parameters = Array.isArray(current.params) ? current.params : []
+  for (const [index, parameter] of parameters.entries()) {
+    if (
+      isSyntaxNode(parameter) &&
+      parameter.type === 'Identifier' &&
+      typeof parameter.name === 'string' &&
+      argumentsList[index]
+    ) {
+      const argument = argumentsList[index]
+      scopedLocals.set(parameter.name, argument)
+      if (argument.resolver === resolver) locals.set(parameter.name, argument.expression)
+    }
+  }
+  const localResolver = { ...resolver, locals, scopedLocals }
+  if (current.type === 'ArrowFunctionExpression' && isSyntaxNode(current.body)) {
+    const body = unwrapExpression(current.body)
+    if (body.type !== 'BlockStatement') {
+      return isSimOriginExpression(body, localResolver, new Set(seen))
+    }
+  }
+  let found = false
+  const visit = (node: SyntaxNode) => {
+    if (found || (node !== current && FUNCTION_NODE_TYPES.has(node.type))) return
+    if (
+      node.type === 'ReturnStatement' &&
+      isSyntaxNode(node.argument) &&
+      isSimOriginExpression(node.argument, localResolver, new Set(seen))
+    ) {
+      found = true
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(current)
+  return found
+}
+
 function isSameOriginConcatenation(expression: SyntaxNode, resolver: SelfHopResolver): boolean {
   const current = unwrapExpression(expression)
+  const parts: SyntaxNode[] = []
+  const collect = (node: SyntaxNode) => {
+    const value = unwrapExpression(node)
+    if (
+      value.type === 'BinaryExpression' &&
+      value.operator === '+' &&
+      isSyntaxNode(value.left) &&
+      isSyntaxNode(value.right)
+    ) {
+      collect(value.left)
+      collect(value.right)
+      return
+    }
+    parts.push(value)
+  }
+  collect(current)
+  if (parts.length < 2 || !isSimOriginExpression(parts[0], resolver)) return false
+  let staticSuffix = ''
+  for (const part of parts.slice(1)) {
+    const value = getStaticString(part)
+    if (value !== undefined) {
+      staticSuffix += value
+      if (staticSuffix.startsWith('/api/')) return true
+      continue
+    }
+    if (isInternalPathExpression(part, resolver)) return true
+    break
+  }
+  return false
+}
+
+function isKnownSimUrlBuilderCall(expression: SyntaxNode, resolver: SelfHopResolver): boolean {
+  const current = unwrapExpression(expression)
   if (
-    current.type !== 'BinaryExpression' ||
-    current.operator !== '+' ||
-    !isSyntaxNode(current.left) ||
-    !isSyntaxNode(current.right)
+    (current.type !== 'CallExpression' && current.type !== 'OptionalCallExpression') ||
+    !isSyntaxNode(current.callee) ||
+    !Array.isArray(current.arguments) ||
+    !isSyntaxNode(current.arguments[0])
   ) {
     return false
   }
+  const callee = unwrapExpression(current.callee)
   return (
-    isSimOriginExpression(current.left, resolver) &&
-    isInternalPathExpression(current.right, resolver)
+    callee.type === 'Identifier' &&
+    typeof callee.name === 'string' &&
+    resolver.simUrlBuilderBindings.has(callee.name) &&
+    isInternalPathExpression(current.arguments[0], resolver)
+  )
+}
+
+function getTemplateQuasiValue(quasi: SyntaxNode): string | undefined {
+  const value = quasi.value
+  if (typeof value !== 'object' || value === null) return undefined
+  if ('cooked' in value && typeof value.cooked === 'string') return value.cooked
+  return 'raw' in value && typeof value.raw === 'string' ? value.raw : undefined
+}
+
+function isSameOriginTemplate(expression: SyntaxNode, resolver: SelfHopResolver): boolean {
+  const current = unwrapExpression(expression)
+  if (
+    current.type !== 'TemplateLiteral' ||
+    !Array.isArray(current.expressions) ||
+    !Array.isArray(current.quasis) ||
+    current.expressions.length === 0 ||
+    current.quasis.length !== current.expressions.length + 1 ||
+    !current.expressions.every(isSyntaxNode) ||
+    !current.quasis.every(isSyntaxNode)
+  ) {
+    return false
+  }
+  const leadingQuasi = getTemplateQuasiValue(current.quasis[0])
+  if (leadingQuasi !== '') return false
+  const origin = current.expressions[0]
+  if (!isSimOriginExpression(origin, resolver)) return false
+  const pathQuasi = getTemplateQuasiValue(current.quasis[1])
+  if (pathQuasi?.startsWith('/api/')) return true
+  return (
+    pathQuasi === '' &&
+    current.expressions.length > 1 &&
+    isInternalPathExpression(current.expressions[1], resolver)
   )
 }
 
 function isInternalUrlConstruction(node: SyntaxNode, resolver: SelfHopResolver): boolean {
   const current = unwrapExpression(node)
+  if (
+    current.type !== 'NewExpression' ||
+    !isSyntaxNode(current.callee) ||
+    current.callee.type !== 'Identifier' ||
+    current.callee.name !== 'URL' ||
+    !Array.isArray(current.arguments) ||
+    !isSyntaxNode(current.arguments[0])
+  ) {
+    return false
+  }
+  if (current.arguments.length === 1) {
+    return (
+      isSameOriginConcatenation(current.arguments[0], resolver) ||
+      isSameOriginTemplate(current.arguments[0], resolver) ||
+      isKnownSimUrlBuilderCall(current.arguments[0], resolver)
+    )
+  }
   return (
-    current.type === 'NewExpression' &&
-    isSyntaxNode(current.callee) &&
-    current.callee.type === 'Identifier' &&
-    current.callee.name === 'URL' &&
-    Array.isArray(current.arguments) &&
-    current.arguments.length > 1 &&
-    isSyntaxNode(current.arguments[0]) &&
     isSyntaxNode(current.arguments[1]) &&
     isInternalPathExpression(current.arguments[0], resolver) &&
     isSimOriginExpression(current.arguments[1], resolver)
@@ -275,9 +498,11 @@ function isInternalUrlConstruction(node: SyntaxNode, resolver: SelfHopResolver):
 }
 
 function collectImportedBindings(program: SyntaxNode): {
+  importedBindings: Map<string, ImportedBinding>
   simOriginBindings: Set<string>
   simUrlBuilderBindings: Set<string>
 } {
+  const importedBindings = new Map<string, ImportedBinding>()
   const simOriginBindings = new Set<string>()
   const simUrlBuilderBindings = new Set<string>()
   const statements = Array.isArray(program.body) ? program.body : []
@@ -312,6 +537,7 @@ function collectImportedBindings(program: SyntaxNode): {
             ? imported.value
             : undefined
       if (!importedName) continue
+      importedBindings.set(specifier.local.name, { importedName, source })
       if (source === SIM_URLS_MODULE && SIM_ORIGIN_EXPORTS.has(importedName)) {
         simOriginBindings.add(specifier.local.name)
       }
@@ -323,7 +549,7 @@ function collectImportedBindings(program: SyntaxNode): {
       }
     }
   }
-  return { simOriginBindings, simUrlBuilderBindings }
+  return { importedBindings, simOriginBindings, simUrlBuilderBindings }
 }
 
 function collectTopLevelBindings(program: SyntaxNode): Map<string, SyntaxNode> {
@@ -331,32 +557,94 @@ function collectTopLevelBindings(program: SyntaxNode): Map<string, SyntaxNode> {
   const statements = Array.isArray(program.body) ? program.body : []
   for (const statement of statements) {
     if (!isSyntaxNode(statement)) continue
+    const declaration =
+      statement.type === 'ExportNamedDeclaration' && isSyntaxNode(statement.declaration)
+        ? statement.declaration
+        : statement
     if (
-      statement.type === 'FunctionDeclaration' &&
-      isSyntaxNode(statement.id) &&
-      statement.id.type === 'Identifier' &&
-      typeof statement.id.name === 'string'
+      declaration.type === 'FunctionDeclaration' &&
+      isSyntaxNode(declaration.id) &&
+      declaration.id.type === 'Identifier' &&
+      typeof declaration.id.name === 'string'
     ) {
-      bindings.set(statement.id.name, statement)
+      bindings.set(declaration.id.name, declaration)
       continue
     }
-    if (statement.type !== 'VariableDeclaration' || !Array.isArray(statement.declarations)) {
+    if (declaration.type !== 'VariableDeclaration' || !Array.isArray(declaration.declarations)) {
       continue
     }
-    for (const declaration of statement.declarations) {
+    for (const variable of declaration.declarations) {
       if (
-        isSyntaxNode(declaration) &&
-        declaration.type === 'VariableDeclarator' &&
-        isSyntaxNode(declaration.id) &&
-        declaration.id.type === 'Identifier' &&
-        typeof declaration.id.name === 'string' &&
-        isSyntaxNode(declaration.init)
+        isSyntaxNode(variable) &&
+        variable.type === 'VariableDeclarator' &&
+        isSyntaxNode(variable.id) &&
+        variable.id.type === 'Identifier' &&
+        typeof variable.id.name === 'string' &&
+        isSyntaxNode(variable.init)
       ) {
-        bindings.set(declaration.id.name, declaration.init)
+        bindings.set(variable.id.name, variable.init)
       }
     }
   }
   return bindings
+}
+
+const MODULE_RESOLVER_CACHE = new Map<string, SelfHopResolver>()
+
+function parseProgram(source: string, file: string): SyntaxNode {
+  const extension = extname(file)
+  return parse(source, {
+    sourceFilename: file,
+    sourceType: 'unambiguous',
+    errorRecovery: true,
+    plugins: [
+      ...(extension === '.jsx' || extension === '.tsx' ? (['jsx'] as const) : []),
+      ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
+    ],
+  }).program
+}
+
+function createSelfHopResolver(program: SyntaxNode, file: string): SelfHopResolver {
+  return {
+    bindings: collectTopLevelBindings(program),
+    ...collectImportedBindings(program),
+    file,
+  }
+}
+
+function resolveImportFile(importerFile: string, source: string): string | undefined {
+  if (!source.startsWith('@/') && !source.startsWith('./') && !source.startsWith('../')) {
+    return undefined
+  }
+  const base = source.startsWith('@/')
+    ? join(APP, source.slice(2))
+    : resolve(dirname(importerFile), source)
+  const candidates = [
+    base,
+    ...[...SOURCE_EXTENSIONS].map((extension) => `${base}${extension}`),
+    ...[...SOURCE_EXTENSIONS].map((extension) => join(base, `index${extension}`)),
+  ]
+  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile())
+}
+
+function loadImportedBinding(
+  name: string,
+  resolver: SelfHopResolver
+): { expression: SyntaxNode; resolver: SelfHopResolver } | undefined {
+  const imported = resolver.importedBindings.get(name)
+  if (!imported) return undefined
+  const importedFile = resolveImportFile(resolver.file, imported.source)
+  if (!importedFile) return undefined
+  let importedResolver = MODULE_RESOLVER_CACHE.get(importedFile)
+  if (!importedResolver) {
+    importedResolver = createSelfHopResolver(
+      parseProgram(readFileSync(importedFile, 'utf8'), importedFile),
+      importedFile
+    )
+    MODULE_RESOLVER_CACHE.set(importedFile, importedResolver)
+  }
+  const expression = importedResolver.bindings.get(imported.importedName)
+  return expression ? { expression, resolver: importedResolver } : undefined
 }
 
 function expressionContainsInternalRoute(
@@ -368,18 +656,20 @@ function expressionContainsInternalRoute(
   if (
     isInternalPathExpression(current, resolver) ||
     isInternalUrlConstruction(current, resolver) ||
-    isSameOriginConcatenation(current, resolver)
+    isSameOriginConcatenation(current, resolver) ||
+    isSameOriginTemplate(current, resolver)
   ) {
     return true
   }
 
   if (current.type === 'Identifier' && typeof current.name === 'string') {
-    if (seen.has(current.name)) return false
-    const binding = resolveIdentifier(current.name, resolver)
+    const key = `${resolver.file}:route:${current.name}`
+    if (seen.has(key)) return false
+    const binding = resolveScopedIdentifier(current.name, resolver)
     if (!binding) return false
     const nextSeen = new Set(seen)
-    nextSeen.add(current.name)
-    return expressionContainsInternalRoute(binding, resolver, nextSeen)
+    nextSeen.add(key)
+    return expressionContainsInternalRoute(binding.expression, binding.resolver, nextSeen)
   }
 
   if (
@@ -390,30 +680,24 @@ function expressionContainsInternalRoute(
     if (!isSyntaxNode(current.callee)) return false
     const callee = unwrapExpression(current.callee)
     if (callee.type === 'Identifier') {
-      if (
-        typeof callee.name === 'string' &&
-        resolver.simUrlBuilderBindings.has(callee.name) &&
-        Array.isArray(current.arguments) &&
-        isSyntaxNode(current.arguments[0])
-      ) {
-        return isInternalPathExpression(current.arguments[0], resolver)
-      }
+      if (isKnownSimUrlBuilderCall(current, resolver)) return true
       const binding =
-        typeof callee.name === 'string' ? resolveIdentifier(callee.name, resolver) : undefined
-      if (
-        binding &&
-        ['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(
-          unwrapExpression(binding).type
-        )
-      ) {
-        if (typeof callee.name === 'string' && seen.has(callee.name)) return false
+        typeof callee.name === 'string' ? resolveScopedIdentifier(callee.name, resolver) : undefined
+      if (binding && FUNCTION_NODE_TYPES.has(unwrapExpression(binding.expression).type)) {
+        const key = `${resolver.file}:route-call:${callee.name}`
+        if (seen.has(key)) return false
         const nextSeen = new Set(seen)
-        if (typeof callee.name === 'string') nextSeen.add(callee.name)
+        nextSeen.add(key)
+        const argumentsList = Array.isArray(current.arguments)
+          ? current.arguments
+              .filter(isSyntaxNode)
+              .map((argument) => resolveScopedArgument(argument, resolver))
+          : []
         return functionContainsInternalRoute(
-          binding,
-          resolver,
+          binding.expression,
+          binding.resolver,
           nextSeen,
-          Array.isArray(current.arguments) ? current.arguments.filter(isSyntaxNode) : []
+          argumentsList
         )
       }
       return expressionContainsInternalRoute(callee, resolver, seen)
@@ -427,9 +711,7 @@ function expressionContainsInternalRoute(
     return access ? expressionContainsInternalRoute(access.target, resolver, seen) : false
   }
 
-  if (
-    ['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
-  ) {
+  if (FUNCTION_NODE_TYPES.has(current.type)) {
     return functionContainsInternalRoute(current, resolver, seen)
   }
   return false
@@ -439,15 +721,14 @@ function functionContainsInternalRoute(
   fn: SyntaxNode,
   resolver: SelfHopResolver,
   seen: ReadonlySet<string>,
-  argumentsList: readonly SyntaxNode[] = []
+  argumentsList: readonly ScopedExpression[] = []
 ): boolean {
   const current = unwrapExpression(fn)
-  if (
-    !['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(current.type)
-  ) {
+  if (!FUNCTION_NODE_TYPES.has(current.type)) {
     return false
   }
   const locals = new Map(resolver.locals)
+  const scopedLocals = new Map(resolver.scopedLocals)
   const parameters = Array.isArray(current.params) ? current.params : []
   for (const [index, parameter] of parameters.entries()) {
     if (
@@ -456,21 +737,15 @@ function functionContainsInternalRoute(
       typeof parameter.name === 'string' &&
       argumentsList[index]
     ) {
-      const argument = unwrapExpression(argumentsList[index])
-      const resolvedArgument =
-        argument.type === 'Identifier' && typeof argument.name === 'string'
-          ? (resolveIdentifier(argument.name, resolver) ?? argument)
-          : argument
-      locals.set(parameter.name, resolvedArgument)
+      const argument = argumentsList[index]
+      scopedLocals.set(parameter.name, argument)
+      if (argument.resolver === resolver) locals.set(parameter.name, argument.expression)
     }
   }
-  const localResolver: SelfHopResolver = { ...resolver, locals }
+  const localResolver: SelfHopResolver = { ...resolver, locals, scopedLocals }
 
   const collectLocals = (node: SyntaxNode) => {
-    if (
-      node !== current &&
-      ['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'].includes(node.type)
-    ) {
+    if (node !== current && FUNCTION_NODE_TYPES.has(node.type)) {
       return
     }
     if (
@@ -498,7 +773,7 @@ function functionContainsInternalRoute(
 
   let found = false
   const visit = (node: SyntaxNode) => {
-    if (found) return
+    if (found || (node !== current && FUNCTION_NODE_TYPES.has(node.type))) return
     if (
       node.type === 'ReturnStatement' &&
       isSyntaxNode(node.argument) &&
@@ -524,64 +799,392 @@ function getToolId(object: SyntaxNode): string | undefined {
   return value.type === 'StringLiteral' && typeof value.value === 'string' ? value.value : undefined
 }
 
+interface ScopedExpression {
+  expression: SyntaxNode
+  resolver: SelfHopResolver
+}
+
+interface ResolvedRequestObject extends ScopedExpression {
+  locals: ReadonlyMap<string, ScopedExpression>
+}
+
+interface ResolvedObjectProperty {
+  property: SyntaxNode
+  request: ResolvedRequestObject
+}
+
+interface RequestObjectResolution {
+  requests: ResolvedRequestObject[]
+  complete: boolean
+}
+
+interface ObjectPropertyResolution {
+  properties: Array<ResolvedObjectProperty | undefined>
+  complete: boolean
+}
+
+function combineRequestResolutions(
+  resolutions: readonly RequestObjectResolution[]
+): RequestObjectResolution {
+  return {
+    requests: resolutions.flatMap((resolution) => resolution.requests),
+    complete: resolutions.every((resolution) => resolution.complete),
+  }
+}
+
+function resolveScopedBinding(
+  name: string,
+  resolver: SelfHopResolver,
+  locals: ReadonlyMap<string, ScopedExpression>
+): ScopedExpression | undefined {
+  const local = locals.get(name)
+  if (local) return local
+  const binding = resolver.bindings.get(name)
+  if (binding) return { expression: binding, resolver }
+  return loadImportedBinding(name, resolver)
+}
+
+function collectFunctionLocals(
+  fn: SyntaxNode,
+  resolver: SelfHopResolver,
+  argumentsList: readonly ScopedExpression[]
+): Map<string, ScopedExpression> {
+  const locals = new Map<string, ScopedExpression>()
+  const parameters = Array.isArray(fn.params) ? fn.params : []
+  for (const [index, parameter] of parameters.entries()) {
+    if (
+      isSyntaxNode(parameter) &&
+      parameter.type === 'Identifier' &&
+      typeof parameter.name === 'string' &&
+      argumentsList[index]
+    ) {
+      locals.set(parameter.name, argumentsList[index])
+    }
+  }
+  const collect = (node: SyntaxNode) => {
+    if (node !== fn && FUNCTION_NODE_TYPES.has(node.type)) {
+      return
+    }
+    if (
+      node.type === 'VariableDeclarator' &&
+      isSyntaxNode(node.id) &&
+      node.id.type === 'Identifier' &&
+      typeof node.id.name === 'string' &&
+      isSyntaxNode(node.init)
+    ) {
+      locals.set(node.id.name, { expression: node.init, resolver })
+    }
+    for (const child of getChildNodes(node)) collect(child)
+  }
+  collect(fn)
+  return locals
+}
+
+function resolveRequestObjects(
+  scoped: ScopedExpression,
+  locals: ReadonlyMap<string, ScopedExpression> = new Map(),
+  seen = new Set<string>()
+): RequestObjectResolution {
+  const current = unwrapExpression(scoped.expression)
+  if (current.type === 'ObjectExpression') {
+    return {
+      requests: [{ expression: current, resolver: scoped.resolver, locals }],
+      complete: true,
+    }
+  }
+
+  if (current.type === 'Identifier' && typeof current.name === 'string') {
+    const key = `${scoped.resolver.file}:binding:${current.name}`
+    if (seen.has(key)) return { requests: [], complete: false }
+    const binding = resolveScopedBinding(current.name, scoped.resolver, locals)
+    if (!binding) return { requests: [], complete: false }
+    const nextSeen = new Set(seen)
+    nextSeen.add(key)
+    return resolveRequestObjects(binding, locals, nextSeen)
+  }
+
+  if (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
+    const access = getStaticMemberAccess(current)
+    if (!access) return { requests: [], complete: false }
+    const targets = resolveRequestObjects(
+      { expression: access.target, resolver: scoped.resolver },
+      locals,
+      new Set(seen)
+    )
+    const resolutions: RequestObjectResolution[] = []
+    let complete = targets.complete
+    for (const target of targets.requests) {
+      const properties = getResolvedObjectProperties(target, access.member, new Set(seen))
+      complete &&= properties.complete
+      for (const resolved of properties.properties) {
+        if (!resolved || !isSyntaxNode(resolved.property.value)) {
+          complete = false
+          continue
+        }
+        resolutions.push(
+          resolveRequestObjects(
+            { expression: resolved.property.value, resolver: resolved.request.resolver },
+            resolved.request.locals,
+            new Set(seen)
+          )
+        )
+      }
+    }
+    const combined = combineRequestResolutions(resolutions)
+    return { requests: combined.requests, complete: complete && combined.complete }
+  }
+
+  if (current.type === 'ConditionalExpression') {
+    return combineRequestResolutions(
+      [current.consequent, current.alternate]
+        .filter(isSyntaxNode)
+        .map((branch) =>
+          resolveRequestObjects(
+            { expression: branch, resolver: scoped.resolver },
+            locals,
+            new Set(seen)
+          )
+        )
+    )
+  }
+
+  if (current.type === 'LogicalExpression') {
+    return combineRequestResolutions(
+      [current.left, current.right]
+        .filter(isSyntaxNode)
+        .map((branch) =>
+          resolveRequestObjects(
+            { expression: branch, resolver: scoped.resolver },
+            locals,
+            new Set(seen)
+          )
+        )
+    )
+  }
+
+  if (current.type !== 'CallExpression' && current.type !== 'OptionalCallExpression') {
+    return { requests: [], complete: false }
+  }
+  if (!isSyntaxNode(current.callee)) return { requests: [], complete: false }
+  const callee = unwrapExpression(current.callee)
+  if (callee.type !== 'Identifier' || typeof callee.name !== 'string') {
+    return { requests: [], complete: false }
+  }
+  const key = `${scoped.resolver.file}:call:${callee.name}`
+  if (seen.has(key)) return { requests: [], complete: false }
+  const binding = resolveScopedBinding(callee.name, scoped.resolver, locals)
+  if (!binding) return { requests: [], complete: false }
+  const fn = unwrapExpression(binding.expression)
+  if (!FUNCTION_NODE_TYPES.has(fn.type)) {
+    return { requests: [], complete: false }
+  }
+  const argumentsList = Array.isArray(current.arguments)
+    ? current.arguments
+        .filter(isSyntaxNode)
+        .map((argument) => resolveScopedArgument(argument, scoped.resolver))
+    : []
+  const functionLocals = collectFunctionLocals(fn, binding.resolver, argumentsList)
+  const nextSeen = new Set(seen)
+  nextSeen.add(key)
+  if (fn.type === 'ArrowFunctionExpression' && isSyntaxNode(fn.body)) {
+    const body = unwrapExpression(fn.body)
+    if (body.type !== 'BlockStatement') {
+      return resolveRequestObjects(
+        { expression: body, resolver: binding.resolver },
+        functionLocals,
+        nextSeen
+      )
+    }
+  }
+  const results: ResolvedRequestObject[] = []
+  let complete = true
+  let returnCount = 0
+  const visit = (node: SyntaxNode) => {
+    if (node !== fn && FUNCTION_NODE_TYPES.has(node.type)) return
+    if (node.type === 'ReturnStatement' && isSyntaxNode(node.argument)) {
+      returnCount += 1
+      const resolution = resolveRequestObjects(
+        { expression: node.argument, resolver: binding.resolver },
+        functionLocals,
+        new Set(nextSeen)
+      )
+      results.push(...resolution.requests)
+      complete &&= resolution.complete
+      return
+    }
+    for (const child of getChildNodes(node)) visit(child)
+  }
+  visit(fn)
+  return { requests: results, complete: complete && returnCount > 0 }
+}
+
+function requestObjectResolver(request: ResolvedRequestObject): SelfHopResolver {
+  const locals = new Map<string, SyntaxNode>()
+  for (const [name, value] of request.locals) {
+    const current = unwrapExpression(value.expression)
+    if (
+      value.resolver === request.resolver ||
+      (current.type === 'StringLiteral' && typeof current.value === 'string')
+    ) {
+      locals.set(name, current)
+    }
+  }
+  return { ...request.resolver, locals, scopedLocals: request.locals }
+}
+
+function getResolvedObjectProperties(
+  request: ResolvedRequestObject,
+  name: string,
+  seen = new Set<string>(),
+  endIndex?: number
+): ObjectPropertyResolution {
+  if (!Array.isArray(request.expression.properties)) {
+    return { properties: [], complete: false }
+  }
+  const properties = request.expression.properties.filter(isSyntaxNode)
+  const lastIndex = endIndex ?? properties.length - 1
+  for (let index = lastIndex; index >= 0; index -= 1) {
+    const property = properties[index]
+    if (
+      (property.type === 'ObjectProperty' || property.type === 'ObjectMethod') &&
+      getStaticPropertyName(property) === name
+    ) {
+      return { properties: [{ property, request }], complete: true }
+    }
+    if (property.type !== 'SpreadElement' || !isSyntaxNode(property.argument)) continue
+    const key = `${request.resolver.file}:spread:${property.start ?? index}:${name}`
+    if (seen.has(key)) return { properties: [], complete: false }
+    const nextSeen = new Set(seen)
+    nextSeen.add(key)
+    const spreadResolution = resolveRequestObjects(
+      { expression: property.argument, resolver: request.resolver },
+      request.locals,
+      nextSeen
+    )
+    const resolved: Array<ResolvedObjectProperty | undefined> = []
+    let complete = spreadResolution.complete
+    const fallback = () => getResolvedObjectProperties(request, name, nextSeen, index - 1)
+    if (spreadResolution.requests.length === 0) {
+      const earlier = fallback()
+      return { properties: earlier.properties, complete: false }
+    }
+    for (const spreadRequest of spreadResolution.requests) {
+      const spreadProperties = getResolvedObjectProperties(spreadRequest, name, nextSeen)
+      complete &&= spreadProperties.complete
+      for (const spreadProperty of spreadProperties.properties) {
+        if (spreadProperty) {
+          resolved.push(spreadProperty)
+          continue
+        }
+        const earlier = fallback()
+        resolved.push(...earlier.properties)
+        complete &&= earlier.complete
+      }
+    }
+    return { properties: resolved, complete }
+  }
+  return { properties: [undefined], complete: true }
+}
+
 /** Rejects tool definitions that route execution back through this Sim app. */
 export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfHopAudit {
-  const extension = extname(file)
-  const syntaxTree = parse(source, {
-    sourceFilename: file,
-    sourceType: 'unambiguous',
-    errorRecovery: true,
-    plugins: [
-      ...(extension === '.jsx' || extension === '.tsx' ? (['jsx'] as const) : []),
-      ...(!['.js', '.jsx', '.mjs', '.cjs'].includes(extension) ? (['typescript'] as const) : []),
-    ],
-  })
+  const program = parseProgram(source, file)
   const violations: ToolSelfHopViolation[] = []
   let detectedSelfHops = 0
   let legacyInternalPolicies = 0
-  const bindings = collectTopLevelBindings(syntaxTree.program)
-  const importedBindings = collectImportedBindings(syntaxTree.program)
-  const resolver: SelfHopResolver = { bindings, ...importedBindings }
+  const resolver = createSelfHopResolver(program, file)
 
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ObjectExpression') {
-      const requestProperty = getObjectProperty(node, 'request')
-      if (requestProperty && isSyntaxNode(requestProperty.value)) {
-        const request = unwrapExpression(requestProperty.value)
-        const urlProperty = getObjectProperty(request, 'url')
-        const internalProperty = getObjectProperty(request, 'internal')
-        if (internalProperty) {
-          legacyInternalPolicies += 1
+      const toolId = getToolId(node)
+      if (toolId) {
+        const toolObject: ResolvedRequestObject = {
+          expression: node,
+          resolver,
+          locals: new Map(),
+        }
+        const requestProperties = getResolvedObjectProperties(toolObject, 'request')
+        const concreteRequestProperties = requestProperties.properties.filter(
+          (property): property is ResolvedObjectProperty => property !== undefined
+        )
+        let unresolvedReported = false
+        const reportUnresolved = (line: number) => {
+          if (unresolvedReported) return
+          unresolvedReported = true
           violations.push({
             file,
-            line: internalProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-            toolId: getToolId(node),
-            reason: 'legacy-internal-policy',
+            line,
+            toolId,
+            reason: 'unresolved-request-policy',
           })
         }
-        if (!urlProperty) {
-          for (const child of getChildNodes(node)) visit(child)
-          return
+        if (!requestProperties.complete) {
+          reportUnresolved(node.loc?.start.line ?? 1)
         }
-        const url = urlProperty?.value
-        const currentUrl = isSyntaxNode(url) ? unwrapExpression(url) : undefined
-        const hasInternalRoute =
-          currentUrl !== undefined && expressionContainsInternalRoute(currentUrl, resolver)
-
-        if (hasInternalRoute) {
-          detectedSelfHops += 1
-          violations.push({
-            file,
-            line: urlProperty?.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
-            toolId: getToolId(node),
-            reason: 'same-origin-tool-request',
-          })
+        for (const {
+          property: requestProperty,
+          request: requestOwner,
+        } of concreteRequestProperties) {
+          if (!isSyntaxNode(requestProperty.value)) {
+            reportUnresolved(requestProperty.loc?.start.line ?? 1)
+            continue
+          }
+          const requests = resolveRequestObjects(
+            { expression: requestProperty.value, resolver: requestOwner.resolver },
+            requestOwner.locals
+          )
+          if (!requests.complete || requests.requests.length === 0) {
+            reportUnresolved(requestProperty.loc?.start.line ?? 1)
+          }
+          for (const request of requests.requests) {
+            const urlProperties = getResolvedObjectProperties(request, 'url')
+            const internalProperties = getResolvedObjectProperties(request, 'internal')
+            if (!urlProperties.complete || !internalProperties.complete) {
+              reportUnresolved(requestProperty.loc?.start.line ?? 1)
+            }
+            for (const resolvedInternal of internalProperties.properties) {
+              if (!resolvedInternal) continue
+              const internalProperty = resolvedInternal.property
+              legacyInternalPolicies += 1
+              violations.push({
+                file,
+                line: internalProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+                toolId,
+                reason: 'legacy-internal-policy',
+              })
+            }
+            for (const resolvedUrl of urlProperties.properties) {
+              if (!resolvedUrl) continue
+              const { property: urlProperty, request: urlRequest } = resolvedUrl
+              const urlExpression =
+                urlProperty.type === 'ObjectMethod'
+                  ? urlProperty
+                  : isSyntaxNode(urlProperty.value)
+                    ? urlProperty.value
+                    : undefined
+              if (!urlExpression) continue
+              if (
+                expressionContainsInternalRoute(
+                  unwrapExpression(urlExpression),
+                  requestObjectResolver(urlRequest)
+                )
+              ) {
+                detectedSelfHops += 1
+                violations.push({
+                  file,
+                  line: urlProperty.loc?.start.line ?? requestProperty.loc?.start.line ?? 1,
+                  toolId,
+                  reason: 'same-origin-tool-request',
+                })
+              }
+            }
+          }
         }
       }
     }
     for (const child of getChildNodes(node)) visit(child)
   }
-  visit(syntaxTree.program)
+  visit(program)
 
   return { violations, detectedSelfHops, legacyInternalPolicies }
 }
@@ -770,7 +1373,9 @@ function main(): void {
       const description =
         violation.reason === 'same-origin-tool-request'
           ? 'replace the /api self-hop with InternalToolConfig.operation and a registered server handler'
-          : 'request.internal is obsolete; use InternalToolConfig.operation for in-process work'
+          : violation.reason === 'legacy-internal-policy'
+            ? 'request.internal is obsolete; use InternalToolConfig.operation for in-process work'
+            : 'request configuration could not be audited; keep it in a statically resolvable local helper'
       console.error(
         `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
       )

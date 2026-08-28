@@ -27,8 +27,7 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -296,11 +295,12 @@ export async function assertUserFileContentAccess(
           })
         : options.principal
     try {
-      await resolveWorkspaceFileReference({
+      await readWorkspaceFileRecordByKey.execute({
         principal,
-        operation: fileOperations.readContent,
-        workspaceId: options.workspaceId,
-        reference: file.key,
+        input: {
+          key: file.key,
+          assertedWorkspaceId: options.workspaceId,
+        },
       })
       return
     } catch (error) {
