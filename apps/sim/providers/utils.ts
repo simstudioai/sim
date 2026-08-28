@@ -910,6 +910,12 @@ export async function transformBlockTool(
       userProvidedParams,
       resolvedResourceParams,
       toolParams: toolConfig.params,
+      // Matches how the block's own tool selector resolves the operation (see `tools.config.tool`
+      // above): stored params, with the agent's selected operation taking precedence.
+      conditionValues: {
+        ...userProvidedParams,
+        ...(selectedOperation ? { operation: selectedOperation } : {}),
+      },
       selfDescribedParamId,
       workflowLabel,
       formatParamLabel: formatParameterLabel,

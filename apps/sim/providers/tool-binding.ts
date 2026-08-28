@@ -1,5 +1,9 @@
 import { truncate } from '@sim/utils/string'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import {
+  evaluateSubBlockCondition,
+  isTriggerModeSubBlock,
+} from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isNonEmpty } from '@/tools/merge-params'
 
@@ -50,6 +54,12 @@ const UNSTATEABLE_SUBBLOCK_TYPES: ReadonlySet<string> = new Set([
   'schedule-config',
   'secrets-management',
 ])
+
+/**
+ * The operation selector itself. It is a real subblock with a value, but it names the tool rather
+ * than constraining it, so stating it would only repeat what the tool id already says.
+ */
+const OPERATION_PARAM_ID = 'operation'
 
 /**
  * Secret-ish names `isPasswordParameter` does not cover. It is tuned to Sim-authored param ids
@@ -154,11 +164,13 @@ interface CollectToolPinnedFieldsInput extends PinnedFieldSourceOptions {
   userProvidedParams: Record<string, unknown>
   /** Params after canonical basic/advanced pairs have collapsed onto their canonical id. */
   resolvedResourceParams: Record<string, unknown>
-  /**
-   * The selected tool's declared params. A block's subblocks span every operation it supports, so
-   * this is what keeps a field left over from another operation out of this tool's description.
-   */
+  /** The selected tool's declared params, consulted only for `hidden` visibility. */
   toolParams?: Record<string, { visibility?: string } | undefined>
+  /**
+   * Values the subblock conditions are evaluated against — the configured params plus the selected
+   * operation, matching how the block's own tool selector resolves them.
+   */
+  conditionValues: Record<string, unknown>
   /** `toolEnrichment.dependsOn`, when the tool rewrote its own description from that param. */
   selfDescribedParamId?: string
   /** Name for a `workflow` field the caller already fetched. */
@@ -182,6 +194,7 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
     selfDescribedParamId,
     workflowLabel,
     formatParamLabel,
+    conditionValues,
   } = input
   if (!subBlocks?.length) return []
 
@@ -199,6 +212,10 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
     const paramId = subBlock.canonicalParamId ?? subBlock.id
     const kind = RESOURCE_SUBBLOCK_KINDS[subBlock.type]
     if (kind) kindByParamId.set(paramId, kind)
+    // Only value-level disqualifiers block the whole group: a canonical group shares one value, so
+    // if any half calls it secret or unstateable, the value is. Trigger mode is a property of the
+    // SURFACE, not the value — several blocks put a trigger-mode credential in the same canonical
+    // group as the action one — so it is skipped per subblock below instead.
     if (subBlock.password || subBlock.hidden || UNSTATEABLE_SUBBLOCK_TYPES.has(subBlock.type)) {
       blockedParamIds.add(paramId)
     }
@@ -208,6 +225,10 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
   const seenParamIds = new Set<string>()
 
   for (const subBlock of subBlocks) {
+    // Not a candidate, and deliberately without claiming the param: an action-mode sibling in the
+    // same canonical group still has to be considered.
+    if (isTriggerModeSubBlock(subBlock)) continue
+
     const paramId = subBlock.canonicalParamId ?? subBlock.id
     if (seenParamIds.has(paramId)) continue
     if (selfDescribedParamId && paramId === selfDescribedParamId) continue
@@ -216,15 +237,19 @@ export function collectToolPinnedFields(input: CollectToolPinnedFieldsInput): To
 
     const kind = kindByParamId.get(paramId)
 
-    // Both checks apply only to a literal. A resource never reaches the model as its configured
-    // value — only as a name looked up from it — so the secret-name heuristic would misfire
+    // These apply only to a literal. A resource never reaches the model as its configured value —
+    // only as a name looked up from it — so the secret-name heuristic would misfire here
     // (`isPasswordParameter` matches `oauthCredential`), and a resource is a block-level input
-    // that is legitimately absent from the tool's own params. Anything else must belong to the
-    // selected tool, or it is left over from a different operation on the same block.
+    // legitimately absent from the tool's own params.
     if (!kind) {
+      if (paramId === OPERATION_PARAM_ID) continue
       if (isSecretParamId(paramId, input)) continue
-      const declared = toolParams?.[paramId]
-      if (!declared || declared.visibility === 'hidden') continue
+      if (toolParams?.[paramId]?.visibility === 'hidden') continue
+      // A block's subblocks span every operation it supports, so a field belonging to a different
+      // operation must not be advertised as this tool's constraint. The subblock's own condition is
+      // exactly that statement, and unlike matching against the tool's param names it survives a
+      // block that renames a field on its way to the tool.
+      if (!evaluateSubBlockCondition(subBlock.condition, conditionValues)) continue
     }
 
     const raw = subBlock.canonicalParamId

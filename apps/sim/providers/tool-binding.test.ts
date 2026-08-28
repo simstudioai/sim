@@ -29,6 +29,7 @@ const collect = (over: Partial<CollectInput>) =>
     subBlocks: [],
     userProvidedParams: {},
     resolvedResourceParams: {},
+    conditionValues: {},
     ...sourceOptions,
     ...over,
   } as CollectInput)
@@ -127,16 +128,99 @@ describe('collectToolPinnedFields', () => {
   it('omits a field left over from a different operation on the same block', () => {
     const fields = collect({
       subBlocks: [
-        sub({ id: 'folder', title: 'Label', type: 'folder-selector' }),
-        sub({ id: 'to', title: 'To', type: 'short-input' }),
-        sub({ id: 'body', title: 'Body', type: 'long-input' }),
+        sub({
+          id: 'folder',
+          title: 'Label',
+          type: 'folder-selector',
+          condition: { field: 'operation', value: 'read_gmail' },
+        }),
+        sub({
+          id: 'to',
+          title: 'To',
+          type: 'short-input',
+          condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+        }),
+        sub({
+          id: 'body',
+          title: 'Body',
+          type: 'long-input',
+          condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+        }),
       ],
       // A block switched from Send to Read keeps the send fields in its params.
       userProvidedParams: { folder: 'INBOX', to: 'someone@example.com', body: 'stale draft' },
-      toolParams: toolParams('folder', 'unreadOnly', 'maxResults'),
+      toolParams: toolParams('folder'),
+      conditionValues: { operation: 'read_gmail', folder: 'INBOX' },
     })
 
     expect(fields).toEqual([{ title: 'Label', value: 'INBOX' }])
+  })
+
+  it('states a field the block renames on its way to the tool', () => {
+    // Datadog's `listMonitorName` subblock feeds the tool param `name`. Matching against the
+    // tool's declared params would drop it; the subblock's own condition does not.
+    const fields = collect({
+      subBlocks: [
+        sub({
+          id: 'listMonitorName',
+          title: 'Filter by Name',
+          type: 'short-input',
+          condition: { field: 'operation', value: 'datadog_list_monitors' },
+        }),
+      ],
+      userProvidedParams: { listMonitorName: 'CPU' },
+      toolParams: toolParams('name', 'tags', 'page'),
+      conditionValues: { operation: 'datadog_list_monitors', listMonitorName: 'CPU' },
+    })
+
+    expect(fields).toEqual([{ title: 'Filter by Name', value: 'CPU' }])
+  })
+
+  it('never states the operation selector itself', () => {
+    expect(
+      collect({
+        subBlocks: [sub({ id: 'operation', title: 'Operation', type: 'dropdown' })],
+        userProvidedParams: { operation: 'read_gmail' },
+        conditionValues: { operation: 'read_gmail' },
+      })
+    ).toEqual([])
+  })
+
+  it('still states the action field when a trigger sibling shares its canonical group', () => {
+    // Gmail puts `triggerCredentials` in the same canonical group as `credential`. A trigger
+    // sibling is a different surface, not a statement about the value, so it must not block it.
+    expect(
+      collect({
+        subBlocks: [
+          sub({
+            id: 'credential',
+            title: 'Gmail Account',
+            type: 'oauth-input',
+            canonicalParamId: 'oauthCredential',
+          }),
+          sub({
+            id: 'triggerCredentials',
+            title: 'Gmail Account',
+            type: 'oauth-input',
+            mode: 'trigger',
+            canonicalParamId: 'oauthCredential',
+          }),
+        ],
+        resolvedResourceParams: { oauthCredential: 'cred-a' },
+      })
+    ).toEqual([{ title: 'Gmail Account', resource: { kind: 'credential', id: 'cred-a' } }])
+  })
+
+  it('never states a trigger-mode field', () => {
+    expect(
+      collect({
+        subBlocks: [
+          sub({ id: 'selectedTriggerId', title: 'Trigger', type: 'short-input', mode: 'trigger' }),
+        ],
+        userProvidedParams: { selectedTriggerId: 'gmail_new_email' },
+        conditionValues: {},
+      })
+    ).toEqual([])
   })
 
   it('respects a hidden tool-param declaration', () => {
@@ -226,13 +310,14 @@ describe('collectToolPinnedFields', () => {
     }
   })
 
-  it('states nothing when the caller omits the tool param map', () => {
+  it('states an unconditional field even when the tool does not declare it', () => {
+    // No condition means the field applies to every operation the block supports.
     expect(
       collect({
         subBlocks: [sub({ id: 'folder', title: 'Label', type: 'folder-selector' })],
         userProvidedParams: { folder: 'INBOX' },
       })
-    ).toEqual([])
+    ).toEqual([{ title: 'Label', value: 'INBOX' }])
   })
 
   it('drops a field whose title sanitizes to nothing', () => {
