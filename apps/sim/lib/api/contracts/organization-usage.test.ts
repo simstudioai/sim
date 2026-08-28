@@ -20,14 +20,21 @@ describe('organization usage window contract', () => {
     expect(parseWindow({ startDate: '2026-02-30' }).success).toBe(false)
   })
 
-  it('refuses a nonexistent day inside a datetime, not just a bare date', () => {
-    expect(parseWindow({ startDate: '2026-02-30T00:00:00' }).success).toBe(false)
-  })
-
   it('refuses a parseable non-date such as a bare month', () => {
     // `new Date('2026-08')` is August 1. Accepting it returned a window the caller
     // never asked for, with nothing to indicate the value had been reinterpreted.
     expect(parseWindow({ startDate: '2026-08' }).success).toBe(false)
+  })
+
+  it('refuses anything after the date, including a well-formed datetime', () => {
+    // The picker sends bare dates only, and every looser rule broke differently:
+    // `…Tgarbage` parsed to an Invalid Date that made the resolver throw from
+    // `toISOString` (a 500 for a bad query string), and an offset datetime validated
+    // on its date part while the resolver read a different UTC day off the whole
+    // value — so the range shown and the range queried disagreed.
+    expect(parseWindow({ startDate: '2026-08-01Tgarbage' }).success).toBe(false)
+    expect(parseWindow({ startDate: '2026-08-01T00:00:00+05:00' }).success).toBe(false)
+    expect(parseWindow({ startDate: '2026-02-30T00:00:00' }).success).toBe(false)
   })
 
   it('treats an empty limit as omitted rather than as zero', () => {

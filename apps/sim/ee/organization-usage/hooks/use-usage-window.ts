@@ -17,12 +17,10 @@ import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organizat
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** A `YYYY-MM-DD` that survives a calendar round-trip, matching the contract's rule. */
+/** A bare `YYYY-MM-DD` that survives a calendar round-trip — the contract's rule, verbatim. */
 function isCalendarDate(value: string | null): value is string {
-  if (!value) return false
-  const datePart = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value)?.[1]
-  if (!datePart) return false
-  return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
 }
 
 /**
@@ -36,8 +34,8 @@ function isCalendarDate(value: string | null): value is string {
  */
 function isUsableCustomRange(start: string | null, end: string | null): boolean {
   if (!isCalendarDate(start) || !isCalendarDate(end)) return false
-  const from = new Date(`${start.slice(0, 10)}T00:00:00.000Z`).getTime()
-  const to = new Date(`${end.slice(0, 10)}T00:00:00.000Z`).getTime()
+  const from = new Date(`${start}T00:00:00.000Z`).getTime()
+  const to = new Date(`${end}T00:00:00.000Z`).getTime()
   if (to < from) return false
   return Math.round((to - from) / DAY_MS) + 1 <= MAX_CUSTOM_RANGE_DAYS
 }

@@ -41,12 +41,22 @@ export type UsageBreakdownDimension = z.output<typeof usageBreakdownDimensionSch
 export const MAX_CUSTOM_RANGE_DAYS = 92
 
 /**
- * A calendar date the window resolver can trust.
+ * A bare `YYYY-MM-DD` calendar date, and nothing else.
  *
- * `Date.parse` alone accepts `2026-02-30` and rolls it forward, so a request for
- * February silently returned a window starting on March 2 — worse than a rejection,
- * because the response looks authoritative. The round-trip is what makes the check
- * a calendar one: a date that does not survive re-serialization did not exist.
+ * Strict on purpose. The picker sends only bare dates — it has no time component —
+ * and every looser rule tried here has been wrong in a different way:
+ *
+ * - `Date.parse` alone accepts `2026-02-30` and rolls it forward, so February was
+ *   answered about March. The round-trip below is what makes this a *calendar*
+ *   check: a day that does not survive re-serialization never existed.
+ * - Validating only a `YYYY-MM-DD` prefix let `2026-08` through as August 1, and
+ *   `2026-08-01Tgarbage` through as an `Invalid Date` that made the window resolver
+ *   throw from `toISOString` — a 500 for a malformed query string.
+ * - A datetime with an offset would validate on its date part while the resolver
+ *   read a different UTC day off the full value, so the range shown and the range
+ *   queried could disagree.
+ *
+ * Accepting only the one form the client actually sends removes all three at once.
  */
 const isoDateSchema = z
   .string()
@@ -54,17 +64,10 @@ const isoDateSchema = z
   .refine(
     (value) => {
       if (!value) return true
-      // The `YYYY-MM-DD` prefix is required, not merely checked when present. Letting
-      // anything else through on the grounds that `Date.parse` accepted it meant
-      // `2026-08` was read as August 1 — a window the caller never asked for, returned
-      // as though it had.
-      const datePart = /^(\d{4}-\d{2}-\d{2})(?:$|T)/.exec(value)?.[1]
-      if (!datePart) return false
-      // Rolls a nonexistent day forward (`2026-02-30` becomes March 2), so the only
-      // way to reject one is to check that it survives the round trip.
-      return new Date(`${datePart}T00:00:00.000Z`).toISOString().slice(0, 10) === datePart
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+      return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
     },
-    { message: 'Expected a real calendar date such as 2026-08-01' }
+    { message: 'Expected a calendar date in YYYY-MM-DD form, such as 2026-08-01' }
   )
 
 /**
