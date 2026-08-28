@@ -86,8 +86,17 @@ export default defineConfig({
    *
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
-  init: () => {
+  init: async () => {
     markInsideTriggerRun()
+    /**
+     * Every run gets a fresh process, so without this the run's first Redis
+     * command pays the TLS handshake inside its own command deadline. Awaiting
+     * here spends that time as connection setup instead, where `connectTimeout`
+     * bounds it. Imported dynamically so loading this config file — which the
+     * CLI also does at build time — does not pull in the Redis client.
+     */
+    const { warmRedisConnection } = await import('./lib/core/config/redis')
+    await warmRedisConnection()
   },
   ...(grafanaTelemetry ? { telemetry: grafanaTelemetry } : {}),
   build: {

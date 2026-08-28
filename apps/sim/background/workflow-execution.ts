@@ -165,14 +165,32 @@ export async function executeWorkflowJob(
     const executionDeadlineAt = getExecutionDeadlineAt(timeoutController.signal)?.getTime()
     let admissionCompleted = payload.admissionCompleted === true
     if (admissionCompleted && executionDeadlineAt !== undefined) {
-      admissionCompleted = await refreshExecutionSlotExpiry(
-        executionId,
-        executionDeadlineAt + RESERVATION_TTL_BUFFER_MS
-      )
-      if (!admissionCompleted) {
-        logger.warn('Queued workflow reservation expired; repeating usage admission', {
+      /**
+       * A refresh that *returns* false already degrades into repeating usage
+       * admission below. A refresh that *throws* — a Redis timeout on the first
+       * command this fresh worker process issues — used to kill the run here,
+       * before the logging session exists, so the execution left no log row at
+       * all and simply vanished from the workspace's logs. Route both outcomes
+       * into the same re-admission path: preprocessing owns the reservation
+       * retry, and any failure it hits is recorded against a live session.
+       */
+      try {
+        admissionCompleted = await refreshExecutionSlotExpiry(
+          executionId,
+          executionDeadlineAt + RESERVATION_TTL_BUFFER_MS
+        )
+        if (!admissionCompleted) {
+          logger.warn('Queued workflow reservation expired; repeating usage admission', {
+            workflowId,
+            executionId,
+          })
+        }
+      } catch (error) {
+        admissionCompleted = false
+        logger.warn('Reservation refresh failed; repeating usage admission', {
           workflowId,
           executionId,
+          error: toError(error).message,
         })
       }
     }

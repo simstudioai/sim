@@ -816,6 +816,25 @@ export async function preprocessExecution(
               'Usage admission is temporarily unavailable. Please retry.',
               error
             )
+
+      /**
+       * Matches the denial path above. Without this a run rejected because the
+       * admission infrastructure was unreachable left no execution log at all,
+       * so it disappeared from the workspace's logs rather than showing as a
+       * failure — the denial branch twenty lines up always recorded one.
+       */
+      await recordPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage: unavailable.message,
+        loggingSession: providedLoggingSession,
+        triggerData,
+      })
+
       return {
         success: false,
         error: {

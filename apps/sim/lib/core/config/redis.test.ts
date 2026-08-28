@@ -29,8 +29,11 @@ import {
   closeRedisConnection,
   extendLock,
   getRedisClient,
+  getRedisConnectionDefaults,
   onRedisReconnect,
+  REDIS_COMMAND_TIMEOUT_MS,
   resetForTesting,
+  warmRedisConnection,
 } from '@/lib/core/config/redis'
 
 describe('redis config', () => {
@@ -300,6 +303,110 @@ describe('redis config', () => {
         mockEnv.REDIS_URL,
         expect.objectContaining({ tls: { servername: 'cache.example.com' } })
       )
+    })
+  })
+
+  describe('command timeout', () => {
+    it('stays above the connect timeout so a slow handshake is not reported as a command timeout', () => {
+      const { connectTimeout } = getRedisConnectionDefaults('redis://localhost:6379')
+
+      expect(connectTimeout).toBeDefined()
+      expect(REDIS_COMMAND_TIMEOUT_MS).toBeGreaterThan(connectTimeout as number)
+    })
+
+    it('applies that timeout to the shared client', () => {
+      getRedisClient()
+
+      expect(MockRedisConstructor).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ commandTimeout: REDIS_COMMAND_TIMEOUT_MS })
+      )
+    })
+
+    it('does not let the command deadline govern how fast a dead connection is detected', async () => {
+      const listener = vi.fn()
+      onRedisReconnect(listener)
+      getRedisClient()
+
+      // A PING that never settles — the failure mode the health check exists for.
+      mockRedisInstance.ping.mockReturnValue(new Promise(() => {}))
+
+      // Two intervals plus two probe deadlines is well under two command
+      // deadlines, so this only passes while the probe has its own budget.
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(3 * 15_000).toBeLessThan(2 * REDIS_COMMAND_TIMEOUT_MS + 2 * 15_000)
+    })
+  })
+
+  describe('warmRedisConnection', () => {
+    it('resolves without waiting when the client is already connected', async () => {
+      mockRedisInstance.status = 'ready'
+
+      await expect(warmRedisConnection()).resolves.toBeUndefined()
+      expect(mockRedisInstance.once).not.toHaveBeenCalled()
+    })
+
+    it('resolves once the connection reports ready', async () => {
+      mockRedisInstance.status = 'connecting'
+      const readyHandlers: Array<() => void> = []
+      mockRedisInstance.once.mockImplementation((event: string, cb: () => void) => {
+        if (event === 'ready') readyHandlers.push(cb)
+      })
+
+      let settled = false
+      const warm = warmRedisConnection().then(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(settled).toBe(false)
+
+      for (const handler of readyHandlers) handler()
+      await warm
+
+      expect(settled).toBe(true)
+    })
+
+    it('gives up at the connect deadline rather than blocking startup forever', async () => {
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.once.mockImplementation(() => {})
+
+      let settled = false
+      const warm = warmRedisConnection().then(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(9_000)
+      expect(settled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      await warm
+
+      expect(settled).toBe(true)
+    })
+
+    it('warms a given client once so a warm process pays nothing per unit of work', async () => {
+      mockRedisInstance.status = 'connecting'
+      mockRedisInstance.once.mockImplementation((event: string, cb: () => void) => {
+        if (event === 'ready') cb()
+      })
+
+      await warmRedisConnection()
+      const callsAfterFirst = mockRedisInstance.once.mock.calls.length
+
+      await warmRedisConnection()
+
+      expect(mockRedisInstance.once.mock.calls.length).toBe(callsAfterFirst)
+    })
+
+    it('resolves instead of throwing when Redis is not configured', async () => {
+      mockEnv.REDIS_URL = undefined
+
+      await expect(warmRedisConnection()).resolves.toBeUndefined()
     })
   })
 

@@ -397,4 +397,14 @@ export async function register() {
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
+
+  /**
+   * Open the shared Redis connection during boot so the first request does not
+   * pay the TLS handshake inside its own command deadline. Deliberately not
+   * awaited: a slow or unreachable Redis must never hold up serving, and
+   * `warmRedisConnection` already bounds and swallows its own failures.
+   */
+  void import('./lib/core/config/redis')
+    .then(({ warmRedisConnection }) => warmRedisConnection())
+    .catch((error) => logger.warn('Redis warm-up could not start', { error }))
 }

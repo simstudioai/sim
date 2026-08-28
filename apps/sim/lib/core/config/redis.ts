@@ -36,10 +36,30 @@ function resolveRedisTlsOptions(url: string | undefined): { servername: string }
   return { servername: env.REDIS_TLS_SERVERNAME }
 }
 
+const REDIS_CONNECT_TIMEOUT_MS = 10_000
+
+/**
+ * Per-command deadline. MUST stay greater than `REDIS_CONNECT_TIMEOUT_MS`.
+ *
+ * `sendCommand` arms this timer *before* it checks whether the socket is
+ * writable and before the `enableOfflineQueue` branch, so a command issued
+ * while the connection is still being established is already counting down
+ * while it waits in the offline queue. Set below the connect timeout, every
+ * slow handshake surfaces as `Command timed out` — attributed to a Redis that
+ * never received the command, with a stack containing only ioredis timer
+ * frames.
+ *
+ * Production handshakes to ElastiCache measure 2-6s when several connections
+ * are opened at once, so a 5s command timeout failed roughly 3% of cold-start
+ * commands on Trigger.dev workers, which open a fresh connection per run.
+ */
+export const REDIS_COMMAND_TIMEOUT_MS = 15_000
+
 /**
  * Shared connection defaults — keepAlive, connectTimeout, enableOfflineQueue,
  * and TLS SNI when REDIS_URL targets an IP. Every Redis client we open should
- * spread this; callers add their own retry / timeout policy on top.
+ * spread this; callers add their own retry policy on top and take their command
+ * deadline from `REDIS_COMMAND_TIMEOUT_MS` so the invariant above holds.
  */
 export function getRedisConnectionDefaults(
   url: string | undefined
@@ -47,7 +67,7 @@ export function getRedisConnectionDefaults(
   const tls = resolveRedisTlsOptions(url)
   return {
     keepAlive: 1000,
-    connectTimeout: 10000,
+    connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
     enableOfflineQueue: true,
     ...(tls ? { tls } : {}),
   }
@@ -59,6 +79,7 @@ interface RedisState {
   pingInterval: NodeJS.Timeout | null
   pingInFlight: boolean
   reconnectListeners: Array<() => void>
+  warmPromise: Promise<void> | null
 }
 
 const g = globalThis as typeof globalThis & { _redisState?: RedisState }
@@ -69,12 +90,45 @@ if (!g._redisState) {
     pingInterval: null,
     pingInFlight: false,
     reconnectListeners: [],
+    warmPromise: null,
   }
 }
 const state = g._redisState
 
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
+
+/**
+ * Deadline for a single health probe.
+ *
+ * A PING is only ever issued on an already-established connection, so unlike a
+ * general command it is never waiting on a handshake and takes a much tighter
+ * deadline. Keeping it independent of `REDIS_COMMAND_TIMEOUT_MS` is what stops
+ * the wider command deadline from slowing failover: two consecutive misses
+ * still force a reconnect within roughly two intervals.
+ */
+const REDIS_PING_TIMEOUT_MS = 5_000
+
+/**
+ * `commandTimeout` cannot express "probe deadline" separately from "command
+ * deadline" — it is a single client-wide option — so the probe carries its own.
+ */
+async function pingWithDeadline(redis: Redis): Promise<void> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    await Promise.race([
+      redis.ping(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Redis PING deadline exceeded')),
+          REDIS_PING_TIMEOUT_MS
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
 
 export function getConfiguredRedisUrl(): string | null {
   if (getConfiguredCacheProvider() === 'database') return null
@@ -101,7 +155,7 @@ function startPingHealthCheck(redis: Redis): void {
     if (state.pingInFlight) return
     state.pingInFlight = true
     try {
-      await redis.ping()
+      await pingWithDeadline(redis)
       state.pingFailures = 0
     } catch (error) {
       state.pingFailures++
@@ -117,6 +171,8 @@ function startPingHealthCheck(redis: Redis): void {
         state.pingFailures = 0
         // Clear before notifying listeners — they may call getRedisClient() and must see the reset state.
         state.client = null
+        // The next client is cold again, so let it be warmed before first use.
+        state.warmPromise = null
         if (state.pingInterval) {
           clearInterval(state.pingInterval)
           state.pingInterval = null
@@ -161,7 +217,7 @@ export function getRedisClient(): Redis | null {
 
     state.client = new Redis(redisUrl, {
       ...defaults,
-      commandTimeout: 5000,
+      commandTimeout: REDIS_COMMAND_TIMEOUT_MS,
       maxRetriesPerRequest: 5,
 
       retryStrategy: (times) => {
@@ -197,6 +253,78 @@ export function getRedisClient(): Redis | null {
     logger.error('Failed to initialize Redis client', { error })
     return null
   }
+}
+
+/**
+ * Establish the shared connection before the first command needs it.
+ *
+ * `commandTimeout` is a total deadline that starts the moment a command is
+ * issued: ioredis arms it in `sendCommand` before it checks whether the socket
+ * is writable, so the budget covers handshake and offline-queue wait as well as
+ * execution. A process whose first command lands on a cold client therefore
+ * spends most of that budget on the TLS handshake, which measures 2-6s against
+ * ElastiCache when several connections open at once.
+ *
+ * Warming at process start moves that cost off the first command's clock, which
+ * is the connection-reuse practice AWS recommends: establishing a TCP+TLS
+ * connection is far more expensive than the commands that run over it, so it
+ * should be paid once per process rather than once per unit of work.
+ *
+ * Best effort by design — resolves rather than rejects on failure, and is
+ * bounded by the connect budget, so neither a degraded Redis nor a missing
+ * configuration can stop a process from starting. Callers that skip warming
+ * still work; they just pay the handshake on their first command as before.
+ *
+ * Memoized per client: a warm process returns immediately, and a forced
+ * reconnect clears it so the replacement connection is warmed in turn.
+ */
+export function warmRedisConnection(): Promise<void> {
+  if (state.warmPromise) return state.warmPromise
+
+  let client: Redis | null
+  try {
+    client = getRedisClient()
+  } catch (error) {
+    logger.warn('Skipping Redis warm-up: client unavailable', {
+      error: toError(error).message,
+    })
+    return Promise.resolve()
+  }
+
+  if (!client) return Promise.resolve()
+  if (client.status === 'ready') return Promise.resolve()
+
+  const startedAt = Date.now()
+  state.warmPromise = new Promise<void>((resolve) => {
+    let settled = false
+    let timer: NodeJS.Timeout | undefined
+
+    const finish = (outcome: 'ready' | 'deadline') => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      client.off('ready', onReady)
+      const elapsedMs = Date.now() - startedAt
+      if (outcome === 'ready') {
+        logger.info('Redis connection warmed', { elapsedMs })
+      } else {
+        logger.warn('Redis warm-up did not complete before its deadline', { elapsedMs })
+      }
+      resolve()
+    }
+
+    const onReady = () => finish('ready')
+
+    /**
+     * Only `ready` settles early. A transient `error` is followed by ioredis's
+     * own retry, so resolving on it would hand back a still-cold client and
+     * reintroduce the very race this removes; the deadline is the backstop.
+     */
+    timer = setTimeout(() => finish('deadline'), REDIS_CONNECT_TIMEOUT_MS)
+    client.once('ready', onReady)
+  })
+
+  return state.warmPromise
 }
 
 /**
@@ -354,5 +482,6 @@ export function resetForTesting(): void {
   state.client = null
   state.pingFailures = 0
   state.pingInFlight = false
+  state.warmPromise = null
   state.reconnectListeners.length = 0
 }

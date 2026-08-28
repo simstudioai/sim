@@ -25,6 +25,7 @@ vi.mock('ioredis', () => ({
 vi.mock('@/lib/core/config/redis', () => ({
   getConfiguredRedisUrl: () => mockRedisUrl.value,
   getRedisConnectionDefaults: () => ({}),
+  REDIS_COMMAND_TIMEOUT_MS: 15_000,
 }))
 
 import {

@@ -2,7 +2,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import Redis, { type RedisOptions } from 'ioredis'
-import { getConfiguredRedisUrl, getRedisConnectionDefaults } from '@/lib/core/config/redis'
+import {
+  getConfiguredRedisUrl,
+  getRedisConnectionDefaults,
+  REDIS_COMMAND_TIMEOUT_MS,
+} from '@/lib/core/config/redis'
 
 const logger = createLogger('ExecutionSignalHub')
 const EXECUTION_SIGNAL_PREFIX = 'execution:signal:'
@@ -28,7 +32,7 @@ class RedisExecutionSignalHub implements ExecutionSignalHub {
   constructor(redisUrl: string) {
     const options = {
       ...getRedisConnectionDefaults(redisUrl),
-      commandTimeout: 5000,
+      commandTimeout: REDIS_COMMAND_TIMEOUT_MS,
       connectionName: 'execution-signal-hub',
       maxRetriesPerRequest: null,
       retryStrategy: (attempt: number) => Math.min(attempt * 500, 5000),

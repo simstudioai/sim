@@ -50,6 +50,8 @@ export function createMockRedis() {
     subscribe: vi.fn().mockResolvedValue(undefined),
     unsubscribe: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
+    once: vi.fn(),
+    off: vi.fn(),
 
     // Transaction
     multi: vi.fn(() => ({
