@@ -39,14 +39,20 @@
  * Trimming is left to the caller, because whether surrounding whitespace is
  * copy-paste noise or part of the value is a per-helper decision.
  *
- * Tool params are declared `type: 'string'`, but the value arrives from an LLM
- * tool call or user input and a numeric-looking id (a Box `folderId`, whose
- * root folder is literally `0`; an X `woeid`) can land as a JSON **number**.
- * The previous `typeof value === 'string' ? value.trim() : ''` turned any such
- * value into `''`, which the guards then reported as *"<param> is required"* —
- * a confusing error for a value the caller did supply, and a regression for
- * the call sites whose pre-guard form was a bare `${params.id}` template that
- * stringified a number fine.
+ * Tool params are declared `type: 'string'`, but that declaration is not
+ * enforced anywhere before the value reaches here: it arrives from an LLM tool
+ * call or from stored workflow state, where a numeric-looking id (a Vercel
+ * `deploymentId`, a Daytona `sandboxId`) can be serialized as a JSON **number**
+ * and stays one. The previous `typeof value === 'string' ? value.trim() : ''`
+ * turned any such value into `''`, which the guards then reported as
+ * *"<param> is required"* — the least actionable message available for a value
+ * the caller did supply, and one that points at the wrong fix.
+ *
+ * This is not a restoration of prior behaviour. Every call site that predates
+ * these guards interpolated `${params.id.trim()}`, so a numeric id threw
+ * `TypeError: params.id.trim is not a function` there too. The widening is a
+ * deliberate improvement: it accepts what callers actually send, and where it
+ * still refuses (below) it says why by name.
  *
  * An id too large for a `double` — a Discord snowflake, a Twitter id — is
  * **not** in scope here and cannot be: `JSON.parse` destroys the precision

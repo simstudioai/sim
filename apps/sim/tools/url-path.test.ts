@@ -124,9 +124,10 @@ describe('safeUrlPathSegment', () => {
 })
 
 /**
- * The guard replaced bare `${params.id}` templates at call sites where a
- * numeric-looking id (Stripe `id`, Spotify ids, X `woeid`) could arrive as a
- * JSON number. Coercing a non-string to `''` reported it as missing.
+ * Tool params are declared `type: 'string'` but nothing enforces that before
+ * the value reaches the guard: an LLM tool call or stored workflow state can
+ * hand a numeric-looking id over as a JSON number. Coercing a non-string to
+ * `''` reported such a value as missing, which names the wrong problem.
  */
 describe('non-string inputs', () => {
   it.concurrent.each([
@@ -318,8 +319,11 @@ describe('exponential number spellings', () => {
 
 /**
  * The 44 live call sites (Vercel x43, Daytona x1) pass provider ids and
- * hostnames as strings, occasionally a numeric id. Their output must be
- * byte-identical across this change.
+ * hostnames, and every one of them interpolated `${params.id.trim()}` before
+ * these guards existed — so a string is the only shape any of them has ever
+ * handled, and a string's output must stay byte-identical across this change.
+ * A numeric id is the newly accepted shape, not a restored one: it threw
+ * `TypeError: .trim is not a function` at those same call sites before.
  */
 describe('live call-site values', () => {
   it.concurrent.each([
@@ -336,8 +340,8 @@ describe('live call-site values', () => {
     expect(safeUrlPathSegment(value, 'id')).toBe(value)
   })
 
-  it.concurrent('still stringifies a numeric id', () => {
-    expect(safeUrlPathSegment(2487956, 'woeid')).toBe('2487956')
-    expect(safeUrlPathSegment(0, 'folderId')).toBe('0')
+  it.concurrent('stringifies a numeric id these call sites used to reject', () => {
+    expect(safeUrlPathSegment(2487956, 'deploymentId')).toBe('2487956')
+    expect(safeUrlPathSegment(0, 'sandboxId')).toBe('0')
   })
 })
