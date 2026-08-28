@@ -57,8 +57,8 @@ export interface WorkflowEdgeViewProps extends EdgeProps {
   /** Whether the edge's target block is currently executing. */
   isTargetActive?: boolean
   /**
-   * Whether either endpoint block is selected on the canvas — brightens the
-   * edge alongside the selected node. Diff and error colors take priority.
+   * Whether the edge should receive the neutral selection highlight because it
+   * or either endpoint is selected. Diff and error colors take priority.
    */
   isConnectedToSelection?: boolean
 }
@@ -177,10 +177,6 @@ export function WorkflowEdgeView({
       }
     }
 
-    if (isSelected && !isWorkflowRunning) {
-      opacity = 0.5
-    }
-
     return {
       strokeWidth: diffStatus ? 2.5 : hasRunStatus ? 2 : 1.5,
       strokeDasharray: diffStatus === 'deleted' ? '10,5' : undefined,
@@ -262,10 +258,11 @@ export function WorkflowEdgeView({
         )}
       </g>
 
-      {isSelected && (
+      {isSelected && data?.onDelete && (
         <EdgeLabelRenderer>
           <button
             type='button'
+            aria-label='Delete connection'
             className='nodrag nopan group flex size-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
               position: 'absolute',

@@ -219,9 +219,39 @@ describe('WorkflowEdgeView', () => {
     expect(path?.style.stroke).toBe('var(--text-error)')
   })
 
+  it('shows a selected idle edge as a full-opacity neutral highlight', () => {
+    const onDelete = vi.fn()
+    const { host, path } = renderEdge({
+      data: { isSelected: true, onDelete },
+      isConnectedToSelection: true,
+    })
+
+    expect(path?.style.stroke).toBe('var(--text-secondary)')
+    expect(path?.style.strokeWidth).toBe('1.5')
+    expect(path?.style.opacity).toBe('1')
+    expect(host.querySelector('button')).toHaveAttribute('aria-label', 'Delete connection')
+  })
+
+  it('preserves semantic edge color while selected', () => {
+    const { path } = renderEdge({
+      data: { isSelected: true, onDelete: vi.fn() },
+      isConnectedToSelection: true,
+      sourceHandle: 'error',
+    })
+
+    expect(path?.style.stroke).toBe('var(--text-error)')
+    expect(path?.style.opacity).toBe('1')
+  })
+
+  it('hides the delete control when deletion is unavailable', () => {
+    const { host } = renderEdge({ data: { isSelected: true } })
+
+    expect(host.querySelector('button')).toBeNull()
+  })
+
   it('keeps the selected-edge control on a container target occlusion layer', () => {
     const { host } = renderEdge({
-      data: { isSelected: true, labelZIndex: 1 },
+      data: { isSelected: true, labelZIndex: 1, onDelete: vi.fn() },
     })
 
     expect(host.querySelector('button')).toHaveStyle({ zIndex: 1 })

@@ -64,9 +64,11 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     source,
     target
   )
+  const isEdgeSelected = Boolean((data as { isSelected?: boolean } | undefined)?.isSelected)
   const shouldHighlightEdge = isEdgeHighlighted({
     isEndpointSelected: isConnectedToSelection,
     isConnectedToEditor,
+    isEdgeSelected,
   })
 
   const previewExecutionStatus = (
