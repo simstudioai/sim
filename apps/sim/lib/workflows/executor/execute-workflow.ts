@@ -1,5 +1,6 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
@@ -247,14 +248,20 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (error: unknown) {
+  } catch (caught: unknown) {
+    /**
+     * Normalized before anything reads it, for the reason the executor normalizes its own throw:
+     * a value that cannot carry the result would otherwise reach callers bare, and they read a
+     * missing result as proof that no block ran. `toError` returns an `Error` unchanged, so a
+     * custom error class keeps its identity and every ordinary failure is untouched.
+     */
+    const error = toError(caught)
     /**
      * Carries the run's result on a failure raised after it produced one — the post-execution
-     * work below the executor call can throw, and callers read a missing result as proof that no
-     * block ran. Skipped when the executor already attached its own, which is the more specific
-     * record, and when the throw is not an object to carry it.
+     * work below the executor call can throw, and the executor never saw it. Skipped when the
+     * executor already attached its own, which is the more specific record.
      */
-    if (executionResult && error instanceof Error && !hasExecutionResult(error)) {
+    if (executionResult && !hasExecutionResult(error)) {
       attachExecutionResult(error, executionResult)
     }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
