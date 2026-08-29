@@ -16,6 +16,7 @@ const {
   mockAppendTableEvent,
   mockSignalTableRowsChanged,
   mockBuildFilterClause,
+  mockFireTableTrigger,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
   mockGetJobProgress: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockAppendTableEvent: vi.fn(),
   mockSignalTableRowsChanged: vi.fn(),
   mockBuildFilterClause: vi.fn(),
+  mockFireTableTrigger: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({
@@ -49,6 +51,7 @@ vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalTableRowsChanged,
 }))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
+vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: mockFireTableTrigger }))
 vi.mock('@/lib/table/constants', () => ({
   TABLE_LIMITS: { DELETE_PAGE_SIZE: 2 },
   USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
@@ -62,7 +65,13 @@ const UNLOCKED = {
   updateLocked: false,
   deleteLocked: false,
 }
-const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] }, locks: UNLOCKED }
+const table = {
+  id: 'tbl_1',
+  name: 'Issues',
+  workspaceId: 'ws_1',
+  schema: { columns: [] },
+  locks: UNLOCKED,
+}
 const cutoff = new Date('2026-06-05T00:00:00Z')
 
 function basePayload(overrides = {}) {
@@ -77,7 +86,23 @@ describe('runTableDelete', () => {
     mockUpdateJobProgress.mockResolvedValue(true)
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
-    mockDeletePageByIds.mockImplementation((_t, _w, ids: string[]) => Promise.resolve(ids.length))
+    mockDeletePageByIds.mockImplementation(
+      async (
+        _t,
+        _w,
+        ids: string[],
+        _proof,
+        _revalidate,
+        onDeleted?: (
+          rows: Array<{ id: string; data: Record<string, unknown> }>,
+          table?: typeof table
+        ) => void | Promise<void>
+      ) => {
+        const rows = ids.map((id) => ({ id, data: { title: id } }))
+        await onDeleted?.(rows)
+        return rows.length
+      }
+    )
     mockBuildFilterClause.mockReturnValue({})
   })
 
@@ -115,6 +140,7 @@ describe('runTableDelete', () => {
       'ws_1',
       ['a', 'b'],
       expect.anything(),
+      expect.any(Function),
       expect.any(Function)
     )
     expect(mockMarkJobCanceled).toHaveBeenCalledWith('tbl_1', 'job_1')
@@ -150,6 +176,7 @@ describe('runTableDelete', () => {
       'ws_1',
       ['a', 'b'],
       expect.anything(),
+      expect.any(Function),
       expect.any(Function)
     )
     expect(mockDeletePageByIds).toHaveBeenNthCalledWith(
@@ -158,15 +185,60 @@ describe('runTableDelete', () => {
       'ws_1',
       ['c'],
       expect.anything(),
+      expect.any(Function),
       expect.any(Function)
     )
     expect(mockMarkJobReady).toHaveBeenCalledWith('tbl_1', 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'job', type: 'delete', status: 'ready', progress: 3 })
     )
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+    expect(mockFireTableTrigger).toHaveBeenNthCalledWith(
+      1,
+      'tbl_1',
+      'ws_1',
+      'Issues',
+      'delete',
+      [
+        { id: 'a', data: { title: 'a' } },
+        { id: 'b', data: { title: 'b' } },
+      ],
+      null,
+      table.schema,
+      expect.any(String)
+    )
     // The live grid must be told rows changed so deleted rows drop out of every open editor —
     // the `job` progress event only drives the delete meter, not the rows query.
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith('tbl_1')
+  })
+
+  it('uses the table definition revalidated with each committed delete batch', async () => {
+    const renamedTable = {
+      ...table,
+      name: 'Renamed issues',
+      schema: { columns: [{ id: 'col-title', name: 'Renamed title', type: 'string' }] },
+    }
+    mockSelectRowIdPage.mockResolvedValueOnce(['a']).mockResolvedValueOnce([])
+    mockDeletePageByIds.mockImplementationOnce(
+      async (_t, _w, ids: string[], _proof, _revalidate, onDeleted) => {
+        const rows = ids.map((id) => ({ id, data: { 'col-title': id } }))
+        await onDeleted?.(rows, renamedTable)
+        return rows.length
+      }
+    )
+
+    await runTableDelete(basePayload())
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      renamedTable.id,
+      renamedTable.workspaceId,
+      renamedTable.name,
+      'delete',
+      [{ id: 'a', data: { 'col-title': 'a' } }],
+      null,
+      renamedTable.schema,
+      expect.any(String)
+    )
   })
 
   it('stops once maxRows is reached and caps the final page fetch to the remaining budget', async () => {
@@ -196,6 +268,7 @@ describe('runTableDelete', () => {
       'ws_1',
       ['x'],
       expect.anything(),
+      expect.any(Function),
       expect.any(Function)
     )
     // Second page is queried after the last id of the first page (cursor advanced past 'keep').
