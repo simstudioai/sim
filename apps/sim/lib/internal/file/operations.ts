@@ -44,7 +44,7 @@ import {
 import {
   getFileExtension,
   getMimeTypeFromExtension,
-  inferContextFromKey,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -159,6 +159,12 @@ const fileInputToUserFile = (fileInput: unknown) => {
 
   if (!fileUrl && !key) return null
 
+  // A key this normalizer cannot classify is request input we cannot use, which
+  // is what `null` already means here — the throwing form would turn a malformed
+  // client value into a 500 from every operation that normalizes a file input.
+  const context = key ? tryInferContextFromKey(key) : null
+  if (key && !context) return null
+
   return {
     id: key || fileUrl,
     name:
@@ -170,7 +176,9 @@ const fileInputToUserFile = (fileInput: unknown) => {
         ? record.type.trim()
         : 'application/octet-stream',
     key,
-    context: inferContextFromKey(key),
+    // Only absent when there is no key at all — an unclassifiable one returned
+    // above rather than reaching here.
+    context: context ?? undefined,
   }
 }
 
