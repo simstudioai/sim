@@ -73,6 +73,31 @@ describe('github_list_workflow_runs url', () => {
     )
   })
 
+  /**
+   * The same silent-widening failure as the dot segment, reached by a different
+   * route: a present-but-wrong-typed value falling through to the omission
+   * branch would drop the scope and list every run in the repository. A value
+   * the caller did supply must never be read as one they did not.
+   */
+  it.each([[true], [{}], [[]]])('rejects a present but non-identifier value %j', (value) => {
+    expect(() => urlFor({ ...BASE, workflow_id: value })).toThrow(/workflow_id/)
+  })
+
+  it('treats an absent workflow id as the repository-wide query', () => {
+    expect(urlFor({ ...BASE, workflow_id: undefined })).toBe(
+      'https://api.github.com/repos/octocat/hello-world/actions/runs'
+    )
+    expect(urlFor({ ...BASE, workflow_id: null })).toBe(
+      'https://api.github.com/repos/octocat/hello-world/actions/runs'
+    )
+  })
+
+  it('accepts a numeric workflow id', () => {
+    expect(urlFor({ ...BASE, workflow_id: 42 })).toBe(
+      'https://api.github.com/repos/octocat/hello-world/actions/workflows/42/runs'
+    )
+  })
+
   it('still applies filters on the scoped endpoint', () => {
     const url = urlFor({ ...BASE, workflow_id: 'ci.yml', branch: 'main', status: 'completed' })
 

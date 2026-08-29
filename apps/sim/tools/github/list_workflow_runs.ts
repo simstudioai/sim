@@ -88,10 +88,23 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
        * and GitHub resolves that spelling only when the separators stay inside the
        * single `{workflow_id}` parameter as `%2F` — a real slash 404s.
        */
-      const workflowId =
-        typeof params.workflow_id === 'string' || typeof params.workflow_id === 'number'
-          ? String(params.workflow_id).trim()
-          : ''
+      /**
+       * A present value of the wrong kind is rejected rather than read as an
+       * omission. Falling through to the repository-wide branch would drop the
+       * scope silently — the same over-broad query as the dot segment below,
+       * reached by a different route — and a value the caller did supply must
+       * never be treated as one they did not.
+       */
+      const rawWorkflowId = params.workflow_id
+      let workflowId = ''
+      if (rawWorkflowId !== undefined && rawWorkflowId !== null) {
+        if (typeof rawWorkflowId !== 'string' && typeof rawWorkflowId !== 'number') {
+          throw new Error(
+            `workflow_id must be a string or a number (received ${typeof rawWorkflowId})`
+          )
+        }
+        workflowId = String(rawWorkflowId).trim()
+      }
       /**
        * A value that is entirely a dot segment has to be rejected rather than
        * encoded: `encodeURIComponent('..')` returns `'..'` verbatim, and the URL
