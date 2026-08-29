@@ -156,10 +156,38 @@ describe('rippling path-ID traversal safety', () => {
   })
 
   it('covers both IDs on every two-ID path', () => {
-    const twoIdTools = ['rippling_delete_custom_object_field', 'rippling_get_custom_object_record']
+    const twoIdTools = [
+      'rippling_delete_custom_object_field',
+      'rippling_delete_custom_object_record',
+      'rippling_get_custom_object_field',
+      'rippling_get_custom_object_record',
+      'rippling_get_custom_object_record_by_external_id',
+      'rippling_update_custom_object_field',
+      'rippling_update_custom_object_record',
+    ]
     for (const toolId of twoIdTools) {
       expect(PATH_PARAM_PAIRS.filter((pair) => pair.tool.id === toolId)).toHaveLength(2)
     }
+  })
+
+  it('names every tool that interpolates two guarded params', () => {
+    const actualTwoIdTools = [
+      ...new Set(
+        PATH_PARAM_PAIRS.map((pair) => pair.tool.id).filter(
+          (id, _i, all) => all.filter((other) => other === id).length === 2
+        )
+      ),
+    ].sort()
+
+    expect(actualTwoIdTools).toEqual([
+      'rippling_delete_custom_object_field',
+      'rippling_delete_custom_object_record',
+      'rippling_get_custom_object_field',
+      'rippling_get_custom_object_record',
+      'rippling_get_custom_object_record_by_external_id',
+      'rippling_update_custom_object_field',
+      'rippling_update_custom_object_record',
+    ])
   })
 
   describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param, sentinel }) => {

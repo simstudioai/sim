@@ -183,6 +183,27 @@ describe('okta path-ID traversal safety', () => {
     }
   })
 
+  it('names every tool that interpolates two guarded params', () => {
+    const actualTwoIdTools = [
+      ...new Set(
+        PATH_PARAM_PAIRS.map((pair) => pair.tool.id).filter(
+          (id, _i, all) => all.filter((other) => other === id).length === 2
+        )
+      ),
+    ].sort()
+
+    expect(actualTwoIdTools).toEqual([
+      'okta_add_user_to_group',
+      'okta_assign_group_to_app',
+      'okta_get_factor',
+      'okta_remove_group_from_app',
+      'okta_remove_user_from_app',
+      'okta_remove_user_from_group',
+      'okta_remove_user_role',
+      'okta_reset_factor',
+    ])
+  })
+
   describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param, sentinel }) => {
     const baseline = segmentsOf(buildUrl(tool).pathname)
 
