@@ -325,6 +325,12 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Settings Tabs',
     hint: 'Prevent members from using a personal API key against this workspace.',
   }),
+  disableLogExport: booleanRestriction('capability', {
+    id: 'disable-log-export',
+    label: 'Log Export',
+    category: 'Logs',
+    hint: 'Prevent downloading execution logs as a CSV.',
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

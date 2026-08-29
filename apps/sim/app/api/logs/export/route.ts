@@ -12,6 +12,7 @@ import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-s
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('LogsExportAPI')
 const LOG_EXPORT_PAGE_SIZE = 100
@@ -94,6 +95,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * permission-group-enforced: logs.export — one download carries every
+     * execution payload the workspace ever recorded, including a trace-span
+     * column, so this is the widest read in the product and the one most worth
+     * withholding separately from reading a single log.
+     *
+     * Checked here rather than in an application use case because this route
+     * queries directly and predates that boundary; migrating it is worth doing,
+     * and is not a reason to leave the export ungoverned meanwhile.
+     */
+    const permissionConfig = await getUserPermissionConfig(userId, params.workspaceId)
+    if (permissionConfig?.disableLogExport) {
+      return NextResponse.json(
+        {
+          error:
+            "Exporting execution logs is not available under your organization's permission group",
+        },
+        { status: 403 }
+      )
+    }
+
+    const hideTraceSpans = permissionConfig?.hideTraceSpans === true
+
     const encoder = new TextEncoder()
     const csvChunks = (async function* () {
       yield encoder.encode(`${header}\n`)
@@ -146,7 +170,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                     : (JSON.stringify(executionData.finalOutput) ?? '')
               }
               if (executionData.message) message = executionData.message
-              if (executionData.traceSpans) {
+              /**
+               * The same projection the log detail applies. A group that
+               * withholds trace spans in the UI would otherwise hand them over
+               * in bulk here, which is the larger disclosure of the two.
+               */
+              if (executionData.traceSpans && !hideTraceSpans) {
                 tracesJson = JSON.stringify(executionData.traceSpans) ?? ''
               }
             } catch (rowError) {

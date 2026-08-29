@@ -43,6 +43,7 @@ export const CAPABILITY_IDS = [
   'skills.use',
   'logs.trace_spans',
   'personal_api_key.use',
+  'logs.export',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -237,6 +238,13 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERSONAL_API_KEYS_DISABLED',
     describe: 'Personal API keys',
     deniedBy: (config) => config.disablePersonalApiKeys,
+  },
+  'logs.export': {
+    kind: 'static',
+    configKeys: ['disableLogExport'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Exporting execution logs',
+    deniedBy: (config) => config.disableLogExport,
   },
   'logs.trace_spans': {
     kind: 'static',

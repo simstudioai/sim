@@ -149,6 +149,7 @@ const fixtures: readonly CoercionFixture[] = [
       hideDeployChatbot: true,
       allowedChatDeployAuthTypes: ['password'],
       disablePersonalApiKeys: true,
+      disableLogExport: true,
     },
     expected: {
       allowedIntegrations: ['slack_v2'],
@@ -176,6 +177,7 @@ const fixtures: readonly CoercionFixture[] = [
       hideDeployChatbot: true,
       allowedChatDeployAuthTypes: ['password'],
       disablePersonalApiKeys: true,
+      disableLogExport: true,
     },
   },
 ]
