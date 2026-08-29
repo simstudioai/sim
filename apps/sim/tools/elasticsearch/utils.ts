@@ -10,9 +10,11 @@ const DEFAULT_CLOUD_PORT = '443'
  * Characters that must not appear in a decoded Cloud ID component. An `@` would
  * turn the rest of the authority into a host and send the credential headers to
  * an attacker-controlled origin; `#`, `?` and `/` truncate the authority.
- * Mirrors the `strings.IndexAny(component, "#@?/")` reject set in Beats.
+ * Mirrors the `strings.IndexAny(component, "#@?/")` reject set in Beats, plus
+ * `\`, which the WHATWG URL parser treats as a path separator for special
+ * schemes and which therefore truncates the authority exactly as `/` does.
  */
-const CLOUD_ID_REJECTED_CHARACTERS = /[#@?/]/
+const CLOUD_ID_REJECTED_CHARACTERS = /[#@?/\\]/
 
 /**
  * Splits a Cloud ID component of the form `name:port` at its last colon.
@@ -70,9 +72,17 @@ export function parseCloudId(cloudId: string): string {
 /**
  * Resolves the Elasticsearch base URL for a tool invocation, from either an
  * Elastic Cloud ID or a self-hosted host URL.
+ *
+ * The deployment type alone selects the branch. A cloud invocation must never
+ * fall back to `host`: switching the deployment dropdown leaves the previous
+ * host in saved state, so a fallback would send the cloud credential to a
+ * stale, unrelated origin.
  */
 export function buildBaseUrl(params: ElasticsearchBaseParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
+  if (params.deploymentType === 'cloud') {
+    if (!params.cloudId) {
+      throw new Error('Cloud ID is required for cloud deployments')
+    }
     return parseCloudId(params.cloudId)
   }
 
@@ -84,11 +94,19 @@ export function buildBaseUrl(params: ElasticsearchBaseParams): string {
 }
 
 /**
- * Builds the JSON + authorization headers shared by every Elasticsearch tool.
+ * Builds the content-type and authorization headers shared by every
+ * Elasticsearch tool.
+ *
+ * @param contentType overrides the default JSON media type. The `_bulk`
+ * endpoint requires `application/x-ndjson` and answers `application/json` with
+ * HTTP 406, so that tool must pass its own.
  */
-export function buildAuthHeaders(params: ElasticsearchBaseParams): Record<string, string> {
+export function buildAuthHeaders(
+  params: ElasticsearchBaseParams,
+  contentType = 'application/json'
+): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': contentType,
   }
 
   if (params.authMethod === 'api_key' && params.apiKey) {

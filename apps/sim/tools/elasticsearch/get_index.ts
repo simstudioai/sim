@@ -89,9 +89,16 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
 
       const data = await response.json()
 
+      /**
+       * `indices` is the declared, discoverable output. The index-name keys are
+       * also spread at the top level because that was the previous shape and
+       * reference resolution walks the runtime object rather than the declared
+       * outputs — saved paths such as `<elasticsearch.products.mappings>` did
+       * resolve and must keep resolving.
+       */
       return {
         success: true,
-        output: { indices: data },
+        output: { ...data, indices: data },
       }
     },
 

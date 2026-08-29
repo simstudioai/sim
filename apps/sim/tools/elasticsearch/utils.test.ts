@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import * as elasticsearchTools from '@/tools/elasticsearch'
 import { buildBaseUrl, parseCloudId } from '@/tools/elasticsearch/utils'
+import { prepareToolRequest } from '@/tools/request-transport'
 import type { ToolConfig } from '@/tools/types'
 
 function cloudId(payload: string, label = 'my-deployment'): string {
@@ -46,13 +47,18 @@ describe('parseCloudId', () => {
     expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
   })
 
-  it.each(['#', '?', '/'])('rejects %s in the parent domain component', (character) => {
+  it.each(['#', '?', '/', '\\'])('rejects %s in the parent domain component', (character) => {
     const hostile = cloudId(`${PARENT_DOMAIN}${character}x$${ES_UUID}$${KIBANA_UUID}`)
     expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
   })
 
   it('rejects a non-numeric port that would smuggle a host into the authority', () => {
     const hostile = cloudId(`${PARENT_DOMAIN}$${ES_UUID}:80@evil.example.com$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
+  it('rejects a backslash, which the URL parser treats as an authority terminator', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}$${ES_UUID}\\evil.example.com$${KIBANA_UUID}`)
     expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
   })
 
@@ -76,6 +82,16 @@ describe('buildBaseUrl', () => {
         authMethod: 'api_key',
       })
     ).toBe('https://es.example.com')
+  })
+
+  it('never falls back to host for a cloud deployment missing its Cloud ID', () => {
+    expect(() =>
+      buildBaseUrl({
+        deploymentType: 'cloud',
+        host: 'https://stale-self-hosted.example.com',
+        authMethod: 'api_key',
+      })
+    ).toThrow(/Cloud ID is required/)
   })
 
   it('requires a host when self-hosted', () => {
@@ -105,5 +121,33 @@ describe('every Elasticsearch tool resolves the same cloud host', () => {
   it.each(tools.map((tool) => [tool.id, tool] as const))('%s', (_id, tool) => {
     const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
     expect(new URL(url).host).toBe(`${ES_UUID}.${PARENT_DOMAIN}`)
+  })
+})
+
+describe('elasticsearch_bulk wire format', () => {
+  const NDJSON = '{"index":{"_index":"products","_id":"1"}}\n{"name":"Widget"}'
+
+  it('sends the bulk content type Elasticsearch requires', () => {
+    const prepared = prepareToolRequest(elasticsearchTools.elasticsearchBulkTool as ToolConfig, {
+      deploymentType: 'self_hosted',
+      host: 'https://es.example.com',
+      authMethod: 'api_key',
+      apiKey: 'test-key',
+      operations: NDJSON,
+    })
+    expect(prepared.headers.get('content-type')).toBe('application/x-ndjson')
+  })
+
+  it('puts the body on the wire as newline-delimited text, not a JSON string', () => {
+    const prepared = prepareToolRequest(elasticsearchTools.elasticsearchBulkTool as ToolConfig, {
+      deploymentType: 'self_hosted',
+      host: 'https://es.example.com',
+      authMethod: 'api_key',
+      apiKey: 'test-key',
+      operations: NDJSON,
+    })
+    expect(prepared.body).toBe(`${NDJSON}\n`)
+    expect(prepared.body?.split('\n').filter(Boolean)).toHaveLength(2)
+    expect(prepared.body?.startsWith('"')).toBe(false)
   })
 })

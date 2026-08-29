@@ -185,16 +185,15 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
   }
 }
 
+interface ElasticsearchIndexInfo {
+  aliases?: Record<string, unknown>
+  mappings?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
+
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
-  output: {
-    indices: Record<
-      string,
-      {
-        aliases?: Record<string, unknown>
-        mappings?: Record<string, unknown>
-        settings?: Record<string, unknown>
-      }
-    >
+  output: Record<string, ElasticsearchIndexInfo | Record<string, ElasticsearchIndexInfo>> & {
+    indices: Record<string, ElasticsearchIndexInfo>
   }
 }
 

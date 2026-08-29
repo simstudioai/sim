@@ -73,7 +73,16 @@ describe('elasticsearch_get_index response shape', () => {
 
   it('declares only output keys that the transform actually returns', async () => {
     const result = await transform({ 'logs-2024': { aliases: {}, mappings: {}, settings: {} } })
-    expect(Object.keys(getIndexTool.outputs ?? {})).toEqual(Object.keys(result?.output ?? {}))
+    const returned = Object.keys(result?.output ?? {})
+    for (const declared of Object.keys(getIndexTool.outputs ?? {})) {
+      expect(returned).toContain(declared)
+    }
+  })
+
+  it('keeps the previous top-level index keys so saved references still resolve', async () => {
+    const result = await transform({ products: { mappings: { properties: { sku: {} } } } })
+    const output = result?.output as Record<string, { mappings?: Record<string, unknown> }>
+    expect(output.products.mappings).toEqual({ properties: { sku: {} } })
   })
 
   it('keeps every index a wildcard request matched', async () => {
