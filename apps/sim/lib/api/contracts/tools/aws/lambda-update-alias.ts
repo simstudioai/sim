@@ -24,7 +24,7 @@ const UpdateAliasSchema = z.object({
       /^(?![0-9]+$)[a-zA-Z0-9-_]+$/,
       'aliasName may only contain letters, numbers, hyphens, and underscores, and cannot be all digits'
     ),
-  aliasFunctionVersion: z.string().min(1, 'aliasFunctionVersion cannot be empty').optional(),
+  aliasFunctionVersion: z.string().optional(),
   description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
   additionalVersionWeights: z
     .record(
@@ -39,7 +39,7 @@ const UpdateAliasSchema = z.object({
       'additionalVersionWeights routes to a single second version, so it accepts at most one entry'
     )
     .optional(),
-  revisionId: z.string().min(1, 'revisionId cannot be empty').optional(),
+  revisionId: z.string().optional(),
 })
 
 const UpdateAliasResponseSchema = z.object({

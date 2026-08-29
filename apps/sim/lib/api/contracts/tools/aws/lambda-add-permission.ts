@@ -29,17 +29,17 @@ const AddPermissionSchema = z.object({
       'action must be a Lambda action such as lambda:InvokeFunction'
     ),
   principal: z.string().min(1, 'principal is required'),
-  sourceArn: z.string().min(1, 'sourceArn cannot be empty').optional(),
-  sourceAccount: z.string().min(1, 'sourceAccount cannot be empty').optional(),
-  principalOrgId: z.string().min(1, 'principalOrgId cannot be empty').optional(),
-  eventSourceToken: z.string().min(1, 'eventSourceToken cannot be empty').optional(),
+  sourceArn: z.string().optional(),
+  sourceAccount: z.string().optional(),
+  principalOrgId: z.string().optional(),
+  eventSourceToken: z.string().optional(),
   functionUrlAuthType: z.enum(['NONE', 'AWS_IAM']).optional(),
   qualifier: z
     .string()
     .min(1, 'qualifier cannot be empty')
     .max(128, 'qualifier cannot exceed 128 characters')
     .optional(),
-  revisionId: z.string().min(1, 'revisionId cannot be empty').optional(),
+  revisionId: z.string().optional(),
 })
 
 const AddPermissionResponseSchema = z.object({

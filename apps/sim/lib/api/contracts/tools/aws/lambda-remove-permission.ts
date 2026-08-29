@@ -29,7 +29,7 @@ const RemovePermissionSchema = z.object({
     .min(1, 'qualifier cannot be empty')
     .max(128, 'qualifier cannot exceed 128 characters')
     .optional(),
-  revisionId: z.string().min(1, 'revisionId cannot be empty').optional(),
+  revisionId: z.string().optional(),
 })
 
 const RemovePermissionResponseSchema = lambdaMessageResponseSchema

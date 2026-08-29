@@ -124,7 +124,6 @@ const TOOL_CASES: Array<[string, Record<string, unknown>, ReturnType<typeof vi.f
       functionName: 'functionName-value',
       role: 'role-value',
       imageUri: 'ecr/alpha:1',
-      packageType: 'Image',
     },
     mockOperations.executeLambdaCreateFunction,
   ],
@@ -545,6 +544,48 @@ describe('executeLambdaTool', () => {
     expect(mockOperations.executeLambdaCreateEventSourceMapping).not.toHaveBeenCalled()
   })
 
+  it('accepts an empty value on the fields AWS documents as clearable', async () => {
+    mockOperations.executeLambdaUpdateFunctionConfiguration.mockResolvedValue({
+      success: true,
+      output: {},
+    })
+    mockOperations.executeLambdaPutFunctionEventInvokeConfig.mockResolvedValue({
+      success: true,
+      output: {},
+    })
+    mockOperations.executeLambdaUpdateFunctionCode.mockResolvedValue({ success: true, output: {} })
+
+    // KMSKeyArn and DeadLetterConfig.TargetArn document the pattern `(arn:...)|()`, whose
+    // trailing alternative matches ''. Destinations document `Minimum length of 0`.
+    const clearKeyAndDlq = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_configuration',
+        input: { ...CONNECTION, functionName: 'alpha', kmsKeyArn: '', deadLetterTargetArn: '' },
+      })
+    )
+    const clearDestinations = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_put_function_event_invoke_config',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          onSuccessDestination: '',
+          onFailureDestination: '',
+        },
+      })
+    )
+    const clearSourceKey = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_update_function_code',
+        input: { ...CONNECTION, functionName: 'alpha', imageUri: 'ecr/a:1', sourceKmsKeyArn: '' },
+      })
+    )
+
+    expect(clearKeyAndDlq.status).toBe(200)
+    expect(clearDestinations.status).toBe(200)
+    expect(clearSourceKey.status).toBe(200)
+  })
+
   it('still accepts an empty description, which AWS documents as clearing it', async () => {
     mockOperations.executeLambdaPublishVersion.mockResolvedValue({ success: true, output: {} })
 
@@ -602,7 +643,9 @@ describe('executeLambdaTool', () => {
     expect(JSON.stringify(await response.json())).toContain('must be provided together')
   })
 
-  it('requires packageType Image when an image URI is supplied', async () => {
+  it('accepts an image URI without making the user set the advanced packageType field', async () => {
+    mockOperations.executeLambdaCreateFunction.mockResolvedValue({ success: true, output: {} })
+
     const response = await executeLambdaTool(
       createRequest({
         toolId: 'lambda_create_function',
@@ -615,8 +658,37 @@ describe('executeLambdaTool', () => {
       })
     )
 
+    expect(response.status).toBe(200)
+  })
+
+  it('still rejects an explicit Zip package type alongside an image URI', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_function',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          role: 'arn:aws:iam::1:role/exec',
+          imageUri: 'ecr/alpha:1',
+          packageType: 'Zip',
+        },
+      })
+    )
+
     expect(response.status).toBe(400)
-    expect(JSON.stringify(await response.json())).toContain('packageType must be Image')
+    expect(mockOperations.executeLambdaCreateFunction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a tag map with no entries', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_tag_resource',
+        input: { ...CONNECTION, resourceArn: 'arn', tags: {} },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaTagResource).not.toHaveBeenCalled()
   })
 
   it('rejects a VPC update where only one list is empty', async () => {

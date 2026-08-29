@@ -18,7 +18,7 @@ const ListAliasesSchema = z.object({
     .string()
     .min(1, 'functionName is required')
     .max(256, 'functionName cannot exceed 256 characters'),
-  aliasFunctionVersion: z.string().min(1, 'aliasFunctionVersion cannot be empty').optional(),
+  aliasFunctionVersion: z.string().optional(),
 })
 
 const ListAliasesResponseSchema = z.object({

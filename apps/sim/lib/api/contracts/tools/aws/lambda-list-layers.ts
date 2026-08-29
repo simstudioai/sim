@@ -14,7 +14,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 const ListLayersSchema = z.object({
   ...lambdaConnectionFields,
   ...lambdaSmallPaginationFields,
-  compatibleRuntime: z.string().min(1, 'compatibleRuntime cannot be empty').optional(),
+  compatibleRuntime: z.string().optional(),
   compatibleArchitecture: z.enum(['x86_64', 'arm64']).optional(),
 })
 

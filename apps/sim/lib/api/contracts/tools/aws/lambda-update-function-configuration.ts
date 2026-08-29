@@ -17,9 +17,9 @@ const UpdateFunctionConfigurationSchema = z
       .string()
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
-    role: z.string().min(1, 'role cannot be empty').optional(),
-    runtime: z.string().min(1, 'runtime cannot be empty').optional(),
-    handler: z.string().min(1, 'handler cannot be empty').optional(),
+    role: z.string().optional(),
+    runtime: z.string().optional(),
+    handler: z.string().optional(),
     description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
     functionTimeout: z.number().int().min(1).max(900).optional(),
     memorySize: z.number().int().min(128).max(32768).optional(),
@@ -29,12 +29,12 @@ const UpdateFunctionConfigurationSchema = z
     vpcSubnetIds: z.array(z.string()).optional(),
     vpcSecurityGroupIds: z.array(z.string()).optional(),
     tracingMode: z.enum(['Active', 'PassThrough']).optional(),
-    deadLetterTargetArn: z.string().min(1, 'deadLetterTargetArn cannot be empty').optional(),
-    kmsKeyArn: z.string().min(1, 'kmsKeyArn cannot be empty').optional(),
+    deadLetterTargetArn: z.string().optional(),
+    kmsKeyArn: z.string().optional(),
     snapStartApplyOn: z.enum(['PublishedVersions', 'None']).optional(),
     logFormat: z.enum(['JSON', 'Text']).optional(),
-    logGroup: z.string().min(1, 'logGroup cannot be empty').optional(),
-    revisionId: z.string().min(1, 'revisionId cannot be empty').optional(),
+    logGroup: z.string().optional(),
+    revisionId: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     const subnetIds = value.vpcSubnetIds
