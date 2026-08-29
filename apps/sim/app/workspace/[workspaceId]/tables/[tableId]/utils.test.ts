@@ -194,4 +194,16 @@ describe('formatValueForInput', () => {
     )
     expect(formatValueForInput('2026-07-06', 'date')).toBe('2026-07-06')
   })
+
+  it('renders TTL instants in the editor timezone without changing the instant', () => {
+    expect(formatValueForInput(1_700_000_000, 'ttl', 'America/New_York')).toBe(
+      '2023-11-14T17:13:20-05:00'
+    )
+    expect(
+      cleanCellValue('2023-11-14 17:13:20', { name: 'expires_at', type: 'ttl' }, 'America/New_York')
+    ).toBe(1_700_000_000)
+    expect(
+      cleanCellValue('2023-11-14', { name: 'expires_at', type: 'ttl' }, 'America/New_York')
+    ).toBe(1_699_938_000)
+  })
 })

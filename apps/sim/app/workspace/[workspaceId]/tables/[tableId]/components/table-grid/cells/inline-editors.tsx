@@ -70,7 +70,7 @@ function InlineDateEditor({
   const popoverPointerAtRef = useRef(0)
   const timeZone = useTimezone()
 
-  const storedValue = formatValueForInput(value, column.type)
+  const storedValue = formatValueForInput(value, column.type, timeZone)
   const initialDraft =
     initialCharacter !== undefined
       ? initialCharacter
@@ -115,7 +115,7 @@ function InlineDateEditor({
       // silently shifting the instant of a value someone else wrote.
       if (storageVal === undefined && initialCharacter === undefined && current === initialDraft) {
         doneRef.current = true
-        onSave(storedValue || null, reason)
+        onSave(storedValue ? cleanCellValue(storedValue, column, timeZone) : null, reason)
         return
       }
       const raw = storageVal ?? displayToStorage(current, timeZone) ?? current
@@ -132,9 +132,9 @@ function InlineDateEditor({
         return
       }
       doneRef.current = true
-      onSave(raw || null, reason)
+      onSave(raw ? cleanCellValue(raw, column, timeZone) : null, reason)
     },
-    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue]
+    [invalid, onSave, onCancel, timeZone, initialDraft, initialCharacter, storedValue, column]
   )
 
   const handleKeyDown = useCallback(

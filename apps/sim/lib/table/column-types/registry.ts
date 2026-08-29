@@ -30,6 +30,7 @@ import {
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
+import { ttlColumnType } from '@/lib/table/column-types/ttl'
 import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
@@ -46,6 +47,7 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   number: numberColumnType,
   boolean: booleanColumnType,
   date: dateColumnType,
+  ttl: ttlColumnType,
   json: jsonColumnType,
   select: selectColumnType,
   currency: currencyColumnType,

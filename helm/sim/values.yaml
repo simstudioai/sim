@@ -102,6 +102,7 @@ app:
     # Optional: Scheduled Jobs Authentication
     # Generate using: openssl rand -hex 32
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
+    TABLE_ROW_TTL: ""       # Enable TTL columns and expired-row cleanup when AppConfig is unavailable
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
@@ -1450,6 +1451,16 @@ cronjobs:
       name: run-data-drains
       schedule: "0 * * * *"
       path: "/api/cron/run-data-drains"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Deletes table rows whose TTL column contains an expired Unix timestamp.
+    cleanupTableRowTtl:
+      enabled: true
+      name: cleanup-table-row-ttl
+      schedule: "*/15 * * * *"
+      path: "/api/cron/cleanup-table-row-ttl"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

@@ -15,6 +15,7 @@ import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
+import { coerceColumnTypeImportValue } from '@/lib/table/column-types/import-coercion'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
@@ -468,12 +469,10 @@ export function inferSchemaFromCsv(
  * back to the original string when unparseable so that schema validation can
  * reject it with context rather than silently inserting `null`.
  *
- * Deliberately NOT routed through the column-type registry's `coerce`, despite
- * covering the same types. The registry's contract is "coerced or rejected",
- * which the write path turns into `null`; an import instead wants an
- * unparseable date or JSON blob to survive as its raw string so the row-level
- * validation error names the offending value. Unifying the two would silently
- * swap a descriptive import error for a blanked cell.
+ * Deliberately not routed through the column-type registry: its contract is
+ * "coerced or rejected", while an import needs invalid raw text to survive so
+ * row-level validation can name it. Type-specific import behavior uses a
+ * lightweight capability map so CSV clients do not load the full registry.
  */
 export function coerceValue(
   value: unknown,
@@ -481,6 +480,9 @@ export function coerceValue(
   options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
+
+  const typeSpecificValue = coerceColumnTypeImportValue(colType, value, options)
+  if (typeSpecificValue !== undefined) return typeSpecificValue
 
   switch (colType) {
     case 'number': {

@@ -55,7 +55,7 @@ export function cleanCellValue(
   // Everything else runs the SAME coercion the server will run, so the
   // optimistic cache holds exactly the value that gets persisted.
   const columnType = columnTypeOf(column)
-  const coerced = columnType.coerce(value as JsonValue, column)
+  const coerced = columnType.coerce(value as JsonValue, column, { timezone: timeZone })
   if (coerced.ok) return coerced.value
   const salvaged = columnType.salvage?.(value as JsonValue, column)
   return salvaged?.ok ? salvaged.value : null
@@ -68,7 +68,7 @@ export function cleanCellValue(
  * row data already has the new mapping's value) would otherwise render
  * `[object Object]` via `String(value)`.
  */
-export function formatValueForInput(value: unknown, type: string): string {
+export function formatValueForInput(value: unknown, type: string, timeZone?: string): string {
   if (value === null || value === undefined) return ''
   const definition = columnTypeById(type)
   // Shape-drift guard, kept ahead of the registry: a column whose declared type
@@ -78,7 +78,11 @@ export function formatValueForInput(value: unknown, type: string): string {
   if (typeof value === 'object' && !definition.storesOpaqueIds && type !== 'json') {
     return JSON.stringify(value)
   }
-  return definition.formatForInput(value, { name: '', type: type as ColumnType })
+  return definition.formatForInput(
+    value,
+    { name: '', type: type as ColumnType },
+    { timezone: timeZone }
+  )
 }
 
 /** A canonical date-cell value split into its wall-clock editing parts. */

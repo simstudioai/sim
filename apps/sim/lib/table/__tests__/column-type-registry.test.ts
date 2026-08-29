@@ -121,6 +121,82 @@ describe('conversion write-back', () => {
   })
 })
 
+describe('ttl columns', () => {
+  const column = { name: 'expires_at', type: 'ttl' } as ColumnDefinition
+
+  it('stores integer epoch seconds while accepting date-shaped input', () => {
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('2023-11-14T22:13:20Z', column)).toEqual({
+      ok: true,
+      value: 1_700_000_000,
+    })
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000, column)).toEqual({
+      ok: true,
+      value: 1_700_000_000,
+    })
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('1700000000', column)).toEqual({
+      ok: true,
+      value: 1_700_000_000,
+    })
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('2023-11-14T22:13:20.123Z', column)).toEqual({
+      ok: true,
+      value: 1_700_000_000,
+    })
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('not-a-date', column)).toEqual({ ok: false })
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000.5, column)).toEqual({ ok: false })
+  })
+
+  it.each(['2023-02-29', '2023-02-29T12:00:00', '2023-02-29T12:00:00-05:00'])(
+    'rejects a nonexistent ISO calendar input: %s',
+    (value) => {
+      expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
+        ok: false,
+      })
+    }
+  )
+
+  it.each([
+    ['2024-02-29', '2024-02-29T00:00:00Z'],
+    ['2024-02-29T12:00:00', '2024-02-29T12:00:00Z'],
+    ['2024-02-29T12:00:00-05:00', '2024-02-29T17:00:00Z'],
+  ])('accepts a valid leap-day ISO calendar input: %s', (value, expectedInstant) => {
+    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
+      ok: true,
+      value: Math.floor(Date.parse(expectedInstant) / 1000),
+    })
+  })
+
+  it('renders and edits epoch seconds as a date', () => {
+    expect(COLUMN_TYPE_REGISTRY.ttl.formatForDisplay(1_700_000_000, column)).toBe(
+      '11/14/2023 10:13:20 PM'
+    )
+    expect(COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_700_000_000, column)).toBe(
+      '2023-11-14T22:13:20Z'
+    )
+    expect(
+      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_700_000_000, column, {
+        timezone: 'America/New_York',
+      })
+    ).toBe('2023-11-14T17:13:20-05:00')
+  })
+
+  it('preserves the exact instant across both sides of a daylight-saving fold', () => {
+    expect(
+      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_699_162_200, column, {
+        timezone: 'America/New_York',
+      })
+    ).toBe('2023-11-05T01:30:00-04:00')
+    expect(
+      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_699_165_800, column, {
+        timezone: 'America/New_York',
+      })
+    ).toBe('2023-11-05T01:30:00-05:00')
+  })
+
+  it('limits a table to one ttl column', () => {
+    expect(COLUMN_TYPE_REGISTRY.ttl.maxPerTable).toBe(1)
+  })
+})
+
 describe('intentional divergences from the pre-registry behavior', () => {
   // A differential run of the registry against the pre-refactor implementations
   // (55 values x 7 column shapes) found ZERO coercion differences and exactly

@@ -53,6 +53,7 @@ interface ColumnConfigSidebarProps {
   /** Existing column record for `mode: 'edit'`; ignored otherwise. */
   existingColumn: ColumnDefinition | null
   allColumns: readonly ColumnDefinition[]
+  tableRowTtlEnabled: boolean
   workspaceId: string
   tableId: string
   /** Notify parent of a rename so it can rewrite local `columnOrder` /
@@ -104,6 +105,7 @@ function ColumnConfigBody({
   onClose,
   existingColumn,
   allColumns,
+  tableRowTtlEnabled,
   workspaceId,
   tableId,
   onColumnRename,
@@ -276,7 +278,9 @@ function ColumnConfigBody({
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Type</RequiredLabel>
               <ChipCombobox
-                options={columnTypeOptionsForTable(allColumns, existingColumn)
+                options={columnTypeOptionsForTable(allColumns, existingColumn, {
+                  tableRowTtlEnabled,
+                })
                   .filter((option) => option.type !== 'workflow')
                   .map((option) => ({
                     label: option.label,
