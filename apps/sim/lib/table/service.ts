@@ -828,6 +828,7 @@ export async function addTableColumnsWithTx(
     ...table.schema,
     columns: [...table.schema.columns, ...additions],
   }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
   const now = new Date()
 
   await trx

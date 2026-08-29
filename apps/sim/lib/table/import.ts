@@ -481,6 +481,7 @@ export function coerceValue(
   options?: NormalizeDateCellOptions & { currencyCode?: string }
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
+
   switch (colType) {
     case 'number': {
       const n = Number(value)

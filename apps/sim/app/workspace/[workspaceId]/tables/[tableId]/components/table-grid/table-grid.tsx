@@ -4864,6 +4864,7 @@ export function TableGrid({
                       })}
                       {userPermissions.canEdit && (
                         <ColumnDropdown
+                          columns={columns}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
