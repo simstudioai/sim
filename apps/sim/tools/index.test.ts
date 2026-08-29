@@ -781,6 +781,86 @@ describe('Custom Tools', () => {
   })
 })
 
+describe('documented non-error statuses', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  function statusProbeTool(nonErrorStatuses?: readonly number[]) {
+    return {
+      id: 'custom_probe_status',
+      name: 'Status probe',
+      description: 'Reports the status it was answered with',
+      version: '1.0.0',
+      params: {},
+      ...(nonErrorStatuses ? { nonErrorStatuses } : {}),
+      request: {
+        url: 'https://api.example.com/probe',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+      transformResponse: async (response: Response) => ({
+        success: true,
+        output: { found: response.status !== 404 },
+      }),
+    }
+  }
+
+  function answerWith(status: number) {
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
+      toSecureFetchResponse(
+        new Response(status === 204 ? null : JSON.stringify({ message: 'Not Found' }), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+  }
+
+  /**
+   * Some providers answer a membership question with a bare status pair — GitHub
+   * returns 204 for "starred" and 404 for "not starred". Without an opt-out the
+   * executor rejects the 404 before `transformResponse` runs, so the negative
+   * answer is unreachable and surfaces as a failure.
+   */
+  it('routes a declared non-error status to transformResponse', async () => {
+    answerWith(404)
+    mockGetToolAsync.mockResolvedValue(statusProbeTool([404]))
+
+    const result = await executeTool('custom_probe_status', {}, { skipProxy: true })
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({ found: false })
+  })
+
+  it('still treats that status as an error when the tool does not declare it', async () => {
+    answerWith(404)
+    mockGetToolAsync.mockResolvedValue(statusProbeTool())
+
+    const result = await executeTool('custom_probe_status', {}, { skipProxy: true })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('does not tolerate a status the tool did not declare', async () => {
+    answerWith(500)
+    mockGetToolAsync.mockResolvedValue(statusProbeTool([404]))
+
+    const result = await executeTool('custom_probe_status', {}, { skipProxy: true })
+
+    expect(result.success).toBe(false)
+  })
+})
+
 describe('executeTool Function', () => {
   let cleanupEnvVars: () => void
 

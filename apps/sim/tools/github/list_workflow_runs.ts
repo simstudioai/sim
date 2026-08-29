@@ -28,6 +28,13 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       visibility: 'user-or-llm',
       description: 'Repository name',
     },
+    workflow_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Limit results to one workflow, by numeric ID or filename (e.g., "main.yaml"). Omit to list runs across the whole repository.',
+    },
     actor: {
       type: 'string',
       required: false,
@@ -76,9 +83,19 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
 
   request: {
     url: (params) => {
-      const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs`
-      )
+      /**
+       * `list_workflows` reports a workflow by `path` (`.github/workflows/ci.yml`),
+       * and GitHub resolves that spelling only when the separators stay inside the
+       * single `{workflow_id}` parameter as `%2F` — a real slash 404s.
+       */
+      const workflowId =
+        typeof params.workflow_id === 'string' || typeof params.workflow_id === 'number'
+          ? String(params.workflow_id).trim()
+          : ''
+      const scope = workflowId
+        ? `actions/workflows/${encodeURIComponent(workflowId)}/runs`
+        : 'actions/runs'
+      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/${scope}`)
       if (params.actor) {
         url.searchParams.append('actor', params.actor)
       }

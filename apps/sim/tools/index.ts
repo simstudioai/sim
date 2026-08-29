@@ -2735,7 +2735,15 @@ async function executeToolRequest(
       throw lastError ?? new Error(`Request failed for ${toolId}`)
     }
 
-    if (!response.ok) {
+    /**
+     * A status the tool documents as an answer rather than a failure. See
+     * `nonErrorStatuses` on `ToolConfig`; absent that declaration nothing here
+     * changes, so every other tool keeps the existing reject-on-non-2xx path.
+     */
+    const isDocumentedNonErrorStatus =
+      !response.ok && (tool.nonErrorStatuses?.includes(response.status) ?? false)
+
+    if (!response.ok && !isDocumentedNonErrorStatus) {
       let errorData: any
       try {
         const errorText = await response.text()
@@ -2826,7 +2834,9 @@ async function executeToolRequest(
     }
 
     // Check for error conditions
-    const { isError, errorInfo } = isErrorResponse(response, responseData)
+    const { isError, errorInfo } = isDocumentedNonErrorStatus
+      ? { isError: false, errorInfo: undefined }
+      : isErrorResponse(response, responseData)
 
     if (isError) {
       // Handle error case

@@ -24,6 +24,15 @@ export const checkStarTool: ToolConfig<CheckStarParams, CheckStarResponse> = {
   description: 'Check if you have starred a repository',
   version: '1.0.0',
 
+  /**
+   * GitHub answers this endpoint with a status and no body: 204 when the
+   * repository is starred, 404 when it is not. The 404 is the negative half of
+   * the answer, not a failure, so it has to reach `transformResponse` — the
+   * executor would otherwise reject it and the only reportable outcome would be
+   * "starred", which is the one case a workflow does not need to branch on.
+   */
+  nonErrorStatuses: [404],
+
   params: {
     owner: {
       type: 'string',
@@ -94,6 +103,7 @@ export const checkStarV2Tool: ToolConfig<CheckStarParams, any> = {
   version: '2.0.0',
   params: checkStarTool.params,
   request: checkStarTool.request,
+  nonErrorStatuses: checkStarTool.nonErrorStatuses,
 
   transformResponse: async (response: Response, params) => {
     const starred = response.status === 204

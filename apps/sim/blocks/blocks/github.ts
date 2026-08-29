@@ -9,6 +9,49 @@ import { getTrigger } from '@/triggers'
 /** Reviewers can be named individually or by team slug; either identifies the request. */
 const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
 
+/**
+ * SubBlock ids that differ from the tool param they feed, keyed by operation.
+ *
+ * A subBlock binds to a tool param only when its id matches the param name
+ * (`resolveSubBlockForParam` in `@/tools/params`), so these fields would
+ * otherwise be inert: the control renders, the user fills it, and the value
+ * never reaches the request. The ids cannot simply be renamed — a subBlock id
+ * is persisted workflow state, so changing one needs a `_removed_` migration.
+ *
+ * Keyed by operation rather than flattened because several targets collide:
+ * `fork_sort` and `milestone_sort` both feed `sort`, and stored block state
+ * keeps values for fields the current operation does not render, so a flat
+ * table would let a stale sibling win.
+ */
+const SUBBLOCK_PARAM_ALIASES: Record<string, Readonly<Record<string, string>>> = {
+  github_create_gist: { gist_public: 'public' },
+  github_fork_repo: { fork_name: 'name' },
+  github_list_forks: { fork_sort: 'sort' },
+  github_create_milestone: { milestone_title: 'title', milestone_description: 'description' },
+  github_update_milestone: { milestone_title: 'title', milestone_description: 'description' },
+  github_list_milestones: { milestone_state: 'state', milestone_sort: 'sort' },
+  github_create_issue_reaction: { reaction_content: 'content' },
+  github_create_comment_reaction: { reaction_content: 'content' },
+}
+
+/**
+ * Tool params declared `type: 'boolean'` whose subBlock is a dropdown.
+ *
+ * A dropdown option id is a string, so `'false'` arrives truthy and every one
+ * of these silently inverts. Each name means the same thing across every GitHub
+ * operation that takes it, so a flat set is unambiguous. Only the exact strings
+ * are converted, which leaves an already-boolean value untouched.
+ */
+const BOOLEAN_TOOL_PARAMS = [
+  'draft',
+  'protected',
+  'enforce_admins',
+  'prerelease',
+  'project_public',
+  'public',
+  'default_branch_only',
+] as const
+
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub (Legacy)',
@@ -932,9 +975,9 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       id: 'required_status_checks',
       title: 'Required Status Checks',
       type: 'short-input',
-      placeholder: 'JSON: {"strict":true,"contexts":["ci/test"]}',
+      placeholder: 'JSON: {"strict":true,"contexts":["ci/test"]} or null to disable',
+      required: true,
       condition: { field: 'operation', value: 'github_update_branch_protection' },
-      mode: 'advanced',
     },
     {
       id: 'enforce_admins',
@@ -944,16 +987,24 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
+      required: true,
       condition: { field: 'operation', value: 'github_update_branch_protection' },
-      mode: 'advanced',
     },
     {
       id: 'required_pull_request_reviews',
       title: 'Required PR Reviews',
       type: 'short-input',
-      placeholder: 'JSON: {"required_approving_review_count":1}',
+      placeholder: 'JSON: {"required_approving_review_count":1} or null to disable',
+      required: true,
       condition: { field: 'operation', value: 'github_update_branch_protection' },
-      mode: 'advanced',
+    },
+    {
+      id: 'restrictions',
+      title: 'Push Restrictions',
+      type: 'short-input',
+      placeholder: 'JSON: {"users":[],"teams":[]} or null to disable',
+      required: true,
+      condition: { field: 'operation', value: 'github_update_branch_protection' },
     },
     // Issue operations parameters
     {
@@ -2279,6 +2330,26 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_repo_info'
         }
       },
+      params: (params) => {
+        const operation = typeof params.operation === 'string' ? params.operation : ''
+        const mapped: Record<string, unknown> = {}
+
+        for (const [subBlockId, toolParam] of Object.entries(
+          SUBBLOCK_PARAM_ALIASES[operation] ?? {}
+        )) {
+          const value = params[subBlockId]
+          if (value === undefined || value === null || value === '') continue
+          mapped[toolParam] = value
+        }
+
+        for (const toolParam of BOOLEAN_TOOL_PARAMS) {
+          const value = toolParam in mapped ? mapped[toolParam] : params[toolParam]
+          if (value === 'true') mapped[toolParam] = true
+          else if (value === 'false') mapped[toolParam] = false
+        }
+
+        return mapped
+      },
     },
   },
   inputs: {
@@ -2317,9 +2388,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
     // Branch parameters
     protected: { type: 'string', description: 'Protection status filter' },
-    required_status_checks: { type: 'string', description: 'Required status checks JSON' },
+    required_status_checks: {
+      type: 'json',
+      description: 'Required status checks (null to disable)',
+    },
     enforce_admins: { type: 'boolean', description: 'Enforce for admins' },
-    required_pull_request_reviews: { type: 'string', description: 'Required PR reviews JSON' },
+    required_pull_request_reviews: {
+      type: 'json',
+      description: 'Required PR reviews (null to disable)',
+    },
+    restrictions: { type: 'json', description: 'Push restrictions (null to disable)' },
     // Issue parameters
     labels: { type: 'string', description: 'Comma-separated labels' },
     assignees: { type: 'string', description: 'Comma-separated assignees' },
@@ -2354,6 +2432,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     description: { type: 'string', description: 'Description' },
     files: { type: 'string', description: 'Files JSON object' },
     gist_public: { type: 'boolean', description: 'Public gist status' },
+    public: { type: 'boolean', description: 'Gist visibility sent to the API' },
     username: { type: 'string', description: 'GitHub username' },
     // Fork parameters
     organization: { type: 'string', description: 'Target organization for fork' },

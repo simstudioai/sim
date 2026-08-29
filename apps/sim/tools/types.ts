@@ -186,6 +186,24 @@ export interface ToolConfig<P = any, R = any> {
   // If not specified, will try all extractors in order (fallback)
   errorExtractor?: string
 
+  /**
+   * Non-2xx statuses this provider uses to express a documented *answer* rather
+   * than a failure, which therefore reach `transformResponse` instead of being
+   * rejected.
+   *
+   * A few endpoints encode a boolean in the status line and return no body:
+   * GitHub's "is this repo starred" answers 204 for yes and 404 for no. The
+   * executor rejects every non-2xx before `transformResponse` runs, so without
+   * this the negative half of such a pair is unreachable and the tool can only
+   * ever report the positive one or fail.
+   *
+   * Opt-in and narrow on purpose. List only statuses the provider documents as a
+   * successful outcome for that specific endpoint, and only on a tool whose
+   * `transformResponse` reads `response.status` — a tolerated status still has
+   * whatever body the provider sent, which for these endpoints is none.
+   */
+  nonErrorStatuses?: readonly number[]
+
   // Request configuration
   request: {
     url: string | ((params: P) => string)

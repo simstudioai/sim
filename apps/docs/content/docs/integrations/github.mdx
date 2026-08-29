@@ -1813,6 +1813,7 @@ List workflow runs for a repository. Supports filtering by actor, branch, event,
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
+| `workflow_id` | string | No | Limit results to one workflow, by numeric ID or filename \(e.g., "main.yaml"\). Omit to list runs across the whole repository. |
 | `actor` | string | No | Filter by user who triggered the workflow |
 | `branch` | string | No | Filter by branch name |
 | `event` | string | No | Filter by event type \(e.g., push, pull_request, workflow_dispatch\) |

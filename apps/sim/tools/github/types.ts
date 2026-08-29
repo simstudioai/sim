@@ -1521,6 +1521,8 @@ export interface TriggerWorkflowParams extends BaseGitHubParams {
 }
 
 export interface ListWorkflowRunsParams extends BaseGitHubParams {
+  /** Numeric workflow ID or filename; omit to list runs across the repository. */
+  workflow_id?: string
   actor?: string
   branch?: string
   event?: string
