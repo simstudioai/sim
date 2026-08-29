@@ -24,12 +24,6 @@ interface CoercionFixture {
   name: string
   input: unknown
   expected: PermissionGroupConfig
-  /**
-   * Whether the coerced config is one the read schema can serialize. Only the
-   * unfiltered-allowlist row is `false`, and that is a defect rather than a
-   * property worth keeping — see the test that pins it.
-   */
-  readSchemaAccepts?: false
 }
 
 const fixtures: readonly CoercionFixture[] = [
@@ -117,18 +111,15 @@ const fixtures: readonly CoercionFixture[] = [
     expected: DEFAULT_PERMISSION_GROUP_CONFIG,
   },
   /**
-   * Today the two allowlists are the only keys that skip element validation, so
-   * a `string[]`-typed field can hold a number. Filtering them would be a
-   * fail-closed change; this row exists so making it shows up in the diff.
+   * The allowlists used to be the only keys that skipped element validation, so
+   * a `string[]`-typed field could hold a number and the read schema then
+   * refused the config it produced. Filtering keeps the members that parse and
+   * fails closed.
    */
   {
-    name: 'an allowlist with a non-string member, which is passed through unfiltered',
+    name: 'an allowlist with a non-string member, keeping the strings',
     input: { allowedIntegrations: ['slack', 42] },
-    expected: {
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      allowedIntegrations: ['slack', 42] as unknown as string[],
-    },
-    readSchemaAccepts: false,
+    expected: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['slack'] },
   },
   {
     name: 'a fully populated config',
@@ -198,29 +189,22 @@ describe('parsePermissionGroupConfig', () => {
     )
   })
 
-  it.each(fixtures)(
-    'produces a config the read schema accepts for $name',
-    ({ input, readSchemaAccepts }) => {
-      const parsed = structuredClone(parsePermissionGroupConfig(input))
-      expect(permissionGroupFullConfigSchema.safeParse(parsed).success).toBe(
-        readSchemaAccepts !== false
-      )
-    }
-  )
+  it.each(fixtures)('produces a config the read schema accepts for $name', ({ input }) => {
+    const parsed = structuredClone(parsePermissionGroupConfig(input))
+    expect(permissionGroupFullConfigSchema.safeParse(parsed).success).toBe(true)
+  })
 
   /**
-   * Pins a live defect so the fix is visible as a diff rather than a silent
-   * behavior change. `allowedIntegrations` and `allowedModelProviders` are the
-   * only keys that skip element validation, so a corrupted row coerces to a
-   * value `permissionGroupFullConfigSchema` then refuses — meaning the route
-   * that reads it fails response validation instead of returning a usable
-   * allowlist. Filtering non-strings on the way in is fail-closed and removes
-   * the whole class; when that lands, this test inverts.
+   * The allowlists used to skip element validation, so a corrupted row coerced
+   * to a value `permissionGroupFullConfigSchema` then refused — the route
+   * reading it failed response validation instead of returning a usable
+   * allowlist. Filtering is fail-closed: the members that parse survive, and a
+   * corrupt one narrows the allowlist rather than voiding it.
    */
-  it('coerces a corrupted allowlist into a config the read schema refuses', () => {
+  it('narrows a corrupted allowlist instead of voiding it', () => {
     const parsed = parsePermissionGroupConfig({ allowedIntegrations: ['slack', 42] })
-    expect(parsed.allowedIntegrations).toEqual(['slack', 42])
-    expect(permissionGroupFullConfigSchema.safeParse(structuredClone(parsed)).success).toBe(false)
+    expect(parsed.allowedIntegrations).toEqual(['slack'])
+    expect(permissionGroupFullConfigSchema.safeParse(structuredClone(parsed)).success).toBe(true)
   })
 
   it('is idempotent', () => {
@@ -284,15 +268,12 @@ describe('parsePermissionGroupConfig invariants', () => {
 
       expect(Object.keys(parsed), context).toEqual(configKeys)
       expect(parsePermissionGroupConfig(structuredClone(parsed)), context).toEqual(parsed)
+      expect(
+        permissionGroupFullConfigSchema.safeParse(structuredClone(parsed)).success,
+        context
+      ).toBe(true)
     }
   })
-
-  /**
-   * Deliberately not asserted above: a config the read schema accepts. The
-   * unfiltered allowlists break it for any input carrying a non-string member,
-   * so this invariant only becomes true once element filtering lands — add it
-   * here in the same change that inverts the defect test above.
-   */
 })
 
 describe('permission group config key coverage', () => {

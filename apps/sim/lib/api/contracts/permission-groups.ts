@@ -1,35 +1,18 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { permissionGroupReadShape } from '@/lib/permission-groups/fields'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
-export const permissionGroupFullConfigSchema = z.object({
-  allowedIntegrations: z.array(z.string()).nullable(),
-  allowedModelProviders: z.array(z.string()).nullable(),
-  deniedModels: z.array(z.string()).default([]),
-  deniedTools: z.array(z.string()).default([]),
-  hideTraceSpans: z.boolean(),
-  hideKnowledgeBaseTab: z.boolean(),
-  hideTablesTab: z.boolean(),
-  hideCopilot: z.boolean(),
-  hideIntegrationsTab: z.boolean(),
-  hideSecretsTab: z.boolean(),
-  hideApiKeysTab: z.boolean(),
-  hideInboxTab: z.boolean(),
-  hideFilesTab: z.boolean(),
-  disableMcpTools: z.boolean(),
-  disableCustomTools: z.boolean(),
-  disableSkills: z.boolean(),
-  disableInvitations: z.boolean(),
-  disablePublicApi: z.boolean(),
-  disablePublicFileSharing: z.boolean(),
-  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-  hideDeployApi: z.boolean(),
-  hideDeployMcp: z.boolean(),
-  hideDeployChatbot: z.boolean(),
-  allowedChatDeployAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-})
+/**
+ * The wire shape of a resolved config: every key present, in registry order.
+ *
+ * Built from the same field registry as the write schema and the tolerant
+ * parser, because the group editor's dirty check compares stringified configs —
+ * a key this schema omitted, or ordered differently, would read as an unsaved
+ * change forever.
+ */
+export const permissionGroupFullConfigSchema = z.object(permissionGroupReadShape)
 
 export const addPermissionGroupMemberBodySchema = z.object({
   userId: z.string().min(1),
