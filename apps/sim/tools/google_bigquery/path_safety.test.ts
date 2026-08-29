@@ -186,9 +186,25 @@ describe('projectId agrees between URL and body', () => {
     const body = (tool.request?.body as ((p: typeof params) => unknown) | undefined)?.(params)
     const serialized = JSON.stringify(body)
 
-    expect(url.pathname).toContain('/projects/my-project/')
-    expect(serialized).not.toContain('  my-project  ')
-    expect(serialized).toContain('"projectId":"my-project"')
+    /**
+     * The two sides are compared to **each other**, not to two independent
+     * literals.
+     *
+     * This line previously read `expect(serialized).not.toContain('  my-project  ')`,
+     * which was meaningful only while the fixture supplied a padded id. Once the
+     * strict guard made padding throw, the fixture became unpadded and that
+     * assertion could no longer fail — changing a fixture silently defanged an
+     * assertion written for the old one. Padded refusal is covered where it
+     * belongs: `NEWLY_TRIMMED_BY_THIS_CHANGE` and the destructive-tool describe.
+     *
+     * Deriving the expected body value from the URL keeps this test about
+     * agreement: if either side starts naming a different project, it fails,
+     * whereas two hard-coded literals both pass a change made to both.
+     */
+    const urlProject = url.pathname.split('/projects/')[1]?.split('/')[0]
+
+    expect(urlProject).toBe('my-project')
+    expect(serialized).toContain(`"projectId":"${urlProject}"`)
   })
 })
 
