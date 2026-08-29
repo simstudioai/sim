@@ -19,9 +19,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as attioTools from '@/tools/attio/index'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-type AnyTool = ToolConfig<any, any>
+type BodyTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
 const SENTINEL = '__ATTIO_SENTINEL__'
 const VALID_JSON_WITH_SENTINEL = `["${SENTINEL}"]`
@@ -30,20 +30,28 @@ const MALFORMED_JSON_WITH_SENTINEL = `["${SENTINEL}"`
 /** A valid JSON object that is also a harmless plain-string value. */
 const NEUTRAL_FILLER = '{}'
 
-function isAttioTool(value: unknown): value is AnyTool {
+function isAttioTool(value: unknown): value is BodyTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('attio_')
+    typeof (value as BodyTool).id === 'string' &&
+    (value as BodyTool).id.startsWith('attio_')
   )
 }
 
-const BODY_TOOLS = Object.values(attioTools)
-  .filter(isAttioTool)
-  .filter((tool) => typeof tool.request?.body === 'function')
+/**
+ * Seeded as `unknown[]` so `isAttioTool` is the single narrowing point. The
+ * barrel's element type is a union of `ToolConfig<AttioXParams, …>`, and
+ * `ToolConfig` places its param type in the contravariant position of
+ * `request.body`, so no specific member is assignable to `BodyTool` directly.
+ */
+const ALL_ATTIO_TOOLS: readonly unknown[] = Object.values(attioTools)
 
-function stringParamNames(tool: AnyTool): string[] {
+const BODY_TOOLS = ALL_ATTIO_TOOLS.filter(isAttioTool).filter(
+  (tool) => typeof tool.request?.body === 'function'
+)
+
+function stringParamNames(tool: BodyTool): string[] {
   return Object.entries(tool.params ?? {})
     .filter(([name]) => name !== 'accessToken')
     .filter(([, def]) => {
@@ -53,7 +61,7 @@ function stringParamNames(tool: AnyTool): string[] {
     .map(([name]) => name)
 }
 
-function buildParams(tool: AnyTool, overrideName: string, overrideValue: string) {
+function buildParams(tool: BodyTool, overrideName: string, overrideValue: string) {
   const params: Record<string, unknown> = { accessToken: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'accessToken') continue
@@ -70,10 +78,10 @@ function buildParams(tool: AnyTool, overrideName: string, overrideValue: string)
   return params
 }
 
-function serializeBody(tool: AnyTool, overrideName: string, overrideValue: string): string {
+function serializeBody(tool: BodyTool, overrideName: string, overrideValue: string): string {
   const body = tool.request?.body
   if (typeof body !== 'function') throw new Error(`${tool.id} has no body builder`)
-  return JSON.stringify(body(buildParams(tool, overrideName, overrideValue) as any))
+  return JSON.stringify(body(buildParams(tool, overrideName, overrideValue)))
 }
 
 /**
@@ -132,7 +140,7 @@ const SWALLOWED_SITES: ReadonlyArray<{ id: string; param: string }> = [
   { id: 'attio_query_list_entries', param: 'sorts' },
 ]
 
-function toolById(id: string): AnyTool {
+function toolById(id: string): BodyTool {
   const tool = BODY_TOOLS.find((candidate) => candidate.id === id)
   if (!tool) throw new Error(`${id} is not an Attio tool with a body builder`)
   return tool

@@ -31,7 +31,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import * as attioTools from '@/tools/attio/index'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
@@ -72,14 +72,14 @@ const SIBLING_ID = 'SIBLING'
 /** Distinct from `SIBLING_ID` so the param under test is locatable in the path. */
 const PROBE_ID = 'PROBEVALUE'
 
-type AnyTool = ToolConfig<any, any>
+type PathTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
-function isAttioTool(value: unknown): value is AnyTool {
+function isAttioTool(value: unknown): value is PathTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('attio_')
+    typeof (value as PathTool).id === 'string' &&
+    (value as PathTool).id.startsWith('attio_')
   )
 }
 
@@ -88,7 +88,7 @@ function isAttioTool(value: unknown): value is AnyTool {
  * `value` on `target` alone. Holding the siblings safe is what keeps a throw
  * from `target` attributable to `target`.
  */
-function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
+function buildParams(tool: PathTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { accessToken: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'accessToken') continue
@@ -107,15 +107,15 @@ function buildParams(tool: AnyTool, target: string, value: string): Record<strin
   return params
 }
 
-function buildUrl(tool: AnyTool, target: string, value: string): URL {
+function buildUrl(tool: PathTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, target, value) as any))
+  return new URL(url(buildParams(tool, target, value)))
 }
 
-function buildPath(tool: AnyTool, target: string, value: string): string {
+function buildPath(tool: PathTool, target: string, value: string): string {
   return buildUrl(tool, target, value).pathname
 }
 
@@ -123,7 +123,7 @@ function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-function stringParamNames(tool: AnyTool): string[] {
+function stringParamNames(tool: PathTool): string[] {
   return Object.entries(tool.params ?? {})
     .filter(([name]) => name !== 'accessToken')
     .filter(([, def]) => {
@@ -138,8 +138,15 @@ function stringParamNames(tool: AnyTool): string[] {
  * by probing one param at a time rather than declared in a hand-kept list — a
  * new path param is picked up here without anyone editing this file.
  */
-const PATH_PARAM_CASES = Object.values(attioTools)
-  .filter(isAttioTool)
+/**
+ * Seeded as `unknown[]` so `isAttioTool` is the single narrowing point. The
+ * barrel's element type is a union of `ToolConfig<AttioXParams, …>`, and
+ * `ToolConfig` places its param type in the contravariant position of
+ * `request.url`, so no specific member is assignable to `PathTool` directly.
+ */
+const ALL_ATTIO_TOOLS: readonly unknown[] = Object.values(attioTools)
+
+const PATH_PARAM_CASES = ALL_ATTIO_TOOLS.filter(isAttioTool)
   .filter((tool) => typeof tool.request?.url === 'function')
   .flatMap((tool) =>
     stringParamNames(tool)
