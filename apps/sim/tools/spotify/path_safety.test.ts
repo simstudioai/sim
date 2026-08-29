@@ -26,6 +26,13 @@ import * as spotifyTools from '@/tools/spotify/index'
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
  * `encodeURIComponent`-only fix looks correct while the hole stays live.
+ *
+ * The *balanced* entry matters for a different reason. A vector that pops
+ * exactly as many segments as it adds leaves the path the same length with
+ * every surrounding segment untouched, and only the guarded slot holding a
+ * different value — so an assertion that skips that slot passes while the
+ * request has been re-aimed at another resource. That is why the assertion
+ * below pins the slot to the encoded input rather than exempting it.
  */
 const TRAVERSAL_IDS = [
   '..',
@@ -37,6 +44,7 @@ const TRAVERSAL_IDS = [
   '3n3Ppam7vgaVa1iaRUc9Lp?market=XX',
   '3n3Ppam7vgaVa1iaRUc9Lp#fragment',
   'tracks/../../../v1/me/tracks',
+  '3n3Ppam7vgaVa1iaRUc9Lp/../4aawyAB9vmqN3uQ7FjRGTy',
   '\\..\\..',
 ] as const
 
@@ -318,10 +326,10 @@ describe('spotify path-ID traversal safety', () => {
       expect(ORIGINS).toContain(url.origin)
 
       const actual = segmentsOf(url)
+      const expected = encodeURIComponent(value.trim())
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === TARGET) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(segment === TARGET ? expected : segment)
       })
     })
 

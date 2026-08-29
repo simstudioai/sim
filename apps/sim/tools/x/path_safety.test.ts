@@ -33,6 +33,13 @@ import * as xTools from '@/tools/x/index'
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
  * `encodeURIComponent`-only fix looks correct while the hole stays live.
+ *
+ * The *balanced* entry matters for a different reason. A vector that pops
+ * exactly as many segments as it adds leaves the path the same length with
+ * every surrounding segment untouched, and only the guarded slot holding a
+ * different value — so an assertion that skips that slot passes while the
+ * request has been re-aimed at another resource. That is why the assertion
+ * below pins the slot to the encoded input rather than exempting it.
  */
 const TRAVERSAL_IDS = [
   '..',
@@ -44,6 +51,7 @@ const TRAVERSAL_IDS = [
   '783214?expansions=author_id',
   '783214#fragment',
   'tweets/../../../2/users/me',
+  '783214/../999999',
   '\\..\\..',
 ] as const
 
@@ -328,10 +336,10 @@ describe('x path-ID traversal safety', () => {
       expect(ORIGINS).toContain(url.origin)
 
       const actual = segmentsOf(url)
+      const expected = encodeURIComponent(value.trim())
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === TARGET) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(segment === TARGET ? expected : segment)
       })
     })
 
