@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageRetweetParams, XManageRetweetResponse } from '@/tools/x/types'
+import { xIdBodyValue } from '@/tools/x/types'
 
 const logger = createLogger('XManageRetweetTool')
 
@@ -58,7 +59,7 @@ export const xManageRetweetTool: ToolConfig<XManageRetweetParams, XManageRetweet
     body: (params) => {
       if (params.action === 'unretweet') return undefined
       return {
-        tweet_id: params.tweetId.trim(),
+        tweet_id: xIdBodyValue(params.tweetId, 'tweetId'),
       }
     },
   },

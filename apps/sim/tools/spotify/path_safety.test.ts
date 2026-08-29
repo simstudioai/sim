@@ -98,6 +98,7 @@ interface PathTool {
   id: string
   params: Record<string, { type?: string }>
   buildUrl: UrlBuilder
+  body?: (params: Fill) => unknown
 }
 
 /**
@@ -135,7 +136,10 @@ function asPathTool(value: unknown): PathTool | null {
       ? (candidate.params as Record<string, { type?: string }>)
       : {}
 
-  return { id: candidate.id, params, buildUrl: url as UrlBuilder }
+  const rawBody = (request as { body?: unknown }).body
+  const body = typeof rawBody === 'function' ? (rawBody as (params: Fill) => unknown) : undefined
+
+  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body }
 }
 
 /**
@@ -305,7 +309,9 @@ describe('spotify path-ID traversal safety', () => {
       let url: URL
       try {
         url = fuzz(pathParam, value)
-      } catch {
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error).message).toMatch(new RegExp(pathParam.param))
         return
       }
 

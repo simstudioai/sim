@@ -108,6 +108,7 @@ interface PathTool {
   id: string
   params: Record<string, { type?: string }>
   buildUrl: UrlBuilder
+  body?: (params: Fill) => unknown
 }
 
 /**
@@ -145,7 +146,10 @@ function asPathTool(value: unknown): PathTool | null {
       ? (candidate.params as Record<string, { type?: string }>)
       : {}
 
-  return { id: candidate.id, params, buildUrl: url as UrlBuilder }
+  const rawBody = (request as { body?: unknown }).body
+  const body = typeof rawBody === 'function' ? (rawBody as (params: Fill) => unknown) : undefined
+
+  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body }
 }
 
 /**
@@ -315,7 +319,9 @@ describe('x path-ID traversal safety', () => {
       let url: URL
       try {
         url = fuzz(pathParam, value)
-      } catch {
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error).message).toMatch(new RegExp(pathParam.param))
         return
       }
 
@@ -361,5 +367,51 @@ describe('x path-ID traversal safety', () => {
     it('does not let the ID add to or rewrite the query string', () => {
       expect(fuzz(pathParam, '783214?expansions=author_id').search).toBe(baselineSearch)
     })
+  })
+})
+
+/**
+ * The identifier several X tools put in the path on one branch and in the body
+ * on the other.
+ *
+ * Guarding only the path left the two branches disagreeing about what a caller
+ * may send: a numeric `targetUserId` unblocked successfully (path) but threw a
+ * bare `TypeError` when used to block (body). These assertions pin that the
+ * two agree, so the guard cannot be applied to one and forgotten on the other.
+ */
+const BODY_ID_TOOLS: ReadonlyArray<{ name: string; param: string; field: string; action: string }> =
+  [
+    { name: 'x_create_bookmark', param: 'tweetId', field: 'tweet_id', action: 'create' },
+    { name: 'x_manage_block', param: 'targetUserId', field: 'target_user_id', action: 'block' },
+    { name: 'x_manage_follow', param: 'targetUserId', field: 'target_user_id', action: 'follow' },
+    { name: 'x_manage_mute', param: 'targetUserId', field: 'target_user_id', action: 'mute' },
+    { name: 'x_manage_like', param: 'tweetId', field: 'tweet_id', action: 'like' },
+    { name: 'x_manage_retweet', param: 'tweetId', field: 'tweet_id', action: 'retweet' },
+  ]
+
+function buildBody(name: string, param: string, action: string, value: string | number): unknown {
+  const tool = TOOLS.find((candidate) => candidate.id === name)
+  if (!tool) throw new Error(`${name} is not exported from the barrel`)
+
+  const source = (tool as unknown as { body?: unknown }).body
+  const body = typeof source === 'function' ? (source as (params: Fill) => unknown) : undefined
+  if (!body) throw new Error(`${name} does not build a body`)
+
+  return body({ ...baseFill(tool), action, [param]: value })
+}
+
+describe.each(BODY_ID_TOOLS)('$name body identifier', ({ name, param, field, action }) => {
+  it('accepts the same numeric id its path guard accepts', () => {
+    expect(buildBody(name, param, action, 783214)).toEqual({ [field]: '783214' })
+  })
+
+  it('sends a string id verbatim, without percent-encoding a body value', () => {
+    expect(buildBody(name, param, action, '  1234567890123456789  ')).toEqual({
+      [field]: '1234567890123456789',
+    })
+  })
+
+  it('rejects a dot segment by name, matching the path guard', () => {
+    expect(() => buildBody(name, param, action, '..')).toThrow(new RegExp(param))
   })
 })

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XCreateBookmarkParams, XCreateBookmarkResponse } from '@/tools/x/types'
+import { xIdBodyValue } from '@/tools/x/types'
 
 const logger = createLogger('XCreateBookmarkTool')
 
@@ -46,7 +47,7 @@ export const xCreateBookmarkTool: ToolConfig<XCreateBookmarkParams, XCreateBookm
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      tweet_id: params.tweetId.trim(),
+      tweet_id: xIdBodyValue(params.tweetId, 'tweetId'),
     }),
   },
 

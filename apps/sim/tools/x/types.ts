@@ -1,4 +1,26 @@
 import type { ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+/**
+ * Normalizes an X identifier that travels in a request **body** rather than in
+ * a path segment.
+ *
+ * `safeUrlPathSegment` already defines which value kinds an X id may take — a
+ * string, or a number an LLM tool call serialized without losing precision —
+ * so this defers to it and decodes the result instead of restating those rules
+ * and letting the two drift apart. Percent-encoding is a path concern; a JSON
+ * body carries the raw value, and `decodeURIComponent(encodeURIComponent(v))`
+ * returns `v` for every value the guard admits.
+ *
+ * Several X tools put the same id in the path on one branch and in the body on
+ * the other — \`x_manage_block\` sends \`targetUserId\` as a path segment to
+ * unblock and as a body field to block. Guarding only the path left those two
+ * branches disagreeing about what a caller may send, so a numeric id that
+ * unblocked successfully threw a bare \`TypeError\` when used to block.
+ */
+export function xIdBodyValue(value: string | number | bigint, paramName: string): string {
+  return decodeURIComponent(safeUrlPathSegment(value, paramName))
+}
 
 /**
  * Context annotation domain from X API

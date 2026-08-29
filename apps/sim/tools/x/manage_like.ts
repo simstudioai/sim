@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageLikeParams, XManageLikeResponse } from '@/tools/x/types'
+import { xIdBodyValue } from '@/tools/x/types'
 
 const logger = createLogger('XManageLikeTool')
 
@@ -58,7 +59,7 @@ export const xManageLikeTool: ToolConfig<XManageLikeParams, XManageLikeResponse>
     body: (params) => {
       if (params.action === 'unlike') return undefined
       return {
-        tweet_id: params.tweetId.trim(),
+        tweet_id: xIdBodyValue(params.tweetId, 'tweetId'),
       }
     },
   },

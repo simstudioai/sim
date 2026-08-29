@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageFollowParams, XManageFollowResponse } from '@/tools/x/types'
+import { xIdBodyValue } from '@/tools/x/types'
 
 const logger = createLogger('XManageFollowTool')
 
@@ -58,7 +59,7 @@ export const xManageFollowTool: ToolConfig<XManageFollowParams, XManageFollowRes
     body: (params) => {
       if (params.action === 'unfollow') return undefined
       return {
-        target_user_id: params.targetUserId.trim(),
+        target_user_id: xIdBodyValue(params.targetUserId, 'targetUserId'),
       }
     },
   },

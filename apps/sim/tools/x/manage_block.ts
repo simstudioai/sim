@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageBlockParams, XManageBlockResponse } from '@/tools/x/types'
+import { xIdBodyValue } from '@/tools/x/types'
 
 const logger = createLogger('XManageBlockTool')
 
@@ -58,7 +59,7 @@ export const xManageBlockTool: ToolConfig<XManageBlockParams, XManageBlockRespon
     body: (params) => {
       if (params.action === 'unblock') return undefined
       return {
-        target_user_id: params.targetUserId.trim(),
+        target_user_id: xIdBodyValue(params.targetUserId, 'targetUserId'),
       }
     },
   },
