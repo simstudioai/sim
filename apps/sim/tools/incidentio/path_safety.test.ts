@@ -21,8 +21,14 @@
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
  *
- * Tools are enumerated from the barrel rather than listed by hand, so a newly
- * added tool that interpolates an unguarded ID fails this suite on arrival.
+ * The unit under test is a **(tool, parameter) pair**, not a tool. Fuzzing every
+ * string parameter of a tool at once hides siblings: the first guarded parameter
+ * throws, the `catch` swallows the whole vector, and every remaining parameter on
+ * that tool goes unexercised — so a tool that already has one guard stops
+ * reporting on the ones it is missing. Each parameter is therefore fuzzed alone,
+ * with every sibling pinned to a safe value. The pairs are discovered by probing
+ * rather than listed by hand, so a new tool — or a new path parameter on an
+ * existing tool — joins the matrix on arrival.
  */
 import { describe, expect, it } from 'vitest'
 import * as incidentioTools from '@/tools/incidentio/index'
@@ -58,7 +64,13 @@ const LEGITIMATE_IDS = [
   'v1.2.3',
 ] as const
 
-const SAFE_ID = 'SAFEID'
+/** Pinned into every sibling parameter so only the fuzzed one can move. */
+const SIBLING_ID = 'SIBLINGID'
+
+/** Distinguishes the fuzzed parameter's slots from every other path segment. */
+const TARGET_ID = 'TARGETID'
+
+const PADDED_ID = '01FCNDV6P870EA6S7TK1DSYDG0'
 
 type AnyTool = ToolConfig<any, any>
 
@@ -72,10 +84,10 @@ function isIncidentioTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised.
+ * Builds a param object for a tool, pinning every declared string param to
+ * `SIBLING_ID` except `target`, which carries the value under test.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
+function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { apiKey: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'apiKey') continue
@@ -87,48 +99,62 @@ function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
     } else if (type === 'boolean') {
       params[name] = false
     } else {
-      params[name] = value
+      params[name] = name === target ? value : SIBLING_ID
     }
   }
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
+  return new URL(url(buildParams(tool, target, value) as any))
 }
 
 function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(incidentioTools)
+/**
+ * Discovers every (tool, parameter) pair whose parameter reaches the path, by
+ * marking one parameter at a time and checking whether the marker survives into
+ * `pathname`. Probing rather than listing is what makes a newly added path
+ * parameter fail this suite without anyone remembering to register it.
+ */
+const PATH_PARAM_PAIRS = Object.values(incidentioTools)
   .filter(isIncidentioTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
-    try {
-      return buildUrl(tool, SAFE_ID).pathname.includes(SAFE_ID)
-    } catch {
-      return false
-    }
-  })
-  .map((tool) => ({ name: tool.id, tool }))
+  .flatMap((tool) =>
+    Object.keys(tool.params ?? {})
+      .filter((name) => name !== 'apiKey')
+      .filter((name) => {
+        try {
+          return buildUrl(tool, name, TARGET_ID).pathname.includes(TARGET_ID)
+        } catch {
+          return false
+        }
+      })
+      .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
+  )
 
-describe('incident.io path-ID traversal safety', () => {
-  it('covers every incident.io tool that interpolates an ID into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(28)
+describe('incident.io path-parameter traversal safety', () => {
+  it('covers every (tool, parameter) pair that reaches the request path', () => {
+    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(30)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildUrl(tool, SAFE_ID))
+  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param }) => {
+    const baseline = segmentsOf(buildUrl(tool, param, TARGET_ID))
+
+    it('reaches the path in at least one segment', () => {
+      expect(baseline).toContain(TARGET_ID)
+    })
 
     it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
+        url = buildUrl(tool, param, value)
       } catch {
         return
       }
@@ -138,38 +164,39 @@ describe('incident.io path-ID traversal safety', () => {
       const actual = segmentsOf(url)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === SAFE_ID) return
+        if (segment === TARGET_ID) return
         expect(actual[index]).toBe(segment)
       })
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildUrl(tool, value))
+      const actual = segmentsOf(buildUrl(tool, param, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment === SAFE_ID ? value : segment)
+        expect(actual[index]).toBe(segment === TARGET_ID ? value : segment)
       })
     })
 
-    it('rejects a bare dot-dot segment instead of silently popping the prefix', () => {
-      expect(() => buildUrl(tool, '..')).toThrow()
+    it('rejects a bare dot-dot segment, naming the offending parameter', () => {
+      expect(() => buildUrl(tool, param, '..')).toThrow(new RegExp(param))
     })
 
-    it('rejects a bare dot segment', () => {
-      expect(() => buildUrl(tool, '.')).toThrow()
+    it('rejects a bare dot segment, naming the offending parameter', () => {
+      expect(() => buildUrl(tool, param, '.')).toThrow(new RegExp(param))
     })
 
     it('trims surrounding whitespace without altering the id', () => {
-      const padded = segmentsOf(buildUrl(tool, '  01FCNDV6P870EA6S7TK1DSYDG0  '))
+      const padded = segmentsOf(buildUrl(tool, param, `  ${PADDED_ID}  `))
 
+      expect(padded).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(padded[index]).toBe(segment === SAFE_ID ? '01FCNDV6P870EA6S7TK1DSYDG0' : segment)
+        expect(padded[index]).toBe(segment === TARGET_ID ? PADDED_ID : segment)
       })
     })
 
     it('does not let the id inject query parameters', () => {
-      const url = buildUrl(tool, '01FCNDV6P870EA6S7TK1DSYDG0?page_size=100')
+      const url = buildUrl(tool, param, `${PADDED_ID}?page_size=100`)
 
       expect(url.searchParams.get('page_size')).not.toBe('100')
     })
