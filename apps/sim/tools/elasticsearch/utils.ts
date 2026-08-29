@@ -77,6 +77,16 @@ export function parseCloudId(cloudId: string): string {
  * fall back to `host`: switching the deployment dropdown leaves the previous
  * host in saved state, so a fallback would send the cloud credential to a
  * stale, unrelated origin.
+ *
+ * An unrecognized deployment type is rejected rather than treated as
+ * self-hosted, because that fallthrough is the same disclosure by another
+ * route. `deploymentType` is `required: true` with no explicit `visibility`,
+ * which `tools/params.ts` resolves to `user-or-llm`, so on the agent
+ * tool-calling path a model supplies it. A near miss such as `Cloud` or
+ * `elastic_cloud` is not `=== 'cloud'`, so it would select the self-hosted
+ * branch and send the credential to whatever stale `host` holds. A nullish
+ * value still means self-hosted: that is the dropdown's own default and the
+ * shape of workflow state saved before the field was ever touched.
  */
 export function buildBaseUrl(params: ElasticsearchBaseParams): string {
   if (params.deploymentType === 'cloud') {
@@ -84,6 +94,12 @@ export function buildBaseUrl(params: ElasticsearchBaseParams): string {
       throw new Error('Cloud ID is required for cloud deployments')
     }
     return parseCloudId(params.cloudId)
+  }
+
+  if (params.deploymentType && params.deploymentType !== 'self_hosted') {
+    throw new Error(
+      `Unsupported deployment type "${params.deploymentType}". Expected "self_hosted" or "cloud".`
+    )
   }
 
   if (!params.host) {

@@ -99,6 +99,36 @@ describe('buildBaseUrl', () => {
       /Host is required/
     )
   })
+
+  /**
+   * `deploymentType` resolves to `user-or-llm`, so a model on the agent
+   * tool-calling path can emit a near miss for `cloud`. Treating every
+   * non-`cloud` value as self-hosted would route the credential to the stale
+   * host, which is the disclosure the cloud branch exists to prevent.
+   */
+  it.each(['Cloud', 'CLOUD', 'elastic_cloud', 'cloud ', 'elasticCloud'])(
+    'rejects %o rather than routing it to the stale self-hosted host',
+    (deploymentType) => {
+      expect(() =>
+        buildBaseUrl({
+          deploymentType: deploymentType as unknown as 'cloud',
+          host: 'https://stale-self-hosted.example.com',
+          cloudId: cloudId(`${PARENT_DOMAIN}$${ES_UUID}$${KIBANA_UUID}`),
+          authMethod: 'api_key',
+        })
+      ).toThrow(/Unsupported deployment type/)
+    }
+  )
+
+  it('still treats a nullish deployment type as self-hosted for legacy saved state', () => {
+    expect(
+      buildBaseUrl({
+        deploymentType: undefined as unknown as 'self_hosted',
+        host: 'https://es.example.com/',
+        authMethod: 'api_key',
+      })
+    ).toBe('https://es.example.com')
+  })
 })
 
 describe('every Elasticsearch tool resolves the same cloud host', () => {
