@@ -120,14 +120,53 @@ describe('GitHub block param wiring', () => {
     expect(merged.content).toBe('+1')
   })
 
-  it('never emits an undefined value for any alias it does not have a source for', () => {
+  /**
+   * An alias key that is *absent* means the caller addressed the tool param
+   * directly — the agent path — so the mapper must not touch it. An alias key
+   * that is *present but blank* means the operator cleared the field, and the
+   * target has to be cleared with it: stored block state keeps values for
+   * fields the current operation does not render, so a same-named leftover
+   * (`title` from Create Issue, `sort` from a search) would otherwise be sent.
+   */
+  it('clears a stale canonical value when its alias field is blank', () => {
     if (!mapParams) return
 
-    for (const operation of operations) {
-      const mapped = mapParams({ operation })
-      for (const [key, value] of Object.entries(mapped)) {
-        expect(value, `${operation} emitted undefined for ${key}`).not.toBeUndefined()
-      }
+    const merged = {
+      operation: 'github_update_milestone',
+      milestone_title: '',
+      title: 'left over from Create Issue',
+      ...mapParams({
+        operation: 'github_update_milestone',
+        milestone_title: '',
+        title: 'left over from Create Issue',
+      }),
     }
+
+    expect(merged.title).toBeUndefined()
+  })
+
+  it('leaves the tool param alone when the alias key is absent entirely', () => {
+    if (!mapParams) return
+
+    const direct = { operation: 'github_update_milestone', title: 'model supplied' }
+    const merged = { ...direct, ...mapParams(direct) }
+
+    expect(merged.title).toBe('model supplied')
+  })
+
+  /**
+   * `protected` is a tri-state in the UI and a boolean on the wire; `list_branches`
+   * appends the filter whenever it is not `undefined`, so the "All" sentinel would
+   * be sent as the invalid `protected=all`.
+   */
+  it('omits the protection filter when All is selected', () => {
+    const resolved = resolveToolInputs('github_list_branches', { protected: 'all' })
+
+    expect(resolved.protected).toBeUndefined()
+  })
+
+  it('still sends the protection filter as a boolean when one is chosen', () => {
+    expect(resolveToolInputs('github_list_branches', { protected: 'true' }).protected).toBe(true)
+    expect(resolveToolInputs('github_list_branches', { protected: 'false' }).protected).toBe(false)
   })
 })

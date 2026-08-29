@@ -42,6 +42,18 @@ describe('github_update_branch_protection body', () => {
     expect(body.enforce_admins).toBeNull()
   })
 
+  /**
+   * A cleared `short-input` arrives as `''`, and the handler's JSON coercion
+   * only parses non-blank strings, so the blank would reach the body verbatim
+   * and GitHub would reject `""` where it expects an object or null.
+   */
+  it('treats a blank field as disabled rather than sending an empty string', () => {
+    const body = bodyFor({ ...BASE, restrictions: '', required_status_checks: '   ' })
+
+    expect(body.restrictions).toBeNull()
+    expect(body.required_status_checks).toBeNull()
+  })
+
   it('preserves an explicit null', () => {
     const body = bodyFor({ ...BASE, restrictions: null })
 

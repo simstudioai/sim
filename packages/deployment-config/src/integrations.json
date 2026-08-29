@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-29",
   "integrations": [
     {
       "type": "onepassword",
@@ -7941,7 +7941,7 @@
         },
         {
           "name": "Update branch protection",
-          "description": "Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions."
+          "description": "Replace the branch protection configuration for a branch. This endpoint sets the whole configuration at once: any of the four settings you leave out is disabled, so send every protection you want kept, not only the ones you are changing."
         },
         {
           "name": "Create issue",

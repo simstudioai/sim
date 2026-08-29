@@ -9,7 +9,7 @@ export const updateBranchProtectionTool: ToolConfig<
   id: 'github_update_branch_protection',
   name: 'GitHub Update Branch Protection',
   description:
-    'Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.',
+    'Replace the branch protection configuration for a branch. This endpoint sets the whole configuration at once: any of the four settings you leave out is disabled, so send every protection you want kept, not only the ones you are changing.',
   version: '1.0.0',
 
   params: {
@@ -36,27 +36,28 @@ export const updateBranchProtectionTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Required status check configuration (null to disable). Object with strict (boolean) and contexts (string array)',
+        'Required status checks, as an object with strict (boolean) and contexts (string array). Leave out to DISABLE required status checks — this endpoint replaces the whole configuration, it does not merge.',
     },
     enforce_admins: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to enforce restrictions for administrators',
+      description:
+        'Whether to enforce protections for administrators. Leave out to DISABLE admin enforcement — this endpoint replaces the whole configuration, it does not merge.',
     },
     required_pull_request_reviews: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'PR review requirements (null to disable). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews',
+        'Pull request review requirements, as an object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews. Leave out to DISABLE required reviews — this endpoint replaces the whole configuration, it does not merge.',
     },
     restrictions: {
       type: 'object',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Push restrictions (null to disable). Object with users (string array) and teams (string array)',
+        'Push restrictions, as an object with users (string array) and teams (string array). Leave out to DISABLE push restrictions — this endpoint replaces the whole configuration, it does not merge.',
     },
     apiKey: {
       type: 'string',
@@ -84,11 +85,21 @@ export const updateBranchProtectionTool: ToolConfig<
        * `null` rather than dropped — `JSON.stringify` would strip an
        * `undefined`, and GitHub rejects the body for the missing key.
        */
+      /**
+       * A cleared text field arrives as `''`, and the handler's JSON coercion
+       * only parses non-blank strings, so a blank would otherwise reach the body
+       * verbatim and GitHub would reject `""` where it expects an object or null.
+       */
+      const setting = (value: unknown) =>
+        value === undefined || value === null || (typeof value === 'string' && !value.trim())
+          ? null
+          : value
+
       const body: Record<string, unknown> = {
-        required_status_checks: params.required_status_checks ?? null,
-        enforce_admins: params.enforce_admins ?? null,
-        required_pull_request_reviews: params.required_pull_request_reviews ?? null,
-        restrictions: params.restrictions ?? null,
+        required_status_checks: setting(params.required_status_checks),
+        enforce_admins: setting(params.enforce_admins),
+        required_pull_request_reviews: setting(params.required_pull_request_reviews),
+        restrictions: setting(params.restrictions),
       }
 
       return body

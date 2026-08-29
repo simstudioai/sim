@@ -42,6 +42,9 @@ const SUBBLOCK_PARAM_ALIASES: Record<string, Readonly<Record<string, string>>> =
  * operation that takes it, so a flat set is unambiguous. Only the exact strings
  * are converted, which leaves an already-boolean value untouched.
  */
+/** The dropdown id meaning "do not filter", which must become an omitted param. */
+const TRI_STATE_ANY = 'all'
+
 const BOOLEAN_TOOL_PARAMS = [
   'draft',
   'protected',
@@ -2333,15 +2336,33 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         for (const [subBlockId, toolParam] of Object.entries(
           SUBBLOCK_PARAM_ALIASES[operation] ?? {}
         )) {
+          /**
+           * An absent alias key means the caller addressed the tool param
+           * directly — the agent path — so it must be left alone; writing here
+           * would clobber a model-supplied value, because the handler merges
+           * `{ ...inputs, ...params(inputs) }`.
+           *
+           * A key that is present but blank means the operator cleared the
+           * field, and the target has to be cleared with it. Block state keeps
+           * values for fields the current operation does not render, so a
+           * same-named leftover (`title` from Create Issue, `sort` from a
+           * search) would otherwise be sent under this operation.
+           */
+          if (!(subBlockId in params)) continue
           const value = params[subBlockId]
-          if (value === undefined || value === null || value === '') continue
-          mapped[toolParam] = value
+          mapped[toolParam] = value === '' || value === null ? undefined : value
         }
 
         for (const toolParam of BOOLEAN_TOOL_PARAMS) {
           const value = toolParam in mapped ? mapped[toolParam] : params[toolParam]
           if (value === 'true') mapped[toolParam] = true
           else if (value === 'false') mapped[toolParam] = false
+          /**
+           * `protected` is a tri-state in the UI and a boolean on the wire.
+           * `list_branches` appends the filter whenever it is not `undefined`,
+           * so the "All" sentinel has to become an omission rather than the
+           * invalid `protected=all`.
+           */ else if (value === TRI_STATE_ANY) mapped[toolParam] = undefined
         }
 
         return mapped
