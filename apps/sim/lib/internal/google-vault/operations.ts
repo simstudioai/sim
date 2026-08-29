@@ -44,7 +44,7 @@ export async function downloadGoogleVaultExportFile(
   const downloadUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media`
   const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new GoogleVaultOperationError(
       enhanceGoogleVaultError(validation.error || 'Invalid URL'),
       400

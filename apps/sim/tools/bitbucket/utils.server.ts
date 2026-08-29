@@ -76,7 +76,7 @@ export async function secureBitbucketRead(
   } = {}
 ): Promise<Response> {
   const validation = await validateUrlWithDNS(url, 'bitbucketUrl', 'configuredEndpoint')
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(`Invalid Bitbucket URL: ${validation.error ?? 'DNS resolution failed'}`)
   }
 

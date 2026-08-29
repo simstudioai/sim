@@ -30,7 +30,7 @@ export class GrafanaClient {
     const url = `${this.baseUrl}${path}`
     const validation = await validateUrlWithDNS(url, 'baseUrl', 'configuredEndpoint')
     this.signal?.throwIfAborted()
-    if (!validation.isValid || !validation.resolvedIP) {
+    if (!validation.isValid) {
       return { success: false, error: `Invalid Grafana baseUrl: ${validation.error}` }
     }
 

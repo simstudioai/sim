@@ -23,7 +23,7 @@ export async function submitMistralOcr(
     'configuredEndpoint'
   )
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new MistralOperationError(502, {
       success: false,
       error: 'Failed to reach Mistral API',

@@ -216,10 +216,13 @@ describe('Vision operations', () => {
     expect(mocks.isModelSafeWorkspaceFileKey).toHaveBeenCalledWith(
       'workspace/workspace-1/image.png'
     )
+    // A resolved internal file URL is a presigned URL against Sim's own
+    // storage, which on a self-hosted deployment legitimately sits on a private
+    // address — so it is judged as a configured endpoint, not as content.
     expect(mocks.validateUrlWithDNS).toHaveBeenCalledWith(
       'https://storage.example.com/image.png',
       'imageUrl',
-      'contentFetch'
+      'configuredEndpoint'
     )
     expect(mocks.analyzeVision).toHaveBeenCalledWith(
       expect.objectContaining({

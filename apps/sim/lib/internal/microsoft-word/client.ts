@@ -1,3 +1,4 @@
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -55,18 +56,16 @@ export class GraphRequestError extends Error {
 async function graphFetch(
   url: string,
   paramName: string,
-  options: Omit<NonNullable<Parameters<typeof secureFetchWithPinnedIP>[2]>, 'profile'>
+  options: Omit<NonNullable<Parameters<typeof secureFetchWithPinnedIP>[2]>, 'profile'>,
+  profile: EgressProfile = 'configuredEndpoint'
 ) {
   options.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(url, paramName, 'configuredEndpoint')
+  const validation = await validateUrlWithDNS(url, paramName, profile)
   options.signal?.throwIfAborted()
   if (!validation.isValid) {
     throw new GraphRequestError(validation.error || `Invalid ${paramName}`, 400)
   }
-  return secureFetchWithPinnedIP(url, validation.resolvedIP as string, {
-    ...options,
-    profile: 'configuredEndpoint',
-  })
+  return secureFetchWithPinnedIP(url, validation.resolvedIP, { ...options, profile })
 }
 
 /** Reads a Graph error body and raises it as a {@link GraphRequestError}. */
@@ -305,7 +304,8 @@ const UPLOAD_FRAGMENT_BYTES = 10 * 1024 * 1024
  *
  * The URL is preauthenticated and on another host; Graph documents that sending
  * `Authorization` here can itself fail the request with a 401, so no bearer
- * token is attached.
+ * token is attached. It comes out of a Graph response rather than from
+ * configuration, so it is judged under the `contentFetch` provenance.
  *
  * @see https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession
  */
@@ -320,15 +320,22 @@ async function uploadSessionBytes(
     const end = Math.min(start + UPLOAD_FRAGMENT_BYTES, total) - 1
     const fragment = content.subarray(start, end + 1)
 
-    const response = await graphFetch(uploadUrl, 'documentUploadUrl', {
-      method: 'PUT',
-      headers: {
-        'Content-Length': String(fragment.length),
-        'Content-Range': `bytes ${start}-${end}/${total}`,
+    const response = await graphFetch(
+      uploadUrl,
+      'documentUploadUrl',
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Length': String(fragment.length),
+          'Content-Range': `bytes ${start}-${end}/${total}`,
+        },
+        body: fragment,
+        signal,
       },
-      body: fragment,
-      signal,
-    })
+      // The upload URL is named by a Graph response rather than configured, so
+      // it is judged as content: preauthenticated, public, and https-only.
+      'contentFetch'
+    )
 
     if (response.status === 412 || response.status === 409) {
       throw documentChangedError()

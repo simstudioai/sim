@@ -46,7 +46,7 @@ export async function downloadTypeformFile(
   const fileUrl = buildTypeformFileUrl(input)
   const validation = await validateUrlWithDNS(fileUrl, 'typeformFileUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new TypeformOperationError(validation.error || 'Invalid Typeform file URL', 400)
   }
   const response = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {

@@ -69,7 +69,7 @@ export async function getZoomMeetingRecordings(
   const apiUrl = query.size > 0 ? `${baseUrl}?${query}` : baseUrl
   const validation = await validateUrlWithDNS(apiUrl, 'apiUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new ZoomOperationError(validation.error || 'Invalid Zoom API URL', 400)
   }
 

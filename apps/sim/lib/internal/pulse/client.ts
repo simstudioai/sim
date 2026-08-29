@@ -21,7 +21,7 @@ export async function submitPulseParse(
   signal?.throwIfAborted()
   const validation = await validateUrlWithDNS(PULSE_ENDPOINT, 'Pulse API URL', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new PulseOperationError(502, { success: false, error: 'Failed to reach Pulse API' })
   }
 

@@ -6,7 +6,8 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
-import { isIpLiteral, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import type { EgressDecision } from '@sim/security/egress'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
@@ -175,23 +176,21 @@ export async function validateDatabaseHost(
 
   try {
     const { addresses } = await resolveHostAddresses(cleanHost)
-    const blocked = addresses.find(
-      (candidate) => !checkResolvedEgress(asUrl, candidate, 'databaseHost').allowed
-    )
+    let refusal: Extract<EgressDecision, { allowed: false }> | undefined
+    const blocked = addresses.find((candidate) => {
+      const decision = checkResolvedEgress(asUrl, candidate, 'databaseHost')
+      if (decision.allowed) return false
+      refusal = decision
+      return true
+    })
 
-    if (blocked !== undefined) {
-      const decision = checkResolvedEgress(asUrl, blocked, 'databaseHost')
+    if (refusal !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
         resolvedIP: blocked,
       })
-      return {
-        isValid: false,
-        error: decision.allowed
-          ? `${paramName} resolves to a blocked IP address`
-          : describeEgressDenial(decision, paramName, 'databaseHost'),
-      }
+      return { isValid: false, error: describeEgressDenial(refusal, paramName, 'databaseHost') }
     }
 
     return {
@@ -412,8 +411,16 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024
 /** Response cap for JSON/control-plane proxies to user-supplied hosts. */
 export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
 
+/**
+ * The statuses that name a new destination to request. 300, 305 and 306 are
+ * deliberately absent: 305 (Use Proxy) redirects a request into a server-named
+ * proxy, which is the one hop a guard must never take, and the other two carry
+ * no single target.
+ */
+const FOLLOWED_REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308])
+
 function isRedirectStatus(status: number): boolean {
-  return status >= 300 && status < 400 && status !== 304
+  return FOLLOWED_REDIRECT_STATUSES.has(status)
 }
 
 function isRetryableHttpStatus(status: number): boolean {
@@ -456,12 +463,30 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  * full public address set, so the OS/undici can fall back across addresses.
  * IPv4 is ordered first (`verbatim: false`) — our egress is IPv4-only.
  */
-export function createSsrfGuardedLookup(): LookupFunction {
+function safeParseUrl(value: string): URL | null {
+  try {
+    return new URL(value)
+  } catch {
+    return null
+  }
+}
+
+export function createSsrfGuardedLookup(profile: EgressProfile): LookupFunction {
   return (hostname, options, callback) => {
+    // Scheme and port were judged when the request URL was checked, so this
+    // stage only classifies addresses — but it classifies them against the
+    // request's own policy, so a destination the operator allowlisted is not
+    // stranded here after the redirect check permitted it.
+    const asUrl = safeParseUrl(`https://${hostname}`)
     dns
       .lookup(hostname, { all: true, verbatim: false })
       .then((addresses) => {
-        const usable = addresses.filter((entry) => !isPrivateIp(entry.address))
+        const usable =
+          asUrl === null
+            ? []
+            : addresses.filter(
+                (entry) => checkResolvedEgress(asUrl, entry.address, profile).allowed
+              )
         if (usable.length === 0) {
           callback(
             new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
@@ -494,20 +519,18 @@ function assertGuardedRedirectTarget(
   const host = unwrapIpv6Brackets(url.hostname)
 
   // The request's own policy decides, which is how a self-hosted server on a
-  // permitted private address stays reachable across a hop. It replaced a
-  // carve-out that permitted one pinned IP and could not express anything else.
+  // permitted private address stays reachable across a hop.
   //
-  // A literal is judged completely here. A hostname gets the pre-DNS half —
-  // scheme and port — which used to be skipped entirely, so a hop could downgrade
-  // to plain HTTP or land on a denied port as long as it was named rather than
-  // numbered. Its address is judged by the connect-time lookup.
-  // `knownAddress` is the address a caller already resolved for this exact URL.
-  // Re-judging the hostname without it would refuse a destination the operator
-  // allowlisted by IP range, since a range match is only visible post-DNS.
-  const decision = knownAddress
-    ? checkResolvedEgress(url, knownAddress, profile)
-    : isIpLiteral(host)
-      ? checkResolvedEgress(url, host, profile)
+  // A literal is judged completely here, and takes precedence over any address a
+  // caller resolved earlier: `net.connect` dials a numeric host directly, so the
+  // literal is what the socket will reach. A hostname is judged on
+  // `knownAddress` when the caller resolved this exact URL — a range-allowlist
+  // match is only visible post-DNS — and otherwise gets the pre-DNS half, scheme
+  // and port, with its address left to the connect-time lookup.
+  const decision = isIpLiteral(host)
+    ? checkResolvedEgress(url, host, profile)
+    : knownAddress
+      ? checkResolvedEgress(url, knownAddress, profile)
       : checkEgressUrl(url, profile)
 
   if (!decision.allowed) {
@@ -878,7 +901,7 @@ export function createSsrfGuardedFetchWithDispatcher(options: {
 } {
   const dispatcher = new Agent({
     allowH2: false,
-    connect: { lookup: createSsrfGuardedLookup() },
+    connect: { lookup: createSsrfGuardedLookup(options.profile) },
     ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
@@ -1063,19 +1086,20 @@ export async function secureFetchWithPinnedIP(
               return
             }
             const redirectPolicy = options.redirectPolicy
+            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
+            // Legacy mode replays the method and body verbatim on every status,
+            // which is what persisted workflows were built against.
             const hop =
               redirectPolicy?.mode === 'standard'
                 ? resolveRedirectHop({ status: statusCode, method: options.method ?? 'GET' })
                 : { method: options.method ?? 'GET', dropBody: false }
-            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
             let redirectHeaders = options.headers
             if (redirectHeaders && hop.dropBody) {
               redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
             }
             // Credentials are dropped on a cross-origin hop unless a policy
-            // explicitly asks to keep them. Gating this on a policy being
-            // supplied at all, as it once was, meant the many callers that pass
-            // none handed their Authorization header to whatever host the
+            // explicitly asks to keep them, so a caller that passes no policy
+            // does not hand its Authorization header to whatever host the
             // redirect named. `host` always goes: it describes the old origin.
             if (redirectHeaders && isCrossOrigin) {
               const keepCredentials = redirectPolicy?.sendCredentialsOnCrossOriginRedirect === true
@@ -1096,7 +1120,7 @@ export async function secureFetchWithPinnedIP(
             const redirectBody = hop.dropBody ? undefined : options.body
             // Refusing rather than quietly dropping the body: a bodyless replay
             // of a POST is a different request, and the caller cannot tell it
-            // happened. Matches followRedirectsGuarded, which has always refused.
+            // happened. Matches followRedirectsGuarded.
             if (
               isCrossOrigin &&
               redirectBody !== undefined &&

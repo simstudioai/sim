@@ -119,7 +119,7 @@ export const vllmProvider: ProviderConfig = {
      * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
      * unvalidated, mirroring the Azure providers.
      *
-     * The `configuredEndpoint` profile is what makes a self-hosted vLLM reachable
+     * The `selfHostedService` profile is what makes a self-hosted vLLM reachable
      * at all: over plain HTTP, which these deployments usually are, and at a
      * private address once the operator names it in the egress allowlist.
      * Anything they have not named stays blocked.
@@ -138,9 +138,6 @@ export const vllmProvider: ProviderConfig = {
           error: validation.error,
         })
         throw new Error(`Invalid vLLM endpoint: ${validation.error}`)
-      }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
       }
       pinnedIP = validation.resolvedIP
       pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'selfHostedService' })

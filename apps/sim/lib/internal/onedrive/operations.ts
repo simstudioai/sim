@@ -429,7 +429,7 @@ async function fetchGraph(
 ) {
   const validation = await validateUrlWithDNS(url, label, 'contentFetch')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new OneDriveOperationError(validation.error || `Invalid ${label}`, 400)
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, {

@@ -44,9 +44,6 @@ export const azureAnthropicProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid Azure Anthropic endpoint: could not resolve a pinnable IP address')
-      }
       pinnedIP = validation.resolvedIP
       pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'configuredEndpoint' })
     }

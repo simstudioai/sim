@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import { analyzeVision, type VisionAnalysisResult } from '@/lib/internal/vision/client'
@@ -35,6 +36,7 @@ interface ResolvedImage {
   source: string
   contentType?: string
   resolvedIP?: string
+  profile?: EgressProfile
 }
 
 function fail(message: string, status: number, body?: Record<string, unknown>): never {
@@ -84,7 +86,8 @@ async function resolveUrlImage(
   if (source.startsWith('/') && !isInternalFileUrl(source)) {
     fail('Invalid file path. Only uploaded files are supported for internal paths.', 400)
   }
-  if (isInternalFileUrl(source)) {
+  const internal = isInternalFileUrl(source)
+  if (internal) {
     context.signal?.throwIfAborted()
     const resolution = await resolveInternalFileUrl(
       source,
@@ -100,8 +103,13 @@ async function resolveUrlImage(
     }
   }
 
+  // A caller-supplied image URL is content; a resolved internal one is a
+  // presigned URL against Sim's own storage, which on a self-hosted deployment
+  // legitimately sits on a private address.
+  const profile: EgressProfile = internal ? 'configuredEndpoint' : 'contentFetch'
+
   context.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(source, 'imageUrl', 'contentFetch')
+  const validation = await validateUrlWithDNS(source, 'imageUrl', profile)
   context.signal?.throwIfAborted()
   if (!validation.isValid) {
     fail(validation.error || 'Invalid image URL', 400, {
@@ -109,7 +117,7 @@ async function resolveUrlImage(
       error: validation.error,
     })
   }
-  return { source, resolvedIP: validation.resolvedIP }
+  return { source, resolvedIP: validation.resolvedIP, profile }
 }
 
 export async function executeVisionOperation(
@@ -137,6 +145,7 @@ export async function executeVisionOperation(
       model: input.model,
       prompt: input.prompt || DEFAULT_PROMPT,
       remoteImageResolvedIP: image.resolvedIP,
+      remoteImageProfile: image.profile,
     },
     context.signal
   )

@@ -71,12 +71,14 @@ async function resolveMediaKind(args: {
   const extensionKind = mediaKindFromExtension(pathOrName)
   if (extensionKind) return extensionKind
 
+  // `fileUrl` is minted by `resolveFileInputToUrl` against Sim's own storage,
+  // which on a self-hosted deployment legitimately sits on a private address.
   try {
-    const validation = await validateUrlWithDNS(fileUrl, 'media', 'contentFetch')
+    const validation = await validateUrlWithDNS(fileUrl, 'media', 'configuredEndpoint')
     context.signal?.throwIfAborted()
-    if (validation.isValid && validation.resolvedIP) {
+    if (validation.isValid) {
       const probe = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {
-        profile: 'contentFetch',
+        profile: 'configuredEndpoint',
         method: 'HEAD',
         timeout: MEDIA_PROBE_TIMEOUT_MS,
         signal: context.signal,

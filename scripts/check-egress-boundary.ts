@@ -24,6 +24,7 @@
  *
  * Usage: bun run scripts/check-egress-boundary.ts
  */
+import type { Dirent } from 'node:fs'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
@@ -32,11 +33,13 @@ const ROOT = path.resolve(import.meta.dir, '..')
 
 const SCAN_DIRS = [
   'apps/sim/app',
-  'apps/sim/lib',
-  'apps/sim/tools',
+  'apps/sim/background',
+  'apps/sim/blocks',
   'apps/sim/connectors',
   'apps/sim/executor',
+  'apps/sim/lib',
   'apps/sim/providers',
+  'apps/sim/tools',
   'apps/sim/triggers',
 ]
 
@@ -75,7 +78,13 @@ const ALLOWED = new Set([
 ])
 
 function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    throw new Error(`check-egress-boundary: SCAN_DIRS entry "${dir}" does not exist`)
+  }
+  for (const entry of entries) {
     if (SKIP_DIRS.has(entry.name)) continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) walk(full, out)

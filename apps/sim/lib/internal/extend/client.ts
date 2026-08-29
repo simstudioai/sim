@@ -27,7 +27,7 @@ export async function submitExtendParse(
     'configuredEndpoint'
   )
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new ExtendOperationError(502, { success: false, error: 'Failed to reach Extend API' })
   }
 

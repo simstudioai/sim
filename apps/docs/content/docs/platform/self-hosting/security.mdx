@@ -134,12 +134,12 @@ Resource ceilings for the in-process path:
 
 ## The SSRF boundary
 
-By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. That second carve-out stops there: a database, cache, or mail connector on `localhost` still has to be allowlisted, because loopback is where Sim's own database and Redis listen. Neither softening applies on Sim Cloud. Every outbound request is classified by where its URL came from:
+By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. That second carve-out stops short in two places: it does not lift the blocked-port list, and it does not extend to a database, cache, or mail connector on `localhost` — loopback is where Sim's own database and Redis listen, so reaching them has to be asked for. Neither softening applies on Sim Cloud. Every outbound request is classified by where its URL came from:
 
 | Provenance | Examples | Reaches allowlisted private destinations |
 |---|---|---|
-| Configured endpoint | GitHub Enterprise, Grafana, an MCP server, a data-drain destination, a connector's host | Yes |
-| Self-hosted service | vLLM, Jupyter, 1Password Connect, ClickHouse — software usually run on-prem without TLS, so plain HTTP is expected | Yes |
+| Configured endpoint | GitHub Enterprise, Grafana, a data-drain destination, a connector's host | Yes |
+| Self-hosted service | vLLM, Jupyter, 1Password Connect, ClickHouse, an MCP server — software usually run on-prem without TLS, so plain HTTP is expected | Yes |
 | Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
 | Database host | A database, cache, or mail connector's host | Yes |
 | Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |
@@ -156,7 +156,9 @@ EGRESS_ALLOWED_IP_RANGES=10.4.2.17/32,10.4.9.0/24
 
 A wildcard (`*.svc.cluster.local`) and a broad range (`10.0.0.0/8`) are accepted, but they hand every workflow author the whole namespace or network. Name the hosts you actually use.
 
-Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+Both lists are validated when Sim starts, and a malformed entry stops it with a message naming the setting. `EGRESS_ALLOWED_HOSTS` takes hostnames only — a URL or a CIDR is rejected — and a wildcard has to be a leading `*.` covering at least two labels, so `*.local` is refused and `*.svc.cluster.local` matches `vllm.ai.svc.cluster.local` but not the bare `svc.cluster.local`. `EGRESS_ALLOWED_IP_RANGES` takes CIDRs and bare addresses; `0.0.0.0/0` is refused as a catch-all.
+
+Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
 
 The allowlist reaches the four provenances marked **Yes** above. It does not reach a content fetch, and it does not reach a proxy: an HTTP block's `proxyUrl` must be a public address, because the proxy is what decides where every other request may go. Adding an internal proxy to the allowlist will not make it work.
 
@@ -167,8 +169,18 @@ EGRESS_ALLOWED_HOSTS=host.docker.internal
 ```
 
 <Callout type="warn">
-  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach.
+  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach. The chart's own NetworkPolicy permits broad egress on port 443 only, so an allowlisted in-cluster target on another port also has to be added to `networkPolicy.egress`.
 </Callout>
+
+### Upgrading from an earlier release
+
+The allowlist replaces four separate escape hatches, so a few deployments that worked before now need a destination named:
+
+- **`ALLOW_PRIVATE_DATABASE_HOSTS`** still works, but it is deprecated and logs a warning at startup. It vouches for the whole private address space for database, cache, and mail connector hosts. Replace it with `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES` naming the hosts you actually use.
+- **1Password Connect** on a private, non-loopback address, and an **MCP server** on a private address or reached through a DNS name that points at loopback, are no longer reachable implicitly. Name them.
+- **`ALLOWED_MCP_DOMAINS`** governs which domains may be used; it no longer disables the address check, so an MCP server on a private address needs the allowlist too.
+- **Content fetches** — an image URL, a file imported by URL, an OIDC endpoint discovered from a provider's metadata, an MCP OAuth endpoint the server's metadata names — never use the allowlist. Those destinations have to be publicly routable.
+- **Redirects** are re-judged at every hop, so a redirect that downgrades to plain HTTP or lands on a blocked port is now refused. Credentials are dropped when a redirect crosses origins, and a cross-origin redirect that would carry a request body to the new origin is refused outright rather than replayed — a POST that lands on a cross-origin redirect now fails with a message saying so.
 
 ## Client IP and forwarded headers
 
@@ -216,5 +228,5 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
   { question: "Can I rotate ENCRYPTION_KEY?", answer: "Not without re-encrypting everything it protects. Changing it makes workspace environment variables, stored provider API keys, MCP OAuth credentials, and deployment secrets permanently unreadable. Treat it as a permanent, backed-up value rather than a rotating secret."},
   { question: "Where does user-authored code run?", answer: "By default in an in-process V8 isolate inside the app container, which isolates at the JS-engine level but shares the container's network and filesystem context. For untrusted authors, or to run Python at all, use E2B or Daytona so each execution runs in a remote sandbox."},
   { question: "Why does the chart's NetworkPolicy allow traffic from any pod?", answer: "networkPolicy.ingressFrom defaults to an empty peer selector as a simple default that works on any cluster. On a shared cluster you should scope it to your ingress controller's namespace."},
-  { question: "How do I reach an internal service from a workflow?", answer: "Name it in EGRESS_ALLOWED_HOSTS (hostnames, leading wildcard allowed) or EGRESS_ALLOWED_IP_RANGES (CIDRs). That permits plain HTTP to it and lifts the blocked-port list for it. Cloud metadata endpoints stay blocked regardless, content fetches never use the allowlist, and both variables are ignored on Sim Cloud."},
+  { question: "How do I reach an internal service from a workflow?", answer: "Name it in EGRESS_ALLOWED_HOSTS (hostnames, leading wildcard allowed) or EGRESS_ALLOWED_IP_RANGES (CIDRs). That permits plain HTTP to it and lifts the blocked-port list for HTTP destinations; a database, cache, or mail host carries no scheme or port of its own, so naming it only lifts the private-address block. Cloud metadata endpoints stay blocked regardless, content fetches never use the allowlist, and both variables are ignored on Sim Cloud."},
 ]} />

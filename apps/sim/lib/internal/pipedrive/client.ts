@@ -50,7 +50,7 @@ export async function listPipedriveFiles(
   if (input.start) url.searchParams.set('start', input.start)
   const validation = await validateUrlWithDNS(url.toString(), 'apiUrl', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new PipedriveOperationError(validation.error || 'Invalid Pipedrive API URL', 400)
   }
   const response = await secureFetchWithPinnedIP(url.toString(), validation.resolvedIP, {
@@ -95,7 +95,7 @@ export async function downloadPipedriveFile(
   signal?.throwIfAborted()
   const validation = await validateUrlWithDNS(fileUrl, 'fileUrl', 'contentFetch')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) return null
+  if (!validation.isValid) return null
   const authHeaders: Record<string, string> =
     input.authStyle === 'x-api-token'
       ? { 'x-api-token': input.accessToken }

@@ -67,7 +67,7 @@ export async function downloadCursorArtifact(
 
   const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl', 'contentFetch')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new CursorOperationError(validation.error || 'Invalid download URL', 400)
   }
   const downloadResponse = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP, {

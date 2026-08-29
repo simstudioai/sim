@@ -203,7 +203,7 @@ export async function downloadFalMedia(
   }
 
   const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch')
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(validation.error || 'Generated media URL failed validation')
   }
 

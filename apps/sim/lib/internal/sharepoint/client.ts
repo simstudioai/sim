@@ -103,7 +103,7 @@ export class SharePointClient {
     this.signal?.throwIfAborted()
     const validation = await validateUrlWithDNS(url, paramName, 'configuredEndpoint')
     this.signal?.throwIfAborted()
-    if (!validation.isValid || !validation.resolvedIP) {
+    if (!validation.isValid) {
       throw new SharePointGraphError(validation.error || `Invalid ${paramName}`, 400)
     }
     return secureFetchWithPinnedIP(url, validation.resolvedIP, {

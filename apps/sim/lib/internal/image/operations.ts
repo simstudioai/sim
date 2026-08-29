@@ -377,7 +377,7 @@ async function bufferFromImageUrl(
   }
 
   const urlValidation = await validateUrlWithDNS(url, 'imageUrl', 'contentFetch')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+  if (!urlValidation.isValid) {
     throw new Error(urlValidation.error || 'Generated image URL failed validation')
   }
 

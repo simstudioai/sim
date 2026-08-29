@@ -45,7 +45,7 @@ export async function requestJupyterApi(
 
   const urlValidation = await validateUrlWithDNS(url, 'serverUrl', 'selfHostedService')
   signal?.throwIfAborted()
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+  if (!urlValidation.isValid) {
     throw new InvalidJupyterTargetError(`Invalid Jupyter serverUrl: ${urlValidation.error}`)
   }
 

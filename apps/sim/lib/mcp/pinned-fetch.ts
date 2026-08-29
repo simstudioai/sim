@@ -31,9 +31,9 @@ export interface GuardedMcpFetch {
  * against the private/reserved blocklist (validate-at-connect, the LibreChat
  * pattern), and redirects are followed manually with per-hop validation — an
  * IP-literal redirect target (which bypasses any connect-time lookup) is checked
- * explicitly, and custom headers are dropped on cross-origin hops. This replaces
- * the previous single-IP pin, which no reference MCP client uses and which welded
- * every request to one address with no fallback.
+ * explicitly, and custom headers are dropped on cross-origin hops. Keeping the
+ * full address set rather than welding every request to one address is what lets
+ * the connection fall back across a server's records.
  *
  * Runs HTTP/1.1: we do not opt into undici's experimental `allowH2`, whose h2 path stalls
  * with headers-but-no-body on reused POST sessions (nodejs/undici #2311, #3433, #4143) —

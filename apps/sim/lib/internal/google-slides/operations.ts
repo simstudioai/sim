@@ -48,7 +48,7 @@ export async function exportGoogleSlidesPresentation(
     'configuredEndpoint'
   )
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new GoogleSlidesOperationError(
       validation.error || 'Invalid Google Slides export URL',
       400

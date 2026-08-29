@@ -18,9 +18,11 @@ vi.mock('@/executor/utils/reference-validation', () => ({
 
 import {
   isMcpDomainAllowed,
+  MCP_EGRESS_PROFILE,
   McpDnsResolutionError,
   McpDomainNotAllowedError,
   McpSsrfError,
+  OAUTH_EGRESS_PROFILE,
   validateMcpDomain,
   validateMcpServerSsrf,
 } from './domain-check'
@@ -475,8 +477,16 @@ describe('validateMcpServerSsrf', () => {
     })
 
     it('pins public IP literals on hosted so redirects cannot escape', async () => {
-      await expect(validateMcpServerSsrf('http://93.184.216.34/mcp')).resolves.toBe('93.184.216.34')
+      await expect(validateMcpServerSsrf('https://93.184.216.34/mcp')).resolves.toBe(
+        '93.184.216.34'
+      )
       expect(mockDnsLookup).not.toHaveBeenCalled()
+    })
+
+    it('refuses plain HTTP on hosted, where a credential would cross the wire in the clear', async () => {
+      await expect(validateMcpServerSsrf('http://93.184.216.34/mcp')).rejects.toThrow(
+        /must use https/
+      )
     })
 
     it('still refuses loopback on hosted when a domain allowlist is configured', async () => {
@@ -539,5 +549,33 @@ describe('validateMcpServerSsrf', () => {
     await expect(validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(
       McpSsrfError
     )
+  })
+})
+
+describe('the OAuth provenance', () => {
+  it('is contentFetch, so a hop the metadata names inherits nothing from the server', () => {
+    expect(OAUTH_EGRESS_PROFILE).toBe('contentFetch')
+    expect(MCP_EGRESS_PROFILE).toBe('selfHostedService')
+  })
+
+  it('refuses loopback that the configured-server provenance reaches', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+    await expect(validateMcpServerSsrf('http://localhost:3000/mcp')).resolves.toBe('127.0.0.1')
+    await expect(
+      validateMcpServerSsrf('http://localhost:3000/token', OAUTH_EGRESS_PROFILE)
+    ).rejects.toThrow(McpSsrfError)
+  })
+
+  it('ignores the operator allowlist that the configured-server provenance honors', async () => {
+    setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
+    try {
+      mockDnsLookup.mockResolvedValue([{ address: '10.0.0.9', family: 4 }])
+      await expect(validateMcpServerSsrf('https://mcp.corp/mcp')).resolves.toBe('10.0.0.9')
+      await expect(
+        validateMcpServerSsrf('https://idp.corp/token', OAUTH_EGRESS_PROFILE)
+      ).rejects.toThrow(McpSsrfError)
+    } finally {
+      setEnvFlags({ egressAllowedIpRanges: undefined })
+    }
   })
 })

@@ -31,7 +31,6 @@ import { isIpLiteral, isLoopbackIp, isPrivateIp } from './ssrf'
 type IpAddress = ipaddr.IPv4 | ipaddr.IPv6
 
 /** Schemes that may ever carry an outbound request. */
-export type EgressScheme = 'http:' | 'https:'
 
 /** When a policy tolerates plain HTTP. */
 export type InsecureHttpPolicy = 'never' | 'whenVouched' | 'always'
@@ -170,26 +169,28 @@ function splitEntries(value: string | readonly string[] | undefined): string[] {
 
 function parseHostPattern(entry: string, sourceName: string): HostPattern {
   const value = unwrapIpv6Brackets(entry.toLowerCase())
-  if (value.startsWith('*.')) {
-    const suffix = value.slice(1)
-    if (suffix.length < 2 || !suffix.includes('.', 1)) {
-      throw new Error(
-        `Invalid ${sourceName} entry "${entry}": a wildcard must cover at least two labels, e.g. "*.example.com"`
-      )
-    }
-    return { value: suffix, wildcard: true }
-  }
-  if (value.includes('*')) {
+  const wildcard = value.startsWith('*.')
+  const host = wildcard ? value.slice(2) : value
+
+  if (host.includes('*')) {
     throw new Error(
       `Invalid ${sourceName} entry "${entry}": a wildcard is only supported as a leading "*." label`
     )
   }
-  if (value.includes('/') || /\s/.test(value)) {
+  if (host.includes('/') || /\s/.test(host)) {
     throw new Error(
       `Invalid ${sourceName} entry "${entry}": expected a hostname, not a URL or CIDR`
     )
   }
-  return { value, wildcard: false }
+  if (host.length === 0 || host.split('.').some((label) => label.length === 0)) {
+    throw new Error(`Invalid ${sourceName} entry "${entry}": every label must be non-empty`)
+  }
+  if (wildcard && !host.includes('.')) {
+    throw new Error(
+      `Invalid ${sourceName} entry "${entry}": a wildcard must cover at least two labels, e.g. "*.example.com"`
+    )
+  }
+  return wildcard ? { value: `.${host}`, wildcard: true } : { value: host, wildcard: false }
 }
 
 function parseCidrRange(entry: string, sourceName: string): CidrRange {
@@ -256,13 +257,7 @@ function matchesRangeAllowlist(address: string, policy: EgressPolicy): boolean {
   )
 }
 
-/**
- * Canonical form of an address, folding every IPv4-in-IPv6 spelling down to the
- * IPv4 it carries. `ipaddr.process` handles the IPv4-mapped form (`::ffff:x`)
- * but leaves the deprecated IPv4-compatible one (`::a.b.c.d`, which the WHATWG
- * URL parser normalizes to `::a9fe:a9fe`), so comparing without this misses the
- * metadata endpoint written that way.
- */
+/** The IPv4 carried in an address's last 32 bits. */
 function embeddedIpv4(parts: readonly number[]): string {
   return ipaddr
     .fromByteArray([
@@ -274,9 +269,26 @@ function embeddedIpv4(parts: readonly number[]): string {
     .toString()
 }
 
-/** RFC 6052 well-known NAT64 prefix, `64:ff9b::/96`. */
-const NAT64_WELL_KNOWN_PREFIX = [0x0064, 0xff9b, 0, 0, 0, 0] as const
+/**
+ * IPv6 prefixes whose low 32 bits are the IPv4 destination: the RFC 6052
+ * well-known NAT64 prefix `64:ff9b::/96`, and the RFC 6145 IPv4-translated
+ * prefix `::ffff:0:0:0/96`.
+ */
+const IPV4_EMBEDDING_PREFIXES: readonly (readonly number[])[] = [
+  [0x0064, 0xff9b, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0xffff, 0],
+]
 
+/** RFC 8215 local-use NAT64 prefix, `64:ff9b:1::/48`. */
+const NAT64_LOCAL_USE_PREFIX = [0x0064, 0xff9b, 0x0001] as const
+
+/**
+ * Canonical form of an address, folding every IPv4-in-IPv6 spelling down to the
+ * IPv4 it carries. `ipaddr.process` handles the IPv4-mapped form (`::ffff:x`)
+ * but leaves the deprecated IPv4-compatible one (`::a.b.c.d`, which the WHATWG
+ * URL parser normalizes to `::a9fe:a9fe`), so comparing without this misses the
+ * metadata endpoint written that way.
+ */
 function canonicalAddress(address: string): string | null {
   const clean = unwrapIpv6Brackets(address)
   if (!ipaddr.isValid(clean)) return null
@@ -285,10 +297,12 @@ function canonicalAddress(address: string): string | null {
   if (parsed.kind() === 'ipv6') {
     const parts = (parsed as ipaddr.IPv6).parts
 
-    // A DNS64 resolver hands back the IPv4 destination wrapped in the well-known
-    // NAT64 prefix. Left unfolded, `64:ff9b::a9fe:a9fe` does not read as the
-    // metadata endpoint it is, and a vouched destination would reach it.
-    if (NAT64_WELL_KNOWN_PREFIX.every((part, index) => parts[index] === part)) {
+    // A DNS64 resolver hands back the IPv4 destination wrapped in a translation
+    // prefix. Left unfolded, `64:ff9b::a9fe:a9fe` does not read as the metadata
+    // endpoint it is, and a vouched destination would reach it.
+    if (
+      IPV4_EMBEDDING_PREFIXES.some((prefix) => prefix.every((part, index) => parts[index] === part))
+    ) {
       return embeddedIpv4(parts)
     }
 
@@ -313,11 +327,19 @@ function isMetadataAddress(address: string): boolean {
 }
 
 /**
- * Whether the policy vouches for this destination. A hostname match alone is
- * enough — the operator named that host, so wherever it points is their call.
- * Otherwise a resolved address inside an allowlisted range vouches for it, which
- * is why this cannot be decided before DNS for a hostname destination.
+ * Whether the address sits in the RFC 8215 local-use NAT64 prefix, where the
+ * embedded IPv4 destination sits at an offset chosen by the network operator
+ * and so cannot be read off the address.
  */
+function hidesItsIpv4Destination(address: string): boolean {
+  const clean = unwrapIpv6Brackets(address)
+  if (!ipaddr.isValid(clean)) return false
+  const parsed = ipaddr.process(clean)
+  if (parsed.kind() !== 'ipv6') return false
+  const { parts } = parsed as ipaddr.IPv6
+  return NAT64_LOCAL_USE_PREFIX.every((part, index) => parts[index] === part)
+}
+
 /**
  * Whether the destination names itself as loopback — `localhost`, or a loopback
  * IP literal.
@@ -332,34 +354,56 @@ function isLoopbackDestination(host: string): boolean {
   return isLoopbackHostname(clean) || isLoopbackIp(clean)
 }
 
-function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): boolean {
-  if (matchesHostAllowlist(url.hostname, policy)) return true
+/**
+ * How a destination earned its reachability, or `null` if it has not.
+ *
+ * The two are not interchangeable. `allowlist` is an operator naming a
+ * destination, so it carries their judgement about what is safe there, down to
+ * the port. `loopback` is a carve-out this policy grants on its own to any
+ * self-hosted deployment, which is why it stops short of exposing the service
+ * ports Sim's own datastores listen on.
+ */
+type Vouch = 'allowlist' | 'loopback' | null
+
+/**
+ * How the policy vouches for this destination. A hostname match alone is enough
+ * — the operator named that host, so wherever it points is their call.
+ * Otherwise the loopback carve-out, the legacy blanket private grant, or a
+ * resolved address inside an allowlisted range vouches for it, which is why the
+ * last two cannot be decided before DNS for a hostname destination.
+ */
+function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): Vouch {
+  if (matchesHostAllowlist(url.hostname, policy)) return 'allowlist'
 
   if (policy.allowLoopback && isLoopbackDestination(url.hostname)) {
     // Before DNS there is no address to judge; evaluateAddress rules later.
-    if (address === undefined) return true
+    if (address === undefined) return 'loopback'
     // The address must land on loopback too, so a resolver answering
     // `localhost` with a routable address cannot borrow the carve-out — but it
     // may still be vouched by an allowlist entry, so this falls through rather
     // than refusing outright.
-    if (isLoopbackIp(unwrapIpv6Brackets(address))) return true
+    if (isLoopbackIp(unwrapIpv6Brackets(address))) return 'loopback'
   }
 
-  if (address === undefined) return false
-  if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return true
-  return matchesRangeAllowlist(address, policy)
+  if (address === undefined) return null
+  if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return 'allowlist'
+  return matchesRangeAllowlist(address, policy) ? 'allowlist' : null
 }
 
-function checkSchemeAndPort(url: URL, vouched: boolean, policy: EgressPolicy): EgressDecision {
+function checkSchemeAndPort(url: URL, vouch: Vouch, policy: EgressPolicy): EgressDecision {
   if (
     url.protocol === 'http:' &&
     policy.insecureHttp !== 'always' &&
-    !(vouched && policy.insecureHttp === 'whenVouched')
+    !(vouch !== null && policy.insecureHttp === 'whenVouched')
   ) {
     return deny('insecure-scheme', `plain http to ${url.hostname}`)
   }
 
-  if (!vouched && url.port) {
+  // Only an operator naming the destination lifts the port denylist. The
+  // loopback carve-out deliberately does not: it is granted without anyone
+  // asking for it, and loopback is exactly where Sim's own Postgres and Redis
+  // listen, so lifting it there would hand every workflow author a route in.
+  if (vouch !== 'allowlist' && url.port) {
     const port = Number.parseInt(url.port, 10)
     if (DENIED_PORTS.has(port)) {
       return deny('port-denied', `port ${port}`)
@@ -370,8 +414,8 @@ function checkSchemeAndPort(url: URL, vouched: boolean, policy: EgressPolicy): E
 }
 
 /** Classifies one address, assuming the vouched decision has already been made. */
-function checkAddressClass(address: string, vouched: boolean): EgressDecision {
-  if (vouched) return ALLOWED
+function checkAddressClass(address: string, vouch: Vouch): EgressDecision {
+  if (vouch !== null) return ALLOWED
 
   const clean = unwrapIpv6Brackets(address)
   if (isLoopbackIp(clean)) {
@@ -390,7 +434,8 @@ function checkAddressClass(address: string, vouched: boolean): EgressDecision {
  * is not known yet.
  *
  * Neither verdict is the last word on a hostname. A refusal may be liftable once
- * the address is known ({@link policyCanVouch}, {@link isLiftableByVouching}),
+ * the address is known ({@link policyDefersToAddress},
+ * {@link isLiftableByVouching}),
  * and an approval covers only what needs no lookup — {@link evaluateAddress} is
  * authoritative and must run against every resolved address before connecting.
  */
@@ -404,39 +449,32 @@ export function evaluateUrl(url: URL, policy: EgressPolicy): EgressDecision {
     return evaluateAddress(url, host, policy)
   }
 
-  // Judged as if unvouched, because a hostname's address is not known yet. A
-  // policy that could still vouch for it once resolved must not treat this
-  // verdict as final — see {@link policyCanVouch}.
-  return checkSchemeAndPort(url, isVouched(url, undefined, policy), policy)
+  const vouch = isVouched(url, undefined, policy)
+
+  // A name that says it is loopback needs no lookup to be refused. Deciding it
+  // here rather than after DNS is what keeps the synchronous validator — the one
+  // that checks a value as it is saved — from accepting `https://localhost/x` on
+  // a deployment where loopback is Sim's own process.
+  if (vouch === null && isLoopbackDestination(host)) {
+    return deny('address-loopback', host)
+  }
+
+  // Otherwise judged as if unvouched, because a hostname's address is not known
+  // yet. A policy that could still vouch for it once resolved must not treat
+  // this verdict as final — see {@link policyDefersToAddress}.
+  return checkSchemeAndPort(url, vouch, policy)
 }
 
 /**
- * Whether this policy has any way to vouch for a destination it has not already
- * accepted — an allowlist entry, or a loopback carve-out.
+ * Whether a refusal from {@link evaluateUrl} on a hostname could still be
+ * reversed by learning the resolved address — an IP-range entry, or the legacy
+ * blanket private grant.
  *
- * A DNS-resolving caller uses this to decide whether a refusal from
- * {@link evaluateUrl} on a hostname is final, or whether it must resolve and let
- * {@link evaluateAddress} rule on the addresses. Without it the pre-DNS check
- * would have to either refuse destinations the policy actually permits, or wave
- * through ones it does not.
- */
-export function policyCanVouch(policy: EgressPolicy): boolean {
-  return (
-    policy.allowedHosts.length > 0 ||
-    policy.allowedRanges.length > 0 ||
-    policy.allowLoopback ||
-    policy.allowPrivate
-  )
-}
-
-/**
- * Whether a refusal could be reversed specifically by learning the resolved
- * address — an IP-range entry, or the legacy blanket private grant.
- *
- * Narrower than {@link policyCanVouch}: a hostname allowlist entry and the
- * loopback carve-out are both decided from the hostname, so {@link evaluateUrl}
- * has already applied them. A synchronous caller must use this rather than the
- * broader predicate, or it defers everything and stops refusing anything.
+ * A DNS-resolving caller uses this to decide whether that refusal is final. It
+ * is deliberately narrow: a hostname allowlist entry and the loopback carve-out
+ * are both decided from the hostname, so {@link evaluateUrl} has already applied
+ * them, and treating those as reasons to resolve would defer every refusal and
+ * hand a lookup to a destination the policy has already turned down.
  */
 export function policyDefersToAddress(policy: EgressPolicy): boolean {
   return policy.allowedRanges.length > 0 || policy.allowPrivate
@@ -475,10 +513,16 @@ export function evaluateAddress(url: URL, address: string, policy: EgressPolicy)
     return deny('address-blocked', `${address} is not a valid address`)
   }
 
-  const vouched = isVouched(url, address, policy)
+  // Same reasoning: a local-use NAT64 address names an IPv4 destination this
+  // code cannot read, so it is refused rather than judged on the wrapper.
+  if (hidesItsIpv4Destination(address)) {
+    return deny('address-blocked', `${address} hides its IPv4 destination`)
+  }
 
-  const shape = checkSchemeAndPort(url, vouched, policy)
+  const vouch = isVouched(url, address, policy)
+
+  const shape = checkSchemeAndPort(url, vouch, policy)
   if (!shape.allowed) return shape
 
-  return checkAddressClass(address, vouched)
+  return checkAddressClass(address, vouch)
 }

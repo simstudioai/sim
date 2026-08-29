@@ -88,7 +88,7 @@ export async function fetchExternalUrlToWorkspace(
   } = options
 
   const urlValidation = await validateUrlWithDNS(url, 'fileUrl', 'contentFetch')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+  if (!urlValidation.isValid) {
     throw new ExternalUrlValidationError(urlValidation.error || 'Invalid external URL')
   }
 

@@ -280,7 +280,7 @@ export async function validateConnectServerUrl(
   )
   signal?.throwIfAborted()
   if (!validation.isValid) {
-    throw new Error(validation.error ?? '1Password server URL is not reachable')
+    throw new Error(validation.error)
   }
   return validation.resolvedIP
 }

@@ -33,7 +33,7 @@ export async function fetchRemoteImage(
 ): Promise<FetchRemoteImageResult> {
   signal?.throwIfAborted()
   const validation = await validateUrlWithDNS(imageUrl, 'imageUrl', 'contentFetch')
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new RemoteImageFetchError(validation.error || 'Invalid image URL', 403)
   }
 

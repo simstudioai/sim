@@ -64,7 +64,7 @@ export async function secureGitHubRequest(
   options: SecureGitHubRequestOptions
 ): Promise<Response> {
   const validation = await validateUrlWithDNS(url, 'githubUrl', 'configuredEndpoint')
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(`Invalid GitHub URL: ${validation.error ?? 'DNS resolution failed'}`)
   }
 

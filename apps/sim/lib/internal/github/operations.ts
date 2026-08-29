@@ -321,7 +321,7 @@ async function fetchChangedFileContent(
   try {
     const validation = await validateUrlWithDNS(file.raw_url, 'rawUrl', 'contentFetch')
     context.signal?.throwIfAborted()
-    if (!validation.isValid || !validation.resolvedIP) return undefined
+    if (!validation.isValid) return undefined
     const response = await secureFetchWithPinnedIP(file.raw_url, validation.resolvedIP, {
       profile: 'contentFetch',
       headers: {
@@ -359,7 +359,7 @@ export async function getGitHubLatestCommit(
   const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
   const validation = await validateUrlWithDNS(commitUrl, 'commitUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new GitHubOperationError(validation.error || 'Invalid GitHub commit URL', 400)
   }
 

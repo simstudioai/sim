@@ -16,7 +16,7 @@ import {
   evaluateAddress,
   evaluateUrl,
   isLiftableByVouching,
-  policyCanVouch,
+  policyDefersToAddress,
 } from '@sim/security/egress'
 import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
@@ -90,9 +90,12 @@ export async function validateEgressUrl(
   const preflight = evaluateUrl(parsed, policy)
   if (!preflight.allowed) {
     // For a literal the pre-flight already had the address, so its verdict is
-    // final. For a hostname it judged the destination as unvouched; if this
-    // policy could still vouch for it, resolve and let the address rule.
-    const final = isLiteral || !policyCanVouch(policy) || !isLiftableByVouching(preflight.reason)
+    // final. For a hostname the host allowlist and the loopback carve-out were
+    // already applied, so only a policy that can vouch from the address itself
+    // has anything left to say — resolving otherwise leaks a lookup for a
+    // destination that is already refused.
+    const final =
+      isLiteral || !policyDefersToAddress(policy) || !isLiftableByVouching(preflight.reason)
     if (final) return fail(preflight, url, paramName, profile)
   }
 

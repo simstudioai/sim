@@ -33,7 +33,7 @@ export async function resolveAgiloftInstance(
   signal?.throwIfAborted()
   const validation = await validateUrlWithDNS(instanceUrl, 'instanceUrl', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid Agiloft instance URL')
   }
   return validation.resolvedIP

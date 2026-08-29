@@ -128,9 +128,9 @@ export function validateMcpDomain(url: string | undefined): void {
  * `contentFetch` instead, because those URLs come out of authorization-server
  * metadata rather than from whoever configured the server.
  *
- * Returns null only when the hostname still contains an unresolved env-var
- * reference. That URL is checked again after resolution, at which point it takes
- * the normal path.
+ * Returns null when there is no URL yet, or when the hostname still contains an
+ * unresolved env-var reference. That URL is checked again after resolution, at
+ * which point it takes the normal path.
  *
  * @throws McpSsrfError when the policy refuses the destination
  * @throws McpDnsResolutionError when the hostname cannot be resolved
@@ -145,7 +145,7 @@ export async function validateMcpServerSsrf(
   const validation = await validateUrlWithDNS(url, 'MCP server URL', profile)
   if (validation.isValid) return validation.resolvedIP
 
-  const error = validation.error ?? 'MCP server URL is not reachable'
+  const error = validation.error
   if (error.includes('could not be resolved')) {
     let hostname = url
     try {

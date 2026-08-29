@@ -73,7 +73,7 @@ export class BrexReceiptClient {
     this.signal?.throwIfAborted()
     const validation = await validateUrlWithDNS(uri, 'uri', 'contentFetch')
     this.signal?.throwIfAborted()
-    if (!validation.isValid || !validation.resolvedIP) {
+    if (!validation.isValid) {
       throw new BrexReceiptError('Brex returned an invalid upload URL', 502)
     }
     const response = await secureFetchWithPinnedIP(uri, validation.resolvedIP, {

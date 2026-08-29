@@ -198,7 +198,7 @@ export async function createA2AClient(
   options: { signal?: AbortSignal } = {}
 ): Promise<Client> {
   const validation = await validateUrlWithDNS(agentUrl, 'agentUrl', 'requestTarget')
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new Error(validation.error || 'Agent URL validation failed')
   }
   const { resolvedIP } = validation

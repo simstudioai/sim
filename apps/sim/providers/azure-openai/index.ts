@@ -686,9 +686,6 @@ export const azureOpenAIProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure OpenAI endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid Azure OpenAI endpoint: could not resolve a pinnable IP address')
-      }
       pinnedFetch = createPinnedFetch(validation.resolvedIP, { profile: 'configuredEndpoint' })
     }
 

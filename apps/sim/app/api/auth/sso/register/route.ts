@@ -61,7 +61,7 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
     'OIDC discovery URL',
     'configuredEndpoint'
   )
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+  if (!urlValidation.isValid) {
     return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
   }
 

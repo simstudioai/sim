@@ -25,7 +25,7 @@ export async function submitReductoParse(
     'configuredEndpoint'
   )
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new ReductoOperationError(502, {
       success: false,
       error: 'Failed to reach Reducto API',

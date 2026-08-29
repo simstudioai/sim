@@ -28,9 +28,10 @@ import {
 /**
  * Where the URL for an outbound request came from.
  *
- * - `configuredEndpoint` — a base or server URL entered during setup: a
- *   self-hosted vLLM or Jupyter instance, GitHub Enterprise, Grafana,
- *   ClickHouse, an MCP server, a data-drain destination, a connector's host.
+ * - `configuredEndpoint` — a base or server URL entered during setup, or a
+ *   vendor host built in process: GitHub Enterprise, Grafana, a data-drain
+ *   destination, a connector's host. See `selfHostedService` for the on-prem
+ *   software that expects plain HTTP.
  * - `requestTarget` — supplied per run by the workflow author: the HTTP block's
  *   `url`, an A2A agent URL, an RSS feed, a Function block's `fetch`.
  * - `contentFetch` — harvested from content, a third-party response, or model
@@ -66,7 +67,13 @@ interface ProfileSpec {
    * deployment whose operator has allowlisted their entire internal range.
    */
   readonly honorsAllowlist: boolean
-  /** When plain HTTP is acceptable for this provenance. */
+  /**
+   * When plain HTTP is acceptable for this provenance, off the hosted platform.
+   * `always` is capped at `whenVouched` when hosted, where nothing is vouched —
+   * software served without TLS is a self-hosted arrangement, and a hosted
+   * deployment sending a credential over cleartext to a user-supplied host is
+   * not one this taxonomy should permit.
+   */
   readonly insecureHttp: InsecureHttpPolicy
   /**
    * Whether loopback is reachable without being allowlisted, off the hosted
@@ -143,7 +150,8 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
         createEgressPolicy({
           allowedHosts: spec.honorsAllowlist ? config.hosts : undefined,
           allowedRanges: spec.honorsAllowlist ? config.ranges : undefined,
-          insecureHttp: spec.insecureHttp,
+          insecureHttp:
+            config.hosted && spec.insecureHttp === 'always' ? 'whenVouched' : spec.insecureHttp,
           allowLoopback: spec.allowLoopbackOffHosted && !config.hosted,
           allowPrivate: Boolean(spec.honorsLegacyPrivateFlag && config.legacyPrivate),
           sourceNames: SOURCE_NAMES,
@@ -163,17 +171,12 @@ function sameConfig(a: DeploymentConfig, b: DeploymentConfig): boolean {
 }
 
 /**
- * Policies are built eagerly so a malformed allowlist entry throws at startup
- * rather than at whichever request first happens to touch it, and cached against
- * the configuration they were built from so that changing it rebuilds rather
- * than silently serving a stale policy. Caching on the value rather than "built
- * once" is what keeps the configuration reachable from a test without a
- * module-level reset hook.
+ * Policies are cached against the configuration they were built from, so that
+ * changing it rebuilds rather than silently serving a stale policy. Caching on
+ * the value rather than "built once" is what keeps the configuration reachable
+ * from a test without a module-level reset hook.
  */
-let cache = (() => {
-  const config = readDeploymentConfig()
-  return { config, policies: buildPolicies(config) }
-})()
+let cache: { config: DeploymentConfig; policies: Record<EgressProfile, EgressPolicy> } | null = null
 
 /**
  * The policy governing requests of the given provenance on this deployment.
@@ -185,19 +188,17 @@ let cache = (() => {
  */
 export function resolveEgressPolicy(profile: EgressProfile): EgressPolicy {
   const config = readDeploymentConfig()
-  if (!sameConfig(cache.config, config)) {
+  if (cache === null || !sameConfig(cache.config, config)) {
     cache = { config, policies: buildPolicies(config) }
   }
   return cache.policies[profile] ?? cache.policies.contentFetch
 }
 
 /**
- * Turns a refusal into a message the person who hit it can act on.
- *
- * The message this replaced said `url must use https:// protocol`, which was
- * worse than unhelpful: it implied switching scheme would fix a destination that
- * the address check was going to refuse anyway. Each reason here names the
- * actual blocker and, where one exists, the remedy.
+ * Turns a refusal into a message the person who hit it can act on: each reason
+ * names the actual blocker and, where one exists, the remedy. A message that
+ * only names the scheme is worse than unhelpful, because it implies switching
+ * scheme would reach a destination the address check refuses anyway.
  */
 export function describeEgressDenial(
   decision: Extract<EgressDecision, { allowed: false }>,

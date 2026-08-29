@@ -53,11 +53,12 @@ afterEach(resetEnvFlagsMock)
 
 // Skipped on a host with no private interface (some CI sandboxes); the policy
 // itself is covered without a socket in packages/security.
-describe.skipIf(!host)('issue #7200 — reaching a service on a private network', () => {
+describe.skipIf(!host)('reaching a service on a private network', () => {
   it('refuses an unlisted destination and names the setting that would permit it', async () => {
+    // https, so the refusal comes from the address rather than the scheme.
     await expect(
-      secureFetchWithValidation(`http://${host}:${port}/`, { profile: 'requestTarget' })
-    ).rejects.toThrow(/EGRESS_ALLOWED_HOSTS/)
+      secureFetchWithValidation(`https://${host}:${port}/`, { profile: 'requestTarget' })
+    ).rejects.toThrow(/private or reserved address.*EGRESS_ALLOWED_HOSTS/s)
   })
 
   it('reaches it over plain HTTP once the operator names the range', async () => {
@@ -80,8 +81,11 @@ describe.skipIf(!host)('issue #7200 — reaching a service on a private network'
       secureFetchWithValidation(`https://${host}:${port}/`, { profile: 'contentFetch' })
     ).rejects.toThrow(/private or reserved address/)
   })
+})
 
-  it('reaches a loopback service without any allowlist, as a self-hosted deployment does', async () => {
+// Needs no private interface, so it runs everywhere the suite above may not.
+describe('reaching a loopback service', () => {
+  it('works without any allowlist, as a self-hosted deployment expects', async () => {
     const local = createServer((request, response) => {
       request.resume()
       response.end('local')
@@ -96,5 +100,11 @@ describe.skipIf(!host)('issue #7200 — reaching a service on a private network'
     } finally {
       await new Promise<void>((resolve) => local.close(() => resolve()))
     }
+  })
+
+  it('does not extend that to a content-provenance URL', async () => {
+    await expect(
+      secureFetchWithValidation('https://localhost:1/', { profile: 'contentFetch' })
+    ).rejects.toThrow(/loopback/)
   })
 })

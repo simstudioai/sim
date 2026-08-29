@@ -234,22 +234,6 @@ describe('vllmProvider', () => {
       expect(openAIArgs).toHaveLength(0)
       expect(mockCreate).not.toHaveBeenCalled()
     })
-
-    it('rejects a validated endpoint that did not resolve to a pinnable IP', async () => {
-      mockValidateUrlWithDNS.mockResolvedValueOnce({ isValid: true })
-
-      await expect(
-        vllmProvider.executeRequest({
-          model: 'vllm/llama-3',
-          messages: [{ role: 'user', content: 'hi' }],
-          azureEndpoint: 'https://my-vllm.example.com',
-        })
-      ).rejects.toThrow('could not resolve a pinnable IP address')
-
-      expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(openAIArgs).toHaveLength(0)
-      expect(mockCreate).not.toHaveBeenCalled()
-    })
   })
 
   it('builds a chat payload with the vllm/ prefix stripped and messages assembled in order', async () => {

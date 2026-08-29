@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
@@ -24,6 +25,7 @@ export interface VisionClientInput {
   model: string
   prompt: string
   remoteImageResolvedIP?: string
+  remoteImageProfile?: EgressProfile
 }
 
 export interface VisionAnalysisResult {
@@ -94,7 +96,7 @@ async function fetchGeminiImage(input: VisionClientInput, signal?: AbortSignal):
   }
 
   const response = await secureFetchWithPinnedIP(input.imageSource, input.remoteImageResolvedIP, {
-    profile: 'contentFetch',
+    profile: input.remoteImageProfile ?? 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
     signal,
