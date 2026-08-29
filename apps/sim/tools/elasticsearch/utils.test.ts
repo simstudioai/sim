@@ -120,6 +120,17 @@ describe('buildBaseUrl', () => {
     }
   )
 
+  it('rejects an empty deployment type rather than routing a cloud caller to the stale host', () => {
+    expect(() =>
+      buildBaseUrl({
+        deploymentType: '' as unknown as 'cloud',
+        host: 'https://stale-self-hosted.example.com',
+        cloudId: cloudId(`${PARENT_DOMAIN}$${ES_UUID}$${KIBANA_UUID}`),
+        authMethod: 'api_key',
+      })
+    ).toThrow(/Unsupported deployment type/)
+  })
+
   it('still treats a nullish deployment type as self-hosted for legacy saved state', () => {
     expect(
       buildBaseUrl({
@@ -179,5 +190,24 @@ describe('elasticsearch_bulk wire format', () => {
     expect(prepared.body).toBe(`${NDJSON}\n`)
     expect(prepared.body?.split('\n').filter(Boolean)).toHaveLength(2)
     expect(prepared.body?.startsWith('"')).toBe(false)
+  })
+})
+
+/**
+ * `host` is a user-supplied origin, so a redirect off it must not carry the
+ * credential. The shared transport only strips `Authorization` cross-origin
+ * when the tool opts in — `redirectPolicy` is undefined unless declared, and
+ * the stripping branch in `input-validation.server.ts` is gated on it — so
+ * every Elasticsearch tool has to set this explicitly.
+ */
+describe('every Elasticsearch tool strips credentials on redirect', () => {
+  const tools = Object.values(elasticsearchTools) as ToolConfig[]
+
+  it('covers all 13 tools', () => {
+    expect(tools).toHaveLength(13)
+  })
+
+  it.each(tools.map((tool) => [tool.id, tool] as const))('%s opts in', (_id, tool) => {
+    expect(tool.request?.stripAuthOnRedirect).toBe(true)
   })
 })

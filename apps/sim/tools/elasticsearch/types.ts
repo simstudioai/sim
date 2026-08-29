@@ -192,9 +192,16 @@ interface ElasticsearchIndexState {
   settings?: Record<string, unknown>
 }
 
+/**
+ * `indices` is the declared aggregate map of matched indices. It widens to a
+ * single `ElasticsearchIndexState` in exactly one case: an index legitimately
+ * named `indices`, whose own raw key is spread last so its pre-existing saved
+ * references keep resolving. The union states that honestly rather than
+ * promising consumers a shape that does not always hold.
+ */
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
   output: Record<string, ElasticsearchIndexState | Record<string, ElasticsearchIndexState>> & {
-    indices: Record<string, ElasticsearchIndexState>
+    indices: ElasticsearchIndexState | Record<string, ElasticsearchIndexState>
   }
 }
 

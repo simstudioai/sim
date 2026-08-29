@@ -88,6 +88,12 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params, 'application/x-ndjson'),
+    /**
+     * `host` is a user-supplied origin and Elastic Cloud endpoints sit behind
+     * proxies, so a redirect off the configured origin must not carry the API
+     * key or Basic credentials with it.
+     */
+    stripAuthOnRedirect: true,
     body: (params) => {
       // The body should be NDJSON format - we pass it as raw string
       // Ensure it ends with a newline

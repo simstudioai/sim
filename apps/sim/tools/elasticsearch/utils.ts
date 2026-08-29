@@ -84,9 +84,13 @@ export function parseCloudId(cloudId: string): string {
  * which `tools/params.ts` resolves to `user-or-llm`, so on the agent
  * tool-calling path a model supplies it. A near miss such as `Cloud` or
  * `elastic_cloud` is not `=== 'cloud'`, so it would select the self-hosted
- * branch and send the credential to whatever stale `host` holds. A nullish
- * value still means self-hosted: that is the dropdown's own default and the
- * shape of workflow state saved before the field was ever touched.
+ * branch and send the credential to whatever stale `host` holds. The empty
+ * string is rejected on the same grounds: a caller that supplies a `cloudId`
+ * but blanks this field is expressing cloud intent, and treating that as
+ * self-hosted is the same disclosure. Only a nullish value still means
+ * self-hosted — that is the dropdown's own default (`value: () =>
+ * 'self_hosted'`) and the shape of workflow state saved before the field was
+ * ever touched.
  */
 export function buildBaseUrl(params: ElasticsearchBaseParams): string {
   if (params.deploymentType === 'cloud') {
@@ -96,7 +100,7 @@ export function buildBaseUrl(params: ElasticsearchBaseParams): string {
     return parseCloudId(params.cloudId)
   }
 
-  if (params.deploymentType && params.deploymentType !== 'self_hosted') {
+  if (params.deploymentType != null && params.deploymentType !== 'self_hosted') {
     throw new Error(
       `Unsupported deployment type "${params.deploymentType}". Expected "self_hosted" or "cloud".`
     )

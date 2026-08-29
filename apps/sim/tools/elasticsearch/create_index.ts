@@ -80,6 +80,12 @@ export const createIndexTool: ToolConfig<
     },
     method: 'PUT',
     headers: (params) => buildAuthHeaders(params),
+    /**
+     * `host` is a user-supplied origin and Elastic Cloud endpoints sit behind
+     * proxies, so a redirect off the configured origin must not carry the API
+     * key or Basic credentials with it.
+     */
+    stripAuthOnRedirect: true,
     body: (params) => {
       const body: Record<string, unknown> = {}
 
