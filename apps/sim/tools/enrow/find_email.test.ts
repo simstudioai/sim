@@ -158,9 +158,14 @@ describe('enrow_find_email', () => {
       .mockResolvedValueOnce(jsonResponse(401, { message: 'invalid api key' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow(/poll error: 401 - .*invalid api key/)
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toMatch(/poll error: 401 - .*invalid api key/)
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
@@ -250,9 +255,14 @@ describe('enrow_find_email', () => {
       .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email did not complete within the polling window')
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -261,9 +271,14 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('fetch failed')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('fetch failed')
   })
 
   it('never sleeps past the wall-clock deadline when the polls themselves are slow', async () => {
@@ -286,9 +301,14 @@ describe('enrow_find_email', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email did not complete within the polling window')
 
     // Second poll ends past the deadline, so its 15s backoff must be dropped to
     // zero rather than clamped against the 99s that `elapsed` still thinks it has.
@@ -308,9 +328,14 @@ describe('enrow_find_email', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email did not complete within the polling window')
 
     expect(fetchMock).toHaveBeenCalledTimes(39)
     const total = sleepDelays().reduce((sum, delay) => sum + delay, 0)
@@ -322,9 +347,14 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(500, { message: 'boom' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow(/poll error: 500 - .*boom/)
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toMatch(/poll error: 500 - .*boom/)
 
     expect(fetchMock).toHaveBeenCalledTimes(MAX_TRANSIENT_RETRIES + 1)
   })
@@ -333,9 +363,14 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { message: 'forbidden' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow(/poll error: 403 - .*forbidden/)
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toMatch(/poll error: 403 - .*forbidden/)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -344,9 +379,14 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(600, { message: 'nonsense' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow(/poll error: 600 - .*nonsense/)
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toMatch(/poll error: 600 - .*nonsense/)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -360,9 +400,14 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockResolvedValue(stalled)
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email did not complete within the polling window')
   })
 
   it('keeps the status when an error body cannot be read', async () => {
@@ -373,18 +418,51 @@ describe('enrow_find_email', () => {
     const fetchMock = vi.fn().mockResolvedValue(unreadable)
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email poll error: 403 - <unreadable body>')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email poll error: 403 - <unreadable body>')
+  })
+
+  it('reports a failed poll as a failed tool response, not a null-field success', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { message: 'forbidden' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    /*
+     * `executeTool` swallows a throw from `postProcess` and restores the submit
+     * response — `success: true` with every field null — so the failure has to
+     * be returned rather than thrown or the user sees a successful lookup that
+     * merely found nothing.
+     */
+    expect(failed.success).toBe(false)
+    expect(failed.error).toMatch(/poll error: 403/)
+    expect(failed.output.id).toBe(submittedFindResult.output.id)
+    expect(failed.output.email).toBeNull()
+    expect(failed.output.qualification).toBeNull()
   })
 
   it('gives up after the polling window when every poll stays 202', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(202, { qualification: 'ongoing' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(
-      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
-    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+    const failed = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(failed.success).toBe(false)
+    expect(failed.error).toContain('Enrow find-email did not complete within the polling window')
 
     expect(fetchMock).toHaveBeenCalledTimes(MAX_POLLS)
   })

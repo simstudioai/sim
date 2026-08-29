@@ -51,12 +51,14 @@ export function enrowHosting<P>(
        * call, so the poll loop's own GETs are not counted against it; nothing
        * here throttles a single call's polling.
        *
-       * That is the right shape for what Enrow actually publishes. Its
+       * It is still the right order of magnitude for what Enrow publishes. Its
        * documented limit is 10 req/s per API key on every *POST* endpoint —
-       * 600/min (https://docs.enrow.io/rate-limits). Each execution issues
-       * exactly one POST, so 60/min sits an order of magnitude under the
-       * documented ceiling. The polling GETs are not covered by that limit at
-       * all, and each one is separated by a 3s interval within a 120s budget.
+       * 600/min (https://docs.enrow.io/rate-limits). An admitted execution
+       * issues at least one POST and, when `executeTool` retries an upstream
+       * 429/503 and re-acquires a key, up to a small handful; even at that
+       * ceiling 60 admissions/min stays an order of magnitude under 600. The
+       * polling GETs are not covered by the documented POST limit at all, and
+       * within one call they are serialized 3s apart under a 120s budget.
        */
       requestsPerMinute: 60,
     },

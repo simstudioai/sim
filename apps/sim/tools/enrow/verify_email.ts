@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { enrowHosting } from '@/tools/enrow/hosting'
 import { pollEnrowJob } from '@/tools/enrow/poll'
 import type {
@@ -104,12 +105,36 @@ export const enrowVerifyEmailTool: ToolConfig<EnrowVerifyEmailParams, EnrowVerif
       throw new Error('Enrow verify-email did not return a job id to poll')
     }
 
-    const data = await pollEnrowJob({
-      resultUrl: 'https://api.enrow.io/email/verify/single',
-      jobId,
-      apiKey: params.apiKey,
-      label: 'Enrow verify-email',
-    })
+    /*
+     * A failed poll must surface as a failed tool response, not as a throw.
+     *
+     * `executeTool` wraps every `postProcess` call in a catch that logs and
+     * then restores the pre-`postProcess` result. That result is the *submit*
+     * response — `success: true` with every result field null — so an escaping
+     * error would be reported to the user as a successful lookup that simply
+     * found nothing. Returning the failure explicitly keeps the reason
+     * attached, and `success: false` also stops the hosted-key cost hook from
+     * billing an execution that produced no result.
+     */
+    let data: Record<string, unknown>
+    try {
+      data = await pollEnrowJob({
+        resultUrl: 'https://api.enrow.io/email/verify/single',
+        jobId,
+        apiKey: params.apiKey,
+        label: 'Enrow verify-email',
+      })
+    } catch (error) {
+      return {
+        success: false,
+        error: getErrorMessage(error, 'Enrow verify-email polling failed'),
+        output: {
+          id: jobId,
+          email: null,
+          qualification: null,
+        },
+      }
+    }
 
     return {
       success: true,
