@@ -12,42 +12,12 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 
-const {
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  mockIsOrganizationOnEnterprisePlan,
-  mockGetWorkspaceWithOwner,
-  mockGetProviderFromModel,
-} = vi.hoisted(() => ({
-  DEFAULT_PERMISSION_GROUP_CONFIG: {
-    allowedIntegrations: null,
-    allowedModelProviders: null,
-    deniedModels: [],
-    deniedTools: [],
-    hideTraceSpans: false,
-    hideKnowledgeBaseTab: false,
-    hideTablesTab: false,
-    hideCopilot: false,
-    hideIntegrationsTab: false,
-    hideSecretsTab: false,
-    hideApiKeysTab: false,
-    hideInboxTab: false,
-    hideFilesTab: false,
-    disableMcpTools: false,
-    disableCustomTools: false,
-    disableSkills: false,
-    disableInvitations: false,
-    disablePublicApi: false,
-    disablePublicFileSharing: false,
-    allowedFileShareAuthTypes: null,
-    hideDeployApi: false,
-    hideDeployMcp: false,
-    hideDeployChatbot: false,
-    allowedChatDeployAuthTypes: null,
-  },
-  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
-  mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
-  mockGetProviderFromModel: vi.fn<(model: string) => string>(),
-}))
+const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner, mockGetProviderFromModel } =
+  vi.hoisted(() => ({
+    mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+    mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
+    mockGetProviderFromModel: vi.fn<(model: string) => string>(),
+  }))
 
 vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
@@ -55,14 +25,6 @@ vi.mock('@/lib/billing', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-
-vi.mock('@/lib/permission-groups/types', () => ({
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  parsePermissionGroupConfig: (config: unknown) => {
-    if (!config || typeof config !== 'object') return DEFAULT_PERMISSION_GROUP_CONFIG
-    return { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...config }
-  },
 }))
 
 vi.mock('@/providers/utils', () => ({
