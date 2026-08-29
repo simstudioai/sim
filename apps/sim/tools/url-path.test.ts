@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  safeEncodedUrlPathSegment,
   safeUrlPath,
   safeUrlPathSegment,
   strictEncodedUrlPathSegment,
@@ -455,6 +456,31 @@ describe('strict guards refuse padding on state-changing requests', () => {
     ['1234', '1234'],
   ])('passes the unpadded value %j through unchanged', (value, expected) => {
     expect(strictUrlPathSegment(value, 'owner')).toBe(expected)
+  })
+
+  it.each(['a\\b', '..\\..', 'area\\api', '\\'])(
+    'safeEncodedUrlPathSegment rejects the backslash in %j',
+    (value) => {
+      expect(() => safeEncodedUrlPathSegment(value, 'name')).toThrow(
+        /name cannot contain a backslash/
+      )
+    }
+  )
+
+  it('rejects a backslash through the strict wrapper too', () => {
+    expect(() => strictEncodedUrlPathSegment('a\\b', 'name')).toThrow(
+      /name cannot contain a backslash/
+    )
+  })
+
+  it('all three helpers agree that a backslash is refused, not encoded', () => {
+    for (const [label, fn] of [
+      ['safeUrlPathSegment', safeUrlPathSegment],
+      ['safeUrlPath', safeUrlPath],
+      ['safeEncodedUrlPathSegment', safeEncodedUrlPathSegment],
+    ] as const) {
+      expect(() => fn('a\\b', label)).toThrow()
+    }
   })
 
   it('keeps a namespaced label encoded as one segment', () => {

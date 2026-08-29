@@ -347,6 +347,23 @@ export function safeUrlPath(value: string | number | bigint, paramName: string):
  * which is why that case is still rejected here rather than encoded, exactly as
  * the module note requires.
  *
+ * A backslash is rejected rather than encoded, matching both sibling helpers.
+ * Encoding it to `%5C` would in fact be safe on the wire — a raw `\` *is* a
+ * path separator to the WHATWG parser for a special scheme, so
+ * `https://x/a/b/..\..\etc` resolves to `/etc`, but the encoded form does not
+ * move at all:
+ *
+ * ```
+ * new URL('https://x/a/b/..%5C..%5Cetc').pathname // => '/a/b/..%5C..%5Cetc'
+ * ```
+ *
+ * It is refused anyway, for the reason the module note gives for `safeUrlPath`:
+ * a value carrying a backslash is a Windows-shaped path the caller did not mean
+ * to address literally, and letting one through would leave a segment that
+ * reads as traversal to any consumer downstream that normalizes it. Neither
+ * caller — a GitHub label name, a git ref — can legitimately contain one, so
+ * the consistency is free.
+ *
  * Prefer `safeUrlPathSegment`. Reach for this helper only when the provider
  * documents the parameter as a single value that may itself contain `/`.
  *
@@ -355,7 +372,7 @@ export function safeUrlPath(value: string | number | bigint, paramName: string):
  * @returns The trimmed value percent-encoded as a single segment, separators
  *   included, safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
- *   segment, or cannot be encoded.
+ *   segment, contains a backslash, or cannot be encoded.
  */
 export function safeEncodedUrlPathSegment(
   value: string | number | bigint,
@@ -369,6 +386,10 @@ export function safeEncodedUrlPathSegment(
 
   if (trimmed === '.' || trimmed === '..') {
     throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+
+  if (trimmed.includes('\\')) {
+    throw new Error(`${paramName} cannot contain a backslash`)
   }
 
   return encodeSegment(trimmed, paramName)
