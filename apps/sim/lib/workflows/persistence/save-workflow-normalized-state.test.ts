@@ -12,6 +12,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   notify: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', async () => {
@@ -68,6 +73,59 @@ describe('saveWorkflowNormalizedState', () => {
     })
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.replace.mockResolvedValue({ warnings: ['dropped an edge'], state: STATE })
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
+  })
+
+  /**
+   * The bypass this closes: a graph replace never went through the editing
+   * operations, so a member whose group withholds an integration could still
+   * store a block using it and have it refused only at run time, if ever.
+   */
+  it('refuses a state carrying a block type the permission group withholds', async () => {
+    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+
+    const result = await saveWorkflowNormalizedState(
+      params({
+        state: {
+          blocks: {
+            'block-1': {
+              id: 'block-1',
+              type: 'gmail',
+              name: 'Send',
+              position: { x: 0, y: 0 },
+              subBlocks: {},
+              outputs: {},
+              enabled: true,
+            },
+          },
+          edges: [],
+        },
+      })
+    )
+
+    expect(result).toMatchObject({ success: false, status: 403 })
+    expect(result.success === false && result.error).toContain('gmail')
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mocks.notify).not.toHaveBeenCalled()
+  })
+
+  it('stores a state whose block types the allowlist names', async () => {
+    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['starter'] })
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toMatchObject({ success: true })
+  })
+
+  /** A workflow with no workspace has no permission group to resolve. */
+  it('skips the block-type check for a workflow outside any workspace', async () => {
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'workflow-1', workspaceId: null },
+      workspacePermission: 'write',
+    })
+
+    await expect(saveWorkflowNormalizedState(params())).resolves.toMatchObject({ success: true })
+    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
   })
 
   it('returns success with the preparation warnings and notifies once', async () => {
