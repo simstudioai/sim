@@ -96,6 +96,7 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { deleteFiles } from '@/lib/uploads/core/storage-service'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
@@ -1900,6 +1901,29 @@ function collectedFileName(relativePath: string): string {
  * several multiples of the payload would be live at once for a value that is a
  * couple of hundred bytes per file once stored.
  */
+/**
+ * Removes files already uploaded when a later one in the same harvest is refused.
+ *
+ * The route answers with a failure and hands back no references, so anything
+ * uploaded before the refusal is unreachable — but it still occupies storage,
+ * and the harvest is all-or-nothing by design. Best-effort on purpose: the
+ * caller needs to hear why its export was refused, not that the tidy-up failed.
+ */
+async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promise<void> {
+  if (files.length === 0) return
+  try {
+    await deleteFiles(
+      files.map((file) => file.key),
+      'execution'
+    )
+  } catch (error) {
+    logger.warn('Could not remove partially uploaded sandbox output files', {
+      fileCount: files.length,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 async function collectExecutionOutputFiles(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
@@ -1955,6 +1979,7 @@ async function collectExecutionOutputFiles(args: {
       // one carrying a resolved secret cannot ship under a lock the way a
       // workspace file can — it is refused instead.
       if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+        await discardUploadedExecutionFiles(files)
         return {
           response: exportFailure(
             `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
@@ -2371,22 +2396,44 @@ export async function executeFunctionRequest(
 
     // Resolved only after the guard: a request about to be refused must not mint
     // presigned URLs or buffer bytes on its way out.
-    const { sandboxFiles: userFileMounts, manifest: mountManifest } = await resolveUserFileMounts({
-      planned: plannedFileMounts,
-      context: {
-        principal: auth.principal,
-        workflowId,
-        workspaceId,
-        executionId,
-        largeValueExecutionIds,
-        largeValueKeys,
-        fileKeys,
-        allowLargeValueWorkflowScope,
-        userId: auth.fileAccessUserId,
-        requestId,
-        logger,
-      },
-    })
+    let resolvedMounts: Awaited<ReturnType<typeof resolveUserFileMounts>>
+    try {
+      resolvedMounts = await resolveUserFileMounts({
+        planned: plannedFileMounts,
+        context: {
+          principal: auth.principal,
+          workflowId,
+          workspaceId,
+          executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          fileKeys,
+          allowLargeValueWorkflowScope,
+          userId: auth.fileAccessUserId,
+          requestId,
+          logger,
+        },
+      })
+    } catch (error) {
+      // Everything this can raise is about the files the caller named — a mount
+      // it may not read, one over a size ceiling, a set over the aggregate. The
+      // messages already say which file and what to do, so they are the response
+      // rather than a 500 that reads like the platform broke. Matches the
+      // too-many-files refusal above.
+      logger.warn(`[${requestId}] Could not resolve sandbox file mounts`, {
+        error: getErrorMessage(error),
+      })
+      return functionJsonResponse(
+        {
+          success: false,
+          error: getErrorMessage(error, 'Could not mount the requested files into the sandbox.'),
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 400 }
+      )
+    }
+    const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
     const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
 
     // Every `<block.file.path>` marker becomes the path its file was mounted at,

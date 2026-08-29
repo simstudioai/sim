@@ -107,12 +107,26 @@ export async function pushSandboxFileMount(
   budget: SandboxMountBudget
 ): Promise<void> {
   if (hasCloudStorage() && !source.rendersFromSource) {
-    if (source.declaredSize > MOUNT_URL_MAX_BYTES) {
+    /**
+     * The number this mount is both admitted on and later held to.
+     *
+     * Resolved once, before any comparison, because a non-finite size makes every
+     * `>` test false — an aggregate check reading `budget.url + NaN` would pass
+     * silently while the mount still consumed real budget. A missing or
+     * nonsensical size therefore costs the per-file maximum rather than nothing,
+     * and a zero takes a one-byte floor, since zero reads as "unlimited" to curl.
+     */
+    const grantedBytes =
+      Number.isFinite(source.declaredSize) && source.declaredSize >= 0
+        ? Math.max(1, source.declaredSize)
+        : MOUNT_URL_MAX_BYTES
+
+    if (grantedBytes > MOUNT_URL_MAX_BYTES) {
       throw new Error(
-        `Input file "${source.mountPath}" is ${Math.round(source.declaredSize / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
+        `Input file "${source.mountPath}" is ${Math.round(grantedBytes / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
       )
     }
-    if (budget.url + source.declaredSize > MAX_TOTAL_URL_BYTES) {
+    if (budget.url + grantedBytes > MAX_TOTAL_URL_BYTES) {
       throw new Error(
         `Mounting "${source.mountPath}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files.`
       )
@@ -123,24 +137,11 @@ export async function pushSandboxFileMount(
       MOUNT_URL_TTL_SECONDS
     )
     /**
-     * The sandbox is allowed exactly the bytes this mount was charged for, so
-     * the aggregate stays honest without a stat round-trip per file.
-     *
-     * Charging `declaredSize` while permitting the global per-file maximum would
-     * let understated sizes accumulate far past the aggregate ceiling — twenty
-     * mounts each claiming a byte and each allowed 500MB. Granting and charging
-     * the same number closes that: an honest size fetches normally, and an
-     * understated one is refused by `--max-filesize` instead of quietly
-     * overrunning the budget it was admitted under.
-     *
-     * A size of zero would mean "unlimited" to curl, and a missing or
-     * nonsensical one tells us nothing, so those fall back to a floor of one
-     * byte and to the per-file maximum respectively.
+     * Granted exactly what it was charged, so the aggregate stays honest without a
+     * stat round-trip per file. Charging the recorded size while permitting the
+     * global per-file maximum would let understated sizes accumulate far past the
+     * ceiling — twenty mounts each claiming a byte and each allowed 500MB.
      */
-    const grantedBytes =
-      Number.isFinite(source.declaredSize) && source.declaredSize >= 0
-        ? Math.max(1, source.declaredSize)
-        : MOUNT_URL_MAX_BYTES
     sandboxFiles.push({
       type: 'url',
       path: source.mountPath,

@@ -791,13 +791,20 @@ export async function executeFileManageOperation(
          */
         let inputProvenance: WorkspaceFileSecretProvenance | undefined
         if (fileInput !== undefined && fileInput !== null) {
-          if (!isUserFileWithMetadata(fileInput)) {
+          // Two shapes reach here and only one is already a UserFile. A block
+          // reference or an agent-resolved id arrives complete; the file picker
+          // stores `{name, path, key, size, type}` with no `id` or `url`, which
+          // the shared normalizer turns into one — the same conversion every
+          // other operation in this file applies to its own file input.
+          const sourceFile: UserFile | null = isUserFileWithMetadata(fileInput)
+            ? fileInput
+            : fileInputToUserFile(fileInput)
+          if (!sourceFile) {
             return Response.json(
               { success: false, error: 'fileInput must be a file object' },
               { status: 400 }
             )
           }
-          const sourceFile: UserFile = fileInput
           const denied = await assertOperationFileAccess(sourceFile, context)
           if (denied) return denied
 

@@ -212,6 +212,39 @@ function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
 }
 
 /**
+ * Fetches one URL mount inside the sandbox, bounded by MAX_BYTES.
+ *
+ * Three mechanisms, because no one of them is sufficient on its own.
+ * `--max-filesize` refuses an oversized object before a byte moves, but only when
+ * the response declares a Content-Length — a chunked or length-less reply walks
+ * straight past it. `head -c` therefore caps what can ever reach the disk at one
+ * byte over the limit, so a mis-declared object cannot fill the sandbox while we
+ * wait to notice. The final size check is what turns that truncated file into a
+ * refusal rather than a silently corrupted mount.
+ *
+ * curl's exit status travels through a file because its status is lost in a
+ * pipeline, and losing it would let a 403 on an expired URL look like a
+ * successful empty download. The size check is consulted first: when `head`
+ * closes the pipe early curl dies of EPIPE, and "over the limit" is the useful
+ * message there, not the write error it provokes.
+ *
+ * MAX_BYTES, URL, DST, and DIR all arrive as environment variables, never
+ * interpolated, so a presigned query string cannot break out of the command.
+ */
+const FETCH_URL_MOUNT_COMMAND = [
+  'set -e',
+  '[ -n "$DIR" ] && mkdir -p "$DIR"',
+  'STATUS_FILE=$(mktemp)',
+  'STATUS=0',
+  '{ curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" || STATUS=$?; echo "$STATUS" > "$STATUS_FILE"; } | head -c "$(( MAX_BYTES + 1 ))" > "$DST"',
+  'STATUS=$(cat "$STATUS_FILE")',
+  'rm -f "$STATUS_FILE"',
+  'SIZE=$(wc -c < "$DST")',
+  'if [ "$SIZE" -gt "$MAX_BYTES" ]; then rm -f "$DST"; echo "mounted file exceeds the $MAX_BYTES byte limit" >&2; exit 1; fi',
+  'if [ "$STATUS" -ne 0 ]; then rm -f "$DST"; echo "curl exited $STATUS" >&2; exit 1; fi',
+].join('\n')
+
+/**
  * Materializes sandbox input files before user code runs. `content` entries are written inline;
  * `url` entries are fetched from inside the sandbox via `curl` — their bytes never pass through the
  * web process, so the mount size is bounded by sandbox disk, not web heap. The URL and paths are
@@ -231,29 +264,18 @@ async function writeSandboxInputs(
       const dir = file.path.slice(0, file.path.lastIndexOf('/'))
       let result: SandboxCommandResult
       try {
-        // The ceiling holds against the bytes actually served rather than a size
-        // the caller reported, and it takes two steps because neither alone is
-        // sufficient. `--max-filesize` refuses an oversized object before the
-        // transfer starts, but only when the response declares a Content-Length;
-        // a chunked or length-less response slips past it. So the delivered file
-        // is measured afterwards and deleted if it overran — in the same command,
-        // since a second round trip would cost a whole session on Daytona.
-        // MAX_BYTES travels as an env var like the URL, never interpolated.
-        result = await sandbox.runCommand(
-          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" -o "$DST"; SIZE=$(wc -c < "$DST"); if [ "$SIZE" -gt "$MAX_BYTES" ]; then rm -f "$DST"; echo "mounted file is $SIZE bytes, over the $MAX_BYTES byte limit" >&2; exit 1; fi',
-          {
-            envs: {
-              URL: file.url,
-              DST: file.path,
-              DIR: dir,
-              MAX_BYTES: String(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES),
-            },
-            timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
-            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
-            signal: opts.signal,
-            rootUser: opts.rootUser,
-          }
-        )
+        result = await sandbox.runCommand(FETCH_URL_MOUNT_COMMAND, {
+          envs: {
+            URL: file.url,
+            DST: file.path,
+            DIR: dir,
+            MAX_BYTES: String(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES),
+          },
+          timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
+          maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+          signal: opts.signal,
+          rootUser: opts.rootUser,
+        })
       } catch (error) {
         throwIfAborted(opts.signal)
         throw new Error(
