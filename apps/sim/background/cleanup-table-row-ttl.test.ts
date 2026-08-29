@@ -89,7 +89,7 @@ describe('table row TTL cleanup', () => {
   })
 
   it('compares TTL values with whole Date.now epoch seconds', async () => {
-    const nowEpochMilliseconds = 1_700_000_000_123
+    const nowEpochMilliseconds = 1_700_000_000_999
     const nowEpochSeconds = 1_700_000_000
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(nowEpochMilliseconds)
     mockDeleteExecute.mockResolvedValue([{ count: 0, createdAt: null, lastId: null }])

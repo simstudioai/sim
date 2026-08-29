@@ -181,6 +181,18 @@ describe('import', () => {
       )
       expect(coerceValue('not-a-date', 'ttl')).toBe('not-a-date')
     })
+
+    it('applies the timezone supplied to each TTL import independently', () => {
+      const input = '2026-06-15 09:00:30'
+
+      expect(coerceValue(input, 'ttl', { timezone: 'America/New_York' })).toBe(
+        Date.parse('2026-06-15T13:00:30Z') / 1000
+      )
+      expect(coerceValue(input, 'ttl', { timezone: 'Asia/Kathmandu' })).toBe(
+        Date.parse('2026-06-15T03:15:30Z') / 1000
+      )
+      expect(coerceValue('2023-11-14T22:13:20.001Z', 'ttl')).toBe(1_700_000_001)
+    })
   })
 
   describe('buildAutoMapping', () => {

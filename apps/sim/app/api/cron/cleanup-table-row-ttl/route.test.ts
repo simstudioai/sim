@@ -77,6 +77,23 @@ describe('table row TTL cleanup route', () => {
     expect(mockEnqueue.mock.calls[0]?.[2]?.jobId).toBe(mockEnqueue.mock.calls[1]?.[2]?.jobId)
   })
 
+  it('uses a new id immediately after the next fifteen-minute window begins', async () => {
+    const request = () =>
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/cron/cleanup-table-row-ttl'
+      )
+
+    vi.setSystemTime(new Date('2026-08-22T17:14:59.999Z'))
+    await GET(request())
+    vi.setSystemTime(new Date('2026-08-22T17:15:00.000Z'))
+    await GET(request())
+
+    expect(mockEnqueue.mock.calls[0]?.[2]?.jobId).not.toBe(mockEnqueue.mock.calls[1]?.[2]?.jobId)
+  })
+
   it('returns the cron auth refusal without touching the queue', async () => {
     mockVerifyCronAuth.mockReturnValue(new Response(null, { status: 401 }))
 
