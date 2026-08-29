@@ -3,103 +3,109 @@ slug: what-is-an-ai-agent-definition-how-it-works-and-examples
 title: 'What Is an AI Agent? Definition, How It Works, and Examples'
 description: 'Learn what an AI agent is, how its reasoning, tools, memory, and goal loop works, and how agents differ from chatbots and raw LLMs.'
 date: 2026-07-31
-updated: 2026-07-31
+updated: 2026-08-29
 authors:
   - andrew
-readingTime: 9
+readingTime: 8
 tags: [AI Agents, LLMs, Automation, Sim]
 ogImage: /library/what-is-an-ai-agent-definition-how-it-works-and-examples/cover.jpg
 canonical: https://www.sim.ai/library/what-is-an-ai-agent-definition-how-it-works-and-examples
 draft: false
 faq:
   - q: "Does an AI agent need an LLM?"
-    a: "Most modern agents use a large language model as their reasoning engine because it can interpret instructions, plan, and choose tools. Simpler agents can use rules or classical planning algorithms instead. The defining trait is goal-directed action, not the specific model powering the reasoning."
+    a: "An AI agent does not strictly need an LLM; it needs a mechanism that selects actions in pursuit of a goal. In Sim, an Agent block can use an LLM to interpret instructions and choose among connected tools. This gives teams a flexible way to automate tasks whose next step depends on context."
   - q: "Does RPA count as an AI agent?"
-    a: "Robotic process automation follows fixed, pre-scripted steps, while an AI agent can decide how to pursue a goal at runtime and adapt to new observations. The distinction is reasoning and adaptation rather than the ability to automate a task."
+    a: "RPA generally does not count as an AI agent because it follows fixed steps rather than selecting new actions from observed results, a line [IBM draws the same way](https://community.ibm.com/community/user/blogs/ahmed-alsareti/2025/11/04/rpa-vs-agentic-ai-transforming-enterprise-automati) between script-driven execution and goal-driven agentic AI. In Sim, fixed workflow blocks can handle predictable steps while an Agent block can choose tools and revise its approach at runtime. This distinction helps teams reserve agents for work that requires adaptation instead of adding unnecessary complexity to stable processes."
   - q: "How autonomous are AI agents really?"
-    a: "Autonomy is a spectrum. Production agents commonly have defined tool permissions and human approval requirements for sensitive actions. A support agent might handle routine tickets independently while escalating larger refunds to a person."
+    a: "Agent autonomy is the degree to which an agent can select and execute steps without human approval. In Sim, teams can limit an agent's connected tools and place approval steps before sensitive actions such as issuing a large refund. These controls let routine work proceed automatically while keeping higher-risk decisions under human oversight."
   - q: "Can an agent use more than one tool?"
-    a: "Yes. A research agent might query a search API, read a knowledge base, and write results to a database in one task. It chooses which tool to invoke at each step based on the goal and the result of its previous action."
+    a: "A multi-tool agent can choose among several connected tools as it works toward a goal. In Sim, an Agent block might search a Knowledge Base, call an API, and save its findings in a Table during the same workflow. This lets one agent complete multi-step tasks without handing each stage to a person."
 ---
 
 ## TL;DR
 
-An AI agent is a goal-directed software system that reasons about a task, uses tools, and takes action to reach an outcome rather than only producing text on request.
+An AI agent is goal-directed software that uses reasoning and tools to act toward an outcome rather than only produce text on request.
 
-The agent runs a reasoning-tools-memory-goal loop. It plans a next step, acts through a tool, observes the result, updates its memory, and checks whether the goal is met before repeating.
+The agent runs a cycle that combines decision-making, available actions, retained context, and an objective. It plans the next step and acts through a tool. After observing the result, it updates what it knows and checks whether to stop or repeat the loop.
 
-A chatbot responds to messages and stops. An agent pursues an objective and can act across multiple steps, a distinction this article covers separately.
+A chatbot responds to each message and then waits. An agent pursues an objective and can act across multiple steps.
 
-A raw large language model is only the reasoning part of an agent. The full agent wraps that model in tools, memory, and the ability to act.
+A raw large language model can provide the reasoning component of an agent. The full agent gives that model access to external capabilities and stored context so it can act.
 
 ## What is an AI agent?
 
-An AI agent is a goal-directed software system that reasons about a task, uses tools to gather information or take actions, and works toward an outcome rather than a single reply. This framing aligns with [Google Cloud's overview of AI agents](https://cloud.google.com/discover/what-are-ai-agents) and [McKinsey's explainer](https://www.mckinsey.com/featured-insights/mckinsey-explainers/what-is-an-ai-agent). The agent receives a goal, decides what to do, and acts through the tools it can reach.
+An AI agent is goal-directed software that uses reasoning and tools to act toward an outcome rather than produce a single reply. [Google Cloud's overview of AI agents](https://cloud.google.com/discover/what-are-ai-agents) and [McKinsey's explainer](https://www.mckinsey.com/featured-insights/mckinsey-explainers/what-is-an-ai-agent) use similar definitions. After receiving a goal, the agent decides what to do and acts through its available tools.
 
-Four words in that definition carry the weight, and each one rules something in or out.
+Four ideas in that definition carry the weight, and each one sets an important boundary.
 
 **Goal-directed** means the agent works toward an outcome you specify, not a one-off response. You give it an objective like "resolve this ticket" or "book a meeting," and it keeps working until the goal is met or blocked. A system that answers one prompt and stops is not goal-directed.
 
-**Reasons** means the agent breaks a goal into steps and decides what to do next based on what it learns. It plans, evaluates results, and adjusts. Fixed if-then automation follows a script and does not revise its plan, so it fails this test.
+**Reasoning** means the agent breaks a goal into steps and decides what to do next based on what it learns. It evaluates results and adjusts its plan. Fixed if-then automation follows a script and does not revise its plan, so it fails this test.
 
-**Uses tools** means the agent can call external functions, APIs, databases, or other software to get information and effect change. Without tools, a model can only produce text. With them, an agent can search a knowledge base, query a calendar, or write to a system of record.
+**Uses tools** means the agent can call external functions, APIs, databases, or other software to get information and make changes. Without tools, a language model cannot interact with external systems. With tools, an agent can search a knowledge base and update connected systems such as a calendar or system of record.
 
-**Takes action** means the agent changes state in the world, not just its own output. It sends the email, updates the record, or merges the code. A system that describes what should happen but cannot do it is an assistant, not an agent.
+**Takes action** means the agent changes state in the world, not just its own output. It can send an email or update a record directly. A system that describes what should happen but cannot do it is an assistant, not an agent.
+
+These systems differ in how independently they pursue multi-step work and whether they can act through tools.
+
+| System | Decision-making | Tool use | Autonomy and multi-step action | Typical use case |
+| --- | --- | --- | --- | --- |
+| AI agent | Chooses and adjusts steps based on results | Calls external tools, APIs, databases, or software | Pursues a goal across multiple steps until it succeeds or reaches a limit | Resolving support issues, scheduling meetings, researching questions, or changing code |
+| RPA | Follows fixed, pre-scripted rules | Operates the systems included in its script | Repeats a defined sequence and does not revise its plan | Automating stable, rule-based processes |
+| Chatbot | Generates a response to each message | May retrieve information needed for a reply | Waits for the next user message instead of pursuing a goal independently | Answering questions in a conversation |
+| Copilot | Helps a person decide or create | May use connected tools under the person's direction | Assists with steps while the person remains in control of the task | Supporting writing, analysis, coding, or other user-led work |
 
 ## How do AI agents work?
 
-An AI agent works by running a continuous loop, not by executing a fixed script. The loop moves through four stages that repeat until the goal is met. The agent perceives the current state and plans a next step, acts on that plan by calling a tool, observes what the tool returned, and updates its memory before checking whether the goal is satisfied. Each pass through the loop uses the result of the last pass as new input, so the agent adjusts its plan based on what actually happened rather than on what it predicted.
+An AI agent repeats a four-stage loop until it meets its goal, a pattern [IBM's overview of agentic reasoning](https://www.ibm.com/think/topics/agentic-reasoning) also describes as perceiving, reasoning, and acting in a cycle. It assesses the current state and plans the next step before calling a tool. After the tool returns a result, the agent records the observation and checks whether the objective is complete. If more work remains, that result informs the next pass instead of leaving the agent bound to its initial plan.
 
-The reasoning stage decides what to do next. A language model reads the goal, the current state, and everything the agent has already tried, then chooses an action. That action often means calling a tool, because the reasoning model on its own cannot query a database, send an email, or run code. Memory carries context between passes so the agent does not repeat work or lose track of a multi-step task, and the goal acts as the exit condition that tells the loop when to stop.
+The planning stage decides what to do next. A language model reads the desired outcome and current context, including earlier attempts, before choosing an action. That action often requires a tool because the model cannot query a database or send an email on its own. Retained context carries information between passes so the agent can track a multi-step task without repeating work. The completion condition tells the cycle when to stop.
 
-The stages depend on each other in sequence. Reasoning is useless without tools to act on its decisions. Tools are blind without memory to record what they already returned. Memory is aimless without a goal to measure progress against. When the four run as a cycle, the agent can handle a task that no single model output could finish in one shot.
+A room-booking agent uses each tool result to narrow its options. It first calls a calendar tool to find open rooms and stores the three matches in memory. Because no room is confirmed yet, the agent continues by checking their capacity. The room-details tool shows that only one seats six people, so the agent records that room and attempts to book it.
 
-Consider an agent asked to find and book a meeting room for six people next Tuesday afternoon. On the first pass, it reasons that it needs the room list, calls a calendar tool, and observes that three rooms are free. It writes those three rooms to memory, then checks the goal and sees the task is not done because none is confirmed yet. On the second pass, it filters by capacity, calls the room-details tool, and observes that only one of the three seats six people. It records that room, checks the goal again, and moves to book it.
-
-On the third pass, the agent calls the booking tool and observes a conflict because someone reserved the room seconds earlier. Rather than fail, it reads its memory, sees the two rejected rooms, and reasons that neither fits the headcount. It loops back to search for a new option, and the cycle continues until it confirms a room or reports that none exists. The recovery from a failed booking shows why the loop matters. A static script would stop at the conflict, while the agent treats the failure as one more observation and plans around it.
+A booking conflict gives the agent new information for its next pass. When the tool reports that someone else reserved the room, the agent checks its memory and confirms that the other rooms are too small. It then searches for another option until it books a suitable room or reports that none is available. A static script might stop at the conflict, but the agent can use the tool result to revise its plan.
 
 ## How is an AI agent different from a chatbot?
 
-A chatbot responds to what you say. An AI agent pursues a goal you set and takes the actions needed to reach it. A support chatbot answers "Where is my order?" with a status message and stops. A support agent can read the same question, look up the order in connected systems, check the shipping carrier, and issue a refund if the workflow allows it.
+A chatbot responds to what you say. An AI agent pursues a goal you set and takes the actions needed to reach it. A support chatbot answers "Where is my order?" with a status message and stops. A support agent can use connected systems to check the order and shipping carrier before issuing a refund when its configured workflow permits one.
 
-The mechanical difference comes down to autonomy and tools. A chatbot maps input to output inside a single conversation and waits for your next message. An agent runs a loop, deciding what to do next, calling external tools, and continuing until the goal is met or it reaches a limit you defined. That loop lets an agent complete multi-step work without a person prompting each step.
+The mechanical difference comes down to autonomy and tools. A chatbot maps input to output inside a single conversation and waits for your next message. An agent runs a loop that selects the next action and calls external tools. It continues until it meets the goal or reaches a limit you defined. That loop lets an agent complete multi-step work without a person prompting each step.
 
 For a full breakdown of where the two overlap and where they diverge, read [AI Agent vs Chatbot: Understanding the Differences](https://www.sim.ai/library/ai-agent-vs-chatbot).
 
 ## How is an AI agent different from a raw LLM?
 
-A large language model generates a response from a prompt. An AI agent wraps that model inside a larger system that can plan, use tools, remember, and act toward a goal. The LLM handles the reasoning step of the loop. The agent is everything around it.
+A large language model generates a response from a prompt, while an AI agent places that model inside software that can call external systems and retain context while pursuing an outcome. The LLM supplies the decision-making capability, and the surrounding agent software enables action across multiple steps.
 
-Think of the LLM as the engine and the agent as the vehicle. On its own, an LLM cannot check today's calendar, query a database, or send an email. It only has the information in its prompt and training. When you give that same model access to tools, a way to store results between steps, and permission to run multiple cycles until a goal is met, you turn it into an agent.
+Think of the LLM as the engine and the agent as the vehicle. On its own, an LLM cannot check today's calendar, query a database, or send an email. It only has the information in its prompt and training. When you give that model access to connected functions and stored results, it can run repeated cycles until it completes the task.
 
-Three additions do the work. Tools connect the model to real systems it can call. Memory lets the agent carry context across steps instead of treating each prompt in isolation. Autonomy lets it decide what to do next based on what it observed, then loop again without waiting for a new instruction each time.
-
-A raw LLM answers a question. An agent takes a goal, breaks it into steps, acts on each one, and adjusts as it goes. The reasoning is shared. The ability to act is what separates them.
+External capabilities and persistent context let the model interact with real systems while carrying information across steps. With permission to continue, the agent can choose its next action based on the observed result instead of waiting for another instruction.
 
 ## What are some examples of AI agents?
 
-A support agent has one goal: resolve a customer's issue without a human handoff when the workflow permits it. It reads the incoming ticket, pulls the customer's account and order history through connected tools, and checks a knowledge base for the relevant policy. If the customer wants a refund, the agent verifies eligibility, issues the refund through the payment system, and updates the ticket status. It observes whether the refund succeeded before closing the loop, so a failed transaction can trigger a retry or escalation rather than a false confirmation.
+A support agent aims to resolve a customer's issue without a human handoff, as long as each action falls within its configured permissions. It uses connected tools to retrieve the customer's account and order history, then checks a knowledge base for the relevant policy. For a refund request, the agent verifies eligibility and submits the transaction through the payment system. It updates the ticket only after confirming the result, while an unsuccessful transaction can trigger a retry or escalation.
 
-A scheduling agent works toward booking a meeting that fits everyone involved. Given a request like "find 30 minutes with the design team next week," it reads each attendee's calendar, applies constraints such as time zones and working hours, and proposes a slot. Once someone confirms, the agent creates the event, sends the invites, and adds a video link. When a conflict appears later, it can rebook if its permissions and workflow allow it, because the goal is a scheduled meeting, not a single calendar lookup. For a closer look at this use case, see [the best AI agents for scheduling and calendar management](https://www.sim.ai/library/best-ai-agents-for-scheduling-and-calendar-management-in-2026).
+A scheduling agent works toward booking a meeting that fits the participants' calendars and working hours. For a request such as "find 30 minutes with the design team next week," it checks availability before proposing a suitable slot. After someone confirms, the agent creates the event with invitations and a video link. If a later conflict occurs, the agent can rebook within its configured permissions. For a closer look at this use case, see [the best AI agents for scheduling and calendar management](https://www.sim.ai/library/best-ai-agents-for-scheduling-and-calendar-management-in-2026).
 
-A research agent aims to answer a question that no single source resolves. It breaks the question into sub-queries, searches the web or an internal document store, and reads what it finds. It holds partial findings in memory so it can compare sources, spot gaps, and run follow-up searches to fill them. The output is a synthesized answer with citations, produced after the agent has gathered enough evidence to stop.
+A research agent aims to answer a question that no single source resolves. It divides the question into focused searches and reads relevant material from the web or an internal document store. By retaining partial findings in memory, the agent can compare sources and search again when evidence is missing. Once it has enough support for an answer, the agent writes a cited synthesis.
 
-A coding agent has the goal of making a codebase do something new or fixing what is broken. Given a task like "add pagination to the user list endpoint," it reads the relevant files, plans the change, and edits the code through a file-editing tool. It can then run tests, read the results, and revise its changes when a test fails. That observe-and-correct cycle separates a coding agent from a model that only suggests a snippet, since the agent can verify its work against real feedback before declaring the task done.
-
-Each example runs the same loop in a different context. The agent starts with a goal, reasons about the next step, acts through tools, observes the result, and updates what it knows before deciding whether the goal is met.
+A coding agent changes a codebase to add a feature or fix a defect. For a task such as "add pagination to the user list endpoint," it inspects the relevant files and edits them with a file tool. The agent then runs tests and uses their results to revise the change when needed. Because it checks its work against the codebase, it can respond to real feedback instead of only suggesting a snippet.
 
 ## How do you build an AI agent in practice?
 
-Building an agent means assembling the reasoning-tools-memory-goal loop on a platform that handles the wiring for you. In Sim, you can configure an Agent block with a model, instructions, and the tools it can use. You can also connect Tables for structured records and Knowledge Bases for documents an agent can search as it runs.
+You can build an agent by mapping each stage of the loop to a concrete Sim primitive instead of treating the workflow as an abstract collection of parts:
 
-These surfaces correspond to the loop described above. Agent blocks hold the model, instructions, and tools an agent uses to plan and act. Tables can give an agent structured data to read and write across runs, such as a support ticket history or pending scheduling requests. Knowledge Bases store documents an agent can search when a task needs grounded information, which helps a research agent answer from your own sources rather than guessing.
+1. **Reasoning → Agent block.** Configure the Agent block's model and instructions so it can interpret the current context and select the next step.
+2. **Tool use → tool calls.** Attach the integrations and functions the Agent block may call. The selected tool executes the action, and its result returns to the agent for the next decision.
+3. **Memory → Tables and Knowledge Bases.** Use Tables to store and query structured workflow records, such as completed attempts or pending requests. Use Knowledge Bases when the agent needs to search source documents for relevant context.
+4. **Goal → Agent block instructions.** State the desired outcome and stopping criteria in the Agent block's instructions so the result of each tool call can be evaluated against a concrete definition of done.
 
-A working agent in Sim can combine these into a single flow. An Agent block decides what to do, calls a tool to act, writes a result to a Table, and checks whether the goal is met before looping again. The [Sim agents documentation](https://docs.sim.ai/agents) covers how these blocks connect and what each configuration option controls. For a practical walkthrough, read [How to Build AI Agents With Sim](https://www.sim.ai/library/how-to-create-an-ai-agent).
+During each pass, the Agent block chooses an action, a connected tool call executes it, and the returned observation informs the next choice. The workflow can read or write structured state through Tables and retrieve source material from Knowledge Bases before the Agent block determines whether the stated outcome has been reached. The [Sim agents documentation](https://docs.sim.ai/agents) explains how the blocks connect, and [How to Build AI Agents With Sim](https://www.sim.ai/library/how-to-create-an-ai-agent) provides a practical walkthrough.
 
 ## The bottom line
 
-An AI agent is a goal-directed system that combines reasoning, tools, memory, and action. It does not just return a response; it can pursue an objective across multiple steps, observe the result of each action, and adjust its next move.
+An AI agent combines a model that can choose the next step with connected capabilities and retained context so it can act toward an objective. It pursues that outcome across multiple steps and uses each action's result to decide what comes next.
 
-Start with one narrow workflow and clear permissions. A support agent that classifies and routes incoming tickets, a scheduling agent that proposes slots, or a research agent that gathers cited information gives you an observable loop to test. As the workflow becomes reliable, you can expand the tools and autonomy around it.
+Start with one narrow workflow and clear permissions. Choose a task with an observable loop, such as routing support tickets or proposing meeting slots. Once that task works reliably, you can add tools or grant the agent more autonomy.
 
-If you are deciding whether a fixed automation is enough, [AI Agents vs RPA: When to Use Each for Enterprise Automation](https://www.sim.ai/library/ai-agents-vs-rpa) explains where rule-based automation remains the better fit.
+If you are deciding whether fixed automation is enough, [AI Agents vs RPA: When to Use Each for Enterprise Automation](https://www.sim.ai/library/automation-anywhere-alternative) explains where rule-based automation remains the better fit.
