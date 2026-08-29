@@ -127,7 +127,6 @@ describe('supabase path traversal safety', () => {
     itResistsTraversal(param, {
       origin: ORIGIN,
       basePath: BASE_PATH,
-      preservesWhitespace: param.paramName === 'path',
       /**
        * `table` and `functionName` are refused by `validateDatabaseIdentifier`
        * and `validateFunctionName`, which predate these guards and legitimately
@@ -267,73 +266,111 @@ describe('empty segments in a storage key', () => {
 })
 
 /**
- * Whitespace in a storage object key is **data**, and is preserved verbatim.
+ * Whitespace handling for a storage object key: **the whole value is trimmed,
+ * the inside is preserved.**
  *
- * This is a deliberate behaviour change and the one most likely to be noticed.
- * The `encodeStoragePath` this PR replaces ran `encodeURIComponent(s.trim())`
- * per segment, so it silently dropped whitespace at every segment edge —
- * including the whole key's leading and trailing edge. `safeUrlPath` trims
- * nowhere, so a padded key now addresses the padded object and 404s if that
- * object does not exist.
+ * These are different in kind and the split is deliberate.
  *
- * That is the correct trade, for three reasons:
+ * Edge padding on the whole value is a paste artifact and never part of the
+ * key. The helper this replaced trimmed it, so a saved workflow whose key field
+ * carried a stray space resolved fine; preserving it turned that into a 404.
+ * That is the one place in this PR where something that worked before would
+ * have stopped working, so the trim is restored.
  *
- * 1. **A padded key is a different object.** Supabase object names are opaque
- *    bytes; `"  a/b.png  "` and `"a/b.png"` are two keys. Trimming does not
- *    "clean up" the input, it addresses something the caller did not name — and
- *    on `supabase_storage_delete` that silently deletes the wrong file.
- * 2. **The failure modes are asymmetric.** Preserving gives a 404 that quotes
- *    the key actually sent: loud, self-explanatory, one edit to fix. Trimming
- *    gives a *successful* response against the wrong object, which nothing
- *    downstream can detect.
- * 3. **Upload and download share this helper.** `storage_upload` builds its key
- *    through the same `encodeStoragePath`, so preserve/preserve is the only
- *    self-consistent pair: trimming on read would make a padded key that was
- *    legitimately uploaded permanently unreachable.
- *
- * `path` is `visibility: 'user-or-llm'`, which reinforces it — a guard that
- * quietly normalizes model output is the kind of helpfulness that makes an
- * injection attempt and an honest typo indistinguishable.
- *
- * These assertions exist so a later change to `url-path.ts` cannot flip this
- * back without a failing test.
+ * Whitespace *inside* the key is genuine data — `avatars/ photo.png` names a
+ * component that starts with a space — and is preserved, which is the
+ * correctness `safeUrlPath` exists to provide.
  */
-describe('whitespace in a storage object key is preserved, not trimmed', () => {
-  it.each([
-    'folder/ file.png',
-    'folder/file .png',
-    'folder/my file .png',
-    ' leading.png',
-    'trailing.png ',
-    '  avatars/file.png  ',
-  ])('round-trips %j byte-for-byte', (value) => {
-    expect(decodeURIComponent(encodeStoragePath(value))).toBe(value)
-  })
-
-  it('addresses the padded object rather than the unpadded one', () => {
-    const padded = new URL(
-      `${ORIGIN}/storage/v1/object/avatars/${encodeStoragePath('  a/b.png  ')}`
-    )
-    const plain = new URL(`${ORIGIN}/storage/v1/object/avatars/${encodeStoragePath('a/b.png')}`)
-
-    expect(padded.pathname).not.toBe(plain.pathname)
-    expect(decodeURIComponent(padded.pathname)).toBe('/storage/v1/object/avatars/  a/b.png  ')
-  })
-
-  it('encodes the padding so it cannot restructure the URL', () => {
-    expect(encodeStoragePath('  a/b.png  ')).toBe('%20%20a/b.png%20%20')
+describe('whitespace in a storage object key', () => {
+  it('trims edge padding on the whole value, as the previous helper did', () => {
+    expect(decodeURIComponent(encodeStoragePath('  avatars/photo.png  '))).toBe('avatars/photo.png')
   })
 
   /**
-   * A dot segment wrapped in padding is a legal object name, not traversal:
-   * `%20%20..%20%20` is one ordinary segment that the URL parser never removes.
-   * The bare `..` is still rejected, which is the case that actually matters.
+   * The exact regression this restores: a pasted key with a stray space
+   * resolved before and must resolve now.
    */
-  it('keeps a padded dot segment as a name while still rejecting a bare one', () => {
-    expect(encodeStoragePath('  ..  ')).toBe('%20%20..%20%20')
-    expect(
-      new URL(`${ORIGIN}/storage/v1/object/avatars/${encodeStoragePath('  ..  ')}`).pathname
-    ).toBe('/storage/v1/object/avatars/%20%20..%20%20')
-    expect(() => encodeStoragePath('..')).toThrow(/traversal/i)
+  it('resolves a pasted key to the same object it resolved to before', () => {
+    const pasted = new URL(
+      `${ORIGIN}/storage/v1/object/avatars/${encodeStoragePath('  folder/report.pdf  ')}`
+    )
+    const clean = new URL(
+      `${ORIGIN}/storage/v1/object/avatars/${encodeStoragePath('folder/report.pdf')}`
+    )
+
+    expect(pasted.pathname).toBe(clean.pathname)
+  })
+
+  it.each(['avatars/ photo.png', 'a/ /b', 'folder/my file .png', 'a b/c d.png'])(
+    'preserves whitespace inside %j',
+    (value) => {
+      expect(decodeURIComponent(encodeStoragePath(value))).toBe(value)
+    }
+  )
+
+  it('keeps a whitespace-only component distinct from an empty one', () => {
+    expect(encodeStoragePath('a/ /b')).toBe('a/%20/b')
+    expect(() => encodeStoragePath('a//b')).toThrow(/empty path segment/)
+  })
+
+  /**
+   * Trimming the whole value exposes a padded dot segment rather than encoding
+   * it, which is strictly safer than before: `"  ..  "` used to survive as
+   * `%20%20..%20%20`, and is now refused outright.
+   */
+  it('refuses a padded dot segment once the value is trimmed', () => {
+    expect(() => encodeStoragePath('  ..  ')).toThrow(/traversal is not allowed/)
+    expect(() => encodeStoragePath('..')).toThrow(/traversal is not allowed/)
+  })
+})
+
+/**
+ * The premise behind trimming rather than refusing: **no destructive storage
+ * operation routes an object key through `encodeStoragePath`.**
+ *
+ * Elsewhere this branch refuses a padded identifier, because on a
+ * state-changing request trimming turns a 404 into a real mutation. That does
+ * not apply here — but only because of a fact about where these keys travel,
+ * which could change silently. Pinned so it cannot.
+ */
+describe('no destructive storage operation puts its key through the path guard', () => {
+  it('storage_delete sends keys in the body, not the path', () => {
+    const params = {
+      projectId: PROJECT_ID,
+      apiKey: 'k',
+      bucket: 'avatars',
+      paths: ['  folder/report.pdf  '],
+    }
+    const url = new URL(
+      (supabaseTools.supabaseStorageDeleteTool.request?.url as (p: typeof params) => string)(params)
+    )
+    const body = (
+      supabaseTools.supabaseStorageDeleteTool.request?.body as (p: typeof params) => unknown
+    )(params)
+
+    expect(url.pathname).toBe('/storage/v1/object/avatars')
+    expect(url.pathname).not.toContain('report.pdf')
+    expect(body).toEqual({ prefixes: ['  folder/report.pdf  '] })
+  })
+
+  it.each([
+    ['supabase_storage_move', 'supabaseStorageMoveTool'],
+    ['supabase_storage_copy', 'supabaseStorageCopyTool'],
+  ] as const)('%s sends keys in the body, not the path', (_name, exportName) => {
+    const tool = (supabaseTools as Record<string, unknown>)[exportName] as {
+      request: { url: (p: Record<string, unknown>) => string }
+    }
+    const url = new URL(
+      tool.request.url({
+        projectId: PROJECT_ID,
+        apiKey: 'k',
+        bucket: 'avatars',
+        fromPath: 'a.png',
+        toPath: 'b.png',
+      })
+    )
+
+    expect(url.pathname).not.toContain('a.png')
+    expect(url.pathname).not.toContain('b.png')
   })
 })
