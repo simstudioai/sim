@@ -342,6 +342,11 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 If any tool interpolates a param into a URL path, the integration needs a path-safety suite. Design it
 as follows — the naive shape does not work, and looks like it does.
 
+**Where these references live.** The shared harness (`apps/sim/tools/__tests__/path-safety.ts`), the
+per-service `path_safety.test.ts` suites, and every `url-path.ts` helper except `safeUrlPathSegment`
+arrive with the path-safety sweep. References below name **module and symbol** rather than a line,
+because those files are still being rebased and any line number would be stale on arrival.
+
 **Why the naive harness is worthless.** A suite that fuzzes every param at once and wraps the build in
 `try { ... } catch { return }` reports green on completely unguarded parameters: the first *guarded*
 sibling throws, the case is skipped, and every unguarded sibling is never exercised. Whole tools drop
@@ -354,23 +359,21 @@ A sound suite has five properties:
 1. **Enumerate (tool, param) pairs, fuzz one at a time.** Discover pairs by probing — build the URL
    with a sentinel in one param and check whether it lands in `pathname` — and hold every sibling at a
    safe value. Give *other* number params a real number so a sibling's own validation cannot abort the
-   build. Reference: `apps/sim/tools/rootly/path_safety.test.ts:151`,
-   `apps/sim/tools/github/path_safety.test.ts:171`.
+   build. Reference: `discoverPathParams` in `apps/sim/tools/__tests__/path-safety.ts`.
 2. **Assert rejection, not path shape.** A shape assertion (origin + segment count + unchanged
    segments) catches only a minority of the vectors: `%2F` is never decoded back into a separator, and
    a trailing bare `.` collapses to the parent with the segment count intact. Add an explicit
    `expect(() => build(param, '..')).toThrow(new RegExp(paramName))` — the error must *name the
-   parameter*. Reference: `apps/sim/tools/clerk/path_safety.test.ts:206`,
-   `apps/sim/tools/rootly/path_safety.test.ts:193`.
+   parameter*. Reference: the rejects-by-name assertions in `itResistsTraversal`.
 3. **Probe conditional branches.** A param that only appears on one branch of a conditional URL builder
    is invisible to a single all-params probe. Harvest the string literals the builder compares against
-   and re-probe under each (`apps/sim/tools/spotify/path_safety.test.ts:185`), **and** probe the
-   presence branches — the shape taken when an optional param is *absent*
-   (`apps/sim/tools/discord/path_safety.test.ts:203`).
+   and re-probe under each — in **pairs** as well as singly, since a param reachable only when two
+   siblings hold specific values is invisible to one-at-a-time probing — **and** probe the presence
+   branches, the shape taken when an optional param is *absent*.
 4. **Assert the skipped and unbuildable sets are empty.** Record every failed baseline build with its
-   reason and assert the ledger against an explicit, justified allowlist
-   (`apps/sim/tools/github/path_safety.test.ts:229`, `:260`, `:293`), plus a second assertion that no
-   URL-building tool sits outside the suite unaccounted for (`:301`). This is the check that surfaced a
+   reason and assert the ledger against an explicit, justified allowlist, plus a second assertion that
+   no URL-building tool sits outside the suite unaccounted for. `discoverPathParams` returns
+   `unbuildable`, `undiscoverable`, and `withoutPathParams` from a single sweep for exactly this. This is the check that surfaced a
    tool missing from an entire suite.
 5. **Pin the legitimate values too.** `..foo`, `foo..`, `v1.2.3`, and a UUID must pass through
    unaltered — a guard that over-rejects is its own bug.
@@ -383,15 +386,23 @@ A blanket `catch { return }` converts every case it covers from *tolerated* to *
 Keep the line that makes this usable: tolerating a failed **probe** during discovery is legitimate —
 probing a guarded param is *meant* to throw. Tolerating a throw inside an **assertion** is the bug.
 
-This was the single most-repeated defect of the hardening effort — four separate instances on one PR,
-each an assertion that could not fail:
+This was by far the most-repeated defect of the hardening effort — **nine** recorded instances, each
+an assertion that could not fail. The shapes are worth knowing individually, because only the first
+two look like a `catch`:
 
-| Instance | What the blanket tolerance hid |
+| Shape | What it hid |
 |---|---|
-| The sibling-masking swallow in the traversal assertion | A fully unguarded parameter stayed green; reverting `x_manage_block.targetUserId` changed nothing |
-| A coverage pin enumerated through a function-only narrowing | 11 tools across four services were invisible to the suite, so `toEqual([...])` passed *because* they could not be seen |
-| The `preservesWhitespace` branch swallowing a rejection (`__tests__/path-safety.ts:416`) | The branch whose docstring says padding must survive to the wire tolerated a refusal of it |
-| The renders-inert cases swallowing any throw (`:500`, `:592`) | See below |
+| A sibling-masking swallow in the traversal assertion | A fully unguarded parameter stayed green — reverting `x_manage_block.targetUserId` changed nothing |
+| A coverage pin enumerated through a function-only narrowing | 11 tools across four services were invisible, so `toEqual([...])` passed *because* they could not be seen |
+| The `preservesWhitespace` branch swallowing a rejection | The branch whose docstring says padding must survive to the wire tolerated a refusal of it |
+| The renders-inert cases swallowing any throw | Over-tightening — see below |
+| A **substring** matcher behind "the error names the parameter" | `"projectId cannot have leading whitespace"` satisfied the assertion for param `id`, and `"pathological failure"` satisfied `path` — so a guard naming the **wrong** identifier passed the very check meant to catch that. Match whole tokens (or a run of adjacent tokens, so `"Invalid function name"` still names `functionName`) |
+| An assertion that **guarded itself out of existence** | `if (serialized?.includes('projectId')) { expect(...) }` stopped verifying the moment a body dropped the field. Assert unconditionally |
+| `describe.each` over a silently-empty derived array | The group was filtered out of existence by a rename; a floor on the *total* still passed, so a whole block of assertions vanished emitting neither tests nor failures. Pin each derived group, not their sum |
+
+A matcher is the highest-leverage instance of this: a weakness in it is invisible from every suite it
+powers, so give a shared matcher its own contract test (`namesParam` in
+`apps/sim/tools/__tests__/path-safety.ts` has one) and verify it red by reverting to the loose form.
 
 **The last one fails in the opposite direction from everything else here, and that is the point.**
 `catch { return }` meant the origin check, the prefix check, and the inert-probe assertion never ran —
@@ -403,11 +414,11 @@ The resolution is the shape to copy:
 1. Enumerate every (tool, param) pair against every inert value.
 2. **Measure** which ones legitimately throw, and establish why — do not assume.
 3. Make a throw a **failure** unless the parameter is named in an explicit allowlist
-   (`strictlyValidated`, `__tests__/path-safety.ts:441`), with the justification in its TSDoc.
+   (the `strictlyValidated` option), with the justification in its TSDoc.
 
 Measured on that PR, exactly ten pairs legitimately reject: Supabase `table` via
 `validateDatabaseIdentifier` and `functionName` via `validateFunctionName`
-(`apps/sim/tools/supabase/path_safety.test.ts:109`), correct because `abc#fragment` is a fine URL
+(the Supabase suite passes them as `strictlyValidated`), correct because `abc#fragment` is a fine URL
 segment but not a SQL identifier. Every other pair must build.
 
 - [ ] A `path_safety.test.ts` exists for the service and enumerates (tool, param) pairs
@@ -417,6 +428,8 @@ segment but not a SQL identifier. Every other pair must build.
 - [ ] Legitimate dot-bearing values pass through unchanged
 - [ ] No assertion wraps its subject in a blanket `catch` — every tolerated throw is allowlisted by
       name with a recorded reason, and over-tightening fails the suite as loudly as under-guarding
+- [ ] Shared matchers have their own contract test, verified red against the loose form
+- [ ] Assertions pin exact encoded output and exact error text, never a bare `toThrow()`
 - [ ] **Every new assertion was verified red before it was kept** — revert the fix, watch it fail
 
 ### A hardening change must not turn a failing request into a succeeding one
@@ -430,15 +443,15 @@ reaches a destructive endpoint, because trimming is only neutral if the untrimme
 worked. Where the parameter previously went out through a bare `encodeURIComponent`, it did not:
 
 ```
-box_sign_cancel_request  (apps/sim/tools/box_sign/cancel_request.ts:34)
+box_sign_cancel_request  (apps/sim/tools/box_sign/cancel_request.ts)
   before: /2.0/sign_requests/%20%20<uuid>%20%20/cancel  -> 404, no-op
   after:  /2.0/sign_requests/<uuid>/cancel              -> cancels a real signature request
 
-cloudflare_delete_r2_bucket  (apps/sim/tools/cloudflare/delete_r2_bucket.ts:30)
+cloudflare_delete_r2_bucket  (apps/sim/tools/cloudflare/delete_r2_bucket.ts)
   before: "  prod-data  " names no bucket that can exist -> request FAILS
   after:  trimmed to "prod-data"                         -> DESTROYS the real bucket
 
-google_bigquery_delete_dataset / _delete_table  (delete_dataset.ts:53) — same shape on projectId
+google_bigquery_delete_dataset / _delete_table  — same shape on projectId
 ```
 
 **Reason about the intersection, not the guard's contract.** "Trimming is the helper's contract at all
@@ -457,9 +470,9 @@ facts specific to the values themselves:
 2. The previous behaviour was already a clean failure, so refusing preserves it — and improves on it
    by replacing an opaque provider 404 with an error naming the parameter.
 
-`strictUrlPathSegment` (`apps/sim/tools/strict-url-path.ts:41`) is `safeUrlPathSegment` with that
-precondition; `assertNoSurroundingWhitespace` (`:51`) is the shared check for body-value counterparts
-of the same identifier.
+`strictUrlPathSegment` in `apps/sim/tools/url-path.ts` is `safeUrlPathSegment` with that precondition,
+and `strictEncodedUrlPathSegment` is its `%2F`-preserving counterpart. Derive any body copy of the same
+identifier from the same guard, so the path value and the body value share one rule rather than two.
 
 Parameters that were **already** trimmed before your change keep plain `safeUrlPathSegment` — that is
 not a change you are making, and tightening them would break callers whose stored value works today.
@@ -472,6 +485,30 @@ not a change you are making, and tightening them would break callers whose store
 ### Your tests can lie to you
 
 Two ways a green suite means nothing, both hit during this effort.
+
+#### Assert exact error text and exact encoded output — never a bare `toThrow()`
+
+This is the **counterweight** to the rule above. "Never let a `catch` stand in for an assertion" says
+*make sure it can fail*; this one says *make sure it fails for the right reason*.
+
+A guard your suite exercises usually lives in a module someone else owns, so its behaviour changes
+land underneath the suite without touching a line of it. Pinning exact strings is what converts that
+into a failing test instead of a silent behaviour change. On this effort it caught three separate
+upstream changes to `url-path.ts` that a `toThrow()`-only suite goes green through:
+
+- `safeUrlPath` stopped trimming each segment, so a storage key's interior whitespace began surviving
+  to the wire — caught by an **equality assertion on the encoded output**.
+- Its empty-segment check narrowed from `!segment.trim()` to `!segment`, so `a/ /b` became legal while
+  `a//b` stayed rejected — caught by an assertion on the **exact error text**. This one is a silent
+  correctness change in *either* direction: permitting `a//b` retargets the request at a different
+  object, rejecting `a/ /b` makes a real object key permanently unreachable.
+- A rebase changed a guard's wording from `"cannot have"` to `"must not have leading or trailing
+  whitespace"`, failing four assertions. They were **updated to the new wording, not loosened** — that
+  precision is the property that caught the other two.
+
+So: `expect(build(...)).toBe('<the exact encoded path>')`, and
+`expect(() => build(...)).toThrow('<the exact message>')`. Never relax one of these to `toThrow()` or
+`toContain()` to make a rebase quiet.
 
 #### These tests are type-checked by nothing
 

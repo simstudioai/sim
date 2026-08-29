@@ -260,14 +260,26 @@ Never interpolate a param into a request path yourself. Use the helpers in `apps
 
 | Helper | Use when the parameter is | Trims? |
 |---|---|---|
-| `safeUrlPathSegment` (`url-path.ts:172`) | **One opaque id** — `user_abc`, `12345`, a repo name. Rejects any `/` or `\`: a separator means the caller passed something other than what the parameter addresses. | Yes — surrounding whitespace on a copy-pasted id is transport noise. |
+| `safeUrlPathSegment` | **One opaque id** — `user_abc`, `12345`, a repo name. Rejects any `/` or `\`: a separator means the caller passed something other than what the parameter addresses. | Yes — surrounding whitespace on a copy-pasted id is transport noise. |
 | `safeUrlPath` | **A real slash-delimited path** the provider documents as such (GitHub `path`, `branch`, `ref`). Splits on `/`, rejects any `.`/`..` segment, percent-encodes each segment, keeps the separators. | **No** — a leading or trailing space is a legal git filename, so trimming would read, update, or *delete* a different file. |
 | `safeEncodedUrlPathSegment` | **One value that may itself contain `/`** but the provider reads as a single parameter (a GitHub label `area/api` in `DELETE .../labels/{name}`). Preserves the separator as `%2F`. | Yes. |
 
 Prefer `safeUrlPathSegment`. Reach for the other two only when the provider documents the parameter
-as slash-bearing — never to make a separator stop erroring on a single-segment id. (`safeUrlPath` and
-`safeEncodedUrlPathSegment` arrive with the path-safety sweep; if your checkout only exports
-`safeUrlPathSegment`, add them there rather than hand-rolling a local encoder.)
+as slash-bearing — never to make a separator stop erroring on a single-segment id.
+
+GitHub is the worked example, and it settles the case that looks ambiguous: `branch`, `ref`, `base`,
+and `head` take **`safeUrlPath`**, not `safeEncodedUrlPathSegment`. `GET /repos/{o}/{r}/branches/{branch}`
+is greedy on its final parameter, so a branch named `feature/api` is addressed as
+`/branches/feature/api` with a real separator — emitting `%2F` there would 404. The `%2F` form is for
+a parameter the provider reads as one value *and* does not treat as greedy, such as a label name in
+`DELETE .../labels/{name}`. Read the provider's route, not the value's shape.
+
+**Availability.** `safeUrlPathSegment` is on `staging`. The rest of this module — `safeUrlPath`,
+`safeEncodedUrlPathSegment`, `strictUrlPathSegment`, `strictEncodedUrlPathSegment` — and the
+`path_safety.test.ts` suites cited throughout arrive with the path-safety sweep. Check what
+`apps/sim/tools/url-path.ts` and `apps/sim/tools/__tests__/path-safety.ts` actually export in your
+checkout; if a helper you need is absent, add it there rather than hand-rolling a local encoder.
+Citations below name **module and symbol** rather than a line, because those files are still moving.
 
 ### Never let a new guard rescue a request that used to fail
 
@@ -276,15 +288,15 @@ If a parameter you are now routing through a helper previously went out raw or t
 value that used to 404 now names a real resource. On a DELETE, a cancel, or a revoke that is a
 destructive action the caller never asked for.
 
-For a newly-trimmed identifier on an irreversible request, use `strictUrlPathSegment`
-(`apps/sim/tools/strict-url-path.ts:41`) — `safeUrlPathSegment` plus a refusal of surrounding
-whitespace — rather than trimming. Identifiers that were already trimmed before your change keep
+For a newly-trimmed identifier on an irreversible request, use `strictUrlPathSegment` in
+`apps/sim/tools/url-path.ts` — `safeUrlPathSegment` plus a refusal of surrounding whitespace —
+rather than trimming (`strictEncodedUrlPathSegment` is its `%2F`-preserving counterpart). Identifiers that were already trimmed before your change keep
 plain `safeUrlPathSegment`. The full rule, its two confirmed instances, and how to scope the check are
 in **A hardening change must not turn a failing request into a succeeding one** in
 `.agents/skills/validate-integration/SKILL.md`.
 
-Note the matching asymmetry inside `safeUrlPath`: it rejects only a **truly empty** path component
-(`url-path.ts:317`), never a whitespace-only one. Git tracks a file and a directory whose entire name
+Note the matching asymmetry inside `safeUrlPath`: it rejects only a **truly empty** path component,
+never a whitespace-only one. Git tracks a file and a directory whose entire name
 is spaces, and the URL parser never removes `%20%20%20` the way it removes a dot segment — so
 rejecting it has no security value and breaks a legitimate path. `safeUrlPathSegment` still rejects an
 all-whitespace value, because it trims opaque ids first.
