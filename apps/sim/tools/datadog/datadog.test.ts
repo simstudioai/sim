@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
+import * as datadogTools from '@/tools/datadog'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
 import { createEventTool } from '@/tools/datadog/create_event'
@@ -650,5 +651,62 @@ describe('datadog site is validated before it reaches the request host', () => {
     expect(() =>
       sendLogsTool.request.url({ apiKey: 'k', site: 'evil.com', logs: '[]' } as never)
     ).toThrow(/Datadog "site" must be one of/)
+  })
+})
+
+describe('every Datadog tool routes its host through the allowlist', () => {
+  /*
+   * The first pass guarded only the shared `datadogApiUrl`; ten tools built the
+   * host inline from `params.site` and bypassed it entirely. Sweeping the registry
+   * rather than listing tools means a new tool that reintroduces an inline builder
+   * fails here instead of shipping an unguarded credentialed request.
+   */
+  const REQUIRED = {
+    monitorId: '1',
+    downtimeId: '1',
+    dashboardId: 'abc-def-ghi',
+    incidentId: '1',
+    sloId: 'abc',
+    signalId: 'abc',
+    testId: 'abc',
+    publicId: 'abc',
+    resultId: 'abc',
+    query: 'x',
+    from: '1',
+    to: '2',
+    logs: '[]',
+    metrics: '[]',
+    series: '[]',
+    title: 't',
+    text: 't',
+    name: 'n',
+    type: 'metric alert',
+    scope: '*',
+    start: '1',
+    end: '2',
+    testIds: 'a',
+  }
+
+  it('rejects an attacker-chosen site in every tool that builds a URL', () => {
+    const builders = Object.values(datadogTools).filter(
+      (tool) => typeof tool?.request?.url === 'function'
+    )
+    expect(builders.length).toBeGreaterThan(20)
+
+    const unguarded: string[] = []
+    for (const tool of builders) {
+      const params = { ...REQUIRED, apiKey: 'k', applicationKey: 'a', site: 'evil.com' }
+      try {
+        const url = String((tool.request as { url: (p: unknown) => string }).url(params))
+        if (!/^https:\/\/(api|http-intake\.logs)\.(datadoghq\.com|datadoghq\.eu)/.test(url)) {
+          unguarded.push(`${tool.id} -> ${url}`)
+        }
+      } catch (error) {
+        if (!/Datadog "site" must be one of/.test(String(error))) {
+          unguarded.push(`${tool.id} -> ${String(error)}`)
+        }
+      }
+    }
+    expect(unguarded).toEqual([])
   })
 })

@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import { sendToolConfirmations } from '@/lib/managed-agents/session-client'
-import { normalizeStringList } from '@/tools/managed_agent/normalizers'
+import { normalizeScalarText, normalizeStringList } from '@/tools/managed_agent/normalizers'
 import { resolveSessionTarget } from '@/tools/managed_agent/shared'
 import type {
   ManagedAgentToolConfirmationParams,
@@ -17,7 +17,7 @@ export const executeManagedAgentRespondToolConfirmationOperation: InternalToolOp
     return { success: false, output: emptyOutput, error: target.error }
   }
 
-  const decision = (params.decision ?? '').toString().trim().toLowerCase()
+  const decision = normalizeScalarText(params.decision).toLowerCase()
   if (decision !== 'allow' && decision !== 'deny') {
     return {
       success: false,
@@ -36,10 +36,7 @@ export const executeManagedAgentRespondToolConfirmationOperation: InternalToolOp
     }
   }
 
-  /* Coerced the same way `decision` is above: this runs outside the try below, so a
-     non-string arriving from a stored workflow would throw past every `success: false`
-     path this operation otherwise returns. */
-  const denyMessage = (params.denyMessage ?? '').toString().trim()
+  const denyMessage = normalizeScalarText(params.denyMessage)
   try {
     await sendToolConfirmations({
       apiKey: target.apiKey,
