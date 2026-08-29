@@ -20,9 +20,18 @@ const MAX_TRANSIENT_RETRIES = 3
 const TRANSIENT_BACKOFF_BASE_MS = 1000
 const TRANSIENT_BACKOFF_MAX_MS = 15_000
 
-/** 429 and 5xx are the statuses a later poll can plausibly recover from. */
+/**
+ * 429 and 5xx are the statuses a later poll can plausibly recover from.
+ *
+ * Bounded at the top of the 5xx range rather than left open: a status is a
+ * three-digit field, and while the `Response` constructor refuses anything
+ * outside 200-599, a status parsed off the wire is not built that way, so a
+ * misbehaving intermediary can surface a 6xx. That is not a server error a
+ * later poll recovers from, so it fails fast with the status attached instead
+ * of burning retries on it.
+ */
 function isTransientStatus(status: number): boolean {
-  return status === 429 || status >= 500
+  return status === 429 || (status >= 500 && status <= 599)
 }
 
 function readRetryAfterMs(response: Response): number | null {

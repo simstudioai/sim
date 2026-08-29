@@ -340,6 +340,17 @@ describe('enrow_find_email', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('never retries a 6xx from a misbehaving intermediary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(600, { message: 'nonsense' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow(/poll error: 600 - .*nonsense/)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('gives up after the polling window when every poll stays 202', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(202, { qualification: 'ongoing' }))
     vi.stubGlobal('fetch', fetchMock)
