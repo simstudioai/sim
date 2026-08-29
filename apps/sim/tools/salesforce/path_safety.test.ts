@@ -154,12 +154,20 @@ function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-/** True when `target` actually lands in the path rather than the query string. */
-function reachesPath(tool: PathTool, target: string): boolean {
+/**
+ * Classifies one parameter by where its value lands in the built URL.
+ *
+ * `unbuildable` is a distinct outcome rather than being folded into `other` on
+ * purpose. `TARGET` is a perfectly legitimate value, so a URL builder that
+ * throws on it is a defect in the tool or in this harness — and quietly
+ * dropping the pair would shrink coverage without failing anything. The
+ * unbuildable set is asserted empty below instead.
+ */
+function classifyParam(tool: PathTool, param: string): 'path' | 'other' | 'unbuildable' {
   try {
-    return buildUrl(tool, target, TARGET).pathname.includes(TARGET)
+    return buildUrl(tool, param, TARGET).pathname.includes(TARGET) ? 'path' : 'other'
   } catch {
-    return false
+    return 'unbuildable'
   }
 }
 
@@ -185,19 +193,47 @@ interface PathParamCase {
  */
 const ALL_EXPORTS: readonly unknown[] = Object.values(salesforceTools)
 
-const PATH_PARAM_CASES: PathParamCase[] = ALL_EXPORTS.filter(isSalesforceTool)
+const CANDIDATE_PARAMS: ReadonlyArray<{ tool: PathTool; param: string }> = ALL_EXPORTS.filter(
+  isSalesforceTool
+)
   .filter((tool) => tool.id !== 'salesforce_query_more')
   .filter((tool) => typeof tool.request?.url === 'function')
   .flatMap((tool) =>
     Object.keys(tool.params ?? {})
       .filter((param) => !(param in FIXED_PARAMS))
-      .filter((param) => reachesPath(tool, param))
-      .map((param) => ({ name: `${tool.id} / ${param}`, param, tool }))
+      .map((param) => ({ tool, param }))
   )
 
+function nameOf({ tool, param }: { tool: PathTool; param: string }): string {
+  return `${tool.id} / ${param}`
+}
+
+const UNBUILDABLE_PARAMS: readonly string[] = CANDIDATE_PARAMS.filter(
+  (candidate) => classifyParam(candidate.tool, candidate.param) === 'unbuildable'
+).map(nameOf)
+
+const PATH_PARAM_CASES: PathParamCase[] = CANDIDATE_PARAMS.filter(
+  (candidate) => classifyParam(candidate.tool, candidate.param) === 'path'
+).map((candidate) => ({ name: nameOf(candidate), param: candidate.param, tool: candidate.tool }))
+
 describe('salesforce path-parameter traversal safety', () => {
-  it('covers every (salesforce tool, path parameter) pair', () => {
-    expect(PATH_PARAM_CASES.length).toBeGreaterThanOrEqual(20)
+  /**
+   * Exact, not a floor. A floor lets a pair silently fall out of the sweep — a
+   * renamed parameter, or a URL builder that stops interpolating one — while
+   * the suite still reports green, which would quietly retire the guarantee
+   * this file exists to provide. Changing this number should be a deliberate
+   * edit accompanying a real change to the tool surface.
+   */
+  it('covers exactly every (salesforce tool, path parameter) pair', () => {
+    expect(PATH_PARAM_CASES).toHaveLength(23)
+  })
+
+  /**
+   * A builder that throws on `TARGET` would be silently classified as "not a
+   * path parameter" and vanish from the sweep, so name the failure instead.
+   */
+  it('builds a URL for every candidate parameter from a safe value', () => {
+    expect(UNBUILDABLE_PARAMS).toEqual([])
   })
 
   describe.each(PATH_PARAM_CASES)('$name', ({ tool, param }) => {
