@@ -2,6 +2,7 @@ import type {
   GoogleBigQueryCreateTableParams,
   GoogleBigQueryCreateTableResponse,
 } from '@/tools/google_bigquery/types'
+import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -94,9 +95,9 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
       const body: Record<string, unknown> = {
         tableReference: {
-          projectId: params.projectId.trim(),
-          datasetId: params.datasetId.trim(),
-          tableId: params.tableId.trim(),
+          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
+          datasetId: canonicalBigQueryId(params.datasetId, 'datasetId'),
+          tableId: canonicalBigQueryId(params.tableId, 'tableId'),
         },
         schema: { fields },
       }

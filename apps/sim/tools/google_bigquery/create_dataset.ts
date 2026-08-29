@@ -2,6 +2,7 @@ import type {
   GoogleBigQueryCreateDatasetParams,
   GoogleBigQueryCreateDatasetResponse,
 } from '@/tools/google_bigquery/types'
+import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -69,8 +70,8 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         datasetReference: {
-          projectId: params.projectId.trim(),
-          datasetId: params.datasetId.trim(),
+          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
+          datasetId: canonicalBigQueryId(params.datasetId, 'datasetId'),
         },
       }
       if (params.location) body.location = params.location

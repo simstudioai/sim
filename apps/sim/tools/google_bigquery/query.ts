@@ -2,6 +2,7 @@ import type {
   GoogleBigQueryQueryParams,
   GoogleBigQueryQueryResponse,
 } from '@/tools/google_bigquery/types'
+import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -80,7 +81,7 @@ export const googleBigQueryQueryTool: ToolConfig<
       if (params.maxResults !== undefined) body.maxResults = Number(params.maxResults)
       if (params.defaultDatasetId) {
         body.defaultDataset = {
-          projectId: params.projectId.trim(),
+          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
           datasetId: params.defaultDatasetId,
         }
       }

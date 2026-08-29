@@ -17,6 +17,7 @@ import {
   toolsWithoutPathParams,
 } from '@/tools/__tests__/path-safety'
 import * as bigQueryTools from '@/tools/google_bigquery/index'
+import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
 
 const ORIGIN = 'https://bigquery.googleapis.com'
 
@@ -97,6 +98,33 @@ describe('projectId agrees between URL and body', () => {
     { name: 'google_bigquery_create_dataset', tool: bigQueryTools.googleBigQueryCreateDatasetTool },
   ]
 
+  /**
+   * `safeUrlPathSegment` accepts a finite number or a bigint, because an LLM
+   * tool call can serialize a numeric-looking id as a JSON **number**. A bare
+   * `.trim()` in the body does not, so the path built fine while the body threw
+   * a raw `TypeError` — the request died after passing its own guard.
+   */
+  it.each(BODY_TOOLS)('$name builds from a numeric project id', ({ tool }) => {
+    const params = {
+      accessToken: 't',
+      projectId: 123456,
+      datasetId: 'my_dataset',
+      defaultDatasetId: 'my_dataset',
+      tableId: 'my_table',
+      query: 'SELECT 1',
+      schema: '[{"name":"id","type":"STRING"}]',
+    }
+
+    const url = new URL((tool.request?.url as (p: typeof params) => string)(params))
+    const body = (tool.request?.body as ((p: typeof params) => unknown) | undefined)?.(params)
+
+    expect(url.pathname).toContain('/projects/123456')
+    const serialized = JSON.stringify(body)
+    if (serialized?.includes('projectId')) {
+      expect(serialized).toContain('"projectId":"123456"')
+    }
+  })
+
   it.each(BODY_TOOLS)('$name sends one project id', ({ tool }) => {
     const params = {
       accessToken: 't',
@@ -117,5 +145,37 @@ describe('projectId agrees between URL and body', () => {
     if (serialized?.includes('projectId')) {
       expect(serialized).toContain('"projectId":"my-project"')
     }
+  })
+})
+
+/**
+ * `canonicalBigQueryId` round-trips through the path guard and undoes only the
+ * percent-encoding. These assertions pin the two properties that makes it safe
+ * to use for a JSON body: the round-trip is **exact identity** even for values
+ * containing `%` or `+`, and every rejection is inherited from the guard rather
+ * than restated here.
+ */
+describe('canonicalBigQueryId', () => {
+  it.each(['a%2Fb', 'a+b', 'a b', 'проект', 'a-b_c.d', 'bigquery-public-data'])(
+    'returns %j unchanged',
+    (value) => {
+      expect(canonicalBigQueryId(value, 'projectId')).toBe(value)
+    }
+  )
+
+  it('trims the way the path guard does', () => {
+    expect(canonicalBigQueryId('  my-project  ', 'projectId')).toBe('my-project')
+  })
+
+  it('accepts a numeric id, which a bare trim would throw on', () => {
+    expect(canonicalBigQueryId(123456, 'projectId')).toBe('123456')
+  })
+
+  it('accepts a bigint id, which a bare trim would throw on', () => {
+    expect(canonicalBigQueryId(9007199254740991n, 'projectId')).toBe('9007199254740991')
+  })
+
+  it.each(['..', '.', 'a/b', 'a\\b'])('inherits the guard rejection of %j', (value) => {
+    expect(() => canonicalBigQueryId(value, 'projectId')).toThrow(/projectId/)
   })
 })
