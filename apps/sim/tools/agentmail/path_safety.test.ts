@@ -43,8 +43,7 @@
  * **Every pair asserts rejection, not merely that the path keeps its shape.**
  * A shape check cannot see a bare `.` in the *final* segment: a URL ending
  * `/a/.` normalizes to `/a/`, which has the same segment count and the same
- * leading segments as `/a/id`. `delete_inbox`, `get_inbox` and `update_inbox`
- * all end in a guarded ID and
+ * leading segments as `/a/id`. `delete_inbox`, `get_inbox` and `update_inbox` all end in a guarded ID and
  * are all destructive, so a shape-only assertion would be at its weakest
  * exactly where the damage is worst. The first test below pins that property of
  * the URL parser so the reason this file asserts `toThrow` stays visible.
@@ -168,6 +167,22 @@ function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
+/**
+ * What a guarded parameter must emit into its slot: the trimmed value,
+ * percent-encoded, occupying exactly ONE path segment.
+ *
+ * Asserting this rather than skipping the ID's segment is load-bearing. A skip
+ * only proves the segment *count* and the surrounding segments are unchanged,
+ * and a traversal can satisfy both: against raw interpolation
+ * `matter123/../../matters/victim` resolves `/v1/matters/<id>` to
+ * `/v1/matters/victim` — same length, identical non-ID segments, request
+ * silently re-aimed at another resource. The escape the file header calls out
+ * by name would have slipped through this suite's own canonical vector.
+ */
+function expectedSegment(value: string): string {
+  return encodeURIComponent(value.trim())
+}
+
 interface PathParamPair {
   name: string
   tool: PathTool
@@ -262,19 +277,21 @@ describe('agentmail path-ID traversal safety', () => {
       expect(url.origin).toBe(ORIGIN)
       expect(url.searchParams.get('injectedParam')).toBeNull()
 
+      const encoded = expectedSegment(value)
       const actual = segmentsOf(url)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment.includes(TARGET)) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(segment.replaceAll(TARGET, encoded))
       })
     })
 
     it.each(LEGITIMATE_IDS)('round-trips %j through the path unchanged %j', (value) => {
+      const encoded = expectedSegment(value)
       const actual = segmentsOf(buildUrl(tool, paramName, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
+        expect(actual[index]).toBe(segment.replaceAll(TARGET, encoded))
         expect(decodeURIComponent(actual[index])).toBe(segment.replaceAll(TARGET, value))
       })
     })

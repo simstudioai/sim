@@ -40,8 +40,7 @@
  * **Every pair asserts rejection, not merely that the path keeps its shape.**
  * A shape check cannot see a bare `.` in the *final* segment: a URL ending
  * `/a/.` normalizes to `/a/`, which has the same segment count and the same
- * leading segments as `/a/id`. `delete_index`, `delete_record` and
- * `get_record` all end in a guarded ID and
+ * leading segments as `/a/id`. `delete_index`, `delete_record` and `get_record` all end in a guarded ID and
  * are all destructive, so a shape-only assertion would be at its weakest
  * exactly where the damage is worst. The first test below pins that property of
  * the URL parser so the reason this file asserts `toThrow` stays visible.
@@ -169,6 +168,22 @@ function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
+/**
+ * What a guarded parameter must emit into its slot: the trimmed value,
+ * percent-encoded, occupying exactly ONE path segment.
+ *
+ * Asserting this rather than skipping the ID's segment is load-bearing. A skip
+ * only proves the segment *count* and the surrounding segments are unchanged,
+ * and a traversal can satisfy both: against raw interpolation
+ * `matter123/../../matters/victim` resolves `/v1/matters/<id>` to
+ * `/v1/matters/victim` — same length, identical non-ID segments, request
+ * silently re-aimed at another resource. The escape the file header calls out
+ * by name would have slipped through this suite's own canonical vector.
+ */
+function expectedSegment(value: string): string {
+  return encodeURIComponent(value.trim())
+}
+
 interface PathParamPair {
   name: string
   tool: PathTool
@@ -258,20 +273,22 @@ describe('algolia path-ID traversal safety', () => {
       expect(url.pathname.startsWith('/1/indexes')).toBe(true)
       expect(url.searchParams.get('injectedParam')).toBeNull()
 
+      const encoded = expectedSegment(value)
       const actual = segmentsOf(url)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment.includes(TARGET)) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(segment.replaceAll(TARGET, encoded))
       })
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged %j', (value) => {
+      const encoded = expectedSegment(value)
       const actual = segmentsOf(buildUrl(tool, paramName, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment.replaceAll(TARGET, value))
+        expect(actual[index]).toBe(segment.replaceAll(TARGET, encoded))
+        expect(decodeURIComponent(actual[index])).toBe(segment.replaceAll(TARGET, value))
       })
     })
 
@@ -284,34 +301,51 @@ describe('algolia path-ID traversal safety', () => {
 /**
  * An Algolia `objectID` is an arbitrary caller-chosen string, and Algolia's own
  * clients percent-encode it, so a record keyed `catalog/sku-123` is legitimate
- * and has always worked. `safeAlgoliaObjectId` therefore guards each
- * `/`-delimited piece rather than refusing the separator outright, which would
+ * and has always worked. `safeAlgoliaObjectId` therefore encodes a
+ * separator-bearing id whole rather than refusing the separator, which would
  * have been a behaviour change for valid input.
  *
- * Guarding per piece moves the trailing-segment blind spot one level down: a
- * trailing `.` piece (`catalog/.`) encodes to `catalog%2F.`, which is a single
- * path segment that no dot-segment normalization would touch and no shape check
- * could ever see. The rejections below are therefore the only thing standing
- * between a piecewise guard and a silent hole, and are asserted explicitly.
+ * It does NOT guard the pieces individually, and must not: percent-encoding
+ * collapses the value into a single path segment and the URL parser never
+ * decodes `%2F`, so no interior piece is ever a path segment that dot-segment
+ * removal could act on. Splitting and guarding per piece would buy no safety
+ * and would silently corrupt real ids — `safeUrlPathSegment` trims each piece
+ * (rewriting `catalog/ sku`) and rejects empty ones (refusing `catalog//sku`).
+ * The cases below pin both halves of that: interior dot pieces stay intact, and
+ * only a whole-value dot segment is rejected.
  */
 const OBJECT_ID_PAIRS = PATH_PARAM_PAIRS.filter((pair) => pair.paramName === 'objectID')
 
-describe.each(OBJECT_ID_PAIRS)('$name slash-bearing object ids', ({ tool, paramName }) => {
-  it('keeps a slash-bearing object id working as one encoded segment', () => {
-    const url = buildUrl(tool, paramName, 'catalog/sku-123')
+describe.each(OBJECT_ID_PAIRS)('$name separator-bearing object ids', ({ tool, paramName }) => {
+  it.each([
+    ['catalog/sku-123', 'catalog%2Fsku-123'],
+    ['catalog/ sku', 'catalog%2F%20sku'],
+    ['catalog//sku', 'catalog%2F%2Fsku'],
+    ['catalog/.', 'catalog%2F.'],
+    ['catalog/..', 'catalog%2F..'],
+    ['catalog/../../1/keys', 'catalog%2F..%2F..%2F1%2Fkeys'],
+    ['./sku', '.%2Fsku'],
+    ['../sku', '..%2Fsku'],
+  ])(
+    'keeps %j as the single segment %j, byte-identical to the prior encoding',
+    (value, encoded) => {
+      const url = buildUrl(tool, paramName, value)
 
-    expect(url.pathname).toContain('catalog%2Fsku-123')
-    expect(segmentsOf(url)).toHaveLength(
-      segmentsOf(buildUrl(tool, paramName, 'catalogsku123')).length
-    )
-  })
-
-  it.each(['catalog/.', 'catalog/..', 'catalog/./sku', 'catalog/../sku', './sku', '../sku'])(
-    'rejects the dot-segment piece in %j',
-    (value) => {
-      expect(() => buildUrl(tool, paramName, value)).toThrow(/objectID/)
+      expect(url.pathname).toContain(encoded)
+      expect(encoded).toBe(encodeURIComponent(value.trim()))
+      expect(segmentsOf(url)).toHaveLength(segmentsOf(buildUrl(tool, paramName, 'plain')).length)
     }
   )
+
+  it('encodes a backslash-bearing object id instead of rejecting it', () => {
+    const value = `catalog${String.fromCharCode(92)}sku`
+
+    expect(buildUrl(tool, paramName, value).pathname).toContain('catalog%5Csku')
+  })
+
+  it.each(['..', '.', '  ..  '])('still rejects the whole-value dot segment %j', (value) => {
+    expect(() => buildUrl(tool, paramName, value)).toThrow(/objectID/)
+  })
 
   it('preserves a plain object id verbatim', () => {
     expect(buildUrl(tool, paramName, 'sku_123-abc').pathname).toContain('sku_123-abc')

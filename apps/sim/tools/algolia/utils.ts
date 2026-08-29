@@ -7,30 +7,45 @@ import { safeUrlPathSegment } from '@/tools/url-path'
  * an arbitrary caller-chosen string, and Algolia's own clients percent-encode
  * it, so a record keyed `products/123` is a legitimate value that has always
  * worked. `safeUrlPathSegment` rejects path separators outright, so applying it
- * whole would break those records — a behaviour change for valid input.
+ * whole would break those records.
  *
- * Splitting on `/` and guarding each piece keeps the emitted text identical to
- * the previous `encodeURIComponent(objectID)` for every value that does not
- * contain a dot segment (`encodeURIComponent('a/b')` is `'a%2Fb'`, which is
- * exactly what rejoining the encoded pieces with `%2F` produces), while still
- * refusing the one shape that is dangerous: a piece that is exactly `.` or
- * `..`. See `@/tools/url-path` for why rejection rather than encoding is the
- * only mechanism that neutralizes a dot segment.
+ * A separator-bearing id needs no dot-segment check of its own. Percent-encoding
+ * collapses the whole value into a *single* path segment, and the WHATWG URL
+ * parser does not decode `%2F`, so no interior piece is ever a path segment that
+ * dot-segment removal could act on:
+ *
+ * ```
+ * new URL('https://x/1/indexes/p/' + encodeURIComponent('catalog/../../1/keys')).pathname
+ * // => '/1/indexes/p/catalog%2F..%2F..%2F1%2Fkeys'  (intact)
+ * new URL('https://x/1/indexes/p/' + encodeURIComponent('catalog/.')).pathname
+ * // => '/1/indexes/p/catalog%2F.'                   (intact)
+ * ```
+ *
+ * A value containing a separator therefore cannot be the dangerous shape, which
+ * is a value whose *entire* text is `.` or `..`. Encoding it verbatim is both
+ * safe and byte-identical to the `encodeURIComponent(objectID.trim())` this
+ * replaced, preserving internal whitespace (`catalog/ sku`) and empty components
+ * (`catalog//sku`) exactly as before.
+ *
+ * Everything without a separator goes through the shared guard, which owns the
+ * dot-segment rejection, the empty check, and the non-string input handling.
  *
  * @param value - The raw `objectID`, typically LLM-supplied.
  * @param paramName - The parameter name, used to name the offender in errors.
  * @returns The percent-encoded object id, safe to interpolate into a path.
- * @throws If the value is empty, or any `/`-delimited piece is a dot segment.
+ * @throws If the value is empty, is exactly `.` or `..`, or cannot be encoded.
  */
 export function safeAlgoliaObjectId(value: string, paramName: string): string {
-  const trimmed = typeof value === 'string' ? value.trim() : value
-
-  if (typeof trimmed === 'string' && trimmed.includes('/')) {
-    return trimmed
-      .split('/')
-      .map((piece) => safeUrlPathSegment(piece, paramName))
-      .join('%2F')
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.includes('/') || trimmed.includes('\\')) {
+      try {
+        return encodeURIComponent(trimmed)
+      } catch {
+        throw new Error(`${paramName} contains an unpaired UTF-16 surrogate and cannot be encoded`)
+      }
+    }
   }
 
-  return safeUrlPathSegment(trimmed, paramName)
+  return safeUrlPathSegment(value, paramName)
 }
