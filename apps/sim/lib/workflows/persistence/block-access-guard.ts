@@ -2,6 +2,7 @@ import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/block-access'
+import { toAllowedIntegrationTypes } from '@/lib/permission-groups/integration-allowlist'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
 
@@ -39,14 +40,20 @@ export async function findWithheldBlockType(params: {
   blocks: Iterable<{ type?: string }>
 }): Promise<string | null> {
   const permissionConfig = await getUserPermissionConfig(params.userId, params.workspaceId)
-  const allowed = permissionConfig?.allowedIntegrations ?? null
+  const allowed = toAllowedIntegrationTypes(permissionConfig?.allowedIntegrations ?? null)
+
+  /**
+   * Hoisted out of the loop: an unrestricted group is the common case, and every
+   * workflow save in every ungoverned workspace would otherwise pay two registry
+   * lookups per block to reach the same answer.
+   */
+  if (allowed === null) return null
 
   for (const block of params.blocks) {
     const blockType = block.type
     if (!blockType || CONTAINER_BLOCK_TYPES.has(blockType)) continue
     if (isBlockTypeAccessControlExempt(blockType)) continue
-    if (allowed === null) continue
-    if (!allowed.includes(resolveAccessControlBlockType(blockType).toLowerCase())) return blockType
+    if (!allowed.has(resolveAccessControlBlockType(blockType).toLowerCase())) return blockType
   }
 
   return null

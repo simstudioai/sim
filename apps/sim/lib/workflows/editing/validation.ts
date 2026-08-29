@@ -1003,7 +1003,16 @@ export function validateTargetHandle(targetHandle: string): EdgeHandleValidation
 }
 
 /**
- * Checks if a block type is allowed by the permission group config
+ * Whether a block may be added to a graph by this viewer.
+ *
+ * Two questions, not one: whether the viewer can see the block at all
+ * (deployment visibility — an unrevealed preview block, a kill-switched type)
+ * and whether their permission group's integration allowlist permits it.
+ * Refusing to *add* something a viewer cannot see is right.
+ *
+ * Refusing to *store* it is not, which is why the persist-time guard in
+ * `@/lib/workflows/persistence/block-access-guard` checks the allowlist alone:
+ * a graph exported before a block was gated must still save.
  */
 export function isBlockTypeAllowed(
   blockType: string,
