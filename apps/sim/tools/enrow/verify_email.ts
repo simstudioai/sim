@@ -1,5 +1,5 @@
-import { sleep } from '@sim/utils/helpers'
 import { enrowHosting } from '@/tools/enrow/hosting'
+import { pollEnrowJob } from '@/tools/enrow/poll'
 import type {
   EnrowVerifyEmailParams,
   EnrowVerifyEmailResponse,
@@ -11,9 +11,6 @@ import {
   ENROW_QUALIFICATION_OUTPUT,
 } from '@/tools/enrow/types'
 import type { ToolConfig } from '@/tools/types'
-
-const POLL_INTERVAL_MS = 3000
-const MAX_POLL_TIME_MS = 120_000
 
 /** Map a raw Enrow verify-email result payload to the typed output shape. */
 function mapVerifyResult(data: Record<string, unknown>, jobId: string): EnrowVerifyEmailResult {
@@ -107,40 +104,17 @@ export const enrowVerifyEmailTool: ToolConfig<EnrowVerifyEmailParams, EnrowVerif
       throw new Error('Enrow verify-email did not return a job id to poll')
     }
 
-    let elapsed = 0
-    while (elapsed < MAX_POLL_TIME_MS) {
-      await sleep(POLL_INTERVAL_MS)
-      elapsed += POLL_INTERVAL_MS
+    const data = await pollEnrowJob({
+      resultUrl: 'https://api.enrow.io/email/verify/single',
+      jobId,
+      apiKey: params.apiKey,
+      label: 'Enrow verify-email',
+    })
 
-      const pollResponse = await fetch(
-        `https://api.enrow.io/email/verify/single?id=${encodeURIComponent(jobId)}`,
-        {
-          headers: {
-            'x-api-key': params.apiKey,
-          },
-        }
-      )
-
-      if (pollResponse.status === 202) {
-        // Still in progress — keep polling
-        continue
-      }
-
-      if (!pollResponse.ok) {
-        const errorText = await pollResponse.text()
-        throw new Error(`Enrow verify-email poll error: ${pollResponse.status} - ${errorText}`)
-      }
-
-      // HTTP 200 → complete
-      const json = await pollResponse.json()
-      const data = (json as Record<string, unknown>) ?? {}
-      return {
-        success: true,
-        output: mapVerifyResult(data, jobId),
-      }
+    return {
+      success: true,
+      output: mapVerifyResult(data, jobId),
     }
-
-    throw new Error('Enrow verify-email did not complete within the polling window')
   },
 
   outputs: {

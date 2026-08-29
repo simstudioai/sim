@@ -220,6 +220,16 @@ export const SixtyfourBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `sixtyfour_${params.operation}`,
+      /**
+       * Renames the operation-scoped subBlock ids onto the tool's param names.
+       *
+       * Every assignment is guarded on the source being present. The agent path
+       * overlays this return on top of the model's own tool-call arguments, and
+       * the model supplies the *tool* names (`struct`, `targetCompany`), not the
+       * subBlock names (`leadStruct`, `companyStruct`) — so an unguarded write
+       * would set the required `struct` to `undefined` and drop what the model
+       * sent. A configured block value still wins, because it is present.
+       */
       params: (params) => {
         const result: Record<string, unknown> = {}
 
@@ -228,12 +238,12 @@ export const SixtyfourBlock: BlockConfig = {
         } else if (params.operation === 'find_email') {
           if (params.phoneInput) result.phone = params.phoneInput
         } else if (params.operation === 'enrich_lead') {
-          result.leadInfo = params.leadInfo
-          result.struct = params.leadStruct
+          if (params.leadInfo !== undefined) result.leadInfo = params.leadInfo
+          if (params.leadStruct !== undefined) result.struct = params.leadStruct
           if (params.leadResearchPlan) result.researchPlan = params.leadResearchPlan
         } else if (params.operation === 'enrich_company') {
-          result.targetCompany = params.targetCompany
-          result.struct = params.companyStruct
+          if (params.targetCompany !== undefined) result.targetCompany = params.targetCompany
+          if (params.companyStruct !== undefined) result.struct = params.companyStruct
           if (params.findPeople !== undefined) result.findPeople = Boolean(params.findPeople)
           if (params.fullOrgChart !== undefined) result.fullOrgChart = Boolean(params.fullOrgChart)
           if (params.peopleFocusPrompt) result.peopleFocusPrompt = params.peopleFocusPrompt

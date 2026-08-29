@@ -42,10 +42,11 @@ const DOCUMENTED_FIND_BODY = {
   custom: {},
 }
 
-function jsonResponse(status: number, body: unknown): Response {
+function jsonResponse(status: number, body: unknown, headers?: Record<string, string>): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers(headers),
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as Response
@@ -71,8 +72,11 @@ const submittedFindResult: EnrowFindEmailResponse = {
   },
 }
 
-/** `MAX_POLL_TIME_MS / POLL_INTERVAL_MS` in `find_email.ts` — 120_000 / 3_000. */
+/** `MAX_POLL_TIME_MS / POLL_INTERVAL_MS` in `poll.ts` — 120_000 / 3_000. */
 const MAX_POLLS = 40
+
+/** `MAX_TRANSIENT_RETRIES` in `poll.ts`. */
+const MAX_TRANSIENT_RETRIES = 3
 
 describe('enrow_find_email', () => {
   beforeEach(() => {
@@ -139,6 +143,63 @@ describe('enrow_find_email', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('retries a transient 5xx and still resolves the result', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(202, { qualification: 'ongoing' }))
+      .mockResolvedValueOnce(jsonResponse(503, { message: 'upstream unavailable' }))
+      .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.output.email).toBe('john.doe@stripe.com')
+  })
+
+  it('retries a 429 and honours Retry-After', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(429, { message: 'slow down' }, { 'retry-after': '2' }))
+      .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await enrowFindEmailTool.postProcess!(
+      submittedFindResult,
+      findParams,
+      executeTool
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.output.qualification).toBe('valid')
+  })
+
+  it('gives up after a bounded number of transient failures', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(500, { message: 'boom' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow(/poll error: 500 - .*boom/)
+
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_TRANSIENT_RETRIES + 1)
+  })
+
+  it('never retries a non-transient 4xx', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(403, { message: 'forbidden' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow(/poll error: 403 - .*forbidden/)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('gives up after the polling window when every poll stays 202', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(202, { qualification: 'ongoing' }))
     vi.stubGlobal('fetch', fetchMock)
@@ -158,6 +219,27 @@ describe('enrow_verify_email', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('retries a transient 5xx on the verify poll too', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(502, { message: 'bad gateway' }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { email: 'john.doe@stripe.com', qualification: 'valid' })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const submitted: EnrowVerifyEmailResponse = {
+      success: true,
+      output: { id: JOB_ID, email: null, qualification: null },
+    }
+    const params: EnrowVerifyEmailParams = { apiKey: 'test-key', email: 'john.doe@stripe.com' }
+
+    const result = await enrowVerifyEmailTool.postProcess!(submitted, params, executeTool)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.output.qualification).toBe('valid')
   })
 
   it('reads the FLAT documented verify body — there is no `info` level here', async () => {

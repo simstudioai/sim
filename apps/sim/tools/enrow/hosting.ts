@@ -7,12 +7,19 @@ import type { ToolHostingConfig } from '@/tools/types'
 export const ENROW_API_KEY_PREFIX = 'ENROW_API_KEY'
 
 /**
- * Dollar cost of a single Enrow credit.
+ * Dollar cost of a single Enrow credit, as billed to a hosted-key workspace.
  *
- * Enrow's Starter plan is $24/month for 2,000 finder credits/month — $0.012
- * per credit. The email verifier costs 0.25 credits per verification and the
- * email finder costs 1 credit per valid result.
- * Source: https://enrow.io/pricing
+ * The email finder costs 1 credit per valid result and the email verifier
+ * 0.25 credits per check (https://docs.enrow.io/api-reference/email-finder/find-single).
+ *
+ * Enrow's published monthly tiers are Start $17 / 1,000 credits ($0.017),
+ * Pro $87 / 10,000 ($0.0087) and Scale $397 / 50,000 ($0.00794), with a 40%
+ * annual discount and a custom tier above that (https://enrow.io/pricing).
+ * This rate sits between the Start and Pro per-credit prices and therefore
+ * does not correspond to any single published tier; it can only be pinned by
+ * the plan the hosted `ENROW_API_KEY_*` keys are actually enrolled on. Do not
+ * adjust it from the public price list alone — a wrong value over- or
+ * under-bills every hosted Enrow call.
  */
 export const ENROW_CREDIT_USD = 0.012
 
