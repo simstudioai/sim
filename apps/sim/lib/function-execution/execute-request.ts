@@ -82,6 +82,7 @@ import {
   isSandboxOutputLimitError,
   isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
+  readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   MAX_BLOCK_MOUNTED_FILES,
@@ -127,6 +128,12 @@ const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
+
+interface FunctionExecutionCost {
+  input: number
+  output: number
+  total: number
+}
 
 interface SandboxRuntimePayload {
   params: Record<string, unknown>
@@ -1432,10 +1439,20 @@ function exportFailure(
   error: string,
   status: number,
   stdout: string,
-  executionTime: number
+  executionTime: number,
+  cost: FunctionExecutionCost | undefined
 ): NextResponse {
   return NextResponse.json(
-    { success: false, error, output: { result: null, stdout: cleanStdout(stdout), executionTime } },
+    {
+      success: false,
+      error,
+      output: {
+        result: null,
+        stdout: cleanStdout(stdout),
+        executionTime,
+        ...(cost ? { cost } : {}),
+      },
+    },
     { status }
   )
 }
@@ -1458,6 +1475,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   exportedFileContent?: string
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const {
     routeContext,
@@ -1473,6 +1491,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     exportedFileContent,
     stdout,
     executionTime,
+    cost,
   } = args
 
   if (!outputSandboxPath) return null
@@ -1482,7 +1501,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1494,7 +1514,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       'Workspace context required to save sandbox file to workspace',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1503,7 +1524,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
       500,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1521,7 +1543,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
   const fileBuffer = isBinary
@@ -1595,6 +1618,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
         },
         stdout: cleanStdout(stdout),
         executionTime,
+        ...(cost ? { cost } : {}),
       },
       resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
     })
@@ -1603,7 +1627,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       getErrorMessage(error, 'Failed to export sandbox file'),
       workspaceFileExportErrorStatus(error),
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 }
@@ -1618,6 +1643,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   exportedFileContent?: string
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const sandboxFiles = args.outputFiles.filter((file) => file.sandboxPath)
   if (sandboxFiles.length === 0) return null
@@ -1626,7 +1652,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1647,6 +1674,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         args.exportedFileContent,
       stdout: args.stdout,
       executionTime: args.executionTime,
+      cost: args.cost,
     })
   }
 
@@ -1658,7 +1686,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       'Workspace context required to save sandbox files to workspace',
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1672,7 +1701,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         `Sandbox file "${sandboxPath}" was not found or could not be read`,
         500,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
     const outputPath = file.formatPath ?? file.path
@@ -1689,7 +1719,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
     const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
@@ -1738,7 +1769,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       getErrorMessage(error, 'Invalid sandbox output destination'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
   const duplicateDestination = validationPaths.find(
@@ -1749,7 +1781,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       `Duplicate sandbox output destination: ${duplicateDestination}`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1805,7 +1838,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       getErrorMessage(error, 'Failed to export sandbox files'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1844,6 +1878,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       },
       stdout: cleanStdout(args.stdout),
       executionTime: args.executionTime,
+      ...(args.cost ? { cost: args.cost } : {}),
     },
     resources: writtenFiles.map((file) => ({
       type: 'file',
@@ -1933,6 +1968,7 @@ async function collectExecutionOutputFiles(args: {
   collectedFiles: SandboxCollectedFile[]
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }): Promise<{ files: UserFile[] } | { response: NextResponse }> {
   const { routeContext, collectedFiles } = args
   if (collectedFiles.length === 0) return { files: [] }
@@ -1949,7 +1985,8 @@ async function collectExecutionOutputFiles(args: {
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       ),
     }
   }
@@ -1989,7 +2026,8 @@ async function collectExecutionOutputFiles(args: {
               `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
               400,
               args.stdout,
-              args.executionTime
+              args.executionTime,
+              args.cost
             ),
           }
         }
@@ -2131,6 +2169,8 @@ export async function executeFunctionRequest(
       _sandboxFiles,
     } = body
 
+    const meterRemoteSandboxUsage = Boolean(workflowId && !isCustomTool && !usesMothershipSandbox)
+
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
         { success: false, error: 'The Function code sandbox is not configured' },
@@ -2182,6 +2222,23 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+          },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
+      )
+    }
+    try {
+      for (const file of outputFiles) {
+        normalizeOutputWorkspaceFileName(file.formatPath ?? file.path)
+      }
+    } catch (error) {
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          {
+            success: false,
+            error: getErrorMessage(error, 'Invalid sandbox output destination'),
           },
           { status: 400 }
         ),
@@ -2500,6 +2557,7 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: shellCollectedFiles,
+        cost: shellCost,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
@@ -2515,6 +2573,7 @@ export async function executeFunctionRequest(
           ? { sandboxKind: 'mothership' as const }
           : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
 
@@ -2529,7 +2588,12 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: scrubInternalIdentifiers(shellError, compilerInternalIdentifiers),
-            output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
+            output: {
+              result: null,
+              stdout: cleanStdout(shellStdout),
+              executionTime,
+              ...(shellCost ? { cost: shellCost } : {}),
+            },
           },
           routeContext,
           { status: 422 }
@@ -2547,6 +2611,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           stdout: shellStdout,
           executionTime,
+          cost: shellCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2562,6 +2627,7 @@ export async function executeFunctionRequest(
         collectedFiles: shellCollectedFiles ?? [],
         stdout: shellStdout,
         executionTime,
+        cost: shellCost,
       })
       if ('response' in shellOutputFiles) {
         return appendResolvedSecretNames(shellOutputFiles.response, routeContext)
@@ -2575,6 +2641,7 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(shellStdout),
             executionTime,
             files: shellOutputFiles.files,
+            ...(shellCost ? { cost: shellCost } : {}),
           },
         },
         routeContext
@@ -2637,6 +2704,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           exportedFiles,
           collectedFiles: jsCollectedFiles,
+          cost: sandboxCost,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
@@ -2653,6 +2721,7 @@ export async function executeFunctionRequest(
             ? { sandboxKind: 'mothership' as const }
             : {}),
           signal: executionSignal,
+          meterUsage: meterRemoteSandboxUsage,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -2678,7 +2747,12 @@ export async function executeFunctionRequest(
             {
               success: false,
               error: formattedError,
-              output: { result: null, stdout: cleanedOutput, executionTime },
+              output: {
+                result: null,
+                stdout: cleanedOutput,
+                executionTime,
+                ...(sandboxCost ? { cost: sandboxCost } : {}),
+              },
             },
             routeContext,
             { status: 422 }
@@ -2696,6 +2770,7 @@ export async function executeFunctionRequest(
             exportedFileContent,
             stdout,
             executionTime,
+            cost: sandboxCost,
           })
           if (fileExportResponse) {
             return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2711,6 +2786,7 @@ export async function executeFunctionRequest(
           collectedFiles: jsCollectedFiles ?? [],
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if ('response' in jsOutputFiles) {
           return appendResolvedSecretNames(jsOutputFiles.response, routeContext)
@@ -2724,6 +2800,7 @@ export async function executeFunctionRequest(
               stdout: cleanStdout(stdout),
               executionTime,
               files: jsOutputFiles.files,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
             },
           },
           routeContext
@@ -2749,6 +2826,7 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: pythonCollectedFiles,
+        cost: sandboxCost,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
@@ -2764,6 +2842,7 @@ export async function executeFunctionRequest(
           ? { sandboxKind: 'mothership' as const }
           : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -2789,7 +2868,12 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: formattedError,
-            output: { result: null, stdout: cleanedOutput, executionTime },
+            output: {
+              result: null,
+              stdout: cleanedOutput,
+              executionTime,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
+            },
           },
           routeContext,
           { status: 422 }
@@ -2807,6 +2891,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2822,6 +2907,7 @@ export async function executeFunctionRequest(
         collectedFiles: pythonCollectedFiles ?? [],
         stdout,
         executionTime,
+        cost: sandboxCost,
       })
       if ('response' in pythonOutputFiles) {
         return appendResolvedSecretNames(pythonOutputFiles.response, routeContext)
@@ -2835,6 +2921,7 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(stdout),
             executionTime,
             files: pythonOutputFiles.files,
+            ...(sandboxCost ? { cost: sandboxCost } : {}),
           },
         },
         routeContext
@@ -3019,10 +3106,16 @@ export async function executeFunctionRequest(
       isSandboxOutputFileError(error) ||
       isSandboxOutputNotExportableError(error)
     ) {
+      const cost = readTrustedSandboxOutputCost(error)
       const outputLimitResponse = {
         success: false,
         error: error.message,
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+        output: {
+          result: null,
+          stdout: cleanStdout(stdout),
+          executionTime,
+          ...(cost ? { cost } : {}),
+        },
       }
       return routeContext
         ? functionJsonResponse(outputLimitResponse, routeContext, { status: 400 })

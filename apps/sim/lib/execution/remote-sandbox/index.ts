@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import {
+  createSandboxPricing,
+  priceSandboxUsage,
+  type SandboxPricing,
+} from '@/lib/billing/sandbox-pricing'
+import {
   createTimeoutAbortController,
   getRemainingExecutionMs,
   isTimeoutAbortReason,
@@ -10,8 +15,10 @@ import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metric
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
+  attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
+  isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
@@ -39,17 +46,22 @@ import type {
   SandboxCodeResult,
   SandboxCollectedFile,
   SandboxCommandResult,
+  SandboxCostSink,
   SandboxDirectoryEntry,
+  SandboxExecutionCost,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
   SandboxHandle,
   SandboxKind,
   SandboxPrivateInput,
+  SandboxProvider,
+  SandboxProviderId,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
 export type {
+  SandboxCostSink,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
@@ -59,14 +71,41 @@ export type {
 
 const logger = createLogger('RemoteSandbox')
 
+interface CreatedSandbox {
+  sandbox: SandboxHandle
+  providerId: SandboxProviderId
+  startedAtMs: number
+  effectiveLifetimeMs?: number
+  pricing?: SandboxPricing
+}
+
 async function createSandbox(
   kind: SandboxKind,
-  options?: CreateSandboxOptions
-): Promise<SandboxHandle> {
-  const provider = resolveProvider()
-  const sandbox = await provider.create(kind, options)
+  options?: CreateSandboxOptions,
+  meterUsage = false,
+  provider: SandboxProvider = resolveProvider()
+): Promise<CreatedSandbox> {
+  const effectiveLifetimeMs =
+    options?.lifetimeMs !== undefined ? provider.resolveLifetimeMs(options.lifetimeMs) : undefined
+  if (meterUsage && effectiveLifetimeMs === undefined) {
+    throw new Error('Metered sandbox execution requires a provider lifetime')
+  }
+  const pricing = meterUsage ? createSandboxPricing(provider.id) : undefined
+  let startedAtMs = Date.now()
+  const providerOptions = {
+    ...options,
+    ...(effectiveLifetimeMs !== undefined ? { lifetimeMs: effectiveLifetimeMs } : {}),
+    ...(meterUsage ? { onProviderRequestStarted: (value: number) => (startedAtMs = value) } : {}),
+  }
+  const sandbox = await provider.create(kind, providerOptions)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
-  return sandbox
+  return {
+    sandbox,
+    providerId: provider.id,
+    startedAtMs,
+    ...(effectiveLifetimeMs !== undefined ? { effectiveLifetimeMs } : {}),
+    ...(pricing ? { pricing } : {}),
+  }
 }
 
 /**
@@ -83,10 +122,11 @@ async function createSelectedSandbox(
   kind: SandboxKind,
   options: CreateSandboxOptions,
   selected: ResolvedSandbox | null,
-  signal: AbortSignal
-): Promise<SandboxHandle> {
+  signal: AbortSignal,
+  meterUsage = false
+): Promise<CreatedSandbox> {
   try {
-    return await createSandbox(kind, options)
+    return await createSandbox(kind, options, meterUsage)
   } catch (error) {
     throwIfAborted(signal)
     if (!selected) throw error
@@ -166,10 +206,13 @@ function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
 }
 
-function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
+function bindSandboxAbort(
+  sandbox: SandboxHandle,
+  provider: SandboxProviderId,
+  signal?: AbortSignal
+) {
   let killed = false
   let killPromise: Promise<void> | null = null
-  const provider = resolveProvider().id
   const kill = (reason: 'cleanup' | 'cancellation' | 'timeout'): Promise<void> => {
     if (killed) return Promise.resolve()
     if (!killPromise) {
@@ -209,6 +252,19 @@ function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
     },
     detach: () => signal?.removeEventListener('abort', onAbort),
   }
+}
+
+function calculateSandboxCost(
+  created: CreatedSandbox,
+  cleanupStartedAtMs: number
+): SandboxExecutionCost | undefined {
+  if (!created.pricing || created.effectiveLifetimeMs === undefined) return undefined
+  const usage = priceSandboxUsage(
+    created.pricing,
+    cleanupStartedAtMs - created.startedAtMs,
+    created.effectiveLifetimeMs
+  )
+  return { input: 0, output: 0, total: usage.billedCost }
 }
 
 /**
@@ -458,14 +514,14 @@ async function readSandboxOutputFile(
     logger.warn('Failed to read requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
 async function inspectSandboxOutputFileSize(
   sandbox: SandboxHandle,
   outputSandboxPath: string
-): Promise<number | undefined> {
+): Promise<number> {
   try {
     const size = await sandbox.getFileSize(outputSandboxPath)
     if (!Number.isSafeInteger(size) || size < 0) {
@@ -477,7 +533,7 @@ async function inspectSandboxOutputFileSize(
     logger.warn('Failed to inspect requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
@@ -576,7 +632,6 @@ async function collectExportedFiles(
   for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
     const size = await inspectSandboxOutputFileSize(sandbox, outputSandboxPath)
     remainingSandboxBudgetMs(options.signal)
-    if (size === undefined) continue
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       throw new SandboxOutputLimitError(totalOutputBytes)
@@ -753,7 +808,7 @@ async function executeInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     {
       language,
@@ -761,10 +816,14 @@ async function executeInSandboxWithinBudget(
       lifetimeMs: remainingSandboxBudgetMs(signal),
     },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -809,12 +868,14 @@ async function executeInSandboxWithinBudget(
         sandboxId,
         hasTraceback: Boolean(execution.error.traceback),
       })
-      return {
+      const executionResult = {
         result: null,
         stdout: execution.error.traceback || errorMessage,
         error: errorMessage,
         sandboxId,
       }
+      if (execution.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Distinct sources (final-expression text, stdout, stderr) join with '\n' so
@@ -843,22 +904,47 @@ async function executeInSandboxWithinBudget(
       }
     }
 
-    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
-      sandbox,
-      req,
-      { signal }
-    )
-    throwIfAborted(signal)
-
-    return {
+    billableResult = {
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
-      collectedFiles,
     }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
+        billableOutputError = error
+      }
+      throw error
+    }
+    return billableResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -887,14 +973,18 @@ async function executeShellInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -946,7 +1036,9 @@ async function executeShellInSandboxWithinBudget(
         sandboxId,
         exitCode: result.exitCode,
       })
-      return { result: null, stdout, error: errorMessage, sandboxId }
+      const executionResult = { result: null, stdout, error: errorMessage, sandboxId }
+      if (result.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Shell scripts have no wrapper: any __SIM_RESULT__ line is user-authored
@@ -955,22 +1047,47 @@ async function executeShellInSandboxWithinBudget(
     const extraction = extractSimResult(stdout)
     const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
 
-    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
-      sandbox,
-      req,
-      { signal }
-    )
-    throwIfAborted(signal)
-
-    return {
+    billableResult = {
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
-      collectedFiles,
     }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
+        billableOutputError = error
+      }
+      throw error
+    }
+    return billableResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -1027,12 +1144,13 @@ export interface PiSandboxRunner {
  * caller's sandbox body, which would have buried the change in whitespace.
  */
 export async function withPiSandbox<T>(
-  options: { lifetimeMs?: number },
+  options: { lifetimeMs?: number; cost?: SandboxCostSink },
   fn: (runner: PiSandboxRunner) => Promise<T>
 ): Promise<T> {
   const lifetimeMs =
     options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
-  const sandbox = await createSandbox('pi', { lifetimeMs })
+  const created = await createSandbox('pi', { lifetimeMs }, Boolean(options.cost))
+  const { sandbox } = created
   logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {
@@ -1049,9 +1167,31 @@ export async function withPiSandbox<T>(
     writeFile: (path, content) => sandbox.writeFile(path, content),
   }
 
+  let sessionCompleted = false
   try {
-    return await fn(runner)
+    const result = await fn(runner)
+    sessionCompleted = true
+    return result
   } finally {
+    /*
+     * Charged only for a session that ran to completion, which is the same rule
+     * the Function path applies to its own outcomes: a run whose sandbox never
+     * delivered is not billed, because a charge nobody can tie to delivered work
+     * is not one worth defending. A session that ends by throwing — a provider
+     * crash, a lifetime limit, a cancellation — is absorbed, and a create that
+     * throws never reaches here at all.
+     *
+     * A command exiting non-zero is not a failure by this rule. `fn` returns
+     * normally there, the agent produced its answer, and the Function path bills
+     * its own non-zero exits for the same reason.
+     *
+     * Measured up to teardown rather than to the last command, so the window
+     * covers the whole time the provider held the sandbox.
+     */
+    if (sessionCompleted) {
+      const cost = calculateSandboxCost(created, Date.now())
+      if (cost && options.cost) options.cost.total += cost.total
+    }
     try {
       await sandbox.kill()
     } catch {

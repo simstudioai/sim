@@ -120,4 +120,41 @@ describe('Function Execute Tool', () => {
     expect(body[PRIVATE_SECRET_PROVENANCE_FIELD]).toEqual(bundle)
     expect(JSON.stringify(body)).not.toContain('plaintext')
   })
+
+  it('preserves sandbox cost in a successful Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: 42, stdout: 'done', cost },
+      }),
+      { code: 'return 42' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { result: 42, stdout: 'done', cost },
+    })
+  })
+
+  it('preserves sandbox cost in a failed Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: { result: null, stdout: 'trace', cost },
+        },
+        { status: 422 }
+      ),
+      { code: 'throw new Error("boom")' }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      output: { result: null, stdout: 'trace', cost },
+      error: 'boom',
+    })
+  })
 })

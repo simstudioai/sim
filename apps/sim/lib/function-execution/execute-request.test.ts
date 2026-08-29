@@ -23,6 +23,7 @@ import {
   PRIVATE_SECRET_PROVENANCE_HEADER,
 } from '@/lib/execution/private-tool-metadata'
 import {
+  attachTrustedSandboxOutputCost,
   MAX_SANDBOX_OUTPUT_BYTES,
   SandboxOutputFileError,
   SandboxOutputLimitError,
@@ -84,7 +85,11 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
     md: 'text/markdown',
     html: 'text/html',
   },
-  normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
+  normalizeOutputWorkspaceFileName: vi.fn((p: string) => {
+    const normalized = p.trim().replace(/^\/+|\/+$/g, '')
+    if (!normalized) throw new Error('Output path must include a file name')
+    return normalized.replace(/^files\//, '')
+  }),
   resolveOutputFormat: vi.fn(() => 'json'),
   getOutputFileDeclarations: vi.fn((params: Record<string, any>) => {
     if (Array.isArray(params.outputs?.files)) {
@@ -328,6 +333,7 @@ describe('Function execution request', () => {
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00012345 },
         exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
       })
       mockWriteWorkspaceFileByPath.mockRejectedValueOnce(
@@ -338,6 +344,8 @@ describe('Function execution request', () => {
         code: 'print("done")',
         language: 'python',
         workspaceId: 'workspace-victim',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
         outputs: {
           files: [{ path: 'files/README.md', mode: 'overwrite', sandboxPath: '/tmp/out.txt' }],
         },
@@ -348,6 +356,7 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(403)
       expect(data).toHaveProperty('error', 'Insufficient workspace permissions')
+      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00012345 })
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
     })
 
@@ -365,6 +374,113 @@ describe('Function execution request', () => {
       expect(mockExecuteInIsolatedVM).toHaveBeenCalledTimes(1)
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
       expect(mockExecuteShellInSandbox).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { language: 'python', code: 'return 42', kind: 'code' },
+      { language: 'shell', code: 'echo ready', kind: 'shell' },
+    ])(
+      'meters a standard workflow Function $kind sandbox and preserves its cost',
+      async ({ language, code, kind }) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const cost = { input: 0, output: 0, total: 0.00012345 }
+        const executeSandbox = kind === 'shell' ? mockExecuteShellInSandbox : mockExecuteInSandbox
+        executeSandbox.mockResolvedValueOnce({
+          result: 42,
+          stdout: 'ready',
+          sandboxId: `sandbox-${kind}`,
+          cost,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            workflowId: 'workflow-1',
+            workspaceId: 'workspace-1',
+            executionId: 'execution-1',
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(executeSandbox).toHaveBeenCalledWith(expect.objectContaining({ meterUsage: true }))
+        expect(data.output.cost).toEqual(cost)
+      }
+    )
+
+    it.each([
+      {
+        language: 'javascript',
+        code: 'import "node:path"\nthrow new Error("boom")',
+        kind: 'code',
+      },
+      { language: 'python', code: 'raise ValueError("boom")', kind: 'code' },
+      { language: 'shell', code: 'exit 1', kind: 'shell' },
+    ])(
+      'preserves sandbox cost in a failed remote $language Function response',
+      async ({ language, code, kind }) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const cost = { input: 0, output: 0, total: 0.00012345 }
+        const executeSandbox = kind === 'shell' ? mockExecuteShellInSandbox : mockExecuteInSandbox
+        executeSandbox.mockResolvedValueOnce({
+          result: null,
+          stdout: 'boom',
+          error: 'boom',
+          sandboxId: `sandbox-${language}`,
+          cost,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            workflowId: 'workflow-1',
+            workspaceId: 'workspace-1',
+            executionId: 'execution-1',
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(422)
+        expect(executeSandbox).toHaveBeenCalledWith(expect.objectContaining({ meterUsage: true }))
+        expect(data.output.cost).toEqual(cost)
+      }
+    )
+
+    it('does not meter a non-workflow remote Function call', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'import path from "node:path"\nreturn path.sep',
+          language: 'javascript',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({ meterUsage: false })
+      )
+    })
+
+    it('keeps a custom Function tool local even when workflow context is present', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 42',
+          language: 'python',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          isCustomTool: true,
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalledOnce()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
     it('does not accept a Mothership sandbox profile from the request body', async () => {
@@ -422,6 +538,7 @@ describe('Function execution request', () => {
           expect.objectContaining({
             language,
             sandboxKind: 'mothership',
+            meterUsage: false,
           })
         )
         expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
@@ -443,7 +560,7 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(200)
       expect(mockExecuteShellInSandbox).toHaveBeenCalledWith(
-        expect.objectContaining({ sandboxKind: 'mothership' })
+        expect.objectContaining({ sandboxKind: 'mothership', meterUsage: false })
       )
     })
 
@@ -744,6 +861,7 @@ describe('Function execution request', () => {
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00023456 },
         exportedFiles: {
           '/home/user/chart.png': 'iVBORw0KGgo=',
           '/home/user/summary.json': '{"ok":true}',
@@ -754,6 +872,8 @@ describe('Function execution request', () => {
         code: 'print("done")',
         language: 'python',
         workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
         outputs: {
           files: [
             {
@@ -800,6 +920,7 @@ describe('Function execution request', () => {
         })
       )
       expect(data.output.result.files).toHaveLength(2)
+      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
       expect(data.resources).toEqual([
         expect.objectContaining({ path: 'files/reports/chart.png' }),
         expect.objectContaining({ path: 'files/reports/summary.json' }),
@@ -1378,9 +1499,10 @@ describe('Function execution request', () => {
 
     it('preserves output-limit classification from provider-side size inspection', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockRejectedValueOnce(
-        new SandboxOutputLimitError(MAX_SANDBOX_OUTPUT_BYTES + 1)
-      )
+      const error = new SandboxOutputLimitError(MAX_SANDBOX_OUTPUT_BYTES + 1)
+      const cost = { input: 0, output: 0, total: 0.00023456 }
+      attachTrustedSandboxOutputCost(error, cost)
+      mockExecuteInSandbox.mockRejectedValueOnce(error)
 
       const req = createMockRequest('POST', {
         code: 'print("done")',
@@ -1401,6 +1523,7 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toBe(`Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`)
+      expect(data.output.cost).toEqual(cost)
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
@@ -1422,8 +1545,33 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toContain('must reference a regular file')
+      expect(data.output.cost).toBeUndefined()
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
+
+    it.each(['/', '///', ' / '])(
+      'rejects malformed workspace output destination %j before sandbox execution',
+      async (path) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'print("done")',
+            language: 'python',
+            workspaceId: 'workspace-1',
+            outputs: {
+              files: [{ path, sandboxPath: '/out/report.json' }],
+            },
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.error).toBe('Output path must include a file name')
+        expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+        expect(mockExecuteShellInSandbox).not.toHaveBeenCalled()
+      }
+    )
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
@@ -1431,6 +1579,7 @@ describe('Function execution request', () => {
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00023456 },
         exportedFiles: {
           '/home/user/first.json': '{"first":true}',
           '/home/user/second.json': '{"second":true}',
@@ -1444,6 +1593,8 @@ describe('Function execution request', () => {
         code: 'print("done")',
         language: 'python',
         workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
         outputs: {
           files: [
             {
@@ -1466,6 +1617,7 @@ describe('Function execution request', () => {
       expect(response.status).toBe(400)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Directory not yet created')
+      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
@@ -1986,6 +2138,7 @@ describe('Function execution request', () => {
         result: null,
         stdout: 'generated 1 preview',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00034567 },
         exportedFiles: { '/tmp/fellows-previews.zip': archiveBase64 },
       })
 
@@ -1994,6 +2147,8 @@ describe('Function execution request', () => {
           code: source,
           language: 'python',
           workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
           sandboxId: 'fellows-sandbox',
           envVars: {
             AIRTABLE_PAT: 'stub-airtable-token',
@@ -2015,6 +2170,9 @@ describe('Function execution request', () => {
       )
 
       expect(response.status).toBe(200)
+      await expect(response.clone().json()).resolves.toMatchObject({
+        output: { cost: { input: 0, output: 0, total: 0.00034567 } },
+      })
       const sandboxRequest = mockExecuteInSandbox.mock.calls[0][0]
       expect(sandboxRequest.code).toContain("['bq', 'query'")
       expect(sandboxRequest.code).toContain('__sim_exec_globals__["__name__"] = "__main__"')

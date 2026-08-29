@@ -1,3 +1,5 @@
+import type { SandboxExecutionCost } from '@/lib/execution/remote-sandbox/types'
+
 export const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
 
 /**
@@ -101,6 +103,21 @@ export class SandboxOutputDepthError extends Error {
     )
     this.name = 'SandboxOutputDepthError'
   }
+}
+
+const trustedSandboxOutputCosts = new WeakMap<object, SandboxExecutionCost>()
+
+/** Associates Sim-calculated cost with a trusted post-execution output error. */
+export function attachTrustedSandboxOutputCost(error: unknown, cost: SandboxExecutionCost): void {
+  if (typeof error !== 'object' || error === null) return
+  trustedSandboxOutputCosts.set(error, cost)
+}
+
+/** Reads cost only when the sandbox lifecycle attached it after a completed execution. */
+export function readTrustedSandboxOutputCost(error: unknown): SandboxExecutionCost | undefined {
+  return typeof error === 'object' && error !== null
+    ? trustedSandboxOutputCosts.get(error)
+    : undefined
 }
 
 export class SandboxOutputFileError extends Error {

@@ -244,6 +244,7 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
           // Always an array, never undefined: a declared `file[]` output that is
           // missing warns on every call, and this branch runs for every failure.
           files: result.output?.files ?? [],
+          ...(result.output?.cost ? { cost: result.output.cost } : {}),
         },
         error: result.error,
         retryable: result.retryable,
@@ -259,6 +260,7 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
         result: result.output.result,
         stdout: result.output.stdout,
         files: result.output.files ?? [],
+        ...(result.output.cost ? { cost: result.output.cost } : {}),
       },
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,

@@ -72,6 +72,8 @@ export interface SandboxExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
+  /** Adds the remote provider cost to a completed, billable Function outcome. */
+  meterUsage?: boolean
 }
 
 export interface SandboxShellExecutionRequest {
@@ -97,6 +99,26 @@ export interface SandboxShellExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
+  /** Adds the remote provider cost to a completed, billable Function outcome. */
+  meterUsage?: boolean
+}
+
+export interface SandboxExecutionCost {
+  input: number
+  output: number
+  total: number
+}
+
+/**
+ * Running total a caller accumulates sandbox charges into.
+ *
+ * A long-lived sandbox reports its cost when it is torn down, which is after the
+ * value its caller cares about has already been returned. Handing the layer a
+ * sink lets the charge land without reshaping every return type between here and
+ * the block that owns the bill.
+ */
+export interface SandboxCostSink {
+  total: number
 }
 
 export interface SandboxExecutionResult {
@@ -116,6 +138,7 @@ export interface SandboxExecutionResult {
    * sequence, and the byte budget is enforced on the decoded length.
    */
   collectedFiles?: SandboxCollectedFile[]
+  cost?: SandboxExecutionCost
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -133,6 +156,8 @@ export interface SandboxCommandResult {
   exitCode: number
   /** The provider stopped the command because its supplied execution budget elapsed. */
   timedOut?: boolean
+  /** The provider ended execution for an infrastructure reason, not a user-process outcome. */
+  providerFailure?: 'provider_limit'
 }
 
 /**
@@ -156,6 +181,8 @@ export interface SandboxCodeResult {
   error?: SandboxCodeError
   /** The provider stopped the code runner because its supplied execution budget elapsed. */
   timedOut?: boolean
+  /** The provider ended execution for an infrastructure reason, not a user-program outcome. */
+  providerFailure?: 'provider_limit'
 }
 
 export interface RunCommandOptions {
@@ -279,6 +306,8 @@ export interface CreateSandboxOptions {
    * and creates the sandbox as ephemeral.
    */
   lifetimeMs?: number
+  /** Reports the instant immediately before the provider SDK create request is dispatched. */
+  onProviderRequestStarted?: (startedAtMs: number) => void
 }
 
 /**
@@ -366,5 +395,7 @@ export interface SandboxProvider {
   readonly dependencyStrategy: SandboxDependencyStrategy
   /** Present exactly when {@link dependencyStrategy} is `prebuilt`. */
   readonly images?: SandboxImageBuilder
+  /** Resolves the provider's rounded lifetime for both creation and metering. */
+  resolveLifetimeMs(lifetimeMs: number): number
   create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle>
 }
