@@ -13,6 +13,14 @@ export interface TwilioMakeCallParams {
   record?: boolean
   recordingStatusCallback?: string
   recordingStatusCallbackMethod?: 'GET' | 'POST'
+  /**
+   * Seconds to wait for the called party to answer — the unit Twilio's own `Timeout` form
+   * field takes.
+   *
+   * Deliberately not named `timeout`: the shared tool transport reads `params.timeout` as
+   * its own outbound request deadline in milliseconds, so the documented 60-second ring
+   * default aborts the HTTP call after 60 milliseconds instead of ever reaching Twilio.
+   */
   ringTimeout?: number
   machineDetection?: 'Enable' | 'DetectMessageEnd'
   asyncAmd?: boolean

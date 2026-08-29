@@ -27,7 +27,14 @@ export interface RunActorParams {
   waitForFinish?: number // For async tool: 0-60 seconds initial wait
   itemLimit?: number // For async tool: 1-250000 items, default 100
   memory?: number // Memory in MB (128-32768)
-  runTimeout?: number // Timeout in seconds for the run; `timeout` is reserved by the tool transport
+  /**
+   * Timeout in seconds for the run — the unit Apify's own `timeout` query param takes.
+   *
+   * Deliberately not named `timeout`: the shared tool transport reads `params.timeout` as
+   * its own outbound request deadline in milliseconds, so a run timeout under that name
+   * aborts the HTTP call after N milliseconds instead of ever reaching Apify.
+   */
+  runTimeout?: number
   build?: string // Actor build to run (e.g., "latest", "beta", build tag/number)
 }
 
@@ -46,6 +53,13 @@ export interface RunTaskParams {
   taskId: string
   input?: string
   memory?: number
+  /**
+   * Timeout in seconds for the run — the unit Apify's own `timeout` query param takes.
+   *
+   * Deliberately not named `timeout`: the shared tool transport reads `params.timeout` as
+   * its own outbound request deadline in milliseconds, so a run timeout under that name
+   * aborts the HTTP call after N milliseconds instead of ever reaching Apify.
+   */
   runTimeout?: number
   build?: string
   itemLimit?: number

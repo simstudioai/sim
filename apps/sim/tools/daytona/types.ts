@@ -72,6 +72,13 @@ export interface DaytonaExecuteCommandParams extends DaytonaSandboxScopedParams 
   command: string
   cwd?: string
   env?: TableRow[] | Record<string, string> | string
+  /**
+   * Timeout in seconds for the command — the unit Daytona's own `timeout` body field takes.
+   *
+   * Deliberately not named `timeout`: the shared tool transport reads `params.timeout` as
+   * its own outbound request deadline in milliseconds, so the documented 10-second default
+   * aborts the HTTP call after 10 milliseconds instead of ever reaching the sandbox.
+   */
   executionTimeout?: number
 }
 
@@ -79,6 +86,13 @@ export interface DaytonaRunCodeParams extends DaytonaSandboxScopedParams {
   code: string
   language: 'python' | 'javascript' | 'typescript'
   env?: TableRow[] | Record<string, string> | string
+  /**
+   * Timeout in seconds for the code run — the unit Daytona's own `timeout` body field takes.
+   *
+   * Deliberately not named `timeout`: the shared tool transport reads `params.timeout` as
+   * its own outbound request deadline in milliseconds, so the documented 10-second default
+   * aborts the HTTP call after 10 milliseconds instead of ever reaching the sandbox.
+   */
   executionTimeout?: number
 }
 
