@@ -9,6 +9,7 @@
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
 
 const {
   mockResolveSandbox,
@@ -664,7 +665,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   it('keeps the directory sentinel out of the harvest', async () => {
     stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
     stubOutputDirListing([
-      { path: '/tmp/sim/outputs/.sim-keep', size: 0 },
+      { path: `/tmp/sim/outputs/${SANDBOX_OUTPUT_DIR_SENTINEL}`, size: 0 },
       { path: '/tmp/sim/outputs/real.txt', size: 4 },
     ])
     stubOutputFileSizes(provider, 4)

@@ -10,7 +10,10 @@ import {
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
-import { createSandboxFileMountRef } from '@/lib/execution/payloads/sandbox-file-mount-ref'
+import {
+  createSandboxFileMountRef,
+  isSandboxFileMountRef,
+} from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
@@ -457,6 +460,9 @@ export class VariableResolver {
         const sandboxFilePath = await this.resolveSandboxFilePathReference(
           match,
           resolutionContext,
+          language,
+          template,
+          index,
           contextVarAccumulator
         )
         if (sandboxFilePath) {
@@ -672,6 +678,9 @@ export class VariableResolver {
   private async resolveSandboxFilePathReference(
     reference: string,
     context: ResolutionContext,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
     contextVarAccumulator: Record<string, unknown>
   ): Promise<{ replacement: string; display: string } | null> {
     const parts = parseReferencePath(reference)
@@ -685,13 +694,27 @@ export class VariableResolver {
       return null
     }
 
-    // The bytes are fetched into the sandbox, so the inline copy would be dead
-    // weight in the request body.
-    const { base64: _base64, ...fileMetadata } = file
-    const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
-    contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
+    // Reuse an existing marker for the same file so referencing one path twice
+    // mounts it once, rather than transferring a second copy under a
+    // collision-suffixed name and spending the mount budget twice.
+    const existing = Object.entries(contextVarAccumulator).find(
+      ([, value]) => isSandboxFileMountRef(value) && value.file.key === file.key
+    )
+    const varName = existing?.[0] ?? `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    if (!existing) {
+      // The bytes are fetched into the sandbox, so the inline copy would be dead
+      // weight in the request body.
+      const { base64: _base64, ...fileMetadata } = file
+      contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
+    }
 
-    return { replacement: varName, display: reference }
+    // Formatted through the shared helper, not as a bare identifier: the runtime
+    // value is a path string, and Shell needs its environment-variable form while
+    // a reference inside a quoted string needs to be spliced rather than named.
+    return {
+      replacement: this.formatContextVariableReference(varName, language, template, matchIndex, ''),
+      display: reference,
+    }
   }
 
   private async resolveLazyFileBase64Reference(

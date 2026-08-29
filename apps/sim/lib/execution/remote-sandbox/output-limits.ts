@@ -175,6 +175,18 @@ export function isSandboxOutputFileError(error: unknown): error is SandboxOutput
   )
 }
 
+/** The harvest directory was removed by the code that was supposed to fill it. */
+export class SandboxOutputDirectoryMissingError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(directoryPath: string) {
+    super(
+      `The sandbox output directory ${directoryPath} no longer exists — the code deleted it. Write files into it rather than replacing it; no files could be returned from this run.`
+    )
+    this.name = 'SandboxOutputDirectoryMissingError'
+  }
+}
+
 export function isSandboxOutputNotExportableError(
   error: unknown
 ): error is SandboxOutputFileCountError | SandboxOutputDepthError {

@@ -72,7 +72,14 @@ export function replaceSandboxFileMountRefs(
   const next: Record<string, unknown> = {}
   seen.set(value, next)
   for (const [key, item] of Object.entries(value)) {
-    next[key] = replaceSandboxFileMountRefs(item, resolvePath, seen)
+    // defineProperty, not assignment: a own `__proto__` key would otherwise hit
+    // Object.prototype's setter and vanish before the value reaches the sandbox.
+    Object.defineProperty(next, key, {
+      value: replaceSandboxFileMountRefs(item, resolvePath, seen),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return next
 }

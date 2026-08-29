@@ -16,6 +16,7 @@ import {
   MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
   SandboxOutputDepthError,
+  SandboxOutputDirectoryMissingError,
   SandboxOutputFileCountError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
@@ -471,9 +472,7 @@ async function listOutputDirectoryFiles(
     // what actually happened instead. Anything else propagates untouched rather
     // than being flattened into "produced nothing".
     if (/not_?found|no such file|ENOENT/i.test(getErrorMessage(error))) {
-      throw new Error(
-        `The sandbox output directory ${outputSandboxDir} no longer exists — the code deleted it. Write files into it rather than replacing it, and no files could be returned from this run.`
-      )
+      throw new SandboxOutputDirectoryMissingError(outputSandboxDir)
     }
     throw error
   }
@@ -544,10 +543,16 @@ async function collectExportedFiles(
   }
 
   // Sized into the same running total as the declared paths, so an execution
-  // cannot spend the ceiling twice by both declaring and harvesting.
-  const discovered = req.outputSandboxDir
-    ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, options.signal)
-    : []
+  // cannot spend the ceiling twice by both declaring and harvesting. A declared
+  // path that happens to sit inside the harvest directory is dropped from the
+  // discovered set rather than counted again — double-billing it would reject a
+  // single output larger than half the ceiling as oversized.
+  const declaredPaths = new Set(readablePaths)
+  const discovered = (
+    req.outputSandboxDir
+      ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, options.signal)
+      : []
+  ).filter((entry) => !declaredPaths.has(entry.path))
   for (const entry of discovered) {
     totalOutputBytes += entry.size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {

@@ -222,11 +222,12 @@ const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
 
 /**
- * Cap on a file stored through `write`'s `fileInput`. The bytes are buffered and
- * base64-encoded in this process, so it tracks the compress ceiling rather than
- * the much larger workspace-file limit.
+ * Cap on a file stored through `write`'s `fileInput`, pinned to the destination's
+ * own ceiling. A larger cap here would let a 50–100MB file be downloaded and
+ * base64-encoded in this process only for `createWorkspaceFile` to reject it, so
+ * the expensive transfer is refused up front instead.
  */
-const MAX_WRITE_FILE_INPUT_BYTES = 100 * 1024 * 1024
+const MAX_WRITE_FILE_INPUT_BYTES = MAX_WORKSPACE_FILE_CONTENT_BYTES
 
 /** Per-file download cap for the compress operation. */
 const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024

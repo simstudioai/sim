@@ -1638,6 +1638,45 @@ describe('Function execution request', () => {
       expect(data.error).toContain('21 files')
     })
 
+    it('scans a harvested plaintext secret even under a binary file name', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/leak.png',
+            relativePath: 'leak.png',
+            // Valid UTF-8 carrying the resolved secret, named as an image.
+            contentBase64: Buffer.from('token=super-secret-value').toString('base64'),
+            byteLength: 24,
+          },
+        ],
+      })
+
+      const req = createMockRequest('POST', {
+        // The placeholder has to be in the code: compiling it is what puts the
+        // resolved value in scope for the output scan.
+        code: 'token = {{MY_SECRET}}',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        envVars: { MY_SECRET: 'super-secret-value' },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // Classifying by file name let a secret written as plaintext under a
+      // binary extension skip the only provenance guard and be returned with a
+      // downloadable URL. Content decides now, so the name cannot dodge it.
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('leak.png')
+      expect(data.error).toContain('resolved secret')
+    })
+
     it('mounts a <block.file.path> reference and hands the code its path', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 

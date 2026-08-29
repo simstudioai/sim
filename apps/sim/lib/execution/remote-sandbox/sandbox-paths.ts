@@ -36,8 +36,12 @@ export const SANDBOX_OUTPUT_DIR = '/tmp/sim/outputs'
  * mount already uses to materialize an empty folder. Doing it this way keeps the
  * cost at one filesystem write; a `mkdir -p` command would instead cost a whole
  * session on Daytona, which creates and tears one down per command.
+ *
+ * The suffix is not decoration: the harvest filters this name out, so a plainer
+ * one like `.sim-keep` would silently swallow a user file that happened to share
+ * it.
  */
-export const SANDBOX_OUTPUT_DIR_SENTINEL = '.sim-keep'
+export const SANDBOX_OUTPUT_DIR_SENTINEL = '.sim-keep-97f2c1a4'
 
 /**
  * How deep the output directory is enumerated, counted in path segments — a file

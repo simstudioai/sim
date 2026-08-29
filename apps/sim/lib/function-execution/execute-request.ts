@@ -83,7 +83,10 @@ import {
   isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import {
+  MAX_BLOCK_MOUNTED_FILES,
+  SANDBOX_OUTPUT_DIR,
+} from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
@@ -1862,9 +1865,6 @@ function mergeSandboxFileMounts(
   return merged
 }
 
-/** Text-ish media types whose bytes can be scanned for a resolved secret literal. */
-const SCANNABLE_TEXT_MIME_PATTERN = /^text\/|application\/json|application\/xml|application\/csv/
-
 /**
  * A harvested file's name, derived from its path relative to the output
  * directory. Subdirectories are folded into the name rather than dropped, so
@@ -1921,12 +1921,12 @@ async function collectExecutionOutputFiles(args: {
     const name = collectedFileName(collected.relativePath)
     const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
-    // Text-ness has to hold on both counts. The media type alone would let a
-    // mislabeled binary be classified `exact` without ever being scannable, and
-    // the round-trip alone would treat an incidentally-valid-UTF-8 blob as text.
-    const isBinary =
-      !SCANNABLE_TEXT_MIME_PATTERN.test(mimeType) ||
-      !Buffer.from(buffer.toString('utf8'), 'utf8').equals(buffer)
+    // Classified by content, never by name. The extension is chosen by the code
+    // that wrote the file, so gating on it let a resolved secret be written as
+    // plaintext under a binary-looking name and skip the scan entirely. Bytes
+    // that round-trip as UTF-8 are scannable no matter what they are called;
+    // anything else genuinely cannot be scanned soundly.
+    const isBinary = !Buffer.from(buffer.toString('utf8'), 'utf8').equals(buffer)
 
     if (!isBinary) {
       const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
@@ -2211,6 +2211,17 @@ export async function executeFunctionRequest(
       ...((mountedUserFiles ?? []) as UserFile[]),
       ...collectSandboxFileMountRefs(contextVariables),
     ])
+    if (plannedFileMounts.length > MAX_BLOCK_MOUNTED_FILES) {
+      return functionJsonResponse(
+        {
+          success: false,
+          error: `Too many files mounted into the sandbox (${plannedFileMounts.length}). Maximum is ${MAX_BLOCK_MOUNTED_FILES}.`,
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 400 }
+      )
+    }
     const requestsSandboxFilesystem =
       plannedFileMounts.length > 0 ||
       Boolean(_sandboxFiles?.length) ||

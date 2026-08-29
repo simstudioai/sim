@@ -130,7 +130,7 @@ Referencing `.path` runs the block in the remote sandbox, since the local
 JavaScript VM has no filesystem — expect the slower start of a remote run even for
 plain JavaScript. Referencing the file itself (`<gmail.attachments[0]>`, `.name`,
 `.url`) does not, and stays local. Up to 20 files come back per run, 50MB total,
-nested no more than 12 directories deep; a run that exceeds any of these fails
+nested no more than 11 directories deep; a run that exceeds any of these fails
 rather than returning part of what your code wrote.
 </Callout>
 
