@@ -596,4 +596,56 @@ describe('browser-agent screenshot capture', () => {
     expect(shot.viewport).toBeNull()
     expect(shot.imageSize).toEqual({ width: 1024, height: 512 })
   })
+
+  it.each([
+    [
+      'dimensions',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+      { cssLayoutViewport: { clientWidth: 1024, clientHeight: 512 } },
+    ],
+    [
+      'metric units',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+      { layoutViewport: { clientWidth: 2048, clientHeight: 1024 } },
+    ],
+    [
+      'horizontal scroll offset',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 0, pageY: 20 } },
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 20 } },
+    ],
+    [
+      'vertical scroll offset',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 20 } },
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 10, pageY: 30 } },
+    ],
+    [
+      'offset validity',
+      { cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024, pageX: 0, pageY: 0 } },
+      {
+        cssLayoutViewport: {
+          clientWidth: 2048,
+          clientHeight: 1024,
+          pageX: 0,
+          pageY: Number.NaN,
+        },
+      },
+    ],
+    ['availability', {}, {}],
+  ])(
+    'rejects a capture when viewport %s change during CDP capture',
+    async (_label, before, after) => {
+      const { contents } = captureFixture({ width: 1024, height: 512 })
+      let metricsRead = 0
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+        if (method === 'Page.getLayoutMetrics') {
+          metricsRead++
+          return Promise.resolve(metricsRead === 1 ? before : after)
+        }
+        if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+        return Promise.resolve(undefined)
+      })
+
+      await expect(captureScreenshot(contents)).rejects.toThrow(/viewport changed/)
+    }
+  )
 })

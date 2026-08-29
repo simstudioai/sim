@@ -2481,6 +2481,45 @@ describe('credential protection', () => {
     ).toBe(true)
   })
 
+  it('accepts stable truncated page identity with deprecated device metrics', async () => {
+    const contents = await openPage()
+    const fullUrl = `https://example.com/${'u'.repeat(5000)}`
+    const fullTitle = `Example ${'t'.repeat(600)}`
+    vi.mocked(contents.getURL).mockReturnValue(fullUrl)
+    vi.mocked(contents.getTitle).mockReturnValue(fullTitle)
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: fullUrl.slice(0, 4096),
+        title: fullTitle.slice(0, 500),
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        scale: 1,
+        viewport: {
+          url: fullUrl.slice(0, 4096),
+          title: fullTitle.slice(0, 500),
+          width: 1024,
+          height: 512,
+        },
+      },
+    })
+  })
+
   it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
     const contents = await openPage()
     mockScreenshotImage(null)
@@ -2522,7 +2561,9 @@ describe('credential protection', () => {
     const contents = await openPage()
     mockScreenshotImage({ width: 1024, height: 256 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
-      if (method === 'Page.getLayoutMetrics') return Promise.resolve({})
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 1024, clientHeight: 256 } })
+      }
       if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
@@ -2540,4 +2581,58 @@ describe('credential protection', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/viewport changed while the screenshot was captured/)
   })
+
+  it('rejects a screenshot when the document navigates during capture', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+        })
+      }
+      if (method === 'Page.captureScreenshot') {
+        emitContentsEvent(contents, 'did-navigate')
+        return Promise.resolve({ data: 'c2lt' })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/page changed while its screenshot was being captured/)
+  })
+
+  it.each(['url', 'title'] as const)(
+    'rejects a screenshot when the page %s changes during capture',
+    async (identityField) => {
+      const contents = await openPage()
+      mockScreenshotImage({ width: 1024, height: 512 })
+      const initialUrl = contents.getURL()
+      const initialTitle = contents.getTitle()
+      let currentUrl = initialUrl
+      let currentTitle = initialTitle
+      vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
+      vi.mocked(contents.getTitle).mockImplementation(() => currentTitle)
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+        if (method === 'Page.getLayoutMetrics') {
+          return Promise.resolve({
+            cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+          })
+        }
+        if (method === 'Page.captureScreenshot') {
+          if (identityField === 'url') currentUrl = 'https://example.com/changed'
+          else currentTitle = 'Changed title'
+          return Promise.resolve({ data: 'c2lt' })
+        }
+        return Promise.resolve(undefined)
+      })
+
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/page changed while its screenshot was being captured/)
+    }
+  )
 })

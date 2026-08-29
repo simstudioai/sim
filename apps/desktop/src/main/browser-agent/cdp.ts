@@ -382,6 +382,14 @@ const SCREENSHOT_CAPTURE_QUALITY = 90
 interface CdpViewport {
   clientWidth: number
   clientHeight: number
+  pageX?: number
+  pageY?: number
+}
+
+interface ScreenshotViewportMetrics extends ScreenshotSize {
+  pageX: number | null
+  pageY: number | null
+  unit: 'css' | 'device'
 }
 
 interface ScreenshotSize {
@@ -394,6 +402,51 @@ export interface ScreenshotCapture {
   scale: number
   viewport: ScreenshotSize | null
   imageSize: ScreenshotSize | null
+}
+
+function screenshotViewportMetrics(
+  metrics: {
+    cssLayoutViewport?: CdpViewport
+    layoutViewport?: CdpViewport
+  } | null
+): ScreenshotViewportMetrics | null {
+  const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
+  const width = viewport?.clientWidth ?? 0
+  const height = viewport?.clientHeight ?? 0
+  if (width <= 0 || height <= 0) return null
+  const pageX = viewport?.pageX
+  const pageY = viewport?.pageY
+  const hasPagePosition = pageX !== undefined || pageY !== undefined
+  if (
+    hasPagePosition &&
+    (pageX === undefined ||
+      pageY === undefined ||
+      !Number.isFinite(pageX) ||
+      !Number.isFinite(pageY))
+  ) {
+    return null
+  }
+  return {
+    width,
+    height,
+    pageX: pageX ?? null,
+    pageY: pageY ?? null,
+    unit: metrics?.cssLayoutViewport ? 'css' : 'device',
+  }
+}
+
+function sameScreenshotViewport(
+  before: ScreenshotViewportMetrics | null,
+  after: ScreenshotViewportMetrics | null
+): boolean {
+  if (!before || !after) return false
+  return (
+    before.unit === after.unit &&
+    before.width === after.width &&
+    before.height === after.height &&
+    before.pageX === after.pageX &&
+    before.pageY === after.pageY
+  )
 }
 
 /**
@@ -419,9 +472,9 @@ export async function captureScreenshot(contents: WebContents): Promise<Screensh
     layoutViewport?: CdpViewport
   }>(contents, 'Page.getLayoutMetrics').catch(() => null)
 
-  const captureViewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
-  const width = captureViewport?.clientWidth ?? 0
-  const height = captureViewport?.clientHeight ?? 0
+  const captureViewport = screenshotViewportMetrics(metrics)
+  const width = captureViewport?.width ?? 0
+  const height = captureViewport?.height ?? 0
   const cssWidth = metrics?.cssLayoutViewport?.clientWidth ?? 0
   const cssHeight = metrics?.cssLayoutViewport?.clientHeight ?? 0
   const cssViewport = cssWidth > 0 && cssHeight > 0 ? { width: cssWidth, height: cssHeight } : null
@@ -432,6 +485,13 @@ export async function captureScreenshot(contents: WebContents): Promise<Screensh
     format: 'jpeg',
     quality: SCREENSHOT_CAPTURE_QUALITY,
   })
+  const metricsAfterCapture = await send<{
+    cssLayoutViewport?: CdpViewport
+    layoutViewport?: CdpViewport
+  }>(contents, 'Page.getLayoutMetrics').catch(() => null)
+  if (!sameScreenshotViewport(captureViewport, screenshotViewportMetrics(metricsAfterCapture))) {
+    throw new Error('The page viewport changed or could not be verified during screenshot capture')
+  }
   const captured = `data:image/jpeg;base64,${result.data}`
 
   const targetWidth = Math.round(width * scale)

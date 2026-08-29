@@ -2127,13 +2127,37 @@ async function executeToolInner(
     }
 
     case 'browser_screenshot': {
-      const contents = session.requireAutomationTab().view.webContents
+      const capturedTab = session.requireAutomationTab()
+      const contents = capturedTab.view.webContents
+      const capturedNavigationEpoch = navigationEpoch(contents)
+      const capturedUrl = contents.getURL()
+      const capturedTitle = contents.getTitle()
+      const capturedViewportUrl = capturedUrl.slice(0, 4096)
+      const capturedViewportTitle = capturedTitle.slice(0, 500)
+      const captureIsCurrent = (): boolean => {
+        const activeTab = session.automationTab()
+        return (
+          activeTab?.id === capturedTab.id &&
+          activeTab.view.webContents === contents &&
+          !contents.isDestroyed() &&
+          navigationEpoch(contents) === capturedNavigationEpoch &&
+          contents.getURL() === capturedUrl &&
+          contents.getTitle() === capturedTitle
+        )
+      }
+      const assertCaptureIsCurrent = (): void => {
+        if (captureIsCurrent()) return
+        throw new ToolError(
+          'The page changed while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
+        )
+      }
       const shot = await cdp.captureScreenshot(contents).catch(() => null)
       if (shot === null) {
         throw new ToolError(
           'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
         )
       }
+      assertCaptureIsCurrent()
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
@@ -2146,11 +2170,21 @@ async function executeToolInner(
       }
       const viewport = shot.viewport
         ? {
-            url: contents.getURL().slice(0, 4096),
-            title: contents.getTitle().slice(0, 500),
+            url: capturedViewportUrl,
+            title: capturedViewportTitle,
             ...shot.viewport,
           }
         : await execInPage(contents, getViewportInfo, []).catch(() => null)
+      assertCaptureIsCurrent()
+      if (
+        !shot.viewport &&
+        isRecordLike(viewport) &&
+        (viewport.url !== capturedViewportUrl || viewport.title !== capturedViewportTitle)
+      ) {
+        throw new ToolError(
+          'The page changed while its screenshot viewport was being verified. Retry browser_screenshot before using image coordinates.'
+        )
+      }
       let scale = shot.scale
       const viewportWidth =
         isRecordLike(viewport) && typeof viewport.width === 'number' ? viewport.width : 0

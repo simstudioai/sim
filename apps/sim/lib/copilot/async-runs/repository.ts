@@ -453,13 +453,18 @@ export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: s
   )
 }
 
-export async function completeAsyncToolCall(input: {
+interface CompleteAsyncToolCallInput {
   toolCallId: string
   status: Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
   result?: AsyncCompletionData | null
   error?: string | null
-}) {
-  return markAsyncToolStatus(
+}
+
+async function completeAsyncToolCallFromStatuses(
+  input: CompleteAsyncToolCallInput,
+  expectedStatuses: CopilotAsyncToolStatus[]
+) {
+  return await markAsyncToolStatus(
     input.toolCallId,
     input.status,
     {
@@ -469,8 +474,24 @@ export async function completeAsyncToolCall(input: {
       error: input.error ?? null,
       completedAt: new Date(),
     },
-    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+    expectedStatuses
   )
+}
+
+export async function completeAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [
+    ASYNC_TOOL_STATUS.pending,
+    ASYNC_TOOL_STATUS.running,
+  ])
+}
+
+/**
+ * Finalizes a client tool only while it remains unclaimed. This is the inverse
+ * CAS of `claimPendingAsyncToolCall`: exactly one of a renderer-side preclaim
+ * failure or the native authorization claim may transition the pending row.
+ */
+export async function completePendingAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.pending])
 }
 
 /**

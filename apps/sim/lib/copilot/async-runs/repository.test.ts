@@ -2,13 +2,14 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   claimCompletedAsyncToolCall,
   claimPendingAsyncToolCall,
   claimWorkflowToolExecution,
   completeAsyncToolCall,
+  completePendingAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
   markAsyncToolRunning,
@@ -63,6 +64,57 @@ describe('async tool repository single-row semantics', () => {
 
     expect(result).toBeNull()
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('atomically completes a native preclaim failure only while the row is pending', async () => {
+    const failedRow = {
+      toolCallId: 'browser-tool',
+      status: 'failed',
+      result: { error: 'Desktop action did not start' },
+      error: 'Desktop action did not start',
+    }
+    dbChainMockFns.returning.mockResolvedValueOnce([failedRow])
+
+    const result = await completePendingAsyncToolCall({
+      toolCallId: 'browser-tool',
+      status: 'failed',
+      result: { error: 'Desktop action did not start' },
+      error: 'Desktop action did not start',
+    })
+
+    expect(result).toEqual(failedRow)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'failed',
+        claimedBy: null,
+        claimedAt: null,
+        completedAt: expect.any(Date),
+      })
+    )
+    const where = dbChainMockFns.where.mock.calls[0]?.[0]
+    expect(
+      hasMockCondition(
+        where,
+        (condition) =>
+          condition.type === 'inArray' &&
+          Array.isArray(condition.values) &&
+          condition.values.length === 1 &&
+          condition.values[0] === 'pending'
+      )
+    ).toBe(true)
+  })
+
+  it('returns null when a native authorization claim wins the pending completion race', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      completePendingAsyncToolCall({
+        toolCallId: 'browser-tool',
+        status: 'cancelled',
+        result: { cancelled: true },
+        error: 'Tool cancelled',
+      })
+    ).resolves.toBeNull()
   })
 
   it('atomically detaches a live background call and clears the claim fields', async () => {
