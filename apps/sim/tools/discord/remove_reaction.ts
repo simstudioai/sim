@@ -2,7 +2,7 @@ import type {
   DiscordRemoveReactionParams,
   DiscordRemoveReactionResponse,
 } from '@/tools/discord/types'
-import { isProvidedParam } from '@/tools/discord/utils'
+import { discordUserPathSegment, isProvidedParam } from '@/tools/discord/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -59,7 +59,7 @@ export const discordRemoveReactionTool: ToolConfig<
     url: (params: DiscordRemoveReactionParams) => {
       const encodedEmoji = safeUrlPathSegment(params.emoji, 'emoji')
       const userPart = isProvidedParam(params.userId)
-        ? `/${safeUrlPathSegment(params.userId, 'userId')}`
+        ? `/${discordUserPathSegment(params.userId, 'userId')}`
         : '/@me'
       return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions/${encodedEmoji}${userPart}`
     },

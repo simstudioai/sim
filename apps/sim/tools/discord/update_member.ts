@@ -1,4 +1,5 @@
 import type { DiscordUpdateMemberParams, DiscordUpdateMemberResponse } from '@/tools/discord/types'
+import { discordUserPathSegment } from '@/tools/discord/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -52,7 +53,7 @@ export const discordUpdateMemberTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/members/${safeUrlPathSegment(params.userId, 'userId')}`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/members/${discordUserPathSegment(params.userId, 'userId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

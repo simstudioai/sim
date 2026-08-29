@@ -3,8 +3,8 @@ import type {
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
+import { discordUserPathSegment } from '@/tools/discord/utils'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
   id: 'discord_get_user',
@@ -29,7 +29,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
 
   request: {
     url: (params: DiscordGetUserParams) =>
-      `https://discord.com/api/v10/users/${safeUrlPathSegment(params.userId, 'userId')}`,
+      `https://discord.com/api/v10/users/${discordUserPathSegment(params.userId, 'userId')}`,
     method: 'GET',
     headers: (params: DiscordGetUserParams) => {
       const headers: Record<string, string> = {

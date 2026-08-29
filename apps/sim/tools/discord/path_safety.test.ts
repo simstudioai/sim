@@ -37,6 +37,8 @@ import * as discordTools from '@/tools/discord'
 import { discordAssignRoleTool } from '@/tools/discord/assign_role'
 import { discordDeleteMessageTool } from '@/tools/discord/delete_message'
 import { discordGetMemberTool } from '@/tools/discord/get_member'
+import { discordGetUserTool } from '@/tools/discord/get_user'
+import { discordUpdateMemberTool } from '@/tools/discord/update_member'
 
 const API_ORIGIN = 'https://discord.com'
 const API_PREFIX = '/api/v10/'
@@ -453,6 +455,64 @@ describe('a trailing dot segment is invisible to a shape check', () => {
 
   it('is caught anyway, because the guard rejects rather than encodes', () => {
     expect(() => buildUrl(tool, { messageId: '.' })).toThrow(/path traversal is not allowed/)
+  })
+})
+
+/**
+ * `@me` is a literal route segment Discord publishes for the current bot —
+ * `GET /users/@me`, `DELETE .../reactions/{emoji}/@me`,
+ * `PATCH /guilds/{guild.id}/members/@me`. It was interpolated raw before these
+ * guards, so typing it into a user-ID field worked; `encodeURIComponent('@me')`
+ * is `%40me`, which Discord does not route. These pin the alias so the
+ * compatibility fix is not silently undone, and pin that it stays traversal-inert.
+ */
+describe('the documented @me alias survives the guard', () => {
+  const cases: ReadonlyArray<[string, PathTool, Record<string, unknown>, string]> = [
+    [
+      'discord_get_user',
+      pathToolFor(discordGetUserTool, 'discord_get_user'),
+      {},
+      '/api/v10/users/@me',
+    ],
+    [
+      'discord_update_member',
+      pathToolFor(discordUpdateMemberTool, 'discord_update_member'),
+      { serverId: '123456789012345678' },
+      '/api/v10/guilds/123456789012345678/members/@me',
+    ],
+  ]
+
+  it.each(cases)('%s routes @me verbatim', (_name, tool, extra, expected) => {
+    expect(new URL(tool.request.url({ botToken: 'b', ...extra, userId: '@me' })).pathname).toBe(
+      expected
+    )
+  })
+
+  it('accepts @me with surrounding whitespace', () => {
+    const tool = pathToolFor(discordGetUserTool, 'discord_get_user')
+
+    expect(new URL(tool.request.url({ botToken: 'b', userId: '  @me  ' })).pathname).toBe(
+      '/api/v10/users/@me'
+    )
+  })
+
+  it('still rejects a traversal in the same slot', () => {
+    const tool = pathToolFor(discordGetUserTool, 'discord_get_user')
+
+    expect(() => tool.request.url({ botToken: 'b', userId: '..' })).toThrow(
+      /path traversal is not allowed/
+    )
+    expect(() => tool.request.url({ botToken: 'b', userId: '@me/../../guilds/1' })).toThrow(
+      /path separator/
+    )
+  })
+
+  it('does not widen the alias to lookalikes', () => {
+    const tool = pathToolFor(discordGetUserTool, 'discord_get_user')
+
+    expect(new URL(tool.request.url({ botToken: 'b', userId: '@everyone' })).pathname).toBe(
+      '/api/v10/users/%40everyone'
+    )
   })
 })
 

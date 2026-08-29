@@ -1,3 +1,5 @@
+import { safeUrlPathSegment } from '@/tools/url-path'
+
 /**
  * Whether an optional Discord tool param was supplied.
  *
@@ -21,4 +23,28 @@ export function isProvidedParam<T>(value: T): value is NonNullable<T> {
   if (value === null || value === undefined) return false
   if (typeof value === 'string') return value.trim() !== ''
   return true
+}
+
+/**
+ * Builds a path segment for a Discord `{user.id}` slot, preserving the
+ * documented `@me` alias.
+ *
+ * Discord publishes `@me` as a literal route segment standing in for the
+ * current bot — `GET /users/@me`, `DELETE .../reactions/{emoji}/@me`, and
+ * `PATCH /guilds/{guild.id}/members/@me`. Before these guards existed the value
+ * was interpolated raw, so a user who typed `@me` into a user-ID field got a
+ * working request. `encodeURIComponent('@me')` is `%40me`, which Discord does
+ * not route, so encoding it silently turned those calls into 404s.
+ *
+ * `@me` is passed through verbatim because it is traversal-inert: it is
+ * neither a dot segment nor does it contain `/` or `\`, so it cannot pop or
+ * add a path segment. Everything else goes through `safeUrlPathSegment`
+ * unchanged, so this widens the accepted set by exactly one constant and
+ * weakens nothing.
+ */
+export function discordUserPathSegment(value: unknown, paramName: string): string {
+  if (typeof value === 'string' && value.trim() === '@me') {
+    return '@me'
+  }
+  return safeUrlPathSegment(value as string | number | bigint, paramName)
 }
