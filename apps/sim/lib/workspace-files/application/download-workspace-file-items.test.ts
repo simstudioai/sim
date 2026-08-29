@@ -14,6 +14,7 @@ const {
   mockIsGenerated,
   mockIsRenderable,
   mockIsDocNotReady,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   events: [] as string[],
   mockLoadContext: vi.fn(),
@@ -25,6 +26,11 @@ const {
   mockIsGenerated: vi.fn(),
   mockIsRenderable: vi.fn(),
   mockIsDocNotReady: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -60,6 +66,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
 const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
@@ -105,6 +112,7 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsGenerated.mockReturnValue(false)
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('authorizes the workspace once and returns the bounded selection', async () => {
@@ -263,5 +271,48 @@ describe('downloadWorkspaceFileItems', () => {
     })
 
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+  })
+
+  describe('permission-group capability', () => {
+    beforeEach(() => {
+      mockGetUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableBulkFileDownload: true,
+      })
+      mockListFolders.mockResolvedValue([{ id: 'folder-1', parentId: null, name: 'Reports' }])
+      mockListFiles.mockImplementation(async () => {
+        events.push('execute')
+        return [file('f1', 'clip.mp4'), file('f2', 'notes.txt', 'folder-1')]
+      })
+    })
+
+    it('refuses a folder archive when the group withholds files.bulk_download', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+
+      expect(events).not.toContain('execute')
+    })
+
+    it('refuses a multi-file archive, which is the same bulk extraction', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+    })
+
+    it('still allows downloading a single named file, which the key does not withhold', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f1' })] })
+    })
   })
 })

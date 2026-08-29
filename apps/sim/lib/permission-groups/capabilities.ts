@@ -92,6 +92,16 @@ export interface ParameterizedCapabilityRule extends CapabilityRuleBase {
 
 export type CapabilityRule = StaticCapabilityRule | ParameterizedCapabilityRule
 
+/**
+ * The one sentence every capability refusal uses, wherever it is raised.
+ *
+ * Shared so a raw route that gates inline cannot drift from what the
+ * authorization funnel tells a caller refused for the same reason.
+ */
+export function capabilityRefusalMessage(describe: string): string {
+  return `${describe} is not available under your organization's permission group`
+}
+
 function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: string): boolean {
   return allowed !== null && !allowed.some((allowedMode) => allowedMode === mode)
 }

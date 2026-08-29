@@ -22,6 +22,11 @@ const mocks = vi.hoisted(() => ({
   startUploadedImport: vi.fn(),
   tableImportBodyFromUpload: vi.fn(),
   resourceFromUpload: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -71,6 +76,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
   cancelTableImportUseCase,
   completeTableImportUseCase,
@@ -167,6 +173,7 @@ describe('table import application use cases', () => {
     mocks.createResource.mockResolvedValue({ record, upload: null })
     mocks.getWorkspaceFile.mockResolvedValue(workspaceFile)
     mocks.resourceFromUpload.mockReturnValue(record)
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
@@ -455,5 +462,52 @@ describe('table import application use cases', () => {
     expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.resolveTableContext).not.toHaveBeenCalled()
     expect(mocks.createResource).not.toHaveBeenCalled()
+  })
+
+  describe('permission-group capability', () => {
+    beforeEach(() => {
+      mocks.getUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableTableCreation: true,
+      })
+      mocks.resolveTableContext.mockResolvedValue({
+        tableId: 'table-1',
+        ...workspaceContext,
+      })
+    })
+
+    it('refuses an import that would create a table when the group withholds tables.create', async () => {
+      await expect(
+        createTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            body: {
+              workspaceId: 'workspace-1',
+              source: record.source,
+              target: { type: 'new', name: 'People' },
+            },
+          },
+          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
+        })
+      ).rejects.toMatchObject({ capability: 'tables.create' })
+
+      expect(mocks.createResource).not.toHaveBeenCalled()
+    })
+
+    it('still allows importing into an existing table, which creates nothing', async () => {
+      await expect(
+        createTableImportUseCase.execute({
+          principal: reader,
+          input: {
+            body: {
+              workspaceId: 'workspace-1',
+              source: record.source,
+              target: { type: 'existing', tableId: 'table-1' },
+            },
+          },
+          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
+        })
+      ).resolves.toEqual({ import: { record, upload: null } })
+    })
   })
 })

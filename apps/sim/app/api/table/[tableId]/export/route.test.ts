@@ -5,9 +5,14 @@ import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockQueryRows } = vi.hoisted(() => ({
+const { mockCheckAccess, mockQueryRows, mockGetUserPermissionConfig } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockQueryRows: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/app/api/table/utils', async () => {
@@ -23,6 +28,7 @@ vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/table/[tableId]/export/route'
 
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
@@ -56,6 +62,7 @@ describe('table export route — id→name translation', () => {
       }),
     })
     // Row data is keyed by stable column id (`col_email`), not the display name.
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockQueryRows.mockResolvedValue({
       rows: [{ id: 'r1', data: { col_email: 'a@b.c', legacy: 'x' }, executions: {}, position: 0 }],
       rowCount: 1,
@@ -81,5 +88,19 @@ describe('table export route — id→name translation', () => {
     const parsed = JSON.parse(await res.text())
     expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
     expect(JSON.stringify(parsed)).not.toContain('col_email')
+  })
+
+  it('refuses the stream when the group withholds tables.export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableExport: true,
+    })
+
+    const res = await callGet('csv')
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({
+      error: "Exporting a table is not available under your organization's permission group",
+    })
   })
 })

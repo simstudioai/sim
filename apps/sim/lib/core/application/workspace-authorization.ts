@@ -17,6 +17,7 @@ import type {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   CAPABILITY_RULES,
+  capabilityRefusalMessage,
   type PermissionGroupCapability,
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
@@ -72,7 +73,7 @@ export class PermissionGroupCapabilityError extends ForbiddenOperationError {
     detailCode: ForbiddenDetailCode,
     describe: string
   ) {
-    super(detailCode, `${describe} is not available under your organization's permission group`)
+    super(detailCode, capabilityRefusalMessage(describe))
     this.name = 'PermissionGroupCapabilityError'
   }
 }

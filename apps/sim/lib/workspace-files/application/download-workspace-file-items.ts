@@ -1,8 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseFolderPath } from '@/lib/folders/paths'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import {
   buildWorkspaceFileFolderPathMap,
   listWorkspaceFileFolders,
@@ -116,6 +118,22 @@ async function executeDownloadWorkspaceFileItems({
   }
   if (fileIds.length === 0 && folderIds.length === 0 && requestedFolderPaths.length === 0) {
     validationError('No files selected for download')
+  }
+
+  /**
+   * permission-group-enforced: files.bulk_download — one operation serves both
+   * a single file and a whole folder tree, and only the archive is what the key
+   * withholds; declaring the capability on `files.download` would take away
+   * saving one file too. `context.fileId` is the same single-file predicate the
+   * resource authorization already resolved, reused so the two cannot drift.
+   * Asserted for the acting person only: an actorless deployment run has no
+   * permission group.
+   */
+  if (context.fileId === undefined) {
+    const actingUserId = resolvePrincipalSubjectUserId(principal)
+    if (actingUserId) {
+      await assertWorkspaceCapability(actingUserId, context.workspaceId, 'files.bulk_download')
+    }
   }
 
   const [files, folders] = await Promise.all([
