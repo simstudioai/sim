@@ -188,7 +188,8 @@ describe('stripe path-parameter traversal safety', () => {
   })
 
   describe.each(PATH_PARAM_CASES)('$name', ({ tool, param }) => {
-    const baseline = segmentsOf(buildUrl(tool, param, TARGET).pathname)
+    const baselineUrl = buildUrl(tool, param, TARGET)
+    const baseline = segmentsOf(baselineUrl.pathname)
 
     it.each(TRAVERSAL_VALUES)('cannot reshape the path with %j', (value) => {
       let url: URL
@@ -200,6 +201,17 @@ describe('stripe path-parameter traversal safety', () => {
 
       expect(url.origin).toBe('https://api.stripe.com')
       expect(url.pathname.startsWith('/v1/')).toBe(true)
+
+      /**
+       * A `?` or `#` in the value does not lengthen the path — it moves the
+       * tail out of `pathname` entirely — so the segment comparison below is
+       * blind to it. Pinning the query and fragment against the baseline is
+       * what makes those two vectors real assertions rather than decoration.
+       * Comparing to the baseline rather than to empty is deliberate: several
+       * tools legitimately build their own query string.
+       */
+      expect(url.search).toBe(baselineUrl.search)
+      expect(url.hash).toBe('')
 
       const actual = segmentsOf(url.pathname)
       expect(actual).toHaveLength(baseline.length)
