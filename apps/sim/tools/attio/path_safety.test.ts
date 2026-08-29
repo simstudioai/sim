@@ -19,6 +19,15 @@
  * Every assertion here resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
+ *
+ * **One param is fuzzed at a time**, with every sibling held at a safe value.
+ * Fuzzing all params at once and skipping the vector when the builder throws
+ * looks equivalent but is not: as soon as a tool has one guarded param, that
+ * param throws first and its unguarded siblings stop being exercised at all.
+ * A tool like `attio_get_attribute` carries three path params, so the coarse
+ * form would report full coverage while testing exactly one of them. Case
+ * discovery below is therefore per **(tool, param)** pair, and each pair gets
+ * its own baseline so an unguarded sibling cannot hide behind a guarded one.
  */
 import { describe, expect, it } from 'vitest'
 import * as attioTools from '@/tools/attio/index'
@@ -58,7 +67,10 @@ const LEGITIMATE_IDS = [
   'v1.2.3',
 ] as const
 
-const SAFE_ID = 'SAFEID'
+/** Held by every param except the one under test. */
+const SIBLING_ID = 'SIBLING'
+/** Distinct from `SIBLING_ID` so the param under test is locatable in the path. */
+const PROBE_ID = 'PROBEVALUE'
 
 type AnyTool = ToolConfig<any, any>
 
@@ -72,10 +84,11 @@ function isAttioTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised.
+ * Builds a param object with every declared param at a safe value, then puts
+ * `value` on `target` alone. Holding the siblings safe is what keeps a throw
+ * from `target` attributable to `target`.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
+function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { accessToken: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'accessToken') continue
@@ -87,52 +100,77 @@ function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
     } else if (type === 'boolean') {
       params[name] = false
     } else {
-      params[name] = value
+      params[name] = SIBLING_ID
     }
   }
+  params[target] = value
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
+  return new URL(url(buildParams(tool, target, value) as any))
 }
 
-function buildPath(tool: AnyTool, value: string): string {
-  return buildUrl(tool, value).pathname
+function buildPath(tool: AnyTool, target: string, value: string): string {
+  return buildUrl(tool, target, value).pathname
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(attioTools)
+function stringParamNames(tool: AnyTool): string[] {
+  return Object.entries(tool.params ?? {})
+    .filter(([name]) => name !== 'accessToken')
+    .filter(([, def]) => {
+      const type = (def as { type?: string }).type
+      return type === undefined || type === 'string' || type === 'json'
+    })
+    .map(([name]) => name)
+}
+
+/**
+ * Every (tool, param) pair whose value reaches the request **path**, discovered
+ * by probing one param at a time rather than declared in a hand-kept list — a
+ * new path param is picked up here without anyone editing this file.
+ */
+const PATH_PARAM_CASES = Object.values(attioTools)
   .filter(isAttioTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
-    try {
-      return buildPath(tool, SAFE_ID).includes(SAFE_ID)
-    } catch {
-      return false
-    }
-  })
-  .map((tool) => ({ name: tool.id, tool }))
+  .flatMap((tool) =>
+    stringParamNames(tool)
+      .filter((param) => {
+        try {
+          return buildPath(tool, param, PROBE_ID).includes(PROBE_ID)
+        } catch {
+          return false
+        }
+      })
+      .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
+  )
 
 describe('attio path-ID traversal safety', () => {
-  it('covers every Attio tool that interpolates an ID into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(30)
+  it('covers every (tool, param) pair that reaches a request path', () => {
+    expect(PATH_PARAM_CASES.length).toBeGreaterThanOrEqual(43)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildPath(tool, SAFE_ID))
+  it('exercises every tool that builds a dynamic path', () => {
+    const tools = new Set(PATH_PARAM_CASES.map(({ tool }) => tool.id))
+
+    expect(tools.size).toBeGreaterThanOrEqual(31)
+  })
+
+  describe.each(PATH_PARAM_CASES)('$name', ({ tool, param }) => {
+    const baseline = segmentsOf(buildPath(tool, param, PROBE_ID))
 
     it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
       let path: string
       try {
-        path = buildPath(tool, value)
+        path = buildPath(tool, param, value)
       } catch {
         return
       }
@@ -140,7 +178,7 @@ describe('attio path-ID traversal safety', () => {
       const actual = segmentsOf(path)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === SAFE_ID) return
+        if (segment === PROBE_ID) return
         expect(actual[index]).toBe(segment)
       })
     })
@@ -148,7 +186,7 @@ describe('attio path-ID traversal safety', () => {
     it.each(TRAVERSAL_IDS)('stays on the Attio v2 API with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
+        url = buildUrl(tool, param, value)
       } catch {
         return
       }
@@ -158,30 +196,40 @@ describe('attio path-ID traversal safety', () => {
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildPath(tool, value))
+      const actual = segmentsOf(buildPath(tool, param, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment === SAFE_ID ? value : segment)
+        expect(actual[index]).toBe(segment === PROBE_ID ? value : segment)
       })
     })
 
     it('rejects a bare dot-dot segment by name instead of silently popping a segment', () => {
-      expect(() => buildUrl(tool, '..')).toThrow(/path traversal/)
+      expect(() => buildUrl(tool, param, '..')).toThrow(
+        new RegExp(`${param}\\b.*path traversal is not allowed`)
+      )
     })
 
-    it('rejects a bare dot segment', () => {
-      expect(() => buildUrl(tool, '.')).toThrow(/path traversal/)
+    it('rejects a bare dot segment by name', () => {
+      expect(() => buildUrl(tool, param, '.')).toThrow(
+        new RegExp(`${param}\\b.*path traversal is not allowed`)
+      )
     })
 
-    it('does not let an id inject query parameters', () => {
-      const url = buildUrl(tool, 'list_abc?limit=500')
+    it('rejects a path separator by name', () => {
+      expect(() => buildUrl(tool, param, 'list_abc/entries')).toThrow(
+        new RegExp(`${param}\\b.*cannot contain a path separator`)
+      )
+    })
+
+    it('does not let the id inject query parameters', () => {
+      const url = buildUrl(tool, param, 'list_abc?limit=500')
 
       expect(url.searchParams.get('limit')).not.toBe('500')
     })
 
     it('trims surrounding whitespace rather than encoding it', () => {
-      expect(buildPath(tool, '  people  ')).toBe(buildPath(tool, 'people'))
+      expect(buildPath(tool, param, '  people  ')).toBe(buildPath(tool, param, 'people'))
     })
   })
 })
