@@ -14,7 +14,8 @@
 import type { Options as CsvParseOptions } from 'csv-parse'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
-import { type ColumnType, columnTypeById } from '@/lib/table/column-types'
+import type { ColumnType } from '@/lib/table/column-types'
+import { coerceColumnTypeImportValue } from '@/lib/table/column-types/import-coercion'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
@@ -468,11 +469,10 @@ export function inferSchemaFromCsv(
  * back to the original string when unparseable so that schema validation can
  * reject it with context rather than silently inserting `null`.
  *
- * Deliberately not routed through the registry's ordinary `coerce`: that
- * contract is "coerced or rejected", while an import needs invalid raw text to
- * survive so row-level validation can name it. Types with special import
- * behavior own it through `coerceForImport`; the remaining legacy import
- * semantics stay here until they can move without changing error behavior.
+ * Deliberately not routed through the column-type registry: its contract is
+ * "coerced or rejected", while an import needs invalid raw text to survive so
+ * row-level validation can name it. Type-specific import behavior uses a
+ * lightweight capability map so CSV clients do not load the full registry.
  */
 export function coerceValue(
   value: unknown,
@@ -481,8 +481,8 @@ export function coerceValue(
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
 
-  const importValue = columnTypeById(colType).coerceForImport?.(value, options)
-  if (importValue !== undefined) return importValue
+  const typeSpecificValue = coerceColumnTypeImportValue(colType, value, options)
+  if (typeSpecificValue !== undefined) return typeSpecificValue
 
   switch (colType) {
     case 'number': {
