@@ -159,9 +159,16 @@ describe('projectId agrees between URL and body', () => {
 
     expect(url.pathname).toContain('/projects/123456')
     const serialized = JSON.stringify(body)
-    if (serialized?.includes('projectId')) {
-      expect(serialized).toContain('"projectId":"123456"')
-    }
+
+    /**
+     * Asserted unconditionally. Guarding this with
+     * `if (serialized?.includes('projectId'))` would silently stop checking the
+     * moment a body dropped the field — the same vacuous-assertion shape this
+     * suite has had to fix repeatedly. All three tools carry `projectId` in
+     * `defaultDataset` / `tableReference` / `datasetReference`, so requiring it
+     * is correct, and if one ever stops the test should say so.
+     */
+    expect(serialized).toContain('"projectId":"123456"')
   })
 
   it.each(BODY_TOOLS)('$name sends one project id', ({ tool }) => {
@@ -181,9 +188,7 @@ describe('projectId agrees between URL and body', () => {
 
     expect(url.pathname).toContain('/projects/my-project/')
     expect(serialized).not.toContain('  my-project  ')
-    if (serialized?.includes('projectId')) {
-      expect(serialized).toContain('"projectId":"my-project"')
-    }
+    expect(serialized).toContain('"projectId":"my-project"')
   })
 })
 
