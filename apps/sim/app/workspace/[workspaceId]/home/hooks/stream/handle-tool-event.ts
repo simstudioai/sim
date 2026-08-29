@@ -1,4 +1,4 @@
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import {
   MothershipStreamV1ToolPhase,
@@ -186,7 +186,7 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
     }
   }
-  if (isBrowserToolName(name) && !isPartial) {
+  if (isCurrentBrowserToolName(name) && !isPartial) {
     const shouldStartBrowserTool =
       !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
       node?.kind === 'tool' &&
