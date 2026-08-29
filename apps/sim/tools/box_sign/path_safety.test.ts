@@ -59,7 +59,58 @@ describe('box sign path-id traversal safety', () => {
   })
 
   describe.each(PATH_PARAMS)('$label', (param) => {
-    itResistsTraversal(param, { origin: ORIGIN, basePath: BASE_PATH })
+    itResistsTraversal(param, {
+      origin: ORIGIN,
+      basePath: BASE_PATH,
+      rejectsSurroundingWhitespace: ['signRequestId'],
+    })
     itPassesLegitimateValues(param, { values: LEGITIMATE_IDS })
+  })
+})
+
+/**
+ * A padded `signRequestId` must not become a successful cancellation.
+ *
+ * `signRequestId` was interpolated raw before this branch — not even a
+ * `.trim()` — so a padded id was percent-encoded to
+ * `%20%20<uuid>%20%20`, matched no sign request, and the call failed:
+ *
+ * ```
+ * before: /2.0/sign_requests/%20%2012345678-…-123456789012%20%20/cancel
+ * after:  /2.0/sign_requests/12345678-…-123456789012/cancel
+ * ```
+ *
+ * Had the guard simply trimmed, that POST would have stopped failing and
+ * started **cancelling a real signature request** — irreversible, from a value
+ * the caller never wrote. Box Sign ids are UUIDs, so no legitimate value
+ * carries whitespace and refusing costs nothing.
+ */
+describe('a padded signRequestId cannot become a successful cancellation', () => {
+  const PADDED = '  12345678-1234-1234-1234-123456789012  '
+  const CLEAN = '12345678-1234-1234-1234-123456789012'
+
+  const STATE_CHANGING = [
+    { name: 'box_sign_cancel_request', tool: boxSignTools.boxSignCancelRequestTool },
+    { name: 'box_sign_resend_request', tool: boxSignTools.boxSignResendRequestTool },
+  ]
+
+  it.each(STATE_CHANGING)('$name refuses a padded signRequestId', ({ tool }) => {
+    expect(() =>
+      (tool.request?.url as (p: Record<string, unknown>) => string)({
+        accessToken: 't',
+        signRequestId: PADDED,
+      })
+    ).toThrow(/signRequestId cannot have leading or trailing whitespace/)
+  })
+
+  it.each(STATE_CHANGING)('$name still accepts the unpadded id', ({ tool }) => {
+    const url = new URL(
+      (tool.request?.url as (p: Record<string, unknown>) => string)({
+        accessToken: 't',
+        signRequestId: CLEAN,
+      })
+    )
+
+    expect(url.pathname).toContain(`/2.0/sign_requests/${CLEAN}`)
   })
 })
