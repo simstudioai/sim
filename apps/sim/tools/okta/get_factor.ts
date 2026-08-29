@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaFactor, OktaGetFactorParams, OktaGetFactorResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetFactor')
 
@@ -43,7 +44,7 @@ export const oktaGetFactorTool: ToolConfig<OktaGetFactorParams, OktaGetFactorRes
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors/${encodeURIComponent(params.factorId.trim())}`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/factors/${safeUrlPathSegment(params.factorId, 'factorId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

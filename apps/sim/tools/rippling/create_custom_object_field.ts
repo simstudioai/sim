@@ -1,5 +1,6 @@
 import type { RipplingCreateCustomObjectFieldParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCustomObjectFieldParams> =
   {
@@ -89,7 +90,7 @@ export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCusto
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/fields/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/fields/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

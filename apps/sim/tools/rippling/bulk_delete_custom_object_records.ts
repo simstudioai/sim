@@ -1,5 +1,6 @@
 import type { RipplingBulkDeleteCustomObjectRecordsParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkDeleteCustomObjectRecordsParams> =
   {
@@ -35,7 +36,7 @@ export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkD
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/bulk-delete/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/bulk-delete/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaAddUserToGroupParams, OktaAddUserToGroupResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaAddUserToGroup')
 
@@ -45,7 +46,7 @@ export const oktaAddUserToGroupTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
+      return `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}/users/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'PUT',
     headers: (params) => oktaHeaders(params.apiKey),

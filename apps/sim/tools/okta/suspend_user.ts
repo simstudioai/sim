@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaSuspendUserParams, OktaSuspendUserResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaSuspendUser')
 
@@ -37,7 +38,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/suspend`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/suspend`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

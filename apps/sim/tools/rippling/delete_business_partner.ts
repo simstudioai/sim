@@ -1,5 +1,6 @@
 import type { RipplingDeleteBusinessPartnerParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusinessPartnerParams> = {
   id: 'rippling_delete_business_partner',
@@ -22,7 +23,7 @@ export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusines
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/business-partners/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/business-partners/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

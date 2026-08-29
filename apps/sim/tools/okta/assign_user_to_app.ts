@@ -7,6 +7,7 @@ import type {
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaAssignUserToApp')
 
@@ -63,7 +64,7 @@ export const oktaAssignUserToAppTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/users`
+      return `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}/users`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

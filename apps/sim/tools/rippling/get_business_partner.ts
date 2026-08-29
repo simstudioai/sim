@@ -1,5 +1,6 @@
 import type { RipplingGetBusinessPartnerParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartnerParams> = {
   id: 'rippling_get_business_partner',
@@ -23,7 +24,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/business-partners/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/business-partners/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },

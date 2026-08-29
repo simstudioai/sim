@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGetGroupParams, OktaGetGroupResponse, OktaGroup } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetGroup')
 
@@ -36,7 +37,7 @@ export const oktaGetGroupTool: ToolConfig<OktaGetGroupParams, OktaGetGroupRespon
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -1,5 +1,6 @@
 import type { RipplingGetReportRunParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = {
   id: 'rippling_get_report_run',
@@ -17,7 +18,7 @@ export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = 
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/report-runs/${encodeURIComponent(params.runId.trim())}/`,
+      `https://rest.ripplingapis.com/report-runs/${safeUrlPathSegment(params.runId, 'runId')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

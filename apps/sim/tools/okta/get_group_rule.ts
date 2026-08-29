@@ -7,6 +7,7 @@ import type {
 } from '@/tools/okta/types'
 import { mapOktaGroupRule, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetGroupRule')
 
@@ -41,7 +42,7 @@ export const oktaGetGroupRuleTool: ToolConfig<OktaGetGroupRuleParams, OktaGetGro
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}`
+      return `https://${domain}/api/v1/groups/rules/${safeUrlPathSegment(params.groupRuleId, 'groupRuleId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -1,5 +1,6 @@
 import type { RipplingUpdateSupergroupInclusionMembersParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUpdateSupergroupInclusionMembersParams> =
   {
@@ -29,7 +30,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/inclusion-members/`,
+        `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/inclusion-members/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

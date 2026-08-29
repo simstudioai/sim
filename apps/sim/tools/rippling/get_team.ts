@@ -1,5 +1,6 @@
 import type { RipplingGetTeamParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   id: 'rippling_get_team',
@@ -23,7 +24,7 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/teams/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/teams/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },

@@ -1,5 +1,6 @@
 import type { RipplingGetCustomObjectParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomObjectTool: ToolConfig<RipplingGetCustomObjectParams> = {
   id: 'rippling_get_custom_object',
@@ -22,7 +23,7 @@ export const ripplingGetCustomObjectTool: ToolConfig<RipplingGetCustomObjectPara
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/`,
+      `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

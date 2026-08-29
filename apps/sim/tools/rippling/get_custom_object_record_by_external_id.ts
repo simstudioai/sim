@@ -1,6 +1,7 @@
 import type { RipplingGetCustomObjectRecordByExternalIdParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomObjectRecordByExternalIdTool: ToolConfig<RipplingGetCustomObjectRecordByExternalIdParams> =
   {
@@ -30,7 +31,7 @@ export const ripplingGetCustomObjectRecordByExternalIdTool: ToolConfig<RipplingG
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/external_id/${encodeURIComponent(params.externalId.trim())}/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/external_id/${safeUrlPathSegment(params.externalId, 'externalId')}/`,
       method: 'GET',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

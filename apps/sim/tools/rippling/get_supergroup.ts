@@ -1,6 +1,7 @@
 import type { RipplingGetSupergroupParams } from '@/tools/rippling/types'
 import { SUPERGROUP_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> = {
   id: 'rippling_get_supergroup',
@@ -18,7 +19,7 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

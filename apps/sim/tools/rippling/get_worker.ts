@@ -1,5 +1,6 @@
 import type { RipplingGetWorkerParams } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   id: 'rippling_get_worker',
@@ -23,7 +24,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/workers/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/workers/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },

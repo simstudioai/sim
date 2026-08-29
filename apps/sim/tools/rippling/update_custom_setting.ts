@@ -1,6 +1,7 @@
 import type { RipplingUpdateCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSettingParams> = {
   id: 'rippling_update_custom_setting',
@@ -60,7 +61,7 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

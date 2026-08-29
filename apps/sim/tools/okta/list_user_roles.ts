@@ -7,6 +7,7 @@ import type {
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaListUserRoles')
 
@@ -42,7 +43,7 @@ export const oktaListUserRolesTool: ToolConfig<OktaListUserRolesParams, OktaList
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/roles`
+        return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/roles`
       },
       method: 'GET',
       headers: (params) => oktaHeaders(params.apiKey),

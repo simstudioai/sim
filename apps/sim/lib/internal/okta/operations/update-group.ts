@@ -3,6 +3,7 @@ import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { OktaGroup, OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
 import { mergeOktaGroupProfile, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaUpdateGroup')
 
@@ -31,7 +32,7 @@ export const executeOktaUpdateGroupOperation: InternalToolOperationImplementatio
   OktaUpdateGroupParams
 > = async (params, signal): Promise<OktaUpdateGroupResponse> => {
   const domain = validateOktaDomain(params.domain)
-  const url = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+  const url = `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
   const headers = oktaHeaders(params.apiKey)
 
   const readResponse = await fetch(url, { headers, signal })
