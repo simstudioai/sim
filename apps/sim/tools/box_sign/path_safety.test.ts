@@ -110,7 +110,7 @@ describe('a padded signRequestId cannot become a successful cancellation', () =>
         accessToken: 't',
         signRequestId: PADDED,
       })
-    ).toThrow(/signRequestId cannot have leading or trailing whitespace/)
+    ).toThrow(/signRequestId must not have leading or trailing whitespace/)
   })
 
   it.each(STATE_CHANGING)('$name still accepts the unpadded id', ({ tool }) => {

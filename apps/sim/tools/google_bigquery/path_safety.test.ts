@@ -261,7 +261,7 @@ describe('a padded projectId cannot become a successful destructive request', ()
         datasetId: 'prod_dataset',
         tableId: 'prod_table',
       })
-    ).toThrow(/projectId cannot have leading or trailing whitespace/)
+    ).toThrow(/projectId must not have leading or trailing whitespace/)
   })
 
   it.each(DESTRUCTIVE)('$name still accepts the unpadded id', ({ tool }) => {

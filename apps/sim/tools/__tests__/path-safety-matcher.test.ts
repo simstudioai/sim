@@ -14,8 +14,8 @@ import { namesParam } from '@/tools/__tests__/path-safety'
 
 describe('namesParam', () => {
   it.each([
-    ['projectId cannot have leading or trailing whitespace', 'projectId'],
-    ['signRequestId cannot have leading or trailing whitespace', 'signRequestId'],
+    ['projectId must not have leading or trailing whitespace', 'projectId'],
+    ['signRequestId must not have leading or trailing whitespace', 'signRequestId'],
     ['bucket cannot contain a path separator', 'bucket'],
     ['path cannot contain an empty or whitespace-only path segment', 'path'],
     ['tableId cannot be "." (path traversal is not allowed)', 'tableId'],

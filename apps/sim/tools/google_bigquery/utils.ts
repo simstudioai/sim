@@ -1,5 +1,4 @@
-import { assertNoSurroundingWhitespace, strictUrlPathSegment } from '@/tools/strict-url-path'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { safeUrlPathSegment, strictUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Returns the canonical, unencoded form of an identifier that appears in both
@@ -37,8 +36,7 @@ export function strictCanonicalBigQueryId(
   value: string | number | bigint,
   paramName: string
 ): string {
-  assertNoSurroundingWhitespace(value, paramName)
-  return canonicalBigQueryId(value, paramName)
+  return decodeURIComponent(strictUrlPathSegment(value, paramName))
 }
 
 /**

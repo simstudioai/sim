@@ -1,5 +1,5 @@
-import { strictUrlPathSegment } from '@/tools/strict-url-path'
 import type { ToolConfig } from '@/tools/types'
+import { strictUrlPathSegment } from '@/tools/url-path'
 import type { BoxSignGetRequestParams, BoxSignResponse } from './types'
 import { SIGN_REQUEST_OUTPUT_PROPERTIES } from './types'
 

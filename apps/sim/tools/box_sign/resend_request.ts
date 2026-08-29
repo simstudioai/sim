@@ -1,5 +1,5 @@
-import { strictUrlPathSegment } from '@/tools/strict-url-path'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { strictUrlPathSegment } from '@/tools/url-path'
 import type { BoxSignResendRequestParams } from './types'
 
 export const boxSignResendRequestTool: ToolConfig<BoxSignResendRequestParams, ToolResponse> = {
