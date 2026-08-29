@@ -120,8 +120,23 @@ export async function executeSupabaseStorageUpload(
     const fullPath = input.path
       ? `${input.path.endsWith('/') ? input.path : `${input.path}/`}${input.fileName}`
       : input.fileName
-    const encodedBucket = encodeStorageSegment(input.bucket)
-    const encodedPath = encodeStoragePath(fullPath)
+    /**
+     * The storage path guards throw a plain `Error`, and the catch at the end of
+     * this function maps anything that is not a payload-size failure to 500.
+     * Every value they reject is caller-supplied — a `bucket` of `..`, a `path`
+     * with an empty segment — so reporting it as a server fault both
+     * misattributes the blame and buries the guard's named message behind a
+     * generic status. 400 is the accurate answer, and it matches how
+     * `validateSupabaseProjectId` above already reports a bad project id.
+     */
+    let encodedBucket: string
+    let encodedPath: string
+    try {
+      encodedBucket = encodeStorageSegment(input.bucket)
+      encodedPath = encodeStoragePath(fullPath)
+    } catch (error) {
+      return failureResponse(getErrorMessage(error, 'Invalid storage path'), 400)
+    }
     const baseUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object`
     const headers: Record<string, string> = {
       apikey: input.apiKey,

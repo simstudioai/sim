@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { SupabaseStorageGetPublicUrlParams } from '@/tools/supabase/types'
 import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tools/supabase/utils'
@@ -5,8 +6,24 @@ import { encodeStoragePath, encodeStorageSegment, supabaseBaseUrl } from '@/tool
 export const executeStorageGetPublicUrlOperation: InternalToolOperationImplementation<
   SupabaseStorageGetPublicUrlParams
 > = async (params: SupabaseStorageGetPublicUrlParams) => {
-  const bucket = encodeStorageSegment(params.bucket)
-  const path = encodeStoragePath(params.path)
+  /**
+   * Same reasoning as the upload operation: the path guards throw on
+   * caller-supplied values, and an uncaught throw here escapes as an opaque
+   * server failure rather than the guard's named message. This operation
+   * reports failure in its own result shape, so the rejection is surfaced there.
+   */
+  let bucket: string
+  let path: string
+  try {
+    bucket = encodeStorageSegment(params.bucket)
+    path = encodeStoragePath(params.path)
+  } catch (error) {
+    return {
+      success: false,
+      output: { message: getErrorMessage(error, 'Invalid storage path'), publicUrl: '' },
+      error: getErrorMessage(error, 'Invalid storage path'),
+    }
+  }
   let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${bucket}/${path}`
 
   if (params.download) {

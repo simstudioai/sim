@@ -124,3 +124,44 @@ describe('executeSupabaseStorageUpload', () => {
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })
+
+/**
+ * The storage path guards throw a plain `Error` on caller-supplied values.
+ * Before they existed nothing here threw, so an unmapped throw would surface as
+ * HTTP 500 and blame the server for the caller's `..` — while
+ * `validateSupabaseProjectId` one line above already reports a bad project id
+ * as 400. These assertions pin the attribution and the named message.
+ */
+describe('executeSupabaseStorageUpload path-guard failures', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.assertToolFileAccess.mockResolvedValue(null)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ Key: 'k' })))
+  })
+
+  it.each([
+    ['a traversal path', { path: '../..', fileName: 'x.txt' }],
+    ['an empty path segment', { path: 'a//b', fileName: 'x.txt' }],
+    ['a bucket that is a dot segment', { bucket: '..', fileName: 'x.txt' }],
+    ['a bucket carrying a separator', { bucket: 'a/b', fileName: 'x.txt' }],
+  ])('reports %s as 400, not 500', async (_label, overrides) => {
+    const response = await executeSupabaseStorageUpload(
+      { ...BASE_INPUT, fileData: 'hello', ...overrides },
+      { userId: 'user-1', requestId: 'request-1' }
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ success: false })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('names the offending parameter in the error', async () => {
+    const response = await executeSupabaseStorageUpload(
+      { ...BASE_INPUT, bucket: '..', fileData: 'hello' },
+      { userId: 'user-1', requestId: 'request-1' }
+    )
+    const body = (await response.json()) as { error?: string }
+
+    expect(body.error).toMatch(/bucket/)
+  })
+})
