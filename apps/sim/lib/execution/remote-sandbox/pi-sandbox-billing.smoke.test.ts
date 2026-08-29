@@ -60,6 +60,26 @@ describe.skipIf(!smokeEnabled)('pi sandbox billing smoke', () => {
   )
 
   it(
+    'bills nothing for a session that ended by throwing',
+    async () => {
+      // Mirrors the Function path: a sandbox that never delivered is absorbed
+      // rather than charged. Covers a provider crash, a lifetime limit, and a
+      // cancellation alike, since all three reach here the same way.
+      const sandboxCost: SandboxCostSink = { total: 0 }
+
+      await expect(
+        withPiSandbox({ lifetimeMs: LIFETIME_MS, cost: sandboxCost }, async (runner) => {
+          await runner.run('echo started', { envs: {}, timeoutMs: CASE_TIMEOUT_MS })
+          throw new Error('session failed after the sandbox was provisioned')
+        })
+      ).rejects.toThrow('session failed after the sandbox was provisioned')
+
+      expect(sandboxCost.total).toBe(0)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
     'bills nothing when no sink is supplied',
     async () => {
       // The mothership and any other internal caller must stay free, and the

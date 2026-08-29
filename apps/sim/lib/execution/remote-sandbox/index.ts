@@ -1142,21 +1142,31 @@ export async function withPiSandbox<T>(
     writeFile: (path, content) => sandbox.writeFile(path, content),
   }
 
+  let sessionCompleted = false
   try {
-    return await fn(runner)
+    const result = await fn(runner)
+    sessionCompleted = true
+    return result
   } finally {
     /*
-     * Charged on creation rather than on a successful session, which is where
-     * this departs from the Function path — and deliberately. A Function run is
-     * seconds long, so absorbing one that the provider failed to deliver costs
-     * little and reads as fair. A Pi session holds its sandbox for tens of
-     * minutes, and that compute is consumed whether the agent finished, errored,
-     * or was cancelled. Billing only the clean endings would mean paying for
-     * every other one. A create that throws never reaches here, so the one case
-     * where nothing was provisioned is still free.
+     * Charged only for a session that ran to completion, which is the same rule
+     * the Function path applies to its own outcomes: a run whose sandbox never
+     * delivered is not billed, because a charge nobody can tie to delivered work
+     * is not one worth defending. A session that ends by throwing — a provider
+     * crash, a lifetime limit, a cancellation — is absorbed, and a create that
+     * throws never reaches here at all.
+     *
+     * A command exiting non-zero is not a failure by this rule. `fn` returns
+     * normally there, the agent produced its answer, and the Function path bills
+     * its own non-zero exits for the same reason.
+     *
+     * Measured up to teardown rather than to the last command, so the window
+     * covers the whole time the provider held the sandbox.
      */
-    const cost = calculateSandboxCost(created, Date.now())
-    if (cost && options.cost) options.cost.total += cost.total
+    if (sessionCompleted) {
+      const cost = calculateSandboxCost(created, Date.now())
+      if (cost && options.cost) options.cost.total += cost.total
+    }
     try {
       await sandbox.kill()
     } catch {
