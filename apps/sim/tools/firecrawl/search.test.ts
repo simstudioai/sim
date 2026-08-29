@@ -227,3 +227,25 @@ describe('firecrawl_search declared nullability', () => {
     }
   })
 })
+
+describe('firecrawl_search round-two shape corrections', () => {
+  /**
+   * `scrapeOptions` is a free-form passthrough, so a saved configuration can request the `audio`
+   * or `video` formats and Firecrawl will answer with those signed URLs.
+   * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+   */
+  it.each(['web', 'news'] as const)('declares nullable audio and video on %s items', (source) => {
+    const item = searchTool.outputs?.data.properties?.[source].items?.properties
+
+    for (const field of ['audio', 'video']) {
+      expect(item?.[field]).toMatchObject({ type: 'string', optional: true, nullable: true })
+    }
+  })
+
+  it('declares metadata.url, the final URL after redirects', () => {
+    const metadata = searchTool.outputs?.data.properties?.web.items?.properties?.metadata
+
+    expect(metadata?.properties?.url).toMatchObject({ type: 'string', optional: true })
+    expect(metadata?.properties?.sourceURL.optional).toBeUndefined()
+  })
+})

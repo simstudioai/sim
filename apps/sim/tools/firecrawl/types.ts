@@ -86,7 +86,16 @@ export const CRAWL_METADATA_OUTPUT: OutputProperty = {
 export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title', optional: true },
   description: { type: 'string', description: 'Page meta description', optional: true },
-  sourceURL: { type: 'string', description: 'Original source URL' },
+  sourceURL: {
+    type: 'string',
+    description:
+      'The originally requested URL. Differs from `url` when the request was redirected.',
+  },
+  url: {
+    type: 'string',
+    description: 'The final URL of the page after all redirects were followed',
+    optional: true,
+  },
   statusCode: { type: 'number', description: 'HTTP status code', optional: true },
   error: {
     type: 'string',
@@ -130,7 +139,6 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Screenshot URL (expires after 24 hours)',
     optional: true,
-    nullable: true,
   },
   metadata: CRAWL_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
@@ -188,6 +196,20 @@ export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
     optional: true,
     nullable: true,
   },
+  audio: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted MP3 audio (expires after 1 hour); returned only when "audio" is among the requested scrape formats',
+    optional: true,
+    nullable: true,
+  },
+  video: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted video (expires after 1 hour); returned only when "video" is among the requested scrape formats',
+    optional: true,
+    nullable: true,
+  },
   metadata: SEARCH_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
@@ -234,6 +256,20 @@ export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
   screenshot: {
     type: 'string',
     description: 'Screenshot URL (expires after 24 hours); returned only when requested',
+    optional: true,
+    nullable: true,
+  },
+  audio: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted MP3 audio (expires after 1 hour); returned only when "audio" is among the requested scrape formats',
+    optional: true,
+    nullable: true,
+  },
+  video: {
+    type: 'string',
+    description:
+      'Signed URL to the extracted video (expires after 1 hour); returned only when "video" is among the requested scrape formats',
     optional: true,
     nullable: true,
   },
@@ -490,6 +526,8 @@ interface ScrapedSearchContent {
   rawHtml?: string | null
   links?: string[]
   screenshot?: string | null
+  audio?: string | null
+  video?: string | null
   metadata?: SearchResultMetadata
 }
 

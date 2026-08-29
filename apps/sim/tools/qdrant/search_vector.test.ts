@@ -152,3 +152,11 @@ describe('qdrant block declared outputs', () => {
     }
   )
 })
+
+describe('firecrawl crawl outputs are untouched by the search nullability pass', () => {
+  it('leaves the crawled-page screenshot declaration alone', async () => {
+    const { CRAWLED_PAGE_OUTPUT_PROPERTIES } = await import('@/tools/firecrawl/types')
+
+    expect(CRAWLED_PAGE_OUTPUT_PROPERTIES.screenshot).not.toHaveProperty('nullable')
+  })
+})

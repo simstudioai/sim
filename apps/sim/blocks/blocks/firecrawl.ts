@@ -368,6 +368,17 @@ Example 2 - Product Data:
       },
     },
     {
+      id: 'mapTimeout',
+      title: 'Map Timeout (ms)',
+      type: 'short-input',
+      placeholder: '30000',
+      description: "Firecrawl's own deadline for the map request. Leave empty for no timeout.",
+      condition: {
+        field: 'operation',
+        value: 'map',
+      },
+    },
+    {
       id: 'includeTags',
       title: 'Include Tags',
       type: 'long-input',
@@ -609,10 +620,18 @@ Example 2 - Product Data:
             if (onlyMainContent != null) result.onlyMainContent = onlyMainContent
             break
 
-          case 'map':
+          case 'map': {
             if (url) result.url = url
             if (limit) result.limit = Number.parseInt(limit)
+            /**
+             * Forwarded raw so the tool's own guard decides: it keeps an explicit `0` and drops a
+             * blank field, which a `Number.parseInt` here would collapse into `NaN`.
+             */
+            if (params.mapTimeout != null && params.mapTimeout !== '') {
+              result.mapTimeout = params.mapTimeout
+            }
             break
+          }
 
           case 'extract':
             if (urls) {
@@ -782,6 +801,10 @@ Example 2 - Product Data:
     limit: { type: 'string', description: 'Result/page limit' },
     formats: { type: 'json', description: 'Output formats array' },
     timeout: { type: 'number', description: 'Request timeout in ms' },
+    mapTimeout: {
+      type: 'number',
+      description: "Firecrawl's own deadline for a map request, in ms",
+    },
     waitFor: { type: 'number', description: 'Wait time before scraping in ms' },
     mobile: { type: 'boolean', description: 'Use mobile emulation' },
     onlyMainContent: { type: 'boolean', description: 'Extract only main content' },

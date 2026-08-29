@@ -176,10 +176,13 @@ Search for information on the web using Firecrawl
 |     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
 |     ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
+|     ↳ `audio` | string | Signed URL to the extracted MP3 audio \(expires after 1 hour\); returned only when "audio" is among the requested scrape formats |
+|     ↳ `video` | string | Signed URL to the extracted video \(expires after 1 hour\); returned only when "video" is among the requested scrape formats |
 |     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
-|       ↳ `sourceURL` | string | Original source URL |
+|       ↳ `sourceURL` | string | The originally requested URL. Differs from `url` when the request was redirected. |
+|       ↳ `url` | string | The final URL of the page after all redirects were followed |
 |       ↳ `statusCode` | number | HTTP status code |
 |       ↳ `error` | string | Error message if scrape failed |
 |   ↳ `news` | array | News search results \(present only when "news" is among the requested sources\) |
@@ -194,10 +197,13 @@ Search for information on the web using Firecrawl
 |     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats |
 |     ↳ `links` | array | Links found on the article page; returned only when "links" was requested |
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when requested |
+|     ↳ `audio` | string | Signed URL to the extracted MP3 audio \(expires after 1 hour\); returned only when "audio" is among the requested scrape formats |
+|     ↳ `video` | string | Signed URL to the extracted video \(expires after 1 hour\); returned only when "video" is among the requested scrape formats |
 |     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
-|       ↳ `sourceURL` | string | Original source URL |
+|       ↳ `sourceURL` | string | The originally requested URL. Differs from `url` when the request was redirected. |
+|       ↳ `url` | string | The final URL of the page after all redirects were followed |
 |       ↳ `statusCode` | number | HTTP status code |
 |       ↳ `error` | string | Error message if scrape failed |
 |   ↳ `images` | array | Image search results \(present only when "images" is among the requested sources\) |
