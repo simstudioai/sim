@@ -138,8 +138,6 @@ export interface WorkflowGroup {
   id: string
   /** Backing workflow id for `manual` groups. `''` for enrichment groups. */
   workflowId: string
-  /** Immutable deployment version whose input and output coordinates this group stores. */
-  deploymentVersionId?: string
   /** Registry enrichment id for `enrichment` groups. */
   enrichmentId?: string
   /** Display name; defaults to the workflow's / enrichment's name. */
@@ -967,12 +965,6 @@ export interface UpdateWorkflowGroupData {
   resolvedMappingTypes?: {
     workflowId: string
     columns: Array<{ columnName: string; type: ColumnDefinition['type'] }>
-  }
-  /** Workflow-authorized deployment snapshot to pin after this update. */
-  resolvedDeployment?: {
-    workflowId: string
-    deploymentVersionId: string
-    validOutputCoordinates: Array<{ blockId: string; path: string }>
   }
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]

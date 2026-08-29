@@ -89,7 +89,6 @@ import {
 const group: WorkflowGroup = {
   id: 'group-1',
   workflowId: 'workflow-1',
-  deploymentVersionId: 'deployment-version-1',
   outputs: [{ blockId: 'block-1', path: 'content', columnName: 'column-result' }],
 }
 const table: TableDefinition = {
@@ -148,7 +147,6 @@ const principal = {
 }
 const resolvedWorkflow = {
   workflowId: 'workflow-1',
-  deploymentVersionId: 'deployment-version-1',
   outputs: [
     {
       blockId: 'block-1',
@@ -239,9 +237,6 @@ describe('workflow and enrichment Table application commands', () => {
         ...(input.workflowId ? { workflowId: input.workflowId } : {}),
         ...(input.name ? { name: input.name } : {}),
         ...(input.outputs ? { outputs: input.outputs } : {}),
-        ...(input.resolvedDeployment
-          ? { deploymentVersionId: input.resolvedDeployment.deploymentVersionId }
-          : {}),
         ...(input.autoRun !== undefined ? { autoRun: input.autoRun } : {}),
       })
     )
@@ -276,7 +271,6 @@ describe('workflow and enrichment Table application commands', () => {
         group: expect.objectContaining({
           id: 'generated-id',
           workflowId: 'workflow-1',
-          deploymentVersionId: 'deployment-version-1',
           name: 'Scoring',
           autoRun: false,
           outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
@@ -538,7 +532,6 @@ describe('workflow and enrichment Table application commands', () => {
       'request-1'
     )
     expect(result.group.workflowId).toBe('workflow-1')
-    expect(result.group.deploymentVersionId).toBe('deployment-version-1')
   })
 
   it('still creates an enrichment-template group that carries a backing workflow', async () => {
@@ -580,64 +573,6 @@ describe('workflow and enrichment Table application commands', () => {
 
     expect(mocks.updateGroup).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('refuses to repin mappings that the new active deployment cannot produce', async () => {
-    mocks.loadWorkflowOutputs.mockResolvedValueOnce({
-      ...resolvedWorkflow,
-      deploymentVersionId: 'deployment-version-2',
-      outputs: resolvedWorkflow.outputs.filter((output) => output.blockId !== 'block-1'),
-    })
-
-    await expect(
-      updateTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: group.id,
-          workflowId: group.workflowId,
-          outputs: group.outputs,
-        },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('Invalid output(s) for workflow workflow-1'),
-    })
-
-    expect(mocks.updateGroup).not.toHaveBeenCalled()
-  })
-
-  it('pins a compatible active deployment when workflow mappings are saved', async () => {
-    mocks.loadWorkflowOutputs.mockResolvedValueOnce({
-      ...resolvedWorkflow,
-      deploymentVersionId: 'deployment-version-2',
-    })
-
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        workflowId: group.workflowId,
-        outputs: group.outputs,
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resolvedDeployment: {
-          workflowId: 'workflow-1',
-          deploymentVersionId: 'deployment-version-2',
-          validOutputCoordinates: [
-            { blockId: 'block-1', path: 'content' },
-            { blockId: 'block-2', path: 'score' },
-          ],
-        },
-      }),
-      'request-1'
-    )
   })
 
   it('preserves an existing output coordinate that is no longer pickable', async () => {
@@ -1130,7 +1065,6 @@ describe('workflow and enrichment Table application commands', () => {
       expect.objectContaining({
         resolvedOutput: expect.objectContaining({
           workflowId: 'workflow-1',
-          deploymentVersionId: 'deployment-version-1',
           columnType: 'number',
           order: expect.arrayContaining([
             expect.objectContaining({ blockId: 'block-2', executionDistance: 2 }),

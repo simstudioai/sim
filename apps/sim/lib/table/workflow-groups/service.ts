@@ -296,13 +296,6 @@ export async function updateWorkflowGroup(
           throw new OrchestrationError('not_found', `Workflow group "${data.groupId}" not found`)
         }
         const group = groups[groupIndex]
-        const finalWorkflowId = data.workflowId ?? group.workflowId
-        if (data.resolvedDeployment && data.resolvedDeployment.workflowId !== finalWorkflowId) {
-          throw new OrchestrationError(
-            'conflict',
-            `Workflow group "${data.groupId}" changed concurrently; retry the update.`
-          )
-        }
 
         // Normalize every caller-supplied column reference to its stable id, so
         // the diff/splice/clear logic below operates uniformly in id-space (the
@@ -368,6 +361,7 @@ export async function updateWorkflowGroup(
           // Only apply the out-of-lock leaf-type resolution if the group still
           // points at the workflow we resolved against. A concurrent workflow
           // remap invalidates the command snapshot and must be retried.
+          const finalWorkflowId = data.workflowId ?? group.workflowId
           if (remapLeafTypeById.size > 0 && resolvedForWorkflowId !== finalWorkflowId) {
             throw new OrchestrationError(
               'conflict',
@@ -388,22 +382,6 @@ export async function updateWorkflowGroup(
         // If the caller passed `outputs`, that's the new full set. If only
         // `mappingUpdates` was sent, the new set is the remapped old set.
         const newOutputs = outputsInput ?? oldOutputs
-        if (data.resolvedDeployment) {
-          const validCoordinates = new Set(
-            data.resolvedDeployment.validOutputCoordinates.map(
-              (output) => `${output.blockId}::${output.path}`
-            )
-          )
-          const invalidOutput = newOutputs.find(
-            (output) => !validCoordinates.has(`${output.blockId}::${output.path}`)
-          )
-          if (invalidOutput) {
-            throw new OrchestrationError(
-              'conflict',
-              `Workflow group "${data.groupId}" mappings changed concurrently; retry the update.`
-            )
-          }
-        }
         // Enrichment outputs all share empty `blockId`/`path`, so keying on those
         // alone collapses every sibling to one entry (dropping columns on diff). Key
         // on the registry `outputId` when present; fall back to `blockId::path` for
@@ -467,10 +445,7 @@ export async function updateWorkflowGroup(
 
         const updatedGroup: WorkflowGroup = {
           ...group,
-          workflowId: finalWorkflowId,
-          ...(data.resolvedDeployment
-            ? { deploymentVersionId: data.resolvedDeployment.deploymentVersionId }
-            : {}),
+          workflowId: data.workflowId ?? group.workflowId,
           name: data.name ?? group.name,
           dependencies: dependenciesInput ?? group.dependencies,
           outputs: newOutputs,
@@ -654,7 +629,6 @@ export async function addWorkflowGroupOutput(
     actorUserId?: string | null
     resolvedOutput: {
       workflowId: string
-      deploymentVersionId: string
       columnType: ColumnDefinition['type']
       order: Array<{
         blockId: string
@@ -779,7 +753,6 @@ export async function addWorkflowGroupOutput(
       const orderedGroupColIds = allGroupOutputs.map((o) => o.columnName)
       const updatedGroup: WorkflowGroup = {
         ...group,
-        deploymentVersionId: data.resolvedOutput.deploymentVersionId,
         outputs: allGroupOutputs,
       }
       const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
