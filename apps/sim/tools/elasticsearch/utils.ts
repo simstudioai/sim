@@ -13,6 +13,10 @@ const DEFAULT_CLOUD_PORT = '443'
  * Mirrors the `strings.IndexAny(component, "#@?/")` reject set in Beats, plus
  * `\`, which the WHATWG URL parser treats as a path separator for special
  * schemes and which therefore truncates the authority exactly as `/` does.
+ *
+ * A `:` is deliberately absent — `extractPortFromName` has already split each
+ * component at its last colon, so a surviving colon means a second one, which
+ * the all-digits port check below rejects.
  */
 const CLOUD_ID_REJECTED_CHARACTERS = /[#@?/\\]/
 
@@ -59,8 +63,10 @@ export function parseCloudId(cloudId: string): string {
     }
   }
 
-  if (!/^\d+$/.test(elasticsearch.port)) {
-    throw new Error('Invalid Cloud ID format')
+  for (const port of [parentDomain.port, elasticsearch.port]) {
+    if (!/^\d+$/.test(port)) {
+      throw new Error('Invalid Cloud ID format')
+    }
   }
 
   const host = `${elasticsearch.name}.${parentDomain.name}`

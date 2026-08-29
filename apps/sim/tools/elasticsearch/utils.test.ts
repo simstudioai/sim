@@ -62,6 +62,23 @@ describe('parseCloudId', () => {
     expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
   })
 
+  it('rejects a malformed parent-domain port even when the service port is valid', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}:abc$${ES_UUID}:9243$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
+  /**
+   * `extractPortFromName` splits at the last colon, so a second colon survives
+   * in the *name* half, where the `#@?/\` reject set does not catch it. Left
+   * unchecked this builds `https://<uuid>.<host>:<port>:<port>`, which throws a
+   * bare `TypeError: Invalid URL` inside the transport instead of naming the
+   * real problem.
+   */
+  it('rejects a second colon in the parent domain rather than building an invalid authority', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}:9243:evil@x$${ES_UUID}:9243$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
   it('rejects a payload with fewer than three $-separated components', () => {
     expect(() => parseCloudId(cloudId(`${PARENT_DOMAIN}$${ES_UUID}`))).toThrow(/Invalid Cloud ID/)
   })
