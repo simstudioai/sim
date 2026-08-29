@@ -21,7 +21,7 @@
  * output, because string matching is exactly what let this through.
  */
 import { describe, expect, it } from 'vitest'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 import { vercelDeleteEdgeConfigTool } from '@/tools/vercel/delete_edge_config'
 import { vercelGetEdgeConfigTool } from '@/tools/vercel/get_edge_config'
 import { vercelGetEdgeConfigItemsTool } from '@/tools/vercel/get_edge_config_items'
@@ -64,7 +64,14 @@ const LEGITIMATE_IDS = [
 
 const SAFE_ID = 'SAFEID'
 
-type AnyTool = ToolConfig<any, any>
+/**
+ * The slice of a tool this harness reads. `ToolConfig`'s param type sits in the
+ * contravariant position of `request.url`, so no concrete member of the barrel's
+ * union is assignable to a widened `ToolConfig<Record<string, unknown>, …>`. The
+ * barrel is therefore seeded as `unknown` below and narrowed by {@link isVercelTool},
+ * which is the single point where the type is established.
+ */
+type AnyTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
 function isVercelTool(value: unknown): value is AnyTool {
   return (
@@ -102,14 +109,14 @@ function buildPath(tool: AnyTool, value: string): string {
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any)).pathname
+  return new URL(url(buildParams(tool, value))).pathname
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(vercelTools)
+const DYNAMIC_PATH_TOOLS = Object.values<unknown>(vercelTools)
   .filter(isVercelTool)
   .filter((tool) => typeof tool.request?.url === 'function')
   .filter((tool) => {
