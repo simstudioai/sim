@@ -222,7 +222,32 @@ describe('colon handling inherited from safeUrlPath', () => {
  */
 describe('empty segments in a storage key', () => {
   it.each(['/folder/x.png', 'folder//x.png', 'folder/x.png/'])('rejects %j', (value) => {
-    expect(() => encodeStoragePath(value)).toThrow(/empty or whitespace-only path segment/)
+    expect(() => encodeStoragePath(value)).toThrow(/empty path segment/)
+  })
+
+  /**
+   * A **whitespace-only** component is permitted, and that is not the same rule.
+   *
+   * `safeUrlPath` originally rejected `!segment.trim()`, which lumped `a/ /b` in
+   * with `a//b`. #7262 narrowed it to `!segment` after this suite flagged the
+   * over-rejection, and the distinction is exactly right for an object key: a
+   * component that is a single space is a legal, nameable key component, while a
+   * genuinely empty one addresses a *different* object than the caller wrote.
+   *
+   * Both halves are pinned here, because collapsing them again in either
+   * direction is a silent correctness change — one direction makes a real key
+   * unreachable, the other silently retargets the request.
+   */
+  it.each(['a/ /b', 'a/  /b', 'folder/ /file.png'])(
+    'permits the whitespace-only component in %j',
+    (value) => {
+      expect(decodeURIComponent(encodeStoragePath(value))).toBe(value)
+    }
+  )
+
+  it('keeps a whitespace-only component distinct from an empty one', () => {
+    expect(encodeStoragePath('a/ /b')).toBe('a/%20/b')
+    expect(() => encodeStoragePath('a//b')).toThrow(/empty path segment/)
   })
 
   it('would otherwise have addressed a different object', () => {

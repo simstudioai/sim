@@ -47,6 +47,15 @@ export function encodeStorageSegment(segment: string, paramName = 'bucket'): str
  * normalizes its own trailing separator before joining `path` and `fileName`,
  * so the only way to produce an empty segment is a typo the caller wants to
  * hear about.
+ *
+ * A **whitespace-only** component is a different case and is permitted: `a/ /b`
+ * encodes to `a/%20/b`. That is a legal, nameable object key component, whereas
+ * `a//b` names something else entirely. `safeUrlPath` originally conflated the
+ * two by testing `!segment.trim()`; #7262 narrowed it to `!segment` after this
+ * suite flagged the over-rejection. Both halves are pinned in
+ * `path_safety.test.ts`, because collapsing them again in either direction is a
+ * silent correctness change — one makes a real key unreachable, the other
+ * retargets the request.
  */
 export function encodeStoragePath(path: string, paramName = 'path'): string {
   return safeUrlPath(path, paramName)
