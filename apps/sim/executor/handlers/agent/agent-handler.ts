@@ -60,7 +60,11 @@ import type {
   StreamingConfig,
   ToolInput,
 } from '@/executor/handlers/agent/types'
-import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
+import {
+  assertStructuredOutputNotTokenLimited,
+  DEFAULT_STRUCTURED_OUTPUT_MAX_TOKENS,
+  parseResponseFormat,
+} from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
@@ -2426,7 +2430,11 @@ export class AgentBlockHandler implements BlockHandler {
           ? Number(inputs.temperature)
           : undefined,
       maxTokens:
-        inputs.maxTokens != null && inputs.maxTokens !== '' ? Number(inputs.maxTokens) : undefined,
+        inputs.maxTokens != null && inputs.maxTokens !== ''
+          ? Number(inputs.maxTokens)
+          : responseFormat
+            ? DEFAULT_STRUCTURED_OUTPUT_MAX_TOKENS
+            : undefined,
       apiKey: inputs.apiKey,
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
@@ -2758,6 +2766,11 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext
   ): BlockOutput {
     const content = result.content
+
+    assertStructuredOutputNotTokenLimited(result.timing, {
+      content,
+      ...this.createResponseMetadata(result),
+    })
 
     try {
       const extractedJson = JSON.parse(content.trim())

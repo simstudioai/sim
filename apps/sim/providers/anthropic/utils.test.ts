@@ -85,6 +85,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
         }
         yield {
           type: 'message_delta',
+          delta: { stop_reason: 'max_tokens', stop_sequence: null },
           usage: {
             input_tokens: 10,
             output_tokens: 40,
@@ -105,6 +106,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       cacheWriteFiveMinute: 10,
       cacheWriteOneHour: 20,
     })
+    expect(onComplete.mock.calls[0][0].finishReason).toBe('max_tokens')
   })
 
   it('records [redacted] for redacted_thinking blocks and streams text', async () => {

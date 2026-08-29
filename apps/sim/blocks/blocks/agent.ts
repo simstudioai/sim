@@ -399,6 +399,8 @@ Return ONLY the JSON array.`,
       title: 'Max Output Tokens',
       type: 'short-input',
       placeholder: 'Enter max tokens (e.g., 4096)...',
+      description:
+        'Maximum response length. When blank, structured responses use 4,096 tokens; other responses use the model default.',
       mode: 'advanced',
       condition: {
         field: 'model',

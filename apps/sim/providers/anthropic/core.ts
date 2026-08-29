@@ -512,7 +512,7 @@ export async function executeAnthropicProviderRequest(
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          ({ content, usage, thinking }) => {
+          ({ content, usage, thinking, finishReason }) => {
             const tokens = buildAnthropicUsageTokens(usage)
             const cost = buildAnthropicUsageCost(request.model, usage)
             output.content = content
@@ -530,6 +530,9 @@ export async function executeAnthropicProviderRequest(
               }
               if (thinking) {
                 segment.thinkingContent = thinking
+              }
+              if (finishReason) {
+                segment.finishReason = finishReason
               }
             }
 

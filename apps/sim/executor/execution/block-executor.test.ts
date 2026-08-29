@@ -1224,6 +1224,7 @@ describe('BlockExecutor streaming pump', () => {
     failAfterText?: string
     streamError?: Error
     onFullContent?: (content: string) => void | Promise<void>
+    finishReason?: string
     resolvedSecret?: { name: string; value: string }
     separateResultRegistry?: boolean
   }): BlockHandler {
@@ -1278,6 +1279,9 @@ describe('BlockExecutor streaming pump', () => {
             }
             if (options.attachThinkingOnDrain) {
               timeSegment.thinkingContent = options.attachThinkingOnDrain
+            }
+            if (options.finishReason) {
+              timeSegment.finishReason = options.finishReason
             }
             controller.close()
           },
@@ -1532,6 +1536,33 @@ describe('BlockExecutor streaming pump', () => {
     expect(loggerPayload).not.toContain('__var_')
     expect(loggerPayload).not.toContain('__sim_')
     expect(callbackError.message).toContain(secret)
+  })
+
+  it('fails token-limited structured streams before downstream completion', async () => {
+    const onFullContent = vi.fn()
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'text_delta', text: '{"answer":"unfinished', turn: 'final' }],
+      finishReason: 'max_tokens',
+      onFullContent,
+    })
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+    }
+    const ctx = createContext(state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      /maximum output-token limit/i
+    )
+
+    expect(onFullContent).not.toHaveBeenCalled()
+    expect(state.getBlockOutput(block.id)).toMatchObject({
+      content: '{"answer":"unfinished',
+      error: expect.stringMatching(/maximum output-token limit/i),
+    })
+    expect(state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.finishReason).toBe(
+      'max_tokens'
+    )
   })
 
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {

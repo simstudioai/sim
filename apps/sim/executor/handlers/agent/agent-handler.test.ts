@@ -1967,6 +1967,67 @@ describe('AgentBlockHandler', () => {
       })
     })
 
+    it.each([
+      {
+        name: 'defaults structured output to 4,096 tokens',
+        responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+        maxTokens: undefined,
+        expectedMaxTokens: 4096,
+      },
+      {
+        name: 'keeps an explicit structured-output limit',
+        responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+        maxTokens: '512',
+        expectedMaxTokens: 512,
+      },
+      {
+        name: 'leaves an unstructured output limit unset',
+        responseFormat: undefined,
+        maxTokens: undefined,
+        expectedMaxTokens: undefined,
+      },
+    ])('$name', async ({ responseFormat, maxTokens, expectedMaxTokens }) => {
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+        maxTokens,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].maxTokens).toBe(expectedMaxTokens)
+    })
+
+    it('fails non-streaming structured output that reaches its token limit', async () => {
+      mockExecuteProviderRequest.mockResolvedValueOnce({
+        content: '{"answer":"unfinished',
+        model: 'mock-model',
+        tokens: { input: 10, output: 4096, total: 4106 },
+        timing: {
+          timeSegments: [
+            {
+              type: 'model',
+              startTime: 1,
+              endTime: 2,
+              duration: 1,
+              finishReason: 'max_tokens',
+            },
+          ],
+        },
+        toolCalls: [],
+      })
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'claude-sonnet-5',
+          userPrompt: 'Return an answer.',
+          responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+        })
+      ).rejects.toMatchObject({
+        code: 'structured_output_token_limit',
+        retryable: false,
+      })
+    })
+
     it('keeps an ordinary response format unchanged without resolver-recorded lineage', async () => {
       const responseFormat = {
         name: 'response_schema',

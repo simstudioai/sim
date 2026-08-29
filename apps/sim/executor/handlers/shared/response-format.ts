@@ -1,8 +1,57 @@
 import { createLogger } from '@sim/logger'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import type { BlockOutput } from '@/blocks/types'
 import { REFERENCE } from '@/executor/constants'
 
 const logger = createLogger('SharedResponseFormat')
+
+export const DEFAULT_STRUCTURED_OUTPUT_MAX_TOKENS = 4096
+
+const TOKEN_LIMIT_FINISH_REASONS = new Set(['max_tokens', 'max_output_tokens', 'length'])
+
+interface ProviderTimingLike {
+  timeSegments?: Array<{
+    type?: string
+    finishReason?: string
+  }>
+}
+
+export class StructuredOutputTokenLimitError extends NonRetryableExecutionError {
+  readonly code = 'structured_output_token_limit' as const
+  readonly diagnosticOutput?: Record<string, unknown>
+
+  constructor(diagnosticOutput?: Record<string, unknown>) {
+    super(
+      'Structured output reached the maximum output-token limit before completion. Increase Max Output Tokens or reduce the requested response size.'
+    )
+    this.name = 'StructuredOutputTokenLimitError'
+    this.diagnosticOutput = diagnosticOutput
+    Object.defineProperty(this, 'diagnosticOutput', { enumerable: false })
+  }
+}
+
+/**
+ * Rejects explicitly token-limited structured generations before their partial
+ * content can be parsed or exposed as a successful block output.
+ */
+export function assertStructuredOutputNotTokenLimited(
+  timing?: ProviderTimingLike,
+  diagnosticOutput?: Record<string, unknown>
+): void {
+  const segments = timing?.timeSegments
+  if (!Array.isArray(segments)) return
+
+  for (let index = segments.length - 1; index >= 0; index--) {
+    const segment = segments[index]
+    if (segment?.type !== 'model') continue
+
+    const finishReason = segment.finishReason?.trim().toLowerCase()
+    if (finishReason && TOKEN_LIMIT_FINISH_REASONS.has(finishReason)) {
+      throw new StructuredOutputTokenLimitError(diagnosticOutput)
+    }
+    return
+  }
+}
 
 /**
  * Parse a raw responseFormat value (string or object) into a usable schema.
