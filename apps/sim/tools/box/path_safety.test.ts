@@ -26,10 +26,12 @@ const BASE_PATH = '/2.0/'
 const LEGITIMATE_IDS = ['0', '12345', '987654321012', '1608589364'] as const
 
 /**
- * Tools whose URL embeds no caller-supplied path segment — static or purely
- * query-string driven. Pinned so a tool cannot silently drop out of coverage.
+ * Every tool contributing no path parameter, pinned exactly so none can leave
+ * coverage unnoticed. Each entry is one of: a static or query-string-only URL,
+ * a `url` declared as a constant string, or an `InternalToolConfig` whose URL is
+ * built in `lib/internal/**` and is therefore out of this suite's reach.
  */
-const STATIC_URL_TOOLS = ['box_search']
+const STATIC_URL_TOOLS = ['box_create_folder', 'box_search', 'box_upload_file']
 
 const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(boxTools, 'box_')
 

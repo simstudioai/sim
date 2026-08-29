@@ -52,15 +52,20 @@ const LEGITIMATE_KEYS = [
 ] as const
 
 /**
- * Tools whose URL embeds no caller-supplied path segment — static or purely
- * query-string driven. Pinned so a tool cannot silently drop out of coverage.
+ * Every tool contributing no path parameter, pinned exactly so none can leave
+ * coverage unnoticed. Each entry is one of: a static or query-string-only URL,
+ * a `url` declared as a constant string, or an `InternalToolConfig` whose URL is
+ * built in `lib/internal/**` and is therefore out of this suite's reach.
  */
 const STATIC_URL_TOOLS = [
   'supabase_introspect',
   'supabase_storage_copy',
   'supabase_storage_create_bucket',
+  'supabase_storage_get_public_url',
   'supabase_storage_list_buckets',
   'supabase_storage_move',
+  'supabase_storage_update_bucket',
+  'supabase_storage_upload',
 ]
 
 const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(

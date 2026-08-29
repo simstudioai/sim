@@ -36,10 +36,21 @@ const LEGITIMATE_IDS = [
 ] as const
 
 /**
- * Tools whose URL embeds no caller-supplied path segment — static or purely
- * query-string driven. Pinned so a tool cannot silently drop out of coverage.
+ * Every tool contributing no path parameter, pinned exactly so none can leave
+ * coverage unnoticed. Each entry is one of: a static or query-string-only URL,
+ * a `url` declared as a constant string, or an `InternalToolConfig` whose URL is
+ * built in `lib/internal/**` and is therefore out of this suite's reach.
  */
-const STATIC_URL_TOOLS = ['google_drive_get_about', 'google_drive_list', 'google_drive_search']
+const STATIC_URL_TOOLS = [
+  'google_drive_create_folder',
+  'google_drive_download',
+  'google_drive_export',
+  'google_drive_get_about',
+  'google_drive_list',
+  'google_drive_move',
+  'google_drive_search',
+  'google_drive_upload',
+]
 
 const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(
   googleDriveTools,

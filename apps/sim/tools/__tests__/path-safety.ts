@@ -286,17 +286,33 @@ export function discoverPathParams(
 }
 
 /**
- * Lists the service's tools that contribute **no** (tool, parameter) pair.
+ * Lists every tool of a service that contributes **no** (tool, parameter) pair.
  *
- * Each suite pins this set exactly. A tool belongs here only if its URL is
- * genuinely static or purely query-string driven; if one ever appears because a
- * sibling parameter threw before the real ones could be probed, the tool has
- * silently left coverage entirely, and a case that is never generated can never
- * fail. Pinning the set turns that from invisible into a failing assertion.
+ * Each suite pins this set exactly, so a tool cannot leave path coverage
+ * unnoticed: if one ever gains a guarded path parameter it becomes a covered
+ * pair, the set shrinks, and the assertion fails until someone looks.
  *
- * Sibling parameters are filled from their declared `type` — `1` for `number`,
- * `false` for `boolean`, `[]` for `json`/`array` — precisely so an early
- * type check on a sibling cannot be what removes a tool from the suite.
+ * The enumeration is deliberately **looser** than {@link discoverPathParams}.
+ * That function can only drive a tool whose `request.url` is a function, since
+ * it has to call it. Filtering the inventory the same way would make three
+ * whole categories invisible to *both* sides and let the pin pass vacuously —
+ * which is exactly what happened before: `box_create_folder` declares
+ * `url` as a plain **string**, and `box_upload_file` is an `InternalToolConfig`
+ * with no `request` at all, so neither appeared in the covered pairs *or* in
+ * the pinned set, and `toEqual(['box_search'])` passed precisely because they
+ * could not be seen. Eleven tools across four services were invisible that way.
+ *
+ * So this walks every export whose `id` carries the service prefix, whatever
+ * shape its request takes, and reports the ones no pair covers. The pinned list
+ * then states the real inventory, and each entry has to be justified as one of:
+ *
+ * - a genuinely static or query-string-only URL (`box_search`);
+ * - a `url` declared as a constant string (`box_create_folder`);
+ * - an `InternalToolConfig` whose URL is built in `lib/internal/**`
+ *   (`supabase_storage_upload`). **These are outside what this suite can
+ *   reach**, and are covered instead by direct unit tests on the helper they
+ *   use — see the `encodeStoragePath` / `encodeStorageSegment` describes in
+ *   `supabase/path_safety.test.ts`.
  */
 export function toolsWithoutPathParams(
   barrel: Record<string, unknown>,
@@ -307,9 +323,8 @@ export function toolsWithoutPathParams(
   const withParams = new Set(covered.map(({ tool }) => tool.id))
 
   return Object.values(barrel)
-    .map(asPathTool)
-    .filter((tool): tool is PathTool => tool?.id.startsWith(idPrefix))
-    .map(({ id }) => id)
+    .map((value) => (value as { id?: unknown } | null)?.id)
+    .filter((id): id is string => typeof id === 'string' && id.startsWith(idPrefix))
     .filter((id) => !withParams.has(id))
     .sort()
 }
