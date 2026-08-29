@@ -43,6 +43,7 @@ import {
   SandboxProcessOutputBudget,
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import {
   quoteDependency,
   type SandboxSpec,
@@ -55,6 +56,7 @@ import type {
   RunCommandOptions,
   SandboxCodeResult,
   SandboxCommandResult,
+  SandboxDirectoryEntry,
   SandboxHandle,
   SandboxImageBuild,
   SandboxImageBuilder,
@@ -626,6 +628,25 @@ class E2BSandboxHandle implements SandboxHandle {
 
   async writeFile(path: string, content: string | ArrayBuffer): Promise<void> {
     await this.sandbox.files.write(path, content as string)
+  }
+
+  async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {
+    const entries = await this.sandbox.files.list(path, {
+      ...(options?.depth !== undefined ? { depth: options.depth } : {}),
+    })
+
+    const files: SandboxDirectoryEntry[] = []
+    for (const entry of entries) {
+      if (entry.type !== 'file' && entry.type !== 'dir') continue
+      const resolved = resolveSandboxDirectoryEntryPath(path, entry.path)
+      if (!resolved) continue
+      files.push({
+        ...resolved,
+        kind: entry.type === 'dir' ? 'directory' : 'file',
+        size: entry.size,
+      })
+    }
+    return files
   }
 
   async kill(): Promise<void> {

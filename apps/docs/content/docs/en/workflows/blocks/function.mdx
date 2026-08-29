@@ -102,6 +102,44 @@ Sim supplies the rendered heredoc privately while preserving the quoted delimite
 | --- | --- |
 | `<function.result>` | The value your code returns (object, array, string, number, …) |
 | `<function.stdout>` | Anything printed with `console.log()` or `print()` |
+| `<function.files>` | Files your code wrote to `/tmp/sim/outputs`, ready to attach or upload |
+
+## Files
+
+**Reading.** Reference a file's `path` and it is mounted for you:
+
+```python
+import pandas as pd
+
+frame = pd.read_csv(<gmail.attachments[0].path>)
+frame.describe().to_csv('/tmp/sim/outputs/summary.csv')
+```
+
+`.path` resolves to the file's location on the sandbox filesystem, so any language
+can open it — pandas, ffmpeg, a CLI. It is the counterpart to `.base64`, which
+inlines the contents instead and works only in JavaScript. Both appear in the
+reference dropdown next to `.name` and `.size`.
+
+**Writing.** Anything your code writes to `/tmp/sim/outputs` comes back as
+`<function.files>`, a list of file objects any file-accepting block takes directly —
+attach them to an email, upload them to storage, or save them to the workspace with
+the File block. There is nothing to turn on.
+
+<Callout type="info">
+Referencing `.path` runs the block in the remote sandbox, since the local
+JavaScript VM has no filesystem — expect the slower start of a remote run even for
+plain JavaScript. Referencing the file itself (`<gmail.attachments[0]>`, `.name`,
+`.url`) does not, and stays local. Up to 20 files come back per run, 50MB total,
+nested no more than 12 directories deep; a run that exceeds any of these fails
+rather than returning part of what your code wrote.
+</Callout>
+
+<Callout type="warn">
+Returned files live with the execution rather than in your workspace, and a text
+file containing a resolved secret value is refused rather than returned — there is
+nowhere on an execution file to record that it carries one. Write such a file to a
+workspace path instead, or keep the secret out of the output.
+</Callout>
 
 ## Language
 

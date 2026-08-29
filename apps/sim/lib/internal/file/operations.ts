@@ -12,6 +12,7 @@ import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -219,6 +220,13 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
 const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 /** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
+
+/**
+ * Cap on a file stored through `write`'s `fileInput`. The bytes are buffered and
+ * base64-encoded in this process, so it tracks the compress ceiling rather than
+ * the much larger workspace-file limit.
+ */
+const MAX_WRITE_FILE_INPUT_BYTES = 100 * 1024 * 1024
 
 /** Per-file download cap for the compress operation. */
 const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024
@@ -749,7 +757,7 @@ export async function executeFileManageOperation(
       }
 
       case 'write': {
-        const { fileName, content, contentType } = body
+        const { fileName, content, fileInput, contentType } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -763,21 +771,50 @@ export async function executeFileManageOperation(
             { status: 400 }
           )
         }
-        const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+
+        // Storing an existing file object rather than text: read its bytes under
+        // the caller's own authorization, then write them unchanged. Base64 so a
+        // binary payload survives — decoding it as UTF-8 would corrupt it.
+        let sourceEncoding: 'utf-8' | 'base64' = 'utf-8'
+        let sourceContent = content ?? ''
+        let sourceName = fileName
+        let sourceContentType = contentType
+        if (fileInput !== undefined && fileInput !== null) {
+          if (!isUserFileWithMetadata(fileInput)) {
+            return Response.json(
+              { success: false, error: 'fileInput must be a file object' },
+              { status: 400 }
+            )
+          }
+          const sourceFile: UserFile = fileInput
+          const denied = await assertOperationFileAccess(sourceFile, context)
+          if (denied) return denied
+
+          const downloaded = await downloadServableFileFromStorage(sourceFile, requestId, logger, {
+            maxBytes: MAX_WRITE_FILE_INPUT_BYTES,
+            signal,
+          })
+          sourceEncoding = 'base64'
+          sourceContent = downloaded.buffer.toString('base64')
+          sourceName = fileName?.trim() || sourceFile.name
+          sourceContentType = contentType || downloaded.contentType || sourceFile.type
+        }
+
+        const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
           input: { workspaceId, pathSegments: folderSegments },
         })
-        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
+        const mimeType = sourceContentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const result = await createWorkspaceFile.execute({
           principal,
           input: {
             workspaceId,
             name: leafName,
             contentType: mimeType,
-            content: content ?? '',
-            encoding: 'utf-8',
+            content: sourceContent,
+            encoding: sourceEncoding,
             folderId,
             exactName: false,
             ...(provenanceResolution.contentProvenance
@@ -785,11 +822,11 @@ export async function executeFileManageOperation(
               : {}),
           },
         })
-        const fileBuffer = Buffer.from(content ?? '', 'utf-8')
+        const fileBuffer = Buffer.from(sourceContent, sourceEncoding)
 
         logger.info('File created', {
           fileId: result.file.id,
-          name: fileName,
+          name: sourceName,
           size: fileBuffer.length,
         })
 

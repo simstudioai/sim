@@ -5,11 +5,43 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { SANDBOX_INPUT_DIR, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import type { UserFile } from '@/executor/types'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { InternalToolConfig } from '@/tools/types'
+
+/**
+ * Normalizes the mounted-file param, which advanced-mode template resolution
+ * delivers as a JSON string rather than an array.
+ *
+ * Deliberately not `normalizeFileInput` from `@/blocks/utils`: that module
+ * reaches the providers store and Sim's icon set, so importing it here would
+ * drag React and zustand into the tool registry's module graph.
+ */
+function normalizeSandboxInputFiles(value: unknown): FunctionExecuteBody['files'] {
+  if (!value) return undefined
+
+  let parsed = value
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return undefined
+    }
+  }
+
+  const files = Array.isArray(parsed) ? parsed : [parsed]
+  const userFiles = files.filter((file): file is UserFile => isUserFileWithMetadata(file))
+  if (userFiles.length === 0) return undefined
+  // Copied onto fresh objects because the boundary schema is `.passthrough()`:
+  // its inferred type carries an index signature, which a declared interface
+  // like UserFile cannot satisfy directly.
+  return userFiles.map((file) => ({ ...file }))
+}
 
 /** Builds the canonical Function protocol body for both HTTP compatibility and in-process calls. */
 export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionExecuteBody {
@@ -35,6 +67,7 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
     overwriteFileId: params.overwriteFileId,
     inputs: params.inputs,
     outputs: params.outputs,
+    files: normalizeSandboxInputFiles(params.files),
     envVars: normalizeStringRecord(params.envVars),
     workflowVariables: normalizeWorkflowVariables(params.workflowVariables),
     blockData: normalizeRecord(params.blockData),
@@ -60,8 +93,9 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
 export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
   name: 'Function Execute',
-  description:
-    'Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace.',
+  description: `Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace.
+To read a file, pass its id in \`files\`: each one is mounted read-only under ${SANDBOX_INPUT_DIR}. List that directory to find them rather than guessing a path — names are sanitized and de-duplicated, so they do not always match the original.
+To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back in this tool's \`files\` output as a platform file object, which another tool that takes a file accepts directly — no upload step in between.`,
   version: '1.0.0',
 
   params: {
@@ -133,6 +167,12 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
       description:
         'Overwrite this existing workspace file ID instead of creating a duplicate output file.',
     },
+    files: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Files to mount read-only into the sandbox under ${SANDBOX_INPUT_DIR}. Pass file ids from earlier tool results (or canonical workspace file ids); the runtime resolves them into full file objects before the code runs.`,
+    },
     sandboxId: {
       type: 'string',
       required: false,
@@ -201,6 +241,9 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
         output: {
           result: null,
           stdout: result.output?.stdout || '',
+          // Always an array, never undefined: a declared `file[]` output that is
+          // missing warns on every call, and this branch runs for every failure.
+          files: result.output?.files ?? [],
         },
         error: result.error,
         retryable: result.retryable,
@@ -215,6 +258,7 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
       output: {
         result: result.output.result,
         stdout: result.output.stdout,
+        files: result.output.files ?? [],
       },
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,
@@ -226,5 +270,9 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
   outputs: {
     result: { type: 'json', description: 'The structured result emitted by the executed code' },
     stdout: { type: 'string', description: 'The standard output of the code execution' },
+    files: {
+      type: 'file[]',
+      description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, persisted as platform file objects`,
+    },
   },
 }

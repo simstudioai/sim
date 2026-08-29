@@ -1,6 +1,14 @@
 export const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
 
 /**
+ * How many files one execution may export, whether declared by path or
+ * discovered by harvesting the output directory. Exceeding it is an error rather
+ * than a truncation: silently returning the first 20 of 100 files reads as
+ * success while losing the rest.
+ */
+export const MAX_SANDBOX_OUTPUT_FILES = 20
+
+/**
  * Maximum combined stdout, stderr, result text, and structured error text kept
  * for one sandbox operation. Function results larger than this should be
  * exported as files, where the separate file budget applies.
@@ -52,6 +60,36 @@ export function appendStreamedSandboxOutput(current: string, chunk: string): str
 
 export const SANDBOX_OUTPUT_LIMIT_CODE = 'sandbox_output_limit_exceeded' as const
 export const SANDBOX_OUTPUT_FILE_INVALID_CODE = 'sandbox_output_file_invalid' as const
+/**
+ * The harvest cannot return what the run produced — too many files, or nested
+ * past what the listing reaches. Both are the caller's to fix and neither is
+ * retryable, so they share a code and are reported as one 400.
+ */
+export const SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE = 'sandbox_output_not_exportable' as const
+
+/** More files in the harvest directory than one execution may export. */
+export class SandboxOutputFileCountError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(observedFiles: number, directory: string, limit = MAX_SANDBOX_OUTPUT_FILES) {
+    super(
+      `Sandbox produced ${observedFiles} files in ${directory}, over the ${limit}-file export limit. Write fewer files, or archive them into a single .zip.`
+    )
+    this.name = 'SandboxOutputFileCountError'
+  }
+}
+
+/** Harvest directory nested deeper than the listing can reach. */
+export class SandboxOutputDepthError extends Error {
+  readonly code = SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
+
+  constructor(directoryPath: string, maxDepth: number) {
+    super(
+      `Sandbox output "${directoryPath}" is nested deeper than ${maxDepth} levels, so its contents cannot be returned. Write results closer to the top of the output directory, or archive the tree into a single file.`
+    )
+    this.name = 'SandboxOutputDepthError'
+  }
+}
 
 export class SandboxOutputFileError extends Error {
   readonly code = SANDBOX_OUTPUT_FILE_INVALID_CODE
@@ -134,5 +172,15 @@ export function isSandboxOutputFileError(error: unknown): error is SandboxOutput
     (typeof error === 'object' &&
       error !== null &&
       (error as { code?: unknown }).code === SANDBOX_OUTPUT_FILE_INVALID_CODE)
+  )
+}
+
+export function isSandboxOutputNotExportableError(
+  error: unknown
+): error is SandboxOutputFileCountError | SandboxOutputDepthError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === SANDBOX_OUTPUT_NOT_EXPORTABLE_CODE
   )
 }

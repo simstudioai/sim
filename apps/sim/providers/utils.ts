@@ -11,6 +11,7 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
+import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
@@ -625,6 +626,29 @@ function readMountedSecretNames(raw: unknown): string[] {
     : []
 }
 
+/**
+ * Display names of the files pinned to a Function tool entry.
+ *
+ * Runs before the executor's paramsTransform, so an advanced-mode reference is
+ * still a JSON string here, exactly as with the mounted-secret names.
+ */
+function readMountedFileNames(raw: unknown): string[] {
+  let value = raw
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+  const files = Array.isArray(value) ? value : value ? [value] : []
+  return files
+    .map((file) =>
+      file && typeof file === 'object' ? (file as { name?: unknown }).name : undefined
+    )
+    .filter((name): name is string => typeof name === 'string' && name.length > 0)
+}
+
 export async function transformBlockTool(
   block: any,
   options: {
@@ -816,16 +840,25 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
-  } else if (toolId === 'function_execute' && resolvedResourceParams.secretScope === 'selected') {
-    // Scoping alone would leave the model guessing: the secrets are injected
-    // server-side and nothing else advertises them. Names only — values never
-    // enter the provider request, matching the copilot's workspace-context rule.
-    // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
-    // the executor's paramsTransform parses it later, but this runs before that.
-    const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
-    toolDescription = mounted.length
-      ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
-      : `${toolDescription}\n\nThis code has no access to workspace secrets.`
+  } else if (toolId === 'function_execute') {
+    if (resolvedResourceParams.secretScope === 'selected') {
+      // Scoping alone would leave the model guessing: the secrets are injected
+      // server-side and nothing else advertises them. Names only — values never
+      // enter the provider request, matching the copilot's workspace-context rule.
+      // `StoredTool.params` holds strings, so a multi-select arrives JSON-encoded;
+      // the executor's paramsTransform parses it later, but this runs before that.
+      const mounted = readMountedSecretNames(resolvedResourceParams.mountedSecrets)
+      toolDescription = mounted.length
+        ? `${toolDescription}\n\nWorkspace secret names available to this code: ${mounted.join(', ')}. Reference one with the exact {{NAME}} syntax. Its value is bound only while the code executes and is not included in the model request. No other secrets are readable.`
+        : `${toolDescription}\n\nThis code has no access to workspace secrets.`
+    }
+
+    // The model authors `code` but never sees the file params, so without this
+    // the mounts are invisible to the only thing that could read them.
+    const mountedFileNames = readMountedFileNames(resolvedResourceParams.files)
+    if (mountedFileNames.length > 0) {
+      toolDescription = `${toolDescription}\n\nFiles already mounted read-only for this call, under ${SANDBOX_INPUT_DIR}: ${mountedFileNames.join(', ')}.`
+    }
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as

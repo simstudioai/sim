@@ -13,7 +13,10 @@ import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
   MAX_SANDBOX_OUTPUT_BYTES,
+  MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+  SandboxOutputDepthError,
+  SandboxOutputFileCountError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
@@ -25,10 +28,16 @@ import {
   repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
+import {
+  SANDBOX_OUTPUT_DIR_MAX_DEPTH,
+  SANDBOX_OUTPUT_DIR_SENTINEL,
+} from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type {
   CreateSandboxOptions,
   SandboxCodeResult,
+  SandboxCollectedFile,
   SandboxCommandResult,
+  SandboxDirectoryEntry,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
@@ -441,11 +450,86 @@ function requestedOutputSandboxPaths(req: {
   ]
 }
 
+/**
+ * Enumerates the harvest directory, refusing anything it cannot return in full —
+ * too many files, or nesting past what the listing reaches — before a single
+ * byte is read. Sorted so a multi-file result is stable run to run rather than
+ * inheriting whatever order the provider happened to return.
+ */
+async function listOutputDirectoryFiles(
+  sandbox: SandboxHandle,
+  outputSandboxDir: string,
+  signal: AbortSignal
+): Promise<SandboxDirectoryEntry[]> {
+  let listed: SandboxDirectoryEntry[]
+  try {
+    listed = await sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH })
+  } catch (error) {
+    // The directory is created before user code runs, so the only way it can be
+    // missing now is that the code removed it. Providers report that as a raw
+    // `lstat ... no such file or directory`, which reads like a Sim fault; say
+    // what actually happened instead. Anything else propagates untouched rather
+    // than being flattened into "produced nothing".
+    if (/not_?found|no such file|ENOENT/i.test(getErrorMessage(error))) {
+      throw new Error(
+        `The sandbox output directory ${outputSandboxDir} no longer exists — the code deleted it. Write files into it rather than replacing it, and no files could be returned from this run.`
+      )
+    }
+    throw error
+  }
+  const entries = listed.filter((entry) => entry.relativePath !== SANDBOX_OUTPUT_DIR_SENTINEL)
+  remainingSandboxBudgetMs(signal)
+
+  // A directory sitting exactly at the traversal limit still has unlisted
+  // contents, and the providers report no truncation of their own. Refuse
+  // rather than return a partial harvest: a file the code wrote and the caller
+  // never receives is worse than an error naming the reason.
+  const truncatedAt = entries.find(
+    (entry) =>
+      entry.kind === 'directory' &&
+      entry.relativePath.split('/').length >= SANDBOX_OUTPUT_DIR_MAX_DEPTH
+  )
+  if (truncatedAt) {
+    throw new SandboxOutputDepthError(
+      `${outputSandboxDir}/${truncatedAt.relativePath}`,
+      SANDBOX_OUTPUT_DIR_MAX_DEPTH
+    )
+  }
+
+  const files = entries.filter((entry) => entry.kind === 'file')
+  if (files.length > MAX_SANDBOX_OUTPUT_FILES) {
+    throw new SandboxOutputFileCountError(files.length, outputSandboxDir)
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/**
+ * Brings the harvest directory into existence before user code runs.
+ *
+ * Owned here rather than by the caller's runtime prologue because
+ * `outputSandboxDir` is this layer's contract: a caller that asks for a harvest
+ * must not also have to know it is responsible for creating the directory, or
+ * the first write in their code is ENOENT.
+ */
+async function ensureSandboxOutputDir(
+  sandbox: SandboxHandle,
+  outputSandboxDir: string | undefined,
+  signal: AbortSignal
+): Promise<void> {
+  if (!outputSandboxDir) return
+  await sandbox.writeFile(`${outputSandboxDir}/${SANDBOX_OUTPUT_DIR_SENTINEL}`, '')
+  remainingSandboxBudgetMs(signal)
+}
+
 async function collectExportedFiles(
   sandbox: SandboxHandle,
-  req: { outputSandboxPath?: string; outputSandboxPaths?: string[] },
+  req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
   options: { signal: AbortSignal }
-): Promise<{ exportedFiles?: Record<string, string>; exportedFileContent?: string }> {
+): Promise<{
+  exportedFiles?: Record<string, string>
+  exportedFileContent?: string
+  collectedFiles?: SandboxCollectedFile[]
+}> {
   const readablePaths: string[] = []
   let totalOutputBytes = 0
   for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
@@ -457,6 +541,18 @@ async function collectExportedFiles(
       throw new SandboxOutputLimitError(totalOutputBytes)
     }
     readablePaths.push(outputSandboxPath)
+  }
+
+  // Sized into the same running total as the declared paths, so an execution
+  // cannot spend the ceiling twice by both declaring and harvesting.
+  const discovered = req.outputSandboxDir
+    ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, options.signal)
+    : []
+  for (const entry of discovered) {
+    totalOutputBytes += entry.size
+    if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
+      throw new SandboxOutputLimitError(totalOutputBytes)
+    }
   }
 
   const exportedFiles: Record<string, string> = {}
@@ -484,9 +580,45 @@ async function collectExportedFiles(
       throw error
     }
   }
+
+  const collectedFiles: SandboxCollectedFile[] = []
+  for (const entry of discovered) {
+    try {
+      // Always base64: a harvested filename is arbitrary, and the extension
+      // allowlist that picks an encoding for a declared path would decode a
+      // `.parquet` or an extensionless binary as utf8 — substituting U+FFFD and
+      // delivering corruption that still looks like a valid file.
+      const file = await sandbox.readFileWithLimit(entry.path, {
+        maxBytes: MAX_SANDBOX_OUTPUT_BYTES - readOutputBytes,
+        encoding: 'base64',
+        signal: options.signal,
+      })
+      remainingSandboxBudgetMs(options.signal)
+      readOutputBytes += file.byteLength
+      collectedFiles.push({
+        path: entry.path,
+        relativePath: entry.relativePath,
+        contentBase64: file.content,
+        byteLength: file.byteLength,
+      })
+    } catch (error) {
+      if (isSandboxOutputLimitError(error)) {
+        throw new SandboxOutputLimitError(
+          readOutputBytes + error.attemptedBytes,
+          MAX_SANDBOX_OUTPUT_BYTES
+        )
+      }
+      // Unlike a declared path, a harvested file was just observed to exist, so
+      // a failed read is an anomaly rather than a caller mistake. Dropping it
+      // would silently lose output the code successfully produced.
+      throw error
+    }
+  }
+
   return {
     exportedFileContent: req.outputSandboxPath ? exportedFiles[req.outputSandboxPath] : undefined,
     exportedFiles: Object.keys(exportedFiles).length ? exportedFiles : undefined,
+    collectedFiles: collectedFiles.length ? collectedFiles : undefined,
   }
 }
 
@@ -504,6 +636,33 @@ const MIN_CODE_BUDGET_MS = 15_000
  */
 function installBudgetMs(timeoutMs: number): number {
   return Math.max(0, Math.min(RUNTIME_INSTALL_TIMEOUT_MS, timeoutMs - MIN_CODE_BUDGET_MS))
+}
+
+/**
+ * Held back from the code's own budget when an execution will export files.
+ *
+ * The export runs after the code succeeds and draws on the same wall clock, so
+ * without a reserve a long install plus long-running code can time out during
+ * the read — destroying work the code already finished, under an error that
+ * only says "timeout".
+ */
+const MIN_EXPORT_BUDGET_MS = 10_000
+
+/**
+ * The budget handed to user code, less an export reserve when this request will
+ * read files back. Short budgets are left alone: taking the reserve out of one
+ * would starve the code to buy time for an export it never reaches.
+ */
+function codeBudgetMs(
+  req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
+  signal: AbortSignal
+): number {
+  const remainingMs = remainingSandboxBudgetMs(signal)
+  const exportsFiles = Boolean(
+    req.outputSandboxDir || req.outputSandboxPath || req.outputSandboxPaths?.length
+  )
+  if (!exportsFiles || remainingMs <= MIN_EXPORT_BUDGET_MS * 2) return remainingMs
+  return remainingMs - MIN_EXPORT_BUDGET_MS
 }
 
 /**
@@ -568,6 +727,7 @@ async function executeInSandboxWithinBudget(
     //
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, { signal })
+    await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
     const privateInputEnvironment = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
@@ -583,7 +743,7 @@ async function executeInSandboxWithinBudget(
     let execution: SandboxCodeResult
     try {
       execution = await sandbox.runCode(code, {
-        timeoutMs: remainingSandboxBudgetMs(signal),
+        timeoutMs: codeBudgetMs(req, signal),
         javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
@@ -636,9 +796,11 @@ async function executeInSandboxWithinBudget(
       }
     }
 
-    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
-      signal,
-    })
+    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+      sandbox,
+      req,
+      { signal }
+    )
     throwIfAborted(signal)
 
     return {
@@ -647,6 +809,7 @@ async function executeInSandboxWithinBudget(
       sandboxId,
       exportedFileContent,
       exportedFiles,
+      collectedFiles,
     }
   } finally {
     abortBinding.detach()
@@ -696,6 +859,7 @@ async function executeShellInSandboxWithinBudget(
       rootUser: true,
       signal,
     })
+    await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
     const privateInputEnvironment = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
@@ -711,7 +875,7 @@ async function executeShellInSandboxWithinBudget(
           PATH: selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH,
           ...privateInputEnvironment,
         },
-        timeoutMs: remainingSandboxBudgetMs(signal),
+        timeoutMs: codeBudgetMs(req, signal),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
         rootUser: true,
@@ -744,9 +908,11 @@ async function executeShellInSandboxWithinBudget(
     const extraction = extractSimResult(stdout)
     const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
 
-    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
-      signal,
-    })
+    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+      sandbox,
+      req,
+      { signal }
+    )
     throwIfAborted(signal)
 
     return {
@@ -755,6 +921,7 @@ async function executeShellInSandboxWithinBudget(
       sandboxId,
       exportedFileContent,
       exportedFiles,
+      collectedFiles,
     }
   } finally {
     abortBinding.detach()

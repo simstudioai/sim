@@ -10,10 +10,11 @@ import {
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import { createSandboxFileMountRef } from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -453,6 +454,16 @@ export class VariableResolver {
       displayCursor = index + match.length
 
       try {
+        const sandboxFilePath = await this.resolveSandboxFilePathReference(
+          match,
+          resolutionContext,
+          contextVarAccumulator
+        )
+        if (sandboxFilePath) {
+          displayResult += sandboxFilePath.display
+          return sandboxFilePath.replacement
+        }
+
         const lazyBase64 = await this.resolveLazyFileBase64Reference(
           match,
           resolutionContext,
@@ -646,6 +657,41 @@ export class VariableResolver {
     }
 
     return { resolvedCode: result, displayCode: displayResult }
+  }
+
+  /**
+   * Resolves `<block.file.path>` to the file's location on the sandbox filesystem.
+   *
+   * The counterpart to the `base64` reference above, and deliberately unlike it in
+   * two ways. It is not gated on the JavaScript runtime helpers, because a path is
+   * just a string and Python and Shell need it more than JavaScript does. And it
+   * stores a mount marker rather than the path itself: the sandbox does not exist
+   * yet at resolution time, and paths are assigned only once the whole mount set is
+   * known, since they are sanitized and de-duplicated together.
+   */
+  private async resolveSandboxFilePathReference(
+    reference: string,
+    context: ResolutionContext,
+    contextVarAccumulator: Record<string, unknown>
+  ): Promise<{ replacement: string; display: string } | null> {
+    const parts = parseReferencePath(reference)
+    if (parts.length < 3 || parts.at(-1) !== 'path') {
+      return null
+    }
+
+    const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
+    const file = await this.resolveReference(fileReference, context)
+    if (!isUserFileWithMetadata(file) || !file.key) {
+      return null
+    }
+
+    // The bytes are fetched into the sandbox, so the inline copy would be dead
+    // weight in the request body.
+    const { base64: _base64, ...fileMetadata } = file
+    const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
+
+    return { replacement: varName, display: reference }
   }
 
   private async resolveLazyFileBase64Reference(
