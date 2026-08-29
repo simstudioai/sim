@@ -7,7 +7,6 @@ import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import { useSidebar } from 'fumadocs-ui/components/sidebar/base'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { i18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
@@ -22,23 +21,8 @@ function SidebarChevron({ open, className }: { open: boolean; className?: string
   )
 }
 
-const LANG_PREFIXES = i18n.languages.map((l) => `/${l}`)
-
-function stripLangPrefix(path: string): string {
-  for (const prefix of LANG_PREFIXES) {
-    if (path === prefix) return '/'
-    if (path.startsWith(`${prefix}/`)) return path.slice(prefix.length)
-  }
-  return path
-}
-
 function isActive(url: string, pathname: string, nested = true): boolean {
-  const normalizedPathname = stripLangPrefix(pathname)
-  const normalizedUrl = stripLangPrefix(url)
-  return (
-    normalizedUrl === normalizedPathname ||
-    (nested && normalizedPathname.startsWith(`${normalizedUrl}/`))
-  )
+  return url === pathname || (nested && pathname.startsWith(`${url}/`))
 }
 
 /**
@@ -99,7 +83,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
   const { prefetch } = useSidebar()
   const hasActiveChild = checkHasActiveChild(item, pathname)
   const isApiRef = isApiReferenceFolder(item)
-  const isOnApiRefPage = stripLangPrefix(pathname).startsWith('/api-reference')
+  const isOnApiRefPage = pathname.startsWith('/api-reference')
   const hasChildren = item.children.length > 0
   const defaultOpen = hasActiveChild || (isApiRef && isOnApiRefPage)
   const [manualOpen, setManualOpen] = useState<{ pathname: string; open: boolean } | null>(null)
