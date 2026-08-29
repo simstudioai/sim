@@ -301,6 +301,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
     // must never have.
     const finalStdout = () => (retainStdout ? stdout : tailStreamedSandboxOutput(stdout))
     const finalStderr = () => (retainStderr ? stderr : tailStreamedSandboxOutput(stderr))
+    let commandDispatched = false
     try {
       await this.sandbox.process.createSession(sessionId)
       sessionCreated = true
@@ -339,6 +340,7 @@ class DaytonaSandboxHandle implements SandboxHandle {
       if (typeof commandId !== 'string' || commandId.length === 0) {
         throw new SandboxLaunchIndeterminateError('Daytona')
       }
+      commandDispatched = true
       // Accumulate the streamed chunks as well as forwarding them: callers read
       // markers out of stdout (the Pi cloud flow parses __BASE_SHA__/__CHANGED__)
       // and format failures from stderr, so returning empty strings here would
@@ -660,7 +662,14 @@ class DaytonaSandboxHandle implements SandboxHandle {
       }
 
       const finished = await this.sandbox.process.getSessionCommand(sessionId, commandId)
-      const exitCode = finished.exitCode ?? 0
+      if (options.atMostOnce && !releaseRequested) {
+        throw new SandboxLaunchIndeterminateError('Daytona')
+      }
+      const exitCode = finished.exitCode
+      if (typeof exitCode !== 'number' || !Number.isFinite(exitCode)) {
+        if (options.atMostOnce) throw new SandboxLaunchIndeterminateError('Daytona')
+        return { stdout: finalStdout(), stderr: finalStderr(), exitCode: 0 }
+      }
       return { stdout: finalStdout(), stderr: finalStderr(), exitCode }
     } catch (error) {
       if (isSandboxOutputLimitError(error)) {
@@ -680,6 +689,12 @@ class DaytonaSandboxHandle implements SandboxHandle {
           exitCode: 124,
           timedOut: true,
         }
+      }
+      if (options.atMostOnce) {
+        if (commandDispatched) {
+          throw new SandboxLaunchIndeterminateError('Daytona', { cause: error })
+        }
+        throw error
       }
       if (operation === 'code') throw error
       return { stdout: finalStdout(), stderr: finalStderr() || getErrorMessage(error), exitCode: 1 }

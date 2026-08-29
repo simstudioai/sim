@@ -82,6 +82,7 @@ import {
   isSandboxOutputLimitError,
   isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
+  readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   MAX_BLOCK_MOUNTED_FILES,
@@ -1967,6 +1968,7 @@ async function collectExecutionOutputFiles(args: {
   collectedFiles: SandboxCollectedFile[]
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }): Promise<{ files: UserFile[] } | { response: NextResponse }> {
   const { routeContext, collectedFiles } = args
   if (collectedFiles.length === 0) return { files: [] }
@@ -1983,7 +1985,8 @@ async function collectExecutionOutputFiles(args: {
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       ),
     }
   }
@@ -2023,7 +2026,8 @@ async function collectExecutionOutputFiles(args: {
               `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
               400,
               args.stdout,
-              args.executionTime
+              args.executionTime,
+              args.cost
             ),
           }
         }
@@ -2218,6 +2222,23 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+          },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
+      )
+    }
+    try {
+      for (const file of outputFiles) {
+        normalizeOutputWorkspaceFileName(file.formatPath ?? file.path)
+      }
+    } catch (error) {
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          {
+            success: false,
+            error: getErrorMessage(error, 'Invalid sandbox output destination'),
           },
           { status: 400 }
         ),
@@ -2606,6 +2627,7 @@ export async function executeFunctionRequest(
         collectedFiles: shellCollectedFiles ?? [],
         stdout: shellStdout,
         executionTime,
+        cost: shellCost,
       })
       if ('response' in shellOutputFiles) {
         return appendResolvedSecretNames(shellOutputFiles.response, routeContext)
@@ -2764,6 +2786,7 @@ export async function executeFunctionRequest(
           collectedFiles: jsCollectedFiles ?? [],
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if ('response' in jsOutputFiles) {
           return appendResolvedSecretNames(jsOutputFiles.response, routeContext)
@@ -2884,6 +2907,7 @@ export async function executeFunctionRequest(
         collectedFiles: pythonCollectedFiles ?? [],
         stdout,
         executionTime,
+        cost: sandboxCost,
       })
       if ('response' in pythonOutputFiles) {
         return appendResolvedSecretNames(pythonOutputFiles.response, routeContext)
@@ -3082,10 +3106,16 @@ export async function executeFunctionRequest(
       isSandboxOutputFileError(error) ||
       isSandboxOutputNotExportableError(error)
     ) {
+      const cost = readTrustedSandboxOutputCost(error)
       const outputLimitResponse = {
         success: false,
         error: error.message,
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+        output: {
+          result: null,
+          stdout: cleanStdout(stdout),
+          executionTime,
+          ...(cost ? { cost } : {}),
+        },
       }
       return routeContext
         ? functionJsonResponse(outputLimitResponse, routeContext, { status: 400 })

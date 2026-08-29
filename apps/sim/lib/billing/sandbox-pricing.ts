@@ -10,6 +10,10 @@ const E2B_CPU_USD_PER_VCPU_SECOND = 0.000014
 const E2B_MEMORY_USD_PER_GIB_SECOND = 0.0000045
 const DAYTONA_CPU_USD_PER_VCPU_SECOND = 0.0504 / 3600
 const DAYTONA_MEMORY_USD_PER_GIB_SECOND = 0.0162 / 3600
+/**
+ * Sim prices the full provisioned disk at the marginal list rate; provider free allowances,
+ * credits, and discounts are intentionally not subtracted.
+ */
 const DAYTONA_DISK_USD_PER_GIB_SECOND = 0.000108 / 3600
 
 export interface SandboxPricing {
@@ -67,8 +71,8 @@ export function createSandboxPricing(
   provider: SandboxProviderId,
   multiplier = getCostMultiplier()
 ): SandboxPricing {
-  if (!Number.isFinite(multiplier) || multiplier <= 0) {
-    throw new Error('Sandbox pricing multiplier must be a finite positive number')
+  if (!Number.isFinite(multiplier) || multiplier < 0) {
+    throw new Error('Sandbox pricing multiplier must be a finite nonnegative number')
   }
   const pricing = PRICING_BY_PROVIDER[provider]
   return {

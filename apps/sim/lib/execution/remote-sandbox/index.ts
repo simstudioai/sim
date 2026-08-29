@@ -15,6 +15,7 @@ import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metric
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
+  attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
   MAX_SANDBOX_OUTPUT_BYTES,
@@ -45,6 +46,7 @@ import type {
   SandboxCollectedFile,
   SandboxCommandResult,
   SandboxDirectoryEntry,
+  SandboxExecutionCost,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
@@ -249,18 +251,17 @@ function bindSandboxAbort(
   }
 }
 
-function attachSandboxCost(
-  result: SandboxExecutionResult | undefined,
+function calculateSandboxCost(
   created: CreatedSandbox,
   cleanupStartedAtMs: number
-): void {
-  if (!result || !created.pricing || created.effectiveLifetimeMs === undefined) return
+): SandboxExecutionCost | undefined {
+  if (!created.pricing || created.effectiveLifetimeMs === undefined) return undefined
   const usage = priceSandboxUsage(
     created.pricing,
     cleanupStartedAtMs - created.startedAtMs,
     created.effectiveLifetimeMs
   )
-  result.cost = { input: 0, output: 0, total: usage.billedCost }
+  return { input: 0, output: 0, total: usage.billedCost }
 }
 
 /**
@@ -510,14 +511,14 @@ async function readSandboxOutputFile(
     logger.warn('Failed to read requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
 async function inspectSandboxOutputFileSize(
   sandbox: SandboxHandle,
   outputSandboxPath: string
-): Promise<number | undefined> {
+): Promise<number> {
   try {
     const size = await sandbox.getFileSize(outputSandboxPath)
     if (!Number.isSafeInteger(size) || size < 0) {
@@ -529,7 +530,7 @@ async function inspectSandboxOutputFileSize(
     logger.warn('Failed to inspect requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
@@ -628,7 +629,6 @@ async function collectExportedFiles(
   for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
     const size = await inspectSandboxOutputFileSize(sandbox, outputSandboxPath)
     remainingSandboxBudgetMs(options.signal)
-    if (size === undefined) continue
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       throw new SandboxOutputLimitError(totalOutputBytes)
@@ -820,6 +820,7 @@ async function executeInSandboxWithinBudget(
   const sandboxId = sandbox.sandboxId
   const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
   let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -900,25 +901,35 @@ async function executeInSandboxWithinBudget(
       }
     }
 
-    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
-      sandbox,
-      req,
-      { signal }
-    )
-    throwIfAborted(signal)
-
     billableResult = {
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
-      collectedFiles,
+    }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+        billableOutputError = error
+      }
+      throw error
     }
     return billableResult
   } finally {
     const cleanupStartedAtMs = Date.now()
-    attachSandboxCost(billableResult, created, cleanupStartedAtMs)
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -958,6 +969,7 @@ async function executeShellInSandboxWithinBudget(
   const sandboxId = sandbox.sandboxId
   const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
   let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -1020,25 +1032,35 @@ async function executeShellInSandboxWithinBudget(
     const extraction = extractSimResult(stdout)
     const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
 
-    const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
-      sandbox,
-      req,
-      { signal }
-    )
-    throwIfAborted(signal)
-
     billableResult = {
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
-      collectedFiles,
+    }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+        billableOutputError = error
+      }
+      throw error
     }
     return billableResult
   } finally {
     const cleanupStartedAtMs = Date.now()
-    attachSandboxCost(billableResult, created, cleanupStartedAtMs)
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }

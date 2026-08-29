@@ -23,6 +23,7 @@ import {
   PRIVATE_SECRET_PROVENANCE_HEADER,
 } from '@/lib/execution/private-tool-metadata'
 import {
+  attachTrustedSandboxOutputCost,
   MAX_SANDBOX_OUTPUT_BYTES,
   SandboxOutputFileError,
   SandboxOutputLimitError,
@@ -84,7 +85,11 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
     md: 'text/markdown',
     html: 'text/html',
   },
-  normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
+  normalizeOutputWorkspaceFileName: vi.fn((p: string) => {
+    const normalized = p.trim().replace(/^\/+|\/+$/g, '')
+    if (!normalized) throw new Error('Output path must include a file name')
+    return normalized.replace(/^files\//, '')
+  }),
   resolveOutputFormat: vi.fn(() => 'json'),
   getOutputFileDeclarations: vi.fn((params: Record<string, any>) => {
     if (Array.isArray(params.outputs?.files)) {
@@ -1494,9 +1499,10 @@ describe('Function execution request', () => {
 
     it('preserves output-limit classification from provider-side size inspection', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockRejectedValueOnce(
-        new SandboxOutputLimitError(MAX_SANDBOX_OUTPUT_BYTES + 1)
-      )
+      const error = new SandboxOutputLimitError(MAX_SANDBOX_OUTPUT_BYTES + 1)
+      const cost = { input: 0, output: 0, total: 0.00023456 }
+      attachTrustedSandboxOutputCost(error, cost)
+      mockExecuteInSandbox.mockRejectedValueOnce(error)
 
       const req = createMockRequest('POST', {
         code: 'print("done")',
@@ -1517,6 +1523,7 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toBe(`Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`)
+      expect(data.output.cost).toEqual(cost)
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
@@ -1538,8 +1545,33 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toContain('must reference a regular file')
+      expect(data.output.cost).toBeUndefined()
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
+
+    it.each(['/', '///', ' / '])(
+      'rejects malformed workspace output destination %j before sandbox execution',
+      async (path) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'print("done")',
+            language: 'python',
+            workspaceId: 'workspace-1',
+            outputs: {
+              files: [{ path, sandboxPath: '/out/report.json' }],
+            },
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(400)
+        expect(data.error).toBe('Output path must include a file name')
+        expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+        expect(mockExecuteShellInSandbox).not.toHaveBeenCalled()
+      }
+    )
 
     it('prevalidates all sandbox output destinations before writing any files', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true

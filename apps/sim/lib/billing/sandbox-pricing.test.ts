@@ -23,7 +23,14 @@ describe('sandbox pricing', () => {
     expect(priceSandboxUsage(pricing, 90_000, 60_000).durationMs).toBe(60_000)
   })
 
-  it('rejects a non-positive multiplier', () => {
-    expect(() => createSandboxPricing('e2b', 0)).toThrow('finite positive')
+  it('allows a zero multiplier and rejects invalid multipliers', () => {
+    const freePricing = createSandboxPricing('e2b', 0)
+
+    expect(priceSandboxUsage(freePricing, 1000, 1000).billedCost).toBe(0)
+    expect(() => createSandboxPricing('e2b', -1)).toThrow('finite nonnegative')
+    expect(() => createSandboxPricing('e2b', Number.NaN)).toThrow('finite nonnegative')
+    expect(() => createSandboxPricing('e2b', Number.POSITIVE_INFINITY)).toThrow(
+      'finite nonnegative'
+    )
   })
 })

@@ -103,6 +103,12 @@ export interface SandboxShellExecutionRequest {
   meterUsage?: boolean
 }
 
+export interface SandboxExecutionCost {
+  input: number
+  output: number
+  total: number
+}
+
 export interface SandboxExecutionResult {
   result: unknown
   stdout: string
@@ -120,7 +126,7 @@ export interface SandboxExecutionResult {
    * sequence, and the byte budget is enforced on the decoded length.
    */
   collectedFiles?: SandboxCollectedFile[]
-  cost?: { input: number; output: number; total: number }
+  cost?: SandboxExecutionCost
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */

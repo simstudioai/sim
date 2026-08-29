@@ -136,6 +136,7 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
   MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES,
+  readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   PI_SANDBOX_MIN_LIFETIME_MS,
@@ -464,13 +465,19 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       })
     }
 
-    await expect(
-      executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
-    ).rejects.toMatchObject({
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({
       code: 'sandbox_output_limit_exceeded',
       outputKind: 'process',
       limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
     })
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
   })
 
@@ -1173,17 +1180,23 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
     stubOutputFileSizes(provider, MAX_SANDBOX_OUTPUT_BYTES + 1)
 
-    await expect(
-      executeInSandbox({
-        code: 'x',
-        language: CodeLanguage.Python,
-        timeoutMs: 1000,
-        outputSandboxPath: '/out/report.txt',
-      })
-    ).rejects.toMatchObject({
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/report.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({
       code: 'sandbox_output_limit_exceeded',
       attemptedBytes: MAX_SANDBOX_OUTPUT_BYTES + 1,
       limitBytes: MAX_SANDBOX_OUTPUT_BYTES,
+    })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
     })
 
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
@@ -1237,15 +1250,96 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
     }
 
-    await expect(
-      executeInSandbox({
-        code: 'x',
-        language: CodeLanguage.Python,
-        timeoutMs: 1000,
-        outputSandboxPath: '/out/link.txt',
-      })
-    ).rejects.toMatchObject({ code: 'sandbox_output_file_invalid' })
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/link.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({ code: 'sandbox_output_file_invalid' })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+    })
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
+  })
+
+  it.each(['oversized', 'non-regular'] as const)(
+    'retains metered shell cost for a completed execution with %s output',
+    async (failure) => {
+      stubShellCommand(provider, '', '', 0)
+      if (failure === 'oversized') {
+        stubOutputFileSizes(provider, MAX_SANDBOX_OUTPUT_BYTES + 1)
+      } else if (provider === 'e2b') {
+        mockE2BFilesGetInfo.mockResolvedValueOnce({ size: 1, type: 'symlink' })
+      } else {
+        mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
+      }
+
+      const error = await executeShellInSandbox({
+        code: 'echo done',
+        envs: {},
+        timeoutMs: 1000,
+        outputSandboxPath: '/out/result.txt',
+        meterUsage: true,
+      }).catch((error: unknown) => error)
+
+      expect(error).toMatchObject({
+        code:
+          failure === 'oversized' ? 'sandbox_output_limit_exceeded' : 'sandbox_output_file_invalid',
+      })
+      expect(readTrustedSandboxOutputCost(error)).toEqual({
+        input: 0,
+        output: 0,
+        total: expect.any(Number),
+      })
+    }
+  )
+
+  it('does not attach cost to a generic provider failure during output collection', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    stubOutputFileSizes(provider, 1, 1)
+    const failure = new Error('provider file read failed')
+    if (provider === 'e2b') {
+      mockE2BFilesRead.mockRejectedValueOnce(failure)
+    } else {
+      mockDownloadFileStream.mockRejectedValueOnce(failure)
+    }
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/result.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toBe(failure)
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
+  })
+
+  it('does not attach cost to a generic provider failure during output inspection', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    const failure = new Error('provider file metadata failed')
+    if (provider === 'e2b') {
+      mockE2BFilesGetInfo.mockRejectedValueOnce(failure)
+    } else {
+      mockGetFileDetails.mockRejectedValueOnce(failure)
+    }
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/result.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toBe(failure)
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
   })
 
   it('does not return code results when cancellation arrives during output collection', async () => {
@@ -1562,6 +1656,58 @@ describe('provider stream recovery', () => {
     })
     expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
     expect(mockGetSessionCommand).toHaveBeenCalledWith(expect.any(String), 'cmd_1')
+  })
+
+  it('fails an at-most-once Daytona run closed when final status has no exit code', async () => {
+    mockGetSessionCommand.mockResolvedValueOnce({})
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+  })
+
+  it('fails an at-most-once Daytona run closed when its readiness handshake never completes', async () => {
+    mockGetSessionCommandLogs.mockResolvedValueOnce(undefined)
+    mockGetSessionCommand.mockResolvedValueOnce({ exitCode: 78 })
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+    expect(mockSendSessionCommandInput).not.toHaveBeenCalled()
+  })
+
+  it('fails an at-most-once Daytona run closed when final status lookup fails', async () => {
+    mockGetSessionCommand.mockRejectedValueOnce(new Error('control plane unavailable'))
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+  })
+
+  it('preserves a pre-dispatch Daytona failure for at-most-once runs', async () => {
+    const failure = new Error('session unavailable')
+    mockCreateSession.mockRejectedValueOnce(failure)
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toBe(failure)
+    expect(mockExecuteSessionCommand).not.toHaveBeenCalled()
   })
 
   it('keeps the original Daytona deadline while recovering a disconnected stream', async () => {
