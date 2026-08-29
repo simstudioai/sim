@@ -5,13 +5,23 @@ import { createHash } from 'node:crypto'
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockCreateApproval, mockEnforceUserRateLimit, mockGetPermissions } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockCreateApproval: vi.fn(),
-    mockEnforceUserRateLimit: vi.fn(),
-    mockGetPermissions: vi.fn(),
-  }))
+const {
+  mockGetSession,
+  mockCreateApproval,
+  mockEnforceUserRateLimit,
+  mockGetPermissions,
+  mockIsCliAccessDisabled,
+} = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockCreateApproval: vi.fn(),
+  mockEnforceUserRateLimit: vi.fn(),
+  mockGetPermissions: vi.fn(),
+  mockIsCliAccessDisabled: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  isCliAccessDisabled: mockIsCliAccessDisabled,
+}))
 
 vi.mock('@/lib/auth', () => ({
   auth: { api: { getSession: vi.fn() } },
@@ -42,6 +52,32 @@ describe('POST /api/cli/auth/approve', () => {
     mockEnforceUserRateLimit.mockResolvedValue(null)
     mockCreateApproval.mockResolvedValue(undefined)
     mockGetPermissions.mockResolvedValue('admin')
+    mockIsCliAccessDisabled.mockResolvedValue(false)
+  })
+
+  it('refuses an approver whose permission group disables CLI access', async () => {
+    mockIsCliAccessDisabled.mockResolvedValue(true)
+
+    const response = await POST(
+      createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockCreateApproval).not.toHaveBeenCalled()
+  })
+
+  it('resolves the governing group from the bound workspace when one is given', async () => {
+    await POST(
+      createMockRequest('POST', {
+        request: REQUEST,
+        challenge: CHALLENGE,
+        scope: 'platform',
+        workspaceId: 'ws-1',
+        bindKeyToWorkspace: true,
+      })
+    )
+
+    expect(mockIsCliAccessDisabled).toHaveBeenCalledWith('user-1', 'ws-1')
   })
 
   it('records the approval for the signed-in user', async () => {

@@ -17,11 +17,17 @@ const {
   mockGetUserOrganization,
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
+  mockGetUserPermissionConfigForOrganization,
 } = vi.hoisted(() => ({
   mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetUserPermissionConfigForOrganization: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfigForOrganization: mockGetUserPermissionConfigForOrganization,
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -158,6 +164,44 @@ describe('getWorkspaceCreationPolicy', () => {
     mockGetUserOrganization.mockResolvedValue(null)
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  })
+
+  it('blocks a member whose permission group disables workspace creation', async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.status).toBe(403)
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+  })
+
+  it('governs the personal workspace a scoped-group member would otherwise escape into', async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1', pinOrganization: true })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
   })
 
   it('blocks free users once they already own one non-organization workspace', async () => {

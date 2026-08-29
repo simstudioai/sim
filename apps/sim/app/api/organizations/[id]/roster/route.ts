@@ -21,6 +21,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
+import { isOrgMemberDirectoryHidden } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('OrganizationRosterAPI')
 
@@ -45,6 +46,17 @@ export const GET = withRouteHandler(
       if (!callerMembership) {
         return NextResponse.json(
           { error: 'Forbidden - Not a member of this organization' },
+          { status: 403 }
+        )
+      }
+
+      if (await isOrgMemberDirectoryHidden(organizationId)) {
+        logger.warn('Organization roster blocked by permission group', {
+          organizationId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          { error: 'Forbidden - The organization member directory is not available to you' },
           { status: 403 }
         )
       }
