@@ -87,15 +87,16 @@ Fetch and parse a file from a URL with optional custom headers.
 
 ### File Write
 
-Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
+Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | Yes | File name \(e.g., "data.csv"\). If a file with this name exists, a numeric suffix is added automatically. |
-| `content` | string | Yes | The text content to write to the file. |
-| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from file extension if omitted. |
+| `fileName` | string | No | File name \(e.g., "data.csv"\). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically. |
+| `content` | string | No | The text content to write to the file. Provide exactly one of content or fileInput. |
+| `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
+| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
 
 #### Output
 
