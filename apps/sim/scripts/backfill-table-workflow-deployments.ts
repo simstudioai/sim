@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Deploys every workflow referenced by a table workflow group.
+ * Deploys every workflow referenced by a table workflow group and pins each
+ * group to the active deployment whose mappings it uses.
  *
  * The script is idempotent and resumable: it pages over only workflows that do
  * not have the full desired state, and each deployment uses a stable idempotency
@@ -41,12 +42,14 @@ export interface TableWorkflowDeploymentStore {
     limit: number
   ): Promise<TableWorkflowDeploymentCandidate[]>
   isDeployed(workflowId: string): Promise<boolean>
+  pinActiveDeploymentVersions(batchSize: number): Promise<number>
 }
 
 export interface TableWorkflowDeploymentSummary {
   scanned: number
   deployed: number
   alreadyDeployed: number
+  pinnedGroups: number
 }
 
 interface TableWorkflowDeploymentBackfillOptions {
@@ -87,6 +90,20 @@ interface CandidateRow extends Record<string, unknown> {
 interface DeploymentStateRow extends Record<string, unknown> {
   active_version_count: number
   is_deployed: boolean
+}
+
+interface PinnedGroupCountRow extends Record<string, unknown> {
+  pinned_group_count: number
+}
+
+interface TablePinCandidateRow extends Record<string, unknown> {
+  table_id: string
+}
+
+interface UnpinnedWorkflowGroupRow extends Record<string, unknown> {
+  group_id: string
+  table_id: string
+  workflow_id: string
 }
 
 /** Ensures the table group references can be traversed without silently dropping corrupt data. */
@@ -259,6 +276,135 @@ export const postgresTableWorkflowDeploymentStore: TableWorkflowDeploymentStore 
     }
     return state.is_deployed && state.active_version_count === 1
   },
+
+  async pinActiveDeploymentVersions(batchSize) {
+    let afterTableId = ''
+    let pinnedGroups = 0
+
+    for (;;) {
+      const tables = await db.execute<TablePinCandidateRow>(sql`
+        SELECT table_definition.id AS table_id
+        FROM user_table_definitions AS table_definition
+        WHERE table_definition.id COLLATE "C" > ${afterTableId}::text COLLATE "C"
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(
+              COALESCE(table_definition.schema->'workflowGroups', '[]'::jsonb)
+            ) AS workflow_group(value)
+            INNER JOIN workflow ON workflow.id = workflow_group.value->>'workflowId'
+              AND workflow.archived_at IS NULL
+            INNER JOIN workflow_deployment_version AS active_version
+              ON active_version.workflow_id = workflow.id
+              AND active_version.is_active = true
+            WHERE workflow_group.value->>'workflowId' <> ''
+              AND workflow_group.value->>'deploymentVersionId'
+                IS DISTINCT FROM active_version.id
+          )
+        ORDER BY table_definition.id COLLATE "C"
+        LIMIT ${batchSize}
+      `)
+      if (tables.length === 0) break
+      if (tables.length > batchSize) {
+        throw new Error('Table workflow deployment pin store returned an oversized page')
+      }
+      const tableIds = new Set(tables.map((table) => table.table_id))
+      if (tableIds.size !== tables.length) {
+        throw new Error('Table workflow deployment pin store returned duplicate table ids')
+      }
+      const lastTableId = tables.at(-1)?.table_id
+      if (!lastTableId || lastTableId === afterTableId) {
+        throw new Error('Table workflow deployment pin store returned a non-advancing page')
+      }
+
+      for (const table of tables) {
+        const [result] = await db.execute<PinnedGroupCountRow>(sql`
+          WITH rewritten AS (
+            SELECT
+              jsonb_agg(
+                CASE
+                  WHEN workflow.id IS NOT NULL
+                    AND workflow.archived_at IS NULL
+                    AND active_version.id IS NOT NULL
+                    AND workflow_group.value->>'deploymentVersionId'
+                      IS DISTINCT FROM active_version.id
+                  THEN jsonb_set(
+                    workflow_group.value,
+                    '{deploymentVersionId}',
+                    to_jsonb(active_version.id),
+                    true
+                  )
+                  ELSE workflow_group.value
+                END
+                ORDER BY workflow_group.ordinality
+              ) AS workflow_groups,
+              (
+                COUNT(*) FILTER (
+                  WHERE workflow.id IS NOT NULL
+                    AND workflow.archived_at IS NULL
+                    AND active_version.id IS NOT NULL
+                    AND workflow_group.value->>'deploymentVersionId'
+                      IS DISTINCT FROM active_version.id
+                )
+              )::int AS pinned_group_count
+            FROM user_table_definitions AS table_definition
+            CROSS JOIN LATERAL jsonb_array_elements(
+              COALESCE(table_definition.schema->'workflowGroups', '[]'::jsonb)
+            ) WITH ORDINALITY AS workflow_group(value, ordinality)
+            LEFT JOIN workflow ON workflow.id = workflow_group.value->>'workflowId'
+            LEFT JOIN workflow_deployment_version AS active_version
+              ON active_version.workflow_id = workflow.id
+              AND active_version.is_active = true
+            WHERE table_definition.id = ${table.table_id}
+          )
+          UPDATE user_table_definitions AS table_definition
+          SET
+            schema = jsonb_set(
+              table_definition.schema,
+              '{workflowGroups}',
+              rewritten.workflow_groups,
+              false
+            ),
+            updated_at = NOW()
+          FROM rewritten
+          WHERE table_definition.id = ${table.table_id}
+            AND rewritten.pinned_group_count > 0
+          RETURNING rewritten.pinned_group_count
+        `)
+        pinnedGroups += result?.pinned_group_count ?? 0
+      }
+
+      afterTableId = lastTableId
+    }
+
+    const [unpinned] = await db.execute<UnpinnedWorkflowGroupRow>(sql`
+      SELECT
+        table_definition.id AS table_id,
+        workflow_group.value->>'id' AS group_id,
+        workflow_group.value->>'workflowId' AS workflow_id
+      FROM user_table_definitions AS table_definition
+      CROSS JOIN LATERAL jsonb_array_elements(
+        COALESCE(table_definition.schema->'workflowGroups', '[]'::jsonb)
+      ) AS workflow_group(value)
+      INNER JOIN workflow ON workflow.id = workflow_group.value->>'workflowId'
+        AND workflow.archived_at IS NULL
+      LEFT JOIN workflow_deployment_version AS active_version
+        ON active_version.workflow_id = workflow.id
+        AND active_version.is_active = true
+      WHERE workflow_group.value->>'workflowId' <> ''
+        AND (
+          active_version.id IS NULL
+          OR workflow_group.value->>'deploymentVersionId' IS DISTINCT FROM active_version.id
+        )
+      LIMIT 1
+    `)
+    if (unpinned) {
+      throw new Error(
+        `Table ${unpinned.table_id} workflow group ${unpinned.group_id} did not pin active deployment for workflow ${unpinned.workflow_id}`
+      )
+    }
+
+    return pinnedGroups
+  },
 }
 
 /** Deploys one table workflow through the same orchestration used by application surfaces. */
@@ -294,6 +440,7 @@ export async function backfillTableWorkflowDeployments(
     scanned: 0,
     deployed: 0,
     alreadyDeployed: 0,
+    pinnedGroups: 0,
   }
   let afterWorkflowId = ''
 
@@ -352,6 +499,8 @@ export async function backfillTableWorkflowDeployments(
       `Table workflow deployment backfill left workflow ${remaining[0].workflowId} undeployed`
     )
   }
+
+  summary.pinnedGroups = await store.pinActiveDeploymentVersions(batchSize)
 
   return summary
 }

@@ -395,7 +395,9 @@ async function runWorkflowAndWriteTerminal(
     return await runWithRequestContext({ requestId }, async () => {
       const { getRowById } = await import('@/lib/table/rows/service')
       const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
-      const { loadDeployedWorkflowState } = await import('@/lib/workflows/persistence/utils')
+      const { loadWorkflowDeploymentVersionState } = await import(
+        '@/lib/workflows/persistence/utils'
+      )
       const {
         buildCancelledExecution,
         createWorkflowCellProgressWriter,
@@ -687,9 +689,18 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        let normalizedData: Awaited<ReturnType<typeof loadDeployedWorkflowState>>
+        let normalizedData: Awaited<ReturnType<typeof loadWorkflowDeploymentVersionState>>
         try {
-          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+          if (!group.deploymentVersionId) {
+            throw new Error(
+              `Workflow group ${group.id} has no pinned deployment version; run the table workflow deployment backfill`
+            )
+          }
+          normalizedData = await loadWorkflowDeploymentVersionState(
+            workflowId,
+            group.deploymentVersionId,
+            workspaceId
+          )
         } catch (err) {
           await writeState({
             status: 'error',

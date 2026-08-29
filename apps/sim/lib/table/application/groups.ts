@@ -34,7 +34,10 @@ import {
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
-import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
+import type {
+  ResolveDeployedWorkflowOutputsResult,
+  ResolveWorkflowOutputsResult,
+} from '@/lib/workflows/application/resolve-workflow-outputs'
 import { loadResolvedDeployedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig } from '@/enrichments/types'
@@ -59,7 +62,7 @@ function groupFromTable(table: TableDefinition, groupId: string): WorkflowGroup 
 async function resolveWorkflowForAuthorizedTableCommand(
   workflowId: string,
   workspaceId: string
-): Promise<ResolveWorkflowOutputsResult> {
+): Promise<ResolveDeployedWorkflowOutputsResult> {
   const workflowContext = await resolveActiveWorkflowApplicationContext({
     workflowId,
     assertedWorkspaceId: workspaceId,
@@ -70,7 +73,7 @@ async function resolveWorkflowForAuthorizedTableCommand(
 async function resolveRelatedWorkflowForTableRoute(
   workflowId: string,
   workspaceId: string
-): Promise<ResolveWorkflowOutputsResult> {
+): Promise<ResolveDeployedWorkflowOutputsResult> {
   try {
     return await resolveWorkflowForAuthorizedTableCommand(workflowId, workspaceId)
   } catch (error) {
@@ -245,6 +248,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
      * with a backing workflow and workflow output coordinates, and only a group
      * with no workflow is filled from the enrichment registry.
      */
+    let deploymentVersionId: string | undefined
     if (input.group.workflowId) {
       const resolvedWorkflow = await resolveRelatedWorkflowForTableRoute(
         input.group.workflowId,
@@ -258,6 +262,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         resolvedWorkflow,
         input.group.workflowId
       )
+      deploymentVersionId = resolvedWorkflow.deploymentVersionId
     } else if (input.group.enrichmentId) {
       requireKnownEnrichmentOutputIds(
         requireEnrichment(input.group.enrichmentId),
@@ -284,6 +289,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
       ...input.group,
       id: groupId,
       workflowId: input.group.workflowId ?? '',
+      ...(deploymentVersionId ? { deploymentVersionId } : {}),
       outputs: input.group.outputs.map((output) => ({
         ...output,
         blockId: output.blockId ?? '',
@@ -404,6 +410,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
     const group: WorkflowGroup = {
       id: groupId,
       workflowId: input.workflowId,
+      deploymentVersionId: resolvedWorkflow.deploymentVersionId,
       ...(input.name ? { name: input.name } : {}),
       ...(input.dependencies ? { dependencies: input.dependencies } : {}),
       ...(input.deploymentMode ? { deploymentMode: input.deploymentMode } : {}),
@@ -719,9 +726,10 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
     const workflowMetadataRequired =
       input.workflowId !== undefined ||
       outputCoordinatesToValidate.length > 0 ||
-      (input.mappingUpdates?.length ?? 0) > 0
+      (input.mappingUpdates?.length ?? 0) > 0 ||
+      input.inputMappings !== undefined
     const targetWorkflowId = input.workflowId ?? previousGroup?.workflowId
-    let resolvedWorkflow: ResolveWorkflowOutputsResult | undefined
+    let resolvedWorkflow: ResolveDeployedWorkflowOutputsResult | undefined
     if (workflowMetadataRequired) {
       if (!targetWorkflowId) {
         throw new OrchestrationError('not_found', 'Workflow not found')
@@ -730,8 +738,19 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         targetWorkflowId,
         context.workspaceId
       )
-      if (outputCoordinatesToValidate.length > 0) {
-        validateRequestedOutputs(outputCoordinatesToValidate, resolvedWorkflow, targetWorkflowId)
+      const remappedPreviousOutputs = (previousGroup?.outputs ?? []).map((output) => {
+        const mapping = input.mappingUpdates?.find(
+          (candidate) => candidate.columnName === output.columnName
+        )
+        return mapping ? { ...output, blockId: mapping.blockId, path: mapping.path } : output
+      })
+      const resultingOutputs = input.outputs ?? remappedPreviousOutputs
+      const deploymentChanged =
+        resolvedWorkflow.deploymentVersionId !== previousGroup?.deploymentVersionId
+      const coordinatesToValidate =
+        workflowChanged || deploymentChanged ? resultingOutputs : outputCoordinatesToValidate
+      if (coordinatesToValidate.length > 0) {
+        validateRequestedOutputs(coordinatesToValidate, resolvedWorkflow, targetWorkflowId)
       }
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
@@ -779,6 +798,18 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
           : {}),
         ...(input.mappingUpdates !== undefined ? { mappingUpdates: input.mappingUpdates } : {}),
         ...(resolvedMappingTypes ? { resolvedMappingTypes } : {}),
+        ...(resolvedWorkflow
+          ? {
+              resolvedDeployment: {
+                workflowId: resolvedWorkflow.workflowId,
+                deploymentVersionId: resolvedWorkflow.deploymentVersionId,
+                validOutputCoordinates: (resolvedWorkflow.outputs ?? []).map((output) => ({
+                  blockId: output.blockId,
+                  path: output.path,
+                })),
+              },
+            }
+          : {}),
         ...(input.inputMappings !== undefined ? { inputMappings: input.inputMappings } : {}),
         ...(input.deploymentMode !== undefined ? { deploymentMode: input.deploymentMode } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
@@ -870,10 +901,19 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
     const resolvedWorkflow = workflowMetadataRequired
       ? await resolveWorkflowForAuthorizedTableCommand(targetWorkflowId, context.workspaceId)
       : undefined
-    if (input.outputs && resolvedWorkflow) {
-      validateRequestedOutputs(input.outputs, resolvedWorkflow, targetWorkflowId)
-    } else if (input.workflowId && resolvedWorkflow) {
-      validateRequestedOutputs(previousGroup.outputs, resolvedWorkflow, targetWorkflowId)
+    if (resolvedWorkflow) {
+      const remappedPreviousOutputs = previousGroup.outputs.map((output) => {
+        const mapping = input.mappingUpdates?.find(
+          (candidate) => candidate.columnName === output.columnName
+        )
+        return mapping ? { ...output, blockId: mapping.blockId, path: mapping.path } : output
+      })
+      const resultingOutputs = input.outputs ?? remappedPreviousOutputs
+      const deploymentChanged =
+        resolvedWorkflow.deploymentVersionId !== previousGroup.deploymentVersionId
+      if (input.outputs || input.workflowId || deploymentChanged) {
+        validateRequestedOutputs(resultingOutputs, resolvedWorkflow, targetWorkflowId)
+      }
     }
 
     let outputs: WorkflowGroupOutput[] | undefined
@@ -970,6 +1010,18 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
         ...(newOutputColumns !== undefined ? { newOutputColumns } : {}),
         ...(input.mappingUpdates !== undefined ? { mappingUpdates: input.mappingUpdates } : {}),
         ...(resolvedMappingTypes ? { resolvedMappingTypes } : {}),
+        ...(resolvedWorkflow
+          ? {
+              resolvedDeployment: {
+                workflowId: resolvedWorkflow.workflowId,
+                deploymentVersionId: resolvedWorkflow.deploymentVersionId,
+                validOutputCoordinates: (resolvedWorkflow.outputs ?? []).map((output) => ({
+                  blockId: output.blockId,
+                  path: output.path,
+                })),
+              },
+            }
+          : {}),
         ...(input.deploymentMode !== undefined ? { deploymentMode: input.deploymentMode } : {}),
         ...(input.autoRun !== undefined ? { autoRun: input.autoRun } : {}),
       },
@@ -1079,6 +1131,11 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
       context.workspaceId
     )
     const outputs = requireWorkflowOutputs(resolvedWorkflow, group.workflowId)
+    validateRequestedOutputs(
+      [...group.outputs, { blockId: input.blockId, path: input.path }],
+      resolvedWorkflow,
+      group.workflowId
+    )
     const output = outputs.find(
       (candidate) => candidate.blockId === input.blockId && candidate.path === input.path
     )
@@ -1101,6 +1158,7 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
         }).attributedUserId,
         resolvedOutput: {
           workflowId: resolvedWorkflow.workflowId,
+          deploymentVersionId: resolvedWorkflow.deploymentVersionId,
           columnType: columnTypeForLeaf(output.leafType),
           order: outputs.map((candidate, discoveryIndex) => {
             const distance = resolvedWorkflow.executionOrderByBlockId[candidate.blockId]

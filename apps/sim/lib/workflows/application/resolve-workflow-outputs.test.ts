@@ -75,6 +75,7 @@ describe('resolveWorkflowOutputs', () => {
     mocks.loadDeployed.mockResolvedValue({
       blocks: { block1: { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} } },
       edges: [],
+      deploymentVersionId: 'deployment-version-1',
     })
     mocks.flatten.mockReturnValue([
       {
@@ -126,6 +127,7 @@ describe('resolveWorkflowOutputs', () => {
 
     await expect(loadResolvedDeployedWorkflowOutputs(context)).resolves.toMatchObject({
       workflowId: 'workflow-1',
+      deploymentVersionId: 'deployment-version-1',
       outputs: [{ blockId: 'block-1', path: 'content' }],
     })
 

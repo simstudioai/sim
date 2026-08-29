@@ -34,6 +34,7 @@ function store(
     assertIntegrity: vi.fn().mockResolvedValue(undefined),
     listCandidates: vi.fn().mockResolvedValue([]),
     isDeployed: vi.fn().mockResolvedValue(false),
+    pinActiveDeploymentVersions: vi.fn().mockResolvedValue(0),
     ...overrides,
   }
 }
@@ -65,7 +66,8 @@ describe('backfillTableWorkflowDeployments', () => {
         },
       }
     })
-    const backfillStore = store({ listCandidates, isDeployed })
+    const pinActiveDeploymentVersions = vi.fn().mockResolvedValue(3)
+    const backfillStore = store({ listCandidates, isDeployed, pinActiveDeploymentVersions })
 
     await expect(
       backfillTableWorkflowDeployments(backfillStore, deploy, { batchSize: 2 })
@@ -73,6 +75,7 @@ describe('backfillTableWorkflowDeployments', () => {
       scanned: 3,
       deployed: 3,
       alreadyDeployed: 0,
+      pinnedGroups: 3,
     })
     expect(listCandidates.mock.calls).toEqual([
       ['', 2],
@@ -81,6 +84,7 @@ describe('backfillTableWorkflowDeployments', () => {
       ['', 1],
     ])
     expect(backfillStore.assertIntegrity).toHaveBeenCalledTimes(2)
+    expect(pinActiveDeploymentVersions).toHaveBeenCalledWith(2)
     expect(deploy.mock.calls.map(([workflow]) => workflow.workflowId)).toEqual([
       'workflow-a',
       'workflow-b',
@@ -108,6 +112,7 @@ describe('backfillTableWorkflowDeployments', () => {
       scanned: 1,
       deployed: 0,
       alreadyDeployed: 1,
+      pinnedGroups: 0,
     })
     expect(deploy).not.toHaveBeenCalled()
   })

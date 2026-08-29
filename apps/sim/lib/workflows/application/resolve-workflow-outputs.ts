@@ -27,6 +27,10 @@ export interface ResolveWorkflowOutputsResult {
   executionOrderByBlockId: Record<string, number>
 }
 
+export interface ResolveDeployedWorkflowOutputsResult extends ResolveWorkflowOutputsResult {
+  deploymentVersionId: string
+}
+
 type ResolvableWorkflowState =
   | NonNullable<Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>>
   | Awaited<ReturnType<typeof loadDeployedWorkflowState>>
@@ -63,13 +67,16 @@ export async function loadResolvedWorkflowOutputs(
 /** Loads output metadata from the active deployment after workflow authorization. */
 export async function loadResolvedDeployedWorkflowOutputs(
   context: ActiveWorkflowApplicationContext
-): Promise<ResolveWorkflowOutputsResult> {
+): Promise<ResolveDeployedWorkflowOutputsResult> {
   if (!context.workflow.isDeployed) {
     throw new OrchestrationError('validation', 'Workflow must have an active deployment')
   }
   try {
     const normalized = await loadDeployedWorkflowState(context.workflowId, context.workspaceId)
-    return resolveWorkflowOutputsFromState(context.workflowId, normalized)
+    return {
+      ...resolveWorkflowOutputsFromState(context.workflowId, normalized),
+      deploymentVersionId: normalized.deploymentVersionId,
+    }
   } catch (error) {
     if (error instanceof NoActiveDeploymentError) {
       throw new OrchestrationError('validation', 'Workflow must have an active deployment')
