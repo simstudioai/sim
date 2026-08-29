@@ -55,19 +55,28 @@ const LEGITIMATE_IDS = [
 const STATIC_URL_TOOLS = []
 
 /**
- * Identifiers this change newly began trimming, per tool.
+ * Identifiers this change newly began trimming **on a state-changing request**.
  *
  * Before this branch every one of these was interpolated as
  * `encodeURIComponent(params.x)` with no trim, so a padded value named nothing
  * and the request failed. Trimming would silently resolve it to a real
  * resource — and on `delete_dataset` / `delete_table` that turns a request that
- * did nothing into one that destroys a real dataset or table. They refuse
- * padding instead; see `strictBigQueryPathSegment`.
+ * did nothing into one that destroys a real dataset or table.
  *
- * Identifiers already `.trim()`-ed before this branch are deliberately absent:
- * `datasetId` on the delete tools, `tableId` on `delete_table`, `jobId` on
- * `get_query_results`. Trimming those is not a change made here, and refusing
- * them would break callers whose stored value works today.
+ * **Reads are deliberately absent, and that asymmetry is the point.** An
+ * earlier revision applied the strict guard to every tool on the reasoning that
+ * the value was newly trimmed; #7262 documents the sharper rule, which is that
+ * the harm is asymmetric. On a write, being wrong destroys a resource the
+ * caller never named — unrecoverable. On a read, being wrong returns data from
+ * the resource they almost certainly did mean, since they typed the padded name
+ * themselves, and refusing instead breaks a working paste-with-a-stray-newline
+ * flow for no safety gain. Refuse where being wrong is unrecoverable; tolerate
+ * where it is merely unhelpful.
+ *
+ * Identifiers already `.trim()`-ed before this branch are absent for a separate
+ * reason: `datasetId` on the delete tools, `tableId` on `delete_table`, `jobId`
+ * on `get_query_results`. Trimming those is not a change made here, and
+ * refusing them would break callers whose stored value works today.
  */
 const NEWLY_TRIMMED_BY_THIS_CHANGE: Record<string, readonly string[]> = {
   google_bigquery_delete_dataset: ['projectId'],
@@ -75,11 +84,6 @@ const NEWLY_TRIMMED_BY_THIS_CHANGE: Record<string, readonly string[]> = {
   google_bigquery_create_dataset: ['projectId'],
   google_bigquery_create_table: ['projectId'],
   google_bigquery_query: ['projectId'],
-  google_bigquery_list_datasets: ['projectId'],
-  google_bigquery_list_table_data: ['projectId'],
-  google_bigquery_get_query_results: ['projectId'],
-  google_bigquery_list_tables: ['projectId', 'datasetId'],
-  google_bigquery_get_table: ['projectId', 'datasetId', 'tableId'],
   google_bigquery_insert_rows: ['projectId', 'datasetId', 'tableId'],
 }
 

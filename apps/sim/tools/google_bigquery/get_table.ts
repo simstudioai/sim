@@ -2,8 +2,8 @@ import type {
   GoogleBigQueryGetTableParams,
   GoogleBigQueryGetTableResponse,
 } from '@/tools/google_bigquery/types'
-import { strictBigQueryPathSegment } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryGetTableTool: ToolConfig<
   GoogleBigQueryGetTableParams,
@@ -48,7 +48,7 @@ export const googleBigQueryGetTableTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/datasets/${strictBigQueryPathSegment(params.datasetId, 'datasetId')}/tables/${strictBigQueryPathSegment(params.tableId, 'tableId')}`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables/${safeUrlPathSegment(params.tableId, 'tableId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

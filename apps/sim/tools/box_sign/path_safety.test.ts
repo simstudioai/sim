@@ -9,11 +9,17 @@
  * `../../users/me` re-aimed an authenticated request at another Box resource.
  * Two of the three call sites are state-changing (`/cancel`, `/resend`).
  *
- * It now goes through `strictUrlPathSegment`, not plain `safeUrlPathSegment`.
- * That distinction is the point of the whitespace pins below: the plain guard
- * *trims* surrounding whitespace, and since `signRequestId` was previously
- * interpolated raw, trimming would newly resolve a padded id to a real request
- * and cancel it. The strict guard refuses instead.
+ * The two **state-changing** routes (`/cancel`, `/resend`) go through
+ * `strictUrlPathSegment`, which additionally refuses a padded id. That is the
+ * point of the whitespace pins below: the plain guard *trims*, and since
+ * `signRequestId` was previously interpolated raw, trimming would newly resolve
+ * a padded id to a real request and cancel it.
+ *
+ * `box_sign_get_request` is a GET and deliberately keeps plain
+ * `safeUrlPathSegment`. #7262 documents why the strict guards stop at writes:
+ * the harm is asymmetric. On a write, being wrong destroys something the caller
+ * never named; on a read, being wrong returns the resource they almost
+ * certainly did mean, while refusing breaks a working paste for no safety gain.
  *
  * The description above is of the defect, not of the current code.
  */
@@ -44,6 +50,9 @@ const LEGITIMATE_IDS = [
  */
 const STATIC_URL_TOOLS = ['box_sign_create_request', 'box_sign_list_requests']
 
+/** Box Sign routes that change state; reads keep the plain guard. */
+const STATE_CHANGING_TOOL_IDS = ['box_sign_cancel_request', 'box_sign_resend_request']
+
 const {
   covered: PATH_PARAMS,
   unbuildable: UNBUILDABLE,
@@ -72,7 +81,14 @@ describe('box sign path-id traversal safety', () => {
     itResistsTraversal(param, {
       origin: ORIGIN,
       basePath: BASE_PATH,
-      rejectsSurroundingWhitespace: ['signRequestId'],
+      /**
+       * Writes only. `box_sign_get_request` is a GET and keeps the plain
+       * guard: refusing a padded id there would break a working paste for no
+       * safety gain, since a read returns the resource the caller meant.
+       */
+      rejectsSurroundingWhitespace: STATE_CHANGING_TOOL_IDS.includes(param.tool.id)
+        ? ['signRequestId']
+        : [],
     })
     itPassesLegitimateValues(param, { values: LEGITIMATE_IDS })
   })

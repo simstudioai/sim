@@ -2,7 +2,6 @@ import type {
   GoogleBigQueryGetQueryResultsParams,
   GoogleBigQueryGetQueryResultsResponse,
 } from '@/tools/google_bigquery/types'
-import { strictBigQueryPathSegment } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -75,7 +74,7 @@ export const googleBigQueryGetQueryResultsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/queries/${safeUrlPathSegment(params.jobId, 'jobId')}`
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/queries/${safeUrlPathSegment(params.jobId, 'jobId')}`
       )
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
       if (params.maxResults !== undefined && params.maxResults !== null) {

@@ -2,8 +2,8 @@ import type {
   GoogleBigQueryListDatasetsParams,
   GoogleBigQueryListDatasetsResponse,
 } from '@/tools/google_bigquery/types'
-import { strictBigQueryPathSegment } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryListDatasetsTool: ToolConfig<
   GoogleBigQueryListDatasetsParams,
@@ -49,7 +49,7 @@ export const googleBigQueryListDatasetsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/datasets`
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets`
       )
       if (params.maxResults !== undefined && params.maxResults !== null) {
         const maxResults = Number(params.maxResults)
