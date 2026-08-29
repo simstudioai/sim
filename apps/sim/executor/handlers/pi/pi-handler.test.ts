@@ -111,6 +111,7 @@ vi.mock('@/blocks/utils', () => ({
   },
 }))
 
+import type { PiRunContext } from '@/executor/handlers/pi/core/backend'
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -289,6 +290,41 @@ describe('PiBlockHandler', () => {
     const output = (await handler.execute(ctx(), block, localInputs())) as { cost: unknown }
 
     expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.125, total: 0.125 })
+  })
+
+  it('bills the cloud sandbox a Pi session ran in, even when the model is BYOK', async () => {
+    // The regression this guards: the agent's own sandbox runs on Sim's provider
+    // account, so a BYOK run whose model cost is zero by definition would
+    // otherwise report no cost at all for tens of minutes of paid compute.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0842
+      return { totals: { finalText: 'done', inputTokens: 0, outputTokens: 0 } }
+    })
+
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'do it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.0842, total: 0.0842 })
+  })
+
+  it('leaves a cloud run that provisioned no sandbox uncharged', async () => {
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'do it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as { cost: Record<string, unknown> }
+
+    expect(output.cost.toolCost).toBeUndefined()
+    expect(output.cost.total).toBe(0)
   })
 
   it('routes Create PR to the cloud backend and surfaces PR output', async () => {

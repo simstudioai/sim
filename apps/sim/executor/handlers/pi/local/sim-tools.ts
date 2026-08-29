@@ -9,6 +9,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import {
   readWorkflowInputFieldsForTool,
   readWorkflowMetadataForTool,
@@ -46,10 +47,6 @@ function unavailableToolResult(): PiToolResult {
 type PiToolResultProjection =
   | { safe: true; result: PiToolResult }
   | { safe: false; result: PiToolResult }
-
-export interface PiFunctionToolCostAccumulator {
-  total: number
-}
 
 function projectToolResult(
   result: ToolResponse,
@@ -112,7 +109,7 @@ function buildSimToolSpec(
   inputTools: ToolInput[],
   provider: ProviderToolConfig,
   toolIndex: number,
-  functionToolCost?: PiFunctionToolCostAccumulator
+  sandboxCost?: SandboxCostSink
 ): PiToolSpec {
   const toolId = provider.canonicalId ?? provider.id
   const preseededParams = provider.params || {}
@@ -182,12 +179,12 @@ function buildSimToolSpec(
             : undefined
         if (
           toolId === 'function_execute' &&
-          functionToolCost &&
+          sandboxCost &&
           typeof resultCostTotal === 'number' &&
           Number.isFinite(resultCostTotal) &&
           resultCostTotal > 0
         ) {
-          functionToolCost.total += resultCostTotal
+          sandboxCost.total += resultCostTotal
         }
         const projection = projectToolResult(result, toolCallRegistry?.forkForPropagatedEntries())
         if (projection.safe && registry && toolCallRegistry?.isComplete()) {
@@ -219,7 +216,7 @@ function buildSimToolSpec(
 export async function buildSimToolSpecs(
   ctx: ExecutionContext,
   inputTools: unknown,
-  functionToolCost?: PiFunctionToolCostAccumulator
+  sandboxCost?: SandboxCostSink
 ): Promise<PiToolSpec[]> {
   if (!Array.isArray(inputTools)) return []
 
@@ -263,6 +260,6 @@ export async function buildSimToolSpecs(
   await annotateDuplicateToolBindings(ctx, providers)
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
-    buildSimToolSpec(ctx, inputTools, provider, toolIndex, functionToolCost)
+    buildSimToolSpec(ctx, inputTools, provider, toolIndex, sandboxCost)
   )
 }

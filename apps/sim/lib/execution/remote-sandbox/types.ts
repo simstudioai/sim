@@ -109,6 +109,18 @@ export interface SandboxExecutionCost {
   total: number
 }
 
+/**
+ * Running total a caller accumulates sandbox charges into.
+ *
+ * A long-lived sandbox reports its cost when it is torn down, which is after the
+ * value its caller cares about has already been returned. Handing the layer a
+ * sink lets the charge land without reshaping every return type between here and
+ * the block that owns the bill.
+ */
+export interface SandboxCostSink {
+  total: number
+}
+
 export interface SandboxExecutionResult {
   result: unknown
   stdout: string

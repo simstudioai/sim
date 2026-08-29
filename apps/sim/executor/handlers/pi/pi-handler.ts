@@ -8,6 +8,7 @@
 
 import { createLogger } from '@sim/logger'
 import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import {
@@ -45,10 +46,7 @@ import {
   resolvePiSearchKey,
 } from '@/executor/handlers/pi/core/keys'
 import { runLocalPi } from '@/executor/handlers/pi/local/backend'
-import {
-  buildSimToolSpecs,
-  type PiFunctionToolCostAccumulator,
-} from '@/executor/handlers/pi/local/sim-tools'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
 import type {
   BlockHandler,
@@ -270,8 +268,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
-      const functionToolCost: PiFunctionToolCostAccumulator = { total: 0 }
-      const tools = await buildSimToolSpecs(ctx, inputs.tools, functionToolCost)
+      const sandboxCost: SandboxCostSink = { total: 0 }
+      const tools = await buildSimToolSpecs(ctx, inputs.tools, sandboxCost)
       const params: PiLocalRunParams = {
         ...contextualBase,
         mode: 'local',
@@ -286,7 +284,7 @@ export class PiBlockHandler implements BlockHandler {
           passphrase: usePrivateKey ? asRawString(inputs.passphrase) : undefined,
         },
       }
-      return this.runPi(ctx, block, runLocalPi, params, memoryConfig, functionToolCost)
+      return this.runPi(ctx, block, runLocalPi, params, memoryConfig, sandboxCost)
     }
 
     const owner = asOptString(inputs.owner)
@@ -478,17 +476,23 @@ export class PiBlockHandler implements BlockHandler {
     isBYOK: boolean,
     startTime: number,
     startTimeISO: string,
-    functionToolCost = 0
+    sandboxCost = 0
   ): NormalizedBlockOutput {
     const { totals } = result
     const endTime = Date.now()
     const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
+    /*
+     * Sandbox compute rides in `toolCost` so it survives a BYOK run: the model
+     * side is zero by definition there, and the ledger bills a model row on
+     * `total > 0`. Folding it in is what makes a BYOK Pi session bill for the
+     * E2B time it actually consumed instead of nothing at all.
+     */
     const cost =
-      functionToolCost > 0
+      sandboxCost > 0
         ? {
             ...modelCost,
-            toolCost: functionToolCost,
-            total: modelCost.total + functionToolCost,
+            toolCost: sandboxCost,
+            total: modelCost.total + sandboxCost,
           }
         : modelCost
     return {
@@ -534,7 +538,14 @@ export class PiBlockHandler implements BlockHandler {
     backend: PiBackendRun<P>,
     params: P,
     memoryConfig?: PiMemoryConfig,
-    functionToolCost?: PiFunctionToolCostAccumulator
+    /**
+     * One sink for every Sim-paid sandbox this block touches. Local mode fills it
+     * from the Function tools it runs host-side; cloud modes fill it from the
+     * sandbox the agent itself runs in. They are mutually exclusive in practice,
+     * and sharing one total means neither can be forgotten at the point the cost
+     * is folded into the block's output.
+     */
+    sandboxCost: SandboxCostSink = { total: 0 }
   ): Promise<BlockOutput | StreamingExecution> {
     const startTime = Date.now()
     const startTimeISO = new Date(startTime).toISOString()
@@ -560,6 +571,7 @@ export class PiBlockHandler implements BlockHandler {
                 if (text) controller.enqueue(encoder.encode(text))
               },
               signal: ctx.abortSignal,
+              sandboxCost,
             })
             if (result.totals.errorMessage) {
               controller.error(new Error(result.totals.errorMessage))
@@ -577,7 +589,7 @@ export class PiBlockHandler implements BlockHandler {
                 params.isBYOK,
                 startTime,
                 startTimeISO,
-                functionToolCost?.total
+                sandboxCost.total
               )
             )
             if (memoryConfig) {
@@ -608,7 +620,11 @@ export class PiBlockHandler implements BlockHandler {
       }
     }
 
-    const result = await backend(params, { onEvent: () => {}, signal: ctx.abortSignal })
+    const result = await backend(params, {
+      onEvent: () => {},
+      signal: ctx.abortSignal,
+      sandboxCost,
+    })
     if (result.totals.errorMessage) {
       throw new Error(result.totals.errorMessage)
     }
@@ -627,7 +643,7 @@ export class PiBlockHandler implements BlockHandler {
       params.isBYOK,
       startTime,
       startTimeISO,
-      functionToolCost?.total
+      sandboxCost.total
     )
   }
 }

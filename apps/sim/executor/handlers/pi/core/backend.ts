@@ -9,6 +9,7 @@
  */
 
 import type { TSchema } from 'typebox'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import type { SSHConnectionConfig } from '@/lib/internal/ssh/client'
 import type { Message } from '@/executor/handlers/agent/types'
 import type { PiEvent, PiRunTotals } from '@/executor/handlers/pi/core/events'
@@ -172,6 +173,16 @@ export type PiRunParams =
 export interface PiRunContext {
   onEvent: (event: PiEvent) => void
   signal?: AbortSignal
+  /**
+   * Where a backend reports the cost of Sim-provisioned compute it used.
+   *
+   * Only the cloud modes have any: they run the agent in a Sim-paid sandbox,
+   * while local mode drives the caller's own machine over SSH and costs Sim
+   * nothing. The handler folds whatever lands here into the block's `toolCost`,
+   * which is what keeps a BYOK Pi run — model unbilled by definition — from
+   * reporting no cost at all for a session that ran for tens of minutes.
+   */
+  sandboxCost?: SandboxCostSink
 }
 
 /** Final result of a Pi run. */

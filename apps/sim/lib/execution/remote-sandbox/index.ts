@@ -45,6 +45,7 @@ import type {
   SandboxCodeResult,
   SandboxCollectedFile,
   SandboxCommandResult,
+  SandboxCostSink,
   SandboxDirectoryEntry,
   SandboxExecutionCost,
   SandboxExecutionRequest,
@@ -59,6 +60,7 @@ import type {
 } from '@/lib/execution/remote-sandbox/types'
 
 export type {
+  SandboxCostSink,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
@@ -1117,12 +1119,13 @@ export interface PiSandboxRunner {
  * caller's sandbox body, which would have buried the change in whitespace.
  */
 export async function withPiSandbox<T>(
-  options: { lifetimeMs?: number },
+  options: { lifetimeMs?: number; cost?: SandboxCostSink },
   fn: (runner: PiSandboxRunner) => Promise<T>
 ): Promise<T> {
   const lifetimeMs =
     options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
-  const { sandbox } = await createSandbox('pi', { lifetimeMs })
+  const created = await createSandbox('pi', { lifetimeMs }, Boolean(options.cost))
+  const { sandbox } = created
   logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {
@@ -1142,6 +1145,18 @@ export async function withPiSandbox<T>(
   try {
     return await fn(runner)
   } finally {
+    /*
+     * Charged on creation rather than on a successful session, which is where
+     * this departs from the Function path — and deliberately. A Function run is
+     * seconds long, so absorbing one that the provider failed to deliver costs
+     * little and reads as fair. A Pi session holds its sandbox for tens of
+     * minutes, and that compute is consumed whether the agent finished, errored,
+     * or was cancelled. Billing only the clean endings would mean paying for
+     * every other one. A create that throws never reaches here, so the one case
+     * where nothing was provisioned is still free.
+     */
+    const cost = calculateSandboxCost(created, Date.now())
+    if (cost && options.cost) options.cost.total += cost.total
     try {
       await sandbox.kill()
     } catch {
