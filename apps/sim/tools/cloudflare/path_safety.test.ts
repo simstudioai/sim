@@ -11,41 +11,44 @@
  * user's Cloudflare API token — at an arbitrary Cloudflare resource, including
  * on the DELETE zone and DELETE bucket routes.
  *
- * `encodeURIComponent` is NOT enough, which is why the vector list below keeps
- * the bare `.` and `..` segments: both are made of unreserved characters, so
- * they survive encoding untouched and the URL parser then removes them as dot
- * segments, popping one path segment off a fixed host. Every assertion here
- * resolves the built URL with `new URL(...)` — the same normalization `fetch`
- * performs — rather than string-matching the template output, because string
- * matching is exactly what let this through.
+ * `encodeURIComponent` is NOT enough: `.` and `..` are unreserved, so they
+ * survive encoding untouched and the URL parser then removes them as dot
+ * segments. Every assertion here resolves the built URL with `new URL(...)` —
+ * the same normalization `fetch` performs — rather than string-matching the
+ * template output, because string matching is what let this through.
  *
- * The suite enumerates **(tool, param) pairs** and fuzzes one param at a time,
- * holding every sibling at a safe value. Fuzzing all params at once cannot work
- * here: the first guard to throw aborts URL construction, so a tool's remaining
- * params stop being exercised the moment one of them is fixed. Pair enumeration
- * is what makes "a newly unguarded param fails CI" actually true for a tool that
- * already has a guarded param — the dominant shape in this service, where
- * `accountId` + `appId` + `policyId` and `zoneId` + `rulesetId` + `ruleId`
- * share one path.
+ * Two independent blind spots shape this file, and both are load-bearing:
+ *
+ * 1. **Fuzz one param at a time.** URL construction is eager, so filling every
+ *    param with the same vector means the first guard to throw aborts the whole
+ *    case and every sibling goes untested — once a tool has one guard, a newly
+ *    unguarded sibling can no longer fail CI. So the suite enumerates
+ *    (tool, param) pairs and holds every sibling at a safe value.
+ * 2. **Assert rejection, not just shape.** A bare `.` in the FINAL segment
+ *    collapses invisibly: `/zones/abc/rulesets/.` normalizes to
+ *    `/zones/abc/rulesets/`, which keeps the segment count and every other
+ *    segment intact, so a shape-only check passes with the guard removed. Since
+ *    the guarded id is the last segment on `delete_zone`, `delete_r2_bucket`,
+ *    `delete_ruleset_rule` and friends — all DELETEs — that is exactly where a
+ *    shape check is blindest. `MUST_REJECT` therefore asserts a throw.
  */
 import { describe, expect, it } from 'vitest'
 import * as cloudflareTools from '@/tools/cloudflare'
-import type { ToolConfig } from '@/tools/types'
+import { deleteZoneTool } from '@/tools/cloudflare/delete_zone'
 
 const API_ORIGIN = 'https://api.cloudflare.com'
 const API_PREFIX = '/client/v4/'
 const CREDENTIAL_PARAM = 'apiKey'
 
 /**
- * Vectors the guard must **reject outright**. Each is either a bare dot segment
- * or carries a path separator, so encoding it would leave a live traversal.
- * The bare `.` and `..` entries are the whole point: their omission is why an
- * `encodeURIComponent`-only fix looks correct while the hole stays live.
+ * Vectors the guard must **reject outright**. Each is a bare dot segment or
+ * carries a path separator, so encoding it would leave a live traversal.
  */
 const MUST_REJECT = [
   '..',
   '.',
   '  ..  ',
+  '  .  ',
   '../../accounts/victim-account',
   '..%2f..%2faccounts/victim-account',
   '023e105f4ecef8ad9ca31a8372d0c353/../../accounts/victim-account',
@@ -76,38 +79,73 @@ const LEGITIMATE_IDS = [
   'v1.2.3',
 ] as const
 
+/**
+ * Tools that legitimately build no URL from params, so the pair enumeration
+ * cannot reach them: `create_zone` posts to a static collection URL, and
+ * `get_zone_settings` fans out through an internal operation (its own
+ * `zoneSettingUrl` already rejects dot segments, asserted in cloudflare.test.ts).
+ * Named explicitly rather than silently skipped: a tool that loses its URL
+ * builder must surface here rather than quietly dropping out of coverage.
+ */
+const TOOLS_WITHOUT_PARAM_BUILT_URLS = [
+  'cloudflare_create_zone',
+  'cloudflare_get_zone_settings',
+] as const
+
 const SAFE_ID = 'SAFEID'
 const PROBE = 'PROBEVALUE'
 const TRIM_SAMPLE = '023e105f4ecef8ad9ca31a8372d0c353'
 
-type AnyTool = ToolConfig<any, any>
+interface PathToolParam {
+  type?: string
+  required?: boolean
+}
 
-function isCloudflareTool(value: unknown): value is AnyTool {
+/** The structural slice of a tool config this suite needs; avoids `any`. */
+interface ServiceTool {
+  id: string
+  params?: Record<string, PathToolParam>
+  request?: { url?: unknown }
+}
+
+/** A tool that builds its request URL from params, so it can be probed. */
+type PathTool = ServiceTool & {
+  request: { url: (params: Record<string, unknown>) => string }
+}
+
+function isCloudflareTool(value: unknown): value is ServiceTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('cloudflare_')
+    typeof (value as ServiceTool).id === 'string' &&
+    (value as ServiceTool).id.startsWith('cloudflare_')
   )
+}
+
+function isPathTool(tool: ServiceTool): tool is PathTool {
+  return typeof tool.request?.url === 'function'
+}
+
+function pathToolFor(value: unknown, id: string): PathTool {
+  if (!isCloudflareTool(value) || !isPathTool(value)) {
+    throw new Error(`${id} does not build its URL from params`)
+  }
+  return value
 }
 
 /**
  * Builds a param object with every string param at a known-safe value, then
  * applies one override so exactly one param carries the value under test.
  */
-function buildParams(
-  tool: AnyTool,
-  overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
+function buildParams(tool: PathTool, overrides: Record<string, unknown>): Record<string, unknown> {
   const params: Record<string, unknown> = { [CREDENTIAL_PARAM]: 'cf-token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === CREDENTIAL_PARAM) continue
-    const type = (def as { type?: string }).type
-    if (type === 'json' || type === 'array' || type === 'file[]') {
+    if (def.type === 'json' || def.type === 'array' || def.type === 'file[]') {
       params[name] = []
-    } else if (type === 'number') {
+    } else if (def.type === 'number') {
       params[name] = 1
-    } else if (type === 'boolean') {
+    } else if (def.type === 'boolean') {
       params[name] = false
     } else {
       params[name] = SAFE_ID
@@ -116,43 +154,132 @@ function buildParams(
   return { ...params, ...overrides }
 }
 
-function buildUrl(tool: AnyTool, overrides: Record<string, unknown> = {}): URL {
-  const url = tool.request?.url
-  if (typeof url !== 'function') {
-    throw new Error(`${tool.id} does not build its URL from params`)
-  }
-  return new URL(url(buildParams(tool, overrides) as any))
+function buildUrl(tool: PathTool, overrides: Record<string, unknown> = {}): URL {
+  return new URL(tool.request.url(buildParams(tool, overrides)))
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const TOOLS = Object.values(cloudflareTools)
-  .filter(isCloudflareTool)
-  .filter((tool) => typeof tool.request?.url === 'function')
+const ALL_TOOLS = Object.values(cloudflareTools).filter(isCloudflareTool)
+const TOOLS = ALL_TOOLS.filter(isPathTool)
+
+/** Surfaced, not swallowed — a silent skip is the blindness this suite fixes. */
+const SKIPPED_TOOL_IDS = ALL_TOOLS.filter((tool) => !isPathTool(tool)).map((tool) => tool.id)
 
 /**
- * Every (tool, param) pair where that param alone reaches the request path,
- * discovered by probing one param at a time. A newly added tool — or a newly
- * added path param on an existing tool — appears here with no edit to this file.
+ * Tools whose URL will not build even from all-safe values. Distinct from a
+ * probe that throws (probing a *guarded* param is supposed to throw): this
+ * means the tool cannot be exercised at all, so it would vanish from coverage
+ * rather than fail. Asserted empty.
  */
-const PATH_PARAM_PAIRS = TOOLS.flatMap((tool) =>
-  Object.keys(tool.params ?? {})
-    .filter((param) => param !== CREDENTIAL_PARAM)
-    .filter((param) => {
+const UNBUILDABLE: string[] = []
+
+/**
+ * String literals the URL builder compares against, harvested from its own
+ * source so a branching builder is probed on every branch without this file
+ * enumerating them. Neither service switches on a literal today — every match
+ * set is currently empty — but a tool added later that picks its endpoint from
+ * an `action`/`operation` param would otherwise hide the identifiers that only
+ * appear on its non-default branch.
+ */
+function branchLiterals(tool: PathTool): string[] {
+  const source = String(tool.request.url)
+  const matches = [...source.matchAll(/[=!]==\s*'([^']{1,64})'|'([^']{1,64})'\s*[=!]==/g)]
+  return [...new Set(matches.map((match) => match[1] ?? match[2]).filter(Boolean))]
+}
+
+interface ProbeContext {
+  label: string
+  overrides: Record<string, unknown>
+}
+
+/**
+ * Sibling contexts to probe each param under. A param that only appears on one
+ * branch of a conditional builder is invisible to a single all-params probe —
+ * no Cloudflare builder branches on a
+ * path param today, but probing without each optional param keeps that true as
+ * tools are added, rather than assuming it.
+ */
+function contextsFor(tool: PathTool): ProbeContext[] {
+  const contexts: ProbeContext[] = [{ label: 'all params', overrides: {} }]
+
+  for (const [name, def] of Object.entries(tool.params ?? {})) {
+    if (name === CREDENTIAL_PARAM || def.required) continue
+    contexts.push({ label: `without ${name}`, overrides: { [name]: undefined } })
+  }
+
+  for (const literal of branchLiterals(tool)) {
+    for (const name of Object.keys(tool.params ?? {})) {
+      if (name === CREDENTIAL_PARAM) continue
+      contexts.push({ label: `${name}=${literal}`, overrides: { [name]: literal } })
+    }
+  }
+
+  return contexts
+}
+
+interface PathParamCase {
+  name: string
+  tool: PathTool
+  param: string
+  overrides: Record<string, unknown>
+  baseline: string[]
+}
+
+/**
+ * Every (tool, param, branch) case where that param alone reaches the request
+ * path, discovered by probing one param at a time under every sibling context.
+ * Cases producing an identical path shape are collapsed, so a param guarded the
+ * same way on both branches is tested once.
+ */
+const PATH_PARAM_PAIRS: PathParamCase[] = []
+const seenCases = new Set<string>()
+
+for (const tool of TOOLS) {
+  for (const context of contextsFor(tool)) {
+    for (const param of Object.keys(tool.params ?? {})) {
+      if (param === CREDENTIAL_PARAM || param in context.overrides) continue
+
+      let baseline: string[]
       try {
-        return buildUrl(tool, { [param]: PROBE }).pathname.includes(PROBE)
-      } catch {
-        return false
+        baseline = segmentsOf(buildUrl(tool, { ...context.overrides, [param]: PROBE }).pathname)
+      } catch (error) {
+        if (context.label === 'all params') {
+          UNBUILDABLE.push(`${tool.id} / ${param}: ${(error as Error).message}`)
+        }
+        continue
       }
-    })
-    .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
-)
+
+      if (!baseline.some((segment) => segment.includes(PROBE))) continue
+
+      const key = `${tool.id}|${param}|${baseline.join('/')}`
+      if (seenCases.has(key)) continue
+      seenCases.add(key)
+
+      PATH_PARAM_PAIRS.push({
+        name: `${tool.id} / ${param}${context.label === 'all params' ? '' : ` (${context.label})`}`,
+        tool,
+        param,
+        overrides: context.overrides,
+        baseline,
+      })
+    }
+  }
+}
 
 describe('cloudflare path-param traversal safety', () => {
+  it('can build every tool that declares a params-based URL', () => {
+    expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('accounts for every tool that builds no URL from params', () => {
+    expect([...SKIPPED_TOOL_IDS].sort()).toEqual([...TOOLS_WITHOUT_PARAM_BUILT_URLS].sort())
+  })
+
   it('finds every (tool, param) pair that reaches the request path', () => {
-    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(65)
+    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(70)
   })
 
   it('covers multi-param paths, where whole-object fuzzing goes blind', () => {
@@ -160,22 +287,19 @@ describe('cloudflare path-param traversal safety', () => {
     for (const { tool } of PATH_PARAM_PAIRS) {
       counts.set(tool.id, (counts.get(tool.id) ?? 0) + 1)
     }
-    const multiParamTools = [...counts.values()].filter((count) => count > 1)
 
-    expect(multiParamTools.length).toBeGreaterThanOrEqual(15)
+    expect([...counts.values()].filter((count) => count > 1).length).toBeGreaterThanOrEqual(15)
   })
 
-  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param }) => {
-    const baseline = segmentsOf(buildUrl(tool, { [param]: PROBE }).pathname)
+  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param, overrides, baseline }) => {
+    const withValue = (value: unknown) => buildUrl(tool, { ...overrides, [param]: value })
 
     it.each(MUST_REJECT)('rejects %j outright', (value) => {
-      expect(() => buildUrl(tool, { [param]: value })).toThrow(
-        new RegExp(`${param}|path traversal|path separator`)
-      )
+      expect(() => withValue(value)).toThrow(new RegExp(`${param}|path traversal|path separator`))
     })
 
     it.each(MUST_NEUTRALIZE)('confines %j to a single segment', (value) => {
-      const url = buildUrl(tool, { [param]: value })
+      const url = withValue(value)
 
       expect(url.origin).toBe(API_ORIGIN)
       expect(url.pathname.startsWith(API_PREFIX)).toBe(true)
@@ -191,7 +315,7 @@ describe('cloudflare path-param traversal safety', () => {
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildUrl(tool, { [param]: value }).pathname)
+      const actual = segmentsOf(withValue(value).pathname)
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
@@ -200,11 +324,40 @@ describe('cloudflare path-param traversal safety', () => {
     })
 
     it('trims surrounding whitespace off a legitimate value', () => {
-      const actual = segmentsOf(buildUrl(tool, { [param]: `  ${TRIM_SAMPLE}  ` }).pathname)
+      const actual = segmentsOf(withValue(`  ${TRIM_SAMPLE}  `).pathname)
 
       baseline.forEach((segment, index) => {
         expect(actual[index]).toBe(segment.replaceAll(PROBE, TRIM_SAMPLE))
       })
     })
+  })
+})
+
+/**
+ * Pins the reason `MUST_REJECT` asserts a throw rather than comparing shape.
+ *
+ * `zoneId` is the final segment of `DELETE /zones/{zone_id}`, so a bare `.`
+ * there addresses the zone *collection* while leaving the segment count and
+ * every other segment identical. A shape-only assertion cannot see it. If this
+ * test ever fails because the path stopped ending in the id, the reasoning
+ * above needs revisiting.
+ */
+describe('a trailing dot segment is invisible to a shape check', () => {
+  const tool = pathToolFor(deleteZoneTool, 'cloudflare_delete_zone')
+
+  it('collapses to the parent collection without changing the segment count', () => {
+    const baseline = segmentsOf(
+      new URL('https://api.cloudflare.com/client/v4/zones/SAFEID').pathname
+    )
+    const collapsed = segmentsOf(
+      new URL(`https://api.cloudflare.com/client/v4/zones/${encodeURIComponent('.')}`).pathname
+    )
+
+    expect(collapsed).toHaveLength(baseline.length)
+    expect(collapsed.at(-1)).toBe('')
+  })
+
+  it('is caught anyway, because the guard rejects rather than encodes', () => {
+    expect(() => buildUrl(tool, { zoneId: '.' })).toThrow(/path traversal is not allowed/)
   })
 })
