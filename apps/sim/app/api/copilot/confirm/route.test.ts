@@ -241,7 +241,7 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('rejects a native confirmation before the desktop authorization claim', async () => {
+  it('rejects a native success before the desktop authorization claim', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
       toolName: 'browser_snapshot',
@@ -262,6 +262,42 @@ describe('Copilot Confirm API Route', () => {
     expect(encryptSecret).not.toHaveBeenCalled()
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['browser_snapshot', 'error', 'failed'],
+    ['browser_snapshot', 'cancelled', 'cancelled'],
+    ['terminal', 'error', 'failed'],
+    ['terminal', 'cancelled', 'cancelled'],
+  ] as const)(
+    'accepts a pending %s %s before the desktop authorization claim',
+    async (toolName, status, durableStatus) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
+      })
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status,
+          message: 'The desktop action did not start.',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(completeAsyncToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tool-call-123',
+        status: durableStatus,
+        result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+        error: status === 'error' ? 'Tool failed' : 'Tool cancelled',
+      })
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'tool-call-123', status })
+      )
+    }
+  )
 
   it('rejects a workflow confirmation before the server starts the tool call', async () => {
     getAsyncToolCall.mockResolvedValue({

@@ -1,4 +1,4 @@
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -45,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
-  const isBrowserTool = isBrowserToolName(toolCall.toolName)
+  const isBrowserTool = isCurrentBrowserToolName(toolCall.toolName)
   const isTerminalTool = isTerminalToolName(toolCall.toolName)
   const authorized =
     isBrowserTool || isTerminalTool || isUserLocalVfsToolCall(toolCall.toolName, args)

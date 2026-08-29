@@ -7,45 +7,49 @@
  * browser and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.
  */
-import type { BrowserToolName } from '@sim/browser-protocol'
+import {
+  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
+  type BrowserToolName,
+  normalizeBrowserWaitForTimeoutMs,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import {
   cancelBrowserTool,
   executeBrowserTool,
   restoreBrowserScope,
 } from '@/lib/browser-agent/transport'
-import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  type AsyncCompletionData,
+  type AsyncConfirmationStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
-import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
+import {
+  reportClientToolCompletion,
+  reportClientToolCompletionOnPageExit,
+} from '@/lib/copilot/tools/client/completion'
 import { getBrowserSession, useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const logger = createLogger('CopilotBrowserToolExecution')
 
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000
 const NAVIGATION_TOOL_TIMEOUT_MS = 45_000
-const WAIT_FOR_TIMEOUT_GRACE_MS = 15_000
-// Mirror the desktop driver's parse of browser_wait_for.timeoutMs exactly. It
-// coerces numeric strings and clamps to a maximum; reading the value more
-// strictly here would budget less time than the desktop actually waits, and the
-// renderer aborting first strands the native promise on the serialized tool
-// queue so every later browser call stalls behind it.
-const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
-const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 
 /**
- * Tools that can revive a closed browser session by opening a fresh tab.
- * Everything else requires a live page and is rejected up front when the
- * session is closed, instead of burning the full IPC timeout per call — a
- * dead session used to answer every tool with an indistinguishable generic
- * ~30s timeout, which the agent retried indefinitely.
+ * Tools that do not require an existing live page. Most create a new page;
+ * `browser_list_sessions` reads the desktop's profile-level session registry.
+ * Everything else is rejected up front when a closed scope cannot be restored,
+ * instead of burning the full IPC timeout per call.
  */
-const SESSION_REVIVAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserToolName>([
+const LIVE_PAGE_OPTIONAL_TOOLS: ReadonlySet<BrowserToolName> = new Set<BrowserToolName>([
   'browser_navigate',
   'browser_open_url',
   'browser_open_tab',
   'browser_list_tabs',
+  'browser_list_sessions',
 ])
 
 const SESSION_CLOSED_MESSAGE =
@@ -55,6 +59,36 @@ const SESSION_CLOSED_MESSAGE =
 /** Tool events older than this are replays, not live instructions — never act on them. */
 const MAX_EVENT_AGE_MS = 120_000
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:browser-tool-executed:'
+const PAGE_EXIT_COMPLETION_MAX_BYTES = 48 * 1024
+const OUTCOME_UNKNOWN_MESSAGE =
+  'The Sim window closed while this browser action was in flight. It may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.'
+
+interface PendingTerminalCompletion {
+  status: AsyncConfirmationStatus
+  message: string
+  data?: AsyncCompletionData
+}
+
+function compactCompletionForPageExit(
+  toolCallId: string,
+  completion: PendingTerminalCompletion
+): PendingTerminalCompletion {
+  const serialized = JSON.stringify({ toolCallId, ...completion })
+  if (new Blob([serialized]).size <= PAGE_EXIT_COMPLETION_MAX_BYTES) return completion
+
+  const data = isRecordLike(completion.data) ? completion.data : {}
+  return {
+    status: completion.status,
+    message: truncate(completion.message, 1024),
+    data: {
+      ...(data.outcomeUnknown === true ? { outcomeUnknown: true } : {}),
+      ...(data.doNotRetry === true ? { doNotRetry: true } : {}),
+      ...(data.sessionClosed === true ? { sessionClosed: true } : {}),
+      resultOmittedDuringPageExit: true,
+      note: 'The browser action reached a known terminal state, but its full result was too large for unload-safe delivery. Do not repeat a side-effecting action. Take a fresh browser snapshot to recover current page state.',
+    },
+  }
+}
 
 /**
  * Exactly-once guard. Stream recovery and tab reloads replay persisted tool
@@ -91,6 +125,15 @@ function eventAgeMs(eventTs: string | undefined): number | null {
   return Number.isNaN(emitted) ? null : Date.now() - emitted
 }
 
+function isOutcomeUnknownError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'outcomeUnknown' in error &&
+    error.outcomeUnknown === true
+  )
+}
+
 function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknown>): number | null {
   if (toolName === 'browser_request_takeover') return null
   if (
@@ -103,12 +146,8 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
     return NAVIGATION_TOOL_TIMEOUT_MS
   }
   if (toolName === 'browser_wait_for') {
-    const raw = Number(params.timeoutMs)
-    const requested =
-      Number.isFinite(raw) && raw > 0
-        ? Math.min(raw, MAX_WAIT_FOR_TIMEOUT_MS)
-        : DEFAULT_WAIT_FOR_TIMEOUT_MS
-    return requested + WAIT_FOR_TIMEOUT_GRACE_MS
+    const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
+    return requested + BROWSER_WAIT_FOR_RENDERER_GRACE_MS
   }
   return DEFAULT_TOOL_TIMEOUT_MS
 }
@@ -239,6 +278,44 @@ async function doExecuteBrowserTool(
   abortSignal?: AbortSignal
 ): Promise<void> {
   let cancelled = abortSignal?.aborted === true
+  let nativeActionPending = true
+  let nativeDispatchStarted = false
+  let pendingTerminalCompletion: PendingTerminalCompletion | null = null
+  const reportTerminalCompletion = async (
+    completion: PendingTerminalCompletion,
+    failureLog: string
+  ): Promise<void> => {
+    pendingTerminalCompletion = completion
+    try {
+      await reportClientToolCompletion(
+        toolCallId,
+        completion.status,
+        completion.message,
+        completion.data
+      )
+      pendingTerminalCompletion = null
+    } catch (error) {
+      logger.error(failureLog, {
+        toolCallId,
+        error: toError(error).message,
+      })
+      const compactCompletion = compactCompletionForPageExit(toolCallId, completion)
+      try {
+        await reportClientToolCompletionOnPageExit(
+          toolCallId,
+          compactCompletion.status,
+          compactCompletion.message,
+          compactCompletion.data
+        )
+        pendingTerminalCompletion = null
+      } catch (fallbackError) {
+        logger.error('Failed to enqueue browser completion with unload-safe fallback', {
+          toolCallId,
+          error: toError(fallbackError).message,
+        })
+      }
+    }
+  }
   const cancelNativeTool = async () => {
     cancelled = true
     try {
@@ -252,121 +329,174 @@ async function doExecuteBrowserTool(
     }
   }
   const onAbort = () => {
+    if (!nativeActionPending) return
     void cancelNativeTool()
+  }
+  const onPageHide = () => {
+    if (cancelled) return
+    const pendingCompletion =
+      pendingTerminalCompletion ??
+      (() => {
+        if (!nativeActionPending) return null
+        const message = nativeDispatchStarted
+          ? OUTCOME_UNKNOWN_MESSAGE
+          : 'The Sim window closed before this browser action started. Its result was lost.'
+        return {
+          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+          message,
+          data: {
+            error: message,
+            outcomeUnknown: nativeDispatchStarted,
+            doNotRetry: nativeDispatchStarted,
+          },
+        }
+      })()
+    if (!pendingCompletion) return
+    const completion = compactCompletionForPageExit(toolCallId, pendingCompletion)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide)
+    }
+    const reportFallback = () => {
+      void reportClientToolCompletionOnPageExit(
+        toolCallId,
+        completion.status,
+        completion.message,
+        completion.data
+      ).catch((error) => {
+        logger.error('Failed to report browser page-exit completion fallback', {
+          toolCallId,
+          toolName,
+          error: toError(error).message,
+        })
+      })
+    }
+    if (nativeActionPending) {
+      void cancelNativeTool()
+    }
+    try {
+      const accepted = navigator.sendBeacon(
+        COPILOT_CONFIRM_API_PATH,
+        new Blob(
+          [
+            JSON.stringify({
+              toolCallId,
+              status: completion.status,
+              message: completion.message,
+              ...(completion.data !== undefined ? { data: completion.data } : {}),
+            }),
+          ],
+          { type: 'application/json' }
+        )
+      )
+      if (!accepted) {
+        logger.warn('Browser page-exit completion beacon was not accepted', {
+          toolCallId,
+          toolName,
+        })
+        reportFallback()
+      }
+    } catch (error) {
+      logger.warn('Browser page-exit completion beacon failed', {
+        toolCallId,
+        toolName,
+        error: toError(error).message,
+      })
+      reportFallback()
+    }
   }
   if (cancelled) {
     void cancelNativeTool()
   } else {
     abortSignal?.addEventListener('abort', onAbort, { once: true })
   }
-
-  const needsLivePage = !SESSION_REVIVAL_TOOLS.has(toolName)
-  if (needsLivePage && isSessionClosed(scopeId)) {
-    try {
-      await restoreBrowserScope(scopeId)
-    } catch (err) {
-      logger.warn('Could not restore the scoped browser session before tool execution', {
-        toolCallId,
-        toolName,
-        error: toError(err).message,
-      })
-    }
-  }
-  if (needsLivePage && isSessionClosed(scopeId)) {
-    logger.warn('Rejecting browser tool: agent browser session is closed', {
-      toolCallId,
-      toolName,
-    })
-    if (cancelled) {
-      abortSignal?.removeEventListener('abort', onAbort)
-      return
-    }
-    await reportClientToolCompletion(
-      toolCallId,
-      ASYNC_TOOL_CONFIRMATION_STATUS.error,
-      SESSION_CLOSED_MESSAGE,
-      { error: SESSION_CLOSED_MESSAGE, sessionClosed: true }
-    ).catch((reportErr) => {
-      logger.error('Failed to report browser session-closed error', {
-        toolCallId,
-        error: toError(reportErr).message,
-      })
-    })
-    abortSignal?.removeEventListener('abort', onAbort)
-    return
-  }
-  // A restore can outlive the stream that requested it. Do not dispatch the
-  // tool afterward—older shells have no cancellation tombstone to catch a
-  // takeover-done signal that arrived before the takeover itself existed.
-  if (cancelled) {
-    abortSignal?.removeEventListener('abort', onAbort)
-    return
-  }
-  // If the user leaves the page mid-action the awaited result is lost; tell
-  // the waiter so the turn fails fast instead of hanging until its timeout.
-  const onPageHide = () => {
-    if (cancelled) return
-    navigator.sendBeacon(
-      COPILOT_CONFIRM_API_PATH,
-      new Blob(
-        [
-          JSON.stringify({
-            toolCallId,
-            status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
-            message:
-              'The user left the Sim window while this browser action was running, so its result was lost.',
-          }),
-        ],
-        { type: 'application/json' }
-      )
-    )
-  }
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', onPageHide)
   }
 
-  logger.info('Executing browser tool via the desktop agent browser', { toolCallId, toolName })
-
   try {
-    const result = await executeBrowserTool(
-      toolCallId,
-      toolName,
-      params,
-      timeoutForTool(toolName, params),
-      scopeId,
-      () => {
-        cancelled = true
+    const needsLivePage = !LIVE_PAGE_OPTIONAL_TOOLS.has(toolName)
+    if (needsLivePage && isSessionClosed(scopeId)) {
+      try {
+        await restoreBrowserScope(scopeId)
+      } catch (err) {
+        logger.warn('Could not restore the scoped browser session before tool execution', {
+          toolCallId,
+          toolName,
+          error: toError(err).message,
+        })
       }
-    )
-    if (cancelled) return
-    await reportClientToolCompletion(
-      toolCallId,
-      ASYNC_TOOL_CONFIRMATION_STATUS.success,
-      'Browser action completed',
-      sanitizeResultForModel(toolName, result)
-    )
-  } catch (err) {
-    if (cancelled) return
-    // The session dying mid-call (e.g. during a takeover) surfaces as a
-    // generic timeout; tag it so the model learns the real, terminal cause
-    // instead of retrying against a dead session.
-    const sessionClosed = isSessionClosed(scopeId)
-    const message = sessionClosed
-      ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
-      : toError(err).message
-    logger.warn('Browser tool failed', { toolCallId, toolName, error: message, sessionClosed })
-    await reportClientToolCompletion(toolCallId, ASYNC_TOOL_CONFIRMATION_STATUS.error, message, {
-      error: message,
-      ...(sessionClosed ? { sessionClosed: true } : {}),
-    }).catch((reportErr) => {
-      logger.error('Failed to report browser tool error', {
+    }
+    if (needsLivePage && isSessionClosed(scopeId)) {
+      nativeActionPending = false
+      logger.warn('Rejecting browser tool: agent browser session is closed', {
         toolCallId,
-        error: toError(reportErr).message,
+        toolName,
       })
-    })
+      if (cancelled) return
+      await reportTerminalCompletion(
+        {
+          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+          message: SESSION_CLOSED_MESSAGE,
+          data: { error: SESSION_CLOSED_MESSAGE, sessionClosed: true },
+        },
+        'Failed to report browser session-closed error'
+      )
+      return
+    }
+
+    if (cancelled) return
+
+    logger.info('Executing browser tool via the desktop agent browser', { toolCallId, toolName })
+
+    let result: unknown
+    try {
+      nativeDispatchStarted = true
+      result = await executeBrowserTool(
+        toolCallId,
+        toolName,
+        params,
+        timeoutForTool(toolName, params),
+        scopeId,
+        () => {
+          cancelled = true
+        }
+      )
+    } catch (err) {
+      nativeActionPending = false
+      if (cancelled) return
+      const sessionClosed = isSessionClosed(scopeId)
+      const outcomeUnknown = isOutcomeUnknownError(err)
+      const message = sessionClosed
+        ? `${toError(err).message} ${SESSION_CLOSED_MESSAGE}`
+        : toError(err).message
+      logger.warn('Browser tool failed', { toolCallId, toolName, error: message, sessionClosed })
+      await reportTerminalCompletion(
+        {
+          status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
+          message,
+          data: {
+            error: message,
+            ...(outcomeUnknown ? { outcomeUnknown: true, doNotRetry: true } : {}),
+            ...(sessionClosed ? { sessionClosed: true } : {}),
+          },
+        },
+        'Failed to report browser tool error'
+      )
+      return
+    }
+    nativeActionPending = false
+    if (cancelled) return
+    await reportTerminalCompletion(
+      {
+        status: ASYNC_TOOL_CONFIRMATION_STATUS.success,
+        message: 'Browser action completed',
+        data: sanitizeResultForModel(toolName, result),
+      },
+      'Failed to report successful browser tool completion'
+    )
   } finally {
     abortSignal?.removeEventListener('abort', onAbort)
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !pendingTerminalCompletion) {
       window.removeEventListener('pagehide', onPageHide)
     }
   }

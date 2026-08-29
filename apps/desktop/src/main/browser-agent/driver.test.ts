@@ -1088,6 +1088,22 @@ describe('executeTool', () => {
   })
 })
 
+describe('browserToolWatchdogMs', () => {
+  it.each([
+    ['number', 30_000, 35_000],
+    ['numeric string', '30000', 35_000],
+    ['absent', undefined, 15_000],
+    ['non-numeric', 'soon', 15_000],
+    ['zero', 0, 15_000],
+    ['negative', -5_000, 15_000],
+    ['above the wait clamp', 500_000, 125_000],
+  ])('normalizes browser_wait_for timeout (%s)', (_label, timeoutMs, expected) => {
+    const params = timeoutMs === undefined ? {} : { timeoutMs }
+
+    expect(driverModule.browserToolWatchdogMs('browser_wait_for', params)).toBe(expected)
+  })
+})
+
 /**
  * Trusted CDP input never enters the page, so a focused credential field can
  * only be ruled out in the driver. These cover that seam; the page-side
@@ -1167,6 +1183,8 @@ describe('credential protection', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
+    expect(result.error).toMatch(/visible browser/)
+    expect(result.error).not.toContain('browser_request_takeover')
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
   })
 
@@ -1530,6 +1548,24 @@ describe('credential protection', () => {
         atBottom: false,
       },
     })
+  })
+
+  it('rejects an unsupported browser_scroll direction instead of treating it as down', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_scroll', {
+      direction: 'sideways',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'Scroll direction must be "up" or "down".',
+    })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'scrollPage'))
+    ).toBe(false)
   })
 
   it('confirms a click when the requested target changes semantic state', async () => {
@@ -2179,6 +2215,83 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
 
+  it('reports top-page effects observed after inserting text in a child frame', async () => {
+    const contents = await openPage()
+    const mainFrame = {
+      frameTreeNodeId: 1,
+      detached: false,
+      isDestroyed: vi.fn(() => false),
+      origin: 'https://example.com',
+      parent: null,
+      framesInSubtree: [] as unknown[],
+    }
+    const childFrame = {
+      frameTreeNodeId: 2,
+      detached: false,
+      isDestroyed: vi.fn(() => false),
+      origin: 'https://mail-widget.example',
+      parent: mainFrame,
+      url: 'https://mail-widget.example/compose',
+    }
+    mainFrame.framesInSubtree = [mainFrame, childFrame]
+    Object.defineProperty(contents, 'mainFrame', { configurable: true, value: mainFrame })
+    Object.defineProperty(contents, 'focusedFrame', { configurable: true, value: childFrame })
+    let topPageReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readPageActionState')) {
+        topPageReads++
+        return Promise.resolve({
+          url:
+            topPageReads === 1 ? 'https://example.com/compose' : 'https://example.com/message/sent',
+          title: 'Mail',
+          focus: 'iframe',
+          mutationRevision: topPageReads,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const isolatedFrameEval = vi
+      .spyOn(cdp, 'evaluateInIsolatedFrame')
+      .mockImplementation((_contents, _frame, expression) => {
+        if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+        if (isPageCall(expression, 'describeFocusedEditable')) {
+          return Promise.resolve({ editable: true, kind: 'input' })
+        }
+        if (isPageCall(expression, 'readActiveElementState')) {
+          return Promise.resolve({ activeElement: 'input', valueLength: 4 })
+        }
+        if (isPageCall(expression, 'readPageActionState')) {
+          return Promise.resolve({
+            url: 'https://mail-widget.example/compose',
+            title: 'Compose',
+            focus: 'input',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          })
+        }
+        return Promise.resolve(undefined)
+      })
+
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'sent' })
+
+      expect(result.ok, result.error).toBe(true)
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          effectObserved: true,
+          possibleEffectObserved: true,
+          effect: { urlChanged: true },
+        },
+      })
+    } finally {
+      isolatedFrameEval.mockRestore()
+    }
+  })
+
   it('refuses insertion when nothing editable holds focus', async () => {
     const contents = await openPage()
     respondWith(contents, {
@@ -2287,6 +2400,14 @@ describe('credential protection', () => {
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
 
-    expect(result).toMatchObject({ ok: true, result: { scale: 0.5 } })
+    expect(result).toMatchObject({
+      ok: true,
+      result: { scale: 0.5, viewport: { width: 2048, height: 1024 } },
+    })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'getViewportInfo'))
+    ).toBe(false)
   })
 })

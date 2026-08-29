@@ -403,7 +403,7 @@ interface CdpViewport {
  */
 export async function captureScreenshot(
   contents: WebContents
-): Promise<{ dataUrl: string; scale: number }> {
+): Promise<{ dataUrl: string; scale: number; viewport: { width: number; height: number } | null }> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
@@ -412,6 +412,7 @@ export async function captureScreenshot(
   const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
   const width = viewport?.clientWidth ?? 0
   const height = viewport?.clientHeight ?? 0
+  const cssViewport = width > 0 && height > 0 ? { width, height } : null
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
@@ -426,19 +427,24 @@ export async function captureScreenshot(
   // Without layout metrics there is no CSS frame of reference to resize
   // against, so the raw capture is the honest answer — the same fallback the
   // clipped path took.
-  if (targetWidth <= 0 || targetHeight <= 0) return { dataUrl: captured, scale }
+  if (targetWidth <= 0 || targetHeight <= 0) {
+    return { dataUrl: captured, scale, viewport: cssViewport }
+  }
 
   const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
-  if (size.width === 0 || size.height === 0) return { dataUrl: captured, scale }
+  if (size.width === 0 || size.height === 0) {
+    return { dataUrl: captured, scale, viewport: cssViewport }
+  }
   if (size.width === targetWidth && size.height === targetHeight) {
-    return { dataUrl: captured, scale }
+    return { dataUrl: captured, scale, viewport: cssViewport }
   }
 
   const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })
   return {
     dataUrl: `data:image/jpeg;base64,${resized.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
     scale,
+    viewport: cssViewport,
   }
 }
 

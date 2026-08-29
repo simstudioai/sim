@@ -548,6 +548,7 @@ describe('browser-agent screenshot capture', () => {
     expect(shot).toEqual({
       dataUrl: `data:image/jpeg;base64,${Buffer.from('resized').toString('base64')}`,
       scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
     })
   })
 
@@ -558,7 +559,11 @@ describe('browser-agent screenshot capture', () => {
 
     const image = vi.mocked(nativeImage.createFromBuffer).mock.results[0].value
     expect(image.resize).not.toHaveBeenCalled()
-    expect(shot).toEqual({ dataUrl: 'data:image/jpeg;base64,c2lt', scale: 0.5 })
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
+    })
   })
 
   it('returns the raw capture when the image cannot be decoded', async () => {
@@ -566,6 +571,10 @@ describe('browser-agent screenshot capture', () => {
 
     const shot = await captureScreenshot(contents)
 
-    expect(shot).toEqual({ dataUrl: 'data:image/jpeg;base64,c2lt', scale: 0.5 })
+    expect(shot).toEqual({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 0.5,
+      viewport: { width: 2048, height: 1024 },
+    })
   })
 })

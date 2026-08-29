@@ -266,15 +266,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const isUnboundTerminalWorkflowOutcome =
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+        const isNativeClientTool =
+          isBrowserToolName(existing.toolName) || isTerminalToolName(existing.toolName)
+        const isPreclaimNativeTerminalOutcome =
+          isNativeClientTool &&
+          existing.status === ASYNC_TOOL_STATUS.pending &&
+          isUnboundTerminalWorkflowOutcome
         const isMutableClientToolCall = isWorkflowTool
           ? isWorkflowToolExecutionClaimable(existing.status, existing.permissionDecision)
-          : existing.status === ASYNC_TOOL_STATUS.running
-        if (
-          (isBrowserToolName(existing.toolName) ||
-            isTerminalToolName(existing.toolName) ||
-            isWorkflowTool) &&
-          !isMutableClientToolCall
-        ) {
+          : existing.status === ASYNC_TOOL_STATUS.running || isPreclaimNativeTerminalOutcome
+        if ((isNativeClientTool || isWorkflowTool) && !isMutableClientToolCall) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
         }
