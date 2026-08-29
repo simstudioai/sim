@@ -34,6 +34,29 @@
  * normalization `fetch` performs — instead of string-matching the template
  * output. String matching is exactly what let dot-segment traversal through:
  * the template looks correct and the parser rewrites it afterwards.
+ *
+ * **Do not loosen these assertions into `toThrow()` or `toContain()`.** They
+ * deliberately pin the *exact* encoded output and the *exact* error text, and
+ * that precision is load-bearing rather than fussy: these guards live in
+ * `tools/url-path.ts`, which belongs to a different PR that this branch is
+ * rebased onto, so changes to them land *underneath* this suite without
+ * touching a line of it.
+ *
+ * That has happened twice, and both times only the exact assertions noticed:
+ *
+ * - `safeUrlPath` stopped trimming each segment, so a storage key's interior
+ *   whitespace began surviving to the wire. Caught by an equality assertion on
+ *   the encoded output.
+ * - Its empty-segment check narrowed from `!segment.trim()` to `!segment`, so
+ *   `a/ /b` became legal while `a//b` stayed rejected. Caught by an assertion
+ *   on the exact error text.
+ *
+ * A suite asserting only "it throws" would have gone green through both, and
+ * the second one is a silent correctness change in either direction — permitting
+ * `a//b` retargets the request at a different object, while rejecting `a/ /b`
+ * makes a real object key permanently unreachable. The precision is what turns
+ * an upstream edit into a failing test instead of a behaviour change nobody
+ * sees.
  */
 import { getErrorMessage } from '@sim/utils/errors'
 import { expect, it } from 'vitest'
@@ -300,6 +323,32 @@ export function discoverPathParams(
   covered: PathParam[]
   unbuildable: UnbuildableTool[]
   undiscoverable: UndiscoverableParam[]
+  /**
+   * Every tool of the service that contributes no (tool, parameter) pair.
+   *
+   * Returned from the same sweep rather than recomputed, because discovery
+   * builds a URL for every tool, every branch assignment and every declared
+   * parameter — running it twice per suite doubled that for a list already in
+   * hand.
+   *
+   * The enumeration is deliberately **looser** than `covered`. That list only
+   * holds tools whose `request.url` is a function, since discovery has to call
+   * it. Filtering the inventory the same way made three categories invisible to
+   * *both* sides and let the pin pass vacuously — `box_create_folder` declares
+   * `url` as a plain string and `box_upload_file` is an `InternalToolConfig`
+   * with no `request`, so neither appeared in the covered pairs *or* in the
+   * pinned set. Eleven tools across four services were invisible that way. So
+   * this walks every export carrying the service id prefix, whatever shape its
+   * request takes, and each suite pins the result exactly: a tool that gains a
+   * guarded path parameter leaves the list, the assertion fails, and someone
+   * looks.
+   *
+   * An `InternalToolConfig` stays here permanently — its URL is built in
+   * `lib/internal/**`, which this suite cannot drive. Pinning it proves it is
+   * accounted for, not that it is traversal-safe; that coverage comes from
+   * direct unit tests on the helper it shares.
+   */
+  withoutPathParams: string[]
 } {
   const covered: PathParam[] = []
   const unbuildable: UnbuildableTool[] = []
@@ -376,51 +425,14 @@ export function discoverPathParams(
     }
   }
 
-  return { covered, unbuildable, undiscoverable }
-}
-
-/**
- * Lists every tool of a service that contributes **no** (tool, parameter) pair.
- *
- * Each suite pins this set exactly, so a tool cannot leave path coverage
- * unnoticed: if one ever gains a guarded path parameter it becomes a covered
- * pair, the set shrinks, and the assertion fails until someone looks.
- *
- * The enumeration is deliberately **looser** than {@link discoverPathParams}.
- * That function can only drive a tool whose `request.url` is a function, since
- * it has to call it. Filtering the inventory the same way would make three
- * whole categories invisible to *both* sides and let the pin pass vacuously —
- * which is exactly what happened before: `box_create_folder` declares
- * `url` as a plain **string**, and `box_upload_file` is an `InternalToolConfig`
- * with no `request` at all, so neither appeared in the covered pairs *or* in
- * the pinned set, and `toEqual(['box_search'])` passed precisely because they
- * could not be seen. Eleven tools across four services were invisible that way.
- *
- * So this walks every export whose `id` carries the service prefix, whatever
- * shape its request takes, and reports the ones no pair covers. The pinned list
- * then states the real inventory, and each entry has to be justified as one of:
- *
- * - a genuinely static or query-string-only URL (`box_search`);
- * - a `url` declared as a constant string (`box_create_folder`);
- * - an `InternalToolConfig` whose URL is built in `lib/internal/**`
- *   (`supabase_storage_upload`). **These are outside what this suite can
- *   reach**, and are covered instead by direct unit tests on the helper they
- *   use — see the `encodeStoragePath` / `encodeStorageSegment` describes in
- *   `supabase/path_safety.test.ts`.
- */
-export function toolsWithoutPathParams(
-  barrel: Record<string, unknown>,
-  idPrefix: string,
-  fixed: Record<string, unknown> = {}
-): string[] {
-  const { covered } = discoverPathParams(barrel, idPrefix, fixed)
   const withParams = new Set(covered.map(({ tool }) => tool.id))
-
-  return Object.values(barrel)
+  const withoutPathParams = Object.values(barrel)
     .map((value) => (value as { id?: unknown } | null)?.id)
     .filter((id): id is string => typeof id === 'string' && id.startsWith(idPrefix))
     .filter((id) => !withParams.has(id))
     .sort()
+
+  return { covered, unbuildable, undiscoverable, withoutPathParams }
 }
 
 /**

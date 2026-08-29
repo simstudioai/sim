@@ -15,7 +15,6 @@ import {
   discoverPathParams,
   itPassesLegitimateValues,
   itResistsTraversal,
-  toolsWithoutPathParams,
 } from '@/tools/__tests__/path-safety'
 import * as bigQueryTools from '@/tools/google_bigquery/index'
 import { canonicalBigQueryId, strictBigQueryPathSegment } from '@/tools/google_bigquery/utils'
@@ -88,6 +87,7 @@ const {
   covered: PATH_PARAMS,
   unbuildable: UNBUILDABLE,
   undiscoverable: UNDISCOVERABLE,
+  withoutPathParams: WITHOUT_PATH_PARAMS,
 } = discoverPathParams(bigQueryTools, 'google_bigquery_')
 
 describe('bigquery path-id traversal safety', () => {
@@ -100,7 +100,7 @@ describe('bigquery path-id traversal safety', () => {
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {
-    expect(toolsWithoutPathParams(bigQueryTools, 'google_bigquery_')).toEqual(STATIC_URL_TOOLS)
+    expect(WITHOUT_PATH_PARAMS).toEqual(STATIC_URL_TOOLS)
   })
 
   it('covers every parameter that reaches a URL path segment', () => {

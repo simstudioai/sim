@@ -15,13 +15,20 @@
  * A storage key legitimately contains `/`, so the fix could not be
  * `safeUrlPathSegment`: it is `safeUrlPath`, which keeps the separator
  * and rejects only the dot segments.
+ *
+ * **The assertions below pin exact encoded output and exact error text on
+ * purpose.** `safeUrlPath` lives in `tools/url-path.ts`, owned by #7262, which
+ * this branch is rebased onto — so its behaviour changes land underneath this
+ * file. Twice now that is precisely how a change was caught: segment trimming
+ * being dropped, and the empty-segment check narrowing from `!segment.trim()`
+ * to `!segment`. Rewriting these into `toThrow()` would have let both through
+ * silently.
  */
 import { describe, expect, it } from 'vitest'
 import {
   discoverPathParams,
   itPassesLegitimateValues,
   itResistsTraversal,
-  toolsWithoutPathParams,
 } from '@/tools/__tests__/path-safety'
 import * as supabaseTools from '@/tools/supabase/index'
 import { encodeStoragePath, encodeStorageSegment } from '@/tools/supabase/utils'
@@ -72,6 +79,7 @@ const {
   covered: PATH_PARAMS,
   unbuildable: UNBUILDABLE,
   undiscoverable: UNDISCOVERABLE,
+  withoutPathParams: WITHOUT_PATH_PARAMS,
 } = discoverPathParams(supabaseTools, 'supabase_', FIXED)
 
 /**
@@ -93,7 +101,7 @@ describe('supabase path traversal safety', () => {
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {
-    expect(toolsWithoutPathParams(supabaseTools, 'supabase_', FIXED)).toEqual(STATIC_URL_TOOLS)
+    expect(WITHOUT_PATH_PARAMS).toEqual(STATIC_URL_TOOLS)
   })
 
   it('covers every parameter that reaches a URL path segment', () => {

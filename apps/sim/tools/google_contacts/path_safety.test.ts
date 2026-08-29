@@ -15,7 +15,6 @@ import {
   discoverPathParams,
   itPassesLegitimateValues,
   itResistsTraversal,
-  toolsWithoutPathParams,
 } from '@/tools/__tests__/path-safety'
 import * as googleContactsTools from '@/tools/google_contacts/index'
 
@@ -48,6 +47,7 @@ const {
   covered: PATH_PARAMS,
   unbuildable: UNBUILDABLE,
   undiscoverable: UNDISCOVERABLE,
+  withoutPathParams: WITHOUT_PATH_PARAMS,
 } = discoverPathParams(googleContactsTools, 'google_contacts_')
 
 describe('google contacts resourceName traversal safety', () => {
@@ -60,9 +60,7 @@ describe('google contacts resourceName traversal safety', () => {
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {
-    expect(toolsWithoutPathParams(googleContactsTools, 'google_contacts_')).toEqual(
-      STATIC_URL_TOOLS
-    )
+    expect(WITHOUT_PATH_PARAMS).toEqual(STATIC_URL_TOOLS)
   })
 
   it('covers every parameter that reaches a URL path segment', () => {

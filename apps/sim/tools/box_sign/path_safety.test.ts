@@ -22,7 +22,6 @@ import {
   discoverPathParams,
   itPassesLegitimateValues,
   itResistsTraversal,
-  toolsWithoutPathParams,
 } from '@/tools/__tests__/path-safety'
 import * as boxSignTools from '@/tools/box_sign/index'
 
@@ -49,6 +48,7 @@ const {
   covered: PATH_PARAMS,
   unbuildable: UNBUILDABLE,
   undiscoverable: UNDISCOVERABLE,
+  withoutPathParams: WITHOUT_PATH_PARAMS,
 } = discoverPathParams(boxSignTools, 'box_sign_')
 
 describe('box sign path-id traversal safety', () => {
@@ -61,7 +61,7 @@ describe('box sign path-id traversal safety', () => {
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {
-    expect(toolsWithoutPathParams(boxSignTools, 'box_sign_')).toEqual(STATIC_URL_TOOLS)
+    expect(WITHOUT_PATH_PARAMS).toEqual(STATIC_URL_TOOLS)
   })
 
   it('covers every parameter that reaches a URL path segment', () => {
