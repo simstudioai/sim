@@ -283,6 +283,15 @@ const capabilityOperation = defineWorkspaceOperation({
   capability: 'tables.use',
 })
 
+const copilotCapabilityOperation = defineWorkspaceOperation({
+  id: 'test.copilot-capability-read',
+  minimumRole: 'read',
+  workspaceApiKey: 'deny',
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
+  capability: 'tables.use',
+})
+
 const personalKeyPrincipal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
   userId: 'user-1',
@@ -337,7 +346,13 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
-  it('refuses a delegated principal that carries a user subject', async () => {
+  /**
+   * A run carries the triggering user's role but not their capabilities. The
+   * alternative would make "hide Tables from the sidebar" a runtime kill-switch
+   * for every workflow with a Table block, which is not what the checkbox says
+   * and not what an admin ticking it intends.
+   */
+  it('does not apply to an executor run, even one carrying a user subject', async () => {
     mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
 
     await expect(
@@ -350,6 +365,48 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
           subjectUserId: 'user-1',
         },
         capabilityOperation,
+        context,
+        executorAuthorization
+      )
+    ).resolves.toBeUndefined()
+  })
+
+  it('still enforces the workspace role for an executor run', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    await expect(
+      authorizeWorkspaceOperation(
+        {
+          ...executorPrincipal(
+            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            { workflowId: 'current-workflow-1', mode: 'draft' }
+          ),
+          subjectUserId: 'user-1',
+        },
+        capabilityOperation,
+        context,
+        executorAuthorization
+      )
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+  })
+
+  /**
+   * Copilot acts as the person, so it must not reach what the person may not.
+   */
+  it('does apply to a Copilot delegation, which acts as the person', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(
+        {
+          ...executorPrincipal(
+            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            { workflowId: 'current-workflow-1', mode: 'draft' }
+          ),
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+        },
+        copilotCapabilityOperation,
         context,
         executorAuthorization
       )

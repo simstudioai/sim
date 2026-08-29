@@ -213,10 +213,10 @@ async function requirePersonalApiKeysAllowed(
  * raising a role, rather than chasing an admin about a group setting that is
  * not why they were refused.
  */
-async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
+async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
-  operation: WorkspaceOperation,
+  required: PermissionType,
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   const permission = await resolveEffectiveWorkspacePermission(
@@ -226,7 +226,16 @@ async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext
     options?.executor,
     { forUpdate: options?.forUpdate }
   )
-  requirePermission(permission, operation.minimumRole)
+  requirePermission(permission, required)
+}
+
+async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
+  userId: string,
+  context: C,
+  operation: WorkspaceOperation,
+  options?: WorkspaceAuthorizationOptions<C>
+): Promise<void> {
+  await requireCurrentHumanRole(userId, context, operation.minimumRole, options)
   await requireCapability(userId, context, operation)
 }
 
@@ -293,6 +302,24 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       }
       const subject = resolvePrincipalSubject(principal)
       if (subject?.kind === 'sim_user') {
+        /**
+         * A workflow run carries the role of whoever triggered it but not their
+         * capabilities. A capability names what a *person* may reach in the
+         * product — the Tables module, the Files module — while a run reaches
+         * those same resources because a block in the graph does, and what a run
+         * may do is governed separately by `assertPermissionsAllowed`, which
+         * gates every block, tool and model against the same group.
+         *
+         * Applying capabilities here would mean an admin ticking "hide Tables
+         * from the sidebar" silently broke every workflow with a Table block for
+         * that cohort — a runtime kill-switch behind a checkbox that promises to
+         * hide a nav item. Copilot is deliberately not exempt: it acts as the
+         * person, so it must not reach what the person may not.
+         */
+        if (principal.serviceId === 'executor') {
+          await requireCurrentHumanRole(subject.userId, context, operation.minimumRole, options)
+          return
+        }
         await requireCurrentHumanAccess(subject.userId, context, operation, options)
         return
       }
@@ -303,13 +330,8 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new DelegatedWorkspaceAuthorizationError()
       }
       /**
-       * A deployment run with no subject has no user, so the operation's
-       * capability does not apply — a deployed workflow acts with the
-       * workspace's authority, not its author's permission group, the same way
-       * a service account does. Denying here would 403 every scheduled run,
-       * webhook and public-API call in the organization the moment a group
-       * withheld anything. What the run *does* is still governed: the executor
-       * gates every block, tool and model through `assertPermissionsAllowed`.
+       * The same reasoning with no subject at all: a deployed workflow acts with
+       * the workspace's authority, not its author's permission group.
        */
       return
     }
