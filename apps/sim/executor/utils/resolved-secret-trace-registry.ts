@@ -226,6 +226,18 @@ export interface ResolvedSecretIncompletenessDiagnostics {
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
 
+/**
+ * The envelope for content no secret ever reached: vouched for, naming nothing.
+ *
+ * Distinct from an incomplete envelope, which says the opposite — that something may be carried
+ * and cannot be named. A boundary that knows nothing was resolved should say so with this rather
+ * than latch, since latching is the claim that redaction is impossible. Returned fresh so no
+ * caller shares a value it may serialize or extend.
+ */
+export function emptyResolvedSecretTraceProvenance(): ResolvedSecretTraceProvenanceV1 {
+  return { version: 1, complete: true, entries: [] }
+}
+
 const MAX_PROVENANCE_ENTRIES = PROVENANCE_MAX_ENTRIES
 const MAX_SERIALIZED_PROVENANCE_BYTES = PROVENANCE_MAX_SERIALIZED_BYTES
 const MAX_TRACE_CATALOG_ENTRIES = PROVENANCE_MAX_ENTRIES
