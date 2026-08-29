@@ -100,6 +100,21 @@ describe('supabase path traversal safety', () => {
     expect(PATH_PARAMS.length).toBeGreaterThanOrEqual(21)
   })
 
+  /**
+   * Both derived groups are pinned, not just their total.
+   *
+   * `describe.each` over an empty array emits **no tests and no failure**, so
+   * if `path` were renamed, `KEY_PARAMS` would silently empty and the entire
+   * "legitimate object keys" block — the assertions proving
+   * `folder/sub/file.png` survives byte-for-byte — would disappear while the
+   * total above still passed. A floor on the sum cannot see a shift between the
+   * two groups.
+   */
+  it('keeps both parameter groups non-empty', () => {
+    expect(KEY_PARAMS.length).toBeGreaterThanOrEqual(3)
+    expect(FLAT_PARAMS.length).toBeGreaterThanOrEqual(18)
+  })
+
   describe.each(PATH_PARAMS)('$label', (param) => {
     itResistsTraversal(param, {
       origin: ORIGIN,
