@@ -11,7 +11,10 @@ import {
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
@@ -514,9 +517,17 @@ export async function validateBlockType(
     return
   }
 
-  if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
+  /**
+   * A superseded version is judged as its successor, so an allowlist naming the
+   * current block covers every retired version of the same integration. The
+   * editor only offers current ids, so without this an admin could not deny a
+   * legacy block even knowing it existed.
+   */
+  const allowlistType = resolveAccessControlBlockType(blockType).toLowerCase()
+
+  if (!config.allowedIntegrations.includes(allowlistType)) {
     const envAllowlist = getAllowedIntegrationsFromEnv()
-    const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())
+    const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(allowlistType)
     logger.warn(
       blockedByEnv
         ? 'Integration blocked by env allowlist'
@@ -736,10 +747,10 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
 
   if (blockType && !blockTypeExempt) {
     if (config && config.allowedIntegrations !== null) {
-      if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
+      const allowlistType = resolveAccessControlBlockType(blockType).toLowerCase()
+      if (!config.allowedIntegrations.includes(allowlistType)) {
         const envAllowlist = getAllowedIntegrationsFromEnv()
-        const blockedByEnv =
-          envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())
+        const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(allowlistType)
         logger.warn(
           blockedByEnv
             ? 'Integration blocked by env allowlist'

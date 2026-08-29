@@ -3,7 +3,10 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import {
+  isBlockTypeAccessControlExempt,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
@@ -1013,7 +1016,9 @@ export function isBlockTypeAllowed(
   if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
     return true
   }
-  return permissionConfig.allowedIntegrations.includes(blockType.toLowerCase())
+  return permissionConfig.allowedIntegrations.includes(
+    resolveAccessControlBlockType(blockType).toLowerCase()
+  )
 }
 
 /**

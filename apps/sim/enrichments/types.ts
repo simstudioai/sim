@@ -30,6 +30,13 @@ export interface EnrichmentRunContext {
   tableId?: string
   rowId?: string
   workspaceId: string
+  /**
+   * The user the run is attributed to. Load-bearing, not decorative: the
+   * per-tool permission gate is skipped entirely when a tool call carries no
+   * user, so an enrichment that omits this sends row data to its provider with
+   * the workspace's `deniedTools` denylist silently not applied.
+   */
+  userId?: string
   signal?: AbortSignal
   /** Isolated provenance for the exact mapped row inputs used by this run. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry

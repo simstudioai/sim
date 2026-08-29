@@ -112,7 +112,7 @@ export async function runEnrichment(
     try {
       const response = await executeTool(
         provider.toolId,
-        { ...params, _context: { workspaceId: ctx.workspaceId } },
+        { ...params, _context: { workspaceId: ctx.workspaceId, userId: ctx.userId } },
         {
           signal: ctx.signal,
           resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,

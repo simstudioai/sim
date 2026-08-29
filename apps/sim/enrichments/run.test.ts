@@ -253,3 +253,36 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['error', 'no_match'])
   })
 })
+
+/**
+ * The per-tool permission gate keys off the acting user, and skips entirely
+ * when a tool call carries none. An enrichment that omitted the user therefore
+ * sent row data — names, emails, company domains — to its provider with the
+ * workspace's `deniedTools` denylist silently not applied.
+ */
+describe('runEnrichment tool attribution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('names the acting user on the provider call', async () => {
+    mockExecuteTool.mockResolvedValue({ success: true, output: { email: 'a@b.c' } })
+
+    await runEnrichment(
+      config([prov('p1')]),
+      {},
+      {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+      }
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'tool_p1',
+      expect.objectContaining({
+        _context: { workspaceId: 'workspace-1', userId: 'user-1' },
+      }),
+      expect.anything()
+    )
+  })
+})

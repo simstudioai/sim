@@ -44,6 +44,7 @@ export const enrichmentRunServerTool: BaseServerTool<EnrichmentRunParams, Enrich
 
     const { result, cost, error, provider } = await runEnrichment(enrichment, inputs ?? {}, {
       workspaceId,
+      userId: context?.userId,
       signal: context?.abortSignal,
     })
 

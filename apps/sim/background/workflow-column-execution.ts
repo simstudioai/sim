@@ -586,6 +586,7 @@ async function runWorkflowAndWriteTerminal(
             tableId,
             rowId,
             workspaceId,
+            userId: enrichmentBillingAttribution.actorUserId,
             signal: attemptSignal,
             resolvedSecretTraceRegistry: enrichmentRegistry,
           })
