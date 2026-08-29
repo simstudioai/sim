@@ -126,7 +126,10 @@ describe('createReadableStreamFromResponses', () => {
 
     const events = await collectEvents(createReadableStreamFromResponses(response, onComplete))
 
-    expect(events).toEqual([{ type: 'text_delta', text: 'Truncated answer', turn: 'final' }])
+    expect(events).toEqual([
+      { type: 'text_delta', text: 'Truncated answer', turn: 'final' },
+      { type: 'turn_end', turn: 'final', finishReason: 'max_output_tokens' },
+    ])
     expect(onComplete).toHaveBeenCalledWith(
       'Truncated answer',
       {

@@ -252,6 +252,7 @@ export function createReadableStreamFromGeminiStream(
     cachedContentTokenCount: 0,
     totalTokenCount: 0,
   }
+  let finishReason: string | undefined
   let cancelled = false
   let streamIterator: AsyncIterator<GenerateContentResponse> | undefined
 
@@ -275,8 +276,12 @@ export function createReadableStreamFromGeminiStream(
           if (chunk.usageMetadata) {
             usage = convertUsageMetadata(chunk.usageMetadata)
           }
+          const candidate = chunk.candidates?.[0]
+          if (candidate?.finishReason) {
+            finishReason = String(candidate.finishReason)
+          }
 
-          const parts = chunk.candidates?.[0]?.content?.parts
+          const parts = candidate?.content?.parts
           if (Array.isArray(parts)) {
             for (const part of parts) {
               if (!part.text) continue
@@ -301,6 +306,9 @@ export function createReadableStreamFromGeminiStream(
 
         if (cancelled) return
         onComplete?.(fullContent, usage, fullThinking || undefined)
+        if (finishReason) {
+          controller.enqueue({ type: 'turn_end', turn: 'final', finishReason })
+        }
         controller.close()
       } catch (error) {
         if (!cancelled) {

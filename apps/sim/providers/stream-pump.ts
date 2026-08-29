@@ -46,6 +46,8 @@ export interface CreateAgentStreamPumpOptions {
 export interface AgentStreamPumpResult {
   /** Final-turn answer text only (`turn: 'intermediate'` excluded). */
   answerText: string
+  /** Last explicit provider termination reason observed while draining. */
+  finishReason?: string
   fullyDrained: boolean
   cancelled: boolean
   cancelReason?: AgentStreamPumpCancelReason
@@ -109,6 +111,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
   let closedTextStream = false
 
   let answerText = ''
+  let finishReason: string | undefined
   let thinkingCharsForwarded = 0
 
   let textController: ReadableStreamDefaultController<Uint8Array> | null = null
@@ -269,6 +272,9 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
 
     if (event.type === 'turn_end') {
       await dispatchToSinks(event)
+      if (event.finishReason) {
+        finishReason = event.finishReason
+      }
       const buffered = pendingTurnText
       pendingTurnText = ''
       if (buffered && event.turn === 'final') {
@@ -411,6 +417,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
       closeTextStream()
       return {
         answerText,
+        ...(finishReason ? { finishReason } : {}),
         fullyDrained: false,
         cancelled: true,
         cancelReason: cancelReason ?? 'unknown',
@@ -420,6 +427,7 @@ export function createAgentStreamPump(options: CreateAgentStreamPumpOptions): Ag
     closeTextStream()
     return {
       answerText,
+      ...(finishReason ? { finishReason } : {}),
       fullyDrained,
       cancelled: false,
     }

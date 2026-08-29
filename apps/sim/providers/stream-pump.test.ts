@@ -70,7 +70,7 @@ describe('createAgentStreamPump', () => {
       { type: 'tool_call_end', id: '1', name: 'search', status: 'success' },
       { type: 'text_delta', text: 'Answer ', turn: 'pending' },
       { type: 'text_delta', text: 'here.', turn: 'pending' },
-      { type: 'turn_end', turn: 'final' },
+      { type: 'turn_end', turn: 'final', finishReason: 'length' },
     ]
 
     const pump = createAgentStreamPump({
@@ -86,6 +86,7 @@ describe('createAgentStreamPump', () => {
 
     // Intermediate turn discarded; only the final turn reaches the answer.
     expect(result.answerText).toBe('Answer here.')
+    expect(result.finishReason).toBe('length')
     expect(text).toBe('Answer here.')
     // Sinks see the full live timeline including pending deltas + boundaries.
     expect(seen).toEqual(events)

@@ -36,12 +36,18 @@ describe('createReadableStreamFromBedrockStream', () => {
         yield {
           metadata: { usage: { inputTokens: 2, outputTokens: 3 } },
         } as any
+        yield {
+          messageStop: { stopReason: 'max_tokens' },
+        } as any
       })(),
       onComplete
     )
 
     const events = await collectEvents(stream)
-    expect(events).toEqual([{ type: 'text_delta', text: 'Done', turn: 'final' }])
+    expect(events).toEqual([
+      { type: 'text_delta', text: 'Done', turn: 'final' },
+      { type: 'turn_end', turn: 'final', finishReason: 'max_tokens' },
+    ])
     expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
     expect(events.some((e) => e.type === 'tool_call_start')).toBe(false)
     expect(onComplete).toHaveBeenCalledWith('Done', { inputTokens: 2, outputTokens: 3 })

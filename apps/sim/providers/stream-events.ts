@@ -40,6 +40,8 @@ export type AgentStreamEvent =
        */
       type: 'turn_end'
       turn: TextDeltaTurn
+      /** Explicit provider termination reason for this model turn, when available. */
+      finishReason?: string
     }
   | { type: 'thinking_delta'; text: string }
   | { type: 'tool_call_start'; id: string; name: string }
@@ -81,7 +83,10 @@ export function isAgentStreamEvent(value: unknown): value is AgentStreamEvent {
         (value.turn === undefined || isTextDeltaClassification(value.turn))
       )
     case 'turn_end':
-      return isTextDeltaTurn(value.turn)
+      return (
+        isTextDeltaTurn(value.turn) &&
+        (value.finishReason === undefined || typeof value.finishReason === 'string')
+      )
     case 'thinking_delta':
       return typeof value.text === 'string'
     case 'tool_call_start':

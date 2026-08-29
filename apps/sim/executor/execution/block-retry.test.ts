@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import { isRetryableBlockError, resolveBlockRetryPolicy } from '@/executor/execution/block-retry'
+import { StructuredOutputTokenLimitError } from '@/executor/handlers/shared/response-format'
 import type { SerializedBlock } from '@/serializer/types'
 
 function block(
@@ -160,6 +161,10 @@ describe('isRetryableBlockError', () => {
         new ChildWorkflowError({ message: 'child failed', childWorkflowName: 'Child' })
       )
     ).toBe(false)
+  })
+
+  it('never replays token-limited structured output', () => {
+    expect(isRetryableBlockError(new StructuredOutputTokenLimitError())).toBe(false)
   })
 
   it('finds a deliberate stop that a provider rewrapped, since name is overwritten', () => {

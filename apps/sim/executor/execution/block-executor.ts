@@ -35,6 +35,11 @@ import type {
   WorkflowNodeMetadata,
 } from '@/executor/execution/types'
 import {
+  assertStructuredOutputNotTokenLimited,
+  parseResponseFormat,
+  StructuredOutputTokenLimitError,
+} from '@/executor/handlers/shared/response-format'
+import {
   generatePauseContextId,
   mapNodeMetadataToPauseScopes,
 } from '@/executor/human-in-the-loop/utils.ts'
@@ -71,6 +76,7 @@ import {
   type VariableResolver,
 } from '@/executor/variables/resolver'
 import { createAgentStreamPump } from '@/providers/stream-pump'
+import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -228,7 +234,7 @@ export class BlockExecutor {
     }
     cleanupSelfReference?.()
 
-    let streamingPartialOutput: Record<string, any> | undefined
+    let failureDiagnosticOutput: Record<string, any> | undefined
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -274,7 +280,7 @@ export class BlockExecutor {
           blockCtx.resolvedSecretTraceRegistry = resultRegistry?.forkForPropagatedEntries()
           // Timeout / drain failures may still have projected answer text — keep it
           // for the failed block output so logs match what the client already saw.
-          streamingPartialOutput = streamingExec.execution?.output
+          failureDiagnosticOutput = streamingExec.execution?.output
           throw streamError
         }
 
@@ -403,6 +409,9 @@ export class BlockExecutor {
       commitBlockRegistry()
       return stateOutput
     } catch (error) {
+      if (!failureDiagnosticOutput && error instanceof StructuredOutputTokenLimitError) {
+        failureDiagnosticOutput = error.diagnosticOutput
+      }
       try {
         return await this.handleBlockError(
           error,
@@ -416,7 +425,7 @@ export class BlockExecutor {
           inputDisplayRegistry,
           isSentinel,
           'execution',
-          streamingPartialOutput
+          failureDiagnosticOutput
         )
       } finally {
         commitBlockRegistry()
@@ -548,7 +557,7 @@ export class BlockExecutor {
     inputDisplayRegistry: ResolvedSecretTraceRegistry | undefined,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution',
-    streamingPartialOutput?: Record<string, any>
+    failureDiagnosticOutput?: Record<string, any>
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
@@ -624,12 +633,25 @@ export class BlockExecutor {
       error: errorMessage,
     }
 
-    // Keep any answer text already drained before timeout/failure so logs match
-    // what was projected to the client.
-    const partialContent = streamingPartialOutput?.content
-    if (typeof partialContent === 'string' && partialContent) {
-      errorOutput.content = partialContent
+    // Retain completed provider diagnostics for observability and billing while
+    // keeping the block failed so normal downstream execution cannot consume it.
+    let providerDiagnostics: Record<string, unknown> = {}
+    for (const key of ['content', 'model', 'tokens', 'toolCalls', 'providerTiming', 'cost']) {
+      const value = failureDiagnosticOutput?.[key]
+      if (value !== undefined) {
+        providerDiagnostics[key] = value
+      }
     }
+    if (ctx.piiBlockOutputRedaction?.enabled && Object.keys(providerDiagnostics).length > 0) {
+      stripThinkingContentFromOutput(providerDiagnostics)
+      providerDiagnostics = await redactObjectStrings(providerDiagnostics, {
+        entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
+        language: ctx.piiBlockOutputRedaction.language,
+        customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
+        onFailure: 'scrub',
+      })
+    }
+    Object.assign(errorOutput, providerDiagnostics)
 
     // Only real workflow blocks surface a child workflow name. A custom block's
     // source workflow is never named to its consumer — and before the handler
@@ -1106,6 +1128,7 @@ export class BlockExecutor {
       resolvedInputs?.responseFormat ??
       (block.config?.params as Record<string, any> | undefined)?.responseFormat ??
       (block.config as Record<string, any> | undefined)?.responseFormat
+    const parsedResponseFormat = parseResponseFormat(responseFormat)
 
     const streamFormat = streamingExec.streamFormat ?? 'text'
     const pump = createAgentStreamPump({
@@ -1220,11 +1243,8 @@ export class BlockExecutor {
     }
 
     let fullContent = pumpResult.answerText
-    if (!fullContent) {
-      return
-    }
 
-    if (piiEnabled && ctx.piiBlockOutputRedaction) {
+    if (fullContent && piiEnabled && ctx.piiBlockOutputRedaction) {
       // Mask before writing to `execution.output` or `onFullContent`.
       fullContent = await redactObjectStrings(fullContent, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
@@ -1235,9 +1255,28 @@ export class BlockExecutor {
     }
 
     const executionOutput = streamingExec.execution?.output
+    if (pumpResult.finishReason && executionOutput?.providerTiming?.timeSegments) {
+      enrichLastModelSegment(executionOutput.providerTiming.timeSegments, {
+        finishReason: pumpResult.finishReason,
+      })
+    }
+    if (executionOutput && typeof executionOutput === 'object' && parsedResponseFormat) {
+      // Retain even empty content for failed-block diagnostics, but reject it
+      // before parsing so token-limited structured data never reaches downstream.
+      executionOutput.content = fullContent
+      assertStructuredOutputNotTokenLimited(executionOutput.providerTiming, executionOutput)
+    }
+
+    if (!fullContent) {
+      return
+    }
+
     if (executionOutput && typeof executionOutput === 'object') {
       let parsedForFormat = false
       if (responseFormat) {
+        // Retain the drained text for failed-block diagnostics, but reject it
+        // before parsing so truncated structured data never reaches downstream.
+        executionOutput.content = fullContent
         try {
           const parsed = JSON.parse(fullContent.trim())
           streamingExec.execution.output = {
