@@ -425,6 +425,20 @@ export interface TraversalOptions {
    * rejection cannot quietly regress into a trim.
    */
   rejectsSurroundingWhitespace?: readonly string[]
+  /**
+   * Parameters guarded by a stricter, service-specific validator that predates
+   * these path guards — Supabase's `table` and `column` go through
+   * `validateDatabaseIdentifier`, `functionName` through `validateFunctionName`.
+   *
+   * Those legitimately refuse values the shared guards merely render inert
+   * (`abc#fragment` is a fine URL segment but not a SQL identifier), so a throw
+   * from them is a correct outcome. Everywhere else a throw is a **failure**:
+   * `MUST_NOT_RESHAPE` values must actually reach the wire encoded, and a guard
+   * that over-tightens and rejects one is a regression the suite has to catch.
+   * Listing the exceptions by name is what keeps "tolerated" from silently
+   * becoming "untested".
+   */
+  strictlyValidated?: readonly string[]
 }
 
 /** Asserts the traversal invariant for one (tool, parameter) pair. */
@@ -435,6 +449,7 @@ export function itResistsTraversal(
     basePath,
     preservesWhitespace = false,
     rejectsSurroundingWhitespace = [],
+    strictlyValidated = [],
   }: TraversalOptions
 ): void {
   const baselinePath = buildUrl(tool, paramName, PROBE_ID, context).pathname
@@ -473,7 +488,18 @@ export function itResistsTraversal(
     let url: URL
     try {
       url = buildUrl(tool, paramName, value, context)
-    } catch {
+    } catch (error) {
+      /**
+       * A throw here is only acceptable from a parameter with a stricter
+       * pre-existing validator. Otherwise the value was supposed to survive
+       * encoded, and swallowing the rejection would hide a guard that has
+       * over-tightened — the suite would then prove only that values which
+       * *build* stay inert, which is not the property claimed.
+       */
+      expect(
+        strictlyValidated.includes(paramName),
+        `${paramName} rejected ${JSON.stringify(value)}, which must be rendered inert: ${getErrorMessage(error, 'unknown error')}`
+      ).toBe(true)
       return
     }
 
@@ -561,7 +587,11 @@ export function itResistsTraversal(
     let url: URL
     try {
       url = buildUrl(tool, paramName, padded, context)
-    } catch {
+    } catch (error) {
+      expect(
+        strictlyValidated.includes(paramName),
+        `${paramName} rejected a padded value without being a strictly-validated parameter: ${getErrorMessage(error, 'unknown error')}`
+      ).toBe(true)
       return
     }
 

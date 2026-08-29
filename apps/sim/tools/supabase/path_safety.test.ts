@@ -101,6 +101,12 @@ describe('supabase path traversal safety', () => {
       origin: ORIGIN,
       basePath: BASE_PATH,
       preservesWhitespace: param.paramName === 'path',
+      /**
+       * `table` and `functionName` are refused by `validateDatabaseIdentifier`
+       * and `validateFunctionName`, which predate these guards and legitimately
+       * reject values the shared guards only render inert.
+       */
+      strictlyValidated: ['table', 'functionName'],
     })
   })
 
