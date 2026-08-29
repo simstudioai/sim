@@ -455,6 +455,22 @@ export const DaytonaBlock: BlockConfig = {
 
         const baseParams: Record<string, unknown> = { apiKey }
 
+        /**
+         * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
+         * tool transport reads `params.timeout` as its own outbound request deadline in
+         * milliseconds. The value here is in seconds, so the reserved key is always cleared —
+         * the executor merges the raw block inputs over these params, so leaving it out is not
+         * enough to drop it. The two operations that consume it republish it below as the tool's
+         * `executionTimeout`.
+         *
+         * Cleared for every operation, not only those two: the subBlock is `mode: 'advanced'`,
+         * and the serializer serializes an advanced subBlock on a stored value alone without
+         * evaluating its condition while the block is not in advanced mode. A value left behind
+         * by an earlier `execute_command` selection therefore still arrives here after the
+         * operation is switched, and would otherwise abort e.g. a git clone after 30ms.
+         */
+        baseParams.timeout = undefined
+
         if (SANDBOX_SCOPED_OPERATIONS.includes(operation)) {
           baseParams.sandboxId = rest.sandboxId
         }
@@ -487,33 +503,17 @@ export const DaytonaBlock: BlockConfig = {
             baseParams.code = rest.code
             baseParams.language = rest.language
             if (rest.runEnv) baseParams.env = rest.runEnv
-            /**
-             * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
-             * tool transport reads `params.timeout` as its own outbound request deadline in
-             * milliseconds. The value here is in seconds, so it is republished under the tool's
-             * `executionTimeout` and the reserved key is cleared — the executor merges the raw block
-             * inputs over these params, so leaving it out is not enough to drop it.
-             */
             if (rest.timeout !== undefined && rest.timeout !== '') {
               baseParams.executionTimeout = Number(rest.timeout)
             }
-            baseParams.timeout = undefined
             break
           case 'execute_command':
             baseParams.command = rest.command
             if (rest.cwd) baseParams.cwd = rest.cwd
             if (rest.runEnv) baseParams.env = rest.runEnv
-            /**
-             * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
-             * tool transport reads `params.timeout` as its own outbound request deadline in
-             * milliseconds. The value here is in seconds, so it is republished under the tool's
-             * `executionTimeout` and the reserved key is cleared — the executor merges the raw block
-             * inputs over these params, so leaving it out is not enough to drop it.
-             */
             if (rest.timeout !== undefined && rest.timeout !== '') {
               baseParams.executionTimeout = Number(rest.timeout)
             }
-            baseParams.timeout = undefined
             break
           case 'upload_file': {
             const normalizedFile = normalizeFileInput(rest.file, { single: true })
