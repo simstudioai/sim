@@ -185,15 +185,16 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
   }
 }
 
-interface ElasticsearchIndexInfo {
+/** One entry of a `GET /{index}` response, keyed by index name. */
+interface ElasticsearchIndexState {
   aliases?: Record<string, unknown>
   mappings?: Record<string, unknown>
   settings?: Record<string, unknown>
 }
 
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
-  output: Record<string, ElasticsearchIndexInfo | Record<string, ElasticsearchIndexInfo>> & {
-    indices: Record<string, ElasticsearchIndexInfo>
+  output: Record<string, ElasticsearchIndexState | Record<string, ElasticsearchIndexState>> & {
+    indices: Record<string, ElasticsearchIndexState>
   }
 }
 
