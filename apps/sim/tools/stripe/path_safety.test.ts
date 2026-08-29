@@ -158,12 +158,20 @@ interface PathParamCase {
 }
 
 /**
- * Typed as `unknown[]` on purpose: the barrel's values are a union of
- * concretely-typed `ToolConfig`s, and `Array.prototype.filter`'s type-predicate
- * overload requires the predicate's type to extend the array's. Widening to
- * `unknown` first is what lets the guard below do the narrowing.
+ * Seeded as `readonly unknown[]` on purpose, so the guard below is the single
+ * narrowing point for the whole harness.
+ *
+ * The barrel's values are a union of concretely-typed `ToolConfig`s, and no
+ * member of that union is assignable to the widened `PathTool`: `ToolConfig`
+ * places its parameter type in the *contravariant* position of `request.url`
+ * and `request.body`. Filtering the union directly does not help either —
+ * `Array.prototype.filter`'s type-predicate overload requires the predicate's
+ * type to extend the array's element type, so it intersects rather than
+ * replaces and leaves the mismatch in place. Widening to `unknown` first is
+ * what lets the guard actually narrow, and it keeps a cast out of every call
+ * site.
  */
-const ALL_EXPORTS: unknown[] = Object.values(stripeTools)
+const ALL_EXPORTS: readonly unknown[] = Object.values(stripeTools)
 
 const PATH_PARAM_CASES: PathParamCase[] = ALL_EXPORTS.filter(isStripeTool)
   .filter((tool) => typeof tool.request?.url === 'function')
