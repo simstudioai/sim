@@ -3,13 +3,37 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { approveCliAuthContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { createApproval } from '@/lib/cli-auth/approval-store'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { isCliAccessDisabled } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('CliAuthApproveAPI')
+
+/**
+ * Whether `userId`'s permission group withholds CLI access.
+ *
+ * permission-group-enforced: cli.use — gates a device-auth handoff, which owns
+ * no workspace resource for the authorization funnel to authorize.
+ *
+ * `workspaceId` is set only for a platform-scope handoff. A personal-scope
+ * login has no workspace, so it falls back to the organization's default group
+ * rather than going ungoverned — otherwise the narrower scope would be the
+ * unguarded one.
+ */
+async function cliAccessWithheld(userId: string, workspaceId?: string): Promise<boolean> {
+  if (workspaceId) return isWorkspaceCapabilityWithheld(userId, workspaceId, 'cli.use')
+
+  const membership = await getUserOrganization(userId)
+  if (!membership) return false
+  return isOrganizationCapabilityWithheld(membership.organizationId, 'cli.use')
+}
 
 /**
  * Records a signed-in user's approval of a CLI handoff so the waiting terminal's
@@ -76,16 +100,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   }
 
-  if (await isCliAccessDisabled(session.user.id, workspaceId)) {
+  if (await cliAccessWithheld(session.user.id, workspaceId)) {
     logger.warn('CLI authorization blocked by permission group', {
       userId: session.user.id,
       scope,
       workspaceId: workspaceId ?? null,
     })
-    return NextResponse.json(
-      { error: 'CLI access is not allowed based on your permission group settings' },
-      { status: 403 }
-    )
+    return NextResponse.json({ error: capabilityRefusal('cli.use') }, { status: 403 })
   }
 
   await createApproval(session.user.id, requestId, challenge, {

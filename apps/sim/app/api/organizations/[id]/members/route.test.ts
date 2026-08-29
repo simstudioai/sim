@@ -11,8 +11,15 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsOrgMemberDirectoryHidden, mockGetUsageSnapshot } = vi.hoisted(() => ({
-  mockIsOrgMemberDirectoryHidden: vi.fn(),
+const {
+  mockGetOrgPermissionConfig,
+  mockGetUserPermissionConfig,
+  mockResolveVerifiedContext,
+  mockGetUsageSnapshot,
+} = vi.hoisted(() => ({
+  mockGetOrgPermissionConfig: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+  mockResolveVerifiedContext: vi.fn(),
   mockGetUsageSnapshot: vi.fn(),
 }))
 
@@ -21,13 +28,16 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  isOrgMemberDirectoryHidden: mockIsOrgMemberDirectoryHidden,
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
+  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
 }))
 
 vi.mock('@/lib/billing/core/organization', () => ({
   getOrganizationMemberUsageSnapshot: mockGetUsageSnapshot,
 }))
 
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/members/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -47,7 +57,7 @@ describe('GET /api/organizations/[id]/members', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
-    mockIsOrgMemberDirectoryHidden.mockResolvedValue(false)
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
   })
 
   it('lists members for an organization member', async () => {
@@ -75,14 +85,14 @@ describe('GET /api/organizations/[id]/members', () => {
   })
 
   it('refuses a member whose permission group hides the member directory', async () => {
-    mockIsOrgMemberDirectoryHidden.mockResolvedValue(true)
+    mockGetOrgPermissionConfig.mockResolvedValue({ hideOrgMemberDirectory: true })
     queueTableRows(member, [{ id: 'member-reader', role: 'member' }])
 
     const response = await request()
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'Forbidden - The organization member directory is not available to you',
+      error: capabilityRefusal('organization.member_directory'),
     })
   })
 })

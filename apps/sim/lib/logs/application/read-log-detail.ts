@@ -11,6 +11,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -103,8 +104,8 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
       lookupColumn: input.lookupColumn,
       lookupValue: input.lookupValue,
       signal: input.signal,
-      hideTraceSpans: permissionConfig?.hideTraceSpans === true,
-      hideCostInfo: permissionConfig?.hideCostInfo === true,
+      hideTraceSpans: capabilityDeniedBy('logs.trace_spans', permissionConfig),
+      hideCostInfo: capabilityDeniedBy('logs.cost', permissionConfig),
     })
     input.signal?.throwIfAborted()
     if (!detail) throw new OrchestrationError('not_found', 'Not found')

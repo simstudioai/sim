@@ -21,7 +21,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
-import { isOrgMemberDirectoryHidden } from '@/ee/access-control/utils/permission-check'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('OrganizationRosterAPI')
 
@@ -50,13 +53,14 @@ export const GET = withRouteHandler(
         )
       }
 
-      if (await isOrgMemberDirectoryHidden(organizationId)) {
+      // permission-group-enforced: organization.member_directory — an organization-scoped read with no workspace or resource for the funnel to authorize
+      if (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory')) {
         logger.warn('Organization roster blocked by permission group', {
           organizationId,
           userId: session.user.id,
         })
         return NextResponse.json(
-          { error: 'Forbidden - The organization member directory is not available to you' },
+          { error: capabilityRefusal('organization.member_directory') },
           { status: 403 }
         )
       }

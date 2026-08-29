@@ -14,6 +14,7 @@ import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billi
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
@@ -366,7 +367,7 @@ export async function getWorkspaceCreationPolicy({
      */
     // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
     const config = await getUserPermissionConfigForOrganization(governingOrganizationId)
-    if (config?.disableWorkspaceCreation) {
+    if (capabilityDeniedBy('workspace.create', config)) {
       return {
         canCreate: false,
         workspaceMode:

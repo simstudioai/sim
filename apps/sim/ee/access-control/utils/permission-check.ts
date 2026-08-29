@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
@@ -421,52 +420,6 @@ export async function getUserPermissionConfigForOrganization(
 
   const resolved = await resolveDefaultGroup(organizationId)
   return mergeEnvAllowlist(resolved?.config ?? null)
-}
-
-/**
- * Whether the organization's permission group withholds its member directory.
- *
- * A directory read has no workspace and no resource, so there is no workspace
- * operation for the funnel to hang a capability on — the two routes that serve
- * it check bare organization membership, which is why every member can read
- * every colleague's name and email today.
- *
- * No role exemption: the default group governs owners and admins the same way it
- * governs everyone else for every other capability, and carving one out here
- * would make this the only key whose meaning depends on who is asking.
- */
-/** permission-group-enforced: organization.member_directory — organization-scoped read with no workspace or resource for the funnel to authorize */
-export async function isOrgMemberDirectoryHidden(organizationId: string): Promise<boolean> {
-  const config = await getUserPermissionConfigForOrganization(organizationId)
-  return config?.hideOrgMemberDirectory === true
-}
-
-/**
- * Whether CLI access is withheld from `userId`.
- *
- * Asked at approval time, which is the only moment a human is present: the
- * device-auth poll that redeems the approval for an API key is unauthenticated
- * by necessity, so it has no session to resolve a group against, and re-asking
- * there would only duplicate this decision while racing a config change between
- * the two calls.
- *
- * `workspaceId` is set only for a platform-scope handoff. A personal-scope login
- * has no workspace, so it falls back to the organization's default group rather
- * than going ungoverned — otherwise the narrower scope would be the unguarded
- * one.
- */
-/** permission-group-enforced: cli.use — gates a device-auth handoff, which owns no workspace resource for the funnel to authorize */
-export async function isCliAccessDisabled(userId: string, workspaceId?: string): Promise<boolean> {
-  if (workspaceId) {
-    const config = await getUserPermissionConfig(userId, workspaceId)
-    return config?.disableCliAccess === true
-  }
-
-  const membership = await getUserOrganization(userId)
-  if (!membership) return false
-
-  const config = await getUserPermissionConfigForOrganization(membership.organizationId)
-  return config?.disableCliAccess === true
 }
 
 /**

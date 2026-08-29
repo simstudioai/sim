@@ -29,7 +29,7 @@ import {
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('CopilotToolPermissionAPI')
 
@@ -82,10 +82,9 @@ async function applyDecision(
    * the next call prompts again. Not a 403: the answer to *this* prompt was
    * legitimate, and failing the request would strand the waiting orchestrator.
    */
-  const permissionConfig = run.workspaceId
-    ? await getUserPermissionConfig(userId, run.workspaceId)
-    : null
-  const mayRemember = permissionConfig?.disableToolAutoApproval !== true
+  const mayRemember = run.workspaceId
+    ? !(await isWorkspaceCapabilityWithheld(userId, run.workspaceId, 'copilot.tool_auto_approval'))
+    : true
 
   // Best-effort: failing to remember the preference must not block the tool the
   // user just allowed. Worst case they get prompted again next time.

@@ -8,6 +8,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { type ListLogsParams, readLogs } from '@/lib/logs/list-logs'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
@@ -31,7 +32,7 @@ const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
     return readLogs({
       ...input,
       workspaceId: context.workspaceId,
-      hideCostInfo: permissionConfig?.hideCostInfo === true,
+      hideCostInfo: capabilityDeniedBy('logs.cost', permissionConfig),
     })
   },
 })
