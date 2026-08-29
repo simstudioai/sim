@@ -16,7 +16,14 @@ const RemovePermissionSchema = z.object({
     .string()
     .min(1, 'functionName is required')
     .max(256, 'functionName cannot exceed 256 characters'),
-  statementId: z.string().min(1, 'statementId is required'),
+  statementId: z
+    .string()
+    .min(1, 'statementId is required')
+    .max(100, 'statementId cannot exceed 100 characters')
+    .regex(
+      /^[a-zA-Z0-9-_.]+$/,
+      'statementId may only contain letters, numbers, hyphens, underscores, and dots'
+    ),
   qualifier: z
     .string()
     .min(1, 'qualifier cannot be empty')

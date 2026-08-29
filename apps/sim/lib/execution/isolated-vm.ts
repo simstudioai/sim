@@ -1415,7 +1415,29 @@ export async function executeInIsolatedVM(
     distributedLeaseId,
     req.timeoutMs
   )
+  let settled = false
+  /**
+   * Released even when the acquisition was undetermined. The deadline abandons
+   * the local wait but cannot cancel the script, so a late completion still
+   * registers this lease id — and unreleased it would count against the owner
+   * for the whole TTL, denying later executions that do have capacity. The
+   * lease id is unique to this execution, so removing one that was never
+   * registered is a no-op.
+   *
+   * Declared before the early returns below so every exit path that can leave a
+   * registration behind reaches it, not just the ones that run the execution.
+   */
+  const releaseLease = () => {
+    if (settled) return
+    settled = true
+    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
+      logger.error('Failed to release distributed lease', { ownerKey, error })
+    })
+  }
+
   if (leaseAcquireResult !== 'acquired' && signal?.aborted) {
+    // Only an undetermined result can have registered; see the over-limit branch below.
+    if (leaseAcquireResult === 'undetermined') releaseLease()
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1430,6 +1452,7 @@ export async function executeInIsolatedVM(
       ownerKey,
       max: DISTRIBUTED_MAX_INFLIGHT_PER_OWNER,
     })
+    // No release: the script returns this before its ZADD, so nothing was registered.
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1443,23 +1466,6 @@ export async function executeInIsolatedVM(
   }
   // An undetermined lease cannot reject the execution: the per-process pool and
   // the per-owner active/queued limits above still bound this work.
-
-  let settled = false
-  /**
-   * Released even when the acquisition was undetermined. The deadline abandons
-   * the local wait but cannot cancel the script, so a late completion still
-   * registers this lease id — and unreleased it would count against the owner
-   * for the whole TTL, denying later executions that do have capacity. The
-   * lease id is unique to this execution, so removing one that was never
-   * registered is a no-op.
-   */
-  const releaseLease = () => {
-    if (settled) return
-    settled = true
-    releaseDistributedLease(ownerKey, distributedLeaseId).catch((error) => {
-      logger.error('Failed to release distributed lease', { ownerKey, error })
-    })
-  }
 
   const state: ExecutionState = { cancelled: false }
 

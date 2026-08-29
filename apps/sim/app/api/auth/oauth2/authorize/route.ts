@@ -12,6 +12,7 @@ import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/app
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuth2Authorize')
 
@@ -124,11 +125,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const stateCallbackUrl = new URL(callbackURL)
     stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, connectionDraftId)
+    const scopes = getPerRequestOAuthLinkScopes(providerId)
 
     const linkResponse = await auth.api.oAuth2LinkAccount({
       body: {
         providerId,
         callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
         ...(fromConnectionDraft
           ? { errorCallbackURL: `${baseUrl}/oauth/credential-connected?result=failed` }
           : {}),

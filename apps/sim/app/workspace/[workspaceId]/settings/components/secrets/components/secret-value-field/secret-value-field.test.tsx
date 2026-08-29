@@ -6,7 +6,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
-  ChipInput: (props: ComponentProps<'input'>) => <input {...props} />,
+  ChipInput: ({
+    inputClassName,
+    ...props
+  }: ComponentProps<'input'> & { inputClassName?: string }) => (
+    <input {...props} className={inputClassName} />
+  ),
 }))
 
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field/secret-value-field'
@@ -33,6 +38,26 @@ afterEach(() => {
 })
 
 describe('SecretValueField', () => {
+  it('preserves the caret position when revealing an editable value', () => {
+    const value = 'editable-secret-value'
+    act(() => root.render(<SecretValueField value={value} />))
+
+    expect(input().value).toBe(value)
+    expect(input().className).toContain('[-webkit-text-security:disc]')
+
+    input().setSelectionRange(15, 15)
+    act(() => input().focus())
+
+    expect(input().value).toBe(value)
+    expect(input().selectionStart).toBe(15)
+    expect(input().readOnly).toBe(false)
+    expect(input().className).not.toContain('[-webkit-text-security:disc]')
+
+    act(() => input().blur())
+    expect(input().value).toBe(value)
+    expect(input().className).toContain('[-webkit-text-security:disc]')
+  })
+
   it('lets a read-only viewer reveal an allowed value without making it editable', () => {
     act(() => root.render(<SecretValueField value='visible-secret' canEdit={false} canReveal />))
 

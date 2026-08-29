@@ -576,7 +576,7 @@ bun run deployment-config:check
 bun run docs:check
 ```
 
-This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
@@ -606,8 +606,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created tool file for each operation
 - [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
       external HTTP(S) `ToolConfig.request`
-- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal`, or
-      `directExecution`, or has an HTTP fallback for an in-process operation
+- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal` or the
+      retired `directExecution` property, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`

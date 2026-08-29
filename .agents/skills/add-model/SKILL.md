@@ -153,7 +153,7 @@ If the entry has `capabilities.thinking` or `capabilities.reasoningEffort`, it a
 
 - **Anthropic-family (`anthropic`, `azure-anthropic`) thinking models MUST declare `capabilities.thinking.streamed`** (`'full' | 'summary' | 'none'`). Verify against Anthropic's current thinking-display and streaming docs: visible thinking returned by the API is summarized, including when Sim opts models whose default display is `omitted` into `display: 'summarized'` on agent-events runs, so current Claude thinking models use `'summary'`. Use `'full'` only if future official API docs explicitly guarantee raw thinking deltas. `bun run agent-stream-docs:check` (CI) fails if the field is missing.
 - Other families usually omit the field and inherit the provider default in `getThinkingStreamVisibility` (Gemini/OpenAI → summaries; Bedrock/Meta → none; OpenAI-compatible vendors with documented reasoning fields → full deltas). Set it explicitly only when the model deviates from its family.
-- After inserting the entry, run `bun run agent-stream-docs:generate` and commit the regenerated `apps/docs/content/docs/en/workflows/blocks/agent.mdx` — CI diffs it.
+- After inserting the entry, run `bun run agent-stream-docs:generate` and commit the regenerated `apps/docs/content/docs/workflows/blocks/agent.mdx` — CI diffs it.
 - Include the `streamed` value (with its source URL) in the verification report when set.
 
 ### Wrong family entirely?

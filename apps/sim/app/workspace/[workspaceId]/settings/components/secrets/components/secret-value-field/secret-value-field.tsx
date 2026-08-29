@@ -55,8 +55,11 @@ export function SecretValueField({
   const editable = canEdit && !readOnly
   const revealable = canEdit || canReveal
   const maskActive = revealable && !unmasked && !focused
+  const visuallyMaskEditableValue = editable && maskActive
   const displayValue =
-    !revealable || (maskActive && value.length > 0) ? BULLET.repeat(VIEWER_MASK_LENGTH) : value
+    !revealable || (!editable && maskActive && value.length > 0)
+      ? BULLET.repeat(VIEWER_MASK_LENGTH)
+      : value
 
   return (
     <ChipInput
@@ -66,6 +69,7 @@ export function SecretValueField({
       value={displayValue}
       readOnly
       style={style}
+      inputClassName={visuallyMaskEditableValue ? '[-webkit-text-security:disc]' : undefined}
       onChange={(event) => {
         if (editable) onChange?.(event.target.value)
       }}

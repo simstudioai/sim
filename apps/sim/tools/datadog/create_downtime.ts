@@ -3,7 +3,12 @@ import type {
   CreateDowntimeResponse,
   DowntimeAttributes,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage, parseMonitorIds, splitCommaList } from '@/tools/datadog/utils'
+import {
+  datadogErrorMessage,
+  parseMonitorIds,
+  resolveDatadogSite,
+  splitCommaList,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -85,7 +90,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v2/downtime`
     },
     method: 'POST',

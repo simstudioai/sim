@@ -1,7 +1,7 @@
 # Integration documentation generator
 
 `generate-docs.ts` compiles the per-service **integration** pages under
-`apps/docs/content/docs/en/integrations/` from the block/tool/trigger registry in
+`apps/docs/content/docs/integrations/` from the block/tool/trigger registry in
 `apps/sim`. The ontology it encodes: everything is a block, and an integration is one
 block that has **Actions** and, optionally, a **Trigger**.
 

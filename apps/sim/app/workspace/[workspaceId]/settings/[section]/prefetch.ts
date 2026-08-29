@@ -39,7 +39,13 @@ async function prefetchCredentialGroups(
         principal,
         input: { workspaceId },
       })
-      return listCredentialGroupsContract.response.schema.parse(result).credentialGroups
+      /**
+       * Hydrates the whole response envelope, matching what `fetchCredentialGroupSettings` caches
+       * under this key. Narrowing to the groups array here would seed the shared entry with a
+       * shape its consumers do not read, so every one of them would see an empty list until the
+       * first refetch replaced it.
+       */
+      return listCredentialGroupsContract.response.schema.parse(result)
     },
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })

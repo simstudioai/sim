@@ -255,7 +255,7 @@ export function SidebarFooter({
               <OverflowText
                 label={name}
                 className={cn('sidebar-collapse-hide flex-1', chipContentLabelClass)}
-                tooltipEnabled={!isCollapsed}
+                tooltipEnabled={!isCollapsed && !showCollapsedTooltips}
                 focusTarget='nearest-interactive'
               />
             ) : (

@@ -62,6 +62,7 @@ export const getFunctionTool: InternalToolConfig<
       success: true,
       output: {
         configuration: data.output.configuration,
+        tagsError: data.output.tagsError,
         code: data.output.code,
         tags: data.output.tags,
         reservedConcurrentExecutions: data.output.reservedConcurrentExecutions,
@@ -74,6 +75,12 @@ export const getFunctionTool: InternalToolConfig<
       type: 'json',
       description:
         "The function's configuration (ARN, runtime, handler, memory, state, layers, VPC, and logging settings)",
+      nullable: true,
+    },
+    tagsError: {
+      type: 'json',
+      description: 'Why the tags could not be read, when a partial tag-read failure occurred',
+      nullable: true,
     },
     code: {
       type: 'json',
