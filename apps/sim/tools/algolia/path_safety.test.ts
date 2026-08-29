@@ -13,14 +13,29 @@
  * workspace's Algolia admin key attached — and `delete_index`, `delete_record`
  * and `clear_records` are destructive.
  *
+ * These call sites are the clearest demonstration in the whole change that
+ * encoding is not a fix: with the pre-existing `encodeURIComponent` restored,
+ * `algolia_delete_index` and `algolia_delete_record` fail precisely — and only
+ * — on the bare `.` and `..` vectors, passing every multi-segment escape,
+ * encoded separator and backslash vector, because encoding genuinely does
+ * neutralize those.
+ *
  * Every assertion here resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
  *
- * `applicationId` is deliberately not in scope: it is `visibility: 'user-only'`
+ * **The suite enumerates (tool, parameter) pairs and fuzzes exactly one
+ * parameter at a time**, holding every sibling at a known-safe value. Filling
+ * every string parameter with the same hostile value and swallowing the throw
+ * — the shape this file originally copied — silently stops testing a tool's
+ * remaining IDs the moment one of them is guarded, so a route like
+ * `/1/indexes/{indexName}/{objectID}` would have been reported as covered while
+ * `objectID` was never exercised at all.
+ *
+ * `applicationId` is deliberately out of scope: it is `visibility: 'user-only'`
  * and lands in the *host*, not the path, so it is neither LLM-writable nor a
- * dot-segment vector. It is pinned to a fixed value below so the origin
- * assertions stay meaningful.
+ * dot-segment vector. It is pinned below so the host assertions stay
+ * meaningful.
  */
 import { describe, expect, it } from 'vitest'
 import * as algoliaTools from '@/tools/algolia/index'
@@ -43,7 +58,7 @@ const TRAVERSAL_IDS = [
   '../../1/keys',
   '..%2f..%2f1/keys',
   'products/../../../1/keys',
-  'products?attributesToRetrieve=*',
+  'products?injectedParam=attacker',
   'products#fragment',
   'products/settings/../../../1/keys',
   '\\..\\..',
@@ -64,7 +79,11 @@ const LEGITIMATE_IDS = [
   'foo..',
 ] as const
 
-const SAFE_ID = 'SAFEID'
+/** The value under test; unique so its position in the path is unambiguous. */
+const TARGET = 'TARGETID'
+
+/** Every other string parameter is pinned here so only one variable moves. */
+const SIBLING = 'SIBLINGID'
 
 type AnyTool = ToolConfig<any, any>
 
@@ -78,14 +97,19 @@ function isAlgoliaTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised. `applicationId` and
- * `apiKey` are pinned: they are credentials, not path identifiers.
+ * Builds a param object with `targetName` set to `value` and every other
+ * parameter pinned to a known-safe placeholder of the right shape, so a failure
+ * is always attributable to the one parameter under test. `applicationId` and
+ * `apiKey` are credentials, not path identifiers, and stay fixed.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
+function buildParams(tool: AnyTool, targetName: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { applicationId: APPLICATION_ID, apiKey: 'key' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'applicationId' || name === 'apiKey') continue
+    if (name === targetName) {
+      params[name] = value
+      continue
+    }
     const type = (def as { type?: string }).type
     if (type === 'json' || type === 'array') {
       params[name] = []
@@ -96,143 +120,126 @@ function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
     } else if (type === 'boolean') {
       params[name] = false
     } else {
-      params[name] = value
+      params[name] = SIBLING
     }
   }
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, targetName: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
+  return new URL(url(buildParams(tool, targetName, value) as any))
 }
 
 function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(algoliaTools)
+/**
+ * Every (tool, parameter) pair whose parameter actually reaches the path, found
+ * by probing one parameter at a time with a unique marker.
+ */
+const PATH_PARAM_PAIRS = Object.values(algoliaTools)
   .filter(isAlgoliaTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
-    try {
-      return buildUrl(tool, SAFE_ID).pathname.includes(SAFE_ID)
-    } catch {
-      return false
-    }
-  })
-  .map((tool) => ({ name: tool.id, tool }))
+  .flatMap((tool) =>
+    Object.keys(tool.params ?? {})
+      .filter((paramName) => paramName !== 'applicationId' && paramName !== 'apiKey')
+      .filter((paramName) => {
+        try {
+          return buildUrl(tool, paramName, TARGET).pathname.includes(TARGET)
+        } catch {
+          return false
+        }
+      })
+      .map((paramName) => ({ name: `${tool.id} / ${paramName}`, tool, paramName }))
+  )
 
 describe('algolia path-ID traversal safety', () => {
-  it('covers every Algolia tool that interpolates an ID into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(12)
+  it('covers every Algolia path parameter, not just the first per tool', () => {
+    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(18)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildUrl(tool, SAFE_ID))
+  it('exercises the second ID of every two-ID route', () => {
+    const covered = new Set(PATH_PARAM_PAIRS.map((pair) => pair.name))
+
+    expect(covered).toContain('algolia_add_record / objectID')
+    expect(covered).toContain('algolia_get_record / objectID')
+    expect(covered).toContain('algolia_delete_record / objectID')
+    expect(covered).toContain('algolia_partial_update_record / objectID')
+    expect(covered).toContain('algolia_get_task_status / taskID')
+  })
+
+  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, paramName }) => {
+    const baseline = segmentsOf(buildUrl(tool, paramName, TARGET))
 
     it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
-      } catch {
+        url = buildUrl(tool, paramName, value)
+      } catch (error) {
+        expect(String(error)).toContain(paramName)
         return
       }
 
       expect(ALGOLIA_HOSTS).toContain(url.hostname)
       expect(url.pathname.startsWith('/1/indexes')).toBe(true)
+      expect(url.searchParams.get('injectedParam')).toBeNull()
 
       const actual = segmentsOf(url)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment.includes(SAFE_ID)) return
+        if (segment.includes(TARGET)) return
         expect(actual[index]).toBe(segment)
       })
     })
 
-    it.each(TRAVERSAL_IDS.filter((value) => value.trim() === '.' || value.trim() === '..'))(
-      'rejects the bare dot segment %j by name instead of popping the prefix',
-      (value) => {
-        expect(() => buildUrl(tool, value)).toThrow(/indexName|objectID|taskID/)
-      }
-    )
-
-    it('does not let an ID inject a query parameter', () => {
-      const url = buildUrl(tool, 'products?injectedParam=attacker')
-
-      expect(url.searchParams.get('injectedParam')).toBeNull()
+    it.each(['..', '.', '  ..  '])('rejects the bare dot segment %j by name', (value) => {
+      expect(() => buildUrl(tool, paramName, value)).toThrow(new RegExp(paramName))
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildUrl(tool, value))
+      const actual = segmentsOf(buildUrl(tool, paramName, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment.replaceAll(SAFE_ID, value))
+        expect(actual[index]).toBe(segment.replaceAll(TARGET, value))
       })
     })
 
     it('trims surrounding whitespace rather than encoding it into the path', () => {
-      const actual = segmentsOf(buildUrl(tool, `  ${SAFE_ID}  `))
-
-      expect(actual).toEqual(baseline)
+      expect(segmentsOf(buildUrl(tool, paramName, `  ${TARGET}  `))).toEqual(baseline)
     })
   })
 })
 
 /**
  * An Algolia `objectID` is an arbitrary caller-chosen string, and Algolia's own
- * clients percent-encode it, so a record keyed `products/123` is legitimate and
- * has always worked. `safeAlgoliaObjectId` therefore guards each `/`-delimited
- * piece rather than refusing the separator outright, which would have been a
- * behaviour change for valid input.
+ * clients percent-encode it, so a record keyed `catalog/sku-123` is legitimate
+ * and has always worked. `safeAlgoliaObjectId` therefore guards each
+ * `/`-delimited piece rather than refusing the separator outright, which would
+ * have been a behaviour change for valid input.
  */
-const OBJECT_ID_TOOLS = Object.values(algoliaTools)
-  .filter(isAlgoliaTool)
-  .filter((tool) => Object.hasOwn(tool.params ?? {}, 'objectID'))
-  .map((tool) => ({ name: tool.id, tool }))
+const OBJECT_ID_TOOLS = PATH_PARAM_PAIRS.filter((pair) => pair.paramName === 'objectID')
 
-function buildObjectIdUrl(tool: AnyTool, objectID: string): URL {
-  const url = tool.request?.url
-  if (typeof url !== 'function') {
-    throw new Error(`${tool.id} does not build its URL from params`)
-  }
-  return new URL(
-    url({
-      applicationId: APPLICATION_ID,
-      apiKey: 'key',
-      indexName: 'products',
-      objectID,
-      record: {},
-      attributes: {},
-    } as any)
-  )
-}
-
-describe.each(OBJECT_ID_TOOLS)('$name objectID path safety', ({ tool }) => {
+describe.each(OBJECT_ID_TOOLS)('$name slash-bearing object ids', ({ tool, paramName }) => {
   it('keeps a slash-bearing object id working as one encoded segment', () => {
-    const url = buildObjectIdUrl(tool, 'catalog/sku-123')
+    const url = buildUrl(tool, paramName, 'catalog/sku-123')
 
     expect(url.pathname).toContain('catalog%2Fsku-123')
-    expect(url.pathname.split('/')).toHaveLength(
-      buildObjectIdUrl(tool, 'catalogsku123').pathname.split('/').length
+    expect(segmentsOf(url)).toHaveLength(
+      segmentsOf(buildUrl(tool, paramName, 'catalogsku123')).length
     )
   })
 
   it('rejects a dot segment hidden inside a slash-bearing object id', () => {
-    expect(() => buildObjectIdUrl(tool, 'catalog/../../1/keys')).toThrow(/objectID/)
-  })
-
-  it('rejects a bare dot-dot object id', () => {
-    expect(() => buildObjectIdUrl(tool, '..')).toThrow(/objectID/)
+    expect(() => buildUrl(tool, paramName, 'catalog/../../1/keys')).toThrow(/objectID/)
   })
 
   it('preserves a plain object id verbatim', () => {
-    const url = buildObjectIdUrl(tool, 'sku_123-abc')
-
-    expect(url.pathname).toContain('sku_123-abc')
+    expect(buildUrl(tool, paramName, 'sku_123-abc').pathname).toContain('sku_123-abc')
   })
 })

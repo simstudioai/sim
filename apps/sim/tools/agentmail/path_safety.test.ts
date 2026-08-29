@@ -16,17 +16,29 @@
  * vector list below includes the bare `.` and `..` segments: both are made of
  * unreserved characters, so they survive encoding untouched and the URL parser
  * then removes them as dot segments, popping one path segment off a fixed host.
+ * The clearest demonstration is the sibling Algolia suite, whose call sites
+ * already wrapped every ID in `encodeURIComponent` and still failed precisely
+ * — and only — on the bare `.` and `..` vectors.
+ *
  * Every assertion here resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
+ *
+ * **The suite enumerates (tool, parameter) pairs and fuzzes exactly one
+ * parameter at a time**, holding every sibling at a known-safe value. Filling
+ * every string parameter with the same hostile value and swallowing the throw
+ * — the shape this file originally copied — silently stops testing a tool's
+ * remaining IDs the moment one of them is guarded, so a route like
+ * `/inboxes/{inboxId}/threads/{threadId}` would have been reported as covered
+ * while `threadId` was never exercised at all.
  *
  * An AgentMail inbox ID legitimately *is* an email address, so the guard now
  * percent-encodes the `@`. The legitimate-value assertions below therefore
  * check the segment round-trips through `decodeURIComponent` back to the exact
  * value supplied, which is the property AgentMail's own Node SDK relies on: it
- * wraps every path parameter in `encodeURIComponent` (`core/url/encodePathParam`),
- * while the Python SDK sends the address raw — both ship, so the server decodes
- * percent-encoding normally.
+ * wraps every path parameter in `encodeURIComponent`
+ * (`core/url/encodePathParam`), while the Python SDK sends the address raw —
+ * both ship, so the server decodes percent-encoding normally.
  */
 import { describe, expect, it } from 'vitest'
 import * as agentmailTools from '@/tools/agentmail/index'
@@ -43,7 +55,7 @@ const TRAVERSAL_IDS = [
   '../../inboxes/victim@agentmail.to',
   '..%2f..%2finboxes/victim@agentmail.to',
   'me@agentmail.to/../../inboxes/victim@agentmail.to',
-  'me@agentmail.to?limit=100',
+  'me@agentmail.to?injectedParam=attacker',
   'me@agentmail.to#fragment',
   'me@agentmail.to/threads/../../../v0/inboxes',
   '\\..\\..',
@@ -64,7 +76,13 @@ const LEGITIMATE_IDS = [
   'foo..',
 ] as const
 
-const SAFE_ID = 'SAFEID'
+/** The value under test; unique so its position in the path is unambiguous. */
+const TARGET = 'TARGETID'
+
+/** Every other string parameter is pinned here so only one variable moves. */
+const SIBLING = 'SIBLINGID'
+
+const ORIGIN = 'https://api.agentmail.to'
 
 type AnyTool = ToolConfig<any, any>
 
@@ -78,13 +96,18 @@ function isAgentmailTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised.
+ * Builds a param object with `targetName` set to `value` and every other
+ * parameter pinned to a known-safe placeholder of the right shape, so a failure
+ * is always attributable to the one parameter under test.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
+function buildParams(tool: AnyTool, targetName: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { apiKey: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'apiKey') continue
+    if (name === targetName) {
+      params[name] = value
+      continue
+    }
     const type = (def as { type?: string }).type
     if (type === 'json' || type === 'array') {
       params[name] = []
@@ -95,96 +118,110 @@ function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
     } else if (type === 'boolean') {
       params[name] = false
     } else {
-      params[name] = value
+      params[name] = SIBLING
     }
   }
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, targetName: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
+  return new URL(url(buildParams(tool, targetName, value) as any))
 }
 
 function segmentsOf(url: URL): string[] {
   return url.pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(agentmailTools)
+/**
+ * Every (tool, parameter) pair whose parameter actually reaches the path, found
+ * by probing one parameter at a time with a unique marker.
+ */
+const PATH_PARAM_PAIRS = Object.values(agentmailTools)
   .filter(isAgentmailTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
-    try {
-      return buildUrl(tool, SAFE_ID).pathname.includes(SAFE_ID)
-    } catch {
-      return false
-    }
-  })
-  .map((tool) => ({ name: tool.id, tool }))
+  .flatMap((tool) =>
+    Object.keys(tool.params ?? {})
+      .filter((paramName) => paramName !== 'apiKey')
+      .filter((paramName) => {
+        try {
+          return buildUrl(tool, paramName, TARGET).pathname.includes(TARGET)
+        } catch {
+          return false
+        }
+      })
+      .map((paramName) => ({ name: `${tool.id} / ${paramName}`, tool, paramName }))
+  )
 
 describe('agentmail path-ID traversal safety', () => {
-  it('covers every AgentMail tool that interpolates an ID into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(17)
+  it('covers every AgentMail path parameter, not just the first per tool', () => {
+    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(30)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildUrl(tool, SAFE_ID))
+  it('exercises the second ID of every two-ID route', () => {
+    const covered = new Set(PATH_PARAM_PAIRS.map((pair) => pair.name))
+
+    expect(covered).toContain('agentmail_delete_thread / threadId')
+    expect(covered).toContain('agentmail_get_thread / threadId')
+    expect(covered).toContain('agentmail_update_thread / threadId')
+    expect(covered).toContain('agentmail_get_message / messageId')
+    expect(covered).toContain('agentmail_update_message / messageId')
+    expect(covered).toContain('agentmail_forward_message / messageId')
+    expect(covered).toContain('agentmail_reply_message / messageId')
+    expect(covered).toContain('agentmail_delete_draft / draftId')
+    expect(covered).toContain('agentmail_get_draft / draftId')
+    expect(covered).toContain('agentmail_send_draft / draftId')
+    expect(covered).toContain('agentmail_update_draft / draftId')
+  })
+
+  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, paramName }) => {
+    const baseline = segmentsOf(buildUrl(tool, paramName, TARGET))
 
     it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
-      } catch {
+        url = buildUrl(tool, paramName, value)
+      } catch (error) {
+        expect(String(error)).toContain(paramName)
         return
       }
 
-      expect(url.origin).toBe('https://api.agentmail.to')
+      expect(url.origin).toBe(ORIGIN)
+      expect(url.searchParams.get('injectedParam')).toBeNull()
 
       const actual = segmentsOf(url)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment.includes(SAFE_ID)) return
+        if (segment.includes(TARGET)) return
         expect(actual[index]).toBe(segment)
       })
     })
 
-    it.each(TRAVERSAL_IDS.filter((value) => value.trim() === '.' || value.trim() === '..'))(
-      'rejects the bare dot segment %j by name instead of popping the prefix',
-      (value) => {
-        expect(() => buildUrl(tool, value)).toThrow(/Id/)
-      }
-    )
-
-    it('does not let an ID inject a query parameter', () => {
-      const url = buildUrl(tool, 'me@agentmail.to?injectedParam=attacker')
-
-      expect(url.searchParams.get('injectedParam')).toBeNull()
+    it.each(['..', '.', '  ..  '])('rejects the bare dot segment %j by name', (value) => {
+      expect(() => buildUrl(tool, paramName, value)).toThrow(new RegExp(paramName))
     })
 
     it.each(LEGITIMATE_IDS)('round-trips %j through the path unchanged', (value) => {
-      const actual = segmentsOf(buildUrl(tool, value))
+      const actual = segmentsOf(buildUrl(tool, paramName, value))
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        const expected = segment.replaceAll(SAFE_ID, value)
-        expect(decodeURIComponent(actual[index])).toBe(expected)
+        expect(decodeURIComponent(actual[index])).toBe(segment.replaceAll(TARGET, value))
       })
     })
 
-    it('percent-encodes an email-address inbox ID rather than rejecting it', () => {
-      const url = buildUrl(tool, 'example@agentmail.to')
+    it('percent-encodes an email-address ID rather than rejecting it', () => {
+      const url = buildUrl(tool, paramName, 'example@agentmail.to')
 
       expect(url.pathname).toContain('example%40agentmail.to')
       expect(decodeURIComponent(url.pathname)).toContain('example@agentmail.to')
     })
 
     it('trims surrounding whitespace rather than encoding it into the path', () => {
-      const actual = segmentsOf(buildUrl(tool, `  ${SAFE_ID}  `))
-
-      expect(actual).toEqual(baseline)
+      expect(segmentsOf(buildUrl(tool, paramName, `  ${TARGET}  `))).toEqual(baseline)
     })
   })
 })
