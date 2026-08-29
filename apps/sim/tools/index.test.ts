@@ -800,7 +800,7 @@ describe('executeTool Function', () => {
     cleanupEnvVars()
   })
 
-  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+  it('stamps standard Function identity and preserves trusted execution context', async () => {
     const fetchSpy = vi.fn()
     global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
 
@@ -856,7 +856,7 @@ describe('executeTool Function', () => {
         workspaceId: 'workspace-456',
         body: {
           code: 'return [{{API_KEY}}, __blockRef_0.field]',
-          isCustomTool: true,
+          isCustomTool: false,
           inputs: { location: 'San Francisco' },
           envVars: { API_KEY: 'resolved-secret' },
           contextVariables: {

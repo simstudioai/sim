@@ -47,6 +47,10 @@ type PiToolResultProjection =
   | { safe: true; result: PiToolResult }
   | { safe: false; result: PiToolResult }
 
+export interface PiFunctionToolCostAccumulator {
+  total: number
+}
+
 function projectToolResult(
   result: ToolResponse,
   registry: ResolvedSecretTraceRegistry | undefined
@@ -107,7 +111,8 @@ function buildSimToolSpec(
   ctx: ExecutionContext,
   inputTools: ToolInput[],
   provider: ProviderToolConfig,
-  toolIndex: number
+  toolIndex: number,
+  functionToolCost?: PiFunctionToolCostAccumulator
 ): PiToolSpec {
   const toolId = provider.canonicalId ?? provider.id
   const preseededParams = provider.params || {}
@@ -170,6 +175,21 @@ function buildSimToolSpec(
             resolvedSecretTraceRegistry: toolCallRegistry,
           }
         )
+        const resultCost = result.output?.cost
+        const resultCostTotal =
+          resultCost && typeof resultCost === 'object'
+            ? (resultCost as Record<string, unknown>).total
+            : undefined
+        if (
+          toolId === 'function_execute' &&
+          result.success &&
+          functionToolCost &&
+          typeof resultCostTotal === 'number' &&
+          Number.isFinite(resultCostTotal) &&
+          resultCostTotal > 0
+        ) {
+          functionToolCost.total += resultCostTotal
+        }
         const projection = projectToolResult(result, toolCallRegistry?.forkForPropagatedEntries())
         if (projection.safe && registry && toolCallRegistry?.isComplete()) {
           registry.mergeToolCallRegistry(toolCallRegistry)
@@ -199,7 +219,8 @@ function buildSimToolSpec(
  */
 export async function buildSimToolSpecs(
   ctx: ExecutionContext,
-  inputTools: unknown
+  inputTools: unknown,
+  functionToolCost?: PiFunctionToolCostAccumulator
 ): Promise<PiToolSpec[]> {
   if (!Array.isArray(inputTools)) return []
 
@@ -243,6 +264,6 @@ export async function buildSimToolSpecs(
   await annotateDuplicateToolBindings(ctx, providers)
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
-    buildSimToolSpec(ctx, inputTools, provider, toolIndex)
+    buildSimToolSpec(ctx, inputTools, provider, toolIndex, functionToolCost)
   )
 }

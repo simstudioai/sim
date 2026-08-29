@@ -43,6 +43,11 @@ const logger = createLogger('DaytonaSandboxProvider')
 const DAYTONA_DEFAULT_SANDBOX_TTL_MS = 24 * 60 * 60 * 1000
 const DAYTONA_STREAM_READY_MARKER = '__SIM_DAYTONA_STREAM_READY__'
 
+/** Daytona expresses sandbox TTLs as whole minutes. */
+export function resolveDaytonaSandboxLifetimeMs(lifetimeMs: number): number {
+  return Math.max(1, Math.ceil(lifetimeMs / 60_000)) * 60_000
+}
+
 /** Daytona expresses every timeout in seconds; the rest of Sim works in milliseconds. */
 function toSeconds(timeoutMs: number): number {
   return Math.max(1, Math.ceil(timeoutMs / 1000))
@@ -795,6 +800,7 @@ function shellQuote(value: string): string {
 export const daytonaProvider: SandboxProvider = {
   id: 'daytona',
   dependencyStrategy: 'runtime',
+  resolveLifetimeMs: resolveDaytonaSandboxLifetimeMs,
   async create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle> {
     const apiKey = env.DAYTONA_API_KEY
     if (!apiKey) {
@@ -810,11 +816,11 @@ export const daytonaProvider: SandboxProvider = {
       snapshot,
       language: toDaytonaLanguage(language),
       ephemeral: true,
-      ttlMinutes: Math.max(
-        1,
-        Math.ceil((options?.lifetimeMs ?? DAYTONA_DEFAULT_SANDBOX_TTL_MS) / 60_000)
-      ),
+      ttlMinutes:
+        resolveDaytonaSandboxLifetimeMs(options?.lifetimeMs ?? DAYTONA_DEFAULT_SANDBOX_TTL_MS) /
+        60_000,
     }
+    options?.onProviderRequestStarted?.(Date.now())
     const sandbox = await daytona.create(createOptions)
 
     return new DaytonaSandboxHandle(sandbox, language)

@@ -45,7 +45,10 @@ import {
   resolvePiSearchKey,
 } from '@/executor/handlers/pi/core/keys'
 import { runLocalPi } from '@/executor/handlers/pi/local/backend'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
+import {
+  buildSimToolSpecs,
+  type PiFunctionToolCostAccumulator,
+} from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
 import type {
   BlockHandler,
@@ -267,7 +270,8 @@ export class PiBlockHandler implements BlockHandler {
       }
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
-      const tools = await buildSimToolSpecs(ctx, inputs.tools)
+      const functionToolCost: PiFunctionToolCostAccumulator = { total: 0 }
+      const tools = await buildSimToolSpecs(ctx, inputs.tools, functionToolCost)
       const params: PiLocalRunParams = {
         ...contextualBase,
         mode: 'local',
@@ -282,7 +286,7 @@ export class PiBlockHandler implements BlockHandler {
           passphrase: usePrivateKey ? asRawString(inputs.passphrase) : undefined,
         },
       }
-      return this.runPi(ctx, block, runLocalPi, params, memoryConfig)
+      return this.runPi(ctx, block, runLocalPi, params, memoryConfig, functionToolCost)
     }
 
     const owner = asOptString(inputs.owner)
@@ -473,10 +477,20 @@ export class PiBlockHandler implements BlockHandler {
     model: string,
     isBYOK: boolean,
     startTime: number,
-    startTimeISO: string
+    startTimeISO: string,
+    functionToolCost = 0
   ): NormalizedBlockOutput {
     const { totals } = result
     const endTime = Date.now()
+    const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
+    const cost =
+      functionToolCost > 0
+        ? {
+            ...modelCost,
+            toolCost: functionToolCost,
+            total: modelCost.total + functionToolCost,
+          }
+        : modelCost
     return {
       content: totals.finalText,
       model,
@@ -505,7 +519,7 @@ export class PiBlockHandler implements BlockHandler {
         output: totals.outputTokens,
         total: totals.inputTokens + totals.outputTokens,
       },
-      cost: computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK),
+      cost,
       providerTiming: {
         startTime: startTimeISO,
         endTime: new Date(endTime).toISOString(),
@@ -519,7 +533,8 @@ export class PiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     backend: PiBackendRun<P>,
     params: P,
-    memoryConfig?: PiMemoryConfig
+    memoryConfig?: PiMemoryConfig,
+    functionToolCost?: PiFunctionToolCostAccumulator
   ): Promise<BlockOutput | StreamingExecution> {
     const startTime = Date.now()
     const startTimeISO = new Date(startTime).toISOString()
@@ -561,7 +576,8 @@ export class PiBlockHandler implements BlockHandler {
                 params.model,
                 params.isBYOK,
                 startTime,
-                startTimeISO
+                startTimeISO,
+                functionToolCost?.total
               )
             )
             if (memoryConfig) {
@@ -610,7 +626,8 @@ export class PiBlockHandler implements BlockHandler {
       params.model,
       params.isBYOK,
       startTime,
-      startTimeISO
+      startTimeISO,
+      functionToolCost?.total
     )
   }
 }

@@ -20,6 +20,7 @@ const {
   mockResolveSearchKey,
   mockBuildSearchTool,
   mockAssertPermissionsAllowed,
+  mockBuildSimToolSpecs,
   MockToolNotAllowedError,
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockResolveSearchKey: vi.fn(),
   mockBuildSearchTool: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
+  mockBuildSimToolSpecs: vi.fn(),
   MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
 }))
 
@@ -64,7 +66,7 @@ vi.mock('@/executor/handlers/pi/core/context', () => ({
   appendPiMemory: mockAppendMemory,
 }))
 vi.mock('@/executor/handlers/pi/local/sim-tools', () => ({
-  buildSimToolSpecs: vi.fn().mockResolvedValue([]),
+  buildSimToolSpecs: mockBuildSimToolSpecs,
 }))
 vi.mock('@/executor/handlers/pi/local/backend', () => ({ runLocalPi: mockRunLocal }))
 vi.mock('@/executor/handlers/pi/cloud/authoring/backend', () => ({
@@ -153,6 +155,7 @@ describe('PiBlockHandler', () => {
     mockResolveSearchKey.mockReturnValue('search-key')
     mockBuildSearchTool.mockReturnValue({ name: 'web_search' })
     mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+    mockBuildSimToolSpecs.mockResolvedValue([])
     mockResolveSkills.mockResolvedValue([])
     mockLoadMemory.mockResolvedValue([])
     mockAppendMemory.mockResolvedValue(undefined)
@@ -273,6 +276,19 @@ describe('PiBlockHandler', () => {
     expect(params.ssh.host).toBe('box.example.com')
     expect(params.repoPath).toBe('/srv/repo')
     expect((output as Record<string, unknown>).content).toBe('hi')
+  })
+
+  it('adds successful Function tool cost once to a non-streaming Local Dev result', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.125
+        return []
+      }
+    )
+
+    const output = (await handler.execute(ctx(), block, localInputs())) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.125, total: 0.125 })
   })
 
   it('routes Create PR to the cloud backend and surfaces PR output', async () => {
@@ -942,6 +958,12 @@ describe('PiBlockHandler', () => {
   })
 
   it('streams text when the block is selected for streaming output', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.25
+        return []
+      }
+    )
     mockRunLocal.mockImplementation(async (_params, runCtx) => {
       runCtx.onEvent({ type: 'text', text: 'streamed' })
       return { totals: { finalText: 'streamed', inputTokens: 0, outputTokens: 0, toolCalls: [] } }
@@ -965,6 +987,12 @@ describe('PiBlockHandler', () => {
     }
     expect(text).toContain('streamed')
     expect(result.execution.output.content).toBe('streamed')
+    expect(result.execution.output.cost).toEqual({
+      input: 0,
+      output: 0,
+      toolCost: 0.25,
+      total: 0.25,
+    })
   })
 
   it('streams only the canonical final document for Plan mode', async () => {

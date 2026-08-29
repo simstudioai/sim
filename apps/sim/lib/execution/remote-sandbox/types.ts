@@ -72,6 +72,8 @@ export interface SandboxExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
+  /** Adds the remote provider cost to a successful Function result. */
+  meterUsage?: boolean
 }
 
 export interface SandboxShellExecutionRequest {
@@ -97,6 +99,8 @@ export interface SandboxShellExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
+  /** Adds the remote provider cost to a successful Function result. */
+  meterUsage?: boolean
 }
 
 export interface SandboxExecutionResult {
@@ -116,6 +120,7 @@ export interface SandboxExecutionResult {
    * sequence, and the byte budget is enforced on the decoded length.
    */
   collectedFiles?: SandboxCollectedFile[]
+  cost?: { input: number; output: number; total: number }
 }
 
 /** One harvested output file, carried as base64 with its decoded length. */
@@ -279,6 +284,8 @@ export interface CreateSandboxOptions {
    * and creates the sandbox as ephemeral.
    */
   lifetimeMs?: number
+  /** Reports the instant immediately before the provider SDK create request is dispatched. */
+  onProviderRequestStarted?: (startedAtMs: number) => void
 }
 
 /**
@@ -366,5 +373,7 @@ export interface SandboxProvider {
   readonly dependencyStrategy: SandboxDependencyStrategy
   /** Present exactly when {@link dependencyStrategy} is `prebuilt`. */
   readonly images?: SandboxImageBuilder
+  /** Resolves the provider's rounded lifetime for both creation and metering. */
+  resolveLifetimeMs(lifetimeMs: number): number
   create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle>
 }

@@ -120,4 +120,20 @@ describe('Function Execute Tool', () => {
     expect(body[PRIVATE_SECRET_PROVENANCE_FIELD]).toEqual(bundle)
     expect(JSON.stringify(body)).not.toContain('plaintext')
   })
+
+  it('preserves sandbox cost in a successful Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: 42, stdout: 'done', cost },
+      }),
+      { code: 'return 42' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { result: 42, stdout: 'done', cost },
+    })
+  })
 })

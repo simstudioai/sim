@@ -259,6 +259,7 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
         result: result.output.result,
         stdout: result.output.stdout,
         files: result.output.files ?? [],
+        ...(result.output.cost ? { cost: result.output.cost } : {}),
       },
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,

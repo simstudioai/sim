@@ -97,6 +97,11 @@ export const E2B_SANDBOX_MATERIALIZER_REVISION = FUNCTION_SANDBOX_MATERIALIZER_R
 /** Maximum continuous sandbox lifetime supported by E2B. */
 export const E2B_MAX_SANDBOX_LIFETIME_MS = 24 * 60 * 60 * 1000
 
+/** E2B sends sandbox lifetimes as whole seconds. */
+export function resolveE2BSandboxLifetimeMs(lifetimeMs: number): number {
+  return Math.min(Math.ceil(lifetimeMs / 1000) * 1000, E2B_MAX_SANDBOX_LIFETIME_MS)
+}
+
 const E2B_PROVIDER_LIMIT_ERROR =
   'E2B reached its 24-hour limit for a single sandbox execution. The workflow timeout may be longer, but this Function call must finish within 24 hours.'
 const E2B_TIMEOUT_MESSAGE_PATTERN =
@@ -863,6 +868,7 @@ export const e2bProvider: SandboxProvider = {
   id: 'e2b',
   dependencyStrategy: 'prebuilt',
   images: e2bImages,
+  resolveLifetimeMs: resolveE2BSandboxLifetimeMs,
   async create(kind: SandboxKind, options?: CreateSandboxOptions): Promise<SandboxHandle> {
     const apiKey = env.E2B_API_KEY
     if (!apiKey) {
@@ -881,7 +887,9 @@ export const e2bProvider: SandboxProvider = {
     // default — longer than the lifetime it asked for, which is the opposite of
     // what it requested.
     const effectiveLifetimeMs =
-      options?.lifetimeMs !== undefined ? e2bTimeoutMs(options.lifetimeMs) : undefined
+      options?.lifetimeMs !== undefined
+        ? resolveE2BSandboxLifetimeMs(options.lifetimeMs)
+        : undefined
     const createOptions = {
       apiKey,
       ...(effectiveLifetimeMs !== undefined ? { timeoutMs: effectiveLifetimeMs } : {}),
@@ -889,6 +897,7 @@ export const e2bProvider: SandboxProvider = {
 
     const { Sandbox } = await import('@e2b/code-interpreter')
     const lifetimeStartedAtMs = Date.now()
+    options?.onProviderRequestStarted?.(lifetimeStartedAtMs)
     const sandbox = await Sandbox.create(templateName, createOptions)
 
     return new E2BSandboxHandle(

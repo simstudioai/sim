@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import {
+  createSandboxPricing,
+  priceSandboxUsage,
+  type SandboxPricing,
+} from '@/lib/billing/sandbox-pricing'
+import {
   createTimeoutAbortController,
   getRemainingExecutionMs,
   isTimeoutAbortReason,
@@ -46,6 +51,8 @@ import type {
   SandboxHandle,
   SandboxKind,
   SandboxPrivateInput,
+  SandboxProvider,
+  SandboxProviderId,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
@@ -59,14 +66,41 @@ export type {
 
 const logger = createLogger('RemoteSandbox')
 
+interface CreatedSandbox {
+  sandbox: SandboxHandle
+  providerId: SandboxProviderId
+  startedAtMs: number
+  effectiveLifetimeMs?: number
+  pricing?: SandboxPricing
+}
+
 async function createSandbox(
   kind: SandboxKind,
-  options?: CreateSandboxOptions
-): Promise<SandboxHandle> {
-  const provider = resolveProvider()
-  const sandbox = await provider.create(kind, options)
+  options?: CreateSandboxOptions,
+  meterUsage = false,
+  provider: SandboxProvider = resolveProvider()
+): Promise<CreatedSandbox> {
+  const effectiveLifetimeMs =
+    options?.lifetimeMs !== undefined ? provider.resolveLifetimeMs(options.lifetimeMs) : undefined
+  if (meterUsage && effectiveLifetimeMs === undefined) {
+    throw new Error('Metered sandbox execution requires a provider lifetime')
+  }
+  const pricing = meterUsage ? createSandboxPricing(provider.id) : undefined
+  let startedAtMs = Date.now()
+  const providerOptions = {
+    ...options,
+    ...(effectiveLifetimeMs !== undefined ? { lifetimeMs: effectiveLifetimeMs } : {}),
+    ...(meterUsage ? { onProviderRequestStarted: (value: number) => (startedAtMs = value) } : {}),
+  }
+  const sandbox = await provider.create(kind, providerOptions)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
-  return sandbox
+  return {
+    sandbox,
+    providerId: provider.id,
+    startedAtMs,
+    ...(effectiveLifetimeMs !== undefined ? { effectiveLifetimeMs } : {}),
+    ...(pricing ? { pricing } : {}),
+  }
 }
 
 /**
@@ -83,10 +117,11 @@ async function createSelectedSandbox(
   kind: SandboxKind,
   options: CreateSandboxOptions,
   selected: ResolvedSandbox | null,
-  signal: AbortSignal
-): Promise<SandboxHandle> {
+  signal: AbortSignal,
+  meterUsage = false
+): Promise<CreatedSandbox> {
   try {
-    return await createSandbox(kind, options)
+    return await createSandbox(kind, options, meterUsage)
   } catch (error) {
     throwIfAborted(signal)
     if (!selected) throw error
@@ -166,10 +201,13 @@ function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
 }
 
-function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
+function bindSandboxAbort(
+  sandbox: SandboxHandle,
+  provider: SandboxProviderId,
+  signal?: AbortSignal
+) {
   let killed = false
   let killPromise: Promise<void> | null = null
-  const provider = resolveProvider().id
   const kill = (reason: 'cleanup' | 'cancellation' | 'timeout'): Promise<void> => {
     if (killed) return Promise.resolve()
     if (!killPromise) {
@@ -209,6 +247,20 @@ function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
     },
     detach: () => signal?.removeEventListener('abort', onAbort),
   }
+}
+
+function attachSandboxCost(
+  result: SandboxExecutionResult | undefined,
+  created: CreatedSandbox,
+  cleanupStartedAtMs: number
+): void {
+  if (!result || !created.pricing || created.effectiveLifetimeMs === undefined) return
+  const usage = priceSandboxUsage(
+    created.pricing,
+    cleanupStartedAtMs - created.startedAtMs,
+    created.effectiveLifetimeMs
+  )
+  result.cost = { input: 0, output: 0, total: usage.billedCost }
 }
 
 /**
@@ -753,7 +805,7 @@ async function executeInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     {
       language,
@@ -761,10 +813,13 @@ async function executeInSandboxWithinBudget(
       lifetimeMs: remainingSandboxBudgetMs(signal),
     },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let successfulResult: SandboxExecutionResult | undefined
 
   try {
     throwIfAborted(signal)
@@ -850,7 +905,7 @@ async function executeInSandboxWithinBudget(
     )
     throwIfAborted(signal)
 
-    return {
+    successfulResult = {
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
@@ -858,7 +913,10 @@ async function executeInSandboxWithinBudget(
       exportedFiles,
       collectedFiles,
     }
+    return successfulResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    attachSandboxCost(successfulResult, created, cleanupStartedAtMs)
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -887,14 +945,17 @@ async function executeShellInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let successfulResult: SandboxExecutionResult | undefined
 
   try {
     throwIfAborted(signal)
@@ -962,7 +1023,7 @@ async function executeShellInSandboxWithinBudget(
     )
     throwIfAborted(signal)
 
-    return {
+    successfulResult = {
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
@@ -970,7 +1031,10 @@ async function executeShellInSandboxWithinBudget(
       exportedFiles,
       collectedFiles,
     }
+    return successfulResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    attachSandboxCost(successfulResult, created, cleanupStartedAtMs)
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -1032,7 +1096,7 @@ export async function withPiSandbox<T>(
 ): Promise<T> {
   const lifetimeMs =
     options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
-  const sandbox = await createSandbox('pi', { lifetimeMs })
+  const { sandbox } = await createSandbox('pi', { lifetimeMs })
   logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {

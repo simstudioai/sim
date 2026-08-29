@@ -2470,12 +2470,16 @@ async function executeDeclaredInternalOperation({
 
   const operationParams = projectToolModelInputParams(tool, params, resolvedSecretTraceRegistry)
   let operationInput = tool.operation.input(operationParams)
-  const isFunctionOperation = toolId === 'function_execute' || isCustomTool(toolId)
-  if (isFunctionOperation && !isFunctionExecuteBody(operationInput)) {
-    throw new Error('Function operation input must be an object')
+  const isRegisteredCustomTool = isCustomTool(toolId)
+  const isFunctionOperation = toolId === 'function_execute' || isRegisteredCustomTool
+  if (isFunctionOperation) {
+    if (!isFunctionExecuteBody(operationInput)) {
+      throw new Error('Function operation input must be an object')
+    }
+    operationInput = { ...operationInput, isCustomTool: isRegisteredCustomTool }
   }
   if (
-    isCustomTool(toolId) &&
+    isRegisteredCustomTool &&
     isFunctionExecuteBody(operationInput) &&
     'schema' in operationInput &&
     'params' in operationInput

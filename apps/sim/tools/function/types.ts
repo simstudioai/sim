@@ -86,5 +86,10 @@ export interface CodeExecutionOutput extends ToolResponse {
     stdout: string
     /** Files harvested from the sandbox output directory, already persisted. */
     files: UserFile[]
+    cost?: {
+      input: number
+      output: number
+      total: number
+    }
   }
 }

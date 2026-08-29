@@ -123,8 +123,15 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
-import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
-import { E2B_MAX_SANDBOX_LIFETIME_MS, e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
+import {
+  daytonaProvider,
+  resolveDaytonaSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/daytona'
+import {
+  E2B_MAX_SANDBOX_LIFETIME_MS,
+  e2bProvider,
+  resolveE2BSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/e2b'
 import {
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
@@ -138,6 +145,27 @@ import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
+
+describe('provider-effective sandbox lifetimes', () => {
+  it('matches E2B second and Daytona minute rounding', () => {
+    expect(resolveE2BSandboxLifetimeMs(1001)).toBe(2000)
+    expect(resolveDaytonaSandboxLifetimeMs(1001)).toBe(60_000)
+  })
+
+  it.each(PROVIDERS)('reports the %s SDK create dispatch time', async (provider) => {
+    useProvider(provider)
+    const onProviderRequestStarted = vi.fn()
+    const createMock = provider === 'e2b' ? mockE2BCreate : mockDaytonaCreate
+
+    await resolveProvider().create('code', { lifetimeMs: 1000, onProviderRequestStarted })
+
+    expect(onProviderRequestStarted).toHaveBeenCalledOnce()
+    expect(onProviderRequestStarted).toHaveBeenCalledWith(expect.any(Number))
+    expect(onProviderRequestStarted.mock.invocationCallOrder[0]).toBeLessThan(
+      createMock.mock.invocationCallOrder[0]
+    )
+  })
+})
 
 /** Points the shared layer at one provider via the SANDBOX_PROVIDER env var. */
 function useProvider(provider: Provider) {
@@ -337,6 +365,47 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(res.result).toEqual({ ok: true })
     expect(res.stdout).toBe('hello')
     expect(res.error).toBeUndefined()
+    expect(res.cost).toBeUndefined()
+  })
+
+  it('adds provider cost to a metered successful code result', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}{"ok":true}`)
+    let now = 1_800_000_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => ++now)
+
+    try {
+      const res = await executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        meterUsage: true,
+      })
+
+      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost?.total).toBeGreaterThan(0)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('adds provider cost to a metered successful shell result', async () => {
+    stubShellCommand(provider, 'ok', '', 0)
+    let now = 1_800_000_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => ++now)
+
+    try {
+      const res = await executeShellInSandbox({
+        code: 'echo ok',
+        envs: {},
+        timeoutMs: 1000,
+        meterUsage: true,
+      })
+
+      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost?.total).toBeGreaterThan(0)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 
   it('takes the LAST marker so user output cannot shadow the real result', async () => {
@@ -502,11 +571,13 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       code: 'raise ValueError("boom")',
       language: CodeLanguage.Python,
       timeoutMs: 1000,
+      meterUsage: true,
     })
 
     expect(res.error).toBe('ValueError: boom')
     expect(res.stdout).toContain('ValueError: boom')
     expect(res.result).toBeNull()
+    expect(res.cost).toBeUndefined()
   })
 
   it('normalizes Python code budget expiry to a typed timeout abort', async () => {
@@ -988,11 +1059,17 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
      */
     stubShellCommand(provider, provider === 'daytona' ? 'boom detail' : '', 'boom detail', 3)
 
-    const res = await executeShellInSandbox({ code: 'false', envs: {}, timeoutMs: 1000 })
+    const res = await executeShellInSandbox({
+      code: 'false',
+      envs: {},
+      timeoutMs: 1000,
+      meterUsage: true,
+    })
 
     expect(res.result).toBeNull()
     expect(res.error).toContain('boom detail')
     expect(res.stdout).toContain('boom detail')
+    expect(res.cost).toBeUndefined()
   })
 
   it('terminates shell execution when streamed process output exceeds the byte budget', async () => {

@@ -128,6 +128,12 @@ const MAX_SANDBOX_OUTPUT_FILES = 20
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
 
+interface FunctionExecutionCost {
+  input: number
+  output: number
+  total: number
+}
+
 interface SandboxRuntimePayload {
   params: Record<string, unknown>
   environmentVariables: Record<string, string>
@@ -1458,6 +1464,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   exportedFileContent?: string
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const {
     routeContext,
@@ -1473,6 +1480,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     exportedFileContent,
     stdout,
     executionTime,
+    cost,
   } = args
 
   if (!outputSandboxPath) return null
@@ -1595,6 +1603,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
         },
         stdout: cleanStdout(stdout),
         executionTime,
+        ...(cost ? { cost } : {}),
       },
       resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
     })
@@ -1618,6 +1627,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   exportedFileContent?: string
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const sandboxFiles = args.outputFiles.filter((file) => file.sandboxPath)
   if (sandboxFiles.length === 0) return null
@@ -1647,6 +1657,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         args.exportedFileContent,
       stdout: args.stdout,
       executionTime: args.executionTime,
+      cost: args.cost,
     })
   }
 
@@ -1844,6 +1855,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       },
       stdout: cleanStdout(args.stdout),
       executionTime: args.executionTime,
+      ...(args.cost ? { cost: args.cost } : {}),
     },
     resources: writtenFiles.map((file) => ({
       type: 'file',
@@ -2130,6 +2142,8 @@ export async function executeFunctionRequest(
       files: mountedUserFiles,
       _sandboxFiles,
     } = body
+
+    const meterRemoteSandboxUsage = Boolean(workflowId && !isCustomTool && !usesMothershipSandbox)
 
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
@@ -2500,6 +2514,7 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: shellCollectedFiles,
+        cost: shellCost,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
@@ -2515,6 +2530,7 @@ export async function executeFunctionRequest(
           ? { sandboxKind: 'mothership' as const }
           : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
 
@@ -2547,6 +2563,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           stdout: shellStdout,
           executionTime,
+          cost: shellCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2575,6 +2592,7 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(shellStdout),
             executionTime,
             files: shellOutputFiles.files,
+            ...(shellCost ? { cost: shellCost } : {}),
           },
         },
         routeContext
@@ -2637,6 +2655,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           exportedFiles,
           collectedFiles: jsCollectedFiles,
+          cost: sandboxCost,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
@@ -2653,6 +2672,7 @@ export async function executeFunctionRequest(
             ? { sandboxKind: 'mothership' as const }
             : {}),
           signal: executionSignal,
+          meterUsage: meterRemoteSandboxUsage,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -2696,6 +2716,7 @@ export async function executeFunctionRequest(
             exportedFileContent,
             stdout,
             executionTime,
+            cost: sandboxCost,
           })
           if (fileExportResponse) {
             return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2724,6 +2745,7 @@ export async function executeFunctionRequest(
               stdout: cleanStdout(stdout),
               executionTime,
               files: jsOutputFiles.files,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
             },
           },
           routeContext
@@ -2749,6 +2771,7 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: pythonCollectedFiles,
+        cost: sandboxCost,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
@@ -2764,6 +2787,7 @@ export async function executeFunctionRequest(
           ? { sandboxKind: 'mothership' as const }
           : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -2807,6 +2831,7 @@ export async function executeFunctionRequest(
           exportedFileContent,
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
@@ -2835,6 +2860,7 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(stdout),
             executionTime,
             files: pythonOutputFiles.files,
+            ...(sandboxCost ? { cost: sandboxCost } : {}),
           },
         },
         routeContext
