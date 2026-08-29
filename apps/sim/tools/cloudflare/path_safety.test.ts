@@ -92,6 +92,15 @@ const TOOLS_WITHOUT_PARAM_BUILT_URLS = [
   'cloudflare_get_zone_settings',
 ] as const
 
+/**
+ * (tool, param) pairs that deliberately REJECT surrounding whitespace rather
+ * than trimming it. Only `delete_r2_bucket` qualifies: it is the sole parameter
+ * that is both newly trimmed by this PR and attached to an irreversible
+ * request, so inferring the caller's intent there is not worth the risk.
+ * Listing it here keeps the divergence explicit rather than implicit.
+ */
+const REJECTS_SURROUNDING_WHITESPACE = new Set(['cloudflare_delete_r2_bucket/bucketName'])
+
 const SAFE_ID = 'SAFEID'
 const PROBE = 'PROBEVALUE'
 const TRIM_SAMPLE = '023e105f4ecef8ad9ca31a8372d0c353'
@@ -406,9 +415,15 @@ describe('cloudflare path-param traversal safety', () => {
         expect(throwsTypeError(() => tool.request.headers?.(numericParams))).toBe(false)
       })
 
-      it('trims surrounding whitespace off a legitimate value', () => {
-        const actual = segmentsOf(withValue(`  ${TRIM_SAMPLE}  `).pathname)
+      it("handles surrounding whitespace per this parameter's policy", () => {
+        const padded = `  ${TRIM_SAMPLE}  `
 
+        if (REJECTS_SURROUNDING_WHITESPACE.has(`${tool.id}/${param}`)) {
+          expect(() => withValue(padded)).toThrow(/leading or trailing whitespace/)
+          return
+        }
+
+        const actual = segmentsOf(withValue(padded).pathname)
         baseline.forEach((segment, index) => {
           expect(actual[index]).toBe(segment.replaceAll(PROBE, TRIM_SAMPLE))
         })
