@@ -363,8 +363,21 @@ A sound suite has five properties:
 2. **Assert rejection, not path shape.** A shape assertion (origin + segment count + unchanged
    segments) catches only a minority of the vectors: `%2F` is never decoded back into a separator, and
    a trailing bare `.` collapses to the parent with the segment count intact. Add an explicit
-   `expect(() => build(param, '..')).toThrow(new RegExp(paramName))` — the error must *name the
-   parameter*. Reference: the rejects-by-name assertions in `itResistsTraversal`.
+   assertion that the build throws **and that the message names the parameter** — matched on whole
+   tokens, never `new RegExp(paramName)`, which is the substring trap recorded below (`"projectId
+   cannot have leading whitespace"` would satisfy a check for `id`). Capture the message and assert
+   it; do not use `toThrow(string)`, which is also a substring match:
+
+   ```typescript
+   let message = ''
+   try {
+     build(param, '..')
+   } catch (error) {
+     message = getErrorMessage(error, 'unknown error')
+   }
+   expect(message, `${param} accepted ".."`).not.toBe('')
+   expect(namesParam(message, param), `error did not name ${param}: ${message}`).toBe(true)
+   ``` Reference: the rejects-by-name assertions in `itResistsTraversal`.
 3. **Probe conditional branches.** A param that only appears on one branch of a conditional URL builder
    is invisible to a single all-params probe. Harvest the string literals the builder compares against
    and re-probe under each — in **pairs** as well as singly, since a param reachable only when two
@@ -399,6 +412,22 @@ two look like a `catch`:
 | A **substring** matcher behind "the error names the parameter" | `"projectId cannot have leading whitespace"` satisfied the assertion for param `id`, and `"pathological failure"` satisfied `path` — so a guard naming the **wrong** identifier passed the very check meant to catch that. Match whole tokens (or a run of adjacent tokens, so `"Invalid function name"` still names `functionName`) |
 | An assertion that **guarded itself out of existence** | `if (serialized?.includes('projectId')) { expect(...) }` stopped verifying the moment a body dropped the field. Assert unconditionally |
 | `describe.each` over a silently-empty derived array | The group was filtered out of existence by a rename; a floor on the *total* still passed, so a whole block of assertions vanished emitting neither tests nor failures. Pin each derived group, not their sum |
+| **Fixture drift** — an assertion outliving the input it was written against | `expect(serialized).not.toContain('  my-project  ')` was written when the fixture *was* padded. A strict guard made padding throw, the fixture was unpadded, and the assertion stayed — now asserting the absence of a string that can no longer occur. It passes forever |
+| **A globally-mocked dependency** the assertion reads through | `vitest.setup.ts:112` stubs `@/tools/registry` as `{ tools: {} }`, so a guard that iterates the registry sees nothing and passes over an empty set. Four real failures only reproduced once `vi.unmock('@/tools/registry')` was added (`apps/sim/blocks/blocks/github.test.ts:3`) |
+
+Note that the last two have **different causes** from the rest, which is why auditing `catch` blocks
+and filters does not find them. The first four are *a tolerance applied too broadly*; fixture drift is
+*an assertion outliving its input*; the mock is *the assertion never reaching the real subject*. Check
+all three.
+
+**When an assertion couples two literals, derive one from the other instead of re-pinning it.** That
+is the fix that actually removes fixture drift rather than resetting its clock — a test named "agrees"
+should assert agreement, not two constants that happen to match:
+
+```typescript
+const urlProject = url.pathname.split('/projects/')[1]?.split('/')[0]
+expect(serialized).toContain(`"projectId":"${urlProject}"`)
+```
 
 A matcher is the highest-leverage instance of this: a weakness in it is invisible from every suite it
 powers, so give a shared matcher its own contract test (`namesParam` in
@@ -431,6 +460,9 @@ segment but not a SQL identifier. Every other pair must build.
 - [ ] Shared matchers have their own contract test, verified red against the loose form
 - [ ] Assertions pin exact encoded output and exact error text, never a bare `toThrow()`
 - [ ] **Every new assertion was verified red before it was kept** — revert the fix, watch it fail
+- [ ] **When a fixture changed, every assertion that referenced its old value was re-verified red**
+- [ ] Assertions that read a globally-mocked module (`@/tools/registry`, `@/blocks/registry`, …)
+      `vi.unmock` it first, or they pass over the stub
 
 ### A hardening change must not turn a failing request into a succeeding one
 
@@ -506,9 +538,24 @@ upstream changes to `url-path.ts` that a `toThrow()`-only suite goes green throu
   whitespace"`, failing four assertions. They were **updated to the new wording, not loosened** — that
   precision is the property that caught the other two.
 
-So: `expect(build(...)).toBe('<the exact encoded path>')`, and
-`expect(() => build(...)).toThrow('<the exact message>')`. Never relax one of these to `toThrow()` or
-`toContain()` to make a rebase quiet.
+**`toThrow('...')` does not do this.** Vitest treats a string argument as a *substring* match, so it
+is only a slightly tighter `toThrow()` and drifts for the same reason. Capture the message and assert
+equality, and pin the output with `toBe`:
+
+```typescript
+expect(decodeURIComponent(url.pathname)).toBe('<the exact expected path>')
+
+let message = ''
+try {
+  build(...)
+} catch (error) {
+  message = getErrorMessage(error, 'unknown error')
+}
+expect(message).toBe('<the exact message>')
+```
+
+Never relax one of these to `toThrow()`, `toThrow(string)`, or `toContain()` to make a rebase quiet —
+update the expectation to the new wording instead.
 
 #### These tests are type-checked by nothing
 

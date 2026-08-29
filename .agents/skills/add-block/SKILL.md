@@ -567,8 +567,10 @@ params: (params) => ({ timeoutSeconds: params.timeout, timeout: undefined }),
 `check-block-registry.ts:222` narrows to exactly that pair, and for those it demands a subBlock whose
 `id` or `canonicalParamId` equals the **tool param id** — a mapper that renames at execution time does
 not satisfy it, because the raw subBlock id is not a valid lookup key once a canonical group resolves
-(`check-block-registry.ts:201`). For a required user-only param, keep the tool param name and clear the
-reserved key some other way, or rename the subBlock and record the old id in `SUBBLOCK_ID_MIGRATIONS`.
+(`check-block-registry.ts:201`). For a **required user-only** param the two rules cannot both be met by
+a mapper — keeping the tool param name requires sending the reserved key, and clearing it leaves a
+required input undefined — so the only correct move is to **rename the subBlock and record the old id
+in `SUBBLOCK_ID_MIGRATIONS`**, accepting the one-time state migration.
 
 `apps/sim/scripts/check-block-registry.ts` enforces this: it diffs the block definitions and fails
 when a subblock id disappears (`check-block-registry.ts:181`), pointing you at the migration table.
@@ -1102,7 +1104,7 @@ changes.
 - [ ] Outputs match tool outputs
 - [ ] No existing subBlock `id` was renamed or removed without a `SUBBLOCK_ID_MIGRATIONS` entry
 - [ ] Restructured outputs still expose every previously reachable runtime key (raw keys spread last)
-- [ ] Any reserved transport key a subBlock still sends is explicitly cleared with `undefined` in `tools.config.params`
+- [ ] Where a subBlock id collides with a reserved transport key but means something provider-specific, the reserved key is explicitly cleared with `undefined` in `tools.config.params` (leave it alone when the block genuinely means the transport's timeout/proxy/method)
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
