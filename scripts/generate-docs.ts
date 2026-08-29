@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
-export const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
+export const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/integrations')
 
 export const DOCS_ORIGIN = 'https://docs.sim.ai/'
 
