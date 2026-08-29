@@ -56,10 +56,11 @@ export interface WorkspaceOperation<
    * `'none'` is spelled out rather than left as an omission, because an absent
    * field cannot be told apart from an unreviewed one — and unreviewed omission
    * is exactly how twelve config keys shipped with an admin checkbox and no
-   * server gate. Optional only while the operations are being annotated;
-   * `check:permission-group-enforcement` reports what is still unfilled.
+   * server gate. Required, so the question has to be answered once per
+   * operation; `check:permission-group-enforcement` additionally requires a
+   * `// permission-group-exempt:` reason wherever the answer is `'none'`.
    */
-  readonly capability?: StaticPermissionGroupCapability | 'none'
+  readonly capability: StaticPermissionGroupCapability | 'none'
 }
 
 type WorkspaceApiKeyPrincipalConsistency<

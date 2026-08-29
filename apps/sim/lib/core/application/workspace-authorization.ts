@@ -233,7 +233,7 @@ async function requireCapability(
   operation: WorkspaceOperation
 ): Promise<void> {
   const capability = operation.capability
-  if (capability === undefined || capability === 'none') return
+  if (capability === 'none') return
 
   await requireWorkspaceCapability(userId, context, capability)
 }

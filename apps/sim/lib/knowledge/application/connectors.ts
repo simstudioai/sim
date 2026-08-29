@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
@@ -120,11 +120,19 @@ const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
  * No-op when no permission group governs the caller, which is what keeps
  * non-enterprise and ungoverned organizations unaffected.
  */
+/**
+ * A permission group is a membership of users, so an actorless caller — a
+ * schedule, or a webhook with no external subject — resolves no group and
+ * passes through, exactly as the authorization funnel treats one. Requiring a
+ * subject here would turn every scheduled connector sync into a 500 rather than
+ * a refusal anyone could act on.
+ */
 async function assertConnectorTypeAllowed(
-  userId: string,
+  userId: string | undefined,
   workspaceId: string,
   connectorType: string
 ): Promise<void> {
+  if (!userId) return
   const config = await getUserPermissionConfig(userId, workspaceId)
   if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
 
@@ -327,7 +335,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
     // permission-group-enforced: knowledge.connectors — needs the request's connector id, which the funnel never sees
     await assertConnectorTypeAllowed(
-      requirePrincipalSubjectUserId(principal),
+      resolvePrincipalSubjectUserId(principal),
       workspaceId,
       input.connectorType
     )
