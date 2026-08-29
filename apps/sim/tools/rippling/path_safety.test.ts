@@ -49,12 +49,28 @@ const TRAVERSAL_IDS = [
   '\\..\\..',
 ] as const
 
-/** Values a real user legitimately supplies; none may be rejected or altered. */
+/**
+ * Values a real user legitimately supplies; none may be rejected or altered.
+ *
+ * `purchase_order__c`, `amount__c`, and `procurement__c` are Rippling's own
+ * example custom-object and field API names, taken from its published OpenAPI
+ * document (`developer.rippling.com/docs/rest-beta.yaml`). The `__c` suffix is
+ * the part worth pinning: an invented lookalike would not have had it.
+ *
+ * That same document types every path ID as `{ type: 'string', format: 'id' }`
+ * and contains no `pattern` constraint anywhere, so Rippling documents no
+ * character set for IDs at all. The guard under test therefore asserts nothing
+ * about ID shape — it rejects only the separators and dot segments that
+ * reshape a URL, which is the one property that does not depend on a format
+ * Rippling has never published.
+ */
 const LEGITIMATE_IDS = [
   'de4d4d4b-3ab4-4f7f-a1d3-6f2f4dd0d0aa',
   '0b91d2b1c4e94f2a9d3f5c7e8a1b2c3d',
   'A1B2C3D4E5F6',
-  'custom_object_api_name',
+  'purchase_order__c',
+  'amount__c',
+  'procurement__c',
   'employee_certifications',
   'externalId-2026-01',
   'field.api.name',

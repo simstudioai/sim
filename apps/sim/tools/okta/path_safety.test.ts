@@ -54,7 +54,31 @@ const TRAVERSAL_IDS = [
   '\\..\\..',
 ] as const
 
-/** Values a real user legitimately supplies; none may be rejected or altered. */
+/**
+ * Values a real user legitimately supplies; none may be rejected or altered.
+ *
+ * These are realistic ID shapes, not quoted documentation: Okta's published
+ * parameter descriptions type every ID as a bare `string`, so there is no
+ * documented character set to pin. `jane.doe@example.com` covers the login
+ * form, which the `{id}` path parameter accepts in place of an ID ("An ID,
+ * login, or login shortname (as long as the shortname is unambiguous) of an
+ * existing Okta user").
+ *
+ * KNOWN OPEN QUESTION — a login containing `/`. `safeUrlPathSegment` rejects
+ * any value carrying a path separator, whereas the previous
+ * `encodeURIComponent` emitted `%2F`, which survives URL normalization intact
+ * (`/api/v1/users/a%2Fb` stays one segment). So for the nine `{id}` endpoints
+ * that accept a login, a `/`-bearing login that Okta may previously have
+ * resolved is now refused. Whether Okta ever resolved it is undocumented and
+ * could not be confirmed from any reachable Okta source.
+ *
+ * This is deliberately not worked around here. `%2F` is not itself a traversal
+ * vector — only literal `.`/`..` and their percent-encoded spellings are
+ * removed by the parser — so the separator check is defense in depth rather
+ * than the load-bearing half of the fix, and it lives in shared
+ * `@/tools/url-path` used by every integration. Narrowing it is a decision for
+ * that module, not for the Okta tools.
+ */
 const LEGITIMATE_IDS = [
   '00u1a2b3c4D5E6F7G8h9',
   '00g9h8g7f6E5D4C3b2a1',
