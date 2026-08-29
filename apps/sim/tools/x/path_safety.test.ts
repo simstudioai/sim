@@ -393,11 +393,9 @@ function buildBody(name: string, param: string, action: string, value: string | 
   const tool = TOOLS.find((candidate) => candidate.id === name)
   if (!tool) throw new Error(`${name} is not exported from the barrel`)
 
-  const source = (tool as unknown as { body?: unknown }).body
-  const body = typeof source === 'function' ? (source as (params: Fill) => unknown) : undefined
-  if (!body) throw new Error(`${name} does not build a body`)
+  if (!tool.body) throw new Error(`${name} does not build a body`)
 
-  return body({ ...baseFill(tool), action, [param]: value })
+  return tool.body({ ...baseFill(tool), action, [param]: value })
 }
 
 describe.each(BODY_ID_TOOLS)('$name body identifier', ({ name, param, field, action }) => {

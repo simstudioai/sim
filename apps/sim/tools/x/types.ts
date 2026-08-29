@@ -13,10 +13,10 @@ import { safeUrlPathSegment } from '@/tools/url-path'
  * returns `v` for every value the guard admits.
  *
  * Several X tools put the same id in the path on one branch and in the body on
- * the other — \`x_manage_block\` sends \`targetUserId\` as a path segment to
+ * the other — `x_manage_block` sends `targetUserId` as a path segment to
  * unblock and as a body field to block. Guarding only the path left those two
  * branches disagreeing about what a caller may send, so a numeric id that
- * unblocked successfully threw a bare \`TypeError\` when used to block.
+ * unblocked successfully threw a bare `TypeError` when used to block.
  */
 export function xIdBodyValue(value: string | number | bigint, paramName: string): string {
   return decodeURIComponent(safeUrlPathSegment(value, paramName))
