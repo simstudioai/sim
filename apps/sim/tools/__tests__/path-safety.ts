@@ -424,18 +424,50 @@ export function toolsWithoutPathParams(
 }
 
 /**
- * Normalizes an error message and a parameter name to bare lowercase letters so
- * a guard can be credited with naming its parameter however it spells it.
+ * Reports whether an error message actually names the parameter it is about.
  *
- * A few parameters are refused by a stricter service-specific validator that
- * predates these guards and spells the name in prose — Supabase's
- * `functionName` is reported as *"Invalid function name"*. That is an equally
- * correct outcome and should still count as naming the offender, so both sides
- * are stripped of non-letters before the comparison.
+ * The match is bounded to whole words rather than a substring scan, because a
+ * substring scan quietly accepts the two things this assertion exists to
+ * reject. With a bare `strip(message).includes(strip(paramName))`:
+ *
+ * ```
+ * "Invalid input"                        satisfied paramName "id"     (generic message)
+ * "projectId cannot have leading …"      satisfied paramName "id"     (names the WRONG parameter)
+ * "tableId cannot be '.'"                satisfied paramName "table"  (names the WRONG parameter)
+ * "pathological failure"                 satisfied paramName "path"   (substring of a longer word)
+ * ```
+ *
+ * So the message is split into letter-only tokens, and the parameter matches
+ * only if it equals a token or a run of **adjacent** tokens joined. The join is
+ * what keeps prose spellings working: a stricter service validator reports
+ * `functionName` as *"Invalid function name"*, which is `function` + `name`,
+ * and that is a correct naming rather than a near-miss. The run is capped at
+ * four tokens and abandoned once it is longer than the target, so this stays
+ * linear in the message length.
+ *
+ * Exported so its own contract can be pinned in `path-safety-matcher.test.ts`;
+ * the loose version passed every suite while accepting all four cases above.
  */
-function namesParam(message: string, paramName: string): boolean {
+export function namesParam(message: string, paramName: string): boolean {
   const strip = (text: string) => text.toLowerCase().replaceAll(/[^a-z]/g, '')
-  return strip(message).includes(strip(paramName))
+  const target = strip(paramName)
+  if (!target) return false
+
+  const tokens = message
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean)
+
+  for (let start = 0; start < tokens.length; start++) {
+    let joined = ''
+    for (let end = start; end < tokens.length && end < start + 4; end++) {
+      joined += tokens[end]
+      if (joined === target) return true
+      if (joined.length > target.length) break
+    }
+  }
+
+  return false
 }
 
 export interface TraversalOptions {
