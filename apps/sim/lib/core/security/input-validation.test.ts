@@ -473,6 +473,22 @@ describe('validateUrlWithDNS', () => {
       expect(result.error).toContain('private or reserved address')
     })
 
+    it('refuses an IP literal outside the configured range without deferring', () => {
+      // A literal was judged against its own address, so a lookup could add
+      // nothing — deferring it would accept literals outside every range.
+      envFlagsMock.egressAllowedIpRanges = '10.0.0.0/8'
+      try {
+        expect(
+          validateExternalUrl('https://192.168.1.1/x', 'url', 'configuredEndpoint').isValid
+        ).toBe(false)
+        expect(validateExternalUrl('https://10.0.0.5/x', 'url', 'configuredEndpoint').isValid).toBe(
+          true
+        )
+      } finally {
+        envFlagsMock.egressAllowedIpRanges = undefined
+      }
+    })
+
     it('permits a private IP once the operator allowlists its range', async () => {
       envFlagsMock.egressAllowedIpRanges = '192.168.0.0/16'
       try {

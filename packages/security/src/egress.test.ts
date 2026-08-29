@@ -155,6 +155,33 @@ describe('operator allowlist — the self-hosted posture', () => {
   })
 })
 
+describe('an IPv4 range matches every spelling of the same address', () => {
+  const ranged = createEgressPolicy({ allowedRanges: '10.0.0.0/8' })
+
+  it.each([
+    ['10.0.0.1', 'plain IPv4'],
+    ['::a00:1', 'the IPv4-compatible form a resolver can return'],
+    ['::ffff:10.0.0.1', 'the IPv4-mapped form'],
+    ['::10.0.0.1', 'IPv4-compatible written long-hand'],
+  ])('permits %s — %s', (address) => {
+    expect(decide(ranged, 'https://svc.internal/', address).allowed).toBe(true)
+  })
+
+  it('does not fold the addresses that are IPv6 in their own right', () => {
+    // `::1` is loopback, not 0.0.0.1 carried inside IPv6 — folding it would let
+    // a 0.0.0.0/8 entry match it, and stop `::1/128` matching it.
+    const loopback = createEgressPolicy({ allowedRanges: '::1/128' })
+    expect(decide(loopback, 'https://svc.internal/', '::1').allowed).toBe(true)
+
+    const zeroPage = createEgressPolicy({ allowedRanges: '0.0.0.0/8' })
+    expect(decide(zeroPage, 'https://svc.internal/', '::1').allowed).toBe(false)
+  })
+
+  it('still refuses an address outside the range in any spelling', () => {
+    expect(reason(ranged, 'https://svc.internal/', '::c0a8:101')).toBe('address-blocked')
+  })
+})
+
 describe('the same operator config is inert on the hosted posture', () => {
   it.each([
     ['http://host.docker.internal/', '192.168.65.254'],

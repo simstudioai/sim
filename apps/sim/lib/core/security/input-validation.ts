@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { evaluateUrl, isLiftableByVouching, policyDefersToAddress } from '@sim/security/egress'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import {
   describeEgressDenial,
   type EgressProfile,
@@ -521,7 +522,15 @@ export function validateExternalUrl(
   // host permitted only by EGRESS_ALLOWED_IP_RANGES cannot be recognised until
   // DNS runs, and refusing here would stop it being configured at all.
   // validateUrlWithDNS makes the authoritative call before anything is dialled.
-  if (policyDefersToAddress(policy) && isLiftableByVouching(decision.reason)) {
+  //
+  // Only for a hostname. A literal was judged against its own address, so there
+  // is nothing a lookup could add and deferring would accept a literal outside
+  // every configured range.
+  if (
+    !isIpLiteral(unwrapIpv6Brackets(parsed.hostname)) &&
+    policyDefersToAddress(policy) &&
+    isLiftableByVouching(decision.reason)
+  ) {
     return { isValid: true }
   }
 

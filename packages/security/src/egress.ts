@@ -245,8 +245,10 @@ function matchesHostAllowlist(host: string, policy: EgressPolicy): boolean {
 
 function matchesRangeAllowlist(address: string, policy: EgressPolicy): boolean {
   if (policy.allowedRanges.length === 0) return false
-  const clean = unwrapIpv6Brackets(address)
-  if (!ipaddr.isValid(clean)) return false
+  // Canonical form, so an operator's IPv4 CIDR still matches a resolver that
+  // answered with the IPv4-compatible IPv6 spelling of the same address.
+  const clean = canonicalAddress(address)
+  if (clean === null) return false
   const parsed = ipaddr.process(clean)
   return policy.allowedRanges.some(
     (range) =>
@@ -268,7 +270,11 @@ function canonicalAddress(address: string): string | null {
   const parsed = ipaddr.process(clean)
   if (parsed.kind() === 'ipv6') {
     const parts = (parsed as ipaddr.IPv6).parts
-    if (parts.slice(0, 6).every((part) => part === 0)) {
+    const embedded = ((parts[6] << 16) >>> 0) + parts[7]
+    // `::` and `::1` are the unspecified and loopback addresses, not an IPv4
+    // carried inside IPv6 — folding them would turn `::1` into `0.0.0.1` and
+    // stop an operator's `::1/128` entry matching it.
+    if (parts.slice(0, 6).every((part) => part === 0) && embedded > 1) {
       return ipaddr
         .fromByteArray([
           (parts[6] >> 8) & 0xff,
