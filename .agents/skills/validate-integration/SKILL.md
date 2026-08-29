@@ -101,7 +101,10 @@ For **every** tool file, check:
       `safeEncodedUrlPathSegment` for a single value that may contain `/`) — never a bare
       `` `${params.id.trim()}` `` and never a bare `encodeURIComponent`. See **Path Parameters:
       Reject Traversal, Never Just Encode** in `.agents/skills/add-tools/SKILL.md` for why encoding
-      is insufficient and why `params.id?.trim()` throws a raw `TypeError` on a numeric id
+      is insufficient and why `params.id?.trim()` throws a raw `TypeError` on a numeric id.
+      Only `safeUrlPathSegment` is on `staging` — the others arrive with the path-safety sweep, so
+      check what your checkout exports and add a missing helper to `url-path.ts` rather than
+      hand-rolling one at the call site
 
 ### Response / transformResponse
 - [ ] Correctly parses the API response (`await response.json()`)
@@ -574,8 +577,15 @@ exclusion exists deliberately.
 pre-`postProcess` result (`apps/sim/tools/index.ts:1977` and `:2062`). For a submit-then-poll tool
 that pre-`postProcess` result is the **submit** response — `success: true` with every result field
 null. So a `postProcess` that throws on a timed-out or exhausted poll is reported to the user as a
-successful lookup that simply found nothing, and the hosted-key cost hook, gated on
-`finalResult.success` (`:1987`), bills it.
+successful lookup that simply found nothing — and that stale success is also what reaches the
+hosted-key cost hook (`:1987`), which runs on `finalResult.success`.
+
+Whether the caller is then charged for it depends entirely on the tool's own `getCost`. Enrow's
+returns 0 when the output carries no `qualification`, precisely because the fall-back submit response
+has none (`apps/sim/tools/enrow/verify_email.ts:45`, `find_email.ts:56`) — so it does not bill, by
+deliberate design. A tool priced per request rather than per qualified result would. **Write
+`getCost` so it cannot charge for a result the poll never produced**, and do not rely on the failure
+propagating: it does not.
 
 Eleven Enrow failure-path tests asserted that throwing contract by calling `postProcess` directly.
 Every one passed. Production reported `success: true`. Assert through the real call path — or, where
