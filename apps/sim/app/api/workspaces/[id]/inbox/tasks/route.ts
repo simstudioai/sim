@@ -6,6 +6,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inboxWithheldResponse } from '@/lib/mothership/inbox/access'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(
@@ -33,6 +34,9 @@ export const GET = withRouteHandler(
     if (!permission) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    const withheld = await inboxWithheldResponse(session.user.id, workspaceId)
+    if (withheld) return withheld
 
     const queryResult = inboxTasksQuerySchema.safeParse(
       Object.fromEntries(req.nextUrl.searchParams.entries())

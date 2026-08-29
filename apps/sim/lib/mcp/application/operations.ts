@@ -82,6 +82,7 @@ export const mcpServerOperations = {
     id: 'mcp_servers.workflow_deployments.create_server',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -101,6 +102,7 @@ export const mcpServerOperations = {
     id: 'mcp_servers.workflow_deployments.update_server',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.mcp',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   deleteWorkflowDeploymentServer: defineWorkspaceOperation({

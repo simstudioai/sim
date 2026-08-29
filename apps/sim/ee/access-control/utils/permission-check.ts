@@ -338,6 +338,8 @@ export async function getUserPermissionConfig(
  * allow-list (`null` allows all). No-op when access control doesn't apply
  * (non-enterprise / disabled), so non-governed orgs are unaffected.
  */
+/** permission-group-enforced: file_share.publish — asserted where a share is created, not per operation */
+/** permission-group-enforced: file_share.auth_mode — needs the request auth mode, which the funnel never sees */
 export async function validatePublicFileSharing(
   userId: string,
   workspaceId: string,
@@ -371,6 +373,7 @@ export async function validatePublicFileSharing(
  * No-op when access control doesn't apply (non-enterprise / disabled), so
  * non-governed orgs are unaffected.
  */
+/** permission-group-enforced: deploy.chat.auth_mode — needs the request auth mode, which the funnel never sees */
 export async function validateChatDeployAuth(
   userId: string,
   workspaceId: string,
@@ -527,6 +530,7 @@ export async function validateBlockType(
   }
 }
 
+/** permission-group-enforced: mcp_tools.use — gates tool invocation during a run, not an operation */
 export async function validateMcpToolsAllowed(
   userId: string | undefined,
   workspaceId: string | undefined,
@@ -548,6 +552,7 @@ export async function validateMcpToolsAllowed(
   }
 }
 
+/** permission-group-enforced: custom_tools.use — gates tool invocation during a run, not an operation */
 export async function validateCustomToolsAllowed(
   userId: string | undefined,
   workspaceId: string | undefined,
@@ -569,6 +574,7 @@ export async function validateCustomToolsAllowed(
   }
 }
 
+/** permission-group-enforced: skills.use — gates skill loading during a run, not an operation */
 export async function validateSkillsAllowed(
   userId: string | undefined,
   workspaceId: string | undefined,
@@ -598,6 +604,7 @@ export async function validateSkillsAllowed(
  *    user's group in that organization (explicit or the org default) has `disableInvitations`.
  *  - neither — only the global feature flag is checked.
  */
+/** permission-group-enforced: invitations.send — organization-scoped, so it resolves the default group rather than a workspace one */
 export async function validateInvitationsAllowed(
   userId: string | undefined,
   scope: string | { workspaceId?: string; organizationId?: string } = {}
@@ -640,6 +647,7 @@ export async function validateInvitationsAllowed(
  * workspace. Also checks the global feature flag. When `workspaceId` is
  * omitted only the feature-flag check runs (no permission-group gate).
  */
+/** permission-group-enforced: public_api.use — gates the public execution surface, which has no workspace operation */
 export async function validatePublicApiAllowed(
   userId: string | undefined,
   workspaceId?: string

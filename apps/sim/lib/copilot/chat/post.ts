@@ -46,7 +46,11 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
-import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/copilot/request/http'
+import {
+  createBadRequestResponse,
+  createForbiddenResponse,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/copilot/request/otel'
 import {
@@ -71,6 +75,7 @@ import {
   isWorkspaceAccessDeniedError,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -1051,6 +1056,23 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       typeof session.user.name === 'string' ? session.user.name : undefined
 
     const body = ChatMessageSchema.parse(await req.json())
+
+    /**
+     * permission-group-enforced: copilot.use — Chat is a raw handler rather
+     * than a workspace operation, so the authorization funnel never sees it.
+     * Checked before the send is claimed or a run is created, which also
+     * settles the resume stream: with no run there is nothing to replay. A
+     * request naming no workspace is governed by no group.
+     */
+    if (body.workspaceId) {
+      const permissionConfig = await getUserPermissionConfig(authenticatedUserId, body.workspaceId)
+      if (permissionConfig?.hideCopilot) {
+        return createForbiddenResponse(
+          "Chat is not available under your organization's permission group"
+        )
+      }
+    }
+
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
       ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),

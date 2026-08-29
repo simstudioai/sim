@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inboxWithheldResponse } from '@/lib/mothership/inbox/access'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -26,6 +27,9 @@ export const GET = withRouteHandler(
     if (!permission) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    const withheld = await inboxWithheldResponse(session.user.id, workspaceId)
+    if (withheld) return withheld
 
     const [wsResult, statsResult, entitled] = await Promise.all([
       db
@@ -93,6 +97,9 @@ export const PATCH = withRouteHandler(
     if (permission !== 'admin') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
+
+    const withheld = await inboxWithheldResponse(session.user.id, workspaceId)
+    if (withheld) return withheld
 
     const parsed = await parseRequest(updateInboxConfigContract, req, context)
     if (!parsed.success) return parsed.response

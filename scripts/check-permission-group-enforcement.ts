@@ -140,15 +140,22 @@ export function parseOperationCapabilities(source: string): OperationDeclaration
   const declarations: OperationDeclaration[] = []
   const lineAt = (index: number) => source.slice(0, index).split('\n').length
 
-  const factories = new Set<string>()
+  /**
+   * Domains that wrap the builder in a same-file factory declare the capability
+   * one of two ways: fixed in the factory body, when every operation it makes
+   * belongs to one capability, or taken as a second argument when they differ.
+   * Both are legible at the call site, so both are read here.
+   */
+  const factoryCapabilities = new Map<string, string | 'positional'>()
   const factoryPattern = /(?:^|\n)\s*(?:export\s+)?function\s+([A-Za-z0-9_$]+)\s*[<(]/g
   for (let match = factoryPattern.exec(source); match; match = factoryPattern.exec(source)) {
     const bodyIndex = source.indexOf('{', match.index + match[0].length - 1)
     if (bodyIndex === -1) continue
     const body = balancedGroup(source, bodyIndex)
-    if (body.includes('defineWorkspaceOperation') && body.includes('capability')) {
-      factories.add(match[1])
-    }
+    if (!body.includes('defineWorkspaceOperation')) continue
+    const fixed = /capability\s*:\s*'([a-z0-9_.]+)'/.exec(body)?.[1]
+    if (fixed) factoryCapabilities.set(match[1], fixed)
+    else if (/capability\s*[,:}]/.test(body)) factoryCapabilities.set(match[1], 'positional')
   }
 
   const directPattern = /defineWorkspaceOperation\s*\(/g
@@ -163,10 +170,17 @@ export function parseOperationCapabilities(source: string): OperationDeclaration
     })
   }
 
-  for (const factory of factories) {
-    const callPattern = new RegExp(`\\b${factory}\\s*\\(\\s*'([^']+)'\\s*,\\s*'([a-z0-9_.]+)'`, 'g')
+  for (const [factory, capability] of factoryCapabilities) {
+    const callPattern =
+      capability === 'positional'
+        ? new RegExp(`\\b${factory}\\s*\\(\\s*'([^']+)'\\s*,\\s*'([a-z0-9_.]+)'`, 'g')
+        : new RegExp(`\\b${factory}\\s*\\(\\s*'([^']+)'`, 'g')
     for (let match = callPattern.exec(source); match; match = callPattern.exec(source)) {
-      declarations.push({ id: match[1], line: lineAt(match.index), capability: match[2] })
+      declarations.push({
+        id: match[1],
+        line: lineAt(match.index),
+        capability: capability === 'positional' ? match[2] : capability,
+      })
     }
   }
 

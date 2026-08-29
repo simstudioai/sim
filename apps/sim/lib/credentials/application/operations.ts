@@ -34,30 +34,35 @@ export const credentialOperations = {
     id: 'credentials.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   listProviders: defineWorkspaceOperation({
     id: 'credentials.providers.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
   listConnections: defineWorkspaceOperation({
     id: 'credentials.connections.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
   createConnection: defineWorkspaceOperation({
     id: 'credentials.connections.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key'],
   }),
   prepareConnection: defineWorkspaceOperation({
     id: 'credentials.connections.prepare',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -65,6 +70,7 @@ export const credentialOperations = {
     id: 'credentials.service_accounts.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key'],
   }),
   read: defineCredentialOperation(
@@ -72,6 +78,7 @@ export const credentialOperations = {
       id: 'credentials.read',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
       principalKinds: ['session'],
     }),
     'member'
@@ -80,6 +87,7 @@ export const credentialOperations = {
     id: 'credentials.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   update: defineCredentialOperation(
@@ -87,6 +95,7 @@ export const credentialOperations = {
       id: 'credentials.update',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
       ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
@@ -96,6 +105,7 @@ export const credentialOperations = {
       id: 'credentials.delete',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
       ...HUMAN_AND_COPILOT_PRINCIPALS,
     }),
     'admin'
@@ -104,6 +114,7 @@ export const credentialOperations = {
     id: 'credentials.delete_many',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -111,12 +122,14 @@ export const credentialOperations = {
     id: 'credentials.drafts.save',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   listMembers: defineWorkspaceOperation({
     id: 'credentials.members.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   upsertMember: defineCredentialOperation(
@@ -124,6 +137,7 @@ export const credentialOperations = {
       id: 'credentials.members.upsert',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
       principalKinds: ['session'],
     }),
     'admin'
@@ -133,6 +147,7 @@ export const credentialOperations = {
       id: 'credentials.members.remove',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
       principalKinds: ['session'],
     }),
     'admin'
@@ -141,12 +156,14 @@ export const credentialOperations = {
     id: 'credentials.connections.launch',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['session'],
   }),
   useManagedOAuth: defineWorkspaceOperation({
     id: 'credentials.managed_oauth.use',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
     resourcePolicy: {

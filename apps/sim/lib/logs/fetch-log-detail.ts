@@ -40,6 +40,34 @@ interface FetchLogDetailArgs {
   lookupColumn: LookupColumn
   lookupValue: string
   signal?: AbortSignal
+  /**
+   * Whether the viewer's permission group withholds execution detail. Applied
+   * here rather than in the client, because the payloads it covers — trace
+   * spans, block inputs and outputs, the final output — are the customer data
+   * the restriction exists to withhold, and a hidden tab withholds nothing from
+   * a caller reading the route directly.
+   */
+  hideTraceSpans?: boolean
+}
+
+/**
+ * Strips the execution payloads a permission group withholds.
+ *
+ * Deletes rather than relies on the schema: `executionDataDetailSchema` is a
+ * passthrough, so a field left in place would survive response validation.
+ * Applied before child traces are hydrated, so a withheld view does not pay for
+ * a cross-workspace join whose result it discards.
+ */
+function withheldExecutionData(executionData: Record<string, unknown>): Record<string, unknown> {
+  const {
+    traceSpans: _traceSpans,
+    blockExecutions: _blockExecutions,
+    finalOutput: _finalOutput,
+    workflowInput: _workflowInput,
+    blockInput: _blockInput,
+    ...retained
+  } = executionData
+  return retained
 }
 
 /**
@@ -56,6 +84,7 @@ export async function readLogDetail({
   lookupColumn,
   lookupValue,
   signal,
+  hideTraceSpans = false,
 }: FetchLogDetailArgs): Promise<WorkflowLogDetail | null> {
   signal?.throwIfAborted()
   const workflowMatch: SQL =
@@ -134,7 +163,7 @@ export async function readLogDetail({
 
     // Trace spans / heavy execution data may live in object storage; resolve the
     // pointer here (no-op for inline / pre-externalization rows).
-    const executionData = await materializeExecutionDataForDisplay(
+    const materialized = await materializeExecutionDataForDisplay(
       log.executionData as Record<string, unknown> | null,
       {
         workspaceId,
@@ -143,6 +172,7 @@ export async function readLogDetail({
         userId: viewerUserId,
       }
     )
+    const executionData = hideTraceSpans ? withheldExecutionData(materialized) : materialized
     signal?.throwIfAborted()
 
     // A custom block's child ran in another workspace and kept its spans on its
@@ -228,7 +258,7 @@ export async function readLogDetail({
   const jobLog = jobRows[0]
   if (!jobLog) return null
 
-  const execData = await materializeExecutionDataForDisplay(
+  const materializedJobData = await materializeExecutionDataForDisplay(
     jobLog.executionData as Record<string, unknown> | null,
     {
       workspaceId,
@@ -237,6 +267,7 @@ export async function readLogDetail({
       userId: viewerUserId,
     }
   )
+  const execData = hideTraceSpans ? withheldExecutionData(materializedJobData) : materializedJobData
   signal?.throwIfAborted()
   return workflowLogDetailSchema.parse({
     id: jobLog.id,

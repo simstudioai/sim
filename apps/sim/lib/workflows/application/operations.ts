@@ -236,24 +236,28 @@ export const workflowOperations = {
     id: 'workflows.deploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.api',
     ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   undeploy: defineWorkspaceOperation({
     id: 'workflows.undeploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.api',
     ...WORKFLOW_DEPLOYMENT_PRINCIPAL_POLICY,
   }),
   deployChat: defineWorkspaceOperation({
     id: 'workflows.chat.deploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   undeployChat: defineWorkspaceOperation({
     id: 'workflows.chat.undeploy',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**

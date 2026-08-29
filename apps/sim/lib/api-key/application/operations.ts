@@ -26,6 +26,7 @@ export const apiKeyOperations = {
     id: 'api_keys.copilot.create',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'api_keys.manage',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),

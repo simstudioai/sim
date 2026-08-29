@@ -15,6 +15,7 @@ import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workspaces/application/workspace-context'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export interface ReadLogDetailInput {
   workspaceId: string
@@ -79,12 +80,24 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     // Attribution, not authorization: an actorless run (a schedule, or a webhook
     // with no external subject) reads its own workspace's logs with no user to name.
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+
+    /**
+     * permission-group-enforced: logs.trace_spans — a projection rather than a
+     * refusal: the log stays readable, its execution payloads do not. An
+     * actorless run has no group and reads its own workspace's logs whole.
+     */
+    const permissionConfig = viewerUserId
+      ? await getUserPermissionConfig(viewerUserId, context.workspaceId)
+      : null
+
     const detail = await readLogDetail({
-      viewerUserId: resolvePrincipalSubjectUserId(principal),
+      viewerUserId,
       workspaceId: context.workspaceId,
       lookupColumn: input.lookupColumn,
       lookupValue: input.lookupValue,
       signal: input.signal,
+      hideTraceSpans: permissionConfig?.hideTraceSpans === true,
     })
     input.signal?.throwIfAborted()
     if (!detail) throw new OrchestrationError('not_found', 'Not found')

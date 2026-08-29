@@ -24,6 +24,7 @@ function readOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...ALL_PRINCIPAL_POLICY,
   })
 }
@@ -33,6 +34,7 @@ function writeOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...ALL_PRINCIPAL_POLICY,
   })
 }
@@ -42,6 +44,7 @@ function toolWriteOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
@@ -51,6 +54,7 @@ function toolReadOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
@@ -60,6 +64,7 @@ function internalExecutorReadOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
   })
 }
@@ -69,6 +74,7 @@ function internalExecutorWriteOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'write',
     workspaceApiKey: 'allow',
+    capability: 'tables.use',
     ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
   })
 }
@@ -78,6 +84,7 @@ function delegatedWriteOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'tables.use',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   })
@@ -96,18 +103,21 @@ export const tableOperations = {
     id: 'tables.vfs.rename',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'tables.use',
     ...COPILOT_PRINCIPAL_POLICY,
   }),
   moveByVfsPath: defineWorkspaceOperation({
     id: 'tables.vfs.move',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'tables.use',
     ...COPILOT_PRINCIPAL_POLICY,
   }),
   deleteByVfsPath: defineWorkspaceOperation({
     id: 'tables.vfs.delete',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'tables.use',
     ...COPILOT_PRINCIPAL_POLICY,
   }),
   listFolders: readOperation('tables.folders.list'),
