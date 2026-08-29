@@ -1921,24 +1921,24 @@ async function collectExecutionOutputFiles(args: {
     const name = collectedFileName(collected.relativePath)
     const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
-    // Classified by content, never by name. The extension is chosen by the code
-    // that wrote the file, so gating on it let a resolved secret be written as
-    // plaintext under a binary-looking name and skip the scan entirely. Bytes
-    // that round-trip as UTF-8 are scannable no matter what they are called;
-    // anything else genuinely cannot be scanned soundly.
-    const isBinary = !Buffer.from(buffer.toString('utf8'), 'utf8').equals(buffer)
-
-    if (!isBinary) {
+    // Scanned unconditionally — never gated on whether the bytes look textual.
+    // Both a filename check and a UTF-8 round-trip were trivially defeated: name
+    // the file `.png`, or append one invalid byte, and a plaintext secret sailed
+    // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
+    // findable in any buffer, textual or not.
+    //
+    // What stays out of reach is a secret carried in transformed form — deflated
+    // inside a PDF, re-encoded — which no substring scan can see. That is an
+    // inherent limit of scanning, not a hole in the gate, and it is why these
+    // files are execution-scoped rather than durable workspace files.
+    {
       const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
         userId: args.authUserId,
         workspaceId: resolvedWorkspaceId,
       })
       // An execution-scoped file has nowhere to record a provenance envelope, so
-      // a text output carrying a resolved secret cannot be shipped under a lock
-      // the way a workspace file is — it is refused instead. Binary is left
-      // alone: it cannot be scanned soundly, and refusing it whenever a secret
-      // was merely in scope would break every "call an API with a key, emit a
-      // PDF" flow, which is most of what this feature is for.
+      // one carrying a resolved secret cannot ship under a lock the way a
+      // workspace file can — it is refused instead.
       if (provenance.status !== 'exact' || provenance.entries.length > 0) {
         return {
           response: exportFailure(

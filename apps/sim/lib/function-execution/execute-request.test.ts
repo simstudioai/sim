@@ -1677,6 +1677,46 @@ describe('Function execution request', () => {
       expect(data.error).toContain('resolved secret')
     })
 
+    it('scans a harvested secret even when one invalid byte makes it non-UTF-8', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/mixed.bin',
+            relativePath: 'mixed.bin',
+            // Literal secret plus one invalid byte, so the buffer is not valid
+            // UTF-8 — which used to be enough to skip the scan entirely.
+            contentBase64: Buffer.concat([
+              Buffer.from('token=super-secret-value'),
+              Buffer.from([0xff]),
+            ]).toString('base64'),
+            byteLength: 25,
+          },
+        ],
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'token = {{MY_SECRET}}',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        envVars: { MY_SECRET: 'super-secret-value' },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // A lossy UTF-8 decode keeps ASCII runs intact, so the literal is still
+      // there to find — appending a byte must not buy an exemption.
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('mixed.bin')
+      expect(data.error).toContain('resolved secret')
+    })
+
     it('mounts a <block.file.path> reference and hands the code its path', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 
