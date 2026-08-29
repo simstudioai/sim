@@ -19,6 +19,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import {
   type ApiKey,
   type ApiKeyScope,
@@ -27,7 +28,6 @@ import {
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
@@ -106,7 +106,12 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const conflictNames = useMemo(() => new Set(conflicts), [conflicts])
   const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
 
-  const { config: permissionConfig } = usePermissionConfig()
+  /**
+   * The raw group config, not `usePermissionConfig` — that hook also projects
+   * block and model availability, which would pull the block registry into this
+   * settings page's module graph for one boolean.
+   */
+  const { data: permissionData } = useUserPermissionConfig(workspaceId)
 
   /**
    * Both layers have to agree. The workspace column is the coarse switch every
@@ -116,7 +121,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
    */
   const allowPersonalApiKeys =
     (workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true) &&
-    !permissionConfig.disablePersonalApiKeys
+    !permissionData?.config?.disablePersonalApiKeys
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)

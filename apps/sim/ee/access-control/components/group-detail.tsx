@@ -108,18 +108,23 @@ const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTION
 )
 
 /**
- * Knowledge base connectors an admin can allow/disallow. `null` config = all
+ * Knowledge base connectors an admin can allow or disallow. `null` config = all
  * allowed. Sorted by display name because the picker is read alphabetically,
  * while the registry is keyed by the snake_case id the server stores.
+ *
+ * The registry is the metadata half of the connector split — one small `meta.ts`
+ * per connector, deliberately client-safe — not the executable half, so the page
+ * weight it adds is sixty-eight tiny modules rather than connector runtimes.
  */
 const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.values(
   CONNECTOR_META_REGISTRY
 )
   .map((meta) => ({ value: meta.id, label: meta.name }))
   .sort((a, b) => a.label.localeCompare(b.label))
-const ALL_KNOWLEDGE_CONNECTORS: string[] = KNOWLEDGE_CONNECTOR_OPTIONS.map((o) => o.value)
 
 type StatusFilter = 'all' | 'enabled' | 'disabled'
+
+const ALL_KNOWLEDGE_CONNECTORS: string[] = KNOWLEDGE_CONNECTOR_OPTIONS.map((o) => o.value)
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Show all' },
