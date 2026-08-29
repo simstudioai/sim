@@ -85,7 +85,7 @@ export const attioCreateListTool: ToolConfig<AttioCreateListParams, AttioCreateL
               ? JSON.parse(params.workspaceMemberAccess)
               : params.workspaceMemberAccess
         } catch {
-          data.workspace_member_access = params.workspaceMemberAccess
+          throw new Error('Invalid JSON provided for workspace member access')
         }
       }
       return { data }

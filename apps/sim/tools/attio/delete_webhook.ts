@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioDeleteWebhookParams, AttioDeleteWebhookResponse } from './types'
 
 const logger = createLogger('AttioDeleteWebhook')
@@ -34,7 +35,8 @@ export const attioDeleteWebhookTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

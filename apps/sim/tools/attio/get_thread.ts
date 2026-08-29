@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetThreadParams, AttioGetThreadResponse } from './types'
 import { THREAD_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetThreadTool: ToolConfig<AttioGetThreadParams, AttioGetThread
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/threads/${params.threadId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/threads/${safeUrlPathSegment(params.threadId, 'threadId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

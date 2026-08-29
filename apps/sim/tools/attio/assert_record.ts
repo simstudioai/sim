@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioAssertRecordParams, AttioAssertRecordResponse } from './types'
 import { RECORD_OUTPUT_PROPERTIES } from './types'
 
@@ -48,8 +49,12 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
     },
 
     request: {
-      url: (params) =>
-        `https://api.attio.com/v2/objects/${params.objectType.trim()}/records?matching_attribute=${params.matchingAttribute.trim()}`,
+      url: (params) => {
+        const searchParams = new URLSearchParams({
+          matching_attribute: String(params.matchingAttribute ?? '').trim(),
+        })
+        return `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records?${searchParams.toString()}`
+      },
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

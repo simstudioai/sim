@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioUpdateWebhookParams, AttioUpdateWebhookResponse } from './types'
 import { WEBHOOK_OUTPUT_PROPERTIES } from './types'
 
@@ -47,7 +48,8 @@ export const attioUpdateWebhookTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -63,7 +65,7 @@ export const attioUpdateWebhookTool: ToolConfig<
               ? JSON.parse(params.subscriptions)
               : params.subscriptions
         } catch {
-          data.subscriptions = []
+          throw new Error('Invalid JSON provided for subscriptions')
         }
       }
       return { data }

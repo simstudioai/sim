@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioUpdateListEntryParams, AttioUpdateListEntryResponse } from './types'
 import { LIST_ENTRY_OUTPUT_PROPERTIES } from './types'
 
@@ -48,7 +49,7 @@ export const attioUpdateListEntryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.attio.com/v2/lists/${params.list.trim()}/entries/${params.entryId.trim()}`,
+      `https://api.attio.com/v2/lists/${safeUrlPathSegment(params.list, 'list')}/entries/${safeUrlPathSegment(params.entryId, 'entryId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -62,7 +63,7 @@ export const attioUpdateListEntryTool: ToolConfig<
             ? JSON.parse(params.entryValues)
             : params.entryValues
       } catch {
-        entryValues = {}
+        throw new Error('Invalid JSON provided for entry values')
       }
       return { data: { entry_values: entryValues } }
     },

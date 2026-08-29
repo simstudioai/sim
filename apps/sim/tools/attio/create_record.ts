@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioCreateRecordParams, AttioCreateRecordResponse } from './types'
 import { RECORD_OBJECT_OUTPUT } from './types'
 
@@ -39,7 +40,8 @@ export const attioCreateRecordTool: ToolConfig<AttioCreateRecordParams, AttioCre
     },
 
     request: {
-      url: (params) => `https://api.attio.com/v2/objects/${params.objectType.trim()}/records`,
+      url: (params) =>
+        `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

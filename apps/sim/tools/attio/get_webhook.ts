@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetWebhookParams, AttioGetWebhookResponse } from './types'
 import { WEBHOOK_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetWebhookTool: ToolConfig<AttioGetWebhookParams, AttioGetWebh
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
