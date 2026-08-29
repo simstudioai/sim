@@ -5,6 +5,7 @@ import type {
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const salesforceDeleteCaseTool: ToolConfig<
   SalesforceDeleteCaseParams,
@@ -47,7 +48,7 @@ export const salesforceDeleteCaseTool: ToolConfig<
   request: {
     url: (params) => {
       const caseId = requireId(params.caseId, 'Case ID')
-      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${caseId}`
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${safeUrlPathSegment(caseId, 'Case ID')}`
     },
     method: 'DELETE',
     headers: (params) => ({

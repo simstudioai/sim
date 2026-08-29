@@ -5,6 +5,7 @@ import {
 } from '@/tools/stripe/idempotency'
 import type { PriceResponse, UpdatePriceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_update_price',
@@ -48,7 +49,7 @@ export const stripeUpdatePriceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/prices/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/prices/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

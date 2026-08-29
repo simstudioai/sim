@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetCompanyParams, HubSpotGetCompanyResponse } from '@/tools/hubspot/types'
 import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetCompany')
 
@@ -55,7 +56,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
 
     request: {
       url: (params) => {
-        const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId.trim()}`
+        const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`
         const queryParams = new URLSearchParams()
 
         if (params.idProperty) {

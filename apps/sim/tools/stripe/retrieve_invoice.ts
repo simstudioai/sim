@@ -1,6 +1,7 @@
 import type { InvoiceResponse, RetrieveInvoiceParams } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, InvoiceResponse> = {
   id: 'stripe_retrieve_invoice',
@@ -24,7 +25,7 @@ export const stripeRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, Invoic
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/invoices/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

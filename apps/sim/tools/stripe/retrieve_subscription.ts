@@ -1,6 +1,7 @@
 import type { RetrieveSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveSubscriptionTool: ToolConfig<
   RetrieveSubscriptionParams,
@@ -27,7 +28,8 @@ export const stripeRetrieveSubscriptionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
+    url: (params) =>
+      `https://api.stripe.com/v1/subscriptions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

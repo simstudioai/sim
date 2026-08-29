@@ -1,5 +1,6 @@
 import type { DeleteProductParams, ProductDeleteResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDeleteResponse> = {
   id: 'stripe_delete_product',
@@ -23,7 +24,7 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/products/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotDeleteTicketParams, HubSpotDeleteTicketResponse } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteTicket')
 
@@ -34,7 +35,8 @@ export const hubspotDeleteTicketTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/objects/tickets/${params.ticketId.trim()}`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/objects/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.accessToken) {

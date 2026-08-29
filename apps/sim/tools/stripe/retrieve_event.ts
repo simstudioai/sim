@@ -1,5 +1,6 @@
 import type { EventResponse, RetrieveEventParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventResponse> = {
   id: 'stripe_retrieve_event',
@@ -23,7 +24,7 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/events/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/events/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

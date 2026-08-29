@@ -6,6 +6,7 @@ import type {
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceContacts')
 
@@ -63,7 +64,7 @@ export const salesforceGetContactsTool: ToolConfig<
         const contactId = requireId(params.contactId, 'Contact ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}?fields=${encodeURIComponent(fields)}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${safeUrlPathSegment(contactId, 'Contact ID')}?fields=${encodeURIComponent(fields)}`
       }
 
       // List contacts with SOQL query

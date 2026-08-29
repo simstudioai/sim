@@ -6,6 +6,7 @@ import type {
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceGetOpportunities')
 
@@ -60,7 +61,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
       if (params.opportunityId) {
         const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
         const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${opportunityId}?fields=${encodeURIComponent(fields)}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${safeUrlPathSegment(opportunityId, 'Opportunity ID')}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'

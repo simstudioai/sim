@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotUpdateTicketParams, HubSpotUpdateTicketResponse } from '@/tools/hubspot/types'
 import { TICKET_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotUpdateTicket')
 
@@ -49,7 +50,7 @@ export const hubspotUpdateTicketTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/tickets/${params.ticketId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`
       const queryParams = new URLSearchParams()
       if (params.idProperty) queryParams.append('idProperty', params.idProperty)
       const queryString = queryParams.toString()

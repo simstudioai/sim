@@ -6,6 +6,7 @@ import {
 import type { InvoiceResponse, PayInvoiceParams } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_pay_invoice',
@@ -43,7 +44,8 @@ export const stripePayInvoiceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/pay`,
+    url: (params) =>
+      `https://api.stripe.com/v1/invoices/${safeUrlPathSegment(params.id, 'id')}/pay`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

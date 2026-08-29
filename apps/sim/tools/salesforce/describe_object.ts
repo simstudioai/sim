@@ -6,6 +6,7 @@ import type {
 import { DESCRIBE_OBJECT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceQuery')
 
@@ -48,7 +49,7 @@ export const salesforceDescribeObjectTool: ToolConfig<
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       const objectName = params.objectName.trim()
-      return `${instanceUrl}/services/data/v59.0/sobjects/${objectName}/describe`
+      return `${instanceUrl}/services/data/v59.0/sobjects/${safeUrlPathSegment(objectName, 'Object Name')}/describe`
     },
     method: 'GET',
     headers: (params) => ({

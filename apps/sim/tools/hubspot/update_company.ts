@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotUpdateCompany')
 
@@ -53,7 +54,7 @@ export const hubspotUpdateCompanyTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`
       if (params.idProperty) {
         return `${baseUrl}?${new URLSearchParams({ idProperty: params.idProperty })}`
       }

@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetListMemberships')
 
@@ -51,7 +52,7 @@ export const hubspotGetListMembershipsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/lists/${params.listId.trim()}/memberships`
+      const baseUrl = `https://api.hubapi.com/crm/v3/lists/${safeUrlPathSegment(params.listId, 'listId')}/memberships`
       const queryParams = new URLSearchParams()
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.after) queryParams.append('after', params.after)

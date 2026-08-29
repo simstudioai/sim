@@ -6,6 +6,7 @@ import type {
 import { GET_REPORT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
 import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceReports')
 
@@ -45,7 +46,7 @@ export const salesforceGetReportTool: ToolConfig<
         throw new Error('Report ID is required. Please provide a valid Salesforce Report ID.')
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/analytics/reports/${params.reportId}/describe`
+      return `${instanceUrl}/services/data/v59.0/analytics/reports/${safeUrlPathSegment(params.reportId, 'Report ID')}/describe`
     },
     method: 'GET',
     headers: (params) => ({
