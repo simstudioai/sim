@@ -57,6 +57,7 @@ import {
 import { flattenWorkflowOutputs } from '@/lib/workflows/blocks/flatten-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import type { DeployedWorkflowData } from '@/lib/workflows/persistence/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type { WorkflowGroupCellPayload }
@@ -85,15 +86,15 @@ export function assertWorkflowGroupMatchesLatestDeployment(
     )
   }
 
-  const startBlock = Object.values(deployment.blocks).find(
-    (block) => block.type === 'start_trigger'
-  )
-  if (!startBlock) {
+  const startCandidate = TriggerUtils.findStartBlock(deployment.blocks, 'manual')
+  if (!startCandidate) {
     throw new Error('Workflow is missing a Start trigger')
   }
 
   const validInputNames = new Set(
-    normalizeInputFormatValue(startBlock.subBlocks?.inputFormat?.value).map((input) => input.name)
+    normalizeInputFormatValue(startCandidate.block.subBlocks?.inputFormat?.value).map(
+      (input) => input.name
+    )
   )
   const invalidInput = (group.inputMappings ?? []).find(
     (mapping) => !validInputNames.has(mapping.inputName)
@@ -746,10 +747,8 @@ async function runWorkflowAndWriteTerminal(
           })
           return 'error'
         }
-        const startBlock = normalizedData
-          ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
-          : undefined
-        if (!startBlock) {
+        const startCandidate = TriggerUtils.findStartBlock(normalizedData.blocks, 'manual')
+        if (!startCandidate) {
           await writeState({
             status: 'error',
             executionId,
@@ -1037,7 +1036,7 @@ async function runWorkflowAndWriteTerminal(
             },
             executionMode: 'sync',
             workflowTriggerType: 'table',
-            triggerBlockId: startBlock.id,
+            triggerBlockId: startCandidate.blockId,
             useDraftState: false,
             workflowStateOverride: normalizedData,
             abortSignal: attemptSignal,

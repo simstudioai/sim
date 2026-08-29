@@ -57,12 +57,14 @@ const QUEUED_PAYLOAD = {
   },
 }
 
-function latestDeployment(): Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1] {
+function latestDeployment(
+  startType = 'start_trigger'
+): Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1] {
   return {
     blocks: {
       start: {
         id: 'start',
-        type: 'start_trigger',
+        type: startType,
         subBlocks: {
           inputFormat: { value: [{ name: 'company', type: 'string' }] },
         },
@@ -105,6 +107,20 @@ describe('latest table workflow deployment mappings', () => {
           inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
         },
         latestDeployment()
+      )
+    ).not.toThrow()
+  })
+
+  it('accepts a canonical split manual start block', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
+          inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
+        },
+        latestDeployment('manual_trigger')
       )
     ).not.toThrow()
   })
