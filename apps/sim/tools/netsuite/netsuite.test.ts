@@ -1088,10 +1088,7 @@ describe('NetSuite operation contracts', () => {
     }
 
     const docs = readFileSync(
-      resolve(
-        import.meta.dirname,
-        '../../../../apps/docs/content/docs/en/integrations/netsuite.mdx'
-      ),
+      resolve(import.meta.dirname, '../../../../apps/docs/content/docs/integrations/netsuite.mdx'),
       'utf8'
     )
     const actions = docs.split('\n## Actions\n', 2)[1]

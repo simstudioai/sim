@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, Menu } from 'electron'
+import { BrowserWindow, Menu, nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
@@ -1088,6 +1088,22 @@ describe('executeTool', () => {
   })
 })
 
+describe('browserToolWatchdogMs', () => {
+  it.each([
+    ['number', 30_000, 35_000],
+    ['numeric string', '30000', 35_000],
+    ['absent', undefined, 15_000],
+    ['non-numeric', 'soon', 15_000],
+    ['zero', 0, 15_000],
+    ['negative', -5_000, 15_000],
+    ['above the wait clamp', 500_000, 125_000],
+  ])('normalizes browser_wait_for timeout (%s)', (_label, timeoutMs, expected) => {
+    const params = timeoutMs === undefined ? {} : { timeoutMs }
+
+    expect(driverModule.browserToolWatchdogMs('browser_wait_for', params)).toBe(expected)
+  })
+})
+
 /**
  * Trusted CDP input never enters the page, so a focused credential field can
  * only be ruled out in the driver. These cover that seam; the page-side
@@ -1159,6 +1175,15 @@ describe('credential protection', () => {
       .mock.calls.filter(([called]) => called === method)
   }
 
+  function mockScreenshotImage(size: { width: number; height: number } | null): void {
+    vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
+      isEmpty: vi.fn(() => size === null),
+      getSize: vi.fn(() => size ?? { width: 0, height: 0 }),
+      resize: vi.fn(() => ({ toJPEG: vi.fn(() => Buffer.from('resized')) })),
+      toJPEG: vi.fn(() => Buffer.alloc(0)),
+    } as unknown as ReturnType<typeof nativeImage.createFromBuffer>)
+  }
+
   it('refuses a keystroke while a password field holds focus', async () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'secret' })
@@ -1167,6 +1192,8 @@ describe('credential protection', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Refusing to act on a password field/)
+    expect(result.error).toMatch(/visible browser/)
+    expect(result.error).not.toContain('browser_request_takeover')
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
   })
 
@@ -1530,6 +1557,24 @@ describe('credential protection', () => {
         atBottom: false,
       },
     })
+  })
+
+  it('rejects an unsupported browser_scroll direction instead of treating it as down', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_scroll', {
+      direction: 'sideways',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'Scroll direction must be "up" or "down".',
+    })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'scrollPage'))
+    ).toBe(false)
   })
 
   it('confirms a click when the requested target changes semantic state', async () => {
@@ -2179,6 +2224,83 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
   })
 
+  it('reports top-page effects observed after inserting text in a child frame', async () => {
+    const contents = await openPage()
+    const mainFrame = {
+      frameTreeNodeId: 1,
+      detached: false,
+      isDestroyed: vi.fn(() => false),
+      origin: 'https://example.com',
+      parent: null,
+      framesInSubtree: [] as unknown[],
+    }
+    const childFrame = {
+      frameTreeNodeId: 2,
+      detached: false,
+      isDestroyed: vi.fn(() => false),
+      origin: 'https://mail-widget.example',
+      parent: mainFrame,
+      url: 'https://mail-widget.example/compose',
+    }
+    mainFrame.framesInSubtree = [mainFrame, childFrame]
+    Object.defineProperty(contents, 'mainFrame', { configurable: true, value: mainFrame })
+    Object.defineProperty(contents, 'focusedFrame', { configurable: true, value: childFrame })
+    let topPageReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readPageActionState')) {
+        topPageReads++
+        return Promise.resolve({
+          url:
+            topPageReads === 1 ? 'https://example.com/compose' : 'https://example.com/message/sent',
+          title: 'Mail',
+          focus: 'iframe',
+          mutationRevision: topPageReads,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const isolatedFrameEval = vi
+      .spyOn(cdp, 'evaluateInIsolatedFrame')
+      .mockImplementation((_contents, _frame, expression) => {
+        if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+        if (isPageCall(expression, 'describeFocusedEditable')) {
+          return Promise.resolve({ editable: true, kind: 'input' })
+        }
+        if (isPageCall(expression, 'readActiveElementState')) {
+          return Promise.resolve({ activeElement: 'input', valueLength: 4 })
+        }
+        if (isPageCall(expression, 'readPageActionState')) {
+          return Promise.resolve({
+            url: 'https://mail-widget.example/compose',
+            title: 'Compose',
+            focus: 'input',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          })
+        }
+        return Promise.resolve(undefined)
+      })
+
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'sent' })
+
+      expect(result.ok, result.error).toBe(true)
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          effectObserved: true,
+          possibleEffectObserved: true,
+          effect: { urlChanged: true },
+        },
+      })
+    } finally {
+      isolatedFrameEval.mockRestore()
+    }
+  })
+
   it('refuses insertion when nothing editable holds focus', async () => {
     const contents = await openPage()
     respondWith(contents, {
@@ -2272,6 +2394,7 @@ describe('credential protection', () => {
 
   it('returns the screenshot scale for coordinate mapping', async () => {
     const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
@@ -2287,6 +2410,229 @@ describe('credential protection', () => {
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
 
-    expect(result).toMatchObject({ ok: true, result: { scale: 0.5 } })
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        scale: 0.5,
+        viewport: {
+          url: 'https://example.com/login',
+          title: 'Example',
+          width: 2048,
+          height: 1024,
+        },
+      },
+    })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'getViewportInfo'))
+    ).toBe(false)
   })
+
+  it('uses the in-page CSS viewport when CDP exposes only deprecated device metrics', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') {
+        return Promise.resolve({ data: 'c2lt' })
+      }
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        scale: 1,
+        viewport: {
+          url: 'https://example.com/login',
+          title: 'Example',
+          width: 1024,
+          height: 512,
+        },
+      },
+    })
+    if (
+      !result.ok ||
+      typeof result.result !== 'object' ||
+      result.result === null ||
+      !('scale' in result.result) ||
+      typeof result.result.scale !== 'number'
+    ) {
+      throw new Error('browser_screenshot did not return a numeric coordinate scale')
+    }
+    expect(1024 / result.result.scale).toBe(1024)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'getViewportInfo'))
+    ).toBe(true)
+  })
+
+  it('accepts stable truncated page identity with deprecated device metrics', async () => {
+    const contents = await openPage()
+    const fullUrl = `https://example.com/${'u'.repeat(5000)}`
+    const fullTitle = `Example ${'t'.repeat(600)}`
+    vi.mocked(contents.getURL).mockReturnValue(fullUrl)
+    vi.mocked(contents.getTitle).mockReturnValue(fullTitle)
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: fullUrl.slice(0, 4096),
+        title: fullTitle.slice(0, 500),
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        scale: 1,
+        viewport: {
+          url: fullUrl.slice(0, 4096),
+          title: fullTitle.slice(0, 500),
+          width: 1024,
+          height: 512,
+        },
+      },
+    })
+  })
+
+  it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
+    const contents = await openPage()
+    mockScreenshotImage(null)
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+        })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/verify the screenshot dimensions/)
+  })
+
+  it('rejects a screenshot when no CSS viewport can be established', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, { getViewportInfo: null })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/verify the page viewport/)
+  })
+
+  it('rejects coordinate mapping when the viewport changes during capture', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 256 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 1024, clientHeight: 256 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/viewport changed while the screenshot was captured/)
+  })
+
+  it('rejects a screenshot when the document navigates during capture', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+        })
+      }
+      if (method === 'Page.captureScreenshot') {
+        emitContentsEvent(contents, 'did-navigate')
+        return Promise.resolve({ data: 'c2lt' })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/page changed while its screenshot was being captured/)
+  })
+
+  it.each(['url', 'title'] as const)(
+    'rejects a screenshot when the page %s changes during capture',
+    async (identityField) => {
+      const contents = await openPage()
+      mockScreenshotImage({ width: 1024, height: 512 })
+      const initialUrl = contents.getURL()
+      const initialTitle = contents.getTitle()
+      let currentUrl = initialUrl
+      let currentTitle = initialTitle
+      vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
+      vi.mocked(contents.getTitle).mockImplementation(() => currentTitle)
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+        if (method === 'Page.getLayoutMetrics') {
+          return Promise.resolve({
+            cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+          })
+        }
+        if (method === 'Page.captureScreenshot') {
+          if (identityField === 'url') currentUrl = 'https://example.com/changed'
+          else currentTitle = 'Changed title'
+          return Promise.resolve({ data: 'c2lt' })
+        }
+        return Promise.resolve(undefined)
+      })
+
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toMatch(/page changed while its screenshot was being captured/)
+    }
+  )
 })

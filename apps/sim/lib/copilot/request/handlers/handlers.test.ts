@@ -939,7 +939,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).not.toHaveBeenCalled()
   })
 
-  it('waits for a browser takeover without a client-tool deadline', async () => {
+  it('bounds a retired browser takeover that can no longer execute in the client', async () => {
     isSimExecuted.mockReturnValue(false)
     waitForClientToolCompletion.mockResolvedValueOnce({
       status: 'success',
@@ -970,7 +970,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolCallId: 'tool-browser-takeover',
       runId: context.runId,
       userId: 'user-1',
-      timeoutMs: null,
+      timeoutMs: 1000,
       abortSignal: undefined,
       registry: execContext.resolvedSecretTraceRegistry,
     })

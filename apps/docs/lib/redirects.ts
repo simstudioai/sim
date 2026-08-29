@@ -174,10 +174,8 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
    * moved from the single v1 `openapi.json` to the seven code-first v2 specs.
    *
    * Every source below was a live, sitemap-submitted page whose slug no longer
-   * exists in the generated set. Sources are unprefixed and have no locale
-   * variants because generated pages mount only under the `en` base directory;
-   * `scripts/openapi/docs-redirects.test.ts` documents and implements the slug
-   * derivation.
+   * exists in the generated set. `scripts/openapi/docs-redirects.test.ts`
+   * documents and implements the slug derivation.
    *
    * `permanent: true` (308) is reserved for a true 1:1 successor: same operation,
    * renamed. A 308 is cached indefinitely and is effectively unrecallable, so

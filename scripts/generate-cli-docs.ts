@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Generates the CLI command reference into `apps/docs/content/docs/en/cli`,
+ * Generates the CLI command reference into `apps/docs/content/docs/cli`,
  * alongside that section's hand-written guides, and owns the section's
  * `meta.json` because the sidebar lists one entry per command group.
  *
@@ -24,7 +24,7 @@ import { V2_OPERATIONS } from '../packages/sim-cli/src/generated/v2-api'
 import { buildProgram } from '../packages/sim-cli/src/program'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli')
+export const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/cli')
 
 /** Commander's synthetic help command is not part of the documented surface. */
 const HELP_COMMAND = 'help'

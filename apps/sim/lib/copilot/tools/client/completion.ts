@@ -96,3 +96,30 @@ export async function reportClientToolCompletion(
   })
   throw new CompletionReportError(lastError?.message ?? 'Failed to report tool completion')
 }
+
+/**
+ * Makes one unload-safe attempt to deliver a compact terminal result. The
+ * caller must keep the serialized payload below the browser's keepalive quota.
+ */
+export async function reportClientToolCompletionOnPageExit(
+  toolCallId: string,
+  status: AsyncConfirmationStatus,
+  message: string,
+  data?: AsyncCompletionData
+): Promise<void> {
+  // boundary-raw-fetch: keepalive is required so a terminal desktop result survives page unload
+  const response = await fetch(COPILOT_CONFIRM_API_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
+    body: JSON.stringify({
+      toolCallId,
+      status,
+      message,
+      ...(data !== undefined ? { data } : {}),
+    }),
+    keepalive: true,
+  })
+  if (!response.ok) {
+    throw new CompletionReportError(`Page-exit completion failed with status ${response.status}`)
+  }
+}

@@ -82,6 +82,21 @@ describe('desktop tool authorization', () => {
     expect(claimPendingAsyncToolCall).toHaveBeenCalledWith('browser-tool', 'desktop-browser')
   })
 
+  it('rejects retired browser tools retained only for history', async () => {
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'retired-browser-tool',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_request_takeover',
+      args: { reason: 'Legacy handoff' },
+    })
+
+    const response = await POST(request('retired-browser-tool'))
+
+    expect(response.status).toBe(403)
+    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+  })
+
   it('rejects a replayed browser action after its pending row was claimed', async () => {
     getAsyncToolCall.mockResolvedValueOnce({
       toolCallId: 'browser-tool',
