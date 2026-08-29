@@ -118,8 +118,8 @@ export const lambdaFunctionConfigurationSchema = z.object({
   ),
   fileSystemConfigs: z.array(
     z.object({
-      arn: z.string(),
-      localMountPath: z.string(),
+      arn: z.string().nullable(),
+      localMountPath: z.string().nullable(),
     })
   ),
   vpcConfig: z
@@ -249,6 +249,7 @@ export const lambdaEventSourceMappingSchema = z.object({
       fullDocument: z.string().nullable(),
     })
     .nullable(),
+  selfManagedKafkaBootstrapServers: z.array(z.string()),
   provisionedPollerConfig: z
     .object({
       minimumPollers: z.number().nullable(),
@@ -260,10 +261,10 @@ export const lambdaEventSourceMappingSchema = z.object({
 
 /** Camel-cased projection of the Lambda `FunctionUrlConfig` data type. */
 export const lambdaFunctionUrlConfigSchema = z.object({
-  functionUrl: z.string(),
-  functionArn: z.string(),
-  authType: z.string(),
-  creationTime: z.string(),
+  functionUrl: z.string().nullable(),
+  functionArn: z.string().nullable(),
+  authType: z.string().nullable(),
+  creationTime: z.string().nullable(),
   lastModifiedTime: z.string().nullable(),
   invokeMode: z.string().nullable(),
   cors: z

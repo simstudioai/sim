@@ -316,6 +316,12 @@ export async function executeLambdaGetFunction(
             }
           : null,
         tags: response.Tags ?? {},
+        tagsError: response.TagsError
+          ? {
+              errorCode: response.TagsError.ErrorCode ?? null,
+              message: response.TagsError.Message ?? null,
+            }
+          : null,
         reservedConcurrentExecutions: response.Concurrency?.ReservedConcurrentExecutions ?? null,
       },
     }
@@ -355,7 +361,7 @@ export async function executeLambdaCreateFunction(
         Role: input.role,
         Runtime: input.runtime as Runtime | undefined,
         Handler: input.handler,
-        PackageType: input.packageType,
+        PackageType: input.packageType ?? (input.imageUri ? 'Image' : undefined),
         Code: {
           S3Bucket: input.s3Bucket,
           S3Key: input.s3Key,

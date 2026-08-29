@@ -115,6 +115,7 @@ Get a function's configuration, code location, tags, and reserved concurrency
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
+| `tagsError` | json | Why the tags could not be read, when a partial tag-read failure occurred |
 | `code` | json | Presigned download URL for the deployment package, or the container image URI |
 | `tags` | json | The function's tags |
 | `reservedConcurrentExecutions` | number | Concurrency reserved for this function, if any |

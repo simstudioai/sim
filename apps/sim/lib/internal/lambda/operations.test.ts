@@ -222,6 +222,22 @@ describe('Lambda operations', () => {
       })
       expect(result.output.tags).toEqual({ env: 'prod' })
       expect(result.output.reservedConcurrentExecutions).toBe(25)
+      expect(result.output.tagsError).toBeNull()
+    })
+
+    it('surfaces why a partial tag read failed instead of reporting no tags', async () => {
+      mocks.send.mockResolvedValue({
+        Configuration: { FunctionName: 'alpha' },
+        TagsError: { ErrorCode: 'AccessDeniedException', Message: 'not authorized' },
+      })
+
+      const result = await executeLambdaGetFunction({ ...CONNECTION, functionName: 'alpha' })
+
+      expect(result.output.tags).toEqual({})
+      expect(result.output.tagsError).toEqual({
+        errorCode: 'AccessDeniedException',
+        message: 'not authorized',
+      })
     })
 
     it('reports absent optional sections as null or empty, never undefined', async () => {
@@ -233,6 +249,7 @@ describe('Lambda operations', () => {
         success: true,
         output: {
           configuration: null,
+          tagsError: null,
           code: null,
           tags: {},
           reservedConcurrentExecutions: null,
@@ -291,6 +308,35 @@ describe('Lambda operations', () => {
       expect(input.EphemeralStorage).toEqual({ Size: 2048 })
       expect(input.SnapStart).toEqual({ ApplyOn: 'PublishedVersions' })
       expect(input.LoggingConfig).toEqual({ LogFormat: 'JSON', LogGroup: '/aws/lambda/alpha' })
+    })
+
+    it('derives the Image package type from a supplied image URI', async () => {
+      mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
+
+      await executeLambdaCreateFunction({
+        ...CONNECTION,
+        functionName: 'alpha',
+        role: 'arn:aws:iam::1:role/exec',
+        imageUri: 'ecr/alpha:1',
+      })
+
+      expect(sentInput().PackageType).toBe('Image')
+    })
+
+    it('leaves the package type unset for an S3 package, letting AWS default it', async () => {
+      mocks.send.mockResolvedValue({ FunctionName: 'alpha' })
+
+      await executeLambdaCreateFunction({
+        ...CONNECTION,
+        functionName: 'alpha',
+        role: 'arn:aws:iam::1:role/exec',
+        s3Bucket: 'bucket',
+        s3Key: 'alpha.zip',
+        runtime: 'python3.13',
+        handler: 'index.handler',
+      })
+
+      expect(sentInput().PackageType).toBeUndefined()
     })
 
     it('omits every optional wrapper when nothing was supplied for it', async () => {
