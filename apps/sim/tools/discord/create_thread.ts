@@ -1,4 +1,5 @@
 import type { DiscordCreateThreadParams, DiscordCreateThreadResponse } from '@/tools/discord/types'
+import { isProvidedParam } from '@/tools/discord/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -60,9 +61,8 @@ export const discordCreateThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateThreadParams) => {
-      const messageId = params.messageId?.trim()
-      if (messageId) {
-        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(messageId, 'messageId')}/threads`
+      if (isProvidedParam(params.messageId)) {
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/threads`
       }
       return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/threads`
     },

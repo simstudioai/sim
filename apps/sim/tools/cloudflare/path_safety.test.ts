@@ -323,6 +323,33 @@ describe('cloudflare path-param traversal safety', () => {
       })
     })
 
+    /**
+     * A safe-range numeric id must build the same path as its decimal string.
+     *
+     * This is what catches a pre-trim anywhere in a URL builder. A
+     * `params.x?.trim()` ahead of the guard throws a bare
+     * `TypeError: params.x?.trim is not a function` on a JSON number, and it
+     * throws BEFORE `safeUrlPathSegment` — which accepts numbers and bigints —
+     * ever runs. The first version of this suite passed only strings, so the
+     * `remove_reaction` and `create_thread` pre-trims survived it; both bots
+     * caught what the harness could not.
+     */
+    it('accepts a safe-range numeric id identically to its decimal string', () => {
+      const numeric = 8035111022467891
+
+      expect(segmentsOf(withValue(numeric).pathname)).toEqual(
+        segmentsOf(withValue(String(numeric)).pathname)
+      )
+    })
+
+    it('accepts a bigint id identically to its decimal string', () => {
+      const snowflake = 1234567890123456789n
+
+      expect(segmentsOf(withValue(snowflake).pathname)).toEqual(
+        segmentsOf(withValue(snowflake.toString()).pathname)
+      )
+    })
+
     it('trims surrounding whitespace off a legitimate value', () => {
       const actual = segmentsOf(withValue(`  ${TRIM_SAMPLE}  `).pathname)
 
