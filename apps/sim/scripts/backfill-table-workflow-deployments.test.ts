@@ -82,25 +82,31 @@ describe('backfillTableWorkflowDeployments', () => {
     restoreEnvironmentVariable('SIM_ENV_SECRET_ID')
   })
 
-  it('loads the staging runtime secret before database modules are needed', async () => {
-    Reflect.deleteProperty(process.env, 'DATABASE_URL')
-    Reflect.deleteProperty(process.env, 'DATABASE_URL_WEB')
-    Reflect.deleteProperty(process.env, 'REDIS_TLS_SERVERNAME')
-    Reflect.deleteProperty(process.env, 'REDIS_URL')
-    Reflect.deleteProperty(process.env, 'SIM_ENV_SECRET_ID')
-    mockLoadRuntimeSecrets.mockImplementation(async () => {
-      process.env.DATABASE_URL = 'postgres://staging/database'
-      process.env.REDIS_TLS_SERVERNAME = 'cache.staging.internal'
-      process.env.REDIS_URL = 'rediss://cache.staging.internal:6379'
-    })
+  it.each([
+    ['production', '/production/sim/env-vars'],
+    ['staging', '/staging/sim/env-vars'],
+  ] as const)(
+    'loads the %s runtime secret before database modules are needed',
+    async (environment, runtimeSecretId) => {
+      Reflect.deleteProperty(process.env, 'DATABASE_URL')
+      Reflect.deleteProperty(process.env, 'DATABASE_URL_WEB')
+      Reflect.deleteProperty(process.env, 'REDIS_TLS_SERVERNAME')
+      Reflect.deleteProperty(process.env, 'REDIS_URL')
+      Reflect.deleteProperty(process.env, 'SIM_ENV_SECRET_ID')
+      mockLoadRuntimeSecrets.mockImplementation(async () => {
+        process.env.DATABASE_URL = `postgres://${environment}/database`
+        process.env.REDIS_TLS_SERVERNAME = `cache.${environment}.internal`
+        process.env.REDIS_URL = `rediss://cache.${environment}.internal:6379`
+      })
 
-    await prepareTableWorkflowDeploymentBackfillEnvironment(['--environment=staging'])
+      await prepareTableWorkflowDeploymentBackfillEnvironment([`--environment=${environment}`])
 
-    expect(process.env.SIM_ENV_SECRET_ID).toBe('/staging/sim/env-vars')
-    expect(process.env.REDIS_TLS_SERVERNAME).toBeUndefined()
-    expect(process.env.REDIS_URL).toBeUndefined()
-    expect(mockLoadRuntimeSecrets).toHaveBeenCalledTimes(1)
-  })
+      expect(process.env.SIM_ENV_SECRET_ID).toBe(runtimeSecretId)
+      expect(process.env.REDIS_TLS_SERVERNAME).toBeUndefined()
+      expect(process.env.REDIS_URL).toBeUndefined()
+      expect(mockLoadRuntimeSecrets).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('keeps the existing local DATABASE_URL mode when no environment is requested', async () => {
     process.env.DATABASE_URL = 'postgres://local/database'
@@ -114,8 +120,8 @@ describe('backfillTableWorkflowDeployments', () => {
   })
 
   it('rejects unsupported, unknown, duplicate, and locally configured staging arguments', async () => {
-    expect(() => parseTableWorkflowDeploymentBackfillArgs(['--environment=production'])).toThrow(
-      'Unsupported backfill environment: production'
+    expect(() => parseTableWorkflowDeploymentBackfillArgs(['--environment=prod'])).toThrow(
+      'Unsupported backfill environment: prod'
     )
     expect(() => parseTableWorkflowDeploymentBackfillArgs(['--dry-run'])).toThrow(
       'Unknown argument: --dry-run'

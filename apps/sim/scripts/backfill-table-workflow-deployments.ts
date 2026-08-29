@@ -12,6 +12,7 @@
  * Usage:
  *   DATABASE_URL=... bun run apps/sim/scripts/backfill-table-workflow-deployments.ts
  *   AWS_PROFILE=sim-admin bun --no-env-file apps/sim/scripts/backfill-table-workflow-deployments.ts --environment=staging
+ *   AWS_PROFILE=sim-admin bun --no-env-file apps/sim/scripts/backfill-table-workflow-deployments.ts --environment=production
  */
 
 import { createLogger } from '@sim/logger'
@@ -25,12 +26,17 @@ const logger = createLogger('BackfillTableWorkflowDeployments')
 export const TABLE_WORKFLOW_DEPLOYMENT_BATCH_SIZE = 25
 const BACKFILL_ACTOR_ID = 'table-workflow-deployment-backfill'
 const BACKFILL_OPERATION_VERSION = 'v2'
-const STAGING_RUNTIME_SECRET_ID = '/staging/sim/env-vars'
-/** Container-private services that a locally executed staging backfill must not initialize. */
-const LOCAL_STAGING_OMITTED_VARIABLES = ['REDIS_URL', 'REDIS_TLS_SERVERNAME'] as const
+const RUNTIME_SECRET_IDS = {
+  production: '/production/sim/env-vars',
+  staging: '/staging/sim/env-vars',
+} as const
+/** Container-private services that a locally executed hosted backfill must not initialize. */
+const LOCAL_HOSTED_OMITTED_VARIABLES = ['REDIS_URL', 'REDIS_TLS_SERVERNAME'] as const
+
+type TableWorkflowDeploymentBackfillEnvironment = keyof typeof RUNTIME_SECRET_IDS
 
 interface TableWorkflowDeploymentBackfillCliOptions {
-  environment?: 'staging'
+  environment?: TableWorkflowDeploymentBackfillEnvironment
 }
 
 export interface TableWorkflowDeploymentCandidate {
@@ -95,6 +101,12 @@ interface DeploymentStateRow extends Record<string, unknown> {
   is_deployed: boolean
 }
 
+function isTableWorkflowDeploymentBackfillEnvironment(
+  value: string
+): value is TableWorkflowDeploymentBackfillEnvironment {
+  return Object.hasOwn(RUNTIME_SECRET_IDS, value)
+}
+
 /** Parses the deliberately small CLI surface for the backfill. */
 export function parseTableWorkflowDeploymentBackfillArgs(
   args: readonly string[]
@@ -110,7 +122,7 @@ export function parseTableWorkflowDeploymentBackfillArgs(
     }
 
     const requestedEnvironment = arg.slice('--environment='.length)
-    if (requestedEnvironment !== 'staging') {
+    if (!isTableWorkflowDeploymentBackfillEnvironment(requestedEnvironment)) {
       throw new Error(`Unsupported backfill environment: ${requestedEnvironment || '(empty)'}`)
     }
     environment = requestedEnvironment
@@ -126,10 +138,11 @@ export async function prepareTableWorkflowDeploymentBackfillEnvironment(
   const { environment } = parseTableWorkflowDeploymentBackfillArgs(args)
   if (!environment) return
 
+  const runtimeSecretId = RUNTIME_SECRET_IDS[environment]
   const configuredSecretId = process.env.SIM_ENV_SECRET_ID
-  if (configuredSecretId && configuredSecretId !== STAGING_RUNTIME_SECRET_ID) {
+  if (configuredSecretId && configuredSecretId !== runtimeSecretId) {
     throw new Error(
-      `SIM_ENV_SECRET_ID is already set to ${configuredSecretId}; expected ${STAGING_RUNTIME_SECRET_ID}`
+      `SIM_ENV_SECRET_ID is already set to ${configuredSecretId}; expected ${runtimeSecretId}`
     )
   }
 
@@ -138,18 +151,18 @@ export async function prepareTableWorkflowDeploymentBackfillEnvironment(
   )
   if (configuredDatabaseVariables.length > 0) {
     throw new Error(
-      `Unset ${configuredDatabaseVariables.join(', ')} before using --environment=staging so local configuration cannot override staging`
+      `Unset ${configuredDatabaseVariables.join(', ')} before using --environment=${environment} so local configuration cannot override ${environment}`
     )
   }
 
-  process.env.SIM_ENV_SECRET_ID = STAGING_RUNTIME_SECRET_ID
+  process.env.SIM_ENV_SECRET_ID = runtimeSecretId
   await loadRuntimeSecrets()
 
   if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_WEB) {
-    throw new Error(`${STAGING_RUNTIME_SECRET_ID} did not provide a database URL`)
+    throw new Error(`${runtimeSecretId} did not provide a database URL`)
   }
 
-  for (const key of LOCAL_STAGING_OMITTED_VARIABLES) {
+  for (const key of LOCAL_HOSTED_OMITTED_VARIABLES) {
     Reflect.deleteProperty(process.env, key)
   }
 }
