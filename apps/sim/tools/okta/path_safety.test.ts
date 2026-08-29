@@ -31,7 +31,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
 import * as oktaTools from '@/tools/okta/index'
-import type { ToolConfig } from '@/tools/types'
+import type { OktaUpdateGroupParams } from '@/tools/okta/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const DOMAIN = 'dev-123456.okta.com'
 const API_ORIGIN = `https://${DOMAIN}`
@@ -67,14 +68,14 @@ const LEGITIMATE_IDS = [
   'v1.2.3',
 ] as const
 
-type AnyTool = ToolConfig<any, any>
+type PathTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
-function isOktaTool(value: unknown): value is AnyTool {
+function isOktaTool(value: unknown): value is PathTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('okta_')
+    typeof (value as PathTool).id === 'string' &&
+    (value as PathTool).id.startsWith('okta_')
   )
 }
 
@@ -89,7 +90,7 @@ function isOktaTool(value: unknown): value is AnyTool {
  * feeding it a traversal vector would only assert that guard rather than the
  * path-segment guards under test.
  */
-function safeValues(tool: AnyTool): Record<string, string> {
+function safeValues(tool: PathTool): Record<string, string> {
   const values: Record<string, string> = {}
   let index = 0
   for (const [name, def] of Object.entries(tool.params ?? {})) {
@@ -103,7 +104,7 @@ function safeValues(tool: AnyTool): Record<string, string> {
 
 /** Builds a param object with every sibling at its sentinel, overriding one. */
 function buildParams(
-  tool: AnyTool,
+  tool: PathTool,
   override?: { name: string; value: string }
 ): Record<string, unknown> {
   const params: Record<string, unknown> = {
@@ -122,20 +123,31 @@ function buildParams(
   return params
 }
 
-function buildUrl(tool: AnyTool, override?: { name: string; value: string }): URL {
+function buildUrl(tool: PathTool, override?: { name: string; value: string }): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, override) as any))
+  return new URL(url(buildParams(tool, override)))
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-/** Every (tool, param) pair whose sentinel lands in a path segment. */
-const PATH_PARAM_PAIRS = Object.values(oktaTools)
+/**
+ * Every (tool, param) pair whose sentinel lands in a path segment.
+ *
+ * The barrel is seeded as `unknown` rather than enumerated at its own type.
+ * `Object.values` over a namespace yields a union across every member, and
+ * `ToolConfig` puts its param type in the **contravariant** position of
+ * `request.url`, so no specific member is assignable to a widened
+ * `ToolConfig<Record<string, unknown>, ToolResponse>` — and a bare `.filter`
+ * with a type guard intersects rather than replaces, leaving the errors in
+ * place. Seeding as `unknown` makes the guard below the single narrowing
+ * point, which keeps a cast out of every call site.
+ */
+const PATH_PARAM_PAIRS = Object.values<unknown>(oktaTools)
   .filter(isOktaTool)
   .filter((tool) => typeof tool.request?.url === 'function')
   .flatMap((tool) => {
@@ -235,16 +247,21 @@ describe('okta path-ID traversal safety', () => {
  * the same URL, so an unguarded id re-aims a write.
  */
 describe('okta_update_group groupId path safety', () => {
-  function runUpdateGroup(groupId: string): Promise<string> {
-    const fetchMock = vi.fn(async () =>
+  async function runUpdateGroup(groupId: string): Promise<string> {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
       Response.json({ id: 'g', profile: {}, type: 'OKTA_GROUP', created: '', lastUpdated: '' })
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    return executeOktaUpdateGroupOperation(
-      { apiKey: 'token', domain: DOMAIN, groupId, name: 'Engineering' } as never,
-      undefined as never
-    ).then(() => String(fetchMock.mock.calls[0][0]))
+    const params: OktaUpdateGroupParams = {
+      apiKey: 'token',
+      domain: DOMAIN,
+      groupId,
+      name: 'Engineering',
+    }
+    await executeOktaUpdateGroupOperation(params)
+
+    return String(fetchMock.mock.calls[0][0])
   }
 
   it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', async (groupId) => {
