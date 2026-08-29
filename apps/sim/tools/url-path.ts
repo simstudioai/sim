@@ -422,10 +422,27 @@ function assertUnpadded(value: string | number | bigint, paramName: string): voi
  * read `params.gist_id?.trim()` — keeps trimming, because preserving its
  * behaviour is the same rule, not an exception to it.
  *
- * Reads deliberately keep {@link safeUrlPathSegment}. Trimming a padded id on a
- * GET is the copy-paste convenience that helper exists for, and its worst case
- * is returning data the caller can simply ignore — not destroying a branch,
- * closing someone's pull request, or filing an issue in a real repository.
+ * **Reads deliberately keep {@link safeUrlPathSegment}, and that asymmetry is
+ * the point rather than an unfinished pass.** Do not "complete" it by routing
+ * GET routes through this guard — doing so breaks a flow that works today and
+ * buys no safety. The reasoning, since this is the first question the boundary
+ * invites:
+ *
+ * The rule above is "never turn a failing request into a succeeding one", but
+ * the *reason* the rule exists is that the harm is asymmetric. On a write, the
+ * failure mode is destroying or mutating a resource the caller never named —
+ * unrecoverable, and invisible in review because every traversal assertion
+ * still passes. On a read, the failure mode is returning data from the resource
+ * the caller almost certainly did mean, since they typed the padded name
+ * themselves; the worst case is data they ignore.
+ *
+ * The *cost* of refusing runs the other way. A padded identifier arriving at a
+ * read is overwhelmingly a paste carrying a stray newline, so rejecting it
+ * breaks a working flow for no gain. On a write, rejecting costs the caller one
+ * clear error message and saves a branch.
+ *
+ * So the principle underneath both guards is: **refuse where being wrong is
+ * unrecoverable, tolerate where being wrong is merely unhelpful.**
  *
  * @param value - The raw identifier, typically LLM- or user-supplied.
  * @param paramName - The parameter name, used to name the offender in errors.
