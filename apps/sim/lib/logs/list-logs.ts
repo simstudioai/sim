@@ -41,6 +41,12 @@ import {
 
 export type ListLogsParams = z.output<typeof listLogsQuerySchema> & {
   signal?: AbortSignal
+  /**
+   * Whether the viewer's permission group withholds spend. Resolved by the
+   * application use case, never from the query: the contract does not carry it,
+   * so a client cannot ask for a row it is not entitled to.
+   */
+  hideCostInfo?: boolean
 }
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
@@ -51,6 +57,7 @@ type SortOrder = 'asc' | 'desc'
  */
 export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse> {
   params.signal?.throwIfAborted()
+  const hideCostInfo = params.hideCostInfo === true
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
@@ -352,7 +359,7 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
       jobTitle: null,
       // List cost is the cost_total projection (faithful ledger sum). Null until
       // completion (running) or until the one-time legacy backfill populates it.
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+      cost: hideCostInfo || log.costTotal == null ? null : { total: Number(log.costTotal) },
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -379,7 +386,7 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: jobCostTotal(log.cost),
+      cost: hideCostInfo ? null : jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }

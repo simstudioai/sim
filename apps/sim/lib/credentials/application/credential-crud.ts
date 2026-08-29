@@ -1,6 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import {
+  defineAuthorizedWorkspaceUseCase,
+  requireWorkspaceCapability,
+} from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
@@ -166,6 +169,16 @@ export interface CreateWorkspaceCredentialResult {
   auditMetadata: Record<string, unknown>
 }
 
+/**
+ * The credential types that belong to one person rather than to the workspace:
+ * a personal environment secret, and an OAuth grant bound to the connecting
+ * user's own linked account. `env_workspace`, `service_account` and
+ * `managed_oauth` are workspace-shared and stay available.
+ */
+const PERSONAL_SCOPE_CREDENTIAL_TYPES: ReadonlySet<PerformCreateCredentialParams['type']> = new Set(
+  ['env_personal', 'oauth']
+)
+
 export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.create,
   resolveContext: async ({ input }: { input: CreateWorkspaceCredentialInput }) => {
@@ -174,8 +187,18 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
     return context
   },
   authorizationOptions: {},
-  async execute({ principal, input }): Promise<CreateWorkspaceCredentialResult> {
+  async execute({ principal, input, context }): Promise<CreateWorkspaceCredentialResult> {
     const userId = requirePrincipalSubjectUserId(principal)
+    /**
+     * permission-group-enforced: credentials.personal — scope is the request's
+     * `type`, not a property of the operation: the same `credentials.create`
+     * makes a personal secret and a workspace-shared one. Declaring the
+     * capability on the operation would refuse both, so it is asserted here
+     * against the type actually being created.
+     */
+    if (PERSONAL_SCOPE_CREDENTIAL_TYPES.has(input.type)) {
+      await requireWorkspaceCapability(userId, context, 'credentials.personal')
+    }
     const result = await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation succeeded without a credential')

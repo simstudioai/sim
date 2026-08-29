@@ -86,6 +86,12 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
      * permission-group-enforced: logs.trace_spans — a projection rather than a
      * refusal: the log stays readable, its execution payloads do not. An
      * actorless run has no group and reads its own workspace's logs whole.
+     *
+     * permission-group-enforced: logs.cost — the same projection, applied to
+     * spend: the run total, its itemized ledger and the per-block and per-span
+     * figures. Refusing the read instead would withhold the status and the
+     * error message too, which is not what an organization restricting spend
+     * visibility to admins asked for.
      */
     const permissionConfig = viewerUserId
       ? await getUserPermissionConfig(viewerUserId, context.workspaceId)
@@ -98,6 +104,7 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
       lookupValue: input.lookupValue,
       signal: input.signal,
       hideTraceSpans: permissionConfig?.hideTraceSpans === true,
+      hideCostInfo: permissionConfig?.hideCostInfo === true,
     })
     input.signal?.throwIfAborted()
     if (!detail) throw new OrchestrationError('not_found', 'Not found')

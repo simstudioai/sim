@@ -51,18 +51,28 @@ export const credentialOperations = {
     capability: 'integrations.manage',
     principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   }),
+  /**
+   * Every OAuth connection flow ends in a `type: 'oauth'` credential bound to the
+   * connecting user's own linked account — `resolveCredentialConnectionTarget`
+   * refuses any other credential type — so the whole flow is personal-scope by
+   * construction, not by a field the caller chooses. That makes
+   * `credentials.personal` an operation-level capability for these three, and it
+   * replaces `integrations.manage` rather than joining it: an operation declares
+   * one capability, and the narrower of the two is the one an organization that
+   * mandates workspace-shared credentials is actually setting.
+   */
   createConnection: defineWorkspaceOperation({
     id: 'credentials.connections.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
+    capability: 'credentials.personal',
     principalKinds: ['session', 'personal_api_key'],
   }),
   prepareConnection: defineWorkspaceOperation({
     id: 'credentials.connections.prepare',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
+    capability: 'credentials.personal',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -156,7 +166,7 @@ export const credentialOperations = {
     id: 'credentials.connections.launch',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    capability: 'integrations.manage',
+    capability: 'credentials.personal',
     principalKinds: ['session'],
   }),
   useManagedOAuth: defineWorkspaceOperation({

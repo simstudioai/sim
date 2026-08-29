@@ -9,6 +9,7 @@ import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/co
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -117,6 +118,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const hideTraceSpans = permissionConfig?.hideTraceSpans === true
+    /**
+     * permission-group-enforced: logs.cost — the `costTotal` column is the same
+     * run spend the detail view withholds, and a whole-workspace CSV of it is
+     * the widest disclosure of the two. The column stays in the header so the
+     * file shape does not depend on who downloaded it; only its values go.
+     */
+    const hideCostInfo = permissionConfig?.hideCostInfo === true
 
     const encoder = new TextEncoder()
     const csvChunks = (async function* () {
@@ -159,7 +167,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           for (let index = 0; index < chunk.length; index++) {
             const row = chunk[index]
-            const executionData = materialized[index]
+            const materializedRow = materialized[index]
+            const executionData = hideCostInfo
+              ? withheldSpendData(materializedRow)
+              : materializedRow
             let message: unknown = ''
             let tracesJson = ''
             try {
@@ -190,7 +201,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               formatCsvValue(row.workflowName),
               formatCsvValue(row.trigger),
               formatCsvValue(row.totalDurationMs ?? ''),
-              formatCsvValue(row.costTotal ?? ''),
+              formatCsvValue(hideCostInfo ? '' : (row.costTotal ?? '')),
               formatCsvValue(row.workflowId ?? ''),
               formatCsvValue(row.executionId),
               formatCsvValue(message),

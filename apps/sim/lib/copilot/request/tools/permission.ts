@@ -88,6 +88,13 @@ export function toolCallNeedsApproval(
     }
   }
 
+  /**
+   * permission-group-enforced: copilot.tool_auto_approval — the stored list is
+   * consulted here, so honouring the key only where an entry is written would
+   * leave every entry saved before the policy changed still silencing prompts.
+   */
+  if (!context.toolPermissions.autoAllowPermitted) return true
+
   return !context.toolPermissions.autoAllowed.has(toolName)
 }
 
@@ -271,10 +278,14 @@ export function runGatedToolExecution(
 
       span.setAttribute(TraceAttr.CopilotAsyncToolPermissionDecision, decision.decision)
 
-      if (decisionSuppressesFuturePrompts(decision.decision)) {
+      if (
+        decisionSuppressesFuturePrompts(decision.decision) &&
+        context.toolPermissions.autoAllowPermitted
+      ) {
         // Same-turn effect: a second call to this tool later in the turn must
         // not re-prompt. The durable write (chat row or user settings) happens
-        // in the endpoint.
+        // in the endpoint, which refuses it under the same capability this
+        // guard reads — so the two cannot disagree within a turn.
         context.toolPermissions.autoAllowed.add(toolName)
       }
 
