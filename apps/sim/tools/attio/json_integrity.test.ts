@@ -85,38 +85,100 @@ function serializeBody(tool: BodyTool, overrideName: string, overrideValue: stri
 }
 
 /**
- * Params that actually reach the request body, discovered by feeding a valid
- * JSON value carrying a sentinel and checking whether the sentinel survives.
- * Params that only feed the URL are skipped rather than hard-coded.
+ * Where a param's value ended up in the serialized body.
+ *
+ * - `parsed`   — the sentinel appears as its own string inside an array or
+ *   object, so the tool ran `JSON.parse` on the value.
+ * - `raw`      — the sentinel appears only inside a longer string, so the tool
+ *   forwarded the value verbatim. Correct for a plain-text param.
+ * - `absent`   — the value never reaches the body (it feeds the URL instead).
+ *
+ * `parsed` wins if both are seen, so a tool that both parses and echoes a value
+ * is still held to the parsing contract.
  */
+type SentinelPlacement = 'parsed' | 'raw' | 'absent'
+
+function classify(body: unknown): SentinelPlacement {
+  let found: SentinelPlacement = 'absent'
+
+  const walk = (value: unknown): void => {
+    if (typeof value === 'string') {
+      if (value === SENTINEL) {
+        found = 'parsed'
+      } else if (value.includes(SENTINEL) && found === 'absent') {
+        found = 'raw'
+      }
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach(walk)
+      return
+    }
+    if (value !== null && typeof value === 'object') {
+      Object.values(value).forEach(walk)
+    }
+  }
+
+  walk(body)
+  return found
+}
+
+function placementOf(tool: BodyTool, param: string): SentinelPlacement {
+  try {
+    return classify(JSON.parse(serializeBody(tool, param, VALID_JSON_WITH_SENTINEL)))
+  } catch {
+    return 'absent'
+  }
+}
+
 const BODY_PARAM_CASES = BODY_TOOLS.flatMap((tool) =>
   stringParamNames(tool)
-    .filter((name) => {
-      try {
-        return serializeBody(tool, name, VALID_JSON_WITH_SENTINEL).includes(SENTINEL)
-      } catch {
-        return false
-      }
-    })
-    .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
+    .map((param) => ({
+      name: `${tool.id} / ${param}`,
+      tool,
+      param,
+      placement: placementOf(tool, param),
+    }))
+    .filter(({ placement }) => placement !== 'absent')
 )
+
+/**
+ * Params the tool actually runs `JSON.parse` on. A malformed value here must
+ * raise the folder's named error — substituting an empty value (the original
+ * defect) and forwarding the raw string (which reaches Attio as a 400 with no
+ * hint of the real cause) are both failures.
+ */
+const PARSED_PARAM_CASES = BODY_PARAM_CASES.filter(({ placement }) => placement === 'parsed')
+
+/** Plain-text params, which must forward whatever they are given untouched. */
+const PASSTHROUGH_PARAM_CASES = BODY_PARAM_CASES.filter(({ placement }) => placement === 'raw')
 
 describe('attio JSON parse integrity', () => {
   it('discovers the body-bound params it is meant to cover', () => {
     expect(BODY_PARAM_CASES.length).toBeGreaterThanOrEqual(20)
   })
 
-  it.each(BODY_PARAM_CASES)(
-    '$name never silently drops a value that fails to parse',
-    ({ tool, param }) => {
-      let serialized: string
-      try {
-        serialized = serializeBody(tool, param, MALFORMED_JSON_WITH_SENTINEL)
-      } catch {
-        return
-      }
+  it('discovers every JSON-parsed param', () => {
+    expect(PARSED_PARAM_CASES.length).toBeGreaterThanOrEqual(18)
+  })
 
-      expect(serialized).toContain(SENTINEL)
+  it.each(PARSED_PARAM_CASES)(
+    '$name raises the folder-standard error rather than dropping or forwarding a malformed value',
+    ({ tool, param }) => {
+      expect(() => serializeBody(tool, param, MALFORMED_JSON_WITH_SENTINEL)).toThrow(
+        /Invalid JSON provided/
+      )
+    }
+  )
+
+  it.each(PARSED_PARAM_CASES)('$name still accepts a well-formed value', ({ tool, param }) => {
+    expect(() => serializeBody(tool, param, VALID_JSON_WITH_SENTINEL)).not.toThrow()
+  })
+
+  it.each(PASSTHROUGH_PARAM_CASES)(
+    '$name forwards a plain-text value untouched',
+    ({ tool, param }) => {
+      expect(serializeBody(tool, param, MALFORMED_JSON_WITH_SENTINEL)).toContain(SENTINEL)
     }
   )
 })
