@@ -12,6 +12,10 @@ import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-s
 import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import {
+  capabilityDeniedBy,
+  capabilityRefusal,
+} from '@/lib/permission-groups/capability-assertions'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
@@ -107,24 +111,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      * and is not a reason to leave the export ungoverned meanwhile.
      */
     const permissionConfig = await getUserPermissionConfig(userId, params.workspaceId)
-    if (permissionConfig?.disableLogExport) {
-      return NextResponse.json(
-        {
-          error:
-            "Exporting execution logs is not available under your organization's permission group",
-        },
-        { status: 403 }
-      )
+    if (capabilityDeniedBy('logs.export', permissionConfig)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.export') }, { status: 403 })
     }
 
-    const hideTraceSpans = permissionConfig?.hideTraceSpans === true
+    const hideTraceSpans = capabilityDeniedBy('logs.trace_spans', permissionConfig)
     /**
      * permission-group-enforced: logs.cost — the `costTotal` column is the same
      * run spend the detail view withholds, and a whole-workspace CSV of it is
      * the widest disclosure of the two. The column stays in the header so the
      * file shape does not depend on who downloaded it; only its values go.
      */
-    const hideCostInfo = permissionConfig?.hideCostInfo === true
+    const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
 
     const encoder = new TextEncoder()
     const csvChunks = (async function* () {

@@ -5,14 +5,34 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPersonalApiKeyContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
-import { personalApiKeyManagementWithheldResponse } from '@/lib/api-key/access'
 import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
+import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ApiKeysAPI')
+
+/**
+ * Whether the caller's permission group withholds personal-key management.
+ *
+ * permission-group-enforced: api_keys.manage — a raw handler with inline
+ * queries, which the authorization funnel never sees.
+ *
+ * Personal keys are user-global and so belong to no workspace, which is why
+ * this resolves the organization's default group — the group that governs an
+ * organization-level action, the same resolution invitations use.
+ */
+async function personalKeyManagementWithheld(userId: string): Promise<boolean> {
+  const membership = await getUserOrganization(userId)
+  if (!membership?.organizationId) return false
+  return isOrganizationCapabilityWithheld(membership.organizationId, 'api_keys.manage')
+}
 
 // GET /api/users/me/api-keys - Get all API keys for the current user
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -24,8 +44,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const userId = session.user.id
 
-    const withheld = await personalApiKeyManagementWithheldResponse(userId)
-    if (withheld) return withheld
+    const withheld = await personalKeyManagementWithheld(userId)
+    if (withheld) {
+      return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+    }
 
     const keys = await db
       .select({
@@ -71,8 +93,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const userId = session.user.id
 
-    const withheld = await personalApiKeyManagementWithheldResponse(userId)
-    if (withheld) return withheld
+    const withheld = await personalKeyManagementWithheld(userId)
+    if (withheld) {
+      return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+    }
 
     const parsed = await parseRequest(createPersonalApiKeyContract, request, {})
     if (!parsed.success) return parsed.response

@@ -10,17 +10,29 @@ const {
   mockCreateApproval,
   mockEnforceUserRateLimit,
   mockGetPermissions,
-  mockIsCliAccessDisabled,
+  mockGetUserPermissionConfig,
+  mockGetOrgPermissionConfig,
+  mockResolveVerifiedContext,
+  mockGetUserOrganization,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockCreateApproval: vi.fn(),
   mockEnforceUserRateLimit: vi.fn(),
   mockGetPermissions: vi.fn(),
-  mockIsCliAccessDisabled: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+  mockGetOrgPermissionConfig: vi.fn(),
+  mockResolveVerifiedContext: vi.fn(),
+  mockGetUserOrganization: vi.fn(),
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  isCliAccessDisabled: mockIsCliAccessDisabled,
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
+  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
+}))
+
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  getUserOrganization: mockGetUserOrganization,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -52,11 +64,13 @@ describe('POST /api/cli/auth/approve', () => {
     mockEnforceUserRateLimit.mockResolvedValue(null)
     mockCreateApproval.mockResolvedValue(undefined)
     mockGetPermissions.mockResolvedValue('admin')
-    mockIsCliAccessDisabled.mockResolvedValue(false)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
+    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1' })
   })
 
   it('refuses an approver whose permission group disables CLI access', async () => {
-    mockIsCliAccessDisabled.mockResolvedValue(true)
+    mockGetOrgPermissionConfig.mockResolvedValue({ disableCliAccess: true })
 
     const response = await POST(
       createMockRequest('POST', { request: REQUEST, challenge: CHALLENGE })
@@ -77,7 +91,8 @@ describe('POST /api/cli/auth/approve', () => {
       })
     )
 
-    expect(mockIsCliAccessDisabled).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockGetUserPermissionConfig).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockGetOrgPermissionConfig).not.toHaveBeenCalled()
   })
 
   it('records the approval for the signed-in user', async () => {

@@ -63,8 +63,8 @@ import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copil
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -215,11 +215,15 @@ async function resolveToolPermissions(
    * silenced forever, so the stored list is not even loaded once the group
    * withholds the capability.
    */
-  const permissionConfig =
+  const withheld =
     options.userId && options.workspaceId
-      ? await getUserPermissionConfig(options.userId, options.workspaceId)
-      : null
-  if (permissionConfig?.disableToolAutoApproval) {
+      ? await isWorkspaceCapabilityWithheld(
+          options.userId,
+          options.workspaceId,
+          'copilot.tool_auto_approval'
+        )
+      : false
+  if (withheld) {
     return { enabled: true, autoAllowed: new Set(), autoAllowPermitted: false }
   }
 

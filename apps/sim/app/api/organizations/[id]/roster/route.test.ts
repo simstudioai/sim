@@ -17,13 +17,22 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExpireStaleInvitations, mockIsOrgMemberDirectoryHidden } = vi.hoisted(() => ({
+const {
+  mockExpireStaleInvitations,
+  mockGetOrgPermissionConfig,
+  mockGetUserPermissionConfig,
+  mockResolveVerifiedContext,
+} = vi.hoisted(() => ({
   mockExpireStaleInvitations: vi.fn(),
-  mockIsOrgMemberDirectoryHidden: vi.fn(),
+  mockGetOrgPermissionConfig: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+  mockResolveVerifiedContext: vi.fn(),
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  isOrgMemberDirectoryHidden: mockIsOrgMemberDirectoryHidden,
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
+  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -34,6 +43,7 @@ vi.mock('@/lib/invitations/core', () => ({
   expireStalePendingInvitationsForOrganization: mockExpireStaleInvitations,
 }))
 
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/roster/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -66,12 +76,12 @@ describe('GET /api/organizations/[id]/roster', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockExpireStaleInvitations.mockResolvedValue(undefined)
-    mockIsOrgMemberDirectoryHidden.mockResolvedValue(false)
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
   })
 
   it('refuses a member whose permission group hides the member directory', async () => {
     mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
-    mockIsOrgMemberDirectoryHidden.mockResolvedValue(true)
+    mockGetOrgPermissionConfig.mockResolvedValue({ hideOrgMemberDirectory: true })
     queueTableRows(member, [{ role: 'member' }])
 
     const response = await GET(
@@ -81,7 +91,7 @@ describe('GET /api/organizations/[id]/roster', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'Forbidden - The organization member directory is not available to you',
+      error: capabilityRefusal('organization.member_directory'),
     })
   })
 

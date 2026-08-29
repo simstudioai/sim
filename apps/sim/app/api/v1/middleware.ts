@@ -10,13 +10,13 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   getWorkspaceBilledAccountUserId,
   getWorkspaceBillingSettings,
 } from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
@@ -269,8 +269,12 @@ export async function resolveWorkspaceScope(
      * refuses would still work against v1.
      */
     if (rateLimit.userId) {
-      const permissionConfig = await getUserPermissionConfig(rateLimit.userId, requestedWorkspaceId)
-      if (permissionConfig?.disablePersonalApiKeys) {
+      const withheld = await isWorkspaceCapabilityWithheld(
+        rateLimit.userId,
+        requestedWorkspaceId,
+        'personal_api_key.use'
+      )
+      if (withheld) {
         return {
           status: 403,
           code: 'FORBIDDEN',

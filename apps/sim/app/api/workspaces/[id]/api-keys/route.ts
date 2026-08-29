@@ -10,13 +10,16 @@ import {
   deleteWorkspaceApiKeysContract,
 } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
-import { apiKeyManagementWithheldResponse } from '@/lib/api-key/access'
 import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
@@ -46,8 +49,10 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
-      if (withheld) return withheld
+      // permission-group-enforced: api_keys.manage — raw handler with inline queries, which the authorization funnel never sees
+      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
+        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+      }
 
       const workspaceKeys = await db
         .select({
@@ -91,6 +96,17 @@ export const GET = withRouteHandler(
   }
 )
 
+/**
+ * Mints a workspace API key.
+ *
+ * The `api_keys.manage` gate here is also what closes the workspace-key
+ * pass-through: a workspace key authorizes as the workspace and resolves no
+ * group, so the authorization funnel's capability gate never applies to it.
+ * Refusing to mint one keeps a governed member from issuing themselves a
+ * credential that outranks their own group. Keys that already exist keep
+ * working — revoking those is an admin's call, not something a policy change
+ * should do silently.
+ */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -110,8 +126,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
-      if (withheld) return withheld
+      // permission-group-enforced: api_keys.manage — raw handler with inline queries, which the authorization funnel never sees
+      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
+        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+      }
 
       const parsed = await parseRequest(createWorkspaceApiKeyContract, request, context)
       if (!parsed.success) return parsed.response
@@ -174,8 +192,10 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
-      if (withheld) return withheld
+      // permission-group-enforced: api_keys.manage — raw handler with inline queries, which the authorization funnel never sees
+      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
+        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+      }
 
       const parsed = await parseRequest(deleteWorkspaceApiKeysContract, request, context)
       if (!parsed.success) return parsed.response

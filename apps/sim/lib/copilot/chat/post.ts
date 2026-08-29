@@ -68,6 +68,10 @@ import {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -75,7 +79,6 @@ import {
   isWorkspaceAccessDeniedError,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -1064,13 +1067,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
      * settles the resume stream: with no run there is nothing to replay. A
      * request naming no workspace is governed by no group.
      */
-    if (body.workspaceId) {
-      const permissionConfig = await getUserPermissionConfig(authenticatedUserId, body.workspaceId)
-      if (permissionConfig?.hideCopilot) {
-        return createForbiddenResponse(
-          "Chat is not available under your organization's permission group"
-        )
-      }
+    if (
+      body.workspaceId &&
+      (await isWorkspaceCapabilityWithheld(authenticatedUserId, body.workspaceId, 'copilot.use'))
+    ) {
+      return createForbiddenResponse(capabilityRefusal('copilot.use'))
     }
 
     const userMetadata = {

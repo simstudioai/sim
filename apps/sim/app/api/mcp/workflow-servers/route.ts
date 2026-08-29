@@ -17,7 +17,10 @@ import {
   createMcpSuccessResponse,
   mcpOrchestrationStatus,
 } from '@/lib/mcp/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -118,13 +121,8 @@ export const POST = withRouteHandler(
          * alternative is migrating this handler to the use case, which is worth
          * doing and is not a reason to leave the second door open meanwhile.
          */
-        const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-        if (permissionConfig?.hideDeployMcp) {
-          return createMcpErrorResponse(
-            null,
-            "MCP server deployment is not available under your organization's permission group",
-            403
-          )
+        if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'deploy.mcp')) {
+          return createMcpErrorResponse(null, capabilityRefusal('deploy.mcp'), 403)
         }
 
         logger.info(`[${requestId}] Creating workflow MCP server:`, {

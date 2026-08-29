@@ -17,6 +17,10 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
@@ -28,7 +32,6 @@ import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WebhooksAPI')
 
@@ -395,20 +398,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * is a deliberate act of deleting the webhook.
      */
     if (!existingWebhook) {
-      const permissionConfig = workflowRecord.workspaceId
-        ? await getUserPermissionConfig(userId, workflowRecord.workspaceId)
-        : null
-      if (permissionConfig?.disableWebhookTriggers) {
+      const withheld = workflowRecord.workspaceId
+        ? await isWorkspaceCapabilityWithheld(
+            userId,
+            workflowRecord.workspaceId,
+            'triggers.webhook'
+          )
+        : false
+      if (withheld) {
         logger.warn(`[${requestId}] Webhook creation blocked by permission group`, {
           userId,
           workflowId,
         })
-        return NextResponse.json(
-          {
-            error: "Webhook triggers are not available under your organization's permission group",
-          },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
       }
     }
 
