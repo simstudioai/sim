@@ -25,13 +25,10 @@ import {
   getLiveChatDeploymentForWorkflow,
 } from '@/lib/chat-deployments/queries'
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
-import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
+import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 /**
  * The chat singleton of a workflow.
@@ -121,18 +118,11 @@ async function assertAuthModePermitted(
   authType: ChatAuthType
 ): Promise<void> {
   if (authType === context.chatDeployment?.authType) return
-  try {
-    await validateChatDeployAuth(
-      requirePrincipalSubjectUserId(principal),
-      context.workspaceId,
-      authType
-    )
-  } catch (error) {
-    if (error instanceof ChatDeployAuthNotAllowedError) {
-      throw new ForbiddenOperationError('CHAT_AUTH_MODE_NOT_PERMITTED', error.message)
-    }
-    throw error
-  }
+  await validateChatDeployAuth(
+    requirePrincipalSubjectUserId(principal),
+    context.workspaceId,
+    authType
+  )
 }
 
 /**

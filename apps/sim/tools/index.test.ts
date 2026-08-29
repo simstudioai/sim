@@ -111,9 +111,6 @@ vi.mock('@/lib/core/security/encryption', () => ({
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
   validateModelProvider: vi.fn().mockResolvedValue(undefined),
   validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
