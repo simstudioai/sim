@@ -119,7 +119,16 @@ runs:
 
         # Print the whole Total line rather than picking a column: buildctl's du
         # table is whitespace-aligned and its layout is not a stable contract.
-        total() { sudo buildctl --addr "$addr" du 2>/dev/null | grep -iE '^total:' | tr -s ' \t' ' '; }
+        #
+        # The trailing `|| true` is load-bearing. Composite steps run under
+        # `bash -e -o pipefail`, where `cur="$(total)"` takes the substitution's
+        # exit status, so a failing du would abort the step and fail the build --
+        # `echo "$(total)"` survives but the assignment in the settle loop does
+        # not. buildctl exiting non-zero here is entirely plausible: deleting a
+        # sticky disk out from under a running job makes buildkitd panic inside
+        # DiskUsage, and grep also exits 1 whenever the table has no Total line.
+        # Cache hygiene must never be able to fail a deploy.
+        total() { sudo buildctl --addr "$addr" du 2>/dev/null | grep -iE '^total:' | tr -s ' \t' ' ' || true; }
         echo "before prune -> $(total)"
 
         if sudo buildctl --addr "$addr" prune --all --keep-storage "$KEEP_MB"; then
