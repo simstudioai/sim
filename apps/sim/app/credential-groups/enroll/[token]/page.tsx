@@ -134,8 +134,15 @@ export default async function CredentialGroupEnrollmentPage({
           Connect your accounts
         </h1>
         <p className='mt-4 max-w-[560px] text-pretty text-[var(--text-muted)] text-base leading-relaxed'>
-          <span className='font-medium text-[var(--text-body)]'>{enrollment.inviterName}</span>{' '}
-          invited you to connect accounts for{' '}
+          {enrollment.inviterName ? (
+            <>
+              <span className='font-medium text-[var(--text-body)]'>{enrollment.inviterName}</span>{' '}
+              invited you
+            </>
+          ) : (
+            'You have been invited'
+          )}{' '}
+          to connect accounts for{' '}
           <span className='font-medium text-[var(--text-body)]'>{enrollment.workspaceName}</span>.
         </p>
       </header>
