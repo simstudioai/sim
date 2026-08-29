@@ -6,6 +6,7 @@ import {
   clampLimit,
   compactBody,
   pageInfo,
+  parseOptionalStringParam,
   requireOrgId,
 } from '@/tools/cbinsights/utils'
 
@@ -24,7 +25,7 @@ export const executeCbinsightsGetOrgInvestmentsOperation: InternalToolOperationI
       path: `/v2/organizations/${orgId}/financialtransactions/investments`,
       body: compactBody({
         limit: clampLimit(params.limit),
-        nextPageToken: params.nextPageToken?.trim(),
+        nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
       }),
     },
     (data) => ({ investments: asArray(data.investments), ...pageInfo(data) }),

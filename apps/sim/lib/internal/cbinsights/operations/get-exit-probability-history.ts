@@ -5,6 +5,7 @@ import {
   asString,
   cbInsightsRequest,
   compactBody,
+  parseOptionalStringParam,
   requireOrgId,
 } from '@/tools/cbinsights/utils'
 
@@ -17,8 +18,8 @@ export const executeCbinsightsGetExitProbabilityHistoryOperation: InternalToolOp
     {
       path: `/v2/organizations/${orgId}/exitprobabilityhistory`,
       body: compactBody({
-        startDate: params.startDate?.trim(),
-        endDate: params.endDate?.trim(),
+        startDate: parseOptionalStringParam(params.startDate, 'startDate'),
+        endDate: parseOptionalStringParam(params.endDate, 'endDate'),
       }),
     },
     (data) => ({

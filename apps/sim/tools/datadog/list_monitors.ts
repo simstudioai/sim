@@ -1,5 +1,5 @@
 import type { ListMonitorsParams, ListMonitorsResponse, MonitorData } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsResponse> = {
@@ -77,7 +77,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       const queryParams = new URLSearchParams()
 
       if (params.groupStates) queryParams.set('group_states', params.groupStates)
