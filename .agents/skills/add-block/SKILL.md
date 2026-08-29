@@ -550,6 +550,30 @@ Maps multiple UI fields to a single serialized parameter:
 - ONLY use `canonicalParamId` to link basic/advanced mode alternatives for the same logical parameter
 - Do NOT use it for any other purpose
 
+## Renaming a SubBlock Id Orphans Saved Workflow State
+
+A subBlock `id` is the storage key for every value users have already saved in deployed workflows.
+Renaming it silently orphans that state — the field renders empty and the workflow runs without it.
+
+**Rename the *tool* param and map it; keep the subBlock id.** `tools.config.params` is where the two
+names meet:
+
+```typescript
+// subBlock id stays `timeout` — saved state keeps resolving
+params: (params) => ({ timeoutSeconds: params.timeout, timeout: undefined }),
+```
+
+`apps/sim/scripts/check-block-registry.ts` enforces this: it diffs the block definitions and fails
+when a subblock id disappears (`check-block-registry.ts:181`), pointing you at the migration table.
+It separately fails when a required `user-only` tool param has no subBlock whose `id` **or**
+`canonicalParamId` equals it (`check-block-registry.ts:225`), which is the other half of the same
+contract.
+
+For a field that is genuinely gone — not renamed — record it in `SUBBLOCK_ID_MIGRATIONS` in
+`apps/sim/lib/workflows/migrations/subblock-migrations.ts`. A `to` value prefixed with `_removed_`
+(`subblock-migrations.ts:20`, `:109`) means "deleted outright", and is what lets the check pass
+without pretending the value moved somewhere.
+
 ## WandConfig Pattern
 
 Enables AI-assisted field generation.
@@ -605,6 +629,29 @@ tools: {
     }),
   },
 }
+```
+
+### Omitting a key from `tools.config.params` does NOT drop it
+
+`tools.config.params` returns a **patch**, not a replacement. The executor merges it over the raw
+inputs — `apps/sim/executor/handlers/generic/generic-handler.ts:191`:
+
+```typescript
+const transformedParams = blockConfig.tools.config.params(inputs)
+finalInputs = { ...inputs, ...transformedParams }
+```
+
+So a subBlock value reaches the tool even when `params` never mentions its key. This matters when a
+subBlock id collides with a name the shared transport reserves (`timeout`, `proxyUrl`, `method` — see
+**Reserved Parameter Names** in the `add-tools` skill): renaming only the tool-side param leaves the
+old key merging straight back in. Clearing it requires an **explicit** `undefined`:
+
+```typescript
+params: (params) => ({
+  // ✓ Removes the reserved key from the outbound params
+  timeout: undefined,
+  timeoutSeconds: params.timeout,
+}),
 ```
 
 ### V2 Versioned Tool Selector
@@ -680,6 +727,24 @@ outputs: {
 Nested object outputs (`plan: { id: { type: 'string' }, ... }`) are a **tool-output** feature only — `OutputFieldDefinition` for blocks does not allow them and they fail TypeScript at build time.
 
 If the output shape is unknown because the underlying tool response is undocumented, you MUST tell the user and stop. Unknown is not the same as variable. Never guess block outputs.
+
+### Declared `outputs` do not drive variable resolution
+
+`outputs` is documentation and editor autocomplete — it is **not** the contract `<block.path>`
+references resolve against. `apps/sim/executor/utils/block-reference.ts:239` navigates the **runtime**
+output object, and the declared schema is only consulted at `:242` — `if (value === undefined && schema)`
+— to produce a better error for a path that resolved to nothing.
+
+Two consequences:
+
+- `<block.some.path>` resolves fine even when `some.path` was never declared. An undeclared field is
+  still a live reference someone may have wired up.
+- Changing an output's **shape** therefore breaks saved references that never appeared in `outputs`
+  at all, and no check will tell you. Adding a field is safe; re-nesting, renaming, or wrapping the
+  existing keys is not.
+
+When restructuring a `transformResponse`, spread the raw provider keys **last** so every previously
+reachable path survives alongside the new shape.
 
 ## V2 Block Pattern
 
@@ -1028,6 +1093,9 @@ changes.
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
+- [ ] No existing subBlock `id` was renamed or removed without a `SUBBLOCK_ID_MIGRATIONS` entry
+- [ ] Restructured outputs still expose every previously reachable runtime key (raw keys spread last)
+- [ ] Any reserved transport key a subBlock still sends is explicitly cleared with `undefined` in `tools.config.params`
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes

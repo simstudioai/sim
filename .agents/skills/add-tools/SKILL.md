@@ -199,6 +199,27 @@ fallback, or caller-controlled `_context` authority.
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+### Reserved Parameter Names
+
+The shared transport reads three names off `params` for its own purposes, before your `request`
+config ever sees them (`apps/sim/tools/request-transport.ts`):
+
+| Param | Read at | What the transport does with it |
+|---|---|---|
+| `timeout` | `request-transport.ts:191` | Outbound HTTP deadline **in milliseconds**, clamped to `getMaxExecutionTimeout()` |
+| `proxyUrl` | `request-transport.ts:198` | Egress proxy URL for the request |
+| `method` | `request-transport.ts:167` | Overrides a *static* `request.method` string (a `method` **function** wins over it) |
+
+Never declare a user-facing param with one of these names unless it means exactly what the transport
+means. The collision is silent and unit-blind: `apps/sim/tools/daytona/execute_command.ts:49`
+declares `timeout` as *"Timeout in seconds (defaults to 10 seconds)"*, so a documented 10-second
+sandbox timeout aborts the HTTP call after **10 milliseconds**.
+
+Give the param a distinct Sim-side name (`timeoutSeconds`, `executionTimeout`, `httpMethod`) and emit
+the provider's spelling from `request.body` or `request.url`. Renaming the tool param is not enough
+on its own if a block already sends the reserved key — see **Omitting a key from `tools.config.params`
+does not drop it** in the `add-block` skill.
+
 ## Resolved Secrets and Provenance Boundaries
 
 - Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
@@ -218,6 +239,48 @@ fallback, or caller-controlled `_context` authority.
   headers, or blanket-sanitize tool results.
 - Add focused tests for named projection, identical unproven public text, malformed/incomplete
   metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
+
+## Path Parameters: Reject Traversal, Never Just Encode
+
+`encodeURIComponent` does **not** stop path traversal. `.` and `..` are *unreserved* characters, so
+they survive encoding verbatim, and the WHATWG URL parser that `fetch` uses removes dot segments
+**after** decoding — the percent-encoded spellings included:
+
+```
+new URL('https://x/v1/a/b/..').pathname     // => '/v1/a/'
+new URL('https://x/v1/a/b/%2e%2e').pathname // => '/v1/a/'   (still removed)
+```
+
+A removed segment pops a path segment on a fixed host with the workspace's bearer token still
+attached, including on DELETE routes. Path IDs are typically `visibility: 'user-or-llm'`, so prompt
+injection controls them. Rejection is the only mechanism that closes this; the module note at the top
+of `apps/sim/tools/url-path.ts` states the rule in full.
+
+Never interpolate a param into a request path yourself. Use the helpers in `apps/sim/tools/url-path.ts`:
+
+| Helper | Use when the parameter is | Trims? |
+|---|---|---|
+| `safeUrlPathSegment` (`url-path.ts:172`) | **One opaque id** — `user_abc`, `12345`, a repo name. Rejects any `/` or `\`: a separator means the caller passed something other than what the parameter addresses. | Yes — surrounding whitespace on a copy-pasted id is transport noise. |
+| `safeUrlPath` | **A real slash-delimited path** the provider documents as such (GitHub `path`, `branch`, `ref`). Splits on `/`, rejects any `.`/`..` segment, percent-encodes each segment, keeps the separators. | **No** — a leading or trailing space is a legal git filename, so trimming would read, update, or *delete* a different file. |
+| `safeEncodedUrlPathSegment` | **One value that may itself contain `/`** but the provider reads as a single parameter (a GitHub label `area/api` in `DELETE .../labels/{name}`). Preserves the separator as `%2F`. | Yes. |
+
+Prefer `safeUrlPathSegment`. Reach for the other two only when the provider documents the parameter
+as slash-bearing — never to make a separator stop erroring on a single-segment id. (`safeUrlPath` and
+`safeEncodedUrlPathSegment` arrive with the path-safety sweep; if your checkout only exports
+`safeUrlPathSegment`, add them there rather than hand-rolling a local encoder.)
+
+### `params.x?.trim()` guards `undefined`, not the type
+
+A param's declared `type: 'string'` is enforced nowhere between the LLM tool call — or a
+`<Block.output>` reference resolved out of stored workflow state — and your URL builder. A
+numeric-looking id (a Vercel `deploymentId`, a Daytona `sandboxId`) arrives as a JSON **number** and
+stays one, so `params.id?.trim()` throws a bare `TypeError: params.id.trim is not a function` naming
+neither the tool nor the parameter.
+
+`toGuardedString` (`apps/sim/tools/url-path.ts:98`) is why the helpers do not have this problem: it
+accepts `string`, `number`, and `bigint`, rejects everything else **by parameter name**, and refuses
+number spellings whose decimal text is not the id the caller meant. Route path params through the
+helpers instead of hand-rolling an optional-chained `trim()`.
 
 ## Critical Rules for Outputs
 
@@ -527,6 +590,8 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] No tool declares `directExecution`; in-process work uses a registered operation
 - [ ] All params have explicit `required: true` or `required: false`
 - [ ] All params have appropriate `visibility`
+- [ ] No param is named `timeout`, `proxyUrl`, or `method` unless it means what the transport means
+- [ ] Every param interpolated into a request path goes through a `tools/url-path.ts` helper
 - [ ] All nullable response fields use `?? null`
 - [ ] All optional outputs have `optional: true`
 - [ ] No raw JSON dumps in outputs

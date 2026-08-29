@@ -82,6 +82,10 @@ For **every** tool file, check:
   - `'user-only'` — for API keys, credentials, and account-specific IDs the user must provide
   - `'user-or-llm'` — for everything else (search queries, content, filters, IDs that could come from other blocks)
 - [ ] Every param has a `description` that explains what it does
+- [ ] No param is named `timeout`, `proxyUrl`, or `method` unless it means exactly what the shared
+      transport means — `apps/sim/tools/request-transport.ts` reads all three off `params`
+      (`:191`, `:198`, `:167`), and `timeout` is milliseconds. See **Reserved Parameter Names** in
+      `.agents/skills/add-tools/SKILL.md`
 
 ### Request
 - [ ] URL matches the API endpoint exactly (correct base URL, path segments, path params)
@@ -92,8 +96,12 @@ For **every** tool file, check:
 - [ ] `Content-Type` header is set for POST/PUT/PATCH requests
 - [ ] Body sends all required fields and only includes optional fields when provided
 - [ ] For GET requests with query params: URL is constructed correctly with query string
-- [ ] ID fields in URL paths are `.trim()`-ed to prevent copy-paste whitespace errors
-- [ ] Path params use template literals correctly: `` `https://api.service.com/v1/${params.id.trim()}` ``
+- [ ] Every param interpolated into a URL path goes through a helper from `apps/sim/tools/url-path.ts`
+      (`safeUrlPathSegment` for an opaque id, `safeUrlPath` for a documented slash-delimited path,
+      `safeEncodedUrlPathSegment` for a single value that may contain `/`) — never a bare
+      `` `${params.id.trim()}` `` and never a bare `encodeURIComponent`. See **Path Parameters:
+      Reject Traversal, Never Just Encode** in `.agents/skills/add-tools/SKILL.md` for why encoding
+      is insufficient and why `params.id?.trim()` throws a raw `TypeError` on a numeric id
 
 ### Response / transformResponse
 - [ ] Correctly parses the API response (`await response.json()`)
@@ -329,13 +337,68 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 
-## Step 9: Validate Error Handling
+## Step 8: Validate Path-Traversal Safety
+
+If any tool interpolates a param into a URL path, the integration needs a path-safety suite. Design it
+as follows — the naive shape does not work, and looks like it does.
+
+**Why the naive harness is worthless.** A suite that fuzzes every param at once and wraps the build in
+`try { ... } catch { return }` reports green on completely unguarded parameters: the first *guarded*
+sibling throws, the case is skipped, and every unguarded sibling is never exercised. Whole tools drop
+out of coverage the same way, and an aggregate count cannot detect it, because a case that never
+existed cannot fail. `x_manage_block.targetUserId` and `okta_remove_user_from_group.userId` were both
+fully unguarded while passing every vector a suite of that shape threw at them.
+
+A sound suite has five properties:
+
+1. **Enumerate (tool, param) pairs, fuzz one at a time.** Discover pairs by probing — build the URL
+   with a sentinel in one param and check whether it lands in `pathname` — and hold every sibling at a
+   safe value. Give *other* number params a real number so a sibling's own validation cannot abort the
+   build. Reference: `apps/sim/tools/rootly/path_safety.test.ts:151`,
+   `apps/sim/tools/github/path_safety.test.ts:171`.
+2. **Assert rejection, not path shape.** A shape assertion (origin + segment count + unchanged
+   segments) catches only a minority of the vectors: `%2F` is never decoded back into a separator, and
+   a trailing bare `.` collapses to the parent with the segment count intact. Add an explicit
+   `expect(() => build(param, '..')).toThrow(new RegExp(paramName))` — the error must *name the
+   parameter*. Reference: `apps/sim/tools/clerk/path_safety.test.ts:206`,
+   `apps/sim/tools/rootly/path_safety.test.ts:193`.
+3. **Probe conditional branches.** A param that only appears on one branch of a conditional URL builder
+   is invisible to a single all-params probe. Harvest the string literals the builder compares against
+   and re-probe under each (`apps/sim/tools/spotify/path_safety.test.ts:185`), **and** probe the
+   presence branches — the shape taken when an optional param is *absent*
+   (`apps/sim/tools/discord/path_safety.test.ts:203`).
+4. **Assert the skipped and unbuildable sets are empty.** Record every failed baseline build with its
+   reason and assert the ledger against an explicit, justified allowlist
+   (`apps/sim/tools/github/path_safety.test.ts:229`, `:260`, `:293`), plus a second assertion that no
+   URL-building tool sits outside the suite unaccounted for (`:301`). This is the check that surfaced a
+   tool missing from an entire suite.
+5. **Pin the legitimate values too.** `..foo`, `foo..`, `v1.2.3`, and a UUID must pass through
+   unaltered — a guard that over-rejects is its own bug.
+
+- [ ] A `path_safety.test.ts` exists for the service and enumerates (tool, param) pairs
+- [ ] Each pair asserts a *named* rejection of the bare `.` and `..` segments
+- [ ] Conditional and presence branches of every conditional URL builder are probed
+- [ ] The skipped/unbuildable ledger is asserted empty against a justified allowlist
+- [ ] Legitimate dot-bearing values pass through unchanged
+
+### These tests are type-checked by nothing
+
+`apps/sim/tsconfig.json` excludes `**/*.test.ts` and `**/*.test.tsx` from `include`, and
+`apps/sim/vitest.config.ts` declares no `typecheck` block — Vitest transpiles with esbuild and never
+type-checks. So `bun run type-check` will pass over a harness full of type errors, and a harness that
+silently narrows to `any` will still run.
+
+To type-check one, write a temporary tsconfig that extends `apps/sim/tsconfig.json`, drops the
+`**/*.test.ts` exclusion, and includes only the harness — then delete it. Do not commit it; the
+exclusion exists deliberately.
+
+## Step 10: Validate Error Handling
 
 - [ ] `transformResponse` checks for error conditions before accessing data
 - [ ] Error responses include meaningful messages (not just generic "failed")
 - [ ] HTTP error status codes are handled (check `response.ok` or status codes)
 
-## Step 10: Report and Fix
+## Step 11: Report and Fix
 
 ### Report Format
 
@@ -446,6 +509,10 @@ After fixing, confirm:
 - [ ] Regenerated deployment config when block/OAuth metadata changed and ran both catalog checks
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
+- [ ] Validated path-traversal safety: url-path helpers at every path interpolation, and a
+      `path_safety.test.ts` that enumerates (tool, param) pairs, asserts named rejection, probes
+      conditional and presence branches, and asserts an empty skip ledger
+- [ ] Validated no param collides with a transport-reserved name (`timeout`, `proxyUrl`, `method`)
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
 - [ ] Validated model-visible/opaque inputs and Sim-durable/internal-execution provenance at their

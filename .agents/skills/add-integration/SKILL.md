@@ -930,4 +930,15 @@ requiredScopes: getScopesForService('{service}'),
 11. **Never hardcode scopes** - Use `getScopesForService()` in blocks and `getCanonicalScopesForProvider()` in auth.ts
 12. **Always add scope descriptions** - New scopes must have entries in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
 13. **OAuth service IDs need deployment capabilities** - Every visible OAuth integration must resolve through `OAUTH_CLIENT_CAPABILITIES`; shared Google/Microsoft aliases map to their provider capability
-14. **Keep runtime and presentation separate** - Runtime OAuth fields live in `packages/deployment-config/src/env-capabilities.ts`; CLI input modes live in the exhaustively checked `packages/sim-setup/src/capability-config.ts` mapping
+14. **`timeout`, `proxyUrl`, and `method` are reserved** - `apps/sim/tools/request-transport.ts`
+    reads all three off `params` (`:191`, `:198`, `:167`); `timeout` is its own HTTP deadline in
+    **milliseconds**. See **Reserved Parameter Names** in `.agents/skills/add-tools/SKILL.md`
+15. **Never interpolate a param into a URL path raw** - `encodeURIComponent` does not stop `.`/`..`
+    traversal. Use the helpers in `apps/sim/tools/url-path.ts`; see **Path Parameters: Reject
+    Traversal, Never Just Encode** in `.agents/skills/add-tools/SKILL.md`, and add the
+    `path_safety.test.ts` shape from `.agents/skills/validate-integration/SKILL.md`
+16. **Never rename or drop a subBlock `id`** - it is the storage key for deployed workflows. Rename
+    the tool param and map it in `tools.config.params`; see the `add-block` skill
+17. **Omitting a key from `tools.config.params` does not drop it** - the executor merges the patch
+    over the raw inputs, so clearing a key needs an explicit `undefined`; see the `add-block` skill
+18. **Keep runtime and presentation separate** - Runtime OAuth fields live in `packages/deployment-config/src/env-capabilities.ts`; CLI input modes live in the exhaustively checked `packages/sim-setup/src/capability-config.ts` mapping
