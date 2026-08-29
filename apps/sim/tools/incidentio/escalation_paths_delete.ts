@@ -3,6 +3,7 @@ import type {
   IncidentioEscalationPathsDeleteResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const escalationPathsDeleteTool: ToolConfig<
   IncidentioEscalationPathsDeleteParams,
@@ -29,7 +30,8 @@ export const escalationPathsDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/escalation_paths/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

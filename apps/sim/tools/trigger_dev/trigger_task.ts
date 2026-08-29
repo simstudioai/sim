@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_API_BASE,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevTriggerTaskTool: ToolConfig<
   TriggerDevTriggerTaskParams,
@@ -88,7 +89,7 @@ export const triggerDevTriggerTaskTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/tasks/${encodeURIComponent(params.taskIdentifier.trim())}/trigger`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/tasks/${safeUrlPathSegment(params.taskIdentifier, 'taskIdentifier')}/trigger`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => {

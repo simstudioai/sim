@@ -17,6 +17,7 @@ import type {
   TriggerDevWaitpointToken,
 } from '@/tools/trigger_dev/types'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const TRIGGER_DEV_API_BASE = 'https://api.trigger.dev'
 
@@ -80,8 +81,8 @@ export function buildTriggerDevEnvVarsUrl(
   environment: string,
   name?: string
 ): string {
-  const base = `${TRIGGER_DEV_API_BASE}/api/v1/projects/${encodeURIComponent(projectRef.trim())}/envvars/${encodeURIComponent(environment.trim())}`
-  return name ? `${base}/${encodeURIComponent(name.trim())}` : base
+  const base = `${TRIGGER_DEV_API_BASE}/api/v1/projects/${safeUrlPathSegment(projectRef, 'projectRef')}/envvars/${safeUrlPathSegment(environment, 'environment')}`
+  return name ? `${base}/${safeUrlPathSegment(name, 'name')}` : base
 }
 
 /**

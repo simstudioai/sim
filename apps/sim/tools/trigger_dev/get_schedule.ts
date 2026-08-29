@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_SCHEDULE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetScheduleTool: ToolConfig<
   TriggerDevScheduleIdParams,
@@ -36,7 +37,7 @@ export const triggerDevGetScheduleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/schedules/${encodeURIComponent(params.scheduleId.trim())}`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/schedules/${safeUrlPathSegment(params.scheduleId, 'scheduleId')}`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

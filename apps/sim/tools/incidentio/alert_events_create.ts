@@ -4,6 +4,7 @@ import type {
 } from '@/tools/incidentio/types'
 import { parseIncidentioJsonParam } from '@/tools/incidentio/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const alertEventsCreateTool: ToolConfig<
   IncidentioAlertEventsCreateParams,
@@ -72,9 +73,7 @@ export const alertEventsCreateTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.incident.io/v2/alert_events/http/${encodeURIComponent(
-        params.alert_source_config_id.trim()
-      )}`,
+      `https://api.incident.io/v2/alert_events/http/${safeUrlPathSegment(params.alert_source_config_id, 'alert_source_config_id')}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

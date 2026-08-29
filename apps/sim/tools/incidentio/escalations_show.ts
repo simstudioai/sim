@@ -3,6 +3,7 @@ import type {
   IncidentioEscalationsShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const escalationsShowTool: ToolConfig<
   IncidentioEscalationsShowParams,
@@ -29,7 +30,8 @@ export const escalationsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalations/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/escalations/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

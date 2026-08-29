@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_RUN_RESULT_PROPERTIES,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetBatchResultsTool: ToolConfig<
   TriggerDevBatchIdParams,
@@ -37,7 +38,7 @@ export const triggerDevGetBatchResultsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/batches/${encodeURIComponent(params.batchId.trim())}/results`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/batches/${safeUrlPathSegment(params.batchId, 'batchId')}/results`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

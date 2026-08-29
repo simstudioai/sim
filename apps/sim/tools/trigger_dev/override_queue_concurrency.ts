@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_QUEUE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevOverrideQueueConcurrencyTool: ToolConfig<
   TriggerDevOverrideQueueConcurrencyParams,
@@ -50,7 +51,7 @@ export const triggerDevOverrideQueueConcurrencyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/queues/${encodeURIComponent(params.queueName.trim())}/concurrency/override`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/queues/${safeUrlPathSegment(params.queueName, 'queueName')}/concurrency/override`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => ({

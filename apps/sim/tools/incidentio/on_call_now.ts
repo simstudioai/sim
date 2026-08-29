@@ -4,6 +4,7 @@ import type {
   IncidentioOnCallShift,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /** The largest page size for which incident.io still populates `next_shifts`. */
 const NEXT_SHIFTS_MAX_PAGE_SIZE = 25
@@ -135,7 +136,7 @@ export const onCallNowTool: ToolConfig<IncidentioOnCallNowParams, IncidentioOnCa
     url: (params) => {
       const scheduleId = params.schedule_id?.trim()
       if (scheduleId) {
-        return `https://api.incident.io/v2/schedules/${encodeURIComponent(scheduleId)}`
+        return `https://api.incident.io/v2/schedules/${safeUrlPathSegment(scheduleId, 'schedule_id')}`
       }
 
       const url = new URL('https://api.incident.io/v2/schedules')

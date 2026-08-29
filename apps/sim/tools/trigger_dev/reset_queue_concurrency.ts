@@ -6,6 +6,7 @@ import {
   TRIGGER_DEV_QUEUE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevResetQueueConcurrencyTool: ToolConfig<
   TriggerDevQueueParams,
@@ -42,7 +43,7 @@ export const triggerDevResetQueueConcurrencyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/queues/${encodeURIComponent(params.queueName.trim())}/concurrency/reset`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/queues/${safeUrlPathSegment(params.queueName, 'queueName')}/concurrency/reset`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => (params.queueType ? { type: params.queueType } : {}),

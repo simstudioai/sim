@@ -1006,6 +1006,15 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
           scoped(params.version, ['trigger_dev_list_runs']) ??
           scoped(params.deploymentVersion, ['trigger_dev_promote_deployment'])
         result.data = scoped(params.waitpointData, ['trigger_dev_complete_waitpoint_token'])
+        /**
+         * The `timeout` subBlock keeps its id so saved workflow state stays
+         * valid, but it must not reach the tool under that name: the request
+         * transport reads `params.timeout` as the outbound HTTP deadline in
+         * milliseconds. Remap it here — in `params`, which runs after variable
+         * resolution — and clear the original so it cannot shadow the deadline.
+         */
+        result.waitpointTimeout = scoped(params.timeout, ['trigger_dev_create_waitpoint_token'])
+        result.timeout = undefined
         result.period = scoped(params.period, CREATED_AT_FILTER_OPERATIONS)
         result.from = scoped(params.from, CREATED_AT_FILTER_OPERATIONS)
         result.to = scoped(params.to, CREATED_AT_FILTER_OPERATIONS)

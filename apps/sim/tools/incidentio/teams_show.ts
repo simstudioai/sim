@@ -4,6 +4,7 @@ import {
   type IncidentioTeamsShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const teamsShowTool: ToolConfig<IncidentioTeamsShowParams, IncidentioTeamsShowResponse> = {
   id: 'incidentio_teams_show',
@@ -27,7 +28,7 @@ export const teamsShowTool: ToolConfig<IncidentioTeamsShowParams, IncidentioTeam
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v3/teams/${encodeURIComponent(params.id.trim())}`,
+    url: (params) => `https://api.incident.io/v3/teams/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

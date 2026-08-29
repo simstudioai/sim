@@ -9,6 +9,15 @@ import {
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * The waitpoint lifetime is declared as `waitpointTimeout`, not `timeout`.
+ *
+ * `tools/request-transport.ts` reads `params.timeout` as the outbound HTTP
+ * request deadline in milliseconds, so a param literally named `timeout` on
+ * any tool silently becomes that deadline. The value is mapped back onto the
+ * wire field `timeout` in `request.body` below, where it reaches Trigger.dev
+ * unchanged.
+ */
 export const triggerDevCreateWaitpointTokenTool: ToolConfig<
   TriggerDevCreateWaitpointTokenParams,
   TriggerDevCreateWaitpointTokenResponse
@@ -26,7 +35,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
       visibility: 'user-only',
       description: 'Trigger.dev secret API key (starts with tr_)',
     },
-    timeout: {
+    waitpointTimeout: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -61,7 +70,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.timeout) body.timeout = params.timeout
+      if (params.waitpointTimeout) body.timeout = params.waitpointTimeout
       if (params.idempotencyKey) body.idempotencyKey = params.idempotencyKey
       if (params.idempotencyKeyTTL) body.idempotencyKeyTTL = params.idempotencyKeyTTL
       if (params.tags) {

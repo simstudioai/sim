@@ -4,6 +4,7 @@ import {
   type IncidentioAlertsResolveResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const alertsResolveTool: ToolConfig<
   IncidentioAlertsResolveParams,
@@ -32,7 +33,7 @@ export const alertsResolveTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.incident.io/v2/alerts/${encodeURIComponent(params.id.trim())}/actions/resolve`,
+      `https://api.incident.io/v2/alerts/${safeUrlPathSegment(params.id, 'id')}/actions/resolve`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

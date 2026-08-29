@@ -9,6 +9,7 @@ import {
   TRIGGER_DEV_DEPLOYMENT_PROPERTIES,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetDeploymentTool: ToolConfig<
   TriggerDevGetDeploymentParams,
@@ -37,7 +38,7 @@ export const triggerDevGetDeploymentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/deployments/${encodeURIComponent(params.deploymentId.trim())}`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/deployments/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

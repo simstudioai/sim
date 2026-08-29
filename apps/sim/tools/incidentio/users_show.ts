@@ -3,6 +3,7 @@ import type {
   IncidentioUsersShowResponse,
 } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUsersShowResponse> = {
   id: 'incidentio_users_show',
@@ -28,7 +29,7 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/users/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/users/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

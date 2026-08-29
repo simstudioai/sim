@@ -6,6 +6,7 @@ import {
   TRIGGER_DEV_QUEUE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevPauseQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDevQueueResponse> =
   {
@@ -40,7 +41,7 @@ export const triggerDevPauseQueueTool: ToolConfig<TriggerDevQueueParams, Trigger
 
     request: {
       url: (params) =>
-        `${TRIGGER_DEV_API_BASE}/api/v1/queues/${encodeURIComponent(params.queueName.trim())}/pause`,
+        `${TRIGGER_DEV_API_BASE}/api/v1/queues/${safeUrlPathSegment(params.queueName, 'queueName')}/pause`,
       method: 'POST',
       headers: (params) => buildTriggerDevHeaders(params.apiKey),
       body: (params) => ({

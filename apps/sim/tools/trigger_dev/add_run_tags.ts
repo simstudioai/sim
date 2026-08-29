@@ -8,6 +8,7 @@ import {
   TRIGGER_DEV_API_BASE,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevAddRunTagsTool: ToolConfig<
   TriggerDevAddRunTagsParams,
@@ -42,7 +43,7 @@ export const triggerDevAddRunTagsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${encodeURIComponent(params.runId.trim())}/tags`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${safeUrlPathSegment(params.runId, 'runId')}/tags`,
     method: 'POST',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
     body: (params) => ({ tags: splitCommaSeparated(params.tags) }),

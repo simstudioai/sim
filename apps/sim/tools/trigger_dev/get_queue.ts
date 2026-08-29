@@ -6,6 +6,7 @@ import {
   TRIGGER_DEV_QUEUE_OUTPUTS,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDevQueueResponse> = {
   id: 'trigger_dev_get_queue',
@@ -39,7 +40,7 @@ export const triggerDevGetQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDe
 
   request: {
     url: (params) => {
-      const base = `${TRIGGER_DEV_API_BASE}/api/v1/queues/${encodeURIComponent(params.queueName.trim())}`
+      const base = `${TRIGGER_DEV_API_BASE}/api/v1/queues/${safeUrlPathSegment(params.queueName, 'queueName')}`
       return params.queueType ? `${base}?type=${encodeURIComponent(params.queueType)}` : base
     },
     method: 'GET',

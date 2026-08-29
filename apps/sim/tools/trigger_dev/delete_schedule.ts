@@ -8,6 +8,7 @@ import {
   TRIGGER_DEV_API_BASE,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevDeleteScheduleTool: ToolConfig<
   TriggerDevScheduleIdParams,
@@ -35,7 +36,7 @@ export const triggerDevDeleteScheduleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/schedules/${encodeURIComponent(params.scheduleId.trim())}`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/schedules/${safeUrlPathSegment(params.scheduleId, 'scheduleId')}`,
     method: 'DELETE',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

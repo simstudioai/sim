@@ -1,5 +1,6 @@
 import type { CustomFieldsShowParams, CustomFieldsShowResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFieldsShowResponse> = {
   id: 'incidentio_custom_fields_show',
@@ -23,7 +24,8 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/custom_fields/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

@@ -6,6 +6,7 @@ import {
   TRIGGER_DEV_RUN_RESULT_PROPERTIES,
 } from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const triggerDevGetRunResultTool: ToolConfig<
   TriggerDevRunIdParams,
@@ -34,7 +35,7 @@ export const triggerDevGetRunResultTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${encodeURIComponent(params.runId.trim())}/result`,
+      `${TRIGGER_DEV_API_BASE}/api/v1/runs/${safeUrlPathSegment(params.runId, 'runId')}/result`,
     method: 'GET',
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },

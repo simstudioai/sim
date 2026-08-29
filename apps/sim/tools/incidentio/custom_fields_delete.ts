@@ -1,5 +1,6 @@
 import type { CustomFieldsDeleteParams, CustomFieldsDeleteResponse } from '@/tools/incidentio/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const customFieldsDeleteTool: ToolConfig<
   CustomFieldsDeleteParams,
@@ -26,7 +27,8 @@ export const customFieldsDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/custom_fields/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',
