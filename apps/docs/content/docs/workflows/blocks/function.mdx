@@ -125,6 +125,11 @@ reference dropdown next to `.name` and `.size`.
 attach them to an email, upload them to storage, or save them to the workspace with
 the File block. There is nothing to turn on.
 
+The one exception is a call that names an explicit `outputSandboxPath`. That asks
+for particular paths to be exported and answers with that export's own result, so
+the output directory is not harvested alongside it — choose one or the other rather
+than expecting both in the same run.
+
 <Callout type="info">
 Referencing `.path` runs the block in the remote sandbox, since the local
 JavaScript VM has no filesystem — expect the slower start of a remote run even for

@@ -1227,13 +1227,18 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         const operation = params.operation || 'file_read'
 
         if (operation === 'file_write') {
-          // Writing stores one file, so the single form. The contract rejects a
-          // request carrying both this and `content`, which is why neither
-          // sub-block is marked required.
+          // Writing stores one file, so the single form.
           const fileInput = normalizeFileInput(params.writeFileInput, { single: true })
+          // An untouched Content field serializes as an empty string, and the
+          // contract counts any defined `content` as "text was provided" — so
+          // sending it unconditionally would make every file write collide with
+          // its own empty text box. Emitting only the source the card actually
+          // carries leaves the contract's "exactly one" rule to catch the two
+          // real mistakes: filling both, and filling neither.
+          const hasText = typeof params.content === 'string' ? params.content.length > 0 : false
           return {
             fileName: params.fileName,
-            content: params.content,
+            ...(hasText ? { content: params.content } : {}),
             ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType,
             workspaceId: params._context?.workspaceId,

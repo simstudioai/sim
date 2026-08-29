@@ -811,6 +811,10 @@ export async function executeFileManageOperation(
           const downloaded = await downloadServableFileFromStorage(sourceFile, requestId, logger, {
             maxBytes: MAX_WRITE_FILE_INPUT_BYTES,
             signal,
+            // A generated document that references other files needs a principal
+            // to resolve them; without one the resolver can only serve an
+            // already-published artifact and throws when there is none.
+            filePrincipal: principal,
           })
           sourceEncoding = 'base64'
           sourceContent = downloaded.buffer.toString('base64')

@@ -231,12 +231,16 @@ async function writeSandboxInputs(
       const dir = file.path.slice(0, file.path.lastIndexOf('/'))
       let result: SandboxCommandResult
       try {
-        // `--max-filesize` refuses an oversized object up front on its
-        // Content-Length and aborts mid-transfer if the body outruns it, so the
-        // ceiling holds against the stored bytes rather than a reported size.
-        // Passed as an env var like the URL, never interpolated into the shell.
+        // The ceiling holds against the bytes actually served rather than a size
+        // the caller reported, and it takes two steps because neither alone is
+        // sufficient. `--max-filesize` refuses an oversized object before the
+        // transfer starts, but only when the response declares a Content-Length;
+        // a chunked or length-less response slips past it. So the delivered file
+        // is measured afterwards and deleted if it overran — in the same command,
+        // since a second round trip would cost a whole session on Daytona.
+        // MAX_BYTES travels as an env var like the URL, never interpolated.
         result = await sandbox.runCommand(
-          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" -o "$DST"',
+          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" -o "$DST"; SIZE=$(wc -c < "$DST"); if [ "$SIZE" -gt "$MAX_BYTES" ]; then rm -f "$DST"; echo "mounted file is $SIZE bytes, over the $MAX_BYTES byte limit" >&2; exit 1; fi',
           {
             envs: {
               URL: file.url,
