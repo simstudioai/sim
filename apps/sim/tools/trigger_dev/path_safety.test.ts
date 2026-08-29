@@ -32,9 +32,10 @@
  * hand, so a new tool — or a new path parameter on an existing tool — joins the
  * matrix on arrival.
  */
+
+import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
 import * as triggerDevTools from '@/tools/trigger_dev/index'
-import type { ToolConfig } from '@/tools/types'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
@@ -76,22 +77,31 @@ const TARGET_ID = 'TARGETID'
 
 const PADDED_ID = 'run_abc123'
 
-type AnyTool = ToolConfig<any, any>
+/**
+ * The structural slice of a `ToolConfig` this harness needs.
+ *
+ * Declared locally rather than reusing `ToolConfig<P, R>`, because the harness
+ * deliberately calls `request.url` with a synthetic bag of fuzz values that does
+ * not satisfy any tool's concrete params type. Naming that shape here is what
+ * lets the call stay type-checked instead of being cast through `any`.
+ */
+interface FuzzableTool {
+  id: string
+  params?: Record<string, { type?: string }>
+  request?: { url?: string | ((params: Record<string, unknown>) => string) }
+}
 
-function isTriggerDevTool(value: unknown): value is AnyTool {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('trigger_dev_')
-  )
+function isTriggerDevTool(value: unknown): value is FuzzableTool {
+  if (typeof value !== 'object' || value === null) return false
+  const id = (value as { id?: unknown }).id
+  return typeof id === 'string' && id.startsWith('trigger_dev_')
 }
 
 /**
  * Builds a param object for a tool, pinning every declared string param to
  * `SIBLING_ID` except `target`, which carries the value under test.
  */
-function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
+function buildParams(tool: FuzzableTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { apiKey: 'token' }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'apiKey') continue
@@ -109,12 +119,12 @@ function buildParams(tool: AnyTool, target: string, value: string): Record<strin
   return params
 }
 
-function buildUrl(tool: AnyTool, target: string, value: string): URL {
+function buildUrl(tool: FuzzableTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, target, value) as any))
+  return new URL(url(buildParams(tool, target, value)))
 }
 
 function segmentsOf(url: URL): string[] {
@@ -127,23 +137,50 @@ function segmentsOf(url: URL): string[] {
  * `pathname`. Probing rather than listing is what makes a newly added path
  * parameter fail this suite without anyone remembering to register it.
  */
-const PATH_PARAM_PAIRS = Object.values(triggerDevTools)
+const CANDIDATE_TOOLS = Object.values(triggerDevTools)
+  .map((value): unknown => value)
   .filter(isTriggerDevTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .flatMap((tool) =>
-    Object.keys(tool.params ?? {})
-      .filter((name) => name !== 'apiKey')
-      .filter((name) => {
-        try {
-          return buildUrl(tool, name, TARGET_ID).pathname.includes(TARGET_ID)
-        } catch {
-          return false
-        }
-      })
-      .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
-  )
+
+/**
+ * Tools and parameters the probe could not evaluate, surfaced as a test failure
+ * rather than dropped.
+ *
+ * A swallowed error here is the same class of bug as the swallowed error in the
+ * per-vector assertions: a tool whose URL cannot be built from all-safe values
+ * would quietly leave the matrix and read as "nothing to guard".
+ */
+const DISCOVERY_FAILURES: string[] = []
+
+/** No parameter can be named this, so every parameter stays at its safe value. */
+const NO_TARGET = '\u0000none'
+
+const PATH_PARAM_PAIRS = CANDIDATE_TOOLS.flatMap((tool) => {
+  try {
+    buildUrl(tool, NO_TARGET, SIBLING_ID)
+  } catch (error) {
+    DISCOVERY_FAILURES.push(`${tool.id}: ${getErrorMessage(error)}`)
+    return []
+  }
+
+  return Object.keys(tool.params ?? {})
+    .filter((name) => name !== 'apiKey')
+    .filter((name) => {
+      try {
+        return buildUrl(tool, name, TARGET_ID).pathname.includes(TARGET_ID)
+      } catch (error) {
+        DISCOVERY_FAILURES.push(`${tool.id} / ${name}: ${getErrorMessage(error)}`)
+        return false
+      }
+    })
+    .map((param) => ({ name: `${tool.id} / ${param}`, tool, param }))
+})
 
 describe('Trigger.dev path-parameter traversal safety', () => {
+  it('builds every candidate tool URL from safe values, so none is skipped silently', () => {
+    expect(DISCOVERY_FAILURES).toEqual([])
+  })
+
   it('covers every (tool, parameter) pair that reaches the request path', () => {
     expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(35)
   })
