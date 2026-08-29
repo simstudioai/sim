@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base params for all Elasticsearch tools
-interface ElasticsearchBaseParams {
+export interface ElasticsearchBaseParams {
   // Connection configuration
   deploymentType: 'self_hosted' | 'cloud'
   host?: string // For self-hosted
