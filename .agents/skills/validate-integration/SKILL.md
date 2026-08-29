@@ -337,7 +337,7 @@ If any tool lists, searches, exports, imports, downloads, uploads, paginates, ba
 - [ ] Large result payloads are summarized, paginated, referenced, or capped rather than raw-dumped
 - [ ] Pagination and download tests cover caps, early stop behavior, or partial-result preservation when relevant
 
-## Step 8: Validate Path-Traversal Safety
+## Step 9: Validate Path-Traversal Safety
 
 If any tool interpolates a param into a URL path, the integration needs a path-safety suite. Design it
 as follows — the naive shape does not work, and looks like it does.
@@ -375,11 +375,49 @@ A sound suite has five properties:
 5. **Pin the legitimate values too.** `..foo`, `foo..`, `v1.2.3`, and a UUID must pass through
    unaltered — a guard that over-rejects is its own bug.
 
+### Never let a `catch` stand in for an assertion
+
+**A tolerated throw must be tolerated by name**, in an explicit allowlist, with the reason recorded.
+A blanket `catch { return }` converts every case it covers from *tolerated* to *untested*.
+
+Keep the line that makes this usable: tolerating a failed **probe** during discovery is legitimate —
+probing a guarded param is *meant* to throw. Tolerating a throw inside an **assertion** is the bug.
+
+This was the single most-repeated defect of the hardening effort — four separate instances on one PR,
+each an assertion that could not fail:
+
+| Instance | What the blanket tolerance hid |
+|---|---|
+| The sibling-masking swallow in the traversal assertion | A fully unguarded parameter stayed green; reverting `x_manage_block.targetUserId` changed nothing |
+| A coverage pin enumerated through a function-only narrowing | 11 tools across four services were invisible to the suite, so `toEqual([...])` passed *because* they could not be seen |
+| The `preservesWhitespace` branch swallowing a rejection (`__tests__/path-safety.ts:416`) | The branch whose docstring says padding must survive to the wire tolerated a refusal of it |
+| The renders-inert cases swallowing any throw (`:500`, `:592`) | See below |
+
+**The last one fails in the opposite direction from everything else here, and that is the point.**
+`catch { return }` meant the origin check, the prefix check, and the inert-probe assertion never ran —
+so a guard that **over-tightened**, rejecting a value it should merely have encoded, passed silently.
+A path-safety suite that only catches under-guarding is half a suite.
+
+The resolution is the shape to copy:
+
+1. Enumerate every (tool, param) pair against every inert value.
+2. **Measure** which ones legitimately throw, and establish why — do not assume.
+3. Make a throw a **failure** unless the parameter is named in an explicit allowlist
+   (`strictlyValidated`, `__tests__/path-safety.ts:441`), with the justification in its TSDoc.
+
+Measured on that PR, exactly ten pairs legitimately reject: Supabase `table` via
+`validateDatabaseIdentifier` and `functionName` via `validateFunctionName`
+(`apps/sim/tools/supabase/path_safety.test.ts:109`), correct because `abc#fragment` is a fine URL
+segment but not a SQL identifier. Every other pair must build.
+
 - [ ] A `path_safety.test.ts` exists for the service and enumerates (tool, param) pairs
 - [ ] Each pair asserts a *named* rejection of the bare `.` and `..` segments
 - [ ] Conditional and presence branches of every conditional URL builder are probed
 - [ ] The skipped/unbuildable ledger is asserted empty against a justified allowlist
 - [ ] Legitimate dot-bearing values pass through unchanged
+- [ ] No assertion wraps its subject in a blanket `catch` — every tolerated throw is allowlisted by
+      name with a recorded reason, and over-tightening fails the suite as loudly as under-guarding
+- [ ] **Every new assertion was verified red before it was kept** — revert the fix, watch it fail
 
 ### A hardening change must not turn a failing request into a succeeding one
 
@@ -431,7 +469,11 @@ not a change you are making, and tightening them would break callers whose store
 - [ ] Newly-trimmed identifiers on irreversible requests refuse the padded value rather than trimming it
 - [ ] Already-trimmed identifiers were left alone
 
-### These tests are type-checked by nothing
+### Your tests can lie to you
+
+Two ways a green suite means nothing, both hit during this effort.
+
+#### These tests are type-checked by nothing
 
 `apps/sim/tsconfig.json` excludes `**/*.test.ts` and `**/*.test.tsx` from `include`, and
 `apps/sim/vitest.config.ts` declares no `typecheck` block — Vitest transpiles with esbuild and never
@@ -442,7 +484,7 @@ To type-check one, write a temporary tsconfig that extends `apps/sim/tsconfig.js
 `**/*.test.ts` exclusion, and includes only the harness — then delete it. Do not commit it; the
 exclusion exists deliberately.
 
-### A test that calls a function directly can pass while the wrapper does the opposite
+#### A test that calls a function directly can pass while the wrapper does the opposite
 
 `executeTool` wraps every `postProcess` call in a catch that logs and then restores the
 pre-`postProcess` result (`apps/sim/tools/index.ts:1977` and `:2062`). For a submit-then-poll tool
