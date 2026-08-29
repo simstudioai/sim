@@ -132,6 +132,7 @@ export interface KnowledgeCreateDocumentResponse {
   output: {
     data: KnowledgeCreateDocumentResult
     message: string
+    documentId: string
   }
   error?: string
 }

@@ -157,6 +157,72 @@ describe('Knowledge Tools', () => {
     })
   })
 
+  describe('knowledgeCreateDocumentTool', () => {
+    describe('transformResponse', () => {
+      it('exposes the created document ID at both the top level and nested data path', async () => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse({
+            data: {
+              documentsCreated: [{ documentId: 'doc-123', filename: 'document.txt' }],
+            },
+          })
+        )
+
+        expect(result.success).toBe(true)
+        expect(result.output.documentId).toBe('doc-123')
+        expect(result.output.data.documentId).toBe('doc-123')
+      })
+
+      it('uses the legacy document ID fallback for both output paths', async () => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse({
+            documentsCreated: [{ id: 'legacy-doc-123', filename: 'document.txt' }],
+          })
+        )
+
+        expect(result.output.documentId).toBe('legacy-doc-123')
+        expect(result.output.data.documentId).toBe('legacy-doc-123')
+      })
+
+      it.each([
+        ['missing documentsCreated', { data: {} }],
+        ['null documentsCreated', { data: { documentsCreated: null } }],
+        ['empty documentsCreated', { data: { documentsCreated: [] } }],
+        ['created document without an ID', { data: { documentsCreated: [{}] } }],
+      ])('preserves empty IDs for %s', async (_label, responseBody) => {
+        const result = await knowledgeCreateDocumentTool.transformResponse!(
+          createMockResponse(responseBody)
+        )
+
+        expect(result.success).toBe(true)
+        expect(result.output.documentId).toBe('')
+        expect(result.output.data.documentId).toBe('')
+      })
+    })
+
+    it.each([
+      ['omitted tags', {}],
+      ['an empty tag array', { documentTags: [] }],
+      ['a serialized empty tag array', { documentTags: '[]' }],
+    ])('omits tag data and tag provenance for %s', (_label, tagParams) => {
+      const params = {
+        knowledgeBaseId: 'kb-1',
+        name: 'document.txt',
+        content: 'document content',
+        ...tagParams,
+      }
+      const body = knowledgeCreateDocumentTool.operation.input(params) as {
+        documents: Array<{ documentTagsData?: string }>
+      }
+
+      expect(body.documents[0]).not.toHaveProperty('documentTagsData')
+      expect(knowledgeCreateDocumentTool.operation.secretProvenance?.request?.(params)).toEqual([
+        { key: 'document-filename:0', inputPaths: [['name']] },
+        { key: 'document-content:0', inputPaths: [['content']] },
+      ])
+    })
+  })
+
   describe('knowledgeSearchTool', () => {
     describe('transformResponse', () => {
       it('should restructure cost information for logging', async () => {
