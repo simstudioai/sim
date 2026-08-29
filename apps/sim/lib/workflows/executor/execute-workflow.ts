@@ -13,6 +13,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { attachExecutionResult, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -128,6 +129,12 @@ export async function executeWorkflow(
     loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
   }
   let postExecutionOwnershipTransferred = false
+  /**
+   * Held outside the `try` so the catch can carry it. The executor attaches its result when the
+   * run itself throws, but the post-execution work below can throw after a run has already
+   * produced one — and callers read a missing result as proof that no block ran.
+   */
+  let executionResult: ExecutionResult | undefined
 
   try {
     const metadata: ExecutionMetadata = {
@@ -169,7 +176,7 @@ export async function executeWorkflow(
 
     const executionStartMs = Date.now()
 
-    const result = await executeWorkflowCore({
+    const result = (executionResult = await executeWorkflowCore({
       snapshot,
       callbacks: {
         onStream: streamConfig?.onStream,
@@ -197,7 +204,7 @@ export async function executeWorkflow(
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
-    })
+    }))
 
     const blockTypes = [
       ...new Set(
@@ -241,6 +248,15 @@ export async function executeWorkflow(
 
     return result
   } catch (error: unknown) {
+    /**
+     * Carries the run's result on a failure raised after it produced one — the post-execution
+     * work below the executor call can throw, and callers read a missing result as proof that no
+     * block ran. Skipped when the executor already attached its own, which is the more specific
+     * record, and when the throw is not an object to carry it.
+     */
+    if (executionResult && error instanceof Error && !hasExecutionResult(error)) {
+      attachExecutionResult(error, executionResult)
+    }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
     logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 

@@ -471,6 +471,33 @@ describe('Copilot workflow run application commands', () => {
       )
     })
 
+    /**
+     * The executor's post-execution work can throw after a run has already produced a result.
+     * `executeWorkflow` carries it on that throw, so this reaches the catch with a result and
+     * must not be claimed as never-started.
+     */
+    it('does not vouch when post-execution work threw after the engine ran', async () => {
+      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
+      const incomplete = { version: 1 as const, complete: false, entries: [] }
+      mocks.executeWorkflow.mockRejectedValueOnce(
+        Object.assign(new Error('post-execution persistence failed'), {
+          executionResult: {
+            success: true,
+            output: { ran: true },
+            executionState: { resolvedSecretTraceProvenance: incomplete },
+          },
+        })
+      )
+
+      await runExpectingFailure({ lifecycle: tracked })
+
+      expect(importCrossingProvenance).toHaveBeenCalledWith(
+        incomplete,
+        expect.objectContaining({ output: { ran: true } }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+
     /** A run that did execute and could not vouch still hands back its incomplete envelope. */
     it('passes through an incomplete envelope from a run that did execute', async () => {
       const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
