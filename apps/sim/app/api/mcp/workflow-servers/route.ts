@@ -17,6 +17,7 @@ import {
   createMcpSuccessResponse,
   mcpOrchestrationStatus,
 } from '@/lib/mcp/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -108,6 +109,23 @@ export const POST = withRouteHandler(
         }
 
         const body = parsedBody.data
+
+        /**
+         * permission-group-enforced: deploy.mcp — this route calls the
+         * orchestration helper directly instead of the application use case, so
+         * the capability declared on `createWorkflowDeploymentServer` never
+         * fires here. Gating both is what keeps the two doors agreeing; the
+         * alternative is migrating this handler to the use case, which is worth
+         * doing and is not a reason to leave the second door open meanwhile.
+         */
+        const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+        if (permissionConfig?.hideDeployMcp) {
+          return createMcpErrorResponse(
+            null,
+            "MCP server deployment is not available under your organization's permission group",
+            403
+          )
+        }
 
         logger.info(`[${requestId}] Creating workflow MCP server:`, {
           name: body.name,
