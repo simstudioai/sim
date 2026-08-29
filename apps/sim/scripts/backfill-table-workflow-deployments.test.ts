@@ -31,6 +31,8 @@ import {
 const ORIGINAL_ENV = {
   DATABASE_URL: process.env.DATABASE_URL,
   DATABASE_URL_WEB: process.env.DATABASE_URL_WEB,
+  REDIS_TLS_SERVERNAME: process.env.REDIS_TLS_SERVERNAME,
+  REDIS_URL: process.env.REDIS_URL,
   SIM_ENV_SECRET_ID: process.env.SIM_ENV_SECRET_ID,
 }
 
@@ -75,30 +77,40 @@ describe('backfillTableWorkflowDeployments', () => {
   afterEach(() => {
     restoreEnvironmentVariable('DATABASE_URL')
     restoreEnvironmentVariable('DATABASE_URL_WEB')
+    restoreEnvironmentVariable('REDIS_TLS_SERVERNAME')
+    restoreEnvironmentVariable('REDIS_URL')
     restoreEnvironmentVariable('SIM_ENV_SECRET_ID')
   })
 
   it('loads the staging runtime secret before database modules are needed', async () => {
     Reflect.deleteProperty(process.env, 'DATABASE_URL')
     Reflect.deleteProperty(process.env, 'DATABASE_URL_WEB')
+    Reflect.deleteProperty(process.env, 'REDIS_TLS_SERVERNAME')
+    Reflect.deleteProperty(process.env, 'REDIS_URL')
     Reflect.deleteProperty(process.env, 'SIM_ENV_SECRET_ID')
     mockLoadRuntimeSecrets.mockImplementation(async () => {
       process.env.DATABASE_URL = 'postgres://staging/database'
+      process.env.REDIS_TLS_SERVERNAME = 'cache.staging.internal'
+      process.env.REDIS_URL = 'rediss://cache.staging.internal:6379'
     })
 
     await prepareTableWorkflowDeploymentBackfillEnvironment(['--environment=staging'])
 
     expect(process.env.SIM_ENV_SECRET_ID).toBe('/staging/sim/env-vars')
+    expect(process.env.REDIS_TLS_SERVERNAME).toBeUndefined()
+    expect(process.env.REDIS_URL).toBeUndefined()
     expect(mockLoadRuntimeSecrets).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the existing local DATABASE_URL mode when no environment is requested', async () => {
     process.env.DATABASE_URL = 'postgres://local/database'
+    process.env.REDIS_URL = 'redis://localhost:6379'
 
     await prepareTableWorkflowDeploymentBackfillEnvironment([])
 
     expect(mockLoadRuntimeSecrets).not.toHaveBeenCalled()
     expect(process.env.DATABASE_URL).toBe('postgres://local/database')
+    expect(process.env.REDIS_URL).toBe('redis://localhost:6379')
   })
 
   it('rejects unsupported, unknown, duplicate, and locally configured staging arguments', async () => {

@@ -26,6 +26,8 @@ export const TABLE_WORKFLOW_DEPLOYMENT_BATCH_SIZE = 25
 const BACKFILL_ACTOR_ID = 'table-workflow-deployment-backfill'
 const BACKFILL_OPERATION_VERSION = 'v2'
 const STAGING_RUNTIME_SECRET_ID = '/staging/sim/env-vars'
+/** Container-private services that a locally executed staging backfill must not initialize. */
+const LOCAL_STAGING_OMITTED_VARIABLES = ['REDIS_URL', 'REDIS_TLS_SERVERNAME'] as const
 
 interface TableWorkflowDeploymentBackfillCliOptions {
   environment?: 'staging'
@@ -144,6 +146,10 @@ export async function prepareTableWorkflowDeploymentBackfillEnvironment(
 
   if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_WEB) {
     throw new Error(`${STAGING_RUNTIME_SECRET_ID} did not provide a database URL`)
+  }
+
+  for (const key of LOCAL_STAGING_OMITTED_VARIABLES) {
+    Reflect.deleteProperty(process.env, key)
   }
 }
 
