@@ -65,7 +65,11 @@ interface CapabilityRuleBase {
   /** The config keys this rule reads, so the audit can prove a key is enforced. */
   readonly configKeys: readonly PermissionGroupConfigKey[]
   readonly detailCode: ForbiddenDetailCode
-  /** Named in the refusal message; the remedy is always an organization admin. */
+  /**
+   * The subject of the shared refusal sentence — `<describe> is not available
+   * under your organization's permission group` — so it is written as a
+   * singular noun or gerund phrase that agrees with the verb.
+   */
   readonly describe: string
 }
 
@@ -92,16 +96,6 @@ export interface ParameterizedCapabilityRule extends CapabilityRuleBase {
 
 export type CapabilityRule = StaticCapabilityRule | ParameterizedCapabilityRule
 
-/**
- * The one sentence every capability refusal uses, wherever it is raised.
- *
- * Shared so a raw route that gates inline cannot drift from what the
- * authorization funnel tells a caller refused for the same reason.
- */
-export function capabilityRefusalMessage(describe: string): string {
-  return `${describe} is not available under your organization's permission group`
-}
-
 function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: string): boolean {
   return allowed !== null && !allowed.some((allowedMode) => allowedMode === mode)
 }
@@ -126,21 +120,21 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['hideKnowledgeBaseTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Knowledge bases',
+    describe: 'The Knowledge Base module',
     deniedBy: (config) => config.hideKnowledgeBaseTab,
   },
   'tables.use': {
     kind: 'static',
     configKeys: ['hideTablesTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Tables',
+    describe: 'The Tables module',
     deniedBy: (config) => config.hideTablesTab,
   },
   'files.use': {
     kind: 'static',
     configKeys: ['hideFilesTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Files',
+    describe: 'The Files module',
     deniedBy: (config) => config.hideFilesTab,
   },
   'inbox.use': {
@@ -161,21 +155,21 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['hideSecretsTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Secrets',
+    describe: 'Managing secrets',
     deniedBy: (config) => config.hideSecretsTab,
   },
   'api_keys.manage': {
     kind: 'static',
     configKeys: ['hideApiKeysTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'API keys',
+    describe: 'Managing API keys',
     deniedBy: (config) => config.hideApiKeysTab,
   },
   'integrations.manage': {
     kind: 'static',
     configKeys: ['hideIntegrationsTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Integrations',
+    describe: 'Managing integrations',
     deniedBy: (config) => config.hideIntegrationsTab,
   },
   'deploy.api': {
@@ -231,29 +225,36 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disableInvitations'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Invitations',
+    describe: 'Sending invitations',
     deniedBy: (config) => config.disableInvitations,
   },
   'mcp_tools.use': {
     kind: 'static',
     configKeys: ['disableMcpTools'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'MCP tools',
+    describe: 'Calling MCP tools',
     deniedBy: (config) => config.disableMcpTools,
   },
   'custom_tools.use': {
     kind: 'static',
     configKeys: ['disableCustomTools'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Custom tools',
+    describe: 'Calling custom tools',
     deniedBy: (config) => config.disableCustomTools,
   },
   'skills.use': {
     kind: 'static',
     configKeys: ['disableSkills'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Skills',
+    describe: 'Loading skills',
     deniedBy: (config) => config.disableSkills,
+  },
+  'logs.trace_spans': {
+    kind: 'static',
+    configKeys: ['hideTraceSpans'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'The per-block execution trace',
+    deniedBy: (config) => config.hideTraceSpans,
   },
   /**
    * Not declarable on an operation: it refuses a *principal kind* rather than a
@@ -264,7 +265,7 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disablePersonalApiKeys'],
     detailCode: 'PERSONAL_API_KEYS_DISABLED',
-    describe: 'Personal API keys',
+    describe: 'Using a personal API key',
     deniedBy: (config) => config.disablePersonalApiKeys,
   },
   'logs.export': {
@@ -291,7 +292,7 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disableKnowledgeBaseCreation', 'hideKnowledgeBaseTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Creating knowledge bases',
+    describe: 'Creating a knowledge base',
     deniedBy: (config) => config.disableKnowledgeBaseCreation || config.hideKnowledgeBaseTab,
   },
   /** Subsumes `knowledge.use` for the same reason as {@link CAPABILITY_RULES}'s `knowledge.create`. */
@@ -320,7 +321,7 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disableTableCreation'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Creating tables',
+    describe: 'Creating a table',
     deniedBy: (config) => config.disableTableCreation,
   },
   'tables.export': {
@@ -348,7 +349,7 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disableWorkspaceCreation'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Creating workspaces',
+    describe: 'Creating a workspace',
     deniedBy: (config) => config.disableWorkspaceCreation,
   },
   'organization.member_directory': {
@@ -369,7 +370,7 @@ export const CAPABILITY_RULES = {
     kind: 'static',
     configKeys: ['disableWebhookTriggers'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Webhook triggers',
+    describe: 'Creating a webhook trigger',
     deniedBy: (config) => config.disableWebhookTriggers,
   },
   'copilot.tool_auto_approval': {
@@ -378,13 +379,6 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Silencing a tool confirmation',
     deniedBy: (config) => config.disableToolAutoApproval,
-  },
-  'logs.trace_spans': {
-    kind: 'static',
-    configKeys: ['hideTraceSpans'],
-    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
-    describe: 'Execution trace spans',
-    deniedBy: (config) => config.hideTraceSpans,
   },
 } satisfies { readonly [K in PermissionGroupCapability]: CapabilityRule }
 
@@ -399,13 +393,6 @@ export type StaticPermissionGroupCapability = {
     : never
 }[PermissionGroupCapability]
 
-/** Whether a capability id is one an operation may declare. */
-export function isStaticCapability(
-  capability: PermissionGroupCapability
-): capability is StaticPermissionGroupCapability {
-  return CAPABILITY_RULES[capability].kind === 'static'
-}
-
 /**
  * Proof that the static/parameterized split resolves.
  *
@@ -414,6 +401,11 @@ export function isStaticCapability(
  * and collapse this type to `never` — at which point no operation could declare
  * any capability and every gate would silently never fire. Nothing at runtime
  * would look wrong, so it is asserted here.
+ *
+ * The aliases below are deliberately unexported: the constraint on
+ * {@link Assert} is checked where the alias is declared, so an export bought
+ * nothing but the appearance of a consumer that never existed. They are unused
+ * on purpose, and deleting one deletes the proof.
  */
 type Assert<T extends true> = T
 
@@ -423,5 +415,3 @@ type AssertsStaticCapabilityResolves = Assert<
 type AssertsParameterizedCapabilityIsExcluded = Assert<
   'deploy.chat.auth_mode' extends StaticPermissionGroupCapability ? false : true
 >
-
-export type { AssertsParameterizedCapabilityIsExcluded, AssertsStaticCapabilityResolves }

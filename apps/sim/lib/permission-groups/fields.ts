@@ -21,6 +21,15 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  *
  * Declared rather than inferred, because `ui-only` is the value an admin is
  * most likely to mistake for a control — twelve keys shipped that way.
+ *
+ * Not derived from the capability rules, which also name config keys, and not
+ * worth collapsing into them: `capabilities.ts` imports this module for
+ * `PermissionGroupConfigKey`, so the dependency runs one way only, and the two
+ * are different facts anyway — a field is storage plus admin UI, a rule is a
+ * decision — related many-to-many (`knowledge.create` reads two keys;
+ * `hideKnowledgeBaseTab` is read by three rules). This value is the single fact
+ * they share, and `check:permission-group-enforcement` is what keeps it honest
+ * in both directions.
  */
 export type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
 
@@ -29,6 +38,12 @@ interface PlatformFeatureMeta {
   readonly id: string
   readonly label: string
   readonly category: string
+  /**
+   * What setting the key withholds, one sentence. Read twice — as the editor's
+   * hint and as the prose `getActivePermissionGroupRestrictions` reports for an
+   * active restriction — so it states the restriction rather than what remains
+   * permitted, which reads backwards in the second place.
+   */
   readonly hint: string
 }
 
@@ -341,13 +356,13 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-knowledge-base-creation',
     label: 'Knowledge Base Creation',
     category: 'Sidebar',
-    hint: 'Allow querying existing knowledge bases without creating new ones.',
+    hint: 'Prevent creating knowledge bases, leaving existing ones queryable.',
   }),
   disableKnowledgeBaseFileUpload: booleanRestriction('capability', {
     id: 'disable-knowledge-base-upload',
     label: 'Knowledge Base Uploads',
     category: 'Sidebar',
-    hint: 'Allow documents only from sanctioned connectors, never local upload.',
+    hint: 'Prevent uploading local documents, leaving sanctioned connectors as the only source.',
   }),
   allowedKnowledgeConnectors: allowlist(z.string(), 'capability', {
     limited: 'Knowledge base connectors are limited to effectiveConfig.allowedKnowledgeConnectors.',
@@ -357,7 +372,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-table-creation',
     label: 'Table Creation',
     category: 'Sidebar',
-    hint: 'Allow using existing tables without creating new ones.',
+    hint: 'Prevent creating tables, leaving existing ones usable.',
   }),
   disableTableExport: booleanRestriction('capability', {
     id: 'disable-table-export',
@@ -375,7 +390,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-personal-credentials',
     label: 'Personal Credentials',
     category: 'Settings Tabs',
-    hint: 'Allow only workspace-shared credentials, never personally connected ones.',
+    hint: 'Prevent connecting personal credentials, leaving only workspace-shared ones.',
   }),
   disableWorkspaceCreation: booleanRestriction('capability', {
     id: 'disable-workspace-creation',
@@ -405,7 +420,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-tool-auto-approval',
     label: 'Tool Auto-Approval',
     category: 'Tools',
-    hint: 'Require confirmation every time, so a member cannot silence a tool prompt permanently.',
+    hint: 'Prevent silencing a tool confirmation, so every call is confirmed again.',
   }),
 } satisfies Record<string, PermissionGroupField>
 
@@ -489,7 +504,13 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
  */
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 
-/** Fails to compile unless `T` is exactly `true`, which is what makes the aliases below load-bearing. */
+/**
+ * Fails to compile unless `T` is exactly `true`, which is what makes the aliases
+ * below load-bearing. They are deliberately unexported: the constraint is
+ * checked where the alias is declared, so an export bought nothing but the
+ * appearance of a consumer that never existed. Nothing may import them; they
+ * are unused on purpose, and deleting one deletes the proof.
+ */
 type Assert<T extends true> = T
 
 type AssertsAllowlistStaysPrecise = Assert<
@@ -506,11 +527,3 @@ type AssertsAuthTypesStayPrecise = Assert<
 type AssertsParserReturnsTheConfig = Assert<
   Exact<z.output<typeof tolerantConfigSchema>, PermissionGroupConfig>
 >
-
-export type {
-  AssertsAllowlistStaysPrecise,
-  AssertsAuthTypesStayPrecise,
-  AssertsDenylistStaysPrecise,
-  AssertsParserReturnsTheConfig,
-  AssertsRestrictionStaysPrecise,
-}

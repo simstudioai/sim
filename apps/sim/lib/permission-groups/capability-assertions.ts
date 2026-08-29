@@ -1,6 +1,5 @@
 import {
   CAPABILITY_RULES,
-  capabilityRefusalMessage,
   type StaticPermissionGroupCapability,
 } from '@/lib/permission-groups/capabilities'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
@@ -29,9 +28,15 @@ export function capabilityDeniedBy(
   return rule.kind === 'static' && rule.deniedBy(config)
 }
 
-/** The refusal a caller sees, identical to the funnel's for the same capability. */
+/**
+ * The one sentence every capability refusal uses, wherever it is raised.
+ *
+ * Shared so a raw route that gates inline cannot drift from what the
+ * authorization funnel tells a caller refused for the same reason. Each rule's
+ * `describe` is written to read as this sentence's subject.
+ */
 export function capabilityRefusal(capability: StaticPermissionGroupCapability): string {
-  return capabilityRefusalMessage(CAPABILITY_RULES[capability].describe)
+  return `${CAPABILITY_RULES[capability].describe} is not available under your organization's permission group`
 }
 
 function refuse(capability: StaticPermissionGroupCapability): never {
