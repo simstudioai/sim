@@ -37,7 +37,7 @@ import { hubspotDeleteContactTool } from '@/tools/hubspot/delete_contact'
 import { hubspotDeleteDealTool } from '@/tools/hubspot/delete_deal'
 import * as hubspotTools from '@/tools/hubspot/index'
 import { hubspotListAssociationsTool } from '@/tools/hubspot/list_associations'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
@@ -76,18 +76,37 @@ const TARGET = 'TARGETVALUE'
 /** The value every *other* string parameter is pinned to while one is fuzzed. */
 const SIBLING = 'SIBLINGVALUE'
 
-type AnyTool = ToolConfig<any, any>
+type PathTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
 /** Parameters that carry credentials or the host, never a path segment. */
 const FIXED_PARAMS: Record<string, unknown> = { accessToken: 'token' }
 
-function isHubSpotTool(value: unknown): value is AnyTool {
+function isHubSpotTool(value: unknown): value is PathTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('hubspot_')
+    'id' in value &&
+    typeof value.id === 'string' &&
+    value.id.startsWith('hubspot_')
   )
+}
+
+/**
+ * Narrows one concretely-typed tool export to the structural shape this
+ * harness drives.
+ *
+ * A direct assignment cannot work and must not be forced with a cast: under
+ * `strictFunctionTypes` a `ToolConfig<ConcreteParams, R>` is not assignable to
+ * `ToolConfig<Record<string, unknown>, ToolResponse>`, because `request.url`
+ * accepts the parameter type contravariantly. Re-checking the value at runtime
+ * through the same guard is what makes the narrowing sound rather than
+ * asserted.
+ */
+function asPathTool(value: unknown): PathTool {
+  if (!isHubSpotTool(value)) {
+    throw new Error('expected a HubSpot tool')
+  }
+  return value
 }
 
 /** The placeholder a sibling parameter holds, chosen so the URL still builds. */
@@ -105,7 +124,7 @@ function siblingValue(type: string | undefined): unknown {
  * attributed to `target`. This is the whole difference from a fill-everything
  * sweep, where the first parameter to throw hides all the others.
  */
-function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
+function buildParams(tool: PathTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { ...FIXED_PARAMS }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name in FIXED_PARAMS) continue
@@ -114,12 +133,12 @@ function buildParams(tool: AnyTool, target: string, value: string): Record<strin
   return params
 }
 
-function buildUrl(tool: AnyTool, target: string, value: string): URL {
+function buildUrl(tool: PathTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, target, value) as any))
+  return new URL(url(buildParams(tool, target, value)))
 }
 
 function segmentsOf(pathname: string): string[] {
@@ -127,7 +146,7 @@ function segmentsOf(pathname: string): string[] {
 }
 
 /** True when `target` actually lands in the path rather than the query string. */
-function reachesPath(tool: AnyTool, target: string): boolean {
+function reachesPath(tool: PathTool, target: string): boolean {
   try {
     return buildUrl(tool, target, TARGET).pathname.includes(TARGET)
   } catch {
@@ -138,11 +157,18 @@ function reachesPath(tool: AnyTool, target: string): boolean {
 interface PathParamCase {
   name: string
   param: string
-  tool: AnyTool
+  tool: PathTool
 }
 
-const PATH_PARAM_CASES: PathParamCase[] = Object.values(hubspotTools)
-  .filter(isHubSpotTool)
+/**
+ * Typed as `unknown[]` on purpose: the barrel's values are a union of
+ * concretely-typed `ToolConfig`s, and `Array.prototype.filter`'s type-predicate
+ * overload requires the predicate's type to extend the array's. Widening to
+ * `unknown` first is what lets the guard below do the narrowing.
+ */
+const ALL_EXPORTS: unknown[] = Object.values(hubspotTools)
+
+const PATH_PARAM_CASES: PathParamCase[] = ALL_EXPORTS.filter(isHubSpotTool)
   .filter((tool) => typeof tool.request?.url === 'function')
   .flatMap((tool) =>
     Object.keys(tool.params ?? {})
@@ -199,11 +225,23 @@ describe('hubspot path-parameter traversal safety', () => {
   })
 })
 
-const HIGH_RISK_CASES: ReadonlyArray<{ name: string; tool: AnyTool; param: string }> = [
-  { name: 'hubspot_delete_contact', tool: hubspotDeleteContactTool, param: 'contactId' },
-  { name: 'hubspot_delete_company', tool: hubspotDeleteCompanyTool, param: 'companyId' },
-  { name: 'hubspot_delete_deal', tool: hubspotDeleteDealTool, param: 'dealId' },
-  { name: 'hubspot_delete_association', tool: hubspotDeleteAssociationTool, param: 'objectId' },
+const HIGH_RISK_CASES: ReadonlyArray<{ name: string; tool: PathTool; param: string }> = [
+  {
+    name: 'hubspot_delete_contact',
+    tool: asPathTool(hubspotDeleteContactTool),
+    param: 'contactId',
+  },
+  {
+    name: 'hubspot_delete_company',
+    tool: asPathTool(hubspotDeleteCompanyTool),
+    param: 'companyId',
+  },
+  { name: 'hubspot_delete_deal', tool: asPathTool(hubspotDeleteDealTool), param: 'dealId' },
+  {
+    name: 'hubspot_delete_association',
+    tool: asPathTool(hubspotDeleteAssociationTool),
+    param: 'objectId',
+  },
 ]
 
 describe.each(HIGH_RISK_CASES)('$name path safety', ({ tool, param }) => {
@@ -235,17 +273,17 @@ describe('association tools expose every path parameter separately', () => {
   const ASSOCIATION_TOOLS = [
     {
       name: 'hubspot_create_association',
-      tool: hubspotCreateAssociationTool,
+      tool: asPathTool(hubspotCreateAssociationTool),
       params: ['objectType', 'objectId', 'toObjectType', 'toObjectId'],
     },
     {
       name: 'hubspot_delete_association',
-      tool: hubspotDeleteAssociationTool,
+      tool: asPathTool(hubspotDeleteAssociationTool),
       params: ['objectType', 'objectId', 'toObjectType', 'toObjectId'],
     },
     {
       name: 'hubspot_list_associations',
-      tool: hubspotListAssociationsTool,
+      tool: asPathTool(hubspotListAssociationsTool),
       params: ['objectType', 'objectId', 'toObjectType'],
     },
   ] as const

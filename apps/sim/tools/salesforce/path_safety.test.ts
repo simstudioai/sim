@@ -40,7 +40,7 @@ import { salesforceDeleteContactTool } from '@/tools/salesforce/delete_contact'
 import { salesforceDeleteOpportunityTool } from '@/tools/salesforce/delete_opportunity'
 import { salesforceDescribeObjectTool } from '@/tools/salesforce/describe_object'
 import * as salesforceTools from '@/tools/salesforce/index'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const INSTANCE_URL = 'https://example-org.my.salesforce.com'
 
@@ -81,7 +81,7 @@ const TARGET = 'TARGETVALUE'
 /** The value every *other* string parameter is pinned to while one is fuzzed. */
 const SIBLING = 'SIBLINGVALUE'
 
-type AnyTool = ToolConfig<any, any>
+type PathTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
 /** Parameters that carry credentials or the host, never a path segment. */
 const FIXED_PARAMS: Record<string, unknown> = {
@@ -90,13 +90,32 @@ const FIXED_PARAMS: Record<string, unknown> = {
   instanceUrl: INSTANCE_URL,
 }
 
-function isSalesforceTool(value: unknown): value is AnyTool {
+function isSalesforceTool(value: unknown): value is PathTool {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('salesforce_')
+    'id' in value &&
+    typeof value.id === 'string' &&
+    value.id.startsWith('salesforce_')
   )
+}
+
+/**
+ * Narrows one concretely-typed tool export to the structural shape this
+ * harness drives.
+ *
+ * A direct assignment cannot work and must not be forced with a cast: under
+ * `strictFunctionTypes` a `ToolConfig<ConcreteParams, R>` is not assignable to
+ * `ToolConfig<Record<string, unknown>, ToolResponse>`, because `request.url`
+ * accepts the parameter type contravariantly. Re-checking the value at runtime
+ * through the same guard is what makes the narrowing sound rather than
+ * asserted.
+ */
+function asPathTool(value: unknown): PathTool {
+  if (!isSalesforceTool(value)) {
+    throw new Error('expected a Salesforce tool')
+  }
+  return value
 }
 
 /** The placeholder a sibling parameter holds, chosen so the URL still builds. */
@@ -114,7 +133,7 @@ function siblingValue(type: string | undefined): unknown {
  * attributed to `target`. This is the whole difference from a fill-everything
  * sweep, where the first parameter to throw hides all the others.
  */
-function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
+function buildParams(tool: PathTool, target: string, value: string): Record<string, unknown> {
   const params: Record<string, unknown> = { ...FIXED_PARAMS }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name in FIXED_PARAMS) continue
@@ -123,12 +142,12 @@ function buildParams(tool: AnyTool, target: string, value: string): Record<strin
   return params
 }
 
-function buildUrl(tool: AnyTool, target: string, value: string): URL {
+function buildUrl(tool: PathTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, target, value) as any))
+  return new URL(url(buildParams(tool, target, value)))
 }
 
 function segmentsOf(pathname: string): string[] {
@@ -136,7 +155,7 @@ function segmentsOf(pathname: string): string[] {
 }
 
 /** True when `target` actually lands in the path rather than the query string. */
-function reachesPath(tool: AnyTool, target: string): boolean {
+function reachesPath(tool: PathTool, target: string): boolean {
   try {
     return buildUrl(tool, target, TARGET).pathname.includes(TARGET)
   } catch {
@@ -147,11 +166,18 @@ function reachesPath(tool: AnyTool, target: string): boolean {
 interface PathParamCase {
   name: string
   param: string
-  tool: AnyTool
+  tool: PathTool
 }
 
-const PATH_PARAM_CASES: PathParamCase[] = Object.values(salesforceTools)
-  .filter(isSalesforceTool)
+/**
+ * Typed as `unknown[]` on purpose: the barrel's values are a union of
+ * concretely-typed `ToolConfig`s, and `Array.prototype.filter`'s type-predicate
+ * overload requires the predicate's type to extend the array's. Widening to
+ * `unknown` first is what lets the guard below do the narrowing.
+ */
+const ALL_EXPORTS: unknown[] = Object.values(salesforceTools)
+
+const PATH_PARAM_CASES: PathParamCase[] = ALL_EXPORTS.filter(isSalesforceTool)
   .filter((tool) => tool.id !== 'salesforce_query_more')
   .filter((tool) => typeof tool.request?.url === 'function')
   .flatMap((tool) =>
@@ -209,15 +235,27 @@ describe('salesforce path-parameter traversal safety', () => {
   })
 })
 
-const HIGH_RISK_CASES: ReadonlyArray<{ name: string; tool: AnyTool; param: string }> = [
-  { name: 'salesforce_delete_account', tool: salesforceDeleteAccountTool, param: 'accountId' },
-  { name: 'salesforce_delete_contact', tool: salesforceDeleteContactTool, param: 'contactId' },
+const HIGH_RISK_CASES: ReadonlyArray<{ name: string; tool: PathTool; param: string }> = [
+  {
+    name: 'salesforce_delete_account',
+    tool: asPathTool(salesforceDeleteAccountTool),
+    param: 'accountId',
+  },
+  {
+    name: 'salesforce_delete_contact',
+    tool: asPathTool(salesforceDeleteContactTool),
+    param: 'contactId',
+  },
   {
     name: 'salesforce_delete_opportunity',
-    tool: salesforceDeleteOpportunityTool,
+    tool: asPathTool(salesforceDeleteOpportunityTool),
     param: 'opportunityId',
   },
-  { name: 'salesforce_describe_object', tool: salesforceDescribeObjectTool, param: 'objectName' },
+  {
+    name: 'salesforce_describe_object',
+    tool: asPathTool(salesforceDescribeObjectTool),
+    param: 'objectName',
+  },
 ]
 
 describe.each(HIGH_RISK_CASES)('$name path safety', ({ tool, param }) => {
@@ -244,7 +282,7 @@ describe.each(HIGH_RISK_CASES)('$name path safety', ({ tool, param }) => {
 
 describe('salesforce_describe_object custom API names', () => {
   it.each(['My_Object__c', 'Region__c', 'Account'])('accepts %j verbatim', (objectName) => {
-    const url = buildUrl(salesforceDescribeObjectTool, 'objectName', objectName)
+    const url = buildUrl(asPathTool(salesforceDescribeObjectTool), 'objectName', objectName)
 
     expect(url.pathname).toBe(`/services/data/v59.0/sobjects/${objectName}/describe`)
   })
