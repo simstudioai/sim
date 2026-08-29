@@ -269,6 +269,26 @@ as slash-bearing — never to make a separator stop erroring on a single-segment
 `safeEncodedUrlPathSegment` arrive with the path-safety sweep; if your checkout only exports
 `safeUrlPathSegment`, add them there rather than hand-rolling a local encoder.)
 
+### Never let a new guard rescue a request that used to fail
+
+If a parameter you are now routing through a helper previously went out raw or through a bare
+`encodeURIComponent`, the helper's trimming is a **behaviour change**, not a tightening: a padded
+value that used to 404 now names a real resource. On a DELETE, a cancel, or a revoke that is a
+destructive action the caller never asked for.
+
+For a newly-trimmed identifier on an irreversible request, use `strictUrlPathSegment`
+(`apps/sim/tools/strict-url-path.ts:41`) — `safeUrlPathSegment` plus a refusal of surrounding
+whitespace — rather than trimming. Identifiers that were already trimmed before your change keep
+plain `safeUrlPathSegment`. The full rule, its two confirmed instances, and how to scope the check are
+in **A hardening change must not turn a failing request into a succeeding one** in
+`.agents/skills/validate-integration/SKILL.md`.
+
+Note the matching asymmetry inside `safeUrlPath`: it rejects only a **truly empty** path component
+(`url-path.ts:317`), never a whitespace-only one. Git tracks a file and a directory whose entire name
+is spaces, and the URL parser never removes `%20%20%20` the way it removes a dot segment — so
+rejecting it has no security value and breaks a legitimate path. `safeUrlPathSegment` still rejects an
+all-whitespace value, because it trims opaque ids first.
+
 ### `params.x?.trim()` guards `undefined`, not the type
 
 A param's declared `type: 'string'` is enforced nowhere between the LLM tool call — or a
@@ -592,6 +612,8 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] All params have appropriate `visibility`
 - [ ] No param is named `timeout`, `proxyUrl`, or `method` unless it means what the transport means
 - [ ] Every param interpolated into a request path goes through a `tools/url-path.ts` helper
+- [ ] No newly-guarded parameter on a destructive request turns a previously failing call into a
+      succeeding one — those use `strictUrlPathSegment`, not `safeUrlPathSegment`
 - [ ] All nullable response fields use `?? null`
 - [ ] All optional outputs have `optional: true`
 - [ ] No raw JSON dumps in outputs

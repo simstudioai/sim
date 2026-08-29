@@ -381,6 +381,56 @@ A sound suite has five properties:
 - [ ] The skipped/unbuildable ledger is asserted empty against a justified allowlist
 - [ ] Legitimate dot-bearing values pass through unchanged
 
+### A hardening change must not turn a failing request into a succeeding one
+
+State it in exactly those words, and apply it to every guard you add. It is the check that caught a
+class of regression the whole sweep otherwise missed — sixteen PRs' own suites, both review bots on
+several passes, and the author.
+
+Adding a guard that **trims** a path identifier looks strictly safer. It is not, when that identifier
+reaches a destructive endpoint, because trimming is only neutral if the untrimmed value already
+worked. Where the parameter previously went out through a bare `encodeURIComponent`, it did not:
+
+```
+box_sign_cancel_request  (apps/sim/tools/box_sign/cancel_request.ts:34)
+  before: /2.0/sign_requests/%20%20<uuid>%20%20/cancel  -> 404, no-op
+  after:  /2.0/sign_requests/<uuid>/cancel              -> cancels a real signature request
+
+cloudflare_delete_r2_bucket  (apps/sim/tools/cloudflare/delete_r2_bucket.ts:30)
+  before: "  prod-data  " names no bucket that can exist -> request FAILS
+  after:  trimmed to "prod-data"                         -> DESTROYS the real bucket
+
+google_bigquery_delete_dataset / _delete_table  (delete_dataset.ts:53) — same shape on projectId
+```
+
+**Reason about the intersection, not the guard's contract.** "Trimming is the helper's contract at all
+137 call sites" is an *average*, and it excuses the deletion above. The real question is a set
+intersection: which parameters does this change *newly* normalise, **and** which of those sit on an
+irreversible request (DELETE, cancel, revoke, purge, drop)? On the Cloudflare PR the answer was
+exactly **one of 137** — and it took four review passes escalating P2→P2→P1→P1, with two pushbacks,
+to establish it.
+
+**The resolution: refuse the padded value on those parameters.** Not on consistency grounds — on two
+facts specific to the values themselves:
+
+1. No legitimate identifier for these providers carries surrounding whitespace (a Box Sign id is a
+   UUID; a GCP project id matches `[a-z][a-z0-9-]{5,29}`; an R2 bucket name is
+   `^[a-z0-9][a-z0-9-]*[a-z0-9]`), so refusing excludes nothing a caller could really mean.
+2. The previous behaviour was already a clean failure, so refusing preserves it — and improves on it
+   by replacing an opaque provider 404 with an error naming the parameter.
+
+`strictUrlPathSegment` (`apps/sim/tools/strict-url-path.ts:41`) is `safeUrlPathSegment` with that
+precondition; `assertNoSurroundingWhitespace` (`:51`) is the shared check for body-value counterparts
+of the same identifier.
+
+Parameters that were **already** trimmed before your change keep plain `safeUrlPathSegment` — that is
+not a change you are making, and tightening them would break callers whose stored value works today.
+
+- [ ] Enumerated the parameters whose normalisation this change actually alters
+- [ ] Intersected that set with destructive operations and checked each member individually
+- [ ] Newly-trimmed identifiers on irreversible requests refuse the padded value rather than trimming it
+- [ ] Already-trimmed identifiers were left alone
+
 ### These tests are type-checked by nothing
 
 `apps/sim/tsconfig.json` excludes `**/*.test.ts` and `**/*.test.tsx` from `include`, and
@@ -391,6 +441,20 @@ silently narrows to `any` will still run.
 To type-check one, write a temporary tsconfig that extends `apps/sim/tsconfig.json`, drops the
 `**/*.test.ts` exclusion, and includes only the harness — then delete it. Do not commit it; the
 exclusion exists deliberately.
+
+### A test that calls a function directly can pass while the wrapper does the opposite
+
+`executeTool` wraps every `postProcess` call in a catch that logs and then restores the
+pre-`postProcess` result (`apps/sim/tools/index.ts:1977` and `:2062`). For a submit-then-poll tool
+that pre-`postProcess` result is the **submit** response — `success: true` with every result field
+null. So a `postProcess` that throws on a timed-out or exhausted poll is reported to the user as a
+successful lookup that simply found nothing, and the hosted-key cost hook, gated on
+`finalResult.success` (`:1987`), bills it.
+
+Eleven Enrow failure-path tests asserted that throwing contract by calling `postProcess` directly.
+Every one passed. Production reported `success: true`. Assert through the real call path — or, where
+a test must call the function directly, assert the shape the *executor* will hand back, not the one
+the function raises.
 
 ## Step 10: Validate Error Handling
 
@@ -513,6 +577,10 @@ After fixing, confirm:
       `path_safety.test.ts` that enumerates (tool, param) pairs, asserts named rejection, probes
       conditional and presence branches, and asserts an empty skip ledger
 - [ ] Validated no param collides with a transport-reserved name (`timeout`, `proxyUrl`, `method`)
+- [ ] Confirmed no hardening change turns a failing request into a succeeding one — newly-normalised
+      parameters intersected with destructive operations, each checked individually
+- [ ] Confirmed failure-path tests assert through the real call path, not a direct call the executor
+      wraps differently
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
 - [ ] Validated model-visible/opaque inputs and Sim-durable/internal-execution provenance at their
