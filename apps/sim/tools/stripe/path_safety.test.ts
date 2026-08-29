@@ -47,6 +47,7 @@ const TRAVERSAL_VALUES = [
   '../../v1/customers/victim',
   '..%2f..%2fv1/customers/victim',
   'cus_abc/../../../v1/charges',
+  'cus_abc/../victim',
   'cus_abc?expand[]=sources',
   'cus_abc#fragment',
   'cus_abc/subscriptions/../../../v1/payouts',
@@ -249,11 +250,22 @@ describe('stripe path-parameter traversal safety', () => {
       expect(url.search).toBe(baselineUrl.search)
       expect(url.hash).toBe('')
 
+      /**
+       * The probe slot is asserted, not skipped. Skipping it leaves the whole
+       * check blind to a *balanced* traversal — `12345/../victim` pops exactly
+       * one segment and puts one back, so the segment count and every
+       * surrounding segment are identical and only the slot differs. That
+       * re-aims the request at another record while looking untouched.
+       *
+       * `safeUrlPathSegment`'s contract for a value it accepts is
+       * `encodeURIComponent` of the trimmed input, so that is the exact
+       * expected content. Anything the guard would reject never reaches here.
+       */
       const actual = segmentsOf(url.pathname)
       expect(actual).toHaveLength(baseline.length)
+      const expectedSlot = encodeURIComponent(value.trim())
       baseline.forEach((segment, index) => {
-        if (segment === TARGET) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(segment === TARGET ? expectedSlot : segment)
       })
     })
 
