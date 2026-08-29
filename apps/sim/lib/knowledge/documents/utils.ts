@@ -227,6 +227,31 @@ export function hasRateLimitEvidence(headers: HeaderReader | undefined): boolean
   return RATE_LIMIT_REMAINING_HEADERS.some((name) => headers.get(name) === '0')
 }
 
+/**
+ * Reports whether an error or one of its causes is a structured HTTP rate-limit
+ * rejection. A bare 403 is intentionally excluded because it normally means the
+ * caller lacks access; GitHub identifies the rate-limit form through response
+ * headers, while 429 is unambiguous on its own.
+ */
+export function isRateLimitError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current = error
+
+  while (isRetryableErrorType(current) && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if (
+      hasStatus(current) &&
+      (current.status === 429 ||
+        (current.status === 403 && hasRateLimitEvidence(readHeaders(current))))
+    ) {
+      return true
+    }
+    current = current instanceof Error ? current.cause : undefined
+  }
+
+  return false
+}
+
 function parseRateLimitResetMs(value: string, nowMs: number): number | undefined {
   const resetEpochSeconds = Number(value)
   if (!Number.isFinite(resetEpochSeconds) || resetEpochSeconds <= 0) return undefined

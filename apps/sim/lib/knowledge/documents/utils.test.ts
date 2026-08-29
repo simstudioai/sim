@@ -17,6 +17,7 @@ import {
   getRetryAfterMs,
   type HTTPError,
   hasRateLimitEvidence,
+  isRateLimitError,
   isRetryableError,
   readBoundedHttpErrorPayload,
   resolveRetryDelayMs,
@@ -638,6 +639,34 @@ describe('getRetryAfterMs', () => {
       expect(getRetryAfterMs(Object.assign(new Error('invalid'), { retryAfterMs }))).toBeUndefined()
     }
   )
+})
+
+describe('isRateLimitError', () => {
+  it('accepts a 429 without requiring response headers', () => {
+    expect(isRateLimitError(Object.assign(new Error('throttled'), { status: 429 }))).toBe(true)
+  })
+
+  it('accepts a GitHub 403 only with structured rate-limit evidence', () => {
+    expect(
+      isRateLimitError(
+        Object.assign(new Error('forbidden'), {
+          status: 403,
+          headers: headers({ 'x-ratelimit-remaining': '0' }),
+        })
+      )
+    ).toBe(true)
+    expect(isRateLimitError(Object.assign(new Error('forbidden'), { status: 403 }))).toBe(false)
+  })
+
+  it('finds a structured rate-limit rejection through an error cause chain', () => {
+    const providerError = Object.assign(new Error('throttled'), { status: 429 })
+    expect(isRateLimitError(new Error('hydration failed', { cause: providerError }))).toBe(true)
+  })
+
+  it('does not classify retryable text or transient HTTP failures as provider throttling', () => {
+    expect(isRateLimitError(new Error('rate limit exceeded'))).toBe(false)
+    expect(isRateLimitError(Object.assign(new Error('unavailable'), { status: 503 }))).toBe(false)
+  })
 })
 
 describe('retryWithExponentialBackoff retry budget', () => {

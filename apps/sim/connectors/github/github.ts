@@ -5,8 +5,10 @@ import { githubConnectorMeta } from '@/connectors/github/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
   markSkipped,
   parseTagDate,
+  readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
   takeIndexableWithinCap,
@@ -156,7 +158,7 @@ async function fetchBlobContent(
   const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
-      Accept: 'application/vnd.github+json',
+      Accept: 'application/vnd.github.raw+json',
       Authorization: `Bearer ${accessToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
     },
@@ -166,25 +168,12 @@ async function fetchBlobContent(
     throw new Error(`Failed to fetch git blob ${sha}: ${response.status}`)
   }
 
-  const data = await response.json()
-  const content = (data.content as string) || ''
-  const encoding = data.encoding as string | undefined
-
-  if (encoding === 'base64') {
-    const buf = Buffer.from(content, 'base64')
-    if (isBinaryBuffer(buf)) return null
-    return buf.toString('utf8')
+  const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
   }
-  /**
-   * `GET /repos/{owner}/{repo}/git/blobs/{sha}` documents a single response
-   * encoding: "The `content` in the response will always be Base64 encoded."
-   * The "Currently, `utf-8` and `base64` are supported" sentence belongs to the
-   * `encoding` REQUEST parameter of `POST .../git/blobs` (Create a blob) and does
-   * not describe this response, so no `utf-8` branch is warranted here. Any other
-   * encoding would silently persist empty content, so it throws and surfaces as a
-   * failed document instead.
-   */
-  throw new Error(`Unexpected git blob encoding for ${sha}: ${encoding ?? 'undefined'}`)
+  if (isBinaryBuffer(buffer)) return null
+  return buffer.toString('utf8')
 }
 
 /**
@@ -325,7 +314,7 @@ export const githubConnector: ConnectorConfig = {
       const response = await fetchWithRetry(url, {
         method: 'GET',
         headers: {
-          Accept: 'application/vnd.github+json',
+          Accept: 'application/vnd.github.object+json',
           Authorization: `Bearer ${accessToken}`,
           'X-GitHub-Api-Version': '2022-11-28',
         },
@@ -333,25 +322,6 @@ export const githubConnector: ConnectorConfig = {
 
       if (!response.ok) {
         if (response.status === 404) return null
-        /**
-         * A rate-limit 403 never reaches here: `fetchWithRetry` treats a 403 carrying
-         * `retry-after` or `x-ratelimit-remaining: 0` as retryable and throws once the
-         * retries are spent, so it lands in the catch below as a failure.
-         *
-         * A 403 that survives is usually an authorization denial, but NOT always: this
-         * request sends `application/vnd.github+json`, and the Contents API documents
-         * that files between 1-100 MB support "only the `raw` or `object` custom media
-         * types". A >1 MB text file therefore also lands here and is dropped, which on
-         * an `add` is silent (a fulfilled `null` records no failure). Reconciliation is
-         * unaffected — the file is already in `seenExternalIds` from the listing.
-         */
-        if (response.status === 403) {
-          logger.info('Skipping GitHub file rejected by Contents API', {
-            path,
-            status: response.status,
-          })
-          return null
-        }
         throw new Error(`Failed to fetch file ${path}: ${response.status}`)
       }
 
@@ -392,15 +362,18 @@ export const githubConnector: ConnectorConfig = {
          * "only the `raw` or `object` custom media types are supported", and it is
          * specifically "when using the `object` media type" that "the `content` field
          * will be an empty string and the `encoding` field will be `none`".
-         *
-         * This request sends `application/vnd.github+json`, so that precondition does
-         * not hold and this branch is currently unreachable — such files 403 above
-         * instead. Reaching it would require requesting
-         * `application/vnd.github.object+json`. The fallback itself is correct: the Git
-         * Blobs API returns the same blob as JSON and is documented to support blobs up
-         * to 100 MB.
+         * The Git Blobs fallback streams that same blob through GitHub's documented raw
+         * media type and supports blobs up to 100 MB.
          */
-        const blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+        let blobContent: string | null
+        try {
+          blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
+        } catch (error) {
+          if (error instanceof ConnectorFileTooLargeError) {
+            return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+          }
+          throw error
+        }
         if (blobContent === null) {
           logger.info('Skipping binary GitHub file', { path, size })
           return markSkipped(stub, BINARY_SKIP_REASON)
