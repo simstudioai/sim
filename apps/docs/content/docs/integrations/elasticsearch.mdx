@@ -306,7 +306,7 @@ Retrieve index information including settings, mappings, and aliases.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `index` | json | Index information including aliases, mappings, and settings |
+| `indices` | json | Matched indices keyed by index name, each with its aliases, mappings, and settings |
 
 ### Elasticsearch Cluster Health
 
@@ -324,7 +324,7 @@ Get the health status of the Elasticsearch cluster.
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `waitForStatus` | string | No | Wait until cluster reaches this status: green, yellow, or red |
-| `timeout` | string | No | Timeout for the wait operation \(e.g., 30s, 1m\) |
+| `clusterTimeout` | string | No | Server-side wait timeout passed to Elasticsearch as the `timeout` query parameter \(e.g., 30s, 1m\) |
 
 #### Output
 

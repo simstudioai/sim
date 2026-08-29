@@ -523,13 +523,21 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         // Return the operation as the tool ID
         return params.operation || 'elasticsearch_search'
       },
+      /**
+       * The `timeout` subBlock id is retained so saved workflow state keeps
+       * resolving, but it is remapped onto `clusterTimeout` and cleared here:
+       * `params.timeout` is read by the request transport as the outbound HTTP
+       * deadline in milliseconds, which would abort the request long before
+       * Elasticsearch finished its own server-side wait.
+       */
       params: (params) => {
-        const result: Record<string, unknown> = {}
+        const result: Record<string, unknown> = { timeout: undefined }
         if (params.size) result.size = Number(params.size)
         if (params.from) result.from = Number(params.from)
         if (params.retryOnConflict) result.retryOnConflict = Number(params.retryOnConflict)
-        if (params.timeout && typeof params.timeout === 'string') {
-          result.timeout = params.timeout.endsWith('s') ? params.timeout : `${params.timeout}s`
+        if (typeof params.timeout === 'string' && params.timeout.trim()) {
+          const timeout = params.timeout.trim()
+          result.clusterTimeout = /^\d+$/.test(timeout) ? `${timeout}s` : timeout
         }
         return result
       },
@@ -559,7 +567,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     mappings: { type: 'string', description: 'Index mappings as JSON' },
     refresh: { type: 'string', description: 'Refresh policy' },
     waitForStatus: { type: 'string', description: 'Wait for cluster status' },
-    timeout: { type: 'string', description: 'Timeout for wait operations' },
+    timeout: { type: 'string', description: 'Server-side wait timeout for cluster health' },
     retryOnConflict: { type: 'number', description: 'Retry attempts on conflict' },
   },
 

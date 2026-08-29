@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base params for all Elasticsearch tools
-interface ElasticsearchBaseParams {
+export interface ElasticsearchBaseParams {
   // Connection configuration
   deploymentType: 'self_hosted' | 'cloud'
   host?: string // For self-hosted
@@ -105,7 +105,7 @@ interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
 // Cluster Operations
 export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParams {
   waitForStatus?: 'green' | 'yellow' | 'red'
-  timeout?: string
+  clusterTimeout?: string
 }
 
 export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams {}
@@ -186,14 +186,16 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
 }
 
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
-  output: Record<
-    string,
-    {
-      aliases: Record<string, unknown>
-      mappings: Record<string, unknown>
-      settings: Record<string, unknown>
-    }
-  >
+  output: {
+    indices: Record<
+      string,
+      {
+        aliases?: Record<string, unknown>
+        mappings?: Record<string, unknown>
+        settings?: Record<string, unknown>
+      }
+    >
+  }
 }
 
 interface ElasticsearchIndexExistsResponse extends ToolResponse {
