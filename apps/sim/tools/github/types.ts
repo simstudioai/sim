@@ -1521,8 +1521,13 @@ export interface TriggerWorkflowParams extends BaseGitHubParams {
 }
 
 export interface ListWorkflowRunsParams extends BaseGitHubParams {
-  /** Numeric workflow ID or filename; omit to list runs across the repository. */
-  workflow_id?: string
+  /**
+   * Numeric workflow ID, filename (`main.yaml`), or workflow path; omit to list
+   * runs across the whole repository. Numbers are accepted because an LLM tool
+   * call serializes a numeric id as a JSON number, and the request builder
+   * stringifies it.
+   */
+  workflow_id?: string | number
   actor?: string
   branch?: string
   event?: string

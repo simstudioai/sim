@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { listWorkflowRunsTool } from '@/tools/github/list_workflow_runs'
+import type { ListWorkflowRunsParams } from '@/tools/github/types'
 
 const BASE = {
   owner: 'octocat',
@@ -92,8 +93,11 @@ describe('github_list_workflow_runs url', () => {
     )
   })
 
+  /** Typed callers must be able to express what the request builder accepts. */
   it('accepts a numeric workflow id', () => {
-    expect(urlFor({ ...BASE, workflow_id: 42 })).toBe(
+    const typed: ListWorkflowRunsParams = { ...BASE, workflow_id: 42 }
+
+    expect(urlFor(typed)).toBe(
       'https://api.github.com/repos/octocat/hello-world/actions/workflows/42/runs'
     )
   })
