@@ -91,14 +91,19 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
 
       /**
        * `indices` is the declared, discoverable output. The index-name keys are
-       * also spread at the top level because that was the previous shape and
+       * also present at the top level because that was the previous shape and
        * reference resolution walks the runtime object rather than the declared
        * outputs — saved paths such as `<elasticsearch.products.mappings>` did
        * resolve and must keep resolving.
+       *
+       * The raw keys are spread last so that an index legitimately named
+       * `indices` keeps its original meaning rather than being shadowed by the
+       * aggregate. Preserving the saved reference is worth more than the
+       * aggregate being present in that one collision.
        */
       return {
         success: true,
-        output: { ...data, indices: data },
+        output: { indices: data, ...data },
       }
     },
 

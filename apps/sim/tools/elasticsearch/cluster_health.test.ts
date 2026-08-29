@@ -79,6 +79,12 @@ describe('elasticsearch_get_index response shape', () => {
     }
   })
 
+  it('lets a real index named "indices" keep its own saved reference', async () => {
+    const result = await transform({ indices: { mappings: { properties: { sku: {} } } } })
+    const output = result?.output as { indices: { mappings?: Record<string, unknown> } }
+    expect(output.indices.mappings).toEqual({ properties: { sku: {} } })
+  })
+
   it('keeps the previous top-level index keys so saved references still resolve', async () => {
     const result = await transform({ products: { mappings: { properties: { sku: {} } } } })
     const output = result?.output as Record<string, { mappings?: Record<string, unknown> }>
