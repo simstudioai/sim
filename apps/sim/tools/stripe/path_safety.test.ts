@@ -18,6 +18,15 @@
  * Every assertion here resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
+ *
+ * The unit of coverage is a **(tool, parameter) pair**, not a tool. Fuzzing
+ * every parameter of a tool at once and tolerating a throw is unsound: the
+ * first guarded parameter throws and silently retires every sibling from the
+ * suite, so a tool that already has one guard stops testing the rest. Each
+ * case below fuzzes exactly one parameter while holding its siblings at a safe
+ * value, which is what makes "a newly added unguarded path parameter fails CI"
+ * actually true. A throw is only accepted as a pass *because* the thrown-at
+ * parameter is the one under test.
  */
 import { describe, expect, it } from 'vitest'
 import { stripeDeleteCustomerTool } from '@/tools/stripe/delete_customer'
@@ -31,7 +40,7 @@ import type { ToolConfig } from '@/tools/types'
  * The bare `.` and `..` entries are the whole point: their omission is why an
  * `encodeURIComponent`-only fix looks correct while the hole stays live.
  */
-const TRAVERSAL_IDS = [
+const TRAVERSAL_VALUES = [
   '..',
   '.',
   '  ..  ',
@@ -58,9 +67,16 @@ const LEGITIMATE_IDS = [
   'txn_1PqRsTuVwXyZaBcD',
 ] as const
 
-const SAFE_ID = 'SAFEID'
+/** The value the parameter under test carries when a path is being mapped. */
+const TARGET = 'TARGETVALUE'
+
+/** The value every *other* string parameter is pinned to while one is fuzzed. */
+const SIBLING = 'SIBLINGVALUE'
 
 type AnyTool = ToolConfig<any, any>
+
+/** Parameters that carry credentials or the host, never a path segment. */
+const FIXED_PARAMS: Record<string, unknown> = { apiKey: 'sk_test_token' }
 
 function isStripeTool(value: unknown): value is AnyTool {
   return (
@@ -71,64 +87,79 @@ function isStripeTool(value: unknown): value is AnyTool {
   )
 }
 
+/** The placeholder a sibling parameter holds, chosen so the URL still builds. */
+function siblingValue(type: string | undefined): unknown {
+  if (type === 'json' || type === 'array') return []
+  if (type === 'number') return 1
+  if (type === 'boolean') return false
+  return SIBLING
+}
+
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised.
+ * Builds a param object with exactly one parameter under test.
+ *
+ * Every sibling is pinned to a safe placeholder, so a failure can only be
+ * attributed to `target`. This is the whole difference from a fill-everything
+ * sweep, where the first parameter to throw hides all the others.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
-  const params: Record<string, unknown> = { apiKey: 'sk_test_token' }
+function buildParams(tool: AnyTool, target: string, value: string): Record<string, unknown> {
+  const params: Record<string, unknown> = { ...FIXED_PARAMS }
   for (const [name, def] of Object.entries(tool.params ?? {})) {
-    if (name === 'apiKey') continue
-    const type = (def as { type?: string }).type
-    if (type === 'json' || type === 'array') {
-      params[name] = []
-    } else if (type === 'number') {
-      params[name] = 1
-    } else if (type === 'boolean') {
-      params[name] = false
-    } else {
-      params[name] = value
-    }
+    if (name in FIXED_PARAMS) continue
+    params[name] = name === target ? value : siblingValue((def as { type?: string }).type)
   }
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, target: string, value: string): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
+  return new URL(url(buildParams(tool, target, value) as any))
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(stripeTools)
+/** True when `target` actually lands in the path rather than the query string. */
+function reachesPath(tool: AnyTool, target: string): boolean {
+  try {
+    return buildUrl(tool, target, TARGET).pathname.includes(TARGET)
+  } catch {
+    return false
+  }
+}
+
+interface PathParamCase {
+  name: string
+  param: string
+  tool: AnyTool
+}
+
+const PATH_PARAM_CASES: PathParamCase[] = Object.values(stripeTools)
   .filter(isStripeTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
-    try {
-      return buildUrl(tool, SAFE_ID).pathname.includes(SAFE_ID)
-    } catch {
-      return false
-    }
-  })
-  .map((tool) => ({ name: tool.id, tool }))
+  .flatMap((tool) =>
+    Object.keys(tool.params ?? {})
+      .filter((param) => !(param in FIXED_PARAMS))
+      .filter((param) => reachesPath(tool, param))
+      .map((param) => ({ name: `${tool.id} / ${param}`, param, tool }))
+  )
 
-describe('stripe path-id traversal safety', () => {
-  it('covers every Stripe tool that interpolates an id into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(25)
+describe('stripe path-parameter traversal safety', () => {
+  it('covers every (stripe tool, path parameter) pair', () => {
+    expect(PATH_PARAM_CASES.length).toBeGreaterThanOrEqual(25)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildUrl(tool, SAFE_ID).pathname)
+  describe.each(PATH_PARAM_CASES)('$name', ({ tool, param }) => {
+    const baseline = segmentsOf(buildUrl(tool, param, TARGET).pathname)
 
-    it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
+    it.each(TRAVERSAL_VALUES)('cannot reshape the path with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
+        url = buildUrl(tool, param, value)
       } catch {
         return
       }
@@ -139,45 +170,55 @@ describe('stripe path-id traversal safety', () => {
       const actual = segmentsOf(url.pathname)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === SAFE_ID) return
+        if (segment === TARGET) return
         expect(actual[index]).toBe(segment)
       })
     })
 
+    /**
+     * The shape check above cannot see a bare dot in the *final* segment: `x/.`
+     * normalizes to `x/`, which keeps the segment count and leaves every other
+     * segment intact. Rejection is the only observable difference, so assert it
+     * directly for every parameter rather than only the hand-picked ones below.
+     */
+    it.each(['.', '..'])('rejects the bare %j segment', (value) => {
+      expect(() => buildUrl(tool, param, value)).toThrow(/path traversal/)
+    })
+
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildUrl(tool, value).pathname)
+      const actual = segmentsOf(buildUrl(tool, param, value).pathname)
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment === SAFE_ID ? value : segment)
+        expect(actual[index]).toBe(segment === TARGET ? value : segment)
       })
     })
   })
 })
 
-const HIGH_RISK_TOOLS: ReadonlyArray<{ name: string; tool: AnyTool }> = [
-  { name: 'stripe_delete_customer', tool: stripeDeleteCustomerTool },
-  { name: 'stripe_delete_invoice', tool: stripeDeleteInvoiceTool },
-  { name: 'stripe_delete_product', tool: stripeDeleteProductTool },
-  { name: 'stripe_update_subscription', tool: stripeUpdateSubscriptionTool },
+const HIGH_RISK_CASES: ReadonlyArray<{ name: string; tool: AnyTool; param: string }> = [
+  { name: 'stripe_delete_customer', tool: stripeDeleteCustomerTool, param: 'id' },
+  { name: 'stripe_delete_invoice', tool: stripeDeleteInvoiceTool, param: 'id' },
+  { name: 'stripe_delete_product', tool: stripeDeleteProductTool, param: 'id' },
+  { name: 'stripe_update_subscription', tool: stripeUpdateSubscriptionTool, param: 'id' },
 ]
 
-describe.each(HIGH_RISK_TOOLS)('$name id path safety', ({ tool }) => {
+describe.each(HIGH_RISK_CASES)('$name path safety', ({ tool, param }) => {
   it('rejects a bare dot-dot segment instead of silently popping the resource', () => {
-    expect(() => buildUrl(tool, '..')).toThrow(/id/)
+    expect(() => buildUrl(tool, param, '..')).toThrow(/path traversal/)
   })
 
   it('rejects a bare dot segment', () => {
-    expect(() => buildUrl(tool, '.')).toThrow(/id/)
+    expect(() => buildUrl(tool, param, '.')).toThrow(/path traversal/)
   })
 
-  it('does not let the id inject query parameters', () => {
-    const url = buildUrl(tool, 'cus_abc?expand[]=sources')
+  it('does not let the value inject query parameters', () => {
+    const url = buildUrl(tool, param, 'cus_abc?expand[]=sources')
 
     expect(url.searchParams.get('expand[]')).toBeNull()
   })
 
-  it('preserves a legitimate id verbatim after trimming', () => {
-    expect(buildUrl(tool, '  cus_ABC123  ').pathname).toContain('/cus_ABC123')
+  it('preserves a legitimate value verbatim after trimming', () => {
+    expect(buildUrl(tool, param, '  cus_ABC123  ').pathname).toContain(`/${'cus_ABC123'}`)
   })
 })
