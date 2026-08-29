@@ -28,6 +28,8 @@ import {
   executeSlackSendMessage,
   executeSlackUpdateMessage,
 } from '@/lib/internal/slack/operations'
+import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
+import { executeSlackGetThreadRepliesOperation } from '@/lib/internal/slack/operations/get-thread-replies'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const originalFetch = global.fetch
@@ -237,5 +239,39 @@ describe('Slack operations', () => {
       data: Buffer.from('pdf').toString('base64'),
       size: 3,
     })
+  })
+
+  it.each([
+    ['channel history', executeSlackGetChannelHistoryOperation, { channel: 'C1' }],
+    ['thread replies', executeSlackGetThreadRepliesOperation, { channel: 'C1', threadTs: '1.0' }],
+  ] as const)('passes cancellation through paginated %s reads', async (_name, operation, input) => {
+    const controller = new AbortController()
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      slackResponse({ ok: true, messages: [], response_metadata: { next_cursor: '' } })
+    )
+
+    await operation({ accessToken: 'token', ...input } as never, controller.signal)
+
+    expect(vi.mocked(global.fetch).mock.calls[0]?.[1]).toMatchObject({
+      signal: controller.signal,
+    })
+  })
+
+  it('interrupts a paginated Slack rate-limit wait when cancelled', async () => {
+    const controller = new AbortController()
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      slackResponse({ ok: false, error: 'ratelimited' }, 429)
+    )
+
+    const result = executeSlackGetChannelHistoryOperation(
+      { accessToken: 'token', channel: 'C1' },
+      controller.signal
+    )
+    const rejection = expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1))
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+
+    await rejection
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })

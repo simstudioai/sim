@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { managedAgentListEventsTool } from '@/tools/managed_agent/list_events'
+import { executeManagedAgentListEventsOperation } from '@/lib/internal/managed-agent/operations/list-events'
 
 const originalFetch = global.fetch
 afterEach(() => {
@@ -24,7 +24,7 @@ const historyOf = (count: number) =>
   ) as unknown as typeof fetch
 
 const run = (limit: unknown) =>
-  managedAgentListEventsTool.directExecution!(
+  executeManagedAgentListEventsOperation(
     { credential: 'c', accessToken: 'sk-ant-fake', sessionId: 'sesn_1', limit } as never,
     undefined
   )

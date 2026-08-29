@@ -2,8 +2,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
   type Principal,
-  requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
+  resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
@@ -496,7 +496,10 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         const orgId = await getWorkspaceOrganizationId(context.workspaceId)
         if (
           !(await isFeatureEnabled('tables-v2-api', {
-            userId: requirePrincipalSubjectUserId(principal),
+            // An actorless run has no user to match a per-user rule against, and a
+            // missing one resolves the admin clause to `false` without a query — so
+            // the gate only ever narrows here, never widens.
+            userId: resolvePrincipalSubjectUserId(principal),
             orgId,
           }))
         ) {

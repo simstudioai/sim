@@ -1,7 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { requireCredentialExecutionUserId } from '@/lib/credentials/application/authorization'
 import {
   listCredentialProviderCatalog,
   type OAuthCredentialProviderCatalogEntry,
@@ -46,7 +47,7 @@ export async function resolveCredentialConnectionTarget(params: {
   }
 
   if (!credentialId) throw new Error('Credential reconnect target is missing its credential ID')
-  const userId = requirePrincipalSubjectUserId(principal)
+  const userId = requireCredentialExecutionUserId(principal)
   const targetCredentialId = credentialId
   const credential = await getWorkspaceCredential({
     workspaceId: context.workspaceId,

@@ -1,18 +1,10 @@
-import { createLogger } from '@sim/logger'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   SalesforceUpdateCustomFieldParams,
   SalesforceUpdateCustomFieldResponse,
 } from '@/tools/salesforce/types'
 import { CUSTOM_FIELD_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import {
-  extractErrorMessage,
-  getInstanceUrl,
-  mergeCustomFieldMetadata,
-  requireId,
-} from '@/tools/salesforce/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-const logger = createLogger('SalesforceUpdateCustomField')
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Update an existing custom field via the Tooling API.
@@ -24,12 +16,13 @@ const logger = createLogger('SalesforceUpdateCustomField')
  *
  * The Tooling API PATCH replaces the field's entire `Metadata` compound, so a
  * naive partial PATCH would wipe any property the caller omits. To avoid that,
- * this tool performs a read-modify-write in `directExecution`: it GETs the
+ * this tool performs a read-modify-write in one registered operation: it GETs the
  * field's current metadata, overlays only the provided changes, then PATCHes the
  * merged result. Unspecified properties (type, length, etc.) are preserved.
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_tooling.meta/api_tooling/tooling_api_objects_customfield.htm
  */
-export const salesforceUpdateCustomFieldTool: ToolConfig<
+
+export const salesforceUpdateCustomFieldTool: InternalToolConfig<
   SalesforceUpdateCustomFieldParams,
   SalesforceUpdateCustomFieldResponse
 > = {
@@ -133,96 +126,8 @@ export const salesforceUpdateCustomFieldTool: ToolConfig<
    * Read-modify-write so omitted properties are preserved rather than reset by
    * the Tooling API's full-metadata PATCH semantics.
    */
-  directExecution: async (params): Promise<ToolResponse> => {
-    const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-    const fieldId = requireId(params.fieldId, 'Field ID')
-    const url = `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
-    const headers = {
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }
-
-    const readResponse = await fetch(url, { headers })
-    const existing = await readResponse.json().catch(() => ({}))
-    if (!readResponse.ok) {
-      const errorMessage = extractErrorMessage(
-        existing,
-        readResponse.status,
-        'Failed to load custom field for update'
-      )
-      logger.error('Failed to read custom field metadata', { status: readResponse.status })
-      throw new Error(errorMessage)
-    }
-
-    const metadata = mergeCustomFieldMetadata(existing?.Metadata, params)
-
-    const patchResponse = await fetch(url, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ Metadata: metadata }),
-    })
-    if (!patchResponse.ok) {
-      const errorData = await patchResponse.json().catch(() => ({}))
-      const errorMessage = extractErrorMessage(
-        errorData,
-        patchResponse.status,
-        'Failed to update custom field in Salesforce'
-      )
-      logger.error('Failed to update custom field', { status: patchResponse.status })
-      throw new Error(errorMessage)
-    }
-
-    return {
-      success: true,
-      output: {
-        id: fieldId,
-        updated: true,
-      },
-    }
-  },
-
-  /**
-   * Declarative fallback. `directExecution` is the authoritative path and handles
-   * the read-modify-write; this is only used if direct execution is bypassed.
-   */
-  request: {
-    url: (params) => {
-      const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      const fieldId = requireId(params.fieldId, 'Field ID')
-      return `${instanceUrl}/services/data/v59.0/tooling/sobjects/CustomField/${fieldId}`
-    },
-    method: 'PATCH',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
-    body: (params) => ({ Metadata: mergeCustomFieldMetadata(undefined, params) }),
-  },
-
-  transformResponse: async (response: Response, params) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      const errorMessage = extractErrorMessage(
-        data,
-        response.status,
-        'Failed to update custom field in Salesforce'
-      )
-      logger.error('Failed to update custom field', { status: response.status })
-      throw new Error(errorMessage)
-    }
-
-    return {
-      success: true,
-      output: {
-        id: params?.fieldId?.trim() ?? '',
-        updated: true,
-      },
-    }
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

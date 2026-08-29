@@ -54,7 +54,7 @@ Every tool must use exactly one of these configurations:
   HTTP(S) provider endpoint.
 
 Never set a tool URL to `/api/...`, construct an absolute URL back to Sim, declare
-`request.internal`, import a route module, or create an API route merely to normalize files,
+`request.internal`, add the retired `directExecution` property, import a route module, or create an API route merely to normalize files,
 authorize access, or reuse server code. A real browser/API route may remain as a thin adapter, but
 the route and the tool must call the same operation directly. A true cross-process/capability
 boundary uses an explicit server client and is not disguised as a tool self-hop.
@@ -524,6 +524,7 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
       HTTP(S) `ToolConfig.request`
 - [ ] No tool request points to `/api/...`, constructs a URL back to Sim, or declares
       `request.internal`
+- [ ] No tool declares `directExecution`; in-process work uses a registered operation
 - [ ] All params have explicit `required: true` or `required: false`
 - [ ] All params have appropriate `visibility`
 - [ ] All nullable response fields use `?? null`

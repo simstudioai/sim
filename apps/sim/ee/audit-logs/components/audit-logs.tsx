@@ -538,13 +538,7 @@ export function AuditLogs({ organizationId }: AuditLogsProps) {
             onChange={handleTimeRangeChange}
             placeholder='All time'
             overlayLabel={timeDisplayLabel}
-            overlayContent={
-              <OverflowText
-                label={timeDisplayLabel}
-                className='block w-full text-[var(--text-primary)]'
-                tooltipEnabled={false}
-              />
-            }
+            overlayContent={timeDisplayLabel}
             maxHeight={320}
             align='start'
           />

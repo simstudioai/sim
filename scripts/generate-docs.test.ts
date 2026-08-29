@@ -161,7 +161,7 @@ describe('documentation input parameter parsing', () => {
     })
   })
 
-  it('stops at legacy request metadata after a comment', () => {
+  it('stops at operation metadata after a comment', () => {
     const tool = extractToolInfo(
       'example_send',
       `
@@ -175,16 +175,13 @@ describe('documentation input parameter parsing', () => {
               description: 'The message',
             },
           },
-          // Direct execution short-circuits this legacy request descriptor.
-          request: {
-            url: () => '',
-            method: 'POST',
+          operation: {
+            input: (params) => params,
             modelInput: {
               mode: 'project',
               select: (params) => ({ message: params.message }),
             },
           },
-          directExecution: async () => ({ success: true }),
           outputs: {},
         }
       `
@@ -718,7 +715,7 @@ describe('a source the scanner cannot get through is reported, not swallowed', (
 
   it('still reports null with no parseError for a spread-only subBlocks array', () => {
     const supplied = extractBlockSuppliedParamIds(
-      "subBlocks: [...NotionBlock.subBlocks], tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },",
+      'subBlocks: [...NotionBlock.subBlocks], tools: { config: { params: (p) => ({ renamedByMapper: p.a }) } },',
       'SpreadBlock'
     )
 

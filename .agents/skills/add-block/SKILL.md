@@ -19,6 +19,10 @@ When the user asks you to create a block:
 
 Blocks depend on tool outputs. If the underlying tool response schema is not documented or live-verified, you MUST tell the user instead of guessing block outputs.
 
+When block work changes tool execution, same-process work must use a registered
+`InternalToolConfig.operation`. Never add a Sim `/api/...` self-hop or the retired
+`directExecution` property.
+
 - Do NOT invent block outputs for undocumented tool responses
 - Do NOT describe unknown JSON shapes as if they were confirmed
 - Do NOT wire fields into the block just because they seem likely to exist

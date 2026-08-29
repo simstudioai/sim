@@ -3,7 +3,12 @@
  */
 import { db } from '@sim/db'
 import { member, outboxEvent, user, workspace } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -154,6 +159,7 @@ describe('Enterprise future-owner claims', () => {
       error: null,
       updatedAt: now.toISOString(),
     })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'owner-1' }])
   })
 
   it('rejects the future-owner path when an account already exists', async () => {
@@ -189,6 +195,7 @@ describe('Enterprise future-owner claims', () => {
         disclosedCreatesDefaultWorkspace: false,
       })
     ).resolves.toEqual({ success: false, kind: 'disclosure-outdated' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.process).not.toHaveBeenCalled()
@@ -268,6 +275,11 @@ describe('Enterprise future-owner claims', () => {
       expect.anything(),
       expect.objectContaining({ ownerUserId: 'owner-1', name: 'Acme' })
     )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(user)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      emailVerified: true,
+      updatedAt: now,
+    })
     expect(mocks.patchPayload).toHaveBeenCalledWith(
       expect.anything(),
       'claim-1',
@@ -286,6 +298,50 @@ describe('Enterprise future-owner claims', () => {
       { claimId: 'claim-1' },
       { id: 'generated-id' }
     )
+  })
+
+  it('rejects acceptance when the canonical account email no longer matches the claim', async () => {
+    queueTableRows(outboxEvent, [claimRow()])
+    queueTableRows(member, [])
+    queueTableRows(workspace, [{ id: 'workspace-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      acceptEnterpriseOwnerClaim({
+        claimId: 'claim-1',
+        token: 'secure-token',
+        userId: 'owner-1',
+        userEmail: 'owner@example.com',
+        userName: 'Owner',
+        disclosedWorkspaceIds: ['workspace-1'],
+        disclosedCreatesDefaultWorkspace: false,
+      })
+    ).resolves.toEqual({ success: false, kind: 'email-mismatch' })
+
+    const updateConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(
+      updateConditions.some(
+        (condition) =>
+          condition.type === 'eq' && condition.left === user.id && condition.right === 'owner-1'
+      )
+    ).toBe(true)
+    const emailScope = updateConditions.find((condition) => condition.type === 'or')
+    const emailConditions = Array.isArray(emailScope?.conditions) ? emailScope.conditions : []
+    expect(
+      emailConditions.some(
+        (condition) =>
+          condition?.type === 'eq' &&
+          condition.left === user.normalizedEmail &&
+          condition.right === request.ownerEmail
+      )
+    ).toBe(true)
+    expect(
+      emailConditions.filter(
+        (condition) => condition?.type === 'eq' && condition.right === request.ownerEmail
+      )
+    ).toHaveLength(2)
+    expect(mocks.createOrganization).not.toHaveBeenCalled()
+    expect(mocks.enqueue).not.toHaveBeenCalled()
   })
 
   it('activates through the canonical Enterprise issuance operation only after acceptance', async () => {

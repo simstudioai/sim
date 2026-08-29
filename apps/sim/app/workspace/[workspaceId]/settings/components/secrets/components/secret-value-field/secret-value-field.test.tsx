@@ -1,0 +1,86 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act, type ComponentProps } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/emcn', () => ({
+  ChipInput: ({
+    inputClassName,
+    ...props
+  }: ComponentProps<'input'> & { inputClassName?: string }) => (
+    <input {...props} className={inputClassName} />
+  ),
+}))
+
+import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field/secret-value-field'
+
+let container: HTMLDivElement
+let root: Root
+
+function input(): HTMLInputElement {
+  const field = container.querySelector('input')
+  if (!field) throw new Error('Secret value field did not render')
+  return field
+}
+
+beforeEach(() => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+})
+
+describe('SecretValueField', () => {
+  it('preserves the caret position when revealing an editable value', () => {
+    const value = 'editable-secret-value'
+    act(() => root.render(<SecretValueField value={value} />))
+
+    expect(input().value).toBe(value)
+    expect(input().className).toContain('[-webkit-text-security:disc]')
+
+    input().setSelectionRange(15, 15)
+    act(() => input().focus())
+
+    expect(input().value).toBe(value)
+    expect(input().selectionStart).toBe(15)
+    expect(input().readOnly).toBe(false)
+    expect(input().className).not.toContain('[-webkit-text-security:disc]')
+
+    act(() => input().blur())
+    expect(input().value).toBe(value)
+    expect(input().className).toContain('[-webkit-text-security:disc]')
+  })
+
+  it('lets a read-only viewer reveal an allowed value without making it editable', () => {
+    act(() => root.render(<SecretValueField value='visible-secret' canEdit={false} canReveal />))
+
+    expect(input().readOnly).toBe(true)
+    expect(input().value).toBe('•'.repeat(10))
+
+    act(() => input().focus())
+
+    expect(input().value).toBe('visible-secret')
+    expect(input().readOnly).toBe(true)
+  })
+
+  it('never places a withheld value in the field', () => {
+    act(() => root.render(<SecretValueField value='hidden-secret' canEdit={false} />))
+
+    expect(input().value).toBe('•'.repeat(10))
+    act(() => input().focus())
+    expect(input().value).toBe('•'.repeat(10))
+  })
+
+  it('keeps an empty editable value empty while unfocused', () => {
+    act(() => root.render(<SecretValueField value='' />))
+
+    expect(input().value).toBe('')
+  })
+})

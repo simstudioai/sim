@@ -49,4 +49,12 @@ describe('ChipSelect', () => {
     expect(trigger.getAttribute('aria-invalid')).toBe('true')
     expect(trigger.getAttribute('aria-describedby')).toBe('workflow-error')
   })
+
+  it('renders its text trigger through the fade-only overflow primitive', () => {
+    const label = mount().querySelector<HTMLElement>('[data-overflow-text]')
+
+    expect(label?.textContent).toBe('Select...')
+    expect(label?.className).toContain('text-clip')
+    expect(label?.className).not.toContain('truncate')
+  })
 })

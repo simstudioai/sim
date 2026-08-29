@@ -1,13 +1,12 @@
 import type { NetSuiteCreateRecordParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  optionalTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteCreateRecordTool: ToolConfig<NetSuiteCreateRecordParams, NetSuiteResponse> = {
+export const netsuiteCreateRecordTool: InternalToolConfig<
+  NetSuiteCreateRecordParams,
+  NetSuiteResponse
+> = {
   id: 'netsuite_create_record',
   name: 'NetSuite Create Record',
   description: 'Create a NetSuite record using the account-specific record metadata schema.',
@@ -33,23 +32,9 @@ export const netsuiteCreateRecordTool: ToolConfig<NetSuiteCreateRecordParams, Ne
       description: 'Comma-separated sublists whose default lines should be replaced',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => {
-        const replace = optionalTrim(params.replace, 'Replace sublists')
-        return {
-          method: 'POST',
-          path: buildRecordPath({ value: params.recordType, label: 'Record type' }),
-          success: replace ? { status: 201, body: 'object' } : { status: 204, body: 'none' },
-          responseLocation: 'resource',
-          query: { replace },
-          body: params.body,
-        }
-      },
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

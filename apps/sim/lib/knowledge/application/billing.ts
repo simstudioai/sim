@@ -1,5 +1,8 @@
-import type { Principal } from '@sim/auth/principal'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalAttribution,
+  resolvePrincipalExecutionActorUserId,
+} from '@sim/auth/principal'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
@@ -7,6 +10,7 @@ import {
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeResourceContext } from '@/lib/knowledge/application/contexts'
 
 export class KnowledgeUsageLimitExceededError extends Error {
@@ -20,7 +24,14 @@ export function resolveKnowledgeAttributedUserId(
   principal: Principal,
   context: KnowledgeResourceContext
 ): string {
-  if (context.workspaceId === undefined) return requirePrincipalSubjectUserId(principal)
+  const executionUserId = resolvePrincipalExecutionActorUserId(principal)
+  if (executionUserId) return executionUserId
+  if (context.workspaceId === undefined) {
+    throw new OrchestrationError(
+      'forbidden',
+      'Knowledge operations require a user subject or execution actor'
+    )
+  }
   return resolvePrincipalAttribution(principal, {
     workspaceBillingOwnerUserId: context.billedAccountUserId,
   }).attributedUserId

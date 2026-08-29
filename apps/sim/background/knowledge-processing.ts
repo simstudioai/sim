@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
-import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import {
+  BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+  isBYOKEmbeddingCredentialRejection,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
 import {
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
@@ -109,6 +114,21 @@ export async function runDocumentProcessing(
         documentId,
         filename: docData.filename,
         error: EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+        processingTime: Date.now() - startedAt,
+      }
+    }
+    if (isBYOKEmbeddingCredentialRejection(error)) {
+      logger.warn(`[${requestId}] Customer-managed embedding credentials were rejected`, {
+        filename: docData.filename,
+        status: error.status,
+      })
+      return {
+        success: false,
+        outcome: 'customer_configuration' as const,
+        code: 'embedding_credentials_rejected' as const,
+        documentId,
+        filename: docData.filename,
+        error: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
         processingTime: Date.now() - startedAt,
       }
     }

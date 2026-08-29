@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { Button, cn, OverflowText, Tooltip } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
@@ -308,9 +308,10 @@ export function Preview({
           </Tooltip.Root>
           {currentWorkflowName && (
             <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
-              <span className='truncate text-[var(--text-secondary)] text-caption'>
-                {currentWorkflowName}
-              </span>
+              <OverflowText
+                label={currentWorkflowName}
+                className='text-[var(--text-secondary)] text-caption'
+              />
             </div>
           )}
         </div>

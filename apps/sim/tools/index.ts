@@ -107,10 +107,6 @@ import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('Tools')
 const PRIVATE_TOOL_METADATA_ERROR_MESSAGE = 'Internal tool response metadata could not be verified'
-const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
-  'Private model input provenance is not supported by direct execution'
-const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
-  'Private secret provenance is not supported by direct execution'
 const INTERNAL_DATABASE_ERROR_MESSAGE =
   'An internal error occurred while executing the tool. Please try again.'
 const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
@@ -1535,7 +1531,7 @@ export async function executeTool(
   return result
 }
 
-/** Executes a tool through its declared in-process, direct, or external boundary. */
+/** Executes a tool through its declared in-process or external boundary. */
 async function executeToolImplementation(
   toolId: string,
   params: Record<string, any>,
@@ -1671,6 +1667,9 @@ async function executeToolImplementation(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
+      contextParams[paramId] = undefined
+    }
     if (scope.billingAttribution) {
       contextParams._context = {
         ...(contextParams._context as Record<string, unknown> | undefined),
@@ -2007,80 +2006,6 @@ async function executeToolImplementation(
           startTime: startTimeISO,
           endTime: endTime.toISOString(),
           duration: endTime.getTime() - startTime.getTime(),
-        },
-      }
-    }
-
-    // Check for direct execution (no HTTP request needed)
-    if (tool.directExecution) {
-      logger.info(`[${requestId}] Using directExecution for ${toolId}`)
-      if (
-        tool.request.modelInput?.mode === 'private-provenance' ||
-        (tool.request.modelInput?.mode === 'project' &&
-          tool.request.modelInput.privateInputPaths !== undefined)
-      ) {
-        throw new Error(PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE)
-      }
-      if (tool.request.secretProvenance) {
-        throw new Error(PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE)
-      }
-      const directExecutionInput = projectToolModelInputParams(
-        tool,
-        contextParams,
-        resolvedSecretTraceRegistry
-      )
-      const result = await tool.directExecution(directExecutionInput, effectiveSignal)
-
-      // Apply post-processing if available and not skipped
-      let finalResult = result
-      if (tool.postProcess && result.success && !skipPostProcess) {
-        try {
-          finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
-        } catch (error) {
-          const normalizedError = toError(error)
-          logger.error(
-            `[${requestId}] Post-processing error for ${toolId}:`,
-            projectToolLogMetadata(
-              { error: normalizedError.message },
-              resolvedSecretTraceRegistry,
-              { errorName: normalizedError.name },
-              structuralOnlyToolLogs
-            )
-          )
-          finalResult = result
-        }
-      }
-
-      // Process file outputs if execution context is available
-      finalResult = await processFileOutputs(finalResult, tool, executionContext)
-
-      // Add timing data to the result
-      const endTime = new Date()
-      const endTimeISO = endTime.toISOString()
-      const duration = endTime.getTime() - startTime.getTime()
-
-      if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
-        await applyHostedKeyCostToResult(
-          finalResult,
-          tool,
-          contextParams,
-          executionContext,
-          requestId,
-          hostedKeyInfo.envVarName
-        )
-      } else if (hostedKeyForMetrics) {
-        hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: 'other' })
-      }
-
-      const strippedOutput = postProcessToolOutput(normalizedToolId, finalResult.output ?? {})
-
-      return {
-        ...finalResult,
-        output: strippedOutput,
-        timing: {
-          startTime: startTimeISO,
-          endTime: endTimeISO,
-          duration,
         },
       }
     }
@@ -2457,6 +2382,10 @@ function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
   return isPlainRecord(value) && typeof value.code === 'string'
 }
 
+function isToolResponse(value: unknown): value is ToolResponse {
+  return isRecordLike(value) && typeof value.success === 'boolean' && isRecordLike(value.output)
+}
+
 async function executeDeclaredInternalOperation({
   toolId,
   tool,
@@ -2468,7 +2397,10 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
-  if (!context?.userId || !context.workspaceId) {
+  if (
+    !context?.workspaceId ||
+    (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
+  ) {
     throw new Error('Internal tool execution requires trusted execution scope')
   }
 
@@ -2625,6 +2557,7 @@ async function executeDeclaredInternalOperation({
 
   if (tool.transformResponse) return tool.transformResponse(response, params)
   const responseData = await response.json()
+  if (isToolResponse(responseData)) return responseData
   return {
     success: true,
     output:

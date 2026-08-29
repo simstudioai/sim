@@ -56,6 +56,10 @@ function executorPrincipal(
         mode: 'deployment',
         deploymentVersionId: 'deployment-1',
       },
+      compatibilityActor: {
+        kind: 'legacy_execution_user',
+        userId: 'execution-billing-actor-1',
+      },
       ...(originalPrincipal ? { principal: originalPrincipal } : {}),
     },
   }
@@ -98,7 +102,7 @@ describe('internal Knowledge execution attribution', () => {
       resolveInternalKnowledgeBillingAttribution(request(), executor, 'workspace-1')
     ).resolves.toEqual(BILLING_ATTRIBUTION)
     expect(internalKnowledgeProvenanceUserId(request().headers, executor, 'workspace-1')).toBe(
-      'billing-owner-1'
+      'execution-billing-actor-1'
     )
     expect(
       resolveKnowledgeAttributedUserId(executor, {
@@ -107,7 +111,7 @@ describe('internal Knowledge execution attribution', () => {
         allowPersonalApiKeys: true,
         billedAccountUserId: 'billing-owner-1',
       })
-    ).toBe('billing-owner-1')
+    ).toBe('execution-billing-actor-1')
   })
 
   it('rejects a billing snapshot from another workspace', async () => {

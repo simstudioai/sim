@@ -1,15 +1,15 @@
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   SlackGetChannelHistoryParams,
   SlackGetChannelHistoryResponse,
 } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import { fetchSlackMessagesPaginated, resolvePositiveInt } from '@/tools/slack/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** Default cap on pages fetched per invocation. */
-const DEFAULT_MAX_PAGES = 10
+export const DEFAULT_MAX_PAGES = 10
 
-export const slackGetChannelHistoryTool: ToolConfig<
+export const slackGetChannelHistoryTool: InternalToolConfig<
   SlackGetChannelHistoryParams,
   SlackGetChannelHistoryResponse
 > = {
@@ -87,45 +87,8 @@ export const slackGetChannelHistoryTool: ToolConfig<
     },
   },
 
-  request: {
-    url: () => 'https://slack.com/api/conversations.history',
-    method: 'GET',
-    headers: (params: SlackGetChannelHistoryParams) => ({
-      Authorization: `Bearer ${params.accessToken || params.botToken}`,
-    }),
-  },
-
-  directExecution: async (params: SlackGetChannelHistoryParams) => {
-    const token = params.accessToken || params.botToken
-    if (!token) {
-      throw new Error('Missing Slack credentials. Provide an OAuth connection or a bot token.')
-    }
-
-    const result = await fetchSlackMessagesPaginated({
-      token,
-      method: 'conversations.history',
-      baseParams: {
-        channel: params.channel,
-        oldest: params.oldest,
-        latest: params.latest,
-        inclusive: params.inclusive ? 'true' : undefined,
-      },
-      limit: resolvePositiveInt(params.limit, 200),
-      cursor: params.cursor,
-      maxPages: resolvePositiveInt(params.maxPages, DEFAULT_MAX_PAGES),
-      missingScopeHint: 'channels:history, groups:history, im:history, mpim:history',
-    })
-
-    return {
-      success: true,
-      output: {
-        messages: result.messages,
-        count: result.messages.length,
-        hasMore: result.hasMore,
-        nextCursor: result.nextCursor,
-        pages: result.pages,
-      },
-    }
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

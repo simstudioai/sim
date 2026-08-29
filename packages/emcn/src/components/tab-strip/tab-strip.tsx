@@ -17,7 +17,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
-import { overflowTextFadeClass } from '../overflow-text/overflow-text'
+import { overflowTextClipClass, overflowTextFadeClass } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
 
 const DRAG_EDGE_ZONE = 40
@@ -445,9 +445,9 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
               <span
                 ref={titleRef}
                 className={cn(
-                  'min-w-0 flex-1 select-none truncate text-left',
-                  titleTruncated && overflowTextFadeClass,
-                  titleTruncated && 'hover:[-webkit-mask-image:none] hover:[mask-image:none]'
+                  overflowTextClipClass,
+                  'flex-1 select-none text-left',
+                  titleTruncated && overflowTextFadeClass
                 )}
               >
                 {tab.title}

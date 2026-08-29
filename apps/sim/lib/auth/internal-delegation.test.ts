@@ -102,6 +102,41 @@ describe('bindInternalExecutorDelegation', () => {
     })
   })
 
+  it('binds the trusted legacy execution actor only for an actorless principal', async () => {
+    const principal = await bindInternalExecutorDelegation(
+      {
+        ...claims,
+        subjectUserId: undefined,
+        principal: {
+          kind: 'system',
+          serviceId: 'schedule',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      },
+      {
+        audience: 'sim:workspace-files',
+        compatibilityActorUserId: 'execution-actor',
+      }
+    )
+
+    expect(principal.subjectUserId).toBeUndefined()
+    expect(principal.delegationContext.compatibilityActor).toEqual({
+      kind: 'legacy_execution_user',
+      userId: 'execution-actor',
+    })
+  })
+
+  it('rejects a compatibility actor when the delegation has a user subject', async () => {
+    await expect(
+      bindInternalExecutorDelegation(claims, {
+        audience: 'sim:workspace-files',
+        compatibilityActorUserId: 'execution-actor',
+      })
+    ).rejects.toThrow('cannot bind a compatibility actor to a user subject')
+    expect(mockResolveWorkflow).not.toHaveBeenCalled()
+  })
+
   it('binds deployed child authority to its exact historical deployment version', async () => {
     const currentWorkflow = {
       workflowId: 'child-workflow',
@@ -257,6 +292,16 @@ describe('bindInternalExecutorDelegation', () => {
     await expect(bindInternalExecutorDelegation(claims, { audience: ' ' })).rejects.toThrow(
       'Internal delegation audience must not be empty'
     )
+    expect(mockResolveWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('fails before canonical loading when the compatibility actor is empty', async () => {
+    await expect(
+      bindInternalExecutorDelegation(claims, {
+        audience: 'sim:workspace-files',
+        compatibilityActorUserId: ' ',
+      })
+    ).rejects.toThrow('Internal delegation execution actor must not be empty')
     expect(mockResolveWorkflow).not.toHaveBeenCalled()
   })
 

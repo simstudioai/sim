@@ -28,6 +28,7 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -39,6 +40,7 @@ import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -1107,6 +1109,109 @@ describe('executeTool Function', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('preserves a registered operation failure without turning it into success', async () => {
+    const mockTool = {
+      id: 'test_registered_operation_failure',
+      name: 'Test Registered Operation Failure',
+      description: 'Returns a typed operation failure',
+      version: '1.0.0',
+      params: {},
+      operation: { input: createInternalToolOperationInput },
+    } satisfies InternalToolConfig<Record<string, unknown>>
+    ;(tools as Record<string, unknown>).test_registered_operation_failure = mockTool
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({
+        success: false,
+        output: { reason: 'provider rejected request' },
+        error: 'Provider rejected request',
+        retryable: false,
+      })
+    )
+
+    try {
+      const result = await executeTool(
+        'test_registered_operation_failure',
+        {},
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-1',
+            workflowId: 'workflow-1',
+          }),
+        }
+      )
+
+      expect(result).toMatchObject({
+        success: false,
+        output: { reason: 'provider rejected request' },
+        error: 'Provider rejected request',
+        retryable: false,
+      })
+    } finally {
+      Reflect.deleteProperty(tools, 'test_registered_operation_failure')
+    }
+  })
+
+  it('preserves actorless schedule authority for registered operations', async () => {
+    const mockTool = {
+      id: 'test_actorless_registered_operation',
+      name: 'Test Actorless Registered Operation',
+      description: 'Executes with schedule authority',
+      version: '1.0.0',
+      params: {},
+      operation: { input: createInternalToolOperationInput },
+    } satisfies InternalToolConfig<Record<string, unknown>>
+    ;(tools as Record<string, unknown>).test_actorless_registered_operation = mockTool
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, output: { ok: true } })
+    )
+    const principal = {
+      kind: 'system' as const,
+      serviceId: 'schedule' as const,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    }
+    const executorDelegationOrigin = {
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      currentWorkflow: {
+        workflowId: 'workflow-1',
+        mode: 'deployment' as const,
+        deploymentVersionId: 'deployment-version-1',
+      },
+      principal,
+    }
+
+    try {
+      const result = await executeTool(
+        'test_actorless_registered_operation',
+        {},
+        {
+          executionContext: createToolExecutionContext({
+            userId: undefined,
+            workflowId: 'workflow-1',
+            workspaceId: 'workspace-1',
+            executionId: 'execution-1',
+            principal,
+            executorDelegationOrigin,
+          }),
+        }
+      )
+
+      expect(result).toMatchObject({ success: true, output: { ok: true } })
+      expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({
+            executorDelegationOrigin,
+          }),
+        })
+      )
+      expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].context.userId).toBeUndefined()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_actorless_registered_operation')
+    }
+  })
+
   it('maps the public File Fetch URL before in-process dispatch', async () => {
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ success: true, output: { files: [], combinedContent: '' } })
@@ -1148,6 +1253,7 @@ describe('executeTool Function', () => {
   })
 
   it('bounds ignored Bitbucket pipeline log ranges through the execution path', async () => {
+    mockExecuteInternalToolOperation.mockImplementationOnce(executeBitbucketTool)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
 
     const log = 'line 1\nDONE\n'
@@ -1179,9 +1285,14 @@ describe('executeTool Function', () => {
     }
     const accepted = await executeTool('bitbucket_get_pipeline_step_log', params, {
       skipPostProcess: true,
+      executionContext: createToolExecutionContext({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      }),
     })
 
-    expect(accepted).toMatchObject({
+    expect(accepted, accepted.error).toMatchObject({
       success: true,
       output: {
         log: 'DONE\n',
@@ -2805,6 +2916,104 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('accepts an authoritative instanceUrl only from credential resolution', async () => {
+    const environmentUrl = 'https://contoso.crm.dynamics.com'
+    const otherEnvironmentUrl = 'https://other.crm.dynamics.com'
+    const createAuthorityTool = (id: string, authoritative: boolean) => ({
+      id,
+      name: 'Credential Origin Authority Test',
+      description: 'Verifies credential-derived provider origins',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'microsoft-dataverse',
+        ...(authoritative && { authoritativeParams: ['instanceUrl'] }),
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        instanceUrl: { type: 'string', required: true, visibility: 'hidden' },
+        environmentUrl: { type: 'string', required: true, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          if (!params.instanceUrl) throw new Error('Credential is not bound to an environment')
+          if (params.instanceUrl !== params.environmentUrl) {
+            throw new Error('Credential belongs to a different environment')
+          }
+          return `${params.instanceUrl}/api/data/v9.2/accounts`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    })
+    const authorityToolId = 'test_credential_origin_authority'
+    const ordinaryToolId = 'test_origin_authority'
+    ;(tools as Record<string, unknown>)[authorityToolId] = createAuthorityTool(
+      authorityToolId,
+      true
+    )
+    ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        ),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const legacyResult = await executeTool(authorityToolId, {
+        credential: 'legacy-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(legacyResult).toMatchObject({
+        success: false,
+        error: expect.stringContaining('not bound to an environment'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      setTokenPayload({ accessToken: 'bound-token', instanceUrl: environmentUrl })
+      const boundResult = await executeTool(authorityToolId, {
+        credential: 'bound-credential',
+        environmentUrl,
+        instanceUrl: otherEnvironmentUrl,
+      })
+      expect(boundResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'ordinary-token' })
+      const ordinaryResult = await executeTool(ordinaryToolId, {
+        credential: 'ordinary-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(ordinaryResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, authorityToolId)
+      Reflect.deleteProperty(tools, ordinaryToolId)
+    }
+  })
+
   it('transports only active provenance selected for an internal model input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
@@ -3303,7 +3512,7 @@ describe('Internal Route Trust', () => {
     }
   })
 
-  it('projects only selected model input before direct execution', async () => {
+  it('projects only selected model input before a registered operation', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'PROMPT_SECRET',
@@ -3313,29 +3522,28 @@ describe('Internal Route Trust', () => {
     ])
     registry.recordResolvedAtInputPath('PROMPT_SECRET', 'direct-secret', ['prompt'])
     registry.recordResolvedInputProjection(['prompt'], 'direct-secret', '{{PROMPT_SECRET}}')
-    const directExecution = vi.fn().mockResolvedValue({ success: true, output: { ok: true } })
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, output: { ok: true } })
+    )
     const postProcess = vi.fn(
       async (result: { success: boolean; output: { ok: boolean } }) => result
     )
     const mockTool = {
       id: 'test_direct_projected_model_tool',
       name: 'Test Direct Projected Model Tool',
-      description: 'Projects model-visible params before direct execution',
+      description: 'Projects model-visible params before registered operation execution',
       version: '1.0.0',
       params: {
         prompt: { type: 'string', required: true },
         apiKey: { type: 'string', required: true },
       },
-      request: {
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
+      operation: {
+        input: createInternalToolOperationInput,
         modelInput: {
           mode: 'project' as const,
           select: (params: { prompt: string }) => ({ prompt: params.prompt }),
         },
       },
-      directExecution,
       postProcess,
     }
     const params = { prompt: 'direct-secret', apiKey: 'direct-secret' }
@@ -3345,16 +3553,23 @@ describe('Internal Route Trust', () => {
     try {
       const result = await executeTool('test_direct_projected_model_tool', params, {
         resolvedSecretTraceRegistry: registry,
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        }),
       })
 
       expect(result.success).toBe(true)
-      expect(directExecution).toHaveBeenCalledWith(
-        { prompt: '{{PROMPT_SECRET}}', apiKey: 'direct-secret' },
-        undefined
+      expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolId: 'test_direct_projected_model_tool',
+          input: { prompt: '{{PROMPT_SECRET}}', apiKey: 'direct-secret' },
+        })
       )
       expect(postProcess).toHaveBeenCalledWith(
         expect.any(Object),
-        { prompt: 'direct-secret', apiKey: 'direct-secret' },
+        expect.objectContaining({ prompt: 'direct-secret', apiKey: 'direct-secret' }),
         expect.any(Function)
       )
       expect(params).toEqual(originalParams)
@@ -3380,12 +3595,7 @@ describe('Internal Route Trust', () => {
       description: 'Executes a registered internal operation from post-processing',
       version: '1.0.0',
       params: {},
-      request: {
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution: vi.fn().mockResolvedValue({ success: true, output: {} }),
+      operation: { input: (params: Record<string, unknown>) => params },
       postProcess: async (
         _result: ToolResponse,
         _params: Record<string, unknown>,

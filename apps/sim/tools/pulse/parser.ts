@@ -252,7 +252,6 @@ export const pulseParserV2Tool: InternalToolConfig<PulseParserV2Input, PulsePars
   id: 'pulse_parser_v2',
   name: 'Pulse Document Parser',
   postProcess: undefined,
-  directExecution: undefined,
   transformResponse: pulseParserTool.transformResponse
     ? (response: Response, params?: PulseParserV2Input) =>
         pulseParserTool.transformResponse!(response, params)

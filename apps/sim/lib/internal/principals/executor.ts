@@ -1,6 +1,7 @@
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
+import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
@@ -32,7 +33,8 @@ async function bindExecutorPrincipal(
   origin: ExecutorDelegationOrigin,
   audience: string,
   resourceScope?: DelegatedPrincipal['resourceScope'],
-  expiresAt?: Date
+  expiresAt?: Date,
+  compatibilityActorUserId?: string
 ) {
   if (!origin.workflowId.trim()) throw new Error('Authentication required')
   const subjectUserId = resolveExecutorOriginSubject(origin)
@@ -52,6 +54,7 @@ async function bindExecutorPrincipal(
     {
       audience,
       ...(resourceScope ? { resourceScope } : {}),
+      ...(!subjectUserId && compatibilityActorUserId ? { compatibilityActorUserId } : {}),
     }
   )
 }
@@ -70,6 +73,6 @@ export async function createExecutorPrincipalFromExecutionContext({
   expiresAt,
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
-  if (!origin) throw new Error('Executor delegation origin is required')
-  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt)
+  if (!origin) throw new ExecutorDelegationOriginRequiredError()
+  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt, context.userId)
 }

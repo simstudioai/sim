@@ -638,6 +638,8 @@ const Combobox = memo(
       }, [effectiveHighlightedIndex])
 
       const SelectedIcon = selectedOption?.icon
+      const visualLabel =
+        overlayLabel ?? multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)
 
       return (
         <Popover open={open} onOpenChange={changeOpen}>
@@ -722,11 +724,7 @@ const Combobox = memo(
                     onKeyDown={handleKeyDown}
                   >
                     <OverflowText
-                      label={
-                        overlayLabel ??
-                        multiSelectLabel ??
-                        (selectedOption ? selectedOption.label : placeholder)
-                      }
+                      label={visualLabel}
                       className={cn(
                         'flex-1',
                         !selectedOption && !multiSelectLabel && 'text-[var(--text-muted)]',
@@ -741,7 +739,9 @@ const Combobox = memo(
                     />
                     {overlayContent && (
                       <div className='pointer-events-none absolute inset-y-0 right-[24px] left-0 flex items-center px-2'>
-                        <div className='w-full truncate'>{overlayContent}</div>
+                        <OverflowText label={visualLabel} className='w-full' tooltipEnabled={false}>
+                          {overlayContent}
+                        </OverflowText>
                       </div>
                     )}
                   </div>

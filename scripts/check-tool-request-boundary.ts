@@ -44,6 +44,7 @@ export interface ToolSelfHopViolation {
   reason:
     | 'same-origin-tool-request'
     | 'legacy-internal-policy'
+    | 'retired-direct-execution'
     | 'unresolved-request-policy'
     | 'unapproved-same-origin-policy'
 }
@@ -1601,8 +1602,25 @@ export function auditToolSelfHops(source: string, file = 'source.ts'): ToolSelfH
   let detectedSelfHops = 0
   let legacyInternalPolicies = 0
   const resolver = createSelfHopResolver(program, file)
+  const retiredDirectExecutionLocations = new Set<number>()
 
   const visit = (node: SyntaxNode) => {
+    if (
+      ['ObjectProperty', 'ObjectMethod', 'TSPropertySignature', 'TSMethodSignature'].includes(
+        node.type
+      ) &&
+      getStaticPropertyName(node) === 'directExecution'
+    ) {
+      const location = node.start ?? node.loc?.start.line ?? -1
+      if (!retiredDirectExecutionLocations.has(location)) {
+        retiredDirectExecutionLocations.add(location)
+        violations.push({
+          file,
+          line: node.loc?.start.line ?? 1,
+          reason: 'retired-direct-execution',
+        })
+      }
+    }
     if (node.type === 'ObjectExpression') {
       const idProperty = getObjectProperty(node, 'id')
       const toolId = idProperty ? getToolId(node, resolver) : undefined
@@ -1921,7 +1939,9 @@ function main(): void {
           ? 'replace the /api self-hop with InternalToolConfig.operation and a registered server handler'
           : violation.reason === 'legacy-internal-policy'
             ? 'request.internal is obsolete; use InternalToolConfig.operation for in-process work'
-            : 'request configuration could not be audited; keep it in a statically resolvable local helper'
+            : violation.reason === 'retired-direct-execution'
+              ? 'directExecution is retired; use InternalToolConfig.operation and a registered server handler'
+              : 'request configuration could not be audited; keep it in a statically resolvable local helper'
       console.error(
         `  ${relative(ROOT, violation.file)}:${violation.line}  ${violation.toolId ?? 'unknown tool'}: ${description}`
       )

@@ -8,7 +8,7 @@ import { getSandboxListQueryOptions } from '@/hooks/queries/sandboxes'
 import {
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupList,
+  fetchCredentialGroupSettings,
 } from '@/hooks/queries/utils/credential-group-queries'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import {
@@ -40,13 +40,14 @@ function workspaceCredentials(workspaceId: string) {
   })
 }
 
-function credentialGroups(workspaceId: string) {
-  return getQueryClient().fetchQuery({
+async function credentialGroups(workspaceId: string) {
+  const settings = await getQueryClient().fetchQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
     queryFn: ({ signal }: { signal?: AbortSignal }) =>
-      fetchCredentialGroupList(workspaceId, signal),
+      fetchCredentialGroupSettings(workspaceId, signal),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
+  return settings.credentialGroups
 }
 
 function workspaceScoped(

@@ -331,6 +331,55 @@ describe('Windchill operations', () => {
     })
   })
 
+  it('uses the legacy execution actor for actorless file access', async () => {
+    const rawFile = {
+      key: 'workspace/specification.pdf',
+      name: 'specification.pdf',
+      size: 3,
+      type: 'application/pdf',
+    }
+    mocks.processFilesToUserFiles.mockReturnValue([rawFile])
+    mocks.downloadServableFileFromStorage.mockResolvedValue({
+      buffer: Buffer.from('pdf'),
+      contentType: 'application/pdf',
+    })
+
+    await executeWindchillOperation(
+      {
+        ...BASE,
+        operation: 'windchill_upload_primary_content',
+        documentOid: DOCUMENT_OID,
+        primaryFile: rawFile,
+      },
+      {
+        principal: {
+          ...PRINCIPAL,
+          subjectUserId: undefined,
+          delegationContext: {
+            ...PRINCIPAL.delegationContext,
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: 'execution-actor',
+            },
+          },
+        },
+        requestId: 'request-1',
+      }
+    )
+
+    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+      rawFile.key,
+      'execution-actor',
+      'request-1',
+      expect.anything()
+    )
+  })
+
   it('fails closed before storage or provider work when file access is denied', async () => {
     const rawFile = { key: 'other/file.pdf', name: 'file.pdf', size: 3, type: 'application/pdf' }
     mocks.processFilesToUserFiles.mockReturnValue([rawFile])
@@ -412,5 +461,42 @@ describe('Windchill operations', () => {
       mimeType: 'application/pdf',
     })
     expect(result).not.toHaveProperty('content')
+  })
+
+  it('attributes actorless provider downloads to the legacy execution actor', async () => {
+    await executeWindchillOperation(
+      {
+        ...BASE,
+        operation: 'windchill_download_primary_content',
+        documentOid: DOCUMENT_OID,
+      },
+      {
+        principal: {
+          ...PRINCIPAL,
+          subjectUserId: undefined,
+          delegationContext: {
+            ...PRINCIPAL.delegationContext,
+            currentWorkflow: {
+              workflowId: 'workflow-1',
+              mode: 'deployment',
+              deploymentVersionId: 'deployment-1',
+            },
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: 'execution-actor',
+            },
+          },
+        },
+        requestId: 'request-1',
+      }
+    )
+
+    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+      expect.anything(),
+      Buffer.from('pdf'),
+      'specification.pdf',
+      'application/pdf',
+      'execution-actor'
+    )
   })
 })

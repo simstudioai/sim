@@ -78,6 +78,16 @@ export interface WorkflowExecutionDelegationContext {
   executionId?: string
   principal?: WorkflowExecutionPrincipal
   currentWorkflow?: WorkflowExecutionAuthority
+  /**
+   * The trusted Sim user ID legacy executor routes ran as before principal wiring.
+   *
+   * This is compatibility policy, not the authenticated subject: workspace
+   * authorization and audit identity continue to use the principal itself.
+   */
+  compatibilityActor?: {
+    kind: 'legacy_execution_user'
+    userId: string
+  }
 }
 
 export type WorkflowExecutionAuthority =
@@ -115,11 +125,42 @@ export class PrincipalSubjectUserRequiredError extends Error {
   }
 }
 
+/**
+ * The Sim user a principal represents, or `undefined` when it represents none.
+ *
+ * Actorless callers are ordinary, not exceptional: a scheduled or webhook run, a
+ * workspace API key, and a Credential Group enrollment all act with real authority
+ * and no human behind them. Use this wherever the user is attribution — a name to
+ * record a read or write under — and {@link requirePrincipalSubjectUserId} only
+ * where the operation's meaning genuinely collapses without one, so that choice is
+ * visible at the call site instead of hidden in a ternary.
+ */
+export function resolvePrincipalSubjectUserId(principal: Principal): string | undefined {
+  const subject = resolvePrincipalSubject(principal)
+  return subject?.kind === 'sim_user' ? subject.userId : undefined
+}
+
 /** Resolves the real human subject represented by a principal or fails fast. */
 export function requirePrincipalSubjectUserId(principal: Principal): string {
-  const subject = resolvePrincipalSubject(principal)
-  if (subject?.kind === 'sim_user') return subject.userId
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (userId !== undefined) return userId
   throw new PrincipalSubjectUserRequiredError(principal.kind)
+}
+
+/**
+ * Resolves the principal's Sim user subject or its principal-bound legacy
+ * execution actor.
+ *
+ * Only operations that deliberately preserve pre-principal executor behavior
+ * should use this helper. It never changes the principal subject, workspace
+ * authorization, or audit actor.
+ */
+export function resolvePrincipalExecutionActorUserId(principal: Principal): string | undefined {
+  const subjectUserId = resolvePrincipalSubjectUserId(principal)
+  if (subjectUserId) return subjectUserId
+  if (principal.kind !== 'delegated' || principal.serviceId !== 'executor') return undefined
+  if (principal.delegationContext?.currentWorkflow?.mode !== 'deployment') return undefined
+  return principal.delegationContext?.compatibilityActor?.userId
 }
 
 export type WorkflowExecutionPrincipal =

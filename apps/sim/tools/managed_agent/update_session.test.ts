@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { managedAgentUpdateSessionTool } from '@/tools/managed_agent/update_session'
+import { executeManagedAgentUpdateSessionOperation } from '@/lib/internal/managed-agent/operations/update-session'
 
 const originalFetch = global.fetch
 afterEach(() => {
@@ -16,7 +16,7 @@ const capture = () => {
 }
 
 const run = (params: Record<string, unknown>) =>
-  managedAgentUpdateSessionTool.directExecution!(
+  executeManagedAgentUpdateSessionOperation(
     { credential: 'c', accessToken: 'sk-ant-fake', sessionId: 'sesn_1', ...params } as never,
     undefined
   )

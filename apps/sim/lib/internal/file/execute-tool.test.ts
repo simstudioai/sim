@@ -196,6 +196,10 @@ describe('executeFileTool', () => {
           mode: 'deployment' as const,
           deploymentVersionId: 'deployment-1',
         },
+        compatibilityActor: {
+          kind: 'legacy_execution_user' as const,
+          userId: 'legacy-actor',
+        },
       },
     }
     mocks.createPrincipal.mockResolvedValueOnce(principal)

@@ -1,7 +1,7 @@
 import {
   type Principal,
-  requirePrincipalSubjectUserId,
   resolvePrincipalSubject,
+  resolvePrincipalSubjectUserId,
   type SessionPrincipal,
 } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
@@ -20,6 +20,7 @@ import {
   requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type {
   CreateKnowledgeBaseInput,
@@ -32,7 +33,11 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
 export function internalKnowledgeActorUserId(principal: Principal): string {
-  return requirePrincipalSubjectUserId(principal)
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) {
+    throw new OrchestrationError('forbidden', 'Knowledge operation requires a user subject')
+  }
+  return userId
 }
 
 export function internalKnowledgeProvenanceUserId(
@@ -43,10 +48,9 @@ export function internalKnowledgeProvenanceUserId(
   if (principal.kind !== 'delegated') return internalKnowledgeActorUserId(principal)
   const subject = resolvePrincipalSubject(principal)
   if (subject?.kind === 'sim_user') return subject.userId
-  if (!workspaceId) {
-    throw new Error('Delegated Knowledge provenance requires a workspace scope')
-  }
-  return requireWorkspaceBillingAttributionHeader(headers, { workspaceId }).billedAccountUserId
+  return requireWorkspaceBillingAttributionHeader(headers, {
+    workspaceId: workspaceId ?? principal.workspaceId,
+  }).actorUserId
 }
 
 export function internalKnowledgeAuthType(principal: Principal): AuthTypeValue {

@@ -1,6 +1,6 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LogEntry, SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
-import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
+import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
@@ -33,14 +33,9 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       // Logs API uses a different subdomain
-      const logsHost =
-        site === 'datadoghq.com'
-          ? 'http-intake.logs.datadoghq.com'
-          : site === 'datadoghq.eu'
-            ? 'http-intake.logs.datadoghq.eu'
-            : `http-intake.logs.${site}`
+      const logsHost = `http-intake.logs.${site}`
       return `https://${logsHost}/api/v2/logs`
     },
     method: 'POST',

@@ -57,8 +57,9 @@ export const chipContentGap = 'gap-1.5'
 export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounded-lg px-2 text-left text-sm`
 /** Chip-content icon (non-inverse): 16px, non-shrinking, `--text-icon`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-/** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
-export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
+/** Fade-free single-line fallback for rich chip content. Plain text labels should render through `OverflowText`. */
+export const chipContentLabelClass =
+  'min-w-0 overflow-hidden text-clip whitespace-nowrap text-[var(--text-body)] text-sm'
 
 /**
  * The two row surfaces. Mutually exclusive — a row paints one OR the other,

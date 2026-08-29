@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createAtlassianManagedOAuthConnector,
   createGoogleManagedOAuthConnector,
+  getManagedOAuthConnectorPolicy,
 } from '@/lib/auth/connectors/managed-oauth'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
   getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
   getCredentialGroupStandardOAuthProviderFromProviderId,
@@ -99,4 +101,33 @@ describe('Credential Group provider registry', () => {
       'Unsupported managed OAuth provider'
     )
   })
+  it.each(CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS)(
+    'backs %s with a managed OAuth policy and a round-trippable provider id',
+    (provider) => {
+      const service = getCredentialGroupProviderService(provider)
+
+      expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe(provider)
+      expect(getCredentialGroupStandardOAuthProviderFromProviderId(service.providerId)).toBe(
+        provider
+      )
+      expect(getCredentialGroupProviderAdapter(provider).provider).toBe(provider)
+      /**
+       * The provider list and the connector policy catalog are maintained separately, so an entry
+       * added to one and not the other would otherwise only surface as a runtime configuration
+       * error the first time somebody tried to enroll.
+       */
+      expect(getManagedOAuthConnectorPolicy(service.providerId)).toBeDefined()
+    }
+  )
+
+  it.each(CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS)(
+    'gives %s either a scope policy or an explicit scopeless declaration',
+    (provider) => {
+      const service = getCredentialGroupProviderService(provider)
+      const policy = getManagedOAuthConnectorPolicy(service.providerId)
+      const requiredScopes = [...service.scopes, ...(policy?.additionalScopes ?? [])]
+
+      expect(requiredScopes.length > 0 || policy?.scopeless === true).toBe(true)
+    }
+  )
 })

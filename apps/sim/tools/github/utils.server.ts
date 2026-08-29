@@ -35,8 +35,8 @@ function withUserAgent(headers: Record<string, string>): Record<string, string> 
 }
 
 /**
- * Executes one DNS-validated, IP-pinned GitHub request for a tool that cannot use
- * the declarative transport — a multi-phase tool running under `directExecution`.
+ * Executes one DNS-validated, IP-pinned GitHub request for a registered operation
+ * whose provider interaction spans multiple requests.
  *
  * This deliberately carries no retry loop: the tools on this path declare no
  * `request.retry`, so the transport retries them zero times today, and the second

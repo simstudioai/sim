@@ -15,6 +15,7 @@ import {
 export interface BindInternalExecutorDelegationOptions {
   audience: string
   resourceScope?: DelegatedPrincipal['resourceScope']
+  compatibilityActorUserId?: string
 }
 
 export class InvalidInternalDelegationBindingError extends Error {
@@ -30,6 +31,12 @@ export async function bindInternalExecutorDelegation(
   options: BindInternalExecutorDelegationOptions
 ): Promise<BoundWorkflowExecutionDelegatedPrincipal> {
   if (!options.audience.trim()) throw new Error('Internal delegation audience must not be empty')
+  if (options.compatibilityActorUserId !== undefined && !options.compatibilityActorUserId.trim()) {
+    throw new Error('Internal delegation execution actor must not be empty')
+  }
+  if (claims.subjectUserId && options.compatibilityActorUserId) {
+    throw new Error('Internal delegation cannot bind a compatibility actor to a user subject')
+  }
 
   let context: ActiveWorkflowApplicationContext
   let rootDeploymentVersionId: string | null | undefined
@@ -107,6 +114,14 @@ export async function bindInternalExecutorDelegation(
       ...(claims.executionId ? { executionId: claims.executionId } : {}),
       ...(claims.principal ? { principal: claims.principal } : {}),
       ...(claims.currentWorkflow ? { currentWorkflow: claims.currentWorkflow } : {}),
+      ...(options.compatibilityActorUserId
+        ? {
+            compatibilityActor: {
+              kind: 'legacy_execution_user',
+              userId: options.compatibilityActorUserId,
+            } as const,
+          }
+        : {}),
     },
   }
 }

@@ -10,9 +10,12 @@ import {
   useIsOverflowing,
 } from '../tooltip/tooltip'
 
-/** Shared 18px trailing fade for measured special cases such as breadcrumb groups. */
+/** Complete fade-only clipping treatment for measured special cases. */
 export const overflowTextFadeClass =
-  '[-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_18px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_18px),transparent)]'
+  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
+
+/** Fade-free clipping for externally measured labels and rich-content overflow exceptions. */
+export const overflowTextClipClass = 'block min-w-0 overflow-hidden text-clip whitespace-nowrap'
 
 export interface OverflowTextProps {
   /** Full text shown in the tooltip and used as the default visible content. */
@@ -51,7 +54,7 @@ export const OverflowText = memo(function OverflowText({
     if (focusTarget !== 'nearest-interactive') return null
     return (
       node.current?.closest<HTMLElement>(
-        'a[href], button, [role="button"], [tabindex]:not([tabindex="-1"])'
+        'a[href], button, [role="button"], [role^="menuitem"], [tabindex]:not([tabindex="-1"])'
       ) ?? null
     )
   }, [focusTarget, node])
@@ -72,11 +75,7 @@ export const OverflowText = memo(function OverflowText({
       <span
         ref={textRef}
         data-overflow-text=''
-        className={cn(
-          className,
-          'block min-w-0 overflow-hidden text-clip whitespace-nowrap',
-          isOverflowing && overflowTextFadeClass
-        )}
+        className={cn(className, overflowTextClipClass, isOverflowing && overflowTextFadeClass)}
         {...handlers}
       >
         {children ?? label}
