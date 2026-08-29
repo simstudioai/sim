@@ -537,6 +537,27 @@ export function itResistsTraversal(
       return
     }
 
+    if (preservesWhitespace) {
+      /**
+       * No tolerance for a throw here. This branch asserts that padding
+       * *survives*, so a rejection contradicts it outright — swallowing that
+       * would let `safeUrlPath` regress to trimming or refusing while the suite
+       * stayed green, which is the failure mode this file exists to prevent.
+       */
+      const url = buildUrl(tool, paramName, padded, context)
+
+      expect(url.pathname.startsWith(basePath)).toBe(true)
+      expect(decodeURIComponent(url.pathname)).toBe(
+        decodeURIComponent(baselinePath).split(PROBE_ID).join(padded)
+      )
+      return
+    }
+
+    /**
+     * For an ordinary id, refusing padding outright is an equally correct
+     * outcome — `validateDatabaseIdentifier` guards Supabase's `table` and
+     * admits no whitespace at all — so the assertion is "same path or no path".
+     */
     let url: URL
     try {
       url = buildUrl(tool, paramName, padded, context)
@@ -544,15 +565,7 @@ export function itResistsTraversal(
       return
     }
 
-    if (!preservesWhitespace) {
-      expect(url.pathname).toBe(baselinePath)
-      return
-    }
-
-    expect(url.pathname.startsWith(basePath)).toBe(true)
-    expect(decodeURIComponent(url.pathname)).toBe(
-      decodeURIComponent(baselinePath).split(PROBE_ID).join(padded)
-    )
+    expect(url.pathname).toBe(baselinePath)
   })
 }
 
