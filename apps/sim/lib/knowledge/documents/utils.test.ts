@@ -786,13 +786,18 @@ describe('secureFetchWithRetry', () => {
     const response = await secureFetchWithRetry('https://example.com/api', {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      profile: 'configuredEndpoint',
     })
 
     expect(response.status).toBe(200)
     expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
     const [url, options, paramName] = mockSecureFetchWithValidation.mock.calls[0]
     expect(url).toBe('https://example.com/api')
-    expect(options).toMatchObject({ method: 'GET', headers: { Accept: 'application/json' } })
+    expect(options).toMatchObject({
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      profile: 'configuredEndpoint',
+    })
     expect(paramName).toBe('url')
   })
 
