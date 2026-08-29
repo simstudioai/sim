@@ -10,6 +10,7 @@ import {
   deleteWorkspaceApiKeysContract,
 } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
+import { apiKeyManagementWithheldResponse } from '@/lib/api-key/access'
 import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
@@ -44,6 +45,9 @@ export const GET = withRouteHandler(
       if (!permission) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+
+      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
+      if (withheld) return withheld
 
       const workspaceKeys = await db
         .select({
@@ -106,6 +110,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
+      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
+      if (withheld) return withheld
+
       const parsed = await parseRequest(createWorkspaceApiKeyContract, request, context)
       if (!parsed.success) return parsed.response
       const { name, source } = parsed.data.body
@@ -166,6 +173,9 @@ export const DELETE = withRouteHandler(
       if (permission !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const withheld = await apiKeyManagementWithheldResponse(userId, workspaceId)
+      if (withheld) return withheld
 
       const parsed = await parseRequest(deleteWorkspaceApiKeysContract, request, context)
       if (!parsed.success) return parsed.response

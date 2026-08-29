@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPersonalApiKeyContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
+import { personalApiKeyManagementWithheldResponse } from '@/lib/api-key/access'
 import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
@@ -22,6 +23,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
+
+    const withheld = await personalApiKeyManagementWithheldResponse(userId)
+    if (withheld) return withheld
 
     const keys = await db
       .select({
@@ -66,6 +70,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
+
+    const withheld = await personalApiKeyManagementWithheldResponse(userId)
+    if (withheld) return withheld
+
     const parsed = await parseRequest(createPersonalApiKeyContract, request, {})
     if (!parsed.success) return parsed.response
 
