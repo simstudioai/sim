@@ -1,5 +1,6 @@
 import type { RootlyAlertActionResponse, RootlyEscalateAlertParams } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyEscalateAlertTool: ToolConfig<
   RootlyEscalateAlertParams,
@@ -38,7 +39,8 @@ export const rootlyEscalateAlertTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}/escalate`,
+    url: (params) =>
+      `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}/escalate`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

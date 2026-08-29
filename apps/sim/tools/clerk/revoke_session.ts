@@ -6,6 +6,7 @@ import type {
   ClerkSession,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkRevokeSession')
 
@@ -34,7 +35,8 @@ export const clerkRevokeSessionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId?.trim()}/revoke`,
+    url: (params) =>
+      `https://api.clerk.com/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/revoke`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

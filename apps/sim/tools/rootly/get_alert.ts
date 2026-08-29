@@ -1,5 +1,6 @@
 import type { RootlyGetAlertParams, RootlyGetAlertResponse } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyGetAlertTool: ToolConfig<RootlyGetAlertParams, RootlyGetAlertResponse> = {
   id: 'rootly_get_alert',
@@ -23,7 +24,8 @@ export const rootlyGetAlertTool: ToolConfig<RootlyGetAlertParams, RootlyGetAlert
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}`,
+    url: (params) =>
+      `https://api.rootly.com/v1/alerts/${safeUrlPathSegment(params.alertId, 'alertId')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

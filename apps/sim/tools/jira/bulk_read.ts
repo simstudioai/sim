@@ -3,6 +3,7 @@ import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/j
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
   id: 'jira_bulk_read',
@@ -59,7 +60,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     const resolveProjectKey = async (cloudId: string, accessToken: string, ref: string) => {
       const refTrimmed = (ref || '').trim()
       if (!refTrimmed) return refTrimmed
-      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${encodeURIComponent(refTrimmed)}`
+      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${safeUrlPathSegment(refTrimmed, 'projectId')}`
       const resp = await fetch(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },

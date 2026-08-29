@@ -6,6 +6,7 @@ import type {
   ClerkOrganizationMembership,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkListOrganizationMemberships')
 
@@ -71,7 +72,7 @@ export const clerkListOrganizationMembershipsTool: ToolConfig<
       }
 
       const queryString = queryParams.toString()
-      const base = `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/memberships`
+      const base = `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/memberships`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',

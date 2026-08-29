@@ -2,6 +2,7 @@ import type { JiraDeleteCommentParams, JiraDeleteCommentResponse } from '@/tools
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDeleteCommentResponse> =
   {
@@ -52,7 +53,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
     request: {
       url: (params: JiraDeleteCommentParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment/${params.commentId?.trim() ?? ''}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}/comment/${safeUrlPathSegment(params.commentId, 'commentId')}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -69,7 +70,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
         // Make the actual request with the resolved cloudId
-        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey?.trim() ?? ''}/comment/${params?.commentId?.trim() ?? ''}`
+        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey, 'issueKey')}/comment/${safeUrlPathSegment(params!.commentId, 'commentId')}`
         const commentResponse = await fetch(commentUrl, {
           method: 'DELETE',
           headers: {

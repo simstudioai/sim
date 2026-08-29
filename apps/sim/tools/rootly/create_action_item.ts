@@ -3,6 +3,7 @@ import type {
   RootlyCreateActionItemResponse,
 } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyCreateActionItemTool: ToolConfig<
   RootlyCreateActionItemParams,
@@ -71,7 +72,8 @@ export const rootlyCreateActionItemTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/action_items`,
+    url: (params) =>
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/action_items`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',

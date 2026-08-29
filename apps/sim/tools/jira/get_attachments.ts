@@ -2,6 +2,7 @@ import type { JiraGetAttachmentsParams, JiraGetAttachmentsResponse } from '@/too
 import { ATTACHMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { downloadJiraAttachments, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Transforms a raw Jira attachment object into typed output.
@@ -72,7 +73,7 @@ export const jiraGetAttachmentsTool: ToolConfig<
   request: {
     url: (params: JiraGetAttachmentsParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?fields=attachment`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?fields=attachment`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -87,7 +88,7 @@ export const jiraGetAttachmentsTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraGetAttachmentsParams) => {
     const fetchAttachments = async (cloudId: string) => {
-      const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}?fields=attachment`
+      const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey, 'issueKey')}?fields=attachment`
       const attachmentsResponse = await fetch(attachmentsUrl, {
         method: 'GET',
         headers: {

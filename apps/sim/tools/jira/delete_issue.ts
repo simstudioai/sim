@@ -2,6 +2,7 @@ import type { JiraDeleteIssueParams, JiraDeleteIssueResponse } from '@/tools/jir
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIssueResponse> = {
   id: 'jira_delete_issue',
@@ -53,7 +54,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
     url: (params: JiraDeleteIssueParams) => {
       if (params.cloudId) {
         const deleteSubtasksParam = params.deleteSubtasks ? '?deleteSubtasks=true' : ''
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}${deleteSubtasksParam}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}${deleteSubtasksParam}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -70,7 +71,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       const deleteSubtasksParam = params!.deleteSubtasks ? '?deleteSubtasks=true' : ''
-      const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}${deleteSubtasksParam}`
+      const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey, 'issueKey')}${deleteSubtasksParam}`
       const deleteResponse = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: {

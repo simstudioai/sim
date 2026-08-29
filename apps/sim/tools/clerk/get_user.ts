@@ -8,6 +8,7 @@ import type {
   ClerkUser,
 } from '@/tools/clerk/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetUser')
 
@@ -33,7 +34,8 @@ export const clerkGetUserTool: ToolConfig<ClerkGetUserParams, ClerkGetUserRespon
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/users/${params.userId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {
