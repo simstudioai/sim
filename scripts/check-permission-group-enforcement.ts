@@ -29,9 +29,12 @@
  *
  *   // permission-group-exempt: <reason>
  *
- * While the operations are still being annotated the audit runs in count-down
- * mode: it reports how many are unfilled and exits 0. Assertions B–E fail the
- * build today.
+ * `capability` is a required field on `defineWorkspaceOperation`, so the half of
+ * assertion A that asks whether an operation declared one cannot fail through
+ * the type system. It survives because this audit reads source text rather than
+ * the type: an operation written in a form the parsers cannot follow yields no
+ * capability, and without the check it would be skipped in silence — counted as
+ * reviewed while nothing had actually read what it declares.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -246,7 +249,6 @@ function main(): void {
   const findings: Finding[] = []
   const usedCapabilities = new Set<string>()
   let declaredOperations = 0
-  let unfilledOperations = 0
 
   for (const file of sourceFiles) {
     const relativePath = relative(ROOT, file)
@@ -267,12 +269,20 @@ function main(): void {
     for (const declaration of parseOperationCapabilities(source)) {
       declaredOperations++
       if (declaration.capability === undefined) {
-        unfilledOperations++
+        findings.push({
+          file: relativePath,
+          line: declaration.line,
+          message: `operation '${declaration.id}' declares a capability this audit cannot read — the field is required, so this is a declaration form the parsers do not follow; teach parseOperationCapabilities about it rather than leaving the operation unchecked`,
+        })
         continue
       }
       if (declaration.capability === 'none') {
         if (!hasExemptAnnotation(source, declaration.line)) {
-          unfilledOperations++
+          findings.push({
+            file: relativePath,
+            line: declaration.line,
+            message: `operation '${declaration.id}' declares capability 'none' without a reason — put '${EXEMPT_ANNOTATION} <why no permission group governs it>' in a comment directly above it`,
+          })
         }
         continue
       }
@@ -287,22 +297,13 @@ function main(): void {
     }
   }
 
-  /**
-   * A capability nothing names is a key an admin can set to no effect. While
-   * the operations are still being annotated that is expected rather than
-   * broken, so it counts down with them instead of failing the build twice for
-   * the same unfinished migration.
-   */
-  const unreachedCapabilities = [...capabilityIds].filter(
-    (capability) => !usedCapabilities.has(capability)
-  )
-  if (unfilledOperations === 0) {
-    for (const capability of unreachedCapabilities) {
-      findings.push({
-        file: CAPABILITIES_FILE,
-        message: `capability '${capability}' is declared but nothing enforces it — name it on an operation, or annotate its call site with '${ENFORCED_ANNOTATION} ${capability} — <reason>'`,
-      })
-    }
+  /** A capability nothing names is a key an admin can set to no effect. */
+  for (const capability of capabilityIds) {
+    if (usedCapabilities.has(capability)) continue
+    findings.push({
+      file: CAPABILITIES_FILE,
+      message: `capability '${capability}' is declared but nothing enforces it — name it on an operation, or annotate its call site with '${ENFORCED_ANNOTATION} ${capability} — <reason>'`,
+    })
   }
 
   const enforcedByRule = new Set([...rules.values()].flatMap((rule) => rule.configKeys))
@@ -333,17 +334,6 @@ function main(): void {
         "key 'ui-only' so it is documented as a rendering hint rather than a control.\n"
     )
     process.exit(1)
-  }
-
-  if (unfilledOperations > 0) {
-    console.log(
-      `✓ permission-group enforcement: ${declaredOperations - unfilledOperations}/${declaredOperations} operations declare a capability ` +
-        `(${unfilledOperations} to go; the field becomes required once they all do)`
-    )
-    if (unreachedCapabilities.length > 0) {
-      console.log(`  pending enforcement: ${unreachedCapabilities.join(', ')}`)
-    }
-    return
   }
 
   console.log(
