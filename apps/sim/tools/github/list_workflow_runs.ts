@@ -92,6 +92,18 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
         typeof params.workflow_id === 'string' || typeof params.workflow_id === 'number'
           ? String(params.workflow_id).trim()
           : ''
+      /**
+       * A value that is entirely a dot segment has to be rejected rather than
+       * encoded: `encodeURIComponent('..')` returns `'..'` verbatim, and the URL
+       * parser then removes it and pops a path segment — quietly resolving back
+       * to the repository-wide endpoint this parameter exists to narrow. A dot
+       * segment *inside* a longer path is already inert, because its separators
+       * survive as `%2F` and the parser does not decode those first.
+       */
+      if (workflowId === '.' || workflowId === '..') {
+        throw new Error(`workflow_id cannot be "${workflowId}" (path traversal is not allowed)`)
+      }
+
       const scope = workflowId
         ? `actions/workflows/${encodeURIComponent(workflowId)}/runs`
         : 'actions/runs'
