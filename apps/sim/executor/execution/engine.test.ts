@@ -277,9 +277,11 @@ describe('ExecutionEngine', () => {
 
     /**
      * The crossing at the copilot boundary reads the absence of an attached result as "no block
-     * ran". That inference is only total if every throw out of `run` carries one.
+     * ran", so the attach has to be total. A block failure is normalized on the way in, so only
+     * a non-Error raised by `run`'s own work — here the cancellation subscribe it awaits before
+     * the queue — reaches the catch untouched and exercises the guarantee.
      */
-    it('attaches the execution result to every throw out of a failed run', async () => {
+    it('attaches the execution result to a non-Error thrown by its own work', async () => {
       const node = createMockNode('function-1', 'function')
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
@@ -289,14 +291,13 @@ describe('ExecutionEngine', () => {
         decisions: { router: new Map(), condition: new Map() },
         resolvedSecretTraceRegistry: registry,
       })
-      const nodeOrchestrator = createMockNodeOrchestrator()
-      vi.mocked(nodeOrchestrator.executeNode).mockRejectedValue(new Error('block exploded'))
+      mockIsExecutionCancelled.mockRejectedValueOnce('cancellation lookup exploded')
 
       const engine = new ExecutionEngine(
         context,
         createMockDAG([node]),
         createMockEdgeManager(),
-        nodeOrchestrator
+        createMockNodeOrchestrator()
       )
 
       const thrown = await engine.run(node.id).catch((error: unknown) => error)

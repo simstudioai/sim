@@ -440,6 +440,37 @@ describe('Copilot workflow run application commands', () => {
       )
     })
 
+    /**
+     * The post-run crossing is inside the same try, so its failure reaches the catch with no
+     * execution result — the same evidence a never-started run leaves. An execution exists and
+     * its provenance was never imported, so this must not be vouched for.
+     */
+    it('does not vouch when the crossing threw after the run returned', async () => {
+      const importCrossingProvenance = vi
+        .fn()
+        .mockImplementationOnce(() => {
+          throw new Error('crossing import failed')
+        })
+        .mockResolvedValue(true)
+
+      await runExpectingFailure({
+        lifecycle: {
+          resolvedSecretTraceRegistry: {
+            exportProvenanceForValue: vi.fn(() => undefined),
+            beginPendingActivation: vi.fn(() => vi.fn()),
+            importCrossingProvenance,
+          },
+        },
+      })
+
+      expect(importCrossingProvenance).toHaveBeenNthCalledWith(
+        2,
+        undefined,
+        expect.objectContaining({ thrownMessage: 'crossing import failed' }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+
     /** A run that did execute and could not vouch still hands back its incomplete envelope. */
     it('passes through an incomplete envelope from a run that did execute', async () => {
       const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()

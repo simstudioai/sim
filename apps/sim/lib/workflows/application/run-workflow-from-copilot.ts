@@ -254,6 +254,12 @@ async function executeCopilotRun(params: {
   )
   const completePendingActivation = registry?.beginPendingActivation()
   /**
+   * Whether the executor returned. The post-run crossing is inside the same `try`, so its own
+   * failure lands in the catch carrying no execution result — indistinguishable, on that
+   * evidence alone, from a run that never started. This records the difference the error cannot.
+   */
+  let executed = false
+  /**
    * The executor call is the first statement of this `try`, so everything caught below is
    * post-dispatch by construction, while authorization, admission and provenance export all
    * throw past this function having created nothing. That asymmetry is the whole of what a
@@ -305,6 +311,7 @@ async function executeCopilotRun(params: {
       },
       childExecutionId
     )
+    executed = true
     if (registry) {
       await registry.importCrossingProvenance(
         result.executionState?.resolvedSecretTraceProvenance,
@@ -331,21 +338,21 @@ async function executeCopilotRun(params: {
       const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
       try {
         /**
-         * A run that never reached the engine carried nothing back: the executor attaches its
-         * result to every throw, so its absence means no block ran, and the three content fields
-         * below are all undefined. The only content is `thrownMessage`, which this layer produced
-         * — an admission, validation, or setup failure — and which the tool boundary still
-         * projects against this registry before any of it reaches a model.
+         * A run that never started carried nothing back, and saying so keeps the caller's
+         * failure reason instead of reducing the tool result to "result unavailable" for a
+         * message that named no secret because none had been resolved yet.
          *
-         * Reporting that as unvouchable cost the caller the reason its run failed: the crossing
-         * latched, and the tool result was reduced to "result unavailable" for a message that
-         * named no secret because none had been resolved yet. An engine that did run and could
-         * not vouch still hands back an incomplete envelope, and that still latches.
+         * Both conditions are required to claim it. `executed` rules out the post-run window,
+         * where the crossing import is what threw: an execution exists and its provenance was
+         * never imported, so its content is exactly what cannot be vouched for. The absent
+         * execution result then rules out the engine having run at all — it attaches one to
+         * every throw. Anything else hands back whatever envelope it has, and an incomplete one
+         * still latches.
          */
         await registry.importCrossingProvenance(
-          executionResult
-            ? executionResult.executionState?.resolvedSecretTraceProvenance
-            : emptyResolvedSecretTraceProvenance(),
+          !executed && !executionResult
+            ? emptyResolvedSecretTraceProvenance()
+            : executionResult?.executionState?.resolvedSecretTraceProvenance,
           {
             output: executionResult?.output,
             logs: executionResult?.logs,
