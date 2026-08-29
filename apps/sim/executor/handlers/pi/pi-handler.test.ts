@@ -114,6 +114,7 @@ vi.mock('@/blocks/utils', () => ({
 import type { PiRunContext } from '@/executor/handlers/pi/core/backend'
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -311,6 +312,35 @@ describe('PiBlockHandler', () => {
     })) as { cost: unknown }
 
     expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.0842, total: 0.0842 })
+  })
+
+  it('keeps the sandbox charge on a cloud session whose agent reported an error', async () => {
+    // The backend returned, so the sandbox was billed and the sink holds the
+    // charge — but this path throws instead of reaching buildOutput, which is
+    // what would otherwise have published it.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0631
+      return {
+        totals: { finalText: '', inputTokens: 0, outputTokens: 0, errorMessage: 'agent gave up' },
+      }
+    })
+
+    const error = await handler
+      .execute(ctx(), block, {
+        mode: 'cloud',
+        task: 'do it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+      })
+      .catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(Error)
+    // `toolCost` is absent by design: the trusted envelope validates exactly the
+    // three numeric fields it will let cross the handler boundary. `total` is
+    // what the ledger bills on, and it carries the sandbox charge intact.
+    expect(readTrustedExecutionCost(error)).toEqual({ input: 0, output: 0, total: 0.0631 })
   })
 
   it('leaves a cloud run that provisioned no sandbox uncharged', async () => {

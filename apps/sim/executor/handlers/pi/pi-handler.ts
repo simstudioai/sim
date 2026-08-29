@@ -37,6 +37,7 @@ import {
   type PiMemoryConfig,
   resolvePiSkills,
 } from '@/executor/handlers/pi/core/context'
+import type { PiRunTotals } from '@/executor/handlers/pi/core/events'
 import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
@@ -54,7 +55,9 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ModelCost } from '@/providers/cost-policy'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -153,6 +156,34 @@ export function parsePiReviewMentions(value: unknown): string[] {
     )
   }
   return mentions
+}
+
+/**
+ * What a Pi block charges: its model tokens plus the Sim-paid sandbox compute.
+ *
+ * Sandbox cost rides in `toolCost` so it survives a BYOK run — the model side is
+ * zero by definition there, and the ledger bills a model row on `total > 0`.
+ * Folding it in is what makes a BYOK Pi session bill for the provider time it
+ * actually consumed instead of nothing at all.
+ *
+ * Shared with the failure path deliberately: an agent that ran and then reported
+ * an error consumed exactly the same tokens and sandbox seconds as one that
+ * succeeded, so both have to arrive at the same number.
+ */
+function buildPiCost(
+  model: string,
+  isBYOK: boolean,
+  totals: PiRunTotals,
+  sandboxCost: number
+): ModelCost {
+  const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
+  if (sandboxCost <= 0) return modelCost
+
+  return {
+    ...modelCost,
+    toolCost: sandboxCost,
+    total: modelCost.total + sandboxCost,
+  }
 }
 
 export class PiBlockHandler implements BlockHandler {
@@ -480,21 +511,7 @@ export class PiBlockHandler implements BlockHandler {
   ): NormalizedBlockOutput {
     const { totals } = result
     const endTime = Date.now()
-    const modelCost = computePiCost(model, totals.inputTokens, totals.outputTokens, isBYOK)
-    /*
-     * Sandbox compute rides in `toolCost` so it survives a BYOK run: the model
-     * side is zero by definition there, and the ledger bills a model row on
-     * `total > 0`. Folding it in is what makes a BYOK Pi session bill for the
-     * E2B time it actually consumed instead of nothing at all.
-     */
-    const cost =
-      sandboxCost > 0
-        ? {
-            ...modelCost,
-            toolCost: sandboxCost,
-            total: modelCost.total + sandboxCost,
-          }
-        : modelCost
+    const cost = buildPiCost(model, isBYOK, totals, sandboxCost)
     return {
       content: totals.finalText,
       model,
@@ -574,7 +591,12 @@ export class PiBlockHandler implements BlockHandler {
               sandboxCost,
             })
             if (result.totals.errorMessage) {
-              controller.error(new Error(result.totals.errorMessage))
+              const error = new Error(result.totals.errorMessage)
+              attachTrustedExecutionCost(
+                error,
+                buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+              )
+              controller.error(error)
               return
             }
             if (params.mode === 'cloud_plan' && result.totals.finalText) {
@@ -626,7 +648,19 @@ export class PiBlockHandler implements BlockHandler {
       sandboxCost,
     })
     if (result.totals.errorMessage) {
-      throw new Error(result.totals.errorMessage)
+      /*
+       * The backend returned, so the sandbox was billed and the sink holds the
+       * charge — but this throw skips `buildOutput`, which is what would have
+       * published it. Carrying the cost on the error is what keeps a session
+       * whose agent reported a failure from being run for free, the same way the
+       * Function handler carries its tool cost onto the error it raises.
+       */
+      const error = new Error(result.totals.errorMessage)
+      attachTrustedExecutionCost(
+        error,
+        buildPiCost(params.model, params.isBYOK, result.totals, sandboxCost.total)
+      )
+      throw error
     }
     if (memoryConfig) {
       await appendPiMemory(

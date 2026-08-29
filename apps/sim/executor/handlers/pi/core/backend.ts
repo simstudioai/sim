@@ -176,11 +176,15 @@ export interface PiRunContext {
   /**
    * Where a backend reports the cost of Sim-provisioned compute it used.
    *
-   * Only the cloud modes have any: they run the agent in a Sim-paid sandbox,
-   * while local mode drives the caller's own machine over SSH and costs Sim
-   * nothing. The handler folds whatever lands here into the block's `toolCost`,
-   * which is what keeps a BYOK Pi run — model unbilled by definition — from
-   * reporting no cost at all for a session that ran for tens of minutes.
+   * Both modes can fill it, from different sources. Cloud modes run the agent in
+   * a Sim-paid sandbox and report that session. Local mode drives the caller's
+   * own machine over SSH, so the agent itself costs Sim nothing — but the Sim
+   * tools it calls still run here, and a `function_execute` among them bills its
+   * own remote sandbox into the same total.
+   *
+   * The handler folds whatever lands here into the block's `toolCost`, which is
+   * what keeps a BYOK Pi run — model unbilled by definition — from reporting no
+   * cost at all for compute Sim actually paid for.
    */
   sandboxCost?: SandboxCostSink
 }
