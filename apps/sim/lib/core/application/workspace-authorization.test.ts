@@ -3,6 +3,7 @@
  */
 import type {
   DelegatedPrincipal,
+  PersonalApiKeyPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
+  resolvePermissionGroupConfig: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -20,15 +22,21 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => ({
+  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
+}))
+
 import {
   authorizeWorkspaceOperation,
   defineWorkspaceOperation,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
+  PermissionGroupCapabilityError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const writeOperation = defineWorkspaceOperation({
   id: 'test.write',
@@ -262,5 +270,182 @@ describe('authorizeWorkspaceOperation', () => {
       undefined,
       { forUpdate: undefined }
     )
+  })
+})
+
+const capabilityOperation = defineWorkspaceOperation({
+  id: 'test.capability-read',
+  minimumRole: 'read',
+  workspaceApiKey: 'allow',
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['executor'],
+  capability: 'tables.use',
+})
+
+const personalKeyPrincipal: PersonalApiKeyPrincipal = {
+  kind: 'personal_api_key',
+  userId: 'user-1',
+  keyId: 'key-personal-1',
+}
+
+const scopedWorkspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
+  kind: 'workspace_api_key',
+  workspaceId: 'workspace-1',
+  keyId: 'key-1',
+}
+
+/** A config that withholds the capability the operation above declares. */
+function withholdingConfig() {
+  return { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideTablesTab: true }
+}
+
+describe('authorizeWorkspaceOperation permission-group capability', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(null)
+  })
+
+  it('refuses a session whose group withholds the capability', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(principal, capabilityOperation, context)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+  })
+
+  it('names the capability and a code a caller can branch on', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    const error = await authorizeWorkspaceOperation(principal, capabilityOperation, context).catch(
+      (thrown: unknown) => thrown
+    )
+
+    expect(error).toBeInstanceOf(PermissionGroupCapabilityError)
+    expect((error as PermissionGroupCapabilityError).capability).toBe('tables.use')
+    expect((error as PermissionGroupCapabilityError).detailCode).toBe(
+      'PERMISSION_GROUP_CAPABILITY_BLOCKED'
+    )
+  })
+
+  it('refuses a personal API key the same way', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, capabilityOperation, context)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+  })
+
+  it('refuses a delegated principal that carries a user subject', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(
+        {
+          ...executorPrincipal(
+            { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+            { workflowId: 'current-workflow-1', mode: 'draft' }
+          ),
+          subjectUserId: 'user-1',
+        },
+        capabilityOperation,
+        context,
+        executorAuthorization
+      )
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+  })
+
+  /**
+   * A workspace API key authorizes as the workspace, so no group resolves for
+   * it. Documented policy rather than an oversight — the escape is closed by
+   * capability-gating key creation, not by guessing a user here.
+   */
+  it('does not apply to a workspace API key, which has no user', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(scopedWorkspaceKeyPrincipal, capabilityOperation, context)
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A deployment run has no subject, so denying here would 403 every schedule
+   * and webhook in the organization. What the run does is still gated by the
+   * executor.
+   */
+  it('does not apply to an actorless deployment run', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(
+        executorPrincipal(undefined, { workflowId: 'current-workflow-1', mode: 'deployment' }),
+        capabilityOperation,
+        context,
+        executorAuthorization
+      )
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('allows the operation when the group permits the capability', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    await expect(
+      authorizeWorkspaceOperation(principal, capabilityOperation, context)
+    ).resolves.toBeUndefined()
+  })
+
+  it('allows the operation when no group governs the user', async () => {
+    await expect(
+      authorizeWorkspaceOperation(principal, capabilityOperation, context)
+    ).resolves.toBeUndefined()
+  })
+
+  it('skips the lookup entirely for a workspace with no organization', async () => {
+    await expect(
+      authorizeWorkspaceOperation(principal, capabilityOperation, {
+        ...context,
+        workspaceOrganizationId: null,
+      })
+    ).resolves.toBeUndefined()
+    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('refuses on role before capability, so a non-member learns nothing about the group', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+
+    await expect(
+      authorizeWorkspaceOperation(principal, capabilityOperation, context)
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+})
+
+describe('defineWorkspaceOperation capability policy', () => {
+  it('refuses a parameterized capability, which the funnel could never apply', () => {
+    expect(() =>
+      defineWorkspaceOperation({
+        id: 'test.parameterized',
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session'],
+        // @ts-expect-error a parameterized capability is not assignable to the field
+        capability: 'deploy.chat.auth_mode',
+      })
+    ).toThrow(/parameterized capability/)
+  })
+
+  it('accepts an explicit opt-out', () => {
+    expect(() =>
+      defineWorkspaceOperation({
+        id: 'test.ungoverned',
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session'],
+        capability: 'none',
+      })
+    ).not.toThrow()
   })
 })

@@ -46,6 +46,7 @@
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
     "check:actorless-executor-operations": "bun run scripts/check-actorless-executor-operations.ts",
+    "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts --check",
     "check:trigger-block-cycle": "bun run scripts/check-trigger-block-cycle.ts",
     "check:import-specifiers": "bun run scripts/check-import-specifiers.ts",

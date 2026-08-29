@@ -9,12 +9,20 @@ export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as c
 const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
 
 /**
- * Whether a key is refused by a server-side gate or is only a client rendering
- * hint. A `ui-only` key hides a surface without withholding it, so a caller
- * that skips the UI still reaches the API — that is a property to state, not to
- * discover.
+ * Which mechanism refuses a request when this key is set.
+ *
+ * - `capability`: an operation declares a capability whose rule reads the key,
+ *   so the authorization funnel refuses before the use case runs.
+ * - `executor`: the key is read per block, tool or model at execution time by
+ *   `assertPermissionsAllowed`. It governs what a run may *do*, which no
+ *   operation-level gate can express.
+ * - `ui-only`: the key hides a surface without withholding it, so a caller that
+ *   skips the UI still reaches the API.
+ *
+ * Declared rather than inferred, because `ui-only` is the value an admin is
+ * most likely to mistake for a control — twelve keys shipped that way.
  */
-export type PermissionGroupEnforcement = 'server' | 'ui-only'
+export type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
 
 /** The admin-editor descriptor for a boolean key, rendered from the registry. */
 interface PlatformFeatureMeta {
@@ -165,143 +173,143 @@ function denylist<TItem extends z.ZodType>(
  *
  * Adding a key here adds it to the write schema, the read schema, the type, the
  * defaults, the tolerant parser and — for a boolean — the admin editor. It does
- * not add enforcement: `enforcement` records whether a server gate exists, and
- * a key declared `server` without one is what `check:permission-group-enforcement`
- * refuses.
+ * not add enforcement: `enforcement` names the mechanism that refuses, and
+ * `check:permission-group-enforcement` refuses a key that claims one it does
+ * not have.
  */
 export const PERMISSION_GROUP_FIELDS = {
-  allowedIntegrations: allowlist(z.string(), 'server', {
+  allowedIntegrations: allowlist(z.string(), 'executor', {
     limited: 'Integrations and blocks are limited to effectiveConfig.allowedIntegrations.',
     empty: 'No non-exempt integrations or blocks are allowed.',
   }),
-  allowedModelProviders: allowlist(z.string(), 'server', {
+  allowedModelProviders: allowlist(z.string(), 'executor', {
     limited: 'Model providers are limited to effectiveConfig.allowedModelProviders.',
     empty: 'No model providers are allowed.',
   }),
   deniedModels: denylist(
     z.string(),
-    'server',
+    'executor',
     'Models listed in effectiveConfig.deniedModels are blocked.'
   ),
   deniedTools: denylist(
     z.string(),
-    'server',
+    'executor',
     'Integration tools listed in effectiveConfig.deniedTools are blocked.'
   ),
-  hideTraceSpans: booleanRestriction('ui-only', {
+  hideTraceSpans: booleanRestriction('capability', {
     id: 'hide-trace-spans',
     label: 'Trace Spans',
     category: 'Logs',
     hint: 'Hide per-block trace spans in logs.',
   }),
-  hideKnowledgeBaseTab: booleanRestriction('ui-only', {
+  hideKnowledgeBaseTab: booleanRestriction('capability', {
     id: 'hide-knowledge-base',
     label: 'Knowledge Base',
     category: 'Sidebar',
     hint: 'Hide the Knowledge Base module from the sidebar.',
   }),
-  hideTablesTab: booleanRestriction('ui-only', {
+  hideTablesTab: booleanRestriction('capability', {
     id: 'hide-tables',
     label: 'Tables',
     category: 'Sidebar',
     hint: 'Hide the Tables module from the sidebar.',
   }),
-  hideCopilot: booleanRestriction('ui-only', {
+  hideCopilot: booleanRestriction('capability', {
     id: 'hide-copilot',
     label: 'Chat',
     category: 'Workflow Panel',
     hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
   }),
-  hideIntegrationsTab: booleanRestriction('ui-only', {
+  hideIntegrationsTab: booleanRestriction('capability', {
     id: 'hide-integrations',
     label: 'Integrations',
     category: 'Settings Tabs',
     hint: 'Hide the Integrations settings tab (OAuth connections).',
   }),
-  hideSecretsTab: booleanRestriction('ui-only', {
+  hideSecretsTab: booleanRestriction('capability', {
     id: 'hide-secrets',
     label: 'Secrets',
     category: 'Settings Tabs',
     hint: 'Hide the Secrets (environment variables) settings tab.',
   }),
-  hideApiKeysTab: booleanRestriction('ui-only', {
+  hideApiKeysTab: booleanRestriction('capability', {
     id: 'hide-api-keys',
     label: 'API Keys',
     category: 'Settings Tabs',
     hint: 'Hide the API Keys settings tab.',
   }),
-  hideInboxTab: booleanRestriction('ui-only', {
+  hideInboxTab: booleanRestriction('capability', {
     id: 'hide-inbox',
     label: 'Sim Mailer',
     category: 'Features',
     hint: 'Hide the Sim Mailer inbox.',
   }),
-  hideFilesTab: booleanRestriction('ui-only', {
+  hideFilesTab: booleanRestriction('capability', {
     id: 'hide-files',
     label: 'Files',
     category: 'Settings Tabs',
     hint: 'Hide the Files settings tab.',
   }),
-  disableMcpTools: booleanRestriction('server', {
+  disableMcpTools: booleanRestriction('capability', {
     id: 'disable-mcp',
     label: 'MCP Tools',
     category: 'Tools',
     hint: 'Block agents from calling MCP tools.',
   }),
-  disableCustomTools: booleanRestriction('server', {
+  disableCustomTools: booleanRestriction('capability', {
     id: 'disable-custom-tools',
     label: 'Custom Tools',
     category: 'Tools',
     hint: 'Block agents from calling user-defined custom tools.',
   }),
-  disableSkills: booleanRestriction('server', {
+  disableSkills: booleanRestriction('capability', {
     id: 'disable-skills',
     label: 'Skills',
     category: 'Tools',
     hint: 'Block agents from loading skills.',
   }),
-  disableInvitations: booleanRestriction('server', {
+  disableInvitations: booleanRestriction('capability', {
     id: 'disable-invitations',
     label: 'Invitations',
     category: 'Collaboration',
     hint: 'Prevent users from inviting others to workspaces.',
   }),
-  disablePublicApi: booleanRestriction('server', {
+  disablePublicApi: booleanRestriction('capability', {
     id: 'disable-public-api',
     label: 'Public API',
     category: 'Features',
     hint: 'Disable public API access to deployed workflows.',
   }),
-  disablePublicFileSharing: booleanRestriction('server', {
+  disablePublicFileSharing: booleanRestriction('capability', {
     id: 'disable-public-file-sharing',
     label: 'Public Sharing',
     category: 'Files',
     hint: 'Disable public file-share links.',
   }),
-  allowedFileShareAuthTypes: allowlist(shareAuthType, 'server', {
+  allowedFileShareAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:
       'Public file-share authentication is limited to effectiveConfig.allowedFileShareAuthTypes.',
     empty: 'No public file-share authentication modes are allowed.',
   }),
-  hideDeployApi: booleanRestriction('ui-only', {
+  hideDeployApi: booleanRestriction('capability', {
     id: 'hide-deploy-api',
     label: 'API',
     category: 'Deploy Tabs',
     hint: 'Hide the API deployment option.',
   }),
-  hideDeployMcp: booleanRestriction('ui-only', {
+  hideDeployMcp: booleanRestriction('capability', {
     id: 'hide-deploy-mcp',
     label: 'MCP',
     category: 'Deploy Tabs',
     hint: 'Hide the MCP server deployment option.',
   }),
-  hideDeployChatbot: booleanRestriction('ui-only', {
+  hideDeployChatbot: booleanRestriction('capability', {
     id: 'hide-deploy-chatbot',
     label: 'Deployment',
     category: 'Chat',
     hint: 'Hide the chat deployment option.',
   }),
-  allowedChatDeployAuthTypes: allowlist(shareAuthType, 'server', {
+  allowedChatDeployAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:
       'Chat deployment authentication is limited to effectiveConfig.allowedChatDeployAuthTypes.',
     empty: 'No chat deployment authentication modes are allowed.',

@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withPermissionGroupScope } from '@/lib/permission-groups/config-scope.server'
 
 const logger = createLogger('RouteHandler')
 
@@ -114,7 +115,12 @@ export function withRouteHandler<T>(
     return runWithRequestContext({ requestId, method, path, traceId }, async () => {
       let response: NextResponse | Response
       try {
-        response = await handler(request, context)
+        /**
+         * One permission-group memo per request. A handler that authorizes
+         * several operations — a bulk mutation, or a route running two use
+         * cases — would otherwise resolve the same group once per operation.
+         */
+        response = await withPermissionGroupScope(() => handler(request, context))
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')

@@ -9,12 +9,17 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { type ForbiddenDetailCode, ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  CAPABILITY_RULES,
+  type PermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
 export interface WorkspaceAuthorizationContext {
   workspaceId: string
@@ -50,6 +55,25 @@ export class NoWorkspaceAccessError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Insufficient workspace permissions')
     this.name = 'NoWorkspaceAccessError'
+  }
+}
+
+/**
+ * The caller's permission group withholds a capability the operation needs.
+ *
+ * Carries the capability so a log line and an audit entry can name it; the
+ * message names it for the caller. One detail code covers every capability
+ * because the remedy is the same for all of them — the closed code set is
+ * closed over remedies, not over causes.
+ */
+export class PermissionGroupCapabilityError extends ForbiddenOperationError {
+  constructor(
+    readonly capability: PermissionGroupCapability,
+    detailCode: ForbiddenDetailCode,
+    describe: string
+  ) {
+    super(detailCode, `${describe} is not available under your organization's permission group`)
+    this.name = 'PermissionGroupCapabilityError'
   }
 }
 
@@ -149,10 +173,50 @@ function requirePermission(permission: PermissionType | null, required: Permissi
   }
 }
 
-async function requireCurrentHumanPermission<C extends WorkspaceAuthorizationContext>(
+/**
+ * Refuses an operation whose capability the caller's permission group withholds.
+ *
+ * Runs only for a principal that stands for a person, because a permission
+ * group is a membership of users — see {@link authorizeWorkspaceOperation} for
+ * why an actorless caller passes through rather than being denied.
+ */
+async function requireCapability(
+  userId: string,
+  context: WorkspaceAuthorizationContext,
+  operation: WorkspaceOperation
+): Promise<void> {
+  const capability = operation.capability
+  if (capability === undefined || capability === 'none') return
+  if (context.workspaceOrganizationId === null) return
+
+  const config = await resolvePermissionGroupConfig(
+    userId,
+    context.workspaceId,
+    context.workspaceOrganizationId
+  )
+  if (!config) return
+
+  const rule = CAPABILITY_RULES[capability]
+  if (rule.kind !== 'static' || !rule.deniedBy(config)) return
+
+  throw new PermissionGroupCapabilityError(capability, rule.detailCode, rule.describe)
+}
+
+/**
+ * The workspace role check, then the permission-group capability check.
+ *
+ * Capability comes second on purpose. `requirePermission` throws
+ * {@link NoWorkspaceAccessError}, which the v2 surface conceals as a `404` so a
+ * non-member cannot learn the resource exists; refusing on capability first
+ * would tell a complete outsider which capabilities the organization withholds.
+ * It is also the cheaper check, and it names the remedy a caller can act on —
+ * raising a role, rather than chasing an admin about a group setting that is
+ * not why they were refused.
+ */
+async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
-  required: PermissionType,
+  operation: WorkspaceOperation,
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
   const permission = await resolveEffectiveWorkspacePermission(
@@ -162,7 +226,8 @@ async function requireCurrentHumanPermission<C extends WorkspaceAuthorizationCon
     options?.executor,
     { forUpdate: options?.forUpdate }
   )
-  requirePermission(permission, required)
+  requirePermission(permission, operation.minimumRole)
+  await requireCapability(userId, context, operation)
 }
 
 export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizationContext>(
@@ -175,14 +240,22 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
 
   switch (principal.kind) {
     case 'session':
-      await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
+      await requireCurrentHumanAccess(principal.userId, context, operation, options)
       return
     case 'personal_api_key':
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
-      await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
+      await requireCurrentHumanAccess(principal.userId, context, operation, options)
       return
+    /**
+     * A workspace API key authorizes as the workspace, so there is no user and
+     * therefore no permission group to resolve — the operation's `capability`
+     * does not apply. Substituting the key's creator would apply a bystander's
+     * group to every caller of a shared key, and would break the key outright
+     * once that person left the organization. The escape is closed at the door
+     * instead: minting a workspace key is itself capability-gated.
+     */
     case 'workspace_api_key':
       if (principal.workspaceId !== context.workspaceId) {
         throw new WorkspaceApiKeyScopeAuthorizationError()
@@ -209,7 +282,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       }
       const subject = resolvePrincipalSubject(principal)
       if (subject?.kind === 'sim_user') {
-        await requireCurrentHumanPermission(subject.userId, context, operation.minimumRole, options)
+        await requireCurrentHumanAccess(subject.userId, context, operation, options)
         return
       }
       if (
@@ -218,6 +291,15 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
+      /**
+       * A deployment run with no subject has no user, so the operation's
+       * capability does not apply — a deployed workflow acts with the
+       * workspace's authority, not its author's permission group, the same way
+       * a service account does. Denying here would 403 every scheduled run,
+       * webhook and public-API call in the organization the moment a group
+       * withheld anything. What the run *does* is still governed: the executor
+       * gates every block, tool and model through `assertPermissionsAllowed`.
+       */
       return
     }
   }

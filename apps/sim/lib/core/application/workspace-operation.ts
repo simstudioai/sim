@@ -2,6 +2,10 @@ import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/aut
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
 import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
+import {
   type ResourcePolicyBinding,
   requireResourcePolicyBinding,
 } from '@/lib/resource-policies/registry'
@@ -45,6 +49,17 @@ export interface WorkspaceOperation<
   readonly workspaceApiKey: WorkspaceApiKeyPolicy<Role>
   readonly principalKinds: PrincipalKinds
   readonly delegatedServices?: DelegatedServices
+  /**
+   * The capability a permission group must not have withheld, or `'none'` when
+   * no group governs this operation.
+   *
+   * `'none'` is spelled out rather than left as an omission, because an absent
+   * field cannot be told apart from an unreviewed one — and unreviewed omission
+   * is exactly how twelve config keys shipped with an admin checkbox and no
+   * server gate. Optional only while the operations are being annotated;
+   * `check:permission-group-enforcement` reports what is still unfilled.
+   */
+  readonly capability?: StaticPermissionGroupCapability | 'none'
 }
 
 type WorkspaceApiKeyPrincipalConsistency<
@@ -107,6 +122,23 @@ export function defineWorkspaceOperation<
   }
 
   if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
+
+  if (operation.capability !== undefined && operation.capability !== 'none') {
+    const rule = CAPABILITY_RULES[operation.capability]
+    if (!rule) {
+      throw new Error(`Operation ${operation.id} names unknown capability ${operation.capability}`)
+    }
+    /**
+     * A parameterized rule reads a value only the request carries, which the
+     * authorization funnel never sees. Declared on an operation it would be
+     * silently skipped, so refuse it here rather than let it read as enforced.
+     */
+    if (rule.kind !== 'static') {
+      throw new Error(
+        `Operation ${operation.id} declares parameterized capability ${operation.capability}; assert it from the use case instead`
+      )
+    }
+  }
 
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
