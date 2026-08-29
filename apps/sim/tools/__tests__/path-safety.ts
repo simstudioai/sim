@@ -23,10 +23,12 @@
  * `delete_*` family, `box_sign_get_request` — are exactly where that blind spot
  * lives, so every value in {@link MUST_REJECT} is asserted to *throw*.
  *
- * **Every branch.** A parameter that only reaches the path on one branch of a
+ * **Branches.** A parameter that only reaches the path on one branch of a
  * conditional builder is invisible to a single-shot probe. Discovery therefore
  * reads the literals the builder compares against out of its own source and
- * probes each one.
+ * probes each one, and each **pair** of them — a parameter can sit behind two
+ * simultaneous conditions. The depth stops at two rather than being exhaustive;
+ * `siblingAssignments` says so where the bound is set.
  *
  * Every assertion resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — instead of string-matching the template
@@ -150,6 +152,12 @@ const PROBE_ID = 'PROBEID'
 const ALL_SAFE = '__all_safe__'
 
 /**
+ * Ceiling on probe assignments per tool, so pair-probing cannot turn a tool
+ * with many parameters and many branch literals into a combinatorial blowup.
+ */
+const MAX_BRANCH_ASSIGNMENTS = 600
+
+/**
  * Fills every declared parameter with a type-appropriate safe value, then
  * overrides the single parameter under test.
  */
@@ -215,6 +223,52 @@ function branchLiterals(tool: PathTool): string[] {
 }
 
 /**
+ * The sibling assignments to probe: the plain one, then each parameter pinned
+ * to each branch literal, then every **pair** of those pinnings on distinct
+ * parameters.
+ *
+ * Pairs are not decoration. A parameter can sit behind two simultaneous
+ * conditions — `action === 'unblock' && type === 'folder'` — and a probe that
+ * only ever pins one sibling at a time never reaches it, so the parameter is
+ * invisible to discovery and silently untested. Single-pinning alone would make
+ * "every branch is probed" an overclaim.
+ *
+ * The depth stops at two, and that bound is honest rather than exhaustive:
+ * three simultaneous conditions would still be missed. Going deeper is
+ * combinatorial in the number of (parameter, literal) pinnings, so the count is
+ * also capped — beyond {@link MAX_BRANCH_ASSIGNMENTS} the pairs are dropped and
+ * the single pinnings are kept, since those cover strictly more builders per
+ * probe. No service currently needs even one literal to reach any parameter, so
+ * this is machinery for the builders that come later rather than for today's.
+ */
+function siblingAssignments(names: string[], literals: string[]): Record<string, unknown>[] {
+  const singles: Record<string, unknown>[] = []
+  for (const literal of literals) {
+    for (const name of names) singles.push({ [name]: literal })
+  }
+
+  /**
+   * The ceiling is checked against the projected count *before* the pairs are
+   * built, so a tool with many parameters and many literals does not allocate
+   * tens of thousands of objects only to discard them.
+   */
+  const projected = 1 + singles.length + (singles.length * (singles.length - 1)) / 2
+  if (projected > MAX_BRANCH_ASSIGNMENTS) return [{}, ...singles]
+
+  const pairs: Record<string, unknown>[] = []
+  for (let i = 0; i < singles.length; i++) {
+    const [nameA] = Object.keys(singles[i])
+    for (let j = i + 1; j < singles.length; j++) {
+      const [nameB] = Object.keys(singles[j])
+      if (nameA === nameB) continue
+      pairs.push({ ...singles[i], ...singles[j] })
+    }
+  }
+
+  return [{}, ...singles, ...pairs]
+}
+
+/**
  * Enumerates every (tool, parameter) pair of a service whose value lands in a
  * URL **path** segment.
  *
@@ -236,14 +290,7 @@ export function discoverPathParams(
 
     const names = Object.keys(tool.params ?? {}).filter((name) => !(name in fixed))
 
-    /**
-     * Every sibling assignment worth probing: the plain one, then each
-     * parameter pinned to each literal the builder branches on.
-     */
-    const branches: Record<string, unknown>[] = [{}]
-    for (const literal of branchLiterals(tool)) {
-      for (const name of names) branches.push({ [name]: literal })
-    }
+    const branches = siblingAssignments(names, branchLiterals(tool))
 
     /**
      * Buildability is decided from an all-safe build, independent of the
