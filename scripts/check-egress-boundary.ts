@@ -113,6 +113,21 @@ function isElidedImport(node: ts.ImportDeclaration): boolean {
 }
 
 /**
+ * Whether TypeScript drops this re-export at emit.
+ *
+ * True for `export type { … } from 'm'` and for a named re-export whose every
+ * specifier is marked `type`. `export * from 'm'` re-exports values and always
+ * runs the module.
+ */
+function isElidedExport(node: ts.ExportDeclaration): boolean {
+  if (node.isTypeOnly) return true
+
+  const clause = node.exportClause
+  if (!clause || !ts.isNamedExports(clause)) return false
+  return clause.elements.every((element) => element.isTypeOnly)
+}
+
+/**
  * Every runtime reference to a transport module. An import TypeScript elides is
  * skipped: it has no runtime presence and cannot open anything.
  */
@@ -135,7 +150,7 @@ function findTransportLoads(file: string, source: string): Array<Omit<Violation,
       ts.isExportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier) &&
-      !node.isTypeOnly
+      !isElidedExport(node)
     ) {
       record(node, node.moduleSpecifier.text, 're-export')
     } else if (ts.isCallExpression(node)) {

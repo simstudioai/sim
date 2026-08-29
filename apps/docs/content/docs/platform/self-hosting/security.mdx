@@ -134,7 +134,7 @@ Resource ceilings for the in-process path:
 
 ## The SSRF boundary
 
-By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a destination written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. Neither applies on Sim Cloud. Every outbound request is classified by where its URL came from:
+By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. That second carve-out stops there: a database, cache, or mail connector on `localhost` still has to be allowlisted, because loopback is where Sim's own database and Redis listen. Neither softening applies on Sim Cloud. Every outbound request is classified by where its URL came from:
 
 | Provenance | Examples | Reaches allowlisted private destinations |
 |---|---|---|
