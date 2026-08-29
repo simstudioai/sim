@@ -414,12 +414,28 @@ export interface TraversalOptions {
    * ids, where `safeUrlPathSegment` trims and rejects.
    */
   preservesWhitespace?: boolean
+  /**
+   * Parameter names that must **refuse** a padded value rather than trim it.
+   *
+   * Trimming is not neutral on a parameter that was not trimmed before: a
+   * padded id previously named nothing and the request failed, so trimming
+   * silently resolves it to a real resource. On an irreversible operation that
+   * turns a no-op into a deletion. Naming those parameters here upgrades the
+   * whitespace assertion from "same path or no path" to "must throw", so the
+   * rejection cannot quietly regress into a trim.
+   */
+  rejectsSurroundingWhitespace?: readonly string[]
 }
 
 /** Asserts the traversal invariant for one (tool, parameter) pair. */
 export function itResistsTraversal(
   { tool, paramName, context }: PathParam,
-  { origin, basePath, preservesWhitespace = false }: TraversalOptions
+  {
+    origin,
+    basePath,
+    preservesWhitespace = false,
+    rejectsSurroundingWhitespace = [],
+  }: TraversalOptions
 ): void {
   const baselinePath = buildUrl(tool, paramName, PROBE_ID, context).pathname
   const baselineSegments = baselinePath.split('/')
@@ -505,6 +521,22 @@ export function itResistsTraversal(
    */
   it('handles surrounding whitespace according to the parameter kind', () => {
     const padded = `  ${PROBE_ID}  `
+
+    if (rejectsSurroundingWhitespace.includes(paramName)) {
+      let message = ''
+      try {
+        buildUrl(tool, paramName, padded, context)
+      } catch (error) {
+        message = getErrorMessage(error, 'unknown error')
+      }
+
+      expect(message, `${paramName} accepted a padded value instead of refusing it`).not.toBe('')
+      expect(namesParam(message, paramName), `error did not name ${paramName}: ${message}`).toBe(
+        true
+      )
+      return
+    }
+
     let url: URL
     try {
       url = buildUrl(tool, paramName, padded, context)

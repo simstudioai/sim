@@ -2,7 +2,11 @@ import type {
   GoogleBigQueryCreateTableParams,
   GoogleBigQueryCreateTableResponse,
 } from '@/tools/google_bigquery/types'
-import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
+import {
+  canonicalBigQueryId,
+  strictBigQueryPathSegment,
+  strictCanonicalBigQueryId,
+} from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -68,7 +72,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -95,7 +99,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
       const body: Record<string, unknown> = {
         tableReference: {
-          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
+          projectId: strictCanonicalBigQueryId(params.projectId, 'projectId'),
           datasetId: canonicalBigQueryId(params.datasetId, 'datasetId'),
           tableId: canonicalBigQueryId(params.tableId, 'tableId'),
         },

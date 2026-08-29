@@ -2,9 +2,8 @@ import type {
   GoogleBigQueryQueryParams,
   GoogleBigQueryQueryResponse,
 } from '@/tools/google_bigquery/types'
-import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
+import { strictBigQueryPathSegment, strictCanonicalBigQueryId } from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryQueryTool: ToolConfig<
   GoogleBigQueryQueryParams,
@@ -67,7 +66,7 @@ export const googleBigQueryQueryTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/queries`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/queries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -81,7 +80,7 @@ export const googleBigQueryQueryTool: ToolConfig<
       if (params.maxResults !== undefined) body.maxResults = Number(params.maxResults)
       if (params.defaultDatasetId) {
         body.defaultDataset = {
-          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
+          projectId: strictCanonicalBigQueryId(params.projectId, 'projectId'),
           datasetId: params.defaultDatasetId,
         }
       }

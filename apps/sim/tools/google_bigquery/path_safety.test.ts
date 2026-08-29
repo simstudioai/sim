@@ -54,6 +54,35 @@ const LEGITIMATE_IDS = [
  */
 const STATIC_URL_TOOLS = []
 
+/**
+ * Identifiers this change newly began trimming, per tool.
+ *
+ * Before this branch every one of these was interpolated as
+ * `encodeURIComponent(params.x)` with no trim, so a padded value named nothing
+ * and the request failed. Trimming would silently resolve it to a real
+ * resource — and on `delete_dataset` / `delete_table` that turns a request that
+ * did nothing into one that destroys a real dataset or table. They refuse
+ * padding instead; see `strictBigQueryPathSegment`.
+ *
+ * Identifiers already `.trim()`-ed before this branch are deliberately absent:
+ * `datasetId` on the delete tools, `tableId` on `delete_table`, `jobId` on
+ * `get_query_results`. Trimming those is not a change made here, and refusing
+ * them would break callers whose stored value works today.
+ */
+const NEWLY_TRIMMED_BY_THIS_CHANGE: Record<string, readonly string[]> = {
+  google_bigquery_delete_dataset: ['projectId'],
+  google_bigquery_delete_table: ['projectId'],
+  google_bigquery_create_dataset: ['projectId'],
+  google_bigquery_create_table: ['projectId'],
+  google_bigquery_query: ['projectId'],
+  google_bigquery_list_datasets: ['projectId'],
+  google_bigquery_list_table_data: ['projectId'],
+  google_bigquery_get_query_results: ['projectId'],
+  google_bigquery_list_tables: ['projectId', 'datasetId'],
+  google_bigquery_get_table: ['projectId', 'datasetId', 'tableId'],
+  google_bigquery_insert_rows: ['projectId', 'datasetId', 'tableId'],
+}
+
 const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(
   bigQueryTools,
   'google_bigquery_'
@@ -73,7 +102,11 @@ describe('bigquery path-id traversal safety', () => {
   })
 
   describe.each(PATH_PARAMS)('$label', (param) => {
-    itResistsTraversal(param, { origin: ORIGIN, basePath: BASE_PATH })
+    itResistsTraversal(param, {
+      origin: ORIGIN,
+      basePath: BASE_PATH,
+      rejectsSurroundingWhitespace: NEWLY_TRIMMED_BY_THIS_CHANGE[param.tool.id] ?? [],
+    })
     itPassesLegitimateValues(param, { values: LEGITIMATE_IDS })
   })
 })
@@ -128,7 +161,7 @@ describe('projectId agrees between URL and body', () => {
   it.each(BODY_TOOLS)('$name sends one project id', ({ tool }) => {
     const params = {
       accessToken: 't',
-      projectId: '  my-project  ',
+      projectId: 'my-project',
       datasetId: 'my_dataset',
       defaultDatasetId: 'my_dataset',
       tableId: 'my_table',
@@ -177,5 +210,77 @@ describe('canonicalBigQueryId', () => {
 
   it.each(['..', '.', 'a/b', 'a\\b'])('inherits the guard rejection of %j', (value) => {
     expect(() => canonicalBigQueryId(value, 'projectId')).toThrow(/projectId/)
+  })
+})
+
+/**
+ * A padded `projectId` must not become a successful destructive request.
+ *
+ * This is the compatibility hazard of guarding these paths, and it is specific
+ * rather than theoretical. `projectId` was interpolated as
+ * `encodeURIComponent(params.projectId)` before this branch — never trimmed —
+ * so `"  my-project  "` became `%20%20my-project%20%20`, which names no GCP
+ * project (ids match `[a-z][a-z0-9-]{5,29}`) and produced a clean failure:
+ *
+ * ```
+ * before: /bigquery/v2/projects/%20%20my-project%20%20/datasets/prod_dataset
+ * after:  /bigquery/v2/projects/my-project/datasets/prod_dataset
+ * ```
+ *
+ * Had the guard simply trimmed, that DELETE would have stopped failing and
+ * started destroying `prod_dataset` in the real project — irreversibly, from a
+ * value the caller never wrote. These assertions pin the refusal so it cannot
+ * regress into a trim.
+ */
+describe('a padded projectId cannot become a successful destructive request', () => {
+  const DESTRUCTIVE = [
+    { name: 'google_bigquery_delete_dataset', tool: bigQueryTools.googleBigQueryDeleteDatasetTool },
+    { name: 'google_bigquery_delete_table', tool: bigQueryTools.googleBigQueryDeleteTableTool },
+  ]
+
+  it.each(DESTRUCTIVE)('$name is a DELETE', ({ tool }) => {
+    expect(tool.request?.method).toBe('DELETE')
+  })
+
+  it.each(DESTRUCTIVE)('$name refuses a padded projectId', ({ tool }) => {
+    expect(() =>
+      (tool.request?.url as (p: Record<string, unknown>) => string)({
+        accessToken: 't',
+        projectId: '  my-project  ',
+        datasetId: 'prod_dataset',
+        tableId: 'prod_table',
+      })
+    ).toThrow(/projectId cannot have leading or trailing whitespace/)
+  })
+
+  it.each(DESTRUCTIVE)('$name still accepts the unpadded id', ({ tool }) => {
+    const url = new URL(
+      (tool.request?.url as (p: Record<string, unknown>) => string)({
+        accessToken: 't',
+        projectId: 'my-project',
+        datasetId: 'prod_dataset',
+        tableId: 'prod_table',
+      })
+    )
+
+    expect(url.pathname).toContain('/projects/my-project/datasets/prod_dataset')
+  })
+
+  /**
+   * `datasetId` was already `.trim()`-ed on these tools before this branch, so
+   * trimming it is not a change made here. Pinned as a deliberate limit of the
+   * rule — "do not turn a failing request into a succeeding one" — rather than
+   * left ambiguous.
+   */
+  it('still trims datasetId, which this change did not newly trim', () => {
+    const url = new URL(
+      (
+        bigQueryTools.googleBigQueryDeleteDatasetTool.request?.url as (
+          p: Record<string, unknown>
+        ) => string
+      )({ accessToken: 't', projectId: 'my-project', datasetId: '  prod_dataset  ' })
+    )
+
+    expect(url.pathname).toContain('/datasets/prod_dataset')
   })
 })

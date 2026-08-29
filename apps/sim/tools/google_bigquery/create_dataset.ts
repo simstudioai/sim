@@ -2,9 +2,12 @@ import type {
   GoogleBigQueryCreateDatasetParams,
   GoogleBigQueryCreateDatasetResponse,
 } from '@/tools/google_bigquery/types'
-import { canonicalBigQueryId } from '@/tools/google_bigquery/utils'
+import {
+  canonicalBigQueryId,
+  strictBigQueryPathSegment,
+  strictCanonicalBigQueryId,
+} from '@/tools/google_bigquery/utils'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryCreateDatasetTool: ToolConfig<
   GoogleBigQueryCreateDatasetParams,
@@ -61,7 +64,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${strictBigQueryPathSegment(params.projectId, 'projectId')}/datasets`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -70,7 +73,7 @@ export const googleBigQueryCreateDatasetTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         datasetReference: {
-          projectId: canonicalBigQueryId(params.projectId, 'projectId'),
+          projectId: strictCanonicalBigQueryId(params.projectId, 'projectId'),
           datasetId: canonicalBigQueryId(params.datasetId, 'datasetId'),
         },
       }
