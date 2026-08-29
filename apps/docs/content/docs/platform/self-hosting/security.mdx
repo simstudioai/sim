@@ -143,8 +143,9 @@ Sim blocks outbound requests to private, reserved, and loopback addresses. This 
 | Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
 | Database host | A database, cache, or mail connector's host | Yes |
 | Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |
+| Proxy | The outbound HTTP proxy itself | **No** |
 
-Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited.
+Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited. Nor does the proxy: it is the component deciding where everything else may go, so it is held to public destinations regardless of what the allowlist says.
 
 Deployments frequently need to reach an internal service by name or address. Name the destinations:
 
@@ -156,6 +157,8 @@ EGRESS_ALLOWED_IP_RANGES=10.4.2.17/32,10.4.9.0/24
 A wildcard (`*.svc.cluster.local`) and a broad range (`10.0.0.0/8`) are accepted, but they hand every workflow author the whole namespace or network. Name the hosts you actually use.
 
 Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+
+The allowlist reaches the four provenances marked **Yes** above. It does not reach a content fetch, and it does not reach a proxy: an HTTP block's `proxyUrl` must be a public address, because the proxy is what decides where every other request may go. Adding an internal proxy to the allowlist will not make it work.
 
 To reach a service on the Docker host, pair the allowlist with the host alias that Compose already sets up:
 

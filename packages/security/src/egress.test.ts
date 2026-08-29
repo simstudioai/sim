@@ -100,6 +100,14 @@ describe('cloud metadata is never reachable', () => {
     )
   })
 
+  it.each([
+    ['64:ff9b::a9fe:a9fe', 'the NAT64 form a DNS64 resolver returns'],
+    ['64:ff9b::169.254.169.254', 'NAT64 written long-hand'],
+  ])('blocks %s through an allowlisted hostname — %s', (address) => {
+    const permissive = createEgressPolicy({ allowedHosts: 'internal.corp' })
+    expect(reason(permissive, 'https://internal.corp/', address)).toBe('address-metadata')
+  })
+
   it('blocks the AWS IPv6 metadata address', () => {
     expect(reason(hosted, 'https://[fd00:ec2::254]/')).toBe('address-metadata')
   })
@@ -163,6 +171,7 @@ describe('an IPv4 range matches every spelling of the same address', () => {
     ['::a00:1', 'the IPv4-compatible form a resolver can return'],
     ['::ffff:10.0.0.1', 'the IPv4-mapped form'],
     ['::10.0.0.1', 'IPv4-compatible written long-hand'],
+    ['64:ff9b::a00:1', 'the NAT64 form'],
   ])('permits %s — %s', (address) => {
     expect(decide(ranged, 'https://svc.internal/', address).allowed).toBe(true)
   })

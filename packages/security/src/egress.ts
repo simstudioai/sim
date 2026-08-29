@@ -263,6 +263,20 @@ function matchesRangeAllowlist(address: string, policy: EgressPolicy): boolean {
  * URL parser normalizes to `::a9fe:a9fe`), so comparing without this misses the
  * metadata endpoint written that way.
  */
+function embeddedIpv4(parts: readonly number[]): string {
+  return ipaddr
+    .fromByteArray([
+      (parts[6] >> 8) & 0xff,
+      parts[6] & 0xff,
+      (parts[7] >> 8) & 0xff,
+      parts[7] & 0xff,
+    ])
+    .toString()
+}
+
+/** RFC 6052 well-known NAT64 prefix, `64:ff9b::/96`. */
+const NAT64_WELL_KNOWN_PREFIX = [0x0064, 0xff9b, 0, 0, 0, 0] as const
+
 function canonicalAddress(address: string): string | null {
   const clean = unwrapIpv6Brackets(address)
   if (!ipaddr.isValid(clean)) return null
@@ -270,19 +284,20 @@ function canonicalAddress(address: string): string | null {
   const parsed = ipaddr.process(clean)
   if (parsed.kind() === 'ipv6') {
     const parts = (parsed as ipaddr.IPv6).parts
+
+    // A DNS64 resolver hands back the IPv4 destination wrapped in the well-known
+    // NAT64 prefix. Left unfolded, `64:ff9b::a9fe:a9fe` does not read as the
+    // metadata endpoint it is, and a vouched destination would reach it.
+    if (NAT64_WELL_KNOWN_PREFIX.every((part, index) => parts[index] === part)) {
+      return embeddedIpv4(parts)
+    }
+
     const embedded = ((parts[6] << 16) >>> 0) + parts[7]
     // `::` and `::1` are the unspecified and loopback addresses, not an IPv4
     // carried inside IPv6 — folding them would turn `::1` into `0.0.0.1` and
     // stop an operator's `::1/128` entry matching it.
     if (parts.slice(0, 6).every((part) => part === 0) && embedded > 1) {
-      return ipaddr
-        .fromByteArray([
-          (parts[6] >> 8) & 0xff,
-          parts[6] & 0xff,
-          (parts[7] >> 8) & 0xff,
-          parts[7] & 0xff,
-        ])
-        .toString()
+      return embeddedIpv4(parts)
     }
   }
   return parsed.toString()

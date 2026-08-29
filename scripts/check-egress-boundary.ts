@@ -9,17 +9,24 @@
  * `undici` directly gets none of that, and the omission is invisible — the code
  * works, it just has no guard.
  *
- * This checks the import edge rather than the call, because that is the part
+ * This checks the module edge rather than the call, because that is the part
  * that cannot be hidden behind a helper.
+ *
+ * Parsed with the TypeScript AST rather than matched with a regex. Two rounds of
+ * review found regex holes in both directions — a comment or string naming a
+ * transport reported a violation that was not there, and a regex literal
+ * containing a quote hid a real one — which is what a scanner that does not
+ * understand the grammar will keep doing.
  *
  * Not checked: bare `fetch()`. It is used constantly for same-origin and
  * server-action calls where the guard does not apply, so flagging it would be
- * noise. The transports it can reach are covered by the rules above.
+ * noise. The transports it can reach are covered by the rules below.
  *
  * Usage: bun run scripts/check-egress-boundary.ts
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import ts from '@typescript/typescript6'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 
@@ -36,31 +43,15 @@ const SCAN_DIRS = [
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 
 /** Modules that can open a socket directly. */
-const TRANSPORTS = ['http', 'https', 'undici', 'http-proxy-agent', 'https-proxy-agent']
-
-const MODULE_ALTERNATION = TRANSPORTS.map((name) => name.replace(/[-]/g, '\\-')).join('|')
-const SPECIFIER = `['"](?:node:)?(?:${MODULE_ALTERNATION})['"]`
-
-/**
- * Every way a module reaches one of these at runtime.
- *
- * Matched against the whole source rather than line by line, because an import
- * list broken across lines would otherwise slip past. `import type` is excluded:
- * a type has no runtime presence and cannot open anything.
- */
-const RUNTIME_LOADS: ReadonlyArray<{ pattern: RegExp; kind: string }> = [
-  {
-    pattern: new RegExp(`^[ \t]*import\\s+(?!type\\s)[\\s\\S]*?from\\s*${SPECIFIER}`, 'gm'),
-    kind: 'import',
-  },
-  { pattern: new RegExp(`^[ \t]*import\\s*${SPECIFIER}`, 'gm'), kind: 'side-effect import' },
-  {
-    pattern: new RegExp(`^[ \t]*export\\s+(?!type\\s)[\\s\\S]*?from\\s*${SPECIFIER}`, 'gm'),
-    kind: 're-export',
-  },
-  { pattern: new RegExp(`\\bimport\\s*\\(\\s*${SPECIFIER}\\s*\\)`, 'g'), kind: 'dynamic import' },
-  { pattern: new RegExp(`\\brequire\\s*\\(\\s*${SPECIFIER}\\s*\\)`, 'g'), kind: 'require' },
-]
+const TRANSPORTS = new Set([
+  'http',
+  'https',
+  'node:http',
+  'node:https',
+  'undici',
+  'http-proxy-agent',
+  'https-proxy-agent',
+])
 
 /**
  * Modules allowed to hold a transport import, each because it *is* part of the
@@ -74,58 +65,6 @@ const ALLOWED = new Set([
   // Builds a dispatcher to carry a caller's deadline; issues no request itself.
   'apps/sim/lib/core/utils/fetch-deadline.ts',
 ])
-
-/**
- * Blanks comment bodies, preserving byte offsets so reported line numbers stay
- * exact. Without this the rules match their own documentation: a comment warning
- * against `require('undici')` reads identically to the call.
- *
- * Strings are deliberately left intact — the module specifier is itself a string,
- * so blanking them would stop every rule matching anything. A match that starts
- * inside a string is rejected separately by {@link stringRanges}.
- */
-function blankComments(source: string): string {
-  const out = source.split('')
-  let i = 0
-  while (i < source.length) {
-    const two = source.slice(i, i + 2)
-    if (two === '//' || two === '/*') {
-      const end =
-        two === '//'
-          ? (source.indexOf('\n', i) + 1 || source.length + 1) - 1
-          : source.indexOf('*/', i + 2) + 2 || source.length
-      for (let j = i; j < end; j++) if (out[j] !== '\n') out[j] = ' '
-      i = end
-      continue
-    }
-    if (two[0] === '"' || two[0] === "'" || two[0] === '`') {
-      let j = i + 1
-      while (j < source.length && source[j] !== two[0]) j += source[j] === '\\' ? 2 : 1
-      i = j + 1
-      continue
-    }
-    i++
-  }
-  return out.join('')
-}
-
-/** Half-open [start, end) ranges covering every string literal body. */
-function stringRanges(source: string): Array<[number, number]> {
-  const ranges: Array<[number, number]> = []
-  let i = 0
-  while (i < source.length) {
-    const ch = source[i]
-    if (ch === '"' || ch === "'" || ch === '`') {
-      let j = i + 1
-      while (j < source.length && source[j] !== ch) j += source[j] === '\\' ? 2 : 1
-      ranges.push([i + 1, j])
-      i = j + 1
-      continue
-    }
-    i++
-  }
-  return ranges
-}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -141,7 +80,69 @@ interface Violation {
   file: string
   line: number
   kind: string
-  snippet: string
+  specifier: string
+}
+
+/**
+ * Whether TypeScript drops this import at emit, leaving nothing that could load
+ * the module.
+ *
+ * True for `import type … from 'm'` and for a named import whose every binding
+ * is marked `type` — the repo compiles with `verbatimModuleSyntax: false`, so
+ * that form is elided rather than kept as a side-effect import. A default or
+ * namespace binding is a value and keeps the import alive, and a bare
+ * `import 'm'` has no clause at all and always runs.
+ */
+function isElidedImport(node: ts.ImportDeclaration): boolean {
+  const clause = node.importClause
+  if (!clause) return false
+  if (clause.isTypeOnly) return true
+  if (clause.name) return false
+
+  const bindings = clause.namedBindings
+  if (!bindings || !ts.isNamedImports(bindings)) return false
+  return bindings.elements.every((element) => element.isTypeOnly)
+}
+
+/**
+ * Every runtime reference to a transport module. An import TypeScript elides is
+ * skipped: it has no runtime presence and cannot open anything.
+ */
+function findTransportLoads(file: string, source: string): Array<Omit<Violation, 'file'>> {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  const found: Array<Omit<Violation, 'file'>> = []
+
+  const record = (node: ts.Node, specifier: string, kind: string) => {
+    if (!TRANSPORTS.has(specifier)) return
+    const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+    found.push({ line: line + 1, kind, specifier })
+  }
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      if (!isElidedImport(node)) {
+        record(node, node.moduleSpecifier.text, node.importClause ? 'import' : 'side-effect import')
+      }
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      !node.isTypeOnly
+    ) {
+      record(node, node.moduleSpecifier.text, 're-export')
+    } else if (ts.isCallExpression(node)) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
+      const argument = node.arguments[0]
+      if ((isDynamicImport || isRequire) && argument && ts.isStringLiteralLike(argument)) {
+        record(node, argument.text, isDynamicImport ? 'dynamic import' : 'require')
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  return found
 }
 
 function main() {
@@ -149,31 +150,12 @@ function main() {
   let scanned = 0
 
   for (const scanDir of SCAN_DIRS) {
-    const abs = path.join(ROOT, scanDir)
-    for (const file of walk(abs)) {
+    for (const file of walk(path.join(ROOT, scanDir))) {
       const rel = path.relative(ROOT, file).split(path.sep).join('/')
       if (ALLOWED.has(rel)) continue
       scanned++
-      const raw = readFileSync(file, 'utf8')
-      const source = blankComments(raw)
-      const strings = stringRanges(source)
-      const insideString = (index: number) =>
-        strings.some(([from, to]) => index >= from && index < to)
-
-      for (const { pattern, kind } of RUNTIME_LOADS) {
-        pattern.lastIndex = 0
-        for (const match of source.matchAll(pattern)) {
-          if (match.index === undefined || insideString(match.index)) continue
-          violations.push({
-            file: rel,
-            line: source.slice(0, match.index).split('\n').length,
-            kind,
-            snippet: raw
-              .slice(match.index, match.index + match[0].length)
-              .replace(/\s+/g, ' ')
-              .trim(),
-          })
-        }
+      for (const load of findTransportLoads(rel, readFileSync(file, 'utf8'))) {
+        violations.push({ file: rel, ...load })
       }
     }
   }
@@ -186,7 +168,7 @@ function main() {
   console.error('✗ check-egress-boundary: raw HTTP transport outside the egress guard\n')
   for (const violation of violations) {
     console.error(`    ${violation.file}:${violation.line}  (${violation.kind})`)
-    console.error(`      ${violation.snippet}`)
+    console.error(`      ${violation.specifier}`)
   }
   console.error(
     '\n  These modules can open a socket without resolving and classifying the\n' +
