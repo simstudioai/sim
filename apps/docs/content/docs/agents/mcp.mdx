@@ -85,6 +85,8 @@ Tool validation badges appear on servers with issues — for example, if a tool 
 
 Self-hosted deployments can restrict which MCP server domains are allowed by setting the `ALLOWED_MCP_DOMAINS` environment variable (comma-separated list). When set, only servers on approved domains can be added. When unset, all domains are allowed.
 
+This governs which domains may be used. It is separate from where those domains are allowed to resolve: an MCP server on a private address is reached by naming it in `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES`, described in [Security](/platform/self-hosting/security#the-ssrf-boundary). Both checks apply.
+
 ## Using MCP Tools in Agents
 
 Once MCP servers are configured, their tools become available within your agent blocks:
