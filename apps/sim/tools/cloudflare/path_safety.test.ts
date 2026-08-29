@@ -105,12 +105,16 @@ interface PathToolParam {
 interface ServiceTool {
   id: string
   params?: Record<string, PathToolParam>
-  request?: { url?: unknown }
+  request?: { url?: unknown; body?: unknown; headers?: unknown }
 }
 
 /** A tool that builds its request URL from params, so it can be probed. */
 type PathTool = ServiceTool & {
-  request: { url: (params: Record<string, unknown>) => string }
+  request: {
+    url: (params: Record<string, unknown>) => string
+    body?: (params: Record<string, unknown>) => unknown
+    headers?: (params: Record<string, unknown>) => unknown
+  }
 }
 
 function isCloudflareTool(value: unknown): value is ServiceTool {
@@ -120,6 +124,21 @@ function isCloudflareTool(value: unknown): value is ServiceTool {
     typeof (value as ServiceTool).id === 'string' &&
     (value as ServiceTool).id.startsWith('cloudflare_')
   )
+}
+
+/**
+ * Whether calling `fn` raises a `TypeError` — the signature of a builder that
+ * assumed a param was a string (`params.x?.trim is not a function`). Domain
+ * errors thrown deliberately by a builder are not TypeErrors, so they pass
+ * through and do not cause a false failure here.
+ */
+function throwsTypeError(fn: () => unknown): boolean {
+  try {
+    fn()
+    return false
+  } catch (error) {
+    return error instanceof TypeError
+  }
 }
 
 function isPathTool(tool: ServiceTool): tool is PathTool {
@@ -348,6 +367,21 @@ describe('cloudflare path-param traversal safety', () => {
       expect(segmentsOf(withValue(snowflake).pathname)).toEqual(
         segmentsOf(withValue(snowflake.toString()).pathname)
       )
+    })
+
+    /**
+     * The URL is not the only builder that touches an id. `create_thread` also
+     * reads `messageId` in its `body` to decide the thread type, and a
+     * `?.trim()` there threw a bare TypeError on a numeric id *after* the URL
+     * had already accepted it — caught by review, not by this suite, because
+     * the suite only ever exercised `request.url`.
+     */
+    it('builds body and headers from a numeric id without a TypeError', () => {
+      const numericParams = buildParams(tool, { ...overrides, [param]: 8035111022467891 })
+
+      expect(throwsTypeError(() => tool.request.url(numericParams))).toBe(false)
+      expect(throwsTypeError(() => tool.request.body?.(numericParams))).toBe(false)
+      expect(throwsTypeError(() => tool.request.headers?.(numericParams))).toBe(false)
     })
 
     it('trims surrounding whitespace off a legitimate value', () => {

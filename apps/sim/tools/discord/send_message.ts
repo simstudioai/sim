@@ -1,5 +1,6 @@
 import type { DiscordSendMessageParams, DiscordSendMessageResponse } from '@/tools/discord/types'
 import type { InternalToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordSendMessageTool: InternalToolConfig<
   DiscordSendMessageParams,
@@ -47,7 +48,7 @@ export const discordSendMessageTool: InternalToolConfig<
     input: (params: DiscordSendMessageParams) => {
       return {
         botToken: params.botToken.trim(),
-        channelId: params.channelId.trim(),
+        channelId: safeUrlPathSegment(params.channelId, 'channelId'),
         content: params.content || 'Message sent from Sim',
         files: params.files || null,
       }

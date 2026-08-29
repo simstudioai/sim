@@ -80,7 +80,7 @@ export const discordCreateThreadTool: ToolConfig<
       }
       // Standalone threads (no source message) default to PRIVATE_THREAD per the Discord API
       // unless `type` is explicitly set, so pin it to PUBLIC_THREAD (11) unless the caller opts out.
-      if (!params.messageId?.trim()) {
+      if (!isProvidedParam(params.messageId)) {
         body.type = params.isPublic === false ? 12 : 11
       }
       return body
