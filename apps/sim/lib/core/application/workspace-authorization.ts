@@ -9,20 +9,18 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
-import { type ForbiddenDetailCode, ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  CAPABILITY_RULES,
-  type CapabilityRule,
-  capabilityRefusalMessage,
-  type PermissionGroupCapability,
-} from '@/lib/permission-groups/capabilities'
+  assertWorkspaceCapability,
+  capabilityDeniedBy,
+} from '@/lib/permission-groups/capability-assertions'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 
 export interface WorkspaceAuthorizationContext {
   workspaceId: string
@@ -61,24 +59,7 @@ export class NoWorkspaceAccessError extends OrchestrationError {
   }
 }
 
-/**
- * The caller's permission group withholds a capability the operation needs.
- *
- * Carries the capability so a log line and an audit entry can name it; the
- * message names it for the caller. One detail code covers every capability
- * because the remedy is the same for all of them — the closed code set is
- * closed over remedies, not over causes.
- */
-export class PermissionGroupCapabilityError extends ForbiddenOperationError {
-  constructor(
-    readonly capability: PermissionGroupCapability,
-    detailCode: ForbiddenDetailCode,
-    describe: string
-  ) {
-    super(detailCode, capabilityRefusalMessage(describe))
-    this.name = 'PermissionGroupCapabilityError'
-  }
-}
+export { PermissionGroupCapabilityError }
 
 export class PersonalApiKeysDisabledError extends ForbiddenOperationError {
   constructor() {
@@ -177,50 +158,6 @@ function requirePermission(permission: PermissionType | null, required: Permissi
 }
 
 /**
- * Refuses a capability against an already-resolved config. A `null` config means
- * no group governs the caller, which is not a denial.
- */
-function requireCapabilityFromConfig(
-  config: PermissionGroupConfig | null,
-  capability: PermissionGroupCapability
-): void {
-  if (!config) return
-
-  const rule: CapabilityRule = CAPABILITY_RULES[capability]
-  if (rule.kind !== 'static' || !rule.deniedBy(config)) return
-
-  throw new PermissionGroupCapabilityError(capability, rule.detailCode, rule.describe)
-}
-
-/**
- * Resolves the caller's group for this workspace, then refuses the capability.
- *
- * Exported for a use case whose capability depends on request input the
- * operation cannot name — which credential scope is being created, say — so the
- * funnel cannot decide it from the operation alone. Going through here rather
- * than reading the config key directly keeps the refusal, its detail code and
- * its message identical to a funnel refusal, and it shares the per-request memo
- * the funnel uses, so asserting on top of an operation's own capability costs no
- * extra query.
- */
-export async function requireWorkspaceCapability(
-  userId: string,
-  context: WorkspaceAuthorizationContext,
-  capability: PermissionGroupCapability
-): Promise<void> {
-  if (context.workspaceOrganizationId === null) return
-
-  requireCapabilityFromConfig(
-    await resolvePermissionGroupConfig(
-      userId,
-      context.workspaceId,
-      context.workspaceOrganizationId
-    ),
-    capability
-  )
-}
-
-/**
  * Refuses an operation whose capability the caller's permission group withholds.
  *
  * Runs only for a principal that stands for a person, because a permission
@@ -234,8 +171,14 @@ async function requireCapability(
 ): Promise<void> {
   const capability = operation.capability
   if (capability === 'none') return
+  if (context.workspaceOrganizationId === null) return
 
-  await requireWorkspaceCapability(userId, context, capability)
+  await assertWorkspaceCapability(
+    userId,
+    context.workspaceId,
+    capability,
+    context.workspaceOrganizationId
+  )
 }
 
 /**
@@ -256,7 +199,7 @@ async function requirePersonalApiKeysAllowed(
     context.workspaceId,
     context.workspaceOrganizationId
   )
-  if (config?.disablePersonalApiKeys) throw new PersonalApiKeysDisabledError()
+  if (capabilityDeniedBy('personal_api_key.use', config)) throw new PersonalApiKeysDisabledError()
 }
 
 /**

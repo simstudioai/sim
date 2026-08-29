@@ -1,22 +1,24 @@
-import { PermissionGroupCapabilityError } from '@/lib/core/application/workspace-authorization'
 import {
   CAPABILITY_RULES,
   capabilityRefusalMessage,
   type StaticPermissionGroupCapability,
 } from '@/lib/permission-groups/capabilities'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
 
 /**
- * The capability gate for callers the authorization funnel cannot serve.
+ * The one way to ask whether a permission group withholds a capability.
  *
- * The funnel decides from the operation alone, which is right for a capability
- * that describes the whole operation. Two cases fall outside it: a request whose
- * capability depends on its own input — one download is a single file, the next
- * is a folder tree — and a raw route that predates the operation boundary. Both
- * assert here so the decision still comes from {@link CAPABILITY_RULES} rather
- * than from a config key spelled out at the call site, where a renamed key would
- * silently stop denying anything.
+ * The authorization funnel decides from the operation alone, which is right when
+ * the capability describes the whole operation. Three cases fall outside it: a
+ * decision that depends on request input (one download is a single file, the
+ * next a folder tree), a raw route that predates the operation boundary, and an
+ * organization-level action with no workspace. All of them come through here, so
+ * the decision always reads {@link CAPABILITY_RULES} rather than a config key
+ * spelled out at a call site — where a renamed key would silently stop denying
+ * anything, and the refusal wording would drift from the funnel's.
  */
 export function capabilityDeniedBy(
   capability: StaticPermissionGroupCapability,
@@ -32,18 +34,73 @@ export function capabilityRefusal(capability: StaticPermissionGroupCapability): 
   return capabilityRefusalMessage(CAPABILITY_RULES[capability].describe)
 }
 
+function refuse(capability: StaticPermissionGroupCapability): never {
+  throw new PermissionGroupCapabilityError(
+    capability,
+    CAPABILITY_RULES[capability].detailCode,
+    capabilityRefusal(capability)
+  )
+}
+
 /**
- * Throws {@link PermissionGroupCapabilityError} when `userId`'s group in
- * `workspaceId` withholds `capability`. A no-op when no group governs the user,
- * so workspaces outside an enterprise organization are unaffected.
+ * Throws when `userId`'s group in `workspaceId` withholds `capability`.
+ *
+ * A no-op when no group governs the user, so a personal workspace or a
+ * non-enterprise organization is unaffected. Pass `organizationId` when the
+ * caller has already loaded the workspace; omitting it costs one lookup, and
+ * both forms share the same per-request memo either way.
  */
 export async function assertWorkspaceCapability(
   userId: string,
   workspaceId: string,
+  capability: StaticPermissionGroupCapability,
+  organizationId?: string | null
+): Promise<void> {
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
+  if (capabilityDeniedBy(capability, config)) refuse(capability)
+}
+
+/**
+ * The same refusal for an action that names an organization rather than a
+ * workspace — creating one, or reading its member directory.
+ *
+ * Resolves the organization's default group, which is what governs a member for
+ * an action no workspace scopes; a non-default group targets specific
+ * workspaces and has nothing to say here.
+ */
+export async function assertOrganizationCapability(
+  organizationId: string,
   capability: StaticPermissionGroupCapability
 ): Promise<void> {
-  const config = await getUserPermissionConfig(userId, workspaceId)
-  if (!capabilityDeniedBy(capability, config)) return
-  const rule = CAPABILITY_RULES[capability]
-  throw new PermissionGroupCapabilityError(capability, rule.detailCode, rule.describe)
+  const config = await getUserPermissionConfigForOrganization(organizationId)
+  if (capabilityDeniedBy(capability, config)) refuse(capability)
+}
+
+/**
+ * Whether the capability is withheld, without throwing.
+ *
+ * For a caller that must answer rather than refuse — a raw handler rendering its
+ * own response shape, or a policy that reports a structured decision.
+ */
+export async function isWorkspaceCapabilityWithheld(
+  userId: string,
+  workspaceId: string,
+  capability: StaticPermissionGroupCapability,
+  organizationId?: string | null
+): Promise<boolean> {
+  return capabilityDeniedBy(
+    capability,
+    await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
+  )
+}
+
+/** The organization-scoped counterpart of {@link isWorkspaceCapabilityWithheld}. */
+export async function isOrganizationCapabilityWithheld(
+  organizationId: string,
+  capability: StaticPermissionGroupCapability
+): Promise<boolean> {
+  return capabilityDeniedBy(
+    capability,
+    await getUserPermissionConfigForOrganization(organizationId)
+  )
 }

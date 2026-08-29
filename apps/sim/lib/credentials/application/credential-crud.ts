@@ -1,9 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import {
-  defineAuthorizedWorkspaceUseCase,
-  requireWorkspaceCapability,
-} from '@/lib/core/application'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
@@ -32,6 +29,7 @@ import {
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -197,7 +195,12 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
      * against the type actually being created.
      */
     if (PERSONAL_SCOPE_CREDENTIAL_TYPES.has(input.type)) {
-      await requireWorkspaceCapability(userId, context, 'credentials.personal')
+      await assertWorkspaceCapability(
+        userId,
+        context.workspaceId,
+        'credentials.personal',
+        context.workspaceOrganizationId
+      )
     }
     const result = await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
     if (!result.success) throwCredentialMutationFailure(result)

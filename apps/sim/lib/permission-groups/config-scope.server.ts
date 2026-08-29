@@ -1,6 +1,9 @@
 import { cache } from 'react'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
+import {
+  getUserPermissionConfig,
+  resolveVerifiedUserAccessControlContext,
+} from '@/ee/access-control/utils/permission-check'
 
 type ConfigKey = `${string}:${string}`
 type ConfigStore = Map<ConfigKey, Promise<PermissionGroupConfig | null>>
@@ -44,9 +47,11 @@ const resolveCached = cache(
   async (
     userId: string,
     workspaceId: string,
-    organizationId: string | null
+    organizationId: string | null | undefined
   ): Promise<PermissionGroupConfig | null> =>
-    (await resolveVerifiedUserAccessControlContext(userId, workspaceId, organizationId)).config
+    organizationId === undefined
+      ? await getUserPermissionConfig(userId, workspaceId)
+      : (await resolveVerifiedUserAccessControlContext(userId, workspaceId, organizationId)).config
 )
 
 /**
@@ -59,11 +64,15 @@ const resolveCached = cache(
  *
  * Outside a scope this degrades to the React memo, and outside a request to a
  * direct call: slower, never wrong.
+ *
+ * Pass `undefined` for `organizationId` when the caller has not already loaded
+ * the workspace — a raw route, typically. The resolver looks it up, and both
+ * forms share this memo, so a request that mixes them still queries once.
  */
 export function resolvePermissionGroupConfig(
   userId: string,
   workspaceId: string,
-  organizationId: string | null
+  organizationId: string | null | undefined
 ): Promise<PermissionGroupConfig | null> {
   const store = storage.getStore()
   if (!store) return resolveCached(userId, workspaceId, organizationId)
