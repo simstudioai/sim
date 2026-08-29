@@ -5,6 +5,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const dnsAnalyticsTool: ToolConfig<
   CloudflareDnsAnalyticsParams,
@@ -80,7 +81,7 @@ export const dnsAnalyticsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_analytics/report`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_analytics/report`
       )
       if (params.since) url.searchParams.append('since', params.since)
       if (params.until) url.searchParams.append('until', params.until)

@@ -1,5 +1,6 @@
 import type { DiscordJoinThreadParams, DiscordJoinThreadResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJoinThreadResponse> =
   {
@@ -31,7 +32,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
 
     request: {
       url: (params: DiscordJoinThreadParams) => {
-        return `https://discord.com/api/v10/channels/${params.threadId.trim()}/thread-members/@me`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.threadId, 'threadId')}/thread-members/@me`
       },
       method: 'PUT',
       headers: (params) => ({

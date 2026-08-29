@@ -1,5 +1,6 @@
 import type { DiscordListChannelsParams, DiscordListChannelsResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordListChannelsTool: ToolConfig<
   DiscordListChannelsParams,
@@ -27,7 +28,7 @@ export const discordListChannelsTool: ToolConfig<
 
   request: {
     url: (params: DiscordListChannelsParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/channels`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/channels`
     },
     method: 'GET',
     headers: (params) => ({

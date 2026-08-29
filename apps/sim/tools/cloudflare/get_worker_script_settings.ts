@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getWorkerScriptSettingsTool: ToolConfig<
   CloudflareGetWorkerScriptSettingsParams,
@@ -38,7 +39,7 @@ export const getWorkerScriptSettingsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/workers/scripts/${encodeURIComponent(params.scriptName)}/settings`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/workers/scripts/${safeUrlPathSegment(params.scriptName, 'scriptName')}/settings`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

@@ -10,6 +10,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listTunnelsTool: ToolConfig<
   CloudflareListTunnelsParams,
@@ -105,7 +106,7 @@ export const listTunnelsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/cfd_tunnel`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'status', params.status)

@@ -1,5 +1,6 @@
 import type { DiscordGetMessagesParams, DiscordGetMessagesResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetMessagesTool: ToolConfig<
   DiscordGetMessagesParams,
@@ -34,7 +35,7 @@ export const discordGetMessagesTool: ToolConfig<
   request: {
     url: (params: DiscordGetMessagesParams) => {
       const limit = params.limit ? Number(params.limit) : 10
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages?limit=${Math.min(limit, 100)}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages?limit=${Math.min(limit, 100)}`
     },
     method: 'GET',
     headers: (params) => {

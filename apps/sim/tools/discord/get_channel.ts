@@ -1,5 +1,6 @@
 import type { DiscordGetChannelParams, DiscordGetChannelResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordGetChannelResponse> =
   {
@@ -31,7 +32,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
 
     request: {
       url: (params: DiscordGetChannelParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
       },
       method: 'GET',
       headers: (params) => ({

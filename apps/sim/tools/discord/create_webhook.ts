@@ -3,6 +3,7 @@ import type {
   DiscordCreateWebhookResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateWebhookTool: ToolConfig<
   DiscordCreateWebhookParams,
@@ -42,7 +43,7 @@ export const discordCreateWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateWebhookParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/webhooks`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/webhooks`
     },
     method: 'POST',
     headers: (params) => ({

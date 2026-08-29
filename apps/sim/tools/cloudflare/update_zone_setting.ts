@@ -3,6 +3,7 @@ import type {
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateZoneSettingTool: ToolConfig<
   CloudflareUpdateZoneSettingParams,
@@ -44,7 +45,7 @@ export const updateZoneSettingTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/settings/${params.settingId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/settings/${safeUrlPathSegment(params.settingId, 'settingId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

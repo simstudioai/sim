@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, CloudflareR2BucketResponse> =
   {
@@ -42,7 +43,7 @@ export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, Cloudflare
 
     request: {
       url: (params) =>
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets/${encodeURIComponent(params.bucketName)}`,
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/r2/buckets/${safeUrlPathSegment(params.bucketName, 'bucketName')}`,
       method: 'GET',
       headers: (params) => {
         const headers = cloudflareHeaders(params.apiKey)

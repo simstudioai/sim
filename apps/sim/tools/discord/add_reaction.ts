@@ -1,5 +1,6 @@
 import type { DiscordAddReactionParams, DiscordAddReactionResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordAddReactionTool: ToolConfig<
   DiscordAddReactionParams,
@@ -45,8 +46,8 @@ export const discordAddReactionTool: ToolConfig<
 
   request: {
     url: (params: DiscordAddReactionParams) => {
-      const encodedEmoji = encodeURIComponent(params.emoji)
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/reactions/${encodedEmoji}/@me`
+      const encodedEmoji = safeUrlPathSegment(params.emoji, 'emoji')
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions/${encodedEmoji}/@me`
     },
     method: 'PUT',
     headers: (params) => ({

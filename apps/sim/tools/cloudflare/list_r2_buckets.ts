@@ -10,6 +10,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listR2BucketsTool: ToolConfig<
   CloudflareListR2BucketsParams,
@@ -75,7 +76,7 @@ export const listR2BucketsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/r2/buckets`
       )
       appendParam(url, 'name_contains', params.name_contains)
       appendParam(url, 'start_after', params.start_after)

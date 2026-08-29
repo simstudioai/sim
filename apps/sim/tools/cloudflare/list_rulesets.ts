@@ -10,6 +10,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listRulesetsTool: ToolConfig<
   CloudflareListRulesetsParams,
@@ -52,7 +53,7 @@ export const listRulesetsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets`
       )
       appendParam(url, 'per_page', params.per_page)
       appendParam(url, 'cursor', params.cursor)

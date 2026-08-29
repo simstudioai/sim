@@ -3,6 +3,7 @@ import type {
   DiscordDeleteChannelResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteChannelTool: ToolConfig<
   DiscordDeleteChannelParams,
@@ -36,7 +37,7 @@ export const discordDeleteChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

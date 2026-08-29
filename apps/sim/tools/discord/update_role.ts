@@ -1,5 +1,6 @@
 import type { DiscordUpdateRoleParams, DiscordUpdateRoleResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordUpdateRoleResponse> =
   {
@@ -55,7 +56,7 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
 
     request: {
       url: (params: DiscordUpdateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles/${params.roleId.trim()}`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles/${safeUrlPathSegment(params.roleId, 'roleId')}`
       },
       method: 'PATCH',
       headers: (params) => ({

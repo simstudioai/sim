@@ -5,6 +5,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listDnsRecordsTool: ToolConfig<
   CloudflareListDnsRecordsParams,
@@ -112,7 +113,7 @@ export const listDnsRecordsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_records`
       )
       if (params.type) url.searchParams.append('type', params.type)
       if (params.name) url.searchParams.append('name.exact', params.name)

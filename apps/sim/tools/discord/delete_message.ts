@@ -3,6 +3,7 @@ import type {
   DiscordDeleteMessageResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteMessageTool: ToolConfig<
   DiscordDeleteMessageParams,
@@ -42,7 +43,7 @@ export const discordDeleteMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

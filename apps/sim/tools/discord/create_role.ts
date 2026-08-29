@@ -1,5 +1,6 @@
 import type { DiscordCreateRoleParams, DiscordCreateRoleResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordCreateRoleResponse> =
   {
@@ -49,7 +50,7 @@ export const discordCreateRoleTool: ToolConfig<DiscordCreateRoleParams, DiscordC
 
     request: {
       url: (params: DiscordCreateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles`
       },
       method: 'POST',
       headers: (params) => ({

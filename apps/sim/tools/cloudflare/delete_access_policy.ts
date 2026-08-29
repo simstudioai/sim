@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteAccessPolicyTool: ToolConfig<
   CloudflareDeleteAccessPolicyParams,
@@ -44,7 +45,7 @@ export const deleteAccessPolicyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies/${params.policyId.trim()}`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/apps/${safeUrlPathSegment(params.appId, 'appId')}/policies/${safeUrlPathSegment(params.policyId, 'policyId')}`,
     method: 'DELETE',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

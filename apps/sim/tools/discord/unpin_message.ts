@@ -1,5 +1,6 @@
 import type { DiscordUnpinMessageParams, DiscordUnpinMessageResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUnpinMessageTool: ToolConfig<
   DiscordUnpinMessageParams,
@@ -39,7 +40,7 @@ export const discordUnpinMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordUnpinMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/pins/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

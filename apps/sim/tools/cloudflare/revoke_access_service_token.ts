@@ -4,6 +4,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const revokeAccessServiceTokenTool: ToolConfig<
   CloudflareRevokeAccessServiceTokenParams,
@@ -38,7 +39,7 @@ export const revokeAccessServiceTokenTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens/${params.serviceTokenId.trim()}`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/service_tokens/${safeUrlPathSegment(params.serviceTokenId, 'serviceTokenId')}`,
     method: 'DELETE',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

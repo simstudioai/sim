@@ -10,6 +10,7 @@ import {
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAccessServiceTokensTool: ToolConfig<
   CloudflareListAccessServiceTokensParams,
@@ -63,7 +64,7 @@ export const listAccessServiceTokensTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens`
+        `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/service_tokens`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'search', params.search)

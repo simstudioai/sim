@@ -1,5 +1,6 @@
 import type { CloudflareGetZoneParams, CloudflareGetZoneResponse } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneResponse> = {
   id: 'cloudflare_get_zone',
@@ -23,7 +24,8 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}`,
+    url: (params) =>
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

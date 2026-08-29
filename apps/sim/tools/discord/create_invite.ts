@@ -1,5 +1,6 @@
 import type { DiscordCreateInviteParams, DiscordCreateInviteResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateInviteTool: ToolConfig<
   DiscordCreateInviteParams,
@@ -51,7 +52,7 @@ export const discordCreateInviteTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateInviteParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/invites`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/invites`
     },
     method: 'POST',
     headers: (params) => ({

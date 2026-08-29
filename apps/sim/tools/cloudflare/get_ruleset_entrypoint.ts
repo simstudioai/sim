@@ -9,6 +9,7 @@ import {
   mapRuleset,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getRulesetEntrypointTool: ToolConfig<
   CloudflareGetRulesetEntrypointParams,
@@ -44,7 +45,7 @@ export const getRulesetEntrypointTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/${params.phase.trim()}/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/phases/${safeUrlPathSegment(params.phase, 'phase')}/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

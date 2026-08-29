@@ -5,6 +5,7 @@ import type {
 } from '@/tools/cloudflare/types'
 import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listCertificatesTool: ToolConfig<
   CloudflareListCertificatesParams,
@@ -58,7 +59,7 @@ export const listCertificatesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/ssl/certificate_packs`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/ssl/certificate_packs`
       )
       if (params.status) url.searchParams.append('status', params.status)
       if (params.page) url.searchParams.append('page', String(params.page))

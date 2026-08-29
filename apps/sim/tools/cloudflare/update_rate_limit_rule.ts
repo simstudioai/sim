@@ -11,6 +11,7 @@ import {
   parseJsonObjectParam,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateRateLimitRuleTool: ToolConfig<
   CloudflareUpdateRateLimitRuleParams,
@@ -137,7 +138,7 @@ export const updateRateLimitRuleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules/${params.ruleId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/${safeUrlPathSegment(params.rulesetId, 'rulesetId')}/rules/${safeUrlPathSegment(params.ruleId, 'ruleId')}`,
     method: 'PATCH',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
