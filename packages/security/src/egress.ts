@@ -406,6 +406,19 @@ export function policyCanVouch(policy: EgressPolicy): boolean {
 }
 
 /**
+ * Whether a refusal could be reversed specifically by learning the resolved
+ * address — an IP-range entry, or the legacy blanket private grant.
+ *
+ * Narrower than {@link policyCanVouch}: a hostname allowlist entry and the
+ * loopback carve-out are both decided from the hostname, so {@link evaluateUrl}
+ * has already applied them. A synchronous caller must use this rather than the
+ * broader predicate, or it defers everything and stops refusing anything.
+ */
+export function policyDefersToAddress(policy: EgressPolicy): boolean {
+  return policy.allowedRanges.length > 0 || policy.allowPrivate
+}
+
+/**
  * Whether a refusal could be lifted by learning the destination's address.
  * `scheme-not-permitted` and `address-metadata` never can be.
  */
@@ -430,6 +443,12 @@ export function evaluateAddress(url: URL, address: string, policy: EgressPolicy)
   // that reaching for a metadata endpoint always reports why it is hopeless.
   if (isMetadataAddress(address)) {
     return deny('address-metadata', address)
+  }
+
+  // Before any vouching rule: an address that cannot be parsed cannot be
+  // classified, and an allowlisted hostname must not carry it past the check.
+  if (!isIpLiteral(unwrapIpv6Brackets(address))) {
+    return deny('address-blocked', `${address} is not a valid address`)
   }
 
   const vouched = isVouched(url, address, policy)

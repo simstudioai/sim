@@ -75,6 +75,58 @@ const ALLOWED = new Set([
   'apps/sim/lib/core/utils/fetch-deadline.ts',
 ])
 
+/**
+ * Blanks comment bodies, preserving byte offsets so reported line numbers stay
+ * exact. Without this the rules match their own documentation: a comment warning
+ * against `require('undici')` reads identically to the call.
+ *
+ * Strings are deliberately left intact — the module specifier is itself a string,
+ * so blanking them would stop every rule matching anything. A match that starts
+ * inside a string is rejected separately by {@link stringRanges}.
+ */
+function blankComments(source: string): string {
+  const out = source.split('')
+  let i = 0
+  while (i < source.length) {
+    const two = source.slice(i, i + 2)
+    if (two === '//' || two === '/*') {
+      const end =
+        two === '//'
+          ? (source.indexOf('\n', i) + 1 || source.length + 1) - 1
+          : source.indexOf('*/', i + 2) + 2 || source.length
+      for (let j = i; j < end; j++) if (out[j] !== '\n') out[j] = ' '
+      i = end
+      continue
+    }
+    if (two[0] === '"' || two[0] === "'" || two[0] === '`') {
+      let j = i + 1
+      while (j < source.length && source[j] !== two[0]) j += source[j] === '\\' ? 2 : 1
+      i = j + 1
+      continue
+    }
+    i++
+  }
+  return out.join('')
+}
+
+/** Half-open [start, end) ranges covering every string literal body. */
+function stringRanges(source: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = []
+  let i = 0
+  while (i < source.length) {
+    const ch = source[i]
+    if (ch === '"' || ch === "'" || ch === '`') {
+      let j = i + 1
+      while (j < source.length && source[j] !== ch) j += source[j] === '\\' ? 2 : 1
+      ranges.push([i + 1, j])
+      i = j + 1
+      continue
+    }
+    i++
+  }
+  return ranges
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (SKIP_DIRS.has(entry.name)) continue
@@ -102,15 +154,24 @@ function main() {
       const rel = path.relative(ROOT, file).split(path.sep).join('/')
       if (ALLOWED.has(rel)) continue
       scanned++
-      const source = readFileSync(file, 'utf8')
+      const raw = readFileSync(file, 'utf8')
+      const source = blankComments(raw)
+      const strings = stringRanges(source)
+      const insideString = (index: number) =>
+        strings.some(([from, to]) => index >= from && index < to)
+
       for (const { pattern, kind } of RUNTIME_LOADS) {
         pattern.lastIndex = 0
         for (const match of source.matchAll(pattern)) {
+          if (match.index === undefined || insideString(match.index)) continue
           violations.push({
             file: rel,
             line: source.slice(0, match.index).split('\n').length,
             kind,
-            snippet: match[0].replace(/\s+/g, ' ').trim(),
+            snippet: raw
+              .slice(match.index, match.index + match[0].length)
+              .replace(/\s+/g, ' ')
+              .trim(),
           })
         }
       }

@@ -152,3 +152,12 @@ export function checkResolvedEgress(
 ): EgressDecision {
   return evaluateAddress(url, address, resolveEgressPolicy(profile))
 }
+
+/**
+ * The pre-DNS half of the same check, for a destination whose address is not
+ * known yet — a redirect target named by hostname, where the scheme and port
+ * still have to answer to the request's own policy.
+ */
+export function checkEgressUrl(url: URL, profile: EgressProfile): EgressDecision {
+  return evaluateUrl(url, resolveEgressPolicy(profile))
+}

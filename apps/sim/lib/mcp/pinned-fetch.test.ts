@@ -254,7 +254,7 @@ describe('createSsrfGuardedMcpFetch', () => {
           signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
     )
-    const fetchLike = createSsrfGuardedMcpFetch(5)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 5 })
 
     await expect(fetchLike('https://slow.example/token', { method: 'POST' })).rejects.toThrow(
       /timed out after 5ms/
@@ -269,7 +269,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     sentinelFetch.mockImplementation(
       async () => new Response(new ReadableStream<Uint8Array>({ start() {} }))
     )
-    const fetchLike = createSsrfGuardedMcpFetch(5)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 5 })
 
     await expect(fetchLike('https://slow-body.example/token', { method: 'POST' })).rejects.toThrow(
       /timed out after 5ms/
@@ -280,7 +280,7 @@ describe('createSsrfGuardedMcpFetch', () => {
   it('bounds a stalled SSRF/DNS validation by the deadline', async () => {
     // Validation never resolves (mimics a hanging dns.lookup, which takes no signal).
     mockValidateMcpServerSsrf.mockReturnValue(new Promise(() => {}))
-    const fetchLike = createSsrfGuardedMcpFetch(5)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 5 })
 
     await expect(fetchLike('https://slow-dns.example/token')).rejects.toThrow(/timed out after 5ms/)
     // Never got past validation, so no request was issued and no Agent was created.
@@ -295,7 +295,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     mockValidateMcpServerSsrf.mockRejectedValue(new Error('blocked late'))
     const controller = new AbortController()
     controller.abort(new Error('pre-aborted'))
-    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 60_000 })
 
     await expect(
       fetchLike('https://slow.example/token', { signal: controller.signal })
@@ -309,7 +309,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     // Validation hangs; the caller's abort — well before the 60s deadline — must settle it.
     mockValidateMcpServerSsrf.mockReturnValue(new Promise(() => {}))
     const controller = new AbortController()
-    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 60_000 })
     const pending = fetchLike('https://slow-dns.example/token', { signal: controller.signal })
     controller.abort(new Error('caller cancelled'))
 
@@ -332,7 +332,7 @@ describe('createSsrfGuardedMcpFetch', () => {
     )
     const controller = new AbortController()
     // Long deadline so the caller's abort — not the timeout — is what settles the request.
-    const fetchLike = createSsrfGuardedMcpFetch(60_000)
+    const fetchLike = createSsrfGuardedMcpFetch({ timeoutMs: 60_000 })
     const pending = fetchLike('https://slow.example/token', { signal: controller.signal })
     controller.abort(new Error('caller cancelled'))
 

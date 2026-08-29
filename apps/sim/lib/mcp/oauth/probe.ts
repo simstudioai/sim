@@ -39,7 +39,7 @@ export async function detectMcpAuthType(
   const pinned = resolvedIP
     ? createPinnedFetchWithDispatcher(resolvedIP, { profile: MCP_EGRESS_PROFILE })
     : undefined
-  const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch()
+  const probeFetch: FetchLike = pinned?.fetch ?? createSsrfGuardedMcpFetch({ serverUrl: url })
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)

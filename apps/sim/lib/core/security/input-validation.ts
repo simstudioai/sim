@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { evaluateUrl } from '@sim/security/egress'
+import { evaluateUrl, isLiftableByVouching, policyDefersToAddress } from '@sim/security/egress'
 import {
   describeEgressDenial,
   type EgressProfile,
@@ -481,6 +481,9 @@ export function validateJiraIssueKey(
  * only a resolved address can be classified. Use this for form/contract
  * validation; use the DNS-resolving variant before connecting.
  *
+ * It also declines to refuse anything the resolved address could permit, so a
+ * destination allowlisted by IP range is still configurable.
+ *
  * @param url - The URL to validate
  * @param paramName - Name of the parameter for error messages
  * @param profile - Where this URL came from; see {@link EgressProfile}
@@ -510,10 +513,19 @@ export function validateExternalUrl(
     return { isValid: false, error: `${paramName} must be a valid URL` }
   }
 
-  const decision = evaluateUrl(parsed, resolveEgressPolicy(profile))
-  return decision.allowed
-    ? { isValid: true }
-    : { isValid: false, error: describeEgressDenial(decision, paramName, profile) }
+  const policy = resolveEgressPolicy(profile)
+  const decision = evaluateUrl(parsed, policy)
+  if (decision.allowed) return { isValid: true }
+
+  // A refusal the resolved address could lift is not this check's to make: a
+  // host permitted only by EGRESS_ALLOWED_IP_RANGES cannot be recognised until
+  // DNS runs, and refusing here would stop it being configured at all.
+  // validateUrlWithDNS makes the authoritative call before anything is dialled.
+  if (policyDefersToAddress(policy) && isLiftableByVouching(decision.reason)) {
+    return { isValid: true }
+  }
+
+  return { isValid: false, error: describeEgressDenial(decision, paramName, profile) }
 }
 
 /**

@@ -198,6 +198,23 @@ describe('createPinnedFetch', () => {
 
   it('still blocks a redirect to a private IP outside the allowlist', async () => {
     setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8' })
+    // A genuine private address outside the allowlisted range, not the metadata
+    // endpoint — that one is refused unconditionally, so it would pass here even
+    // if the allowlist had regressed to permitting all private addresses.
+    mockUndiciRequest.mockResolvedValueOnce(
+      undiciReply(302, { location: 'https://192.168.1.5/internal' }, byteStream(''))
+    )
+    const pinned = createPinnedFetch('10.0.0.5', { profile: 'configuredEndpoint' })
+
+    await expect(pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })).rejects.toThrow(
+      /private or reserved address/
+    )
+    // The initial request happened; the redirect out of the range was refused.
+    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('still blocks a redirect to the metadata endpoint from inside the allowlist', async () => {
+    setEnvFlags({ egressAllowedIpRanges: '10.0.0.0/8,169.254.0.0/16' })
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(302, { location: 'http://169.254.169.254/latest/meta-data/' }, byteStream(''))
     )
@@ -206,8 +223,6 @@ describe('createPinnedFetch', () => {
     await expect(pinned('http://10.0.0.5:3000/mcp', { method: 'GET' })).rejects.toThrow(
       /cloud metadata endpoint/
     )
-    // The initial request happened; the redirect to the metadata IP was refused.
-    expect(mockUndiciRequest).toHaveBeenCalledTimes(1)
   })
 
   it('reuses one dispatcher across all calls of a single instance', async () => {

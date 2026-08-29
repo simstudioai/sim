@@ -17,7 +17,11 @@ import {
   request as undiciRequest,
 } from 'undici'
 import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
-import { checkResolvedEgress, validateEgressUrl } from '@/lib/core/security/egress/validate'
+import {
+  checkEgressUrl,
+  checkResolvedEgress,
+  validateEgressUrl,
+} from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { ValidationResult } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
@@ -483,16 +487,20 @@ const MAX_GUARDED_REDIRECTS = 5
  * targets are covered by {@link createSsrfGuardedLookup} at connect time.
  */
 function assertGuardedRedirectTarget(url: URL, profile: EgressProfile): void {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
-  }
   const host = unwrapIpv6Brackets(url.hostname)
-  if (!isIpLiteral(host)) return
 
   // The request's own policy decides, which is how a self-hosted server on a
   // permitted private address stays reachable across a hop. It replaced a
   // carve-out that permitted one pinned IP and could not express anything else.
-  const decision = checkResolvedEgress(url, host, profile)
+  //
+  // A literal is judged completely here. A hostname gets the pre-DNS half —
+  // scheme and port — which used to be skipped entirely, so a hop could downgrade
+  // to plain HTTP or land on a denied port as long as it was named rather than
+  // numbered. Its address is judged by the connect-time lookup.
+  const decision = isIpLiteral(host)
+    ? checkResolvedEgress(url, host, profile)
+    : checkEgressUrl(url, profile)
+
   if (!decision.allowed) {
     throw new Error(
       `Blocked by SSRF policy: ${describeEgressDenial(decision, 'redirect', profile)}`

@@ -148,7 +148,10 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
 
     await revokeMcpOauthTokens('server-1', 'workspace-1')
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint, 'contentFetch')
+    // Same origin as the configured server, so it keeps that server's profile —
+    // the metadata pointed back at the host the operator already chose. The
+    // blocked-endpoint test above covers the cross-origin case, which does not.
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint, 'selfHostedService')
     const revokeCalls = mockUndiciFetch.mock.calls.filter((call) => {
       const target = typeof call[0] === 'string' ? call[0] : String(call[0])
       return target === publicEndpoint

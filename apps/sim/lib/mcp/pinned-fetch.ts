@@ -1,5 +1,6 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
+import { isPrivateIp } from '@sim/security/ssrf'
 import type { Agent } from 'undici'
 import {
   createPinnedFetchWithDispatcher,
@@ -285,10 +286,26 @@ function releaseStreamOnSettle(
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
  * @throws McpError if a request exceeds `timeoutMs`
  */
-export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOUT_MS): FetchLike {
+export function createSsrfGuardedMcpFetch(
+  options: { serverUrl?: string; timeoutMs?: number } = {}
+): FetchLike {
+  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS } = options
+  // The origin the operator configured. A leg that stays on it is the server
+  // they chose; everything else was named by that server's metadata.
+  let configuredOrigin: string | undefined
+  if (serverUrl && URL.canParse(serverUrl)) configuredOrigin = new URL(serverUrl).origin
+
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const host = URL.canParse(target) ? new URL(target).host : target
+    const sameAsConfigured =
+      configuredOrigin !== undefined &&
+      URL.canParse(target) &&
+      new URL(target).origin === configuredOrigin
+    // The first hop is the configured server and keeps its privileges — a
+    // self-hosted MCP on an allowlisted private address must still be able to
+    // start discovery. Every hop the metadata names is judged as content.
+    const profile = sameAsConfigured ? MCP_EGRESS_PROFILE : OAUTH_EGRESS_PROFILE
     const startedAt = Date.now()
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
     // Bound every phase — validation, request, body read — by the deadline + caller signal.
@@ -297,25 +314,27 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
     let dispatcher: Agent | undefined
     try {
       logger.info('OAuth guarded fetch: validating', { host })
-      const resolvedIP = await withDeadline(
-        validateMcpServerSsrf(target, OAUTH_EGRESS_PROFILE),
-        signal
-      )
+      const resolvedIP = await withDeadline(validateMcpServerSsrf(target, profile), signal)
       if (!resolvedIP) {
         // No leg of this flow may run unguarded. Under `contentFetch` the only
         // way here is an unresolved env-var reference in the hostname, which is
         // never a real authorization-server URL by the time OAuth runs.
         throw new McpSsrfError('MCP OAuth request URL could not be validated')
       }
-      logger.info('OAuth guarded fetch: requesting', { host })
-      // Always the guarded connector: `contentFetch` cannot yield a private
-      // address, so there is no pinned-private case to carve out here.
-      const guarded = createSsrfGuardedFetchWithDispatcher({
-        profile: OAUTH_EGRESS_PROFILE,
-        maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
-      })
-      dispatcher = guarded.dispatcher
-      const response = await withDeadline(guarded.fetch(url, { ...init, signal }), signal)
+      logger.info('OAuth guarded fetch: requesting', { host, configured: sameAsConfigured })
+      // A private address only survives validation on the configured first hop,
+      // and the guarded lookup would filter it, so that case pins instead.
+      const transport = isPrivateIp(resolvedIP)
+        ? createPinnedFetchWithDispatcher(resolvedIP, {
+            profile,
+            maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+          })
+        : createSsrfGuardedFetchWithDispatcher({
+            profile,
+            maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+          })
+      dispatcher = transport.dispatcher
+      const response = await withDeadline(transport.fetch(url, { ...init, signal }), signal)
       // The probe's `initialize` can stream (text/event-stream); hand it back live so the
       // buffer doesn't drain/stall it. Every OAuth leg is single-shot JSON and is buffered.
       const contentType = response.headers.get('content-type') ?? ''
