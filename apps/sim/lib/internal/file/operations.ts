@@ -12,7 +12,7 @@ import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
-import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { isUserFile } from '@/lib/core/utils/user-file'
 import { durableSecretProvenanceFromPrivateBundle } from '@/lib/execution/durable-secret-provenance'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -791,13 +791,25 @@ export async function executeFileManageOperation(
          */
         let inputProvenance: WorkspaceFileSecretProvenance | undefined
         if (fileInput !== undefined && fileInput !== null) {
-          // Two shapes reach here and only one is already a UserFile. A block
-          // reference or an agent-resolved id arrives complete; the file picker
-          // stores `{name, path, key, size, type}` with no `id` or `url`, which
-          // the shared normalizer turns into one — the same conversion every
-          // other operation in this file applies to its own file input.
-          const sourceFile: UserFile | null = isUserFileWithMetadata(fileInput)
-            ? fileInput
+          /**
+           * Two shapes reach here and only one already identifies a file. A block
+           * reference, or an id the tool layer resolved through the execution
+           * index or workspace metadata, arrives carrying `id`/`key`/`url`/`name`.
+           * The file picker instead stores `{name, path, key, size, type}` with no
+           * `id` or `url`, which the shared normalizer turns into one — the same
+           * conversion every other operation in this file applies to its input.
+           *
+           * Identity is all that is demanded, deliberately. `size` is never read
+           * before the download and the download reports the real content type, so
+           * requiring them would reject an otherwise usable reference over two
+           * fields nothing depends on.
+           */
+          const sourceFile: UserFile | null = isUserFile(fileInput)
+            ? {
+                ...fileInput,
+                size: fileInput.size ?? 0,
+                type: fileInput.type ?? 'application/octet-stream',
+              }
             : fileInputToUserFile(fileInput)
           if (!sourceFile) {
             return Response.json(

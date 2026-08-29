@@ -269,7 +269,13 @@ async function writeSandboxInputs(
             URL: file.url,
             DST: file.path,
             DIR: dir,
-            MAX_BYTES: String(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES),
+            // Clamped, not just defaulted: `sandboxFiles` reaches this layer from
+            // the request body, so a declared ceiling is a caller's number. It may
+            // lower the limit for its own mount but never raise it past the one
+            // this layer guarantees.
+            MAX_BYTES: String(
+              Math.min(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES, MAX_SANDBOX_URL_MOUNT_BYTES)
+            ),
           },
           timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
           maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,

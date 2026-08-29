@@ -1955,54 +1955,62 @@ async function collectExecutionOutputFiles(args: {
   }
 
   const files: UserFile[] = []
-  for (const collected of args.collectedFiles) {
-    const buffer = Buffer.from(collected.contentBase64, 'base64')
-    const name = collectedFileName(collected.relativePath)
-    const mimeType = getMimeTypeFromExtension(getFileExtension(name))
+  // The harvest is all-or-nothing, so a throw partway through has to take the
+  // uploads that already succeeded with it. Without this they linger in storage
+  // with nothing referencing them, since the failure response carries no keys.
+  try {
+    for (const collected of args.collectedFiles) {
+      const buffer = Buffer.from(collected.contentBase64, 'base64')
+      const name = collectedFileName(collected.relativePath)
+      const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
-    // Scanned unconditionally — never gated on whether the bytes look textual.
-    // Both a filename check and a UTF-8 round-trip were trivially defeated: name
-    // the file `.png`, or append one invalid byte, and a plaintext secret sailed
-    // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
-    // findable in any buffer, textual or not.
-    //
-    // What stays out of reach is a secret carried in transformed form — deflated
-    // inside a PDF, re-encoded — which no substring scan can see. That is an
-    // inherent limit of scanning, not a hole in the gate, and it is why these
-    // files are execution-scoped rather than durable workspace files.
-    {
-      const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
-        userId: args.authUserId,
-        workspaceId: resolvedWorkspaceId,
-      })
-      // An execution-scoped file has nowhere to record a provenance envelope, so
-      // one carrying a resolved secret cannot ship under a lock the way a
-      // workspace file can — it is refused instead.
-      if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-        await discardUploadedExecutionFiles(files)
-        return {
-          response: exportFailure(
-            `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
-            400,
-            args.stdout,
-            args.executionTime
-          ),
+      // Scanned unconditionally — never gated on whether the bytes look textual.
+      // Both a filename check and a UTF-8 round-trip were trivially defeated: name
+      // the file `.png`, or append one invalid byte, and a plaintext secret sailed
+      // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
+      // findable in any buffer, textual or not.
+      //
+      // What stays out of reach is a secret carried in transformed form — deflated
+      // inside a PDF, re-encoded — which no substring scan can see. That is an
+      // inherent limit of scanning, not a hole in the gate, and it is why these
+      // files are execution-scoped rather than durable workspace files.
+      {
+        const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
+          userId: args.authUserId,
+          workspaceId: resolvedWorkspaceId,
+        })
+        // An execution-scoped file has nowhere to record a provenance envelope, so
+        // one carrying a resolved secret cannot ship under a lock the way a
+        // workspace file can — it is refused instead.
+        if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+          await discardUploadedExecutionFiles(files)
+          return {
+            response: exportFailure(
+              `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
+              400,
+              args.stdout,
+              args.executionTime
+            ),
+          }
         }
       }
-    }
 
-    const userFile = await uploadExecutionFile(
-      {
-        workspaceId: resolvedWorkspaceId,
-        workflowId: args.workflowId,
-        executionId: args.executionId,
-      },
-      buffer,
-      name,
-      mimeType,
-      args.authUserId
-    )
-    files.push(userFile)
+      const userFile = await uploadExecutionFile(
+        {
+          workspaceId: resolvedWorkspaceId,
+          workflowId: args.workflowId,
+          executionId: args.executionId,
+        },
+        buffer,
+        name,
+        mimeType,
+        args.authUserId
+      )
+      files.push(userFile)
+    }
+  } catch (error) {
+    await discardUploadedExecutionFiles(files)
+    throw error
   }
 
   // Registers the new keys on the execution so downstream blocks are authorized
