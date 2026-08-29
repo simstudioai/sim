@@ -1,5 +1,6 @@
 import type { DeleteInboxParams, DeleteInboxResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailDeleteInboxTool: ToolConfig<DeleteInboxParams, DeleteInboxResult> = {
   id: 'agentmail_delete_inbox',
@@ -23,7 +24,8 @@ export const agentmailDeleteInboxTool: ToolConfig<DeleteInboxParams, DeleteInbox
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

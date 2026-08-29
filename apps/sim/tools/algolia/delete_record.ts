@@ -1,5 +1,7 @@
 import type { AlgoliaDeleteRecordParams, AlgoliaDeleteRecordResponse } from '@/tools/algolia/types'
+import { safeAlgoliaObjectId } from '@/tools/algolia/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDeleteRecordResponse> =
   {
@@ -38,7 +40,7 @@ export const deleteRecordTool: ToolConfig<AlgoliaDeleteRecordParams, AlgoliaDele
     request: {
       method: 'DELETE',
       url: (params) =>
-        `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/${encodeURIComponent(params.objectID.trim())}`,
+        `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/${safeAlgoliaObjectId(params.objectID, 'objectID')}`,
       headers: (params) => ({
         'x-algolia-application-id': params.applicationId,
         'x-algolia-api-key': params.apiKey,

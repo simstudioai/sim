@@ -1,0 +1,170 @@
+/**
+ * @vitest-environment node
+ *
+ * Guards every Google Vault tool against path traversal through an
+ * LLM-writable ID that gets interpolated into the request path.
+ *
+ * `matterId`, `holdId`, `exportId`, and `savedQueryId` are all
+ * `visibility: 'user-or-llm'`, so prompt injection controls them. Each one was
+ * interpolated raw (`${params.matterId.trim()}`), which let a value like
+ * `../../matters/victim` escape its `/v1/matters/<id>` prefix once `fetch`
+ * normalized the URL — re-aiming the request, and the user's Google OAuth
+ * bearer token, at a different matter. `delete_matters`, `delete_matters_holds`
+ * and `delete_saved_query` are DELETEs, so the reachable damage is destructive.
+ *
+ * Wrapping the ID in `encodeURIComponent` is NOT enough, which is why the
+ * vector list below includes the bare `.` and `..` segments: both are made of
+ * unreserved characters, so they survive encoding untouched and the URL parser
+ * then removes them as dot segments, popping one path segment off a fixed host.
+ * Every assertion here resolves the built URL with `new URL(...)` — the same
+ * normalization `fetch` performs — rather than string-matching the template
+ * output, because string matching is exactly what let this through.
+ */
+import { describe, expect, it } from 'vitest'
+import * as googleVaultTools from '@/tools/google_vault/index'
+import type { ToolConfig } from '@/tools/types'
+
+/**
+ * The bare `.` and `..` entries are the whole point: their omission is why an
+ * `encodeURIComponent`-only fix looks correct while the hole stays live.
+ */
+const TRAVERSAL_IDS = [
+  '..',
+  '.',
+  '  ..  ',
+  '../../matters/victim',
+  '..%2f..%2fmatters/victim',
+  'matter123/../../matters/victim',
+  'matter123?view=FULL',
+  'matter123#fragment',
+  'matter123/holds/../../../v1/matters',
+  '\\..\\..',
+] as const
+
+/** Values a real user legitimately supplies; none may be rejected or altered. */
+const LEGITIMATE_IDS = [
+  '12345678901234567890',
+  'exportId123456',
+  'holdId123456',
+  'AbCdEf-1234_5678',
+  'matter.v2',
+  '..foo',
+  'foo..',
+] as const
+
+const SAFE_ID = 'SAFEID'
+
+type AnyTool = ToolConfig<any, any>
+
+function isGoogleVaultTool(value: unknown): value is AnyTool {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AnyTool).id === 'string' &&
+    (value as AnyTool).id.startsWith('google_vault_')
+  )
+}
+
+/**
+ * Builds a param object for a tool, filling every declared string param with
+ * `value` so whichever one reaches the path is exercised.
+ */
+function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
+  const params: Record<string, unknown> = { accessToken: 'token' }
+  for (const [name, def] of Object.entries(tool.params ?? {})) {
+    if (name === 'accessToken') continue
+    const type = (def as { type?: string }).type
+    if (type === 'json' || type === 'array') {
+      params[name] = []
+    } else if (type === 'object') {
+      params[name] = {}
+    } else if (type === 'number') {
+      params[name] = 1
+    } else if (type === 'boolean') {
+      params[name] = false
+    } else {
+      params[name] = value
+    }
+  }
+  return params
+}
+
+function buildUrl(tool: AnyTool, value: string): URL {
+  const url = tool.request?.url
+  if (typeof url !== 'function') {
+    throw new Error(`${tool.id} does not build its URL from params`)
+  }
+  return new URL(url(buildParams(tool, value) as any))
+}
+
+function segmentsOf(url: URL): string[] {
+  return url.pathname.split('/')
+}
+
+const DYNAMIC_PATH_TOOLS = Object.values(googleVaultTools)
+  .filter(isGoogleVaultTool)
+  .filter((tool) => typeof tool.request?.url === 'function')
+  .filter((tool) => {
+    try {
+      return buildUrl(tool, SAFE_ID).pathname.includes(SAFE_ID)
+    } catch {
+      return false
+    }
+  })
+  .map((tool) => ({ name: tool.id, tool }))
+
+describe('google vault path-ID traversal safety', () => {
+  it('covers every Google Vault tool that interpolates an ID into its path', () => {
+    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(20)
+  })
+
+  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
+    const baseline = segmentsOf(buildUrl(tool, SAFE_ID))
+
+    it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
+      let url: URL
+      try {
+        url = buildUrl(tool, value)
+      } catch {
+        return
+      }
+
+      expect(url.origin).toBe('https://vault.googleapis.com')
+
+      const actual = segmentsOf(url)
+      expect(actual).toHaveLength(baseline.length)
+      baseline.forEach((segment, index) => {
+        if (segment.includes(SAFE_ID)) return
+        expect(actual[index]).toBe(segment)
+      })
+    })
+
+    it.each(TRAVERSAL_IDS.filter((value) => value.trim() === '.' || value.trim() === '..'))(
+      'rejects the bare dot segment %j by name instead of popping the prefix',
+      (value) => {
+        expect(() => buildUrl(tool, value)).toThrow(/Id/)
+      }
+    )
+
+    it('does not let an ID inject a query parameter', () => {
+      const url = buildUrl(tool, 'matter123?injectedParam=attacker')
+
+      expect(url.searchParams.get('injectedParam')).toBeNull()
+    })
+
+    it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
+      const actual = segmentsOf(buildUrl(tool, value))
+
+      expect(actual).toHaveLength(baseline.length)
+      baseline.forEach((segment, index) => {
+        expect(actual[index]).toBe(segment.replaceAll(SAFE_ID, value))
+      })
+    })
+
+    it('trims surrounding whitespace rather than encoding it into the path', () => {
+      const actual = segmentsOf(buildUrl(tool, `  ${SAFE_ID}  `))
+
+      expect(actual).toEqual(baseline)
+    })
+  })
+})

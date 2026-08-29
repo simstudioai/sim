@@ -1,5 +1,6 @@
 import type { GetDraftParams, GetDraftResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetDraftTool: ToolConfig<GetDraftParams, GetDraftResult> = {
   id: 'agentmail_get_draft',
@@ -30,7 +31,7 @@ export const agentmailGetDraftTool: ToolConfig<GetDraftParams, GetDraftResult> =
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts/${params.draftId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

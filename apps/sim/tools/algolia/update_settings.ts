@@ -3,6 +3,7 @@ import type {
   AlgoliaUpdateSettingsResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateSettingsTool: ToolConfig<
   AlgoliaUpdateSettingsParams,
@@ -49,7 +50,7 @@ export const updateSettingsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const base = `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/settings`
+      const base = `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/settings`
       if (params.forwardToReplicas) {
         return `${base}?forwardToReplicas=true`
       }

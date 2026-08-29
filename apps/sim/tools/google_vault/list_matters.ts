@@ -1,6 +1,7 @@
 import type { GoogleVaultListMattersParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   id: 'google_vault_list_matters',
@@ -43,7 +44,7 @@ export const listMattersTool: ToolConfig<GoogleVaultListMattersParams> = {
   request: {
     url: (params) => {
       if (params.matterId) {
-        return `https://vault.googleapis.com/v1/matters/${params.matterId}`
+        return `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}`
       }
       const url = new URL('https://vault.googleapis.com/v1/matters')
       if (params.pageSize !== undefined && params.pageSize !== null) {

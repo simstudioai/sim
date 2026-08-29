@@ -3,6 +3,7 @@ import type {
   AlgoliaBatchOperationsResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const batchOperationsTool: ToolConfig<
   AlgoliaBatchOperationsParams,
@@ -44,7 +45,7 @@ export const batchOperationsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/batch`,
+      `https://${params.applicationId}.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/batch`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

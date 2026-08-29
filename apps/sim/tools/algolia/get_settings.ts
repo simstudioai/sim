@@ -1,5 +1,6 @@
 import type { AlgoliaGetSettingsParams, AlgoliaGetSettingsResponse } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSettingsResponse> = {
   id: 'algolia_get_settings',
@@ -31,7 +32,7 @@ export const getSettingsTool: ToolConfig<AlgoliaGetSettingsParams, AlgoliaGetSet
   request: {
     method: 'GET',
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/settings`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/settings`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

@@ -1,6 +1,7 @@
 import type { GoogleVaultDeleteMattersHoldsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteMattersHoldsTool: ToolConfig<GoogleVaultDeleteMattersHoldsParams> = {
   id: 'google_vault_delete_matters_holds',
@@ -36,7 +37,7 @@ export const deleteMattersHoldsTool: ToolConfig<GoogleVaultDeleteMattersHoldsPar
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/holds/${params.holdId.trim()}`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds/${safeUrlPathSegment(params.holdId, 'holdId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

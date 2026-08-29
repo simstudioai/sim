@@ -3,6 +3,7 @@ import type {
   AlgoliaGetTaskStatusResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getTaskStatusTool: ToolConfig<
   AlgoliaGetTaskStatusParams,
@@ -43,7 +44,7 @@ export const getTaskStatusTool: ToolConfig<
   request: {
     method: 'GET',
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/task/${encodeURIComponent(String(params.taskID).trim())}`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/task/${safeUrlPathSegment(params.taskID, 'taskID')}`,
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,
       'x-algolia-api-key': params.apiKey,

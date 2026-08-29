@@ -1,5 +1,6 @@
 import type { GetThreadParams, GetThreadResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetThreadTool: ToolConfig<GetThreadParams, GetThreadResult> = {
   id: 'agentmail_get_thread',
@@ -30,7 +31,7 @@ export const agentmailGetThreadTool: ToolConfig<GetThreadParams, GetThreadResult
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/threads/${params.threadId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,5 +1,6 @@
 import type { DeleteDraftParams, DeleteDraftResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailDeleteDraftTool: ToolConfig<DeleteDraftParams, DeleteDraftResult> = {
   id: 'agentmail_delete_draft',
@@ -30,7 +31,7 @@ export const agentmailDeleteDraftTool: ToolConfig<DeleteDraftParams, DeleteDraft
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/drafts/${params.draftId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

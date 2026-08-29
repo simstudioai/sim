@@ -3,6 +3,7 @@ import type {
   AlgoliaBrowseRecordsResponse,
 } from '@/tools/algolia/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const browseRecordsTool: ToolConfig<
   AlgoliaBrowseRecordsParams,
@@ -91,7 +92,7 @@ export const browseRecordsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${encodeURIComponent(params.indexName.trim())}/browse`,
+      `https://${params.applicationId}-dsn.algolia.net/1/indexes/${safeUrlPathSegment(params.indexName, 'indexName')}/browse`,
     method: 'POST',
     headers: (params) => ({
       'x-algolia-application-id': params.applicationId,

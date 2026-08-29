@@ -1,5 +1,6 @@
 import type { SendMessageParams, SendMessageResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailSendMessageTool: ToolConfig<SendMessageParams, SendMessageResult> = {
   id: 'agentmail_send_message',
@@ -59,7 +60,8 @@ export const agentmailSendMessageTool: ToolConfig<SendMessageParams, SendMessage
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages/send`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages/send`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

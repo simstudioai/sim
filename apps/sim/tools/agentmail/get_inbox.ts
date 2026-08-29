@@ -1,5 +1,6 @@
 import type { GetInboxParams, GetInboxResult } from '@/tools/agentmail/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> = {
   id: 'agentmail_get_inbox',
@@ -23,7 +24,8 @@ export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> =
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
