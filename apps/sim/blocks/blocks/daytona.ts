@@ -487,17 +487,33 @@ export const DaytonaBlock: BlockConfig = {
             baseParams.code = rest.code
             baseParams.language = rest.language
             if (rest.runEnv) baseParams.env = rest.runEnv
+            /**
+             * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
+             * tool transport reads `params.timeout` as its own outbound request deadline in
+             * milliseconds. The value here is in seconds, so it is republished under the tool's
+             * `executionTimeout` and the reserved key is cleared — the executor merges the raw block
+             * inputs over these params, so leaving it out is not enough to drop it.
+             */
             if (rest.timeout !== undefined && rest.timeout !== '') {
-              baseParams.timeout = Number(rest.timeout)
+              baseParams.executionTimeout = Number(rest.timeout)
             }
+            baseParams.timeout = undefined
             break
           case 'execute_command':
             baseParams.command = rest.command
             if (rest.cwd) baseParams.cwd = rest.cwd
             if (rest.runEnv) baseParams.env = rest.runEnv
+            /**
+             * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
+             * tool transport reads `params.timeout` as its own outbound request deadline in
+             * milliseconds. The value here is in seconds, so it is republished under the tool's
+             * `executionTimeout` and the reserved key is cleared — the executor merges the raw block
+             * inputs over these params, so leaving it out is not enough to drop it.
+             */
             if (rest.timeout !== undefined && rest.timeout !== '') {
-              baseParams.timeout = Number(rest.timeout)
+              baseParams.executionTimeout = Number(rest.timeout)
             }
+            baseParams.timeout = undefined
             break
           case 'upload_file': {
             const normalizedFile = normalizeFileInput(rest.file, { single: true })

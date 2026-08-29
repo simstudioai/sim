@@ -348,9 +348,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
         const baseParams = { ...rest }
 
+        /**
+         * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
+         * tool transport reads `params.timeout` as its own outbound request deadline in
+         * milliseconds. The value here is in seconds, so it is republished under the tool's
+         * `ringTimeout` and the reserved key is cleared — the executor merges the raw block
+         * inputs over these params, so leaving it out is not enough to drop it.
+         */
         if (operation === 'make_call' && timeout) {
-          baseParams.timeout = Number.parseInt(timeout, 10)
+          baseParams.ringTimeout = Number.parseInt(timeout, 10)
         }
+        baseParams.timeout = undefined
 
         if (operation === 'make_call' && record !== undefined && record !== null) {
           if (typeof record === 'string') {

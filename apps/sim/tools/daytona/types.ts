@@ -72,14 +72,14 @@ export interface DaytonaExecuteCommandParams extends DaytonaSandboxScopedParams 
   command: string
   cwd?: string
   env?: TableRow[] | Record<string, string> | string
-  timeout?: number
+  executionTimeout?: number
 }
 
 export interface DaytonaRunCodeParams extends DaytonaSandboxScopedParams {
   code: string
   language: 'python' | 'javascript' | 'typescript'
   env?: TableRow[] | Record<string, string> | string
-  timeout?: number
+  executionTimeout?: number
 }
 
 export interface DaytonaUploadFileParams extends DaytonaSandboxScopedParams {

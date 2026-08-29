@@ -40,11 +40,12 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
       visibility: 'user-or-llm',
       description: 'Environment variables to set for the run as key-value pairs',
     },
-    timeout: {
+    executionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds (defaults to 10 seconds)',
+      description:
+        'Timeout in seconds (defaults to 10 seconds). Named executionTimeout because the shared tool transport reserves `timeout` for its own request deadline in milliseconds',
     },
   },
 
@@ -62,8 +63,8 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
       }
       const envs = transformTable(params.env ?? null)
       if (Object.keys(envs).length > 0) body.envs = envs
-      const timeout = toOptionalNumber(params.timeout)
-      if (timeout !== undefined) body.timeout = timeout
+      const executionTimeout = toOptionalNumber(params.executionTimeout)
+      if (executionTimeout !== undefined) body.timeout = executionTimeout
       return body
     },
   },

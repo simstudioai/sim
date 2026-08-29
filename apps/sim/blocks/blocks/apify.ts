@@ -231,7 +231,15 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         if (rest.build) result.build = rest.build
         if (rest.fields) result.fields = rest.fields
         if (rest.memory) result.memory = Number(rest.memory)
-        if (rest.timeout) result.timeout = Number(rest.timeout)
+        /**
+         * The `timeout` subBlock id is kept so saved workflows keep their value, but the shared
+         * tool transport reads `params.timeout` as its own outbound request deadline in
+         * milliseconds. The value here is in seconds, so it is republished under the tool's
+         * `runTimeout` and the reserved key is cleared — the executor merges the raw block
+         * inputs over these params, so leaving it out is not enough to drop it.
+         */
+        if (rest.timeout) result.runTimeout = Number(rest.timeout)
+        result.timeout = undefined
         if (rest.waitForFinish) result.waitForFinish = Number(rest.waitForFinish)
         if (rest.itemLimit) result.itemLimit = Number(rest.itemLimit)
         if (rest.offset !== undefined && rest.offset !== null && rest.offset !== '')

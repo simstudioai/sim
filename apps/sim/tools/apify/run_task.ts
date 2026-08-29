@@ -40,11 +40,12 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       visibility: 'user-or-llm',
       description: 'Memory in megabytes allocated for the run (128-32768). Example: 1024 for 1GB',
     },
-    timeout: {
+    runTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds for the run. Example: 300 for 5 minutes',
+      description:
+        'Timeout in seconds for the run. Example: 300 for 5 minutes. Named runTimeout because the shared tool transport reserves `timeout` for its own request deadline in milliseconds',
     },
     build: {
       type: 'string',
@@ -67,8 +68,8 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
       }
-      if (params.timeout) {
-        queryParams.set('timeout', params.timeout.toString())
+      if (params.runTimeout) {
+        queryParams.set('timeout', params.runTimeout.toString())
       }
       if (params.build) {
         queryParams.set('build', params.build)

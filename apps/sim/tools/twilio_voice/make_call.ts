@@ -74,11 +74,12 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       visibility: 'user-only',
       description: 'Webhook URL for recording status updates',
     },
-    timeout: {
+    ringTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Time to wait for answer before giving up (seconds, default: 60)',
+      description:
+        'Time to wait for answer before giving up (seconds, default: 60). Named ringTimeout because the shared tool transport reserves `timeout` for its own request deadline in milliseconds',
     },
     machineDetection: {
       type: 'string',
@@ -155,8 +156,8 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (params.recordingStatusCallback) {
         formData.append('RecordingStatusCallback', params.recordingStatusCallback)
       }
-      if (params.timeout) {
-        formData.append('Timeout', Number(params.timeout).toString())
+      if (params.ringTimeout) {
+        formData.append('Timeout', Number(params.ringTimeout).toString())
       }
       if (params.machineDetection) {
         formData.append('MachineDetection', params.machineDetection)

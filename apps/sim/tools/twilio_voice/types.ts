@@ -13,7 +13,7 @@ export interface TwilioMakeCallParams {
   record?: boolean
   recordingStatusCallback?: string
   recordingStatusCallbackMethod?: 'GET' | 'POST'
-  timeout?: number
+  ringTimeout?: number
   machineDetection?: 'Enable' | 'DetectMessageEnd'
   asyncAmd?: boolean
   asyncAmdStatusCallback?: string

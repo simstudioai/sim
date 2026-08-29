@@ -46,11 +46,12 @@ export const daytonaExecuteCommandTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Environment variables to set for the command as key-value pairs',
     },
-    timeout: {
+    executionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Timeout in seconds (defaults to 10 seconds)',
+      description:
+        'Timeout in seconds (defaults to 10 seconds). Named executionTimeout because the shared tool transport reserves `timeout` for its own request deadline in milliseconds',
     },
   },
 
@@ -68,8 +69,8 @@ export const daytonaExecuteCommandTool: ToolConfig<
       if (params.cwd) body.cwd = params.cwd
       const envs = transformTable(params.env ?? null)
       if (Object.keys(envs).length > 0) body.envs = envs
-      const timeout = toOptionalNumber(params.timeout)
-      if (timeout !== undefined) body.timeout = timeout
+      const executionTimeout = toOptionalNumber(params.executionTimeout)
+      if (executionTimeout !== undefined) body.timeout = executionTimeout
       return body
     },
   },
