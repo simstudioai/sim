@@ -28,7 +28,7 @@ import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { ExecutionEngine } from './engine'
@@ -273,6 +273,38 @@ describe('ExecutionEngine', () => {
       const provenance = result.executionState?.finalOutputResolvedSecretTraceProvenance
       expect(provenance?.complete).toBe(true)
       expect(provenance?.entries).toEqual([{ name: 'TOKEN', encryptedValue: 'ciphertext' }])
+    })
+
+    /**
+     * The crossing at the copilot boundary reads the absence of an attached result as "no block
+     * ran". That inference is only total if every throw out of `run` carries one.
+     */
+    it('attaches the execution result to every throw out of a failed run', async () => {
+      const node = createMockNode('function-1', 'function')
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'secret-value-1234', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'secret-value-1234')
+      const context = createMockContext({
+        decisions: { router: new Map(), condition: new Map() },
+        resolvedSecretTraceRegistry: registry,
+      })
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      vi.mocked(nodeOrchestrator.executeNode).mockRejectedValue(new Error('block exploded'))
+
+      const engine = new ExecutionEngine(
+        context,
+        createMockDAG([node]),
+        createMockEdgeManager(),
+        nodeOrchestrator
+      )
+
+      const thrown = await engine.run(node.id).catch((error: unknown) => error)
+
+      expect(thrown).toBeInstanceOf(Error)
+      const attached = (thrown as Error & { executionResult?: ExecutionResult }).executionResult
+      expect(attached).toBeDefined()
+      expect(attached?.executionState?.resolvedSecretTraceProvenance).toBeDefined()
     })
 
     /** Deriving must not weaken the guarantee: a latched registry still exports incomplete. */

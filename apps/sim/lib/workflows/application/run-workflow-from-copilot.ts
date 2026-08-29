@@ -29,11 +29,14 @@ import {
 } from '@/lib/workflows/triggers/run-options'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
 
 const logger = createLogger('CopilotWorkflowRun')
 
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  emptyResolvedSecretTraceProvenance,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface CopilotWorkflowRunLifecycle {
   billingAttribution?: BillingAttributionSnapshot
@@ -325,16 +328,24 @@ async function executeCopilotRun(params: {
      * as never started and invite the duplicate this id exists to prevent.
      */
     if (registry) {
-      const executionResult =
-        typeof error === 'object' &&
-        error !== null &&
-        'executionResult' in error &&
-        typeof error.executionResult === 'object'
-          ? (error.executionResult as ExecutionResult)
-          : undefined
+      const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
       try {
+        /**
+         * A run that never reached the engine carried nothing back: the executor attaches its
+         * result to every throw, so its absence means no block ran, and the three content fields
+         * below are all undefined. The only content is `thrownMessage`, which this layer produced
+         * — an admission, validation, or setup failure — and which the tool boundary still
+         * projects against this registry before any of it reaches a model.
+         *
+         * Reporting that as unvouchable cost the caller the reason its run failed: the crossing
+         * latched, and the tool result was reduced to "result unavailable" for a message that
+         * named no secret because none had been resolved yet. An engine that did run and could
+         * not vouch still hands back an incomplete envelope, and that still latches.
+         */
         await registry.importCrossingProvenance(
-          executionResult?.executionState?.resolvedSecretTraceProvenance,
+          executionResult
+            ? executionResult.executionState?.resolvedSecretTraceProvenance
+            : emptyResolvedSecretTraceProvenance(),
           {
             output: executionResult?.output,
             logs: executionResult?.logs,
