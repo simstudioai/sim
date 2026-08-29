@@ -18,6 +18,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
@@ -53,18 +54,11 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performChatDeploy: mocks.performChatDeploy,
   performChatUndeploy: vi.fn(),
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => {
-  class ChatDeployAuthNotAllowedError extends Error {
-    constructor() {
-      super('This chat authentication mode is not allowed based on your permission group settings')
-      this.name = 'ChatDeployAuthNotAllowedError'
-    }
-  }
-  return { validateChatDeployAuth: mocks.validateChatDeployAuth, ChatDeployAuthNotAllowedError }
-})
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  validateChatDeployAuth: mocks.validateChatDeployAuth,
+}))
 
 import { POST } from '@/app/api/chat/route'
-import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const WORKFLOW_ID = 'workflow-1'
 const WORKSPACE_ID = 'workspace-1'
@@ -282,7 +276,13 @@ describe('Chat API Route', () => {
 
     it('refuses an auth mode the permission group blocks', async () => {
       queueChatLookups(null, null)
-      mocks.validateChatDeployAuth.mockRejectedValue(new ChatDeployAuthNotAllowedError())
+      mocks.validateChatDeployAuth.mockRejectedValue(
+        new PermissionGroupCapabilityError(
+          'deploy.chat.auth_mode',
+          'CHAT_AUTH_MODE_NOT_PERMITTED',
+          "This chat authentication mode is not available under your organization's permission group"
+        )
+      )
 
       const response = await post({
         ...validBody,

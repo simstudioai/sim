@@ -15,6 +15,13 @@ import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/block-access'
+import {
+  CAPABILITY_RULES,
+  capabilityRefusalMessage,
+  type PermissionGroupCapability,
+  type StaticCapabilityRule,
+} from '@/lib/permission-groups/capabilities'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
@@ -97,18 +104,22 @@ export class PublicApiNotAllowedError extends Error {
   }
 }
 
-export class PublicFileSharingNotAllowedError extends Error {
-  constructor() {
-    super('Public file sharing is not allowed based on your permission group settings')
-    this.name = 'PublicFileSharingNotAllowedError'
-  }
-}
-
-export class ChatDeployAuthNotAllowedError extends Error {
-  constructor() {
-    super('This chat authentication mode is not allowed based on your permission group settings')
-    this.name = 'ChatDeployAuthNotAllowedError'
-  }
+/**
+ * Refuses with the sentence and detail code the authorization funnel raises for
+ * the same capability.
+ *
+ * The gates below decide from a request value the funnel never sees, so they
+ * cannot ride on an operation's declared capability — but the refusal a caller
+ * reads, and the code a client branches on, still come from
+ * {@link CAPABILITY_RULES} rather than being spelled out here.
+ */
+function refuseCapability(capability: PermissionGroupCapability): never {
+  const rule = CAPABILITY_RULES[capability]
+  throw new PermissionGroupCapabilityError(
+    capability,
+    rule.detailCode,
+    capabilityRefusalMessage(rule.describe)
+  )
 }
 
 /**
@@ -335,11 +346,14 @@ export async function getUserPermissionConfig(
 }
 
 /**
- * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
- * group for the workspace disables public file sharing, or — when `authType` is
- * given — if that auth mode isn't in the group's `allowedFileShareAuthTypes`
- * allow-list (`null` allows all). No-op when access control doesn't apply
- * (non-enterprise / disabled), so non-governed orgs are unaffected.
+ * Refuses a public file share the caller's permission group withholds — the
+ * master switch, and then — when `authType` is given — the auth mode the share
+ * would carry. No-op when access control doesn't apply (non-enterprise /
+ * disabled), so non-governed organizations are unaffected.
+ *
+ * Kept as one helper because these two rules are always asked together: a share
+ * is refused if the group withholds sharing at all, or if it sanctions sharing
+ * but not this way of gating it.
  */
 /** permission-group-enforced: file_share.publish — asserted where a share is created, not per operation */
 /** permission-group-enforced: file_share.auth_mode — needs the request auth mode, which the funnel never sees */
@@ -352,29 +366,27 @@ export async function validatePublicFileSharing(
   if (!config) {
     return
   }
-  if (config.disablePublicFileSharing) {
-    throw new PublicFileSharingNotAllowedError()
+  if (CAPABILITY_RULES['file_share.publish'].deniedBy(config)) {
+    refuseCapability('file_share.publish')
   }
-  if (
-    authType &&
-    config.allowedFileShareAuthTypes !== null &&
-    !config.allowedFileShareAuthTypes.includes(authType)
-  ) {
+  if (authType && CAPABILITY_RULES['file_share.auth_mode'].deniedBy(config, authType)) {
     logger.warn('File share auth type blocked by permission group', {
       userId,
       workspaceId,
       authType,
     })
-    throw new PublicFileSharingNotAllowedError()
+    refuseCapability('file_share.auth_mode')
   }
 }
 
 /**
- * Throws {@link ChatDeployAuthNotAllowedError} if the user's effective permission
- * group for the workspace doesn't allow the chat deployment's `authType` (i.e. it
- * isn't in the group's `allowedChatDeployAuthTypes` allow-list; `null` allows all).
+ * Refuses a chat deployment auth mode the caller's permission group withholds.
  * No-op when access control doesn't apply (non-enterprise / disabled), so
- * non-governed orgs are unaffected.
+ * non-governed organizations are unaffected.
+ *
+ * Callers ask only when the mode actually changes, so a grandfathered mode
+ * already saved on a chat survives an edit to some other field. That asymmetry
+ * belongs to them — it reads the stored deployment, which this never sees.
  */
 /** permission-group-enforced: deploy.chat.auth_mode — needs the request auth mode, which the funnel never sees */
 export async function validateChatDeployAuth(
@@ -386,16 +398,13 @@ export async function validateChatDeployAuth(
   if (!config) {
     return
   }
-  if (
-    config.allowedChatDeployAuthTypes !== null &&
-    !config.allowedChatDeployAuthTypes.includes(authType)
-  ) {
+  if (CAPABILITY_RULES['deploy.chat.auth_mode'].deniedBy(config, authType)) {
     logger.warn('Chat deploy auth type blocked by permission group', {
       userId,
       workspaceId,
       authType,
     })
-    throw new ChatDeployAuthNotAllowedError()
+    refuseCapability('deploy.chat.auth_mode')
   }
 }
 
@@ -541,71 +550,7 @@ export async function validateBlockType(
   }
 }
 
-/** permission-group-enforced: mcp_tools.use — gates tool invocation during a run, not an operation */
-export async function validateMcpToolsAllowed(
-  userId: string | undefined,
-  workspaceId: string | undefined,
-  ctx?: ExecutionContext
-): Promise<void> {
-  if (!userId || !workspaceId) {
-    return
-  }
-
-  const config = await getPermissionConfig(userId, workspaceId, ctx)
-
-  if (!config) {
-    return
-  }
-
-  if (config.disableMcpTools) {
-    logger.warn('MCP tools blocked by permission group', { userId, workspaceId })
-    throw new McpToolsNotAllowedError()
-  }
-}
-
-/** permission-group-enforced: custom_tools.use — gates tool invocation during a run, not an operation */
-export async function validateCustomToolsAllowed(
-  userId: string | undefined,
-  workspaceId: string | undefined,
-  ctx?: ExecutionContext
-): Promise<void> {
-  if (!userId || !workspaceId) {
-    return
-  }
-
-  const config = await getPermissionConfig(userId, workspaceId, ctx)
-
-  if (!config) {
-    return
-  }
-
-  if (config.disableCustomTools) {
-    logger.warn('Custom tools blocked by permission group', { userId, workspaceId })
-    throw new CustomToolsNotAllowedError()
-  }
-}
-
-/** permission-group-enforced: skills.use — gates skill loading during a run, not an operation */
-export async function validateSkillsAllowed(
-  userId: string | undefined,
-  workspaceId: string | undefined,
-  ctx?: ExecutionContext
-): Promise<void> {
-  if (!userId || !workspaceId) {
-    return
-  }
-
-  const config = await getPermissionConfig(userId, workspaceId, ctx)
-
-  if (!config) {
-    return
-  }
-
-  if (config.disableSkills) {
-    logger.warn('Skills blocked by permission group', { userId, workspaceId })
-    throw new SkillsNotAllowedError()
-  }
-}
+const INVITATIONS_RULE = CAPABILITY_RULES['invitations.send']
 
 /**
  * Validates if the user is allowed to send invitations. Pass one of:
@@ -634,7 +579,7 @@ export async function validateInvitationsAllowed(
 
   if (workspaceId) {
     const config = await getUserPermissionConfig(userId, workspaceId)
-    if (config?.disableInvitations) {
+    if (config && INVITATIONS_RULE.deniedBy(config)) {
       logger.warn('Invitations blocked by permission group', { userId, workspaceId })
       throw new InvitationsNotAllowedError()
     }
@@ -643,7 +588,7 @@ export async function validateInvitationsAllowed(
 
   if (organizationId) {
     const config = await getUserPermissionConfigForOrganization(organizationId)
-    if (config?.disableInvitations) {
+    if (config && INVITATIONS_RULE.deniedBy(config)) {
       logger.warn('Invitations blocked by permission group (organization-wide)', {
         userId,
         organizationId,
@@ -678,13 +623,44 @@ export async function validatePublicApiAllowed(
     return
   }
 
-  if (config.disablePublicApi) {
+  if (CAPABILITY_RULES['public_api.use'].deniedBy(config)) {
     logger.warn('Public API blocked by permission group', { userId, workspaceId })
     throw new PublicApiNotAllowedError()
   }
 }
 
-export type ToolKind = 'mcp' | 'custom' | 'skill'
+type ToolKind = 'mcp' | 'custom' | 'skill'
+
+/**
+ * What each tool kind is gated on. The decision reads
+ * {@link CAPABILITY_RULES}, so a renamed config key breaks the build here
+ * rather than silently ceasing to deny anything.
+ *
+ * These keep their own error classes rather than raising the funnel's
+ * capability refusal: they surface inside a run, where the executor reports
+ * them as the failing block's error, and `lib/mcp` branches on
+ * {@link McpToolsNotAllowedError} by identity.
+ */
+const TOOL_KIND_GATES = {
+  mcp: {
+    rule: CAPABILITY_RULES['mcp_tools.use'],
+    error: McpToolsNotAllowedError,
+    blocked: 'MCP tools blocked by permission group',
+  },
+  custom: {
+    rule: CAPABILITY_RULES['custom_tools.use'],
+    error: CustomToolsNotAllowedError,
+    blocked: 'Custom tools blocked by permission group',
+  },
+  skill: {
+    rule: CAPABILITY_RULES['skills.use'],
+    error: SkillsNotAllowedError,
+    blocked: 'Skills blocked by permission group',
+  },
+} as const satisfies Record<
+  ToolKind,
+  { rule: StaticCapabilityRule; error: new () => Error; blocked: string }
+>
 
 interface PermissionAssertion {
   userId: string | undefined
@@ -704,13 +680,17 @@ interface PermissionAssertion {
 /**
  * Unified entry point for workspace-scoped access control. Loads the user's
  * permission config for `workspaceId` once and runs every applicable gate
- * (model provider, block type, tool kind) against it, throwing the existing
+ * (model provider, block type, tool id, tool kind) against it, throwing the
  * granular error classes on the first mismatch.
  *
- * Prefer this over calling the individual `validate*Allowed` helpers when
- * gating a shared entry point like `executeTool` or an HTTP proxy, so a single
- * callsite covers every future config field.
+ * This decides what a *run* may do, which is not what the authorization funnel
+ * decides: the funnel refuses an operation up front, while a run reaches here
+ * once per block, model and tool it actually touches, and a deployed workflow
+ * with no acting user has no group for the funnel to consult at all.
  */
+/** permission-group-enforced: mcp_tools.use — gates tool invocation during a run, not an operation */
+/** permission-group-enforced: custom_tools.use — gates tool invocation during a run, not an operation */
+/** permission-group-enforced: skills.use — gates skill loading during a run, not an operation */
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
   const { userId, workspaceId, model, blockType, toolId, toolKind, ctx } = req
 
@@ -771,17 +751,10 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
   }
 
   if (toolKind && config) {
-    if (toolKind === 'mcp' && config.disableMcpTools) {
-      logger.warn('MCP tools blocked by permission group', { userId, workspaceId })
-      throw new McpToolsNotAllowedError()
-    }
-    if (toolKind === 'custom' && config.disableCustomTools) {
-      logger.warn('Custom tools blocked by permission group', { userId, workspaceId })
-      throw new CustomToolsNotAllowedError()
-    }
-    if (toolKind === 'skill' && config.disableSkills) {
-      logger.warn('Skills blocked by permission group', { userId, workspaceId })
-      throw new SkillsNotAllowedError()
+    const gate = TOOL_KIND_GATES[toolKind]
+    if (gate.rule.deniedBy(config)) {
+      logger.warn(gate.blocked, { userId, workspaceId })
+      throw new gate.error()
     }
   }
 }

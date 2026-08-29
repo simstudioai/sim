@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getShareForResource,
@@ -13,10 +12,7 @@ import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-fil
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
-import {
-  PublicFileSharingNotAllowedError,
-  validatePublicFileSharing,
-} from '@/ee/access-control/utils/permission-check'
+import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkspaceFileShare')
 
@@ -87,13 +83,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
 
     if (input.isActive) {
       const effectiveAuthType = input.authType ?? existingShare?.authType ?? 'public'
-      try {
-        await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
-      } catch (error) {
-        if (error instanceof PublicFileSharingNotAllowedError)
-          throw new ForbiddenOperationError('PUBLIC_SHARING_NOT_ALLOWED', error.message)
-        throw error
-      }
+      await validatePublicFileSharing(userId, context.workspaceId, effectiveAuthType)
     }
 
     let share: ShareRecord

@@ -36,23 +36,21 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import {
   assertPermissionsAllowed,
-  ChatDeployAuthNotAllowedError,
   CustomToolsNotAllowedError,
   getUserPermissionConfig,
   IntegrationNotAllowedError,
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
-  PublicFileSharingNotAllowedError,
   resolveUserAccessControlContext,
   resolveVerifiedUserAccessControlContext,
   SkillsNotAllowedError,
   ToolNotAllowedError,
   validateBlockType,
   validateChatDeployAuth,
-  validateMcpToolsAllowed,
   validateModelProvider,
   validatePublicFileSharing,
 } from './permission-check'
@@ -564,7 +562,7 @@ describe('validateModelProvider', () => {
   })
 })
 
-describe('validateMcpToolsAllowed', () => {
+describe('assertPermissionsAllowed (MCP tools)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -575,15 +573,19 @@ describe('validateMcpToolsAllowed', () => {
   it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
     queueGroupResolution([{ config: { disableMcpTools: true } }])
 
-    await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
-      McpToolsNotAllowedError
-    )
+    await expect(
+      assertPermissionsAllowed({ userId: 'user-123', workspaceId: 'workspace-1', toolKind: 'mcp' })
+    ).rejects.toBeInstanceOf(McpToolsNotAllowedError)
   })
 
   it('no-ops when disableMcpTools is false', async () => {
     queueGroupResolution([{ config: {} }])
 
-    await validateMcpToolsAllowed('user-123', 'workspace-1')
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolKind: 'mcp',
+    })
   })
 })
 
@@ -599,14 +601,14 @@ describe('validatePublicFileSharing', () => {
     queueGroupResolution([{ config: { disablePublicFileSharing: true } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'password')
-    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('throws when the auth type is not in the allow-list', async () => {
     queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'public')
-    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {
@@ -637,7 +639,7 @@ describe('validateChatDeployAuth', () => {
     queueGroupResolution([{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }])
     await expect(
       validateChatDeployAuth('user-123', 'workspace-1', 'public')
-    ).rejects.toBeInstanceOf(ChatDeployAuthNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {

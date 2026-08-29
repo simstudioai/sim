@@ -64,7 +64,6 @@ vi.mock('@/app/api/chat/utils', () => ({
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  ChatDeployAuthNotAllowedError: class ChatDeployAuthNotAllowedError extends Error {},
   validateChatDeployAuth: vi.fn(),
 }))
 
