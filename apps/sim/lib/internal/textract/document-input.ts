@@ -54,7 +54,7 @@ async function fetchDocumentBytes(
     throw new TextractOperationError(urlValidation.error || 'Invalid document URL', 400)
   }
 
-  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
     profile,
     method: 'GET',
     signal,

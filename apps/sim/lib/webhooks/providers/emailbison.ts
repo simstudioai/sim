@@ -159,7 +159,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
       throw new Error('Email Bison Instance URL could not be validated.')
     }
 
-    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
       profile: 'configuredEndpoint',
       method: 'POST',
       headers: emailBisonHeaders({ apiKey, apiBaseUrl }),
@@ -240,7 +240,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(targetUrl, urlValidation.resolvedIP, {
         profile: 'configuredEndpoint',
         method: 'DELETE',
         headers: emailBisonHeaders({ apiKey, apiBaseUrl }),

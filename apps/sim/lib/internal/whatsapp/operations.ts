@@ -225,7 +225,7 @@ export async function executeWhatsAppGetMedia(
     if (!urlValidation.isValid) {
       return failureResponse(`Invalid WhatsApp media URL: ${urlValidation.error}`, 502)
     }
-    const mediaResponse = await secureFetchWithPinnedIP(metadata.url, urlValidation.resolvedIP!, {
+    const mediaResponse = await secureFetchWithPinnedIP(metadata.url, urlValidation.resolvedIP, {
       profile: 'contentFetch',
       method: 'GET',
       headers: { Authorization: authorization, 'User-Agent': DOWNLOAD_USER_AGENT },

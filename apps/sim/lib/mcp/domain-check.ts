@@ -125,7 +125,7 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<st
   if (hasEnvVarInHostname(url)) return null
 
   const validation = await validateUrlWithDNS(url, 'MCP server URL', MCP_EGRESS_PROFILE)
-  if (validation.isValid) return validation.resolvedIP!
+  if (validation.isValid) return validation.resolvedIP
 
   const error = validation.error ?? 'MCP server URL is not reachable'
   if (error.includes('could not be resolved')) {

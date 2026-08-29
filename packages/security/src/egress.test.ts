@@ -240,7 +240,16 @@ describe('denied ports', () => {
   })
 
   it('lifts the port denylist for a vouched destination', () => {
+    // Being vouched is what lifts it, which is why no profile needs its own
+    // opt-out: an internal Elasticsearch is reachable because it was named.
     expect(decide(selfHosted, 'http://host.docker.internal:9200/', '10.0.0.5').allowed).toBe(true)
+  })
+
+  it('keeps refusing a service port on a public host, whatever the profile', () => {
+    const selfHostedService = createEgressPolicy({ insecureHttp: 'always', allowLoopback: true })
+    expect(reason(selfHostedService, 'http://example.com:5432/', '93.184.216.34')).toBe(
+      'port-denied'
+    )
   })
 
   it('leaves ordinary ports alone', () => {

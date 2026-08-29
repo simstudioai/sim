@@ -260,7 +260,7 @@ export async function executeSttOperation(
         return Response.json({ error: urlValidation.error }, { status: 400 })
       }
 
-      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP, {
         profile: 'contentFetch',
         method: 'GET',
         maxResponseBytes: MAX_FILE_SIZE,

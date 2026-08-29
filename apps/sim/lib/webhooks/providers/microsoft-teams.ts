@@ -103,7 +103,7 @@ async function fetchWithDNSPinning(
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
-    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
       profile: 'contentFetch',
       headers,
     })

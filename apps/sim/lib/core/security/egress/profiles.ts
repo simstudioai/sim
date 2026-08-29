@@ -42,9 +42,9 @@ import {
  *   be named rather than assumed.
  * - `selfHostedService` — a configured endpoint for software normally run
  *   on-prem: vLLM, Jupyter, 1Password Connect, ClickHouse, an MCP server. Same
- *   reachability as `configuredEndpoint`, but plain HTTP and an arbitrary port
- *   are expected rather than conditional, because that is how these are
- *   ordinarily deployed inside a network.
+ *   reachability as `configuredEndpoint`, but plain HTTP is expected rather than
+ *   conditional, because that is how these are ordinarily served inside a
+ *   network. An arbitrary internal port comes with being allowlisted.
  * - `proxy` — the egress proxy itself. Held to the strictest rule of all,
  *   because it is the component that decides where everything else may go: plain
  *   HTTP by protocol, but public destinations only, and no allowlist.
@@ -68,8 +68,6 @@ interface ProfileSpec {
   readonly honorsAllowlist: boolean
   /** When plain HTTP is acceptable for this provenance. */
   readonly insecureHttp: InsecureHttpPolicy
-  /** Whether the non-HTTP service ports are refused. Defaults to refusing them. */
-  readonly denyServicePorts?: boolean
   /**
    * Whether loopback is reachable without being allowlisted, off the hosted
    * platform. True for the profiles whose URLs someone deliberately configured —
@@ -99,7 +97,6 @@ const PROFILE_SPECS: Record<EgressProfile, ProfileSpec> = {
     honorsAllowlist: true,
     insecureHttp: 'always',
     allowLoopbackOffHosted: true,
-    denyServicePorts: false,
   },
   requestTarget: {
     honorsAllowlist: true,
@@ -149,7 +146,6 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
           insecureHttp: spec.insecureHttp,
           allowLoopback: spec.allowLoopbackOffHosted && !config.hosted,
           allowPrivate: Boolean(spec.honorsLegacyPrivateFlag && config.legacyPrivate),
-          denyServicePorts: spec.denyServicePorts ?? true,
           sourceNames: SOURCE_NAMES,
         }),
       ]

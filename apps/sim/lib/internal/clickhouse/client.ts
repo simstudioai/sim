@@ -64,7 +64,7 @@ export async function requestClickHouse(
   url.searchParams.set('database', config.database)
   if (options.readOnly) url.searchParams.set('readonly', '1')
 
-  const response = await secureFetchWithPinnedIP(url.toString(), hostValidation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(url.toString(), hostValidation.resolvedIP, {
     method: 'POST',
     headers: {
       'X-ClickHouse-User': config.username,

@@ -2628,7 +2628,7 @@ async function executeToolRequest(
           proxyOption = proxyValidation.pinnedProxyUrl
         }
 
-        const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
+        const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP, {
           profile: 'requestTarget',
           method: requestParams.method,
           headers: headersRecord,

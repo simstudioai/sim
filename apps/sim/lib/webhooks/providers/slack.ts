@@ -350,7 +350,7 @@ async function downloadSlackFiles(
         continue
       }
 
-      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP, {
         profile: 'contentFetch',
         headers: { Authorization: `Bearer ${botToken}` },
       })

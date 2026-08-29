@@ -282,7 +282,7 @@ export async function validateConnectServerUrl(
   if (!validation.isValid) {
     throw new Error(validation.error ?? '1Password server URL is not reachable')
   }
-  return validation.resolvedIP!
+  return validation.resolvedIP
 }
 
 /**

@@ -82,8 +82,10 @@ const METADATA_ADDRESSES: readonly string[] = [
 /**
  * Ports that speak a non-HTTP protocol on a conventional deployment. Refusing
  * them blunts protocol-smuggling through a URL the caller does not control.
- * Lifted for an allowlisted destination, so an operator can reach their own
- * internal Elasticsearch on 9200 after naming it.
+ *
+ * Lifted for a vouched destination, which is what lets an operator reach their
+ * own internal Elasticsearch on 9200 after naming it — so no profile needs to
+ * opt out of the list separately.
  */
 const DENIED_PORTS: ReadonlySet<number> = new Set([
   22, // SSH
@@ -132,11 +134,6 @@ export interface EgressPolicy {
    * address check outright; a named allowlist is the supported form.
    */
   readonly allowPrivate: boolean
-  /**
-   * Whether the non-HTTP service ports are refused on an unvouched destination.
-   * False for operator-run services, which legitimately bind arbitrary ports.
-   */
-  readonly denyServicePorts: boolean
   readonly allowedHosts: readonly HostPattern[]
   readonly allowedRanges: readonly CidrRange[]
 }
@@ -156,8 +153,6 @@ export interface EgressPolicySpec {
   readonly allowLoopback?: boolean
   /** Whether every private address is vouched for. See {@link EgressPolicy.allowPrivate}. */
   readonly allowPrivate?: boolean
-  /** Whether to refuse the non-HTTP service ports. Defaults to `true`. */
-  readonly denyServicePorts?: boolean
   /**
    * Names of the settings these lists came from, used verbatim in the error a
    * malformed entry throws so the operator knows which value to fix.
@@ -228,7 +223,6 @@ export function createEgressPolicy(spec: EgressPolicySpec = {}): EgressPolicy {
     insecureHttp: spec.insecureHttp ?? 'never',
     allowLoopback: spec.allowLoopback ?? false,
     allowPrivate: spec.allowPrivate ?? false,
-    denyServicePorts: spec.denyServicePorts ?? true,
     allowedHosts: splitEntries(spec.allowedHosts).map((entry) =>
       parseHostPattern(entry, sourceNames.hosts)
     ),
@@ -341,7 +335,7 @@ function checkSchemeAndPort(url: URL, vouched: boolean, policy: EgressPolicy): E
     return deny('insecure-scheme', `plain http to ${url.hostname}`)
   }
 
-  if (policy.denyServicePorts && !vouched && url.port) {
+  if (!vouched && url.port) {
     const port = Number.parseInt(url.port, 10)
     if (DENIED_PORTS.has(port)) {
       return deny('port-denied', `port ${port}`)

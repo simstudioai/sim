@@ -49,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const client = new ImapFlow({
-      host: hostValidation.resolvedIP!,
+      host: hostValidation.resolvedIP,
       servername: host,
       port,
       secure,

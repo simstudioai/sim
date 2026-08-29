@@ -34,7 +34,7 @@ export async function requestGoogleDrive(
     })
   }
 
-  return secureFetchWithPinnedIP(options.url, validation.resolvedIP!, {
+  return secureFetchWithPinnedIP(options.url, validation.resolvedIP, {
     profile: 'configuredEndpoint',
     method: options.method,
     headers: {

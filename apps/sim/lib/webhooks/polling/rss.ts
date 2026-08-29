@@ -216,7 +216,7 @@ async function fetchNewRssItems(
       headers['If-Modified-Since'] = config.lastModified
     }
 
-    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
       profile: 'requestTarget',
       headers,
       timeout: 30000,

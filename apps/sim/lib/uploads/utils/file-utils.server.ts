@@ -281,7 +281,7 @@ export async function downloadFileFromUrl(
     throw new Error(`Invalid file URL: ${urlValidation.error}`)
   }
 
-  const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(fileUrl, urlValidation.resolvedIP, {
     profile: 'contentFetch',
     timeout: timeoutMs,
     maxResponseBytes: maxBytes,

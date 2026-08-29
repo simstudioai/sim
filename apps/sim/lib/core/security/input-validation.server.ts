@@ -28,10 +28,9 @@ const logger = createLogger('InputValidation')
 /**
  * Result type for async URL validation with resolved IP
  */
-export interface AsyncValidationResult extends ValidationResult {
-  resolvedIP?: string
-  originalHostname?: string
-}
+export type AsyncValidationResult =
+  | { isValid: true; resolvedIP: string; originalHostname: string; error?: undefined }
+  | { isValid: false; error: string; resolvedIP?: undefined; originalHostname?: undefined }
 
 /**
  * Validates a URL, resolves its DNS, and returns the address to pin.
@@ -112,7 +111,7 @@ export async function validateAndPinProxyUrl(
     return { isValid: false, error: validation.error }
   }
 
-  const resolvedIP = validation.resolvedIP!
+  const resolvedIP = validation.resolvedIP
 
   // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
   // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
@@ -1099,7 +1098,7 @@ export async function secureFetchWithPinnedIP(
             }
             return secureFetchWithPinnedIP(
               redirectUrl,
-              validation.resolvedIP!,
+              validation.resolvedIP,
               redirectOptions,
               redirectCount + 1
             )
@@ -1305,5 +1304,5 @@ export async function secureFetchWithValidation(
   if (!validation.isValid) {
     throw new Error(validation.error)
   }
-  return secureFetchWithPinnedIP(url, validation.resolvedIP!, options)
+  return secureFetchWithPinnedIP(url, validation.resolvedIP, options)
 }
