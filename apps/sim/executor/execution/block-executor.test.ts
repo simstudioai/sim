@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { REDACTION_FAILED_MARKER, redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { BlockType, EDGE } from '@/executor/constants'
@@ -1563,6 +1564,79 @@ describe('BlockExecutor streaming pump', () => {
     expect(state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.finishReason).toBe(
       'max_tokens'
     )
+  })
+
+  it('fails empty structured streams when the terminal event reports a token limit', async () => {
+    const onFullContent = vi.fn()
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'turn_end', turn: 'final', finishReason: 'length' }],
+      onFullContent,
+    })
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+    }
+    const ctx = createContext(state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      /maximum output-token limit/i
+    )
+
+    expect(onFullContent).not.toHaveBeenCalled()
+    expect(state.getBlockOutput(block.id)).toMatchObject({
+      content: '',
+      error: expect.stringMatching(/maximum output-token limit/i),
+    })
+    expect(state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.finishReason).toBe(
+      'length'
+    )
+  })
+
+  it('preserves the original failure when provider-diagnostic redaction scrubs', async () => {
+    const redactor = vi.mocked(redactObjectStrings)
+    redactor
+      .mockImplementationOnce(async (value, options) => {
+        expect(options.onFailure).toBe('throw')
+        return value as never
+      })
+      .mockImplementationOnce(async (value, options) => {
+        expect(options.onFailure).toBe('scrub')
+        return {
+          ...(value as Record<string, unknown>),
+          content: REDACTION_FAILED_MARKER,
+          model: REDACTION_FAILED_MARKER,
+        } as never
+      })
+
+    const onFullContent = vi.fn()
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'text_delta', text: '{"answer":"unfinished', turn: 'final' }],
+      finishReason: 'max_tokens',
+      onFullContent,
+    })
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      responseFormat: { type: 'object', properties: { answer: { type: 'string' } } },
+    }
+    const ctx = createContext(state)
+    ctx.piiBlockOutputRedaction = {
+      enabled: true,
+      entityTypes: ['EMAIL_ADDRESS'],
+      language: 'en',
+    }
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      /maximum output-token limit/i
+    )
+
+    expect(redactor).toHaveBeenCalledTimes(2)
+    expect(onFullContent).not.toHaveBeenCalled()
+    expect(state.getBlockOutput(block.id)).toMatchObject({
+      content: REDACTION_FAILED_MARKER,
+      model: REDACTION_FAILED_MARKER,
+      tokens: { input: 1, output: 2, total: 3 },
+      error: expect.stringMatching(/maximum output-token limit/i),
+    })
   })
 
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {

@@ -76,6 +76,7 @@ import {
   type VariableResolver,
 } from '@/executor/variables/resolver'
 import { createAgentStreamPump } from '@/providers/stream-pump'
+import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -637,7 +638,7 @@ export class BlockExecutor {
     let providerDiagnostics: Record<string, unknown> = {}
     for (const key of ['content', 'model', 'tokens', 'toolCalls', 'providerTiming', 'cost']) {
       const value = failureDiagnosticOutput?.[key]
-      if (value !== undefined && (key !== 'content' || value !== '')) {
+      if (value !== undefined) {
         providerDiagnostics[key] = value
       }
     }
@@ -647,7 +648,7 @@ export class BlockExecutor {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
         language: ctx.piiBlockOutputRedaction.language,
         customPatterns: ctx.piiBlockOutputRedaction.customPatterns,
-        onFailure: 'throw',
+        onFailure: 'scrub',
       })
     }
     Object.assign(errorOutput, providerDiagnostics)
@@ -1242,11 +1243,8 @@ export class BlockExecutor {
     }
 
     let fullContent = pumpResult.answerText
-    if (!fullContent) {
-      return
-    }
 
-    if (piiEnabled && ctx.piiBlockOutputRedaction) {
+    if (fullContent && piiEnabled && ctx.piiBlockOutputRedaction) {
       // Mask before writing to `execution.output` or `onFullContent`.
       fullContent = await redactObjectStrings(fullContent, {
         entityTypes: ctx.piiBlockOutputRedaction.entityTypes,
@@ -1257,15 +1255,28 @@ export class BlockExecutor {
     }
 
     const executionOutput = streamingExec.execution?.output
+    if (pumpResult.finishReason && executionOutput?.providerTiming?.timeSegments) {
+      enrichLastModelSegment(executionOutput.providerTiming.timeSegments, {
+        finishReason: pumpResult.finishReason,
+      })
+    }
+    if (executionOutput && typeof executionOutput === 'object' && parsedResponseFormat) {
+      // Retain even empty content for failed-block diagnostics, but reject it
+      // before parsing so token-limited structured data never reaches downstream.
+      executionOutput.content = fullContent
+      assertStructuredOutputNotTokenLimited(executionOutput.providerTiming, executionOutput)
+    }
+
+    if (!fullContent) {
+      return
+    }
+
     if (executionOutput && typeof executionOutput === 'object') {
       let parsedForFormat = false
       if (responseFormat) {
         // Retain the drained text for failed-block diagnostics, but reject it
         // before parsing so truncated structured data never reaches downstream.
         executionOutput.content = fullContent
-        if (parsedResponseFormat) {
-          assertStructuredOutputNotTokenLimited(executionOutput.providerTiming, executionOutput)
-        }
         try {
           const parsed = JSON.parse(fullContent.trim())
           streamingExec.execution.output = {

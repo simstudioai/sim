@@ -42,6 +42,7 @@ export function createReadableStreamFromBedrockStream(
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
+  let finishReason: string | undefined
   let cancelled = false
   let streamIterator: AsyncIterator<ConverseStreamOutput> | undefined
 
@@ -55,6 +56,9 @@ export function createReadableStreamFromBedrockStream(
           const event = next.value
           const streamError = getBedrockStreamError(event)
           if (streamError) throw streamError
+          if (event.messageStop?.stopReason) {
+            finishReason = event.messageStop.stopReason
+          }
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
@@ -68,6 +72,9 @@ export function createReadableStreamFromBedrockStream(
         if (cancelled) return
         if (onComplete) {
           onComplete(fullContent, { inputTokens, outputTokens })
+        }
+        if (finishReason) {
+          controller.enqueue({ type: 'turn_end', turn: 'final', finishReason })
         }
 
         controller.close()

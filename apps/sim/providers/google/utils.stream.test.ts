@@ -26,6 +26,7 @@ describe('createReadableStreamFromGeminiStream', () => {
         yield {
           candidates: [
             {
+              finishReason: 'MAX_TOKENS',
               content: {
                 parts: [
                   { text: 'Reasoning step. ', thought: true },
@@ -48,6 +49,7 @@ describe('createReadableStreamFromGeminiStream', () => {
     expect(events).toEqual([
       { type: 'thinking_delta', text: 'Reasoning step. ' },
       { type: 'text_delta', text: 'Final answer.', turn: 'final' },
+      { type: 'turn_end', turn: 'final', finishReason: 'MAX_TOKENS' },
     ])
     expect(onComplete).toHaveBeenCalledWith(
       'Final answer.',
