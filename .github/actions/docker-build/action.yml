@@ -142,7 +142,14 @@ runs:
           prev=''; stable=0
           for _ in $(seq 1 60); do
             cur="$(total)"
-            if [ "$cur" = "$prev" ]; then
+            # An empty reading means du FAILED, never that the cache is empty:
+            # buildctl prints its `Total:` line unconditionally (cmd/buildctl
+            # diskusage.go), so an empty cache still reports `Total: 0B`. Without
+            # the -n guard the initial prev='' matched two empty readings and the
+            # loop exited after ~2s -- precisely when du is failing and the prune
+            # is most likely still deleting. Treat it as unstable and wait out the
+            # bound instead.
+            if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
               stable=$((stable + 1))
               [ "$stable" -ge 2 ] && break
             else
