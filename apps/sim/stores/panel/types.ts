@@ -1,7 +1,7 @@
 /**
  * Available panel tabs
  */
-export type PanelTab = 'editor' | 'toolbar'
+export type PanelTab = 'editor' | 'logs' | 'toolbar'
 
 /**
  * Panel state interface

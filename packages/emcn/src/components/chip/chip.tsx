@@ -15,9 +15,10 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
-  chipGeometryWithoutRadiusClass,
+  chipGeometryBaseClass,
   chipHoverSurfaceClass,
   chipPrimaryFillTokens,
+  chipSizeClasses,
 } from './chip-chrome'
 
 /**
@@ -54,9 +55,10 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryWithoutRadiusClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipGeometryBaseClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
+      size: chipSizeClasses,
       variant: {
         default: '',
         filled: chipFilledFillTokens,
@@ -81,6 +83,7 @@ const chipVariants = cva(
       { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
     defaultVariants: {
+      size: 'md',
       variant: 'default',
       active: false,
       fullWidth: false,
@@ -116,6 +119,7 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
  * explicit icon (`--text-icon`) and label (`--text-body`) colors.
  */
 function ChipContent({
+  size,
   variant,
   leftIcon: LeftIcon,
   leftAdornment,
@@ -123,8 +127,19 @@ function ChipContent({
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
-  const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
-  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  /* The content classes carry the default size, so the compact chip restates both. */
+  const isCompact = size === 'sm'
+  const iconClass = cn(
+    chipContentIconClass,
+    isCompact && 'size-[14px]',
+    isInverse && 'text-current'
+  )
+  const labelClass = cn(
+    chipContentLabelClass,
+    'flex-1',
+    isCompact && 'text-caption',
+    isInverse && 'text-current'
+  )
   return (
     <>
       {leftAdornment ?? (LeftIcon ? <LeftIcon className={iconClass} /> : null)}
@@ -146,6 +161,7 @@ interface ChipProps
 const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
     className,
+    size,
     variant,
     active,
     fullWidth,
@@ -163,10 +179,11 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, active, fullWidth, groupPosition }), className)}
+      className={cn(chipVariants({ size, variant, active, fullWidth, groupPosition }), className)}
       {...props}
     >
       <ChipContent
+        size={size}
         variant={variant}
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}
@@ -189,6 +206,7 @@ interface ChipLinkProps
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   {
     className,
+    size,
     variant,
     active,
     fullWidth,
@@ -204,10 +222,11 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, active, fullWidth, groupPosition }), className)}
+      className={cn(chipVariants({ size, variant, active, fullWidth, groupPosition }), className)}
       {...props}
     >
       <ChipContent
+        size={size}
         variant={variant}
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}

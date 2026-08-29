@@ -30,6 +30,7 @@ export type {
   ColumnOption,
   FilterConfig,
   FilterTag,
+  ResourceOptionsSize,
   SearchConfig,
   SearchTag,
   SortConfig,

@@ -473,6 +473,13 @@ export interface WorkflowBlockViewProps {
    */
   chips?: ReactNode
   /**
+   * Whether the card may start new connections. Drawing an edge is an editor
+   * affordance, so read-only surfaces (a historical run snapshot) pass `false`
+   * to suppress the cursor handle and the hover knob that offers it.
+   * @default true
+   */
+  canConnect?: boolean
+  /**
    * Block-kind label (e.g. "Table", "Agent") shown as a ChipTag on the header
    * right. Hidden when it matches the block name to avoid duplication.
    */
@@ -563,6 +570,7 @@ export function WorkflowBlockView({
   errorOutputEnabled = false,
   onToggleErrorOutput,
   highlightedHandles,
+  canConnect = true,
 }: WorkflowBlockViewProps) {
   const updateNodeInternals = useUpdateNodeInternals()
   const reactFlowStore = useReactFlowStoreApi()
@@ -570,7 +578,7 @@ export function WorkflowBlockView({
     () => reactFlowStore.getState().connectionNodeId,
     [reactFlowStore]
   )
-  const supportsCursorHandle = type !== 'response'
+  const supportsCursorHandle = canConnect && type !== 'response'
   const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
   const cursorSourceHandleKeyRef = useRef<string | null>(null)
   const [cursorSourceHandle, setCursorSourceHandle] = useState<WorkflowCursorSourceHandle | null>(

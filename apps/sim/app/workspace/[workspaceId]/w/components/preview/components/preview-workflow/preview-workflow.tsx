@@ -10,6 +10,7 @@ import ReactFlow, {
   type NodeTypes,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -25,10 +26,12 @@ import {
   getEdgeZIndexForTarget,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
+import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
+import { getBlock } from '@/blocks'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -160,6 +163,19 @@ interface PreviewWorkflowProps {
   selectedBlockId?: string | null
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
+  /**
+   * Animates the viewport onto the selected block whenever the selection
+   * changes, so a list beside the canvas can drive it. The selection a preview
+   * opens with is left alone, keeping the first frame on the whole workflow.
+   */
+  focusSelectedNode?: boolean
+  /**
+   * Which block renderer to mount. `preview` (default) uses the minimal,
+   * hook-free cards built for thumbnails and template previews; `workflow`
+   * mounts the editor's own {@link WorkflowBlock} in its read-only preview mode,
+   * so a historical run renders with the same card the canvas shows live.
+   */
+  nodeVariant?: 'preview' | 'workflow'
 }
 
 /** Preview node types using minimal, hook-free components. */
@@ -169,9 +185,90 @@ const previewNodeTypes: NodeTypes = {
   subflowNode: PreviewSubflow,
 }
 
+/**
+ * Swaps only the block card for the editor's real one. Notes and subflow
+ * containers stay on the lightweight renderers, which already match the canvas.
+ */
+const workflowNodeTypes: NodeTypes = {
+  workflowBlock: WorkflowBlock,
+  noteBlock: PreviewBlock,
+  subflowNode: PreviewSubflow,
+}
+
 const edgeTypes: EdgeTypes = {
   default: WorkflowEdge,
   workflowEdge: WorkflowEdge,
+}
+
+interface FocusSelectedNodeProps {
+  selectedBlockId?: string | null
+  enabled: boolean
+}
+
+/** Zoom the viewport settles on when focusing a single block. */
+const FOCUS_ZOOM = 1
+const FOCUS_DURATION_MS = 400
+
+/**
+ * Centers the viewport on the selected block. The mount pass is skipped so a
+ * preview that opens with a block already selected still frames the whole
+ * workflow; every later change animates to that block.
+ *
+ * The viewport is interpolated directly rather than through `fitView`'s
+ * `duration`. That path runs d3's `interpolateZoom`, which arcs the zoom
+ * outward mid-flight and back in — on a pan between two blocks at the same
+ * zoom, that reads as a bounce with no purpose. A straight ease has none.
+ */
+function FocusSelectedNode({ selectedBlockId, enabled }: FocusSelectedNodeProps) {
+  const { getNode, getViewport, setViewport } = useReactFlow()
+  const containerWidth = useStore((state) => state.width)
+  const containerHeight = useStore((state) => state.height)
+  const isMountPassRef = useRef(true)
+
+  useEffect(() => {
+    if (isMountPassRef.current) {
+      isMountPassRef.current = false
+      return
+    }
+    if (!enabled || !selectedBlockId || !containerWidth || !containerHeight) return
+
+    const node = getNode(selectedBlockId)
+    if (!node) return
+
+    const position = node.positionAbsolute ?? node.position
+    const nodeWidth = node.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH
+    const nodeHeight = node.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT
+    const from = getViewport()
+    const to = {
+      x: containerWidth / 2 - (position.x + nodeWidth / 2) * FOCUS_ZOOM,
+      y: containerHeight / 2 - (position.y + nodeHeight / 2) * FOCUS_ZOOM,
+      zoom: FOCUS_ZOOM,
+    }
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setViewport(to)
+      return
+    }
+
+    let frameId = 0
+    let startedAt: number | null = null
+    const step = (now: number) => {
+      startedAt ??= now
+      const progress = Math.min((now - startedAt) / FOCUS_DURATION_MS, 1)
+      const eased = 1 - (1 - progress) ** 3
+      setViewport({
+        x: from.x + (to.x - from.x) * eased,
+        y: from.y + (to.y - from.y) * eased,
+        zoom: from.zoom + (to.zoom - from.zoom) * eased,
+      })
+      if (progress < 1) frameId = requestAnimationFrame(step)
+    }
+
+    frameId = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frameId)
+  }, [containerHeight, containerWidth, enabled, getNode, getViewport, selectedBlockId, setViewport])
+
+  return null
 }
 
 interface FitViewOnChangeProps {
@@ -238,6 +335,8 @@ export function PreviewWorkflow({
   executedBlocks,
   selectedBlockId,
   lightweight = false,
+  nodeVariant = 'preview',
+  focusSelectedNode = false,
 }: PreviewWorkflowProps) {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = propWorkspaceId ?? params.workspaceId
@@ -250,7 +349,7 @@ export function PreviewWorkflow({
   // placeholder map must not mislabel valid workflows as deleted.
   const workflowLabelsReady = isWorkflowMapLoaded && !isWorkflowMapPlaceholderData
   const containerRef = useRef<HTMLDivElement>(null)
-  const nodeTypes = previewNodeTypes
+  const nodeTypes = nodeVariant === 'workflow' ? workflowNodeTypes : previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
   const blocksStructure = useMemo(() => {
@@ -482,6 +581,10 @@ export function PreviewWorkflow({
           isTrigger: block.triggerMode === true,
           horizontalHandles: block.horizontalHandles ?? false,
           enabled: block.enabled ?? true,
+          /** Puts the editor's block into its read-only path, reading values from `subBlockValues`. */
+          isPreview: nodeVariant === 'workflow',
+          /** The editor block reads its config off node data; preview cards resolve it themselves. */
+          ...(nodeVariant === 'workflow' && { config: getBlock(block.type) }),
           isPreviewSelected: isSelected,
           executionStatus,
           subBlockValues: block.subBlocks,
@@ -501,6 +604,7 @@ export function PreviewWorkflow({
     isValidWorkflowState,
     executedBlocks,
     selectedBlockId,
+    nodeVariant,
     getSubflowExecutionStatus,
     workflowMap,
     workflowLabelsReady,
@@ -624,7 +728,12 @@ export function PreviewWorkflow({
       <div
         ref={containerRef}
         style={{ height, width, backgroundColor: 'var(--bg)' }}
-        className={cn('preview-mode', onNodeClick && 'interactive-nodes', className)}
+        className={cn(
+          'preview-mode',
+          onNodeClick && 'interactive-nodes',
+          nodeVariant === 'workflow' && 'read-only-nodes',
+          className
+        )}
       >
         <style>{`
           /* Canvas cursor - grab on the flow container and pane */
@@ -651,6 +760,20 @@ export function PreviewWorkflow({
           .preview-mode.interactive-nodes .react-flow__node { cursor: pointer !important; }
           .preview-mode.interactive-nodes .react-flow__node > div { cursor: pointer !important; }
           .preview-mode.interactive-nodes .react-flow__node * { cursor: pointer !important; }
+
+          /* Read-only variant: the editor block ships its live chrome, so neutralize every
+             affordance that would connect or mutate the workflow. Handles are what the
+             border's pointer tracking watches for, so silencing them also stops the
+             connection knob from swelling on hover. Pointer events still fall through to
+             the node itself, which keeps block selection working. */
+          .preview-mode.read-only-nodes .react-flow__handle { pointer-events: none !important; }
+          .preview-mode.read-only-nodes .react-flow__edge { pointer-events: none !important; }
+          .preview-mode.read-only-nodes .react-flow__node button,
+          .preview-mode.read-only-nodes .react-flow__node a,
+          .preview-mode.read-only-nodes .react-flow__node input,
+          .preview-mode.read-only-nodes .react-flow__node textarea,
+          .preview-mode.read-only-nodes .react-flow__node [role='switch'],
+          .preview-mode.read-only-nodes .react-flow__node [role='button'] { pointer-events: none !important; }
         `}</style>
         <ReactFlow
           nodes={nodes}
@@ -694,6 +817,7 @@ export function PreviewWorkflow({
           }
           onPaneClick={onPaneClick}
         />
+        <FocusSelectedNode selectedBlockId={selectedBlockId} enabled={focusSelectedNode} />
         <FitViewOnChange
           nodeIds={blocksStructure.ids}
           fitPadding={fitPadding}

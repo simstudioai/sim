@@ -1,0 +1,1426 @@
+'use client'
+
+import type React from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Button,
+  ChevronDown,
+  disclosureChevronClass,
+  handleKeyboardActivation,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+  thinScrollbarClass,
+} from '@sim/emcn'
+import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
+import { formatDuration } from '@sim/utils/formatting'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import clsx from 'clsx'
+import Link from 'next/link'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { sendMothershipMessage } from '@/lib/mothership/events'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import {
+  EntryBlockTile,
+  LogRowContextMenu,
+  OutputPanel,
+  StatusDisplay,
+  ToggleButton,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
+import {
+  useOutputPanelResize,
+  useTerminalFilters,
+  useTerminalResize,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks'
+import { ROW_STYLES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
+import {
+  collectExpandableNodeIds,
+  type EntryNode,
+  type ExecutionGroup,
+  flattenBlockEntriesOnly,
+  flattenVisibleExecutionRows,
+  groupEntriesByExecution,
+  isEventFromEditableElement,
+  type NavigableBlockEntry,
+  TERMINAL_CONFIG,
+  type VisibleTerminalRow,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
+import { useContextMenu } from '@/hooks/use-context-menu'
+import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
+import type { ConsoleEntry } from '@/stores/terminal'
+import {
+  safeConsoleStringify,
+  useConsoleEntry,
+  useTerminalConsoleStore,
+  useTerminalStore,
+  useWorkflowConsoleEntries,
+} from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/**
+ * Terminal height configuration constants
+ */
+const MIN_HEIGHT = TERMINAL_HEIGHT.MIN
+const DEFAULT_EXPANDED_HEIGHT = TERMINAL_HEIGHT.DEFAULT
+const MIN_OUTPUT_PANEL_WIDTH_PX = OUTPUT_PANEL_WIDTH.MIN
+
+const MAX_TREE_DEPTH = 50
+
+/**
+ * Gutter every log row and run separator is inset by.
+ *
+ * One value on both edges: a row's selected fill and the separator above it are
+ * the two widest things in the list, and a separator that stops short of the
+ * fill it sits against reads as a ragged right edge. `pl-[10px]` on the row and
+ * `mx-[4px]` on the separator used to disagree by exactly those 4px.
+ */
+const LOG_ROW_GUTTER_CLASS = 'px-[10px]'
+
+function hasMatchInTree(
+  nodes: EntryNode[],
+  predicate: (e: ConsoleEntry) => boolean,
+  depth = 0
+): boolean {
+  if (depth >= MAX_TREE_DEPTH) return false
+  return nodes.some((n) => predicate(n.entry) || hasMatchInTree(n.children, predicate, depth + 1))
+}
+
+const hasErrorInTree = (nodes: EntryNode[]) => hasMatchInTree(nodes, (e) => Boolean(e.error))
+const hasRunningInTree = (nodes: EntryNode[]) => hasMatchInTree(nodes, (e) => Boolean(e.isRunning))
+const hasCanceledInTree = (nodes: EntryNode[]) =>
+  hasMatchInTree(nodes, (e) => Boolean(e.isCanceled))
+
+/**
+ * Block row component for displaying actual block entries
+ */
+const BlockRow = memo(function BlockRow({
+  entry,
+  isSelected,
+  onSelect,
+}: {
+  entry: ConsoleEntry
+  isSelected: boolean
+  onSelect: (entry: ConsoleEntry) => void
+}) {
+  const hasError = Boolean(entry.error)
+  const isRunning = Boolean(entry.isRunning)
+  const isCanceled = Boolean(entry.isCanceled)
+
+  return (
+    <div
+      data-entry-id={entry.id}
+      role='button'
+      tabIndex={0}
+      className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(entry)
+      }}
+      onKeyDown={(event) =>
+        handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
+      }
+    >
+      <div className={ROW_STYLES.content}>
+        <EntryBlockTile blockType={entry.blockType} />
+        <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
+          {entry.blockName}
+        </span>
+      </div>
+      <span className={clsx(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
+        <StatusDisplay
+          isRunning={isRunning}
+          isCanceled={isCanceled}
+          formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+        />
+      </span>
+    </div>
+  )
+})
+
+/**
+ * Iteration node component - shows iteration header with nested blocks
+ */
+const IterationNodeRow = memo(function IterationNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  isExpanded,
+  onToggle,
+  expandedNodes,
+  onToggleNode,
+  renderChildren = true,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  isExpanded: boolean
+  onToggle: () => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
+}) {
+  const { entry, children, iterationInfo } = node
+  const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
+  const hasChildren = children.length > 0
+  const hasRunningChild = children.some((c) => c.entry.isRunning)
+  const hasCanceledChild = children.some((c) => c.entry.isCanceled) && !hasRunningChild
+
+  const iterationLabel = iterationInfo
+    ? `Iteration ${iterationInfo.current + 1}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
+    : entry.blockName
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Iteration Header */}
+      <div
+        role='button'
+        tabIndex={0}
+        className={ROW_STYLES.row}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+        onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
+      >
+        <div className={ROW_STYLES.content}>
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
+            {iterationLabel}
+          </span>
+          {hasChildren && (
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+          )}
+        </div>
+        <span className={clsx(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
+          <StatusDisplay
+            isRunning={hasRunningChild}
+            isCanceled={hasCanceledChild}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+          />
+        </span>
+      </div>
+
+      {/* Nested Blocks */}
+      {renderChildren && isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((child) => (
+            <EntryNodeRow
+              key={child.entry.id}
+              node={child}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Subflow node component - shows subflow header with nested iterations
+ */
+const SubflowNodeRow = memo(function SubflowNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+  renderChildren = true,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
+}) {
+  const { entry, children } = node
+  const hasError = Boolean(entry.error) || hasErrorInTree(children)
+  const nodeId = entry.id
+  const isExpanded = expandedNodes.has(nodeId)
+  const hasChildren = children.length > 0
+
+  // Check if any nested block is running or canceled (recursive for arbitrary nesting depth)
+  const hasRunningDescendant = hasRunningInTree(children)
+  const hasCanceledDescendant = hasCanceledInTree(children) && !hasRunningDescendant
+
+  const containerId = entry.iterationContainerId
+  const storeBlockName = useWorkflowStore((state) =>
+    containerId ? state.blocks[containerId]?.name : undefined
+  )
+  const displayName = storeBlockName || entry.blockName
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Subflow Header */}
+      <div
+        role='button'
+        tabIndex={0}
+        className={ROW_STYLES.row}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleNode(nodeId)
+        }}
+        onKeyDown={(event) =>
+          handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
+        }
+      >
+        <div className={ROW_STYLES.content}>
+          <EntryBlockTile blockType={entry.blockType} />
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
+          {hasChildren && (
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+          )}
+        </div>
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+          <StatusDisplay
+            isRunning={hasRunningDescendant}
+            isCanceled={hasCanceledDescendant}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+          />
+        </span>
+      </div>
+
+      {/* Nested Iterations */}
+      {renderChildren && isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((iterNode) => (
+            <IterationNodeRow
+              key={iterNode.entry.id}
+              node={iterNode}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              isExpanded={expandedNodes.has(iterNode.entry.id)}
+              onToggle={() => onToggleNode(iterNode.entry.id)}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Workflow node component - shows workflow block header with nested child blocks
+ */
+const WorkflowNodeRow = memo(function WorkflowNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+  renderChildren = true,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
+}) {
+  const { entry, children } = node
+  const nodeId = entry.id
+  const isExpanded = expandedNodes.has(nodeId)
+  const hasChildren = children.length > 0
+  const isSelected = selectedEntryId === entry.id
+
+  const hasError = useMemo(
+    () => Boolean(entry.error) || hasErrorInTree(children),
+    [entry.error, children]
+  )
+  const hasRunningDescendant = useMemo(
+    () => Boolean(entry.isRunning) || hasRunningInTree(children),
+    [entry.isRunning, children]
+  )
+  const hasCanceledDescendant = useMemo(
+    () => (Boolean(entry.isCanceled) || hasCanceledInTree(children)) && !hasRunningDescendant,
+    [entry.isCanceled, children, hasRunningDescendant]
+  )
+
+  return (
+    <div className='flex min-w-0 flex-col'>
+      {/* Workflow Block Header */}
+      <div
+        role='button'
+        tabIndex={0}
+        className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!isSelected) onSelectEntry(entry)
+          if (hasChildren) onToggleNode(nodeId)
+        }}
+        onKeyDown={(event) =>
+          handleKeyboardActivation(
+            event,
+            () => {
+              if (!isSelected) onSelectEntry(entry)
+              if (hasChildren) onToggleNode(nodeId)
+            },
+            { stopPropagation: true }
+          )
+        }
+      >
+        <div className={ROW_STYLES.content}>
+          <EntryBlockTile blockType={entry.blockType} />
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
+            {entry.blockName}
+          </span>
+          {hasChildren && (
+            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+          )}
+        </div>
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+          <StatusDisplay
+            isRunning={hasRunningDescendant}
+            isCanceled={hasCanceledDescendant}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+          />
+        </span>
+      </div>
+
+      {/* Nested Child Blocks — rendered through EntryNodeRow for full loop/parallel support */}
+      {renderChildren && isExpanded && hasChildren && (
+        <div className={ROW_STYLES.nested}>
+          {children.map((child) => (
+            <EntryNodeRow
+              key={child.entry.id}
+              node={child}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Entry node component - dispatches to appropriate component based on node type
+ */
+const EntryNodeRow = memo(function EntryNodeRow({
+  node,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+  renderChildren = true,
+}: {
+  node: EntryNode
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
+}) {
+  const { nodeType } = node
+
+  if (nodeType === 'subflow') {
+    return (
+      <SubflowNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
+      />
+    )
+  }
+
+  if (nodeType === 'workflow') {
+    return (
+      <WorkflowNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
+      />
+    )
+  }
+
+  if (nodeType === 'iteration') {
+    return (
+      <IterationNodeRow
+        node={node}
+        selectedEntryId={selectedEntryId}
+        onSelectEntry={onSelectEntry}
+        isExpanded={expandedNodes.has(node.entry.id)}
+        onToggle={() => onToggleNode(node.entry.id)}
+        expandedNodes={expandedNodes}
+        onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
+      />
+    )
+  }
+
+  // Regular block
+  return (
+    <BlockRow
+      entry={node.entry}
+      isSelected={selectedEntryId === node.entry.id}
+      onSelect={onSelectEntry}
+    />
+  )
+})
+
+interface TerminalLogListRowProps {
+  row: VisibleTerminalRow
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}
+
+function TerminalLogListRow({
+  row,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: TerminalLogListRowProps) {
+  if (row.rowType === 'separator') {
+    return (
+      <div className={LOG_ROW_GUTTER_CLASS}>
+        <div className='mt-[6px] border-[var(--border)] border-t' />
+      </div>
+    )
+  }
+
+  return (
+    <div className={LOG_ROW_GUTTER_CLASS}>
+      <div style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
+        <EntryNodeRow
+          node={row.node!}
+          selectedEntryId={selectedEntryId}
+          onSelectEntry={onSelectEntry}
+          expandedNodes={expandedNodes}
+          onToggleNode={onToggleNode}
+          renderChildren={false}
+        />
+      </div>
+    </div>
+  )
+}
+
+const TerminalLogsPane = memo(function TerminalLogsPane({
+  executionGroups,
+  selectedEntryId,
+  onSelectEntry,
+  expandedNodes,
+  onToggleNode,
+}: {
+  executionGroups: ExecutionGroup[]
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const rows = useMemo(
+    () => flattenVisibleExecutionRows(executionGroups, expandedNodes),
+    [executionGroups, expandedNodes]
+  )
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX,
+    overscan: 8,
+  })
+
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
+  useEffect(() => {
+    if (!selectedEntryId) return
+
+    const currentRows = rowsRef.current
+    const rowIndex = currentRows.findIndex(
+      (row) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
+    )
+
+    if (rowIndex !== -1) {
+      virtualizer.scrollToIndex(rowIndex, { align: 'auto' })
+    }
+  }, [selectedEntryId, virtualizer])
+
+  const virtualItems = virtualizer.getVirtualItems()
+
+  return (
+    <div ref={scrollRef} className={clsx('h-full overflow-y-auto', thinScrollbarClass)}>
+      <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+        {virtualItems.map((virtualItem) => (
+          <div
+            key={virtualItem.key}
+            data-index={virtualItem.index}
+            className='absolute top-0 left-0 w-full'
+            style={{
+              height: virtualItem.size,
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <TerminalLogListRow
+              row={rows[virtualItem.index]}
+              selectedEntryId={selectedEntryId}
+              onSelectEntry={onSelectEntry}
+              expandedNodes={expandedNodes}
+              onToggleNode={onToggleNode}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+})
+
+/**
+ * Terminal component with resizable height that persists across page refreshes.
+ */
+export const Terminal = memo(function Terminal() {
+  const terminalRef = useRef<HTMLElement>(null)
+  const prevWorkflowEntriesLengthRef = useRef(0)
+  const hasInitializedEntriesRef = useRef(false)
+  const isTerminalFocusedRef = useRef(false)
+  const lastExpandedHeightRef = useRef<number>(DEFAULT_EXPANDED_HEIGHT)
+
+  // Store refs for keyboard handler to avoid stale closures
+  const selectedEntryRef = useRef<ConsoleEntry | null>(null)
+  const navigableEntriesRef = useRef<NavigableBlockEntry[]>([])
+  const showInputRef = useRef(false)
+  const hasInputDataRef = useRef(false)
+  const isExpandedRef = useRef(false)
+
+  const setTerminalHeight = useTerminalStore((state) => state.setTerminalHeight)
+  const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
+  const setOutputPanelWidth = useTerminalStore((state) => state.setOutputPanelWidth)
+  const openOnRun = useTerminalStore((state) => state.openOnRun)
+  const setOpenOnRun = useTerminalStore((state) => state.setOpenOnRun)
+  const setHasHydrated = useTerminalStore((state) => state.setHasHydrated)
+  const isExpanded = useTerminalStore(
+    (state) => state.terminalHeight > TERMINAL_CONFIG.NEAR_MIN_THRESHOLD
+  )
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
+  const consoleWorkflowId: string | undefined =
+    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  const entries = useWorkflowConsoleEntries(consoleWorkflowId)
+
+  const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
+  const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
+
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const selectedEntry = useConsoleEntry(selectedEntryId)
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
+  const [isToggling, setIsToggling] = useState(false)
+  const [showCopySuccess, setShowCopySuccess] = useState(false)
+  const [showInput, setShowInput] = useState(false)
+  const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
+  const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
+
+  const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
+
+  const { handlePointerDown } = useTerminalResize()
+  const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
+
+  const {
+    filters,
+    sortDirection,
+    toggleBlock,
+    toggleStatus,
+    toggleSort,
+    clearFilters,
+    filterEntries,
+    hasActiveFilters,
+  } = useTerminalFilters()
+
+  const {
+    isOpen: isLogRowMenuOpen,
+    position: logRowMenuPosition,
+    menuRef: logRowMenuRef,
+    closeMenu: closeLogRowMenu,
+  } = useContextMenu()
+
+  /**
+   * Expands the terminal to its last meaningful height
+   */
+  const expandToLastHeight = useCallback(() => {
+    setIsToggling(true)
+    const maxHeight = window.innerHeight * 0.7
+    const desiredHeight = Math.max(
+      lastExpandedHeightRef.current || DEFAULT_EXPANDED_HEIGHT,
+      DEFAULT_EXPANDED_HEIGHT
+    )
+    const targetHeight = Math.min(desiredHeight, maxHeight)
+    setTerminalHeight(targetHeight)
+  }, [setTerminalHeight])
+
+  const allWorkflowEntries = entries
+
+  /**
+   * Filter entries for current workflow and apply filters
+   */
+  const filteredEntries = useMemo(() => {
+    return filterEntries(allWorkflowEntries)
+  }, [allWorkflowEntries, filterEntries])
+
+  /**
+   * Group filtered entries by execution
+   */
+  const executionGroups = useMemo(() => {
+    return groupEntriesByExecution(filteredEntries)
+  }, [filteredEntries])
+
+  /**
+   * Navigable block entries for keyboard navigation.
+   * Only includes actual block outputs (excludes subflow/iteration container nodes).
+   * Includes parent node IDs for auto-expanding when navigating.
+   */
+  const navigableEntries = useMemo(() => {
+    const result: NavigableBlockEntry[] = []
+    for (const group of executionGroups) {
+      result.push(...flattenBlockEntriesOnly(group.entryTree, group.executionId))
+    }
+    return result
+  }, [executionGroups])
+
+  const autoExpandNodeIds = useMemo(() => {
+    if (executionGroups.length === 0) {
+      return []
+    }
+
+    return collectExpandableNodeIds(executionGroups[0].entryTree)
+  }, [executionGroups])
+
+  /**
+   * Check if input data exists for selected entry
+   */
+  const hasInputData = useMemo(() => {
+    if (!selectedEntry?.input) return false
+    return typeof selectedEntry.input === 'object'
+      ? Object.keys(selectedEntry.input).length > 0
+      : true
+  }, [selectedEntry])
+
+  /**
+   * Check if this is a function block with code input
+   */
+  const shouldShowCodeDisplay = useMemo(() => {
+    if (!selectedEntry || !showInput || selectedEntry.blockType !== 'function') return false
+    const input = selectedEntry.input
+    return typeof input === 'object' && input && 'code' in input && typeof input.code === 'string'
+  }, [selectedEntry, showInput])
+
+  /**
+   * Get the data to display in the output panel
+   */
+  const outputData = useMemo(() => {
+    if (!selectedEntry) return null
+    if (showInput) return selectedEntry.input
+    if (selectedEntry.error) return selectedEntry.error
+    return selectedEntry.output
+  }, [selectedEntry, showInput])
+
+  // Keep refs in sync for keyboard handler
+  selectedEntryRef.current = selectedEntry
+  navigableEntriesRef.current = navigableEntries
+  showInputRef.current = showInput
+  hasInputDataRef.current = hasInputData
+  isExpandedRef.current = isExpanded
+
+  /**
+   * Reset entry tracking when switching workflows to ensure auto-open
+   * works correctly for each workflow independently.
+   */
+  const prevActiveWorkflowIdRef = useRef(activeWorkflowId)
+  if (prevActiveWorkflowIdRef.current !== activeWorkflowId) {
+    prevActiveWorkflowIdRef.current = activeWorkflowId
+    hasInitializedEntriesRef.current = false
+  }
+
+  /**
+   * Auto-open the terminal on new entries when "Open on run" is enabled.
+   * This mirrors the header toggle behavior by using expandToLastHeight,
+   * ensuring we always get the same smooth height transition.
+   *
+   * Skips the initial sync after console hydration to avoid auto-opening
+   * when persisted entries are restored on page refresh.
+   */
+  useEffect(() => {
+    if (!hasConsoleHydrated) {
+      return
+    }
+
+    if (!hasInitializedEntriesRef.current) {
+      hasInitializedEntriesRef.current = true
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
+    if (!openOnRun) {
+      prevWorkflowEntriesLengthRef.current = allWorkflowEntries.length
+      return
+    }
+
+    const previousLength = prevWorkflowEntriesLengthRef.current
+    const currentLength = allWorkflowEntries.length
+
+    if (currentLength > previousLength && !isExpanded) {
+      expandToLastHeight()
+    }
+
+    prevWorkflowEntriesLengthRef.current = currentLength
+  }, [
+    allWorkflowEntries.length,
+    expandToLastHeight,
+    openOnRun,
+    isExpanded,
+    hasConsoleHydrated,
+    activeWorkflowId,
+  ])
+
+  /**
+   * Auto-expand subflows, iterations, and workflow nodes when new entries arrive.
+   * Recursively walks the full tree so nested nodes (e.g. a workflow block inside
+   * a loop iteration) are also expanded automatically.
+   * This always runs regardless of autoSelectEnabled - new runs should always be visible.
+   */
+  useEffect(() => {
+    if (autoExpandNodeIds.length === 0) return
+
+    const rafId = requestAnimationFrame(() => {
+      setExpandedNodes((prev) => {
+        const hasAll = autoExpandNodeIds.every((id) => prev.has(id))
+        if (hasAll) return prev
+        const next = new Set(prev)
+        autoExpandNodeIds.forEach((id) => next.add(id))
+        return next
+      })
+    })
+
+    return () => cancelAnimationFrame(rafId)
+  }, [autoExpandNodeIds])
+
+  /**
+   * Focus the terminal for keyboard navigation
+   */
+  const focusTerminal = useCallback(() => {
+    terminalRef.current?.focus()
+    isTerminalFocusedRef.current = true
+  }, [])
+
+  /**
+   * Handle entry selection - clicking same entry toggles selection off
+   */
+  const handleSelectEntry = useCallback(
+    (entry: ConsoleEntry) => {
+      focusTerminal()
+      setSelectedEntryId((prev) => {
+        // Disable auto-select on any manual selection/deselection
+        setAutoSelectEnabled(false)
+        return prev === entry.id ? null : entry.id
+      })
+    },
+    [focusTerminal]
+  )
+
+  /**
+   * Toggle subflow node expansion
+   */
+  const handleToggleNode = useCallback((nodeId: string) => {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+      } else {
+        next.add(nodeId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleHeaderClick = useCallback(() => {
+    if (isExpanded) {
+      setIsToggling(true)
+      setTerminalHeight(MIN_HEIGHT)
+    } else {
+      expandToLastHeight()
+    }
+  }, [expandToLastHeight, isExpanded, setTerminalHeight])
+
+  const handleTransitionEnd = useCallback(() => {
+    setIsToggling(false)
+  }, [])
+
+  const handleTerminalFocus = useCallback(() => {
+    isTerminalFocusedRef.current = true
+  }, [])
+
+  const handleTerminalBlur = useCallback((e: React.FocusEvent) => {
+    if (!terminalRef.current?.contains(e.relatedTarget as Node)) {
+      isTerminalFocusedRef.current = false
+    }
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    if (!selectedEntry) return
+    const textToCopy = shouldShowCodeDisplay
+      ? selectedEntry.input.code
+      : safeConsoleStringify(outputData)
+    navigator.clipboard.writeText(textToCopy)
+    setShowCopySuccess(true)
+  }, [selectedEntry, outputData, shouldShowCodeDisplay])
+
+  const clearCurrentWorkflowConsole = useCallback(() => {
+    if (activeWorkflowId) {
+      clearWorkflowConsole(activeWorkflowId)
+      setSelectedEntryId(null)
+      setExpandedNodes(new Set())
+    }
+  }, [activeWorkflowId, clearWorkflowConsole])
+
+  const handleClearConsole = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      clearCurrentWorkflowConsole()
+    },
+    [clearCurrentWorkflowConsole]
+  )
+
+  const handleExportConsole = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (activeWorkflowId) {
+        exportConsoleCSV(activeWorkflowId)
+      }
+    },
+    [activeWorkflowId, exportConsoleCSV]
+  )
+
+  const handleFilterByBlock = useCallback(
+    (blockId: string) => {
+      toggleBlock(blockId)
+      closeLogRowMenu()
+    },
+    [toggleBlock, closeLogRowMenu]
+  )
+
+  const handleFilterByStatus = useCallback(
+    (status: 'error' | 'info') => {
+      toggleStatus(status)
+      closeLogRowMenu()
+    },
+    [toggleStatus, closeLogRowMenu]
+  )
+
+  const handleCopyRunId = useCallback(
+    (runId: string) => {
+      navigator.clipboard.writeText(runId)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
+  )
+
+  const handleClearConsoleFromMenu = useCallback(() => {
+    clearCurrentWorkflowConsole()
+  }, [clearCurrentWorkflowConsole])
+
+  const handleFixInCopilot = useCallback(
+    (entry: ConsoleEntry) => {
+      const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
+      const blockName = entry.blockName || 'Unknown Block'
+      const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
+      sendMothershipMessage(message)
+      closeLogRowMenu()
+    },
+    [closeLogRowMenu]
+  )
+
+  useRegisterGlobalCommands(() =>
+    createCommands([
+      {
+        id: 'clear-terminal-console',
+        handler: () => {
+          clearCurrentWorkflowConsole()
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+    ])
+  )
+
+  useEffect(() => {
+    setHasHydrated(true)
+  }, [setHasHydrated])
+
+  useEffect(() => {
+    lastExpandedHeightRef.current = useTerminalStore.getState().lastExpandedHeight
+    const unsub = useTerminalStore.subscribe((state) => {
+      lastExpandedHeightRef.current = state.lastExpandedHeight
+    })
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!selectedEntry) {
+      setShowInput(false)
+      return
+    }
+    if (showInput) {
+      const newHasInput =
+        selectedEntry.input &&
+        (typeof selectedEntry.input === 'object'
+          ? Object.keys(selectedEntry.input).length > 0
+          : true)
+      if (!newHasInput) {
+        setShowInput(false)
+      }
+    }
+  }, [selectedEntry, showInput])
+
+  useEffect(() => {
+    if (showCopySuccess) {
+      const timer = setTimeout(() => {
+        setShowCopySuccess(false)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [showCopySuccess])
+
+  useEffect(() => {
+    if (executionGroups.length === 0 || navigableEntries.length === 0) {
+      setAutoSelectEnabled(true)
+      setSelectedEntryId(null)
+      return
+    }
+
+    if (!autoSelectEnabled) return
+
+    const newestExecutionId = executionGroups[0].executionId
+    let lastNavEntry: NavigableBlockEntry | null = null
+
+    for (const navEntry of navigableEntries) {
+      if (navEntry.executionId === newestExecutionId) {
+        lastNavEntry = navEntry
+      } else {
+        break
+      }
+    }
+
+    if (!lastNavEntry) return
+    if (selectedEntryId === lastNavEntry.entry.id) return
+
+    setSelectedEntryId(lastNavEntry.entry.id)
+
+    if (lastNavEntry.parentNodeIds.length > 0) {
+      setExpandedNodes((prev) => {
+        const hasAll = lastNavEntry.parentNodeIds.every((id) => prev.has(id))
+        if (hasAll) return prev
+        const next = new Set(prev)
+        lastNavEntry.parentNodeIds.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId])
+
+  /**
+   * Clear filters when there are no logs
+   */
+  useEffect(() => {
+    if (allWorkflowEntries.length === 0 && hasActiveFilters) {
+      clearFilters()
+    }
+  }, [allWorkflowEntries.length, hasActiveFilters, clearFilters])
+
+  /**
+   * Navigate to a block entry and auto-expand its parents
+   */
+  const navigateToEntry = useCallback(
+    (navEntry: NavigableBlockEntry) => {
+      setAutoSelectEnabled(false)
+      setSelectedEntryId(navEntry.entry.id)
+
+      // Auto-expand parent nodes (subflows, iterations)
+      if (navEntry.parentNodeIds.length > 0) {
+        setExpandedNodes((prev) => {
+          const hasAll = navEntry.parentNodeIds.every((id) => prev.has(id))
+          if (hasAll) return prev
+          const next = new Set(prev)
+          navEntry.parentNodeIds.forEach((id) => next.add(id))
+          return next
+        })
+      }
+
+      // Keep terminal focused for continued navigation
+      focusTerminal()
+    },
+    [focusTerminal]
+  )
+
+  /**
+   * Consolidated keyboard handler for all terminal navigation
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Common guards
+      if (isEventFromEditableElement(e)) return
+
+      const activeElement = document.activeElement as HTMLElement | null
+      const searchOverlay = document.querySelector('[data-toolbar-root][data-search-active="true"]')
+      if (searchOverlay && activeElement && searchOverlay.contains(activeElement)) {
+        return
+      }
+
+      const currentEntry = selectedEntryRef.current
+      const entries = navigableEntriesRef.current
+
+      // Escape to unselect
+      if (e.key === 'Escape') {
+        if (currentEntry) {
+          e.preventDefault()
+          setSelectedEntryId(null)
+          setAutoSelectEnabled(true)
+        }
+        return
+      }
+
+      // Terminal must be focused for arrow keys
+      if (!isTerminalFocusedRef.current) return
+
+      // Arrow up/down for entry navigation (only block outputs)
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (entries.length === 0) return
+
+        e.preventDefault()
+
+        // If no entry selected, select the first or last based on direction
+        if (!currentEntry) {
+          const targetEntry = e.key === 'ArrowDown' ? entries[0] : entries[entries.length - 1]
+          navigateToEntry(targetEntry)
+          return
+        }
+
+        const currentIndex = entries.findIndex((navEntry) => navEntry.entry.id === currentEntry.id)
+        if (currentIndex === -1) {
+          // Current entry not in navigable list (shouldn't happen), select first
+          navigateToEntry(entries[0])
+          return
+        }
+
+        if (e.key === 'ArrowUp' && currentIndex > 0) {
+          navigateToEntry(entries[currentIndex - 1])
+        } else if (e.key === 'ArrowDown' && currentIndex < entries.length - 1) {
+          navigateToEntry(entries[currentIndex + 1])
+        }
+        return
+      }
+
+      // Arrow left/right for input/output toggle
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (!currentEntry) return
+
+        e.preventDefault()
+
+        if (!isExpandedRef.current) {
+          expandToLastHeight()
+        }
+
+        if (e.key === 'ArrowLeft' && showInputRef.current) {
+          setShowInput(false)
+        } else if (e.key === 'ArrowRight' && !showInputRef.current && hasInputDataRef.current) {
+          setShowInput(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [expandToLastHeight, navigateToEntry])
+
+  /**
+   * Adjust output panel width on resize.
+   * Closes the output panel if there's not enough space for the minimum width.
+   *
+   * An active output-panel drag owns clamping — its own compute clamps every
+   * frame against the live terminal rect, and its scoped inline override on
+   * `.terminal-container` (present only while that drag runs) would mask a
+   * store-driven `:root` write here anyway — so this skips while it is active.
+   * Otherwise the width is read from the committed `--output-panel-width` on
+   * `:root`, which the store setter writes synchronously and is therefore
+   * fresher than the React store value (a render behind the commit), falling
+   * back to the store value before any commit exists.
+   */
+  useEffect(() => {
+    const el = terminalRef.current
+    if (!el) return
+
+    const handleResize = () => {
+      if (!selectedEntry) return
+
+      if (el.style.getPropertyValue('--output-panel-width')) return
+
+      const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
+
+      if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
+        setAutoSelectEnabled(false)
+        setSelectedEntryId(null)
+        return
+      }
+
+      const committed = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--output-panel-width')
+      )
+      const currentWidth = Number.isNaN(committed) ? outputPanelWidth : committed
+      if (currentWidth > maxWidth) {
+        setOutputPanelWidth(Math.max(maxWidth, MIN_OUTPUT_PANEL_WIDTH_PX))
+      }
+    }
+
+    handleResize()
+
+    const observer = new ResizeObserver(handleResize)
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
+
+  return (
+    <>
+      <aside
+        ref={terminalRef}
+        className={clsx(
+          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
+          isToggling && 'transition-[height] duration-100 ease-out'
+        )}
+        onTransitionEnd={handleTransitionEnd}
+        onFocus={handleTerminalFocus}
+        onBlur={handleTerminalBlur}
+        tabIndex={-1}
+        aria-label='Terminal'
+      >
+        {/* Resize Handle */}
+        <div
+          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+          onPointerDown={handlePointerDown}
+          role='separator'
+          aria-orientation='horizontal'
+          aria-label='Resize terminal'
+        />
+
+        <div className='relative flex h-full'>
+          {/* Left Section - Logs */}
+          <div
+            className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
+            style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
+          >
+            {/* Header */}
+            <div
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
+              onClick={handleHeaderClick}
+            >
+              {/* Left side - Logs label */}
+              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
+
+              {/* Right side - Icons and options */}
+              {!selectedEntry && (
+                <div className='flex items-center gap-2'>
+                  {/* Sort toggle */}
+                  {allWorkflowEntries.length > 0 && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSort()
+                          }}
+                          aria-label='Sort by timestamp'
+                          className='!p-1.5 -m-1.5'
+                        >
+                          {sortDirection === 'desc' ? (
+                            <ArrowDown className='size-[14px]' />
+                          ) : (
+                            <ArrowUp className='size-[14px]' />
+                          )}
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Sort by time</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+
+                  {isPlaygroundEnabled && (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Link href='/playground'>
+                          <Button
+                            variant='ghost'
+                            aria-label='Component Playground'
+                            className='!p-1.5 -m-1.5'
+                          >
+                            <Palette className='size-[14px]' />
+                          </Button>
+                        </Link>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span>Component Playground</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  )}
+
+                  {filteredEntries.length > 0 && (
+                    <>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handleExportConsole}
+                            aria-label='Export console CSV'
+                            className='!p-1.5 -m-1.5'
+                          >
+                            <Download className='size-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          <span>Export CSV</span>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            variant='ghost'
+                            onClick={handleClearConsole}
+                            aria-label='Clear console'
+                            className='!p-1.5 -m-1.5'
+                          >
+                            <Trash className='size-[14px]' />
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    </>
+                  )}
+
+                  <Popover open={mainOptionsOpen} onOpenChange={setMainOptionsOpen} size='sm'>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        aria-label='Terminal options'
+                        className='!p-1.5 -m-1.5'
+                      >
+                        <MoreHorizontal className='size-[14px]' />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side='bottom'
+                      align='end'
+                      sideOffset={4}
+                      collisionPadding={0}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ minWidth: '140px', maxWidth: '160px' }}
+                      className='gap-0.5'
+                    >
+                      <PopoverItem
+                        active={openOnRun}
+                        showCheck={openOnRun}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenOnRun(!openOnRun)
+                        }}
+                      >
+                        <span>Open on run</span>
+                      </PopoverItem>
+                    </PopoverContent>
+                  </Popover>
+
+                  <ToggleButton
+                    isExpanded={isExpanded}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleHeaderClick()
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Execution list */}
+            <div className='flex-1 overflow-hidden'>
+              {executionGroups.length === 0 ? (
+                <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
+                  No logs yet
+                </div>
+              ) : (
+                <TerminalLogsPane
+                  executionGroups={executionGroups}
+                  selectedEntryId={selectedEntryId}
+                  onSelectEntry={handleSelectEntry}
+                  expandedNodes={expandedNodes}
+                  onToggleNode={handleToggleNode}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Right Section - Block Output (Overlay) */}
+          {selectedEntry && (
+            <OutputPanel
+              selectedEntry={selectedEntry}
+              handleOutputPanelResizePointerDown={handleOutputPanelResizePointerDown}
+              handleHeaderClick={handleHeaderClick}
+              isExpanded={isExpanded}
+              expandToLastHeight={expandToLastHeight}
+              showInput={showInput}
+              setShowInput={setShowInput}
+              hasInputData={hasInputData}
+              isPlaygroundEnabled={isPlaygroundEnabled}
+              showCopySuccess={showCopySuccess}
+              handleCopy={handleCopy}
+              hasEntries={filteredEntries.length > 0}
+              handleExportConsole={handleExportConsole}
+              handleClearConsole={handleClearConsole}
+              shouldShowCodeDisplay={shouldShowCodeDisplay}
+              outputData={outputData}
+              handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+            />
+          )}
+        </div>
+      </aside>
+
+      {/* Log Row Context Menu */}
+      <LogRowContextMenu
+        isOpen={isLogRowMenuOpen}
+        position={logRowMenuPosition}
+        menuRef={logRowMenuRef}
+        onClose={closeLogRowMenu}
+        entry={selectedEntry}
+        filters={filters}
+        onFilterByBlock={handleFilterByBlock}
+        onFilterByStatus={handleFilterByStatus}
+        onCopyRunId={handleCopyRunId}
+        onClearConsole={handleClearConsoleFromMenu}
+        onFixInCopilot={handleFixInCopilot}
+      />
+    </>
+  )
+})

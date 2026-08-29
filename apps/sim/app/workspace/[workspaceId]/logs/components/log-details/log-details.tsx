@@ -310,9 +310,14 @@ export type LogDetailsTab = 'overview' | 'trace'
 interface LogDetailsContentProps {
   log: WorkflowLogRow
   onActiveTabChange?: (tab: LogDetailsTab) => void
+  onViewSnapshot?: () => void
 }
 
-export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentProps) {
+export function LogDetailsContent({
+  log,
+  onActiveTabChange,
+  onViewSnapshot,
+}: LogDetailsContentProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useQueryState(logDetailsTabParam.key, {
     ...logDetailsTabParam.parser,
@@ -600,7 +605,10 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {showWorkflowState && (
                   <div className='flex h-10 items-center justify-between px-3'>
                     <span className='text-[var(--text-tertiary)] text-caption'>Snapshot</span>
-                    <Chip leftIcon={Eye} onClick={() => setIsExecutionSnapshotOpen(true)}>
+                    <Chip
+                      leftIcon={Eye}
+                      onClick={onViewSnapshot ?? (() => setIsExecutionSnapshotOpen(true))}
+                    >
                       View Snapshot
                     </Chip>
                   </div>
@@ -705,7 +713,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
       </div>
 
       {/* Frozen Canvas Modal */}
-      {log.executionId && (
+      {log.executionId && !onViewSnapshot && (
         <SnapshotBoundary
           key={`${log.executionId}:${isExecutionSnapshotOpen ? 'open' : 'closed'}`}
           isOpen={isExecutionSnapshotOpen}

@@ -803,7 +803,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const posthog = usePostHog()
 
-  const sunset = getBlockSunset(config, name, blockSubBlockValues.model, currentWorkflow.isDiffMode)
+  /**
+   * Sunset badges are an editor affordance — they offer to upgrade the block in
+   * place. A read-only preview (a historical run snapshot) has nothing to fix,
+   * so the badge is suppressed rather than dangling an inert control.
+   */
+  const sunset = data.isPreview
+    ? null
+    : getBlockSunset(config, name, blockSubBlockValues.model, currentWorkflow.isDiffMode)
 
   const onFixSunset = () => {
     if (!sunset) return
@@ -1257,6 +1264,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       isIntegration={!hasBlockAccent(config.type)}
       horizontalHandles={horizontalHandles}
       shouldShowDefaultHandles={shouldShowDefaultHandles}
+      canConnect={!data.isPreview}
       blockHeight={blockHeight}
       hasContentBelowHeader={hasContentBelowHeader}
       conditionRows={conditionRows}

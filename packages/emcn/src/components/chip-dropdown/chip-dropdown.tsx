@@ -181,6 +181,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       variant = 'filled',
       active,
       fullWidth,
+      size = 'md',
       'aria-label': ariaLabel,
       'aria-labelledby': ariaLabelledBy,
       id,
@@ -234,7 +235,13 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     }
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
-    const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
+    /* The compact trigger scales its adornments the way `Chip` scales its own. */
+    const isCompact = size === 'sm'
+    const iconClass = cn(
+      'flex-shrink-0',
+      isCompact ? 'size-[14px]' : 'size-[16px]',
+      !isInverse && 'text-[var(--text-icon)]'
+    )
     /**
      * The chevron glyph stays at its conventional subtle size, but is rendered
      * inside a `size-[16px]` slot so its bounding box matches `leftIcon`'s. The
@@ -242,7 +249,11 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      * label — without this, the smaller glyph's bounding box would let the
      * chevron read as glued to the text relative to the leading icon.
      */
-    const chevronSlotClass = cn(chipIconSlotClass, !isInverse && 'text-[var(--text-icon)]')
+    const chevronSlotClass = cn(
+      chipIconSlotClass,
+      isCompact && 'size-[14px]',
+      !isInverse && 'text-[var(--text-icon)]'
+    )
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a
@@ -252,7 +263,8 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      * consume and the layout collapses to the natural `gap-2` between items.
      */
     const labelClass = cn(
-      'min-w-0 flex-1 truncate text-sm',
+      'min-w-0 flex-1 truncate',
+      isCompact ? 'text-caption' : 'text-sm',
       !isInverse && 'text-[var(--text-body)]'
     )
 
@@ -304,7 +316,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              chipVariants({ variant, active, fullWidth }),
+              chipVariants({ size, variant, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
               className
             )}
@@ -316,7 +328,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               {displayLabel}
             </span>
             <span aria-hidden className={chevronSlotClass}>
-              <ChevronDown className='size-[14px]' />
+              <ChevronDown className={isCompact ? 'size-[12px]' : 'size-[14px]'} />
             </span>
           </button>
         </DropdownMenuTrigger>

@@ -12,6 +12,8 @@ interface PanelViewControlsProps {
   onSearchNavigate: () => void
   onToolbarSelect: () => void
   onEditorSelect: () => void
+  onLogsSelect: () => void
+  showLogs?: boolean
   editorActions?: ReactNode
 }
 
@@ -26,9 +28,12 @@ export function PanelViewControls({
   onSearchNavigate,
   onToolbarSelect,
   onEditorSelect,
+  onLogsSelect,
+  showLogs = false,
   editorActions,
 }: PanelViewControlsProps) {
   const toolbarActive = activeTab === 'toolbar'
+  const editorActive = activeTab === 'editor'
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     onSearchChange(event.target.value)
@@ -110,20 +115,26 @@ export function PanelViewControls({
         </Tooltip.Root>
       </div>
 
-      <Chip
-        active={activeTab === 'editor'}
-        onClick={onEditorSelect}
-        aria-pressed={activeTab === 'editor'}
-      >
+      <Chip active={editorActive} onClick={onEditorSelect} aria-pressed={editorActive}>
         Editor
       </Chip>
 
+      {showLogs ? (
+        <Chip
+          active={activeTab === 'logs'}
+          onClick={onLogsSelect}
+          aria-pressed={activeTab === 'logs'}
+        >
+          Logs
+        </Chip>
+      ) : null}
+
       {editorActions ? (
         <div
-          aria-hidden={toolbarActive}
+          aria-hidden={!editorActive}
           className={cn(
             'absolute inset-y-0 end-3.5 flex items-center transition-opacity [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-            toolbarActive
+            !editorActive
               ? 'pointer-events-none opacity-0 delay-0 duration-0'
               : 'opacity-100 delay-300 duration-100 motion-reduce:delay-0'
           )}

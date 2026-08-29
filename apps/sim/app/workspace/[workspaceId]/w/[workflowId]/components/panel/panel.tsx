@@ -1,8 +1,8 @@
 'use client'
 
-import { memo, useCallback, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -14,6 +14,7 @@ import {
   Deploy,
   Editor,
   EditorPanelActions,
+  Logs,
   PanelViewControls,
   Toolbar,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
@@ -33,6 +34,7 @@ import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { PANEL_WIDTH } from '@/stores/constants'
+import { useWorkflowRunSnapshotStore } from '@/stores/logs/workflow-run-snapshot'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -48,11 +50,18 @@ interface PanelProps {
  */
 export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
   const params = useParams()
+  const searchParams = useSearchParams()
   const workspaceId = params.workspaceId as string
+  const logsPrototypeEnabled =
+    process.env.NODE_ENV === 'development' && searchParams.get('logsPrototype') === '4'
 
   const panelRef = useRef<HTMLElement>(null)
   const activeTab = usePanelStore((state) => state.activeTab)
   const setActiveTab = usePanelStore((state) => state.setActiveTab)
+  const snapshot = useWorkflowRunSnapshotStore((state) => state.snapshot)
+  const closeSnapshot = useWorkflowRunSnapshotStore((state) => state.closeSnapshot)
+  const logsPrototypeWasEnabledRef = useRef(false)
+  const hasSyncedSnapshotTabRef = useRef(false)
   const toolbarSearchInputRef = useRef<HTMLInputElement>(null)
   const toolbarRef = useRef<{
     focusFirstItem: () => void
@@ -155,13 +164,45 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
     setActiveTab('editor')
   }, [setActiveTab])
 
+  const handleLogsSelect = useCallback(() => {
+    toolbarSearchInputRef.current?.blur()
+    setActiveTab('logs')
+  }, [setActiveTab])
+
+  useEffect(() => {
+    const wasEnabled = logsPrototypeWasEnabledRef.current
+    if (logsPrototypeEnabled && !wasEnabled) {
+      setActiveTab('logs')
+    } else if (!logsPrototypeEnabled && activeTab === 'logs') {
+      setActiveTab('toolbar')
+    }
+    logsPrototypeWasEnabledRef.current = logsPrototypeEnabled
+  }, [activeTab, logsPrototypeEnabled, setActiveTab])
+
+  useEffect(() => {
+    /**
+     * Skip the first commit: the logs tab is selected by the effect above, so on
+     * mount `activeTab` still holds the previous tab and closing here would tear
+     * down the snapshot the deep-linked run just opened.
+     */
+    if (!hasSyncedSnapshotTabRef.current) {
+      hasSyncedSnapshotTabRef.current = true
+      return
+    }
+    if (!logsPrototypeEnabled || activeTab !== 'logs') {
+      closeSnapshot()
+    }
+  }, [activeTab, closeSnapshot, logsPrototypeEnabled])
+
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
   const isLoadingPermissions = userPermissions.isLoading
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled =
-    !isExecuting && (isUsageGateLoading || isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+    Boolean(snapshot) ||
+    (!isExecuting &&
+      (isUsageGateLoading || isWorkflowBlocked || (!canRun && !isLoadingPermissions)))
 
   /**
    * Register global keyboard shortcuts using the central commands registry.
@@ -174,6 +215,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
       {
         id: 'run-workflow',
         handler: () => {
+          if (snapshot) return
           if (isExecuting) {
             void cancelWorkflow()
           } else {
@@ -210,13 +252,13 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
             <Deploy
               activeWorkflowId={activeWorkflowId}
               userPermissions={userPermissions}
-              disabled={workflowLocked}
+              disabled={workflowLocked || Boolean(snapshot)}
             />
             <Chip
               variant={isExecuting ? undefined : 'primary'}
               active={isExecuting}
               onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
-              disabled={!isExecuting && isButtonDisabled}
+              disabled={isButtonDisabled}
               aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
               leftAdornment={
                 <span
@@ -255,6 +297,8 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
               onSearchNavigate={handleToolbarSearchNavigate}
               onToolbarSelect={handleFocusToolbarSearch}
               onEditorSelect={handleEditorSelect}
+              onLogsSelect={handleLogsSelect}
+              showLogs={logsPrototypeEnabled}
               editorActions={<EditorPanelActions onClose={handleCloseEditor} />}
             />
 
@@ -282,6 +326,17 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
               >
                 <Editor />
               </div>
+              {logsPrototypeEnabled ? (
+                <div
+                  data-tab-content='logs'
+                  className={cn(
+                    'h-full min-h-0 flex-col overflow-hidden',
+                    activeTab === 'logs' ? 'flex' : 'hidden'
+                  )}
+                >
+                  <Logs />
+                </div>
+              ) : null}
             </div>
           </div>
 

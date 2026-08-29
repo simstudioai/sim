@@ -14,7 +14,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { cn, toast } from '@sim/emcn'
+import { Chip, cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -144,6 +144,7 @@ import {
   useExecutionStore,
   useLastExecutionSnapshot,
 } from '@/stores/execution'
+import { useWorkflowRunSnapshotStore } from '@/stores/logs/workflow-run-snapshot'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { PendingConnect } from '@/stores/modals/search/types'
 import { usePanelEditorSearchStore, usePanelEditorStore, usePanelStore } from '@/stores/panel'
@@ -162,6 +163,18 @@ const LazyChat = lazy(() =>
   import('@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat').then((mod) => ({
     default: mod.Chat,
   }))
+)
+
+const LazyExecutionSnapshot = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
+  ).then((mod) => ({ default: mod.ExecutionSnapshot }))
+)
+
+const LazyRunSnapshotWorkspace = lazy(() =>
+  import(
+    '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/logs/run-snapshot-workspace'
+  ).then((mod) => ({ default: mod.RunSnapshotWorkspace }))
 )
 
 const logger = createLogger('Workflow')
@@ -327,6 +340,8 @@ const WorkflowContent = React.memo(
     const initializedViewportWorkflowIdRef = useRef<string | null>(null)
     const userFocusedWorkflowIdRef = useRef<string | null>(null)
     const canvasMode = useCanvasModeStore((state) => state.mode)
+    const workflowRunSnapshot = useWorkflowRunSnapshotStore((state) => state.snapshot)
+    const closeWorkflowRunSnapshot = useWorkflowRunSnapshotStore((state) => state.closeSnapshot)
     const isHandMode = embedded ? true : canvasMode === 'hand'
     const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
     const [oauthModal, setOauthModal] = useState<{
@@ -5307,6 +5322,52 @@ const WorkflowContent = React.memo(
             )}
 
             {!embedded && <Panel onCloseEditor={handleClosePanelEditor} />}
+            {!embedded && workflowRunSnapshot ? (
+              <div className='absolute inset-y-0 right-[var(--panel-width)] left-0 z-[15] overflow-hidden bg-[var(--bg)]'>
+                <Suspense
+                  fallback={
+                    <div className='flex h-full items-center justify-center'>
+                      <span className='text-[var(--text-tertiary)] text-sm'>Loading snapshot…</span>
+                    </div>
+                  }
+                >
+                  {workflowRunSnapshot.workflowState ? (
+                    <LazyRunSnapshotWorkspace
+                      workflowState={workflowRunSnapshot.workflowState}
+                      selectedBlockId={workflowRunSnapshot.selectedBlockId}
+                      mode={workflowRunSnapshot.mode}
+                    />
+                  ) : (
+                    <LazyExecutionSnapshot
+                      executionId={workflowRunSnapshot.executionId}
+                      traceSpans={workflowRunSnapshot.traceSpans}
+                      className='h-full w-full'
+                      autoSelectLeftmost={false}
+                      showBlockCloseButton
+                      showBorder={false}
+                    />
+                  )}
+                </Suspense>
+                <div
+                  className={cn(
+                    'pointer-events-none absolute inset-x-0 top-[52px] z-20 flex justify-center px-3',
+                    workflowRunSnapshot.workflowState && 'hidden'
+                  )}
+                >
+                  <div className='pointer-events-auto flex max-w-full items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] py-1.5 pr-1.5 pl-3 shadow-lg'>
+                    <div className='min-w-0'>
+                      <span className='block truncate text-[var(--text-primary)] text-sm'>
+                        Run snapshot
+                      </span>
+                      <span className='block truncate text-[var(--text-tertiary)] text-caption'>
+                        Historical workflow state · Read only
+                      </span>
+                    </div>
+                    <Chip onClick={closeWorkflowRunSnapshot}>Back to current</Chip>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {!embedded && <WorkflowSearchReplace />}
 

@@ -54,7 +54,18 @@ export const chipContentGap = 'gap-1.5'
  * current-location label or a non-navigable breadcrumb) reuse it directly to
  * match a chip's shape without inheriting its hover.
  */
-export const chipGeometryWithoutRadiusClass = `h-[30px] items-center ${chipContentGap} px-2 text-left text-sm`
+/** Geometry every chip size shares; the size variants supply height, padding and type. */
+export const chipGeometryBaseClass = `items-center ${chipContentGap} text-left`
+/**
+ * Per-size geometry. `md` is the default control height used across the app;
+ * `sm` is the compact form for dense toolbars — a filter switcher sitting beside
+ * a section label rather than a control in its own right.
+ */
+export const chipSizeClasses = {
+  sm: 'h-[22px] px-1.5 text-caption',
+  md: 'h-[30px] px-2 text-sm',
+} as const
+export const chipGeometryWithoutRadiusClass = `${chipGeometryBaseClass} ${chipSizeClasses.md}`
 /** Standalone chip geometry, including the canonical 8px control radius. */
 export const chipGeometryClass = `${chipGeometryWithoutRadiusClass} rounded-lg`
 /** Chip-content icon (non-inverse): 16px, non-shrinking, `--text-icon`. Inverse chip variants override the color to `currentColor`. */

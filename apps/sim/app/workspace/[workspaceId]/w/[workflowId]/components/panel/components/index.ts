@@ -1,4 +1,5 @@
 export { Deploy } from './deploy'
 export { Editor, EditorPanelActions } from './editor'
+export { LogsPrototype as Logs } from './logs/logs-prototype'
 export { PanelViewControls } from './panel-view-controls'
 export { Toolbar } from './toolbar'

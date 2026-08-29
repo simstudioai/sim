@@ -45,8 +45,12 @@ interface ExecutionSnapshotProps {
   height?: string | number
   width?: string | number
   isModal?: boolean
+  showBorder?: boolean
   isOpen?: boolean
   onClose?: () => void
+  initialSelectedBlockId?: string | null
+  autoSelectLeftmost?: boolean
+  showBlockCloseButton?: boolean
 }
 
 export function ExecutionSnapshot({
@@ -56,8 +60,12 @@ export function ExecutionSnapshot({
   height = '100%',
   width = '100%',
   isModal = false,
+  showBorder = !isModal,
   isOpen = false,
   onClose = () => {},
+  initialSelectedBlockId,
+  autoSelectLeftmost = true,
+  showBlockCloseButton = !isModal,
 }: ExecutionSnapshotProps) {
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
   const modalDescriptionId = useId()
@@ -160,9 +168,10 @@ export function ExecutionSnapshot({
         height={height}
         width={width}
         onCanvasContextMenu={handleCanvasContextMenu}
-        showBorder={!isModal}
-        autoSelectLeftmost
-        showBlockCloseButton={!isModal}
+        showBorder={showBorder}
+        initialSelectedBlockId={initialSelectedBlockId}
+        autoSelectLeftmost={autoSelectLeftmost}
+        showBlockCloseButton={showBlockCloseButton}
       />
     )
   }

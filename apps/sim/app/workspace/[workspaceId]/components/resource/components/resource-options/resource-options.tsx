@@ -28,6 +28,22 @@ const SEARCH_ICON = (
 const RESOURCE_MENU_EDGE_OFFSET = 6
 
 /**
+ * Edge fade for the compact filter-tag row. Transparent for the bar's own 12px
+ * gutter at each end, so a tag scrolled under it dissolves into the padding
+ * rather than stopping at a hard line.
+ */
+const TAG_ROW_FADE =
+  'linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)'
+
+/**
+ * Control scale for the bar. `md` is the page default; `sm` is for the narrow
+ * surfaces — the editor panel — where the page-scale controls eat the width the
+ * list needs. Only the chrome shrinks: the same controls, in the same order,
+ * doing the same things.
+ */
+export type ResourceOptionsSize = 'sm' | 'md'
+
+/**
  * Section heading inside a filter popover ("File Type", "Owner", …). One constant so every
  * resource list labels its filter sections identically — muted at the field-title size, per
  * the label role in `sim-styling.md`.
@@ -66,6 +82,12 @@ export interface SearchConfig {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  /**
+   * Drops the leading magnifier. For surfaces that already carry a search
+   * affordance directly above this bar, where a second one reads as two
+   * different searches rather than one.
+   */
+  hideIcon?: boolean
   inputRef?: React.RefObject<HTMLInputElement | null>
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onFocus?: () => void
@@ -114,6 +136,8 @@ interface ResourceOptionsProps {
    * so it is separated from the menu group rather than joined to it.
    */
   trailing?: ReactNode
+  /** Control scale. Defaults to the page-scale `md`. */
+  size?: ResourceOptionsSize
 }
 
 export const ResourceOptions = memo(function ResourceOptions({
@@ -124,6 +148,7 @@ export const ResourceOptions = memo(function ResourceOptions({
   aside,
   asideEnd,
   trailing,
+  size = 'md',
 }: ResourceOptionsProps) {
   /**
    * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
@@ -136,6 +161,16 @@ export const ResourceOptions = memo(function ResourceOptions({
   const isToggleFilter = filter?.mode === 'toggle'
   const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
 
+  /**
+   * Applied filters sit inline with Filter and Sort on a page-width bar, but on
+   * a narrow one every tag shoves those two controls sideways and squeezes the
+   * search. There they take their own row instead, scrolling sideways so the
+   * controls stay put however many filters are on.
+   */
+  const stackTags = size === 'sm'
+  const hasTags = Boolean(filterTags && filterTags.length > 0)
+  const inlineTags = stackTags ? undefined : filterTags
+
   const hasContent =
     search ||
     sort ||
@@ -147,21 +182,31 @@ export const ResourceOptions = memo(function ResourceOptions({
   if (!hasContent) return null
 
   return (
-    <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
+    <div
+      className={cn(
+        'border-[var(--border)] border-b',
+        size === 'sm' ? 'px-3 py-1.5' : cn('py-2.5', search ? 'px-6' : 'px-4')
+      )}
+    >
       <div className='flex items-center'>
-        {search && <SearchSection search={search} />}
+        {search && <SearchSection search={search} size={size} />}
         {/* `ml-auto` moves to `trailing` when present so the menu cluster stays put
             and only the trailing action is pushed to the far edge. */}
         <div className={cn('flex shrink-0 items-center gap-1.5', search && !trailing && 'ml-auto')}>
           {aside}
           <div className='flex items-center gap-1'>
-            {filterTags?.map((tag) => (
-              <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
+            {inlineTags?.map((tag) => (
+              <Chip key={tag.label} size={size} rightIcon={X} onClick={tag.onRemove}>
                 {tag.label}
               </Chip>
             ))}
             {isToggleFilter && filter.mode === 'toggle' ? (
-              <Chip active={filter.active} leftIcon={ListFilter} onClick={filter.onToggle}>
+              <Chip
+                size={size}
+                active={filter.active}
+                leftIcon={ListFilter}
+                onClick={filter.onToggle}
+              >
                 Filter
               </Chip>
             ) : popoverFilter ? (
@@ -176,13 +221,14 @@ export const ResourceOptions = memo(function ResourceOptions({
                 <PopoverPrimitive.Anchor asChild>
                   <div className='flex items-center gap-1'>
                     <PopoverPrimitive.Trigger asChild>
-                      <Chip active={popoverFilter.active} leftIcon={ListFilter}>
+                      <Chip size={size} active={popoverFilter.active} leftIcon={ListFilter}>
                         Filter
                       </Chip>
                     </PopoverPrimitive.Trigger>
                     {sort && (
                       <SortDropdown
                         config={sort}
+                        size={size}
                         open={openMenu === 'sort'}
                         onOpenChange={(open) =>
                           setOpenMenu((current) =>
@@ -209,20 +255,51 @@ export const ResourceOptions = memo(function ResourceOptions({
                 </PopoverPrimitive.Portal>
               </PopoverPrimitive.Root>
             ) : null}
-            {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
+            {sort && (isToggleFilter || !popoverFilter) && (
+              <SortDropdown config={sort} size={size} />
+            )}
           </div>
           {asideEnd}
         </div>
         {trailing && <div className='ml-auto flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
+      {stackTags && hasTags && (
+        /*
+         * Masked at both ends rather than wrapped: a tag cut off mid-fade says
+         * there is more to scroll to, where a wrapped row silently grows the bar
+         * taller the more filters are on. The mask is symmetrical because the row
+         * can be scrolled away from either edge.
+         */
+        <div
+          className='-mx-3 mt-1.5 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          style={{
+            maskImage: TAG_ROW_FADE,
+            WebkitMaskImage: TAG_ROW_FADE,
+          }}
+        >
+          <div className='flex w-max items-center gap-1'>
+            {filterTags?.map((tag) => (
+              <Chip key={tag.label} size={size} rightIcon={X} onClick={tag.onRemove}>
+                {tag.label}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 })
 
-const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
+const SearchSection = memo(function SearchSection({
+  search,
+  size,
+}: {
+  search: SearchConfig
+  size: ResourceOptionsSize
+}) {
   return (
     <div className='relative flex flex-1 items-center gap-1.5'>
-      {SEARCH_ICON}
+      {search.hideIcon ? null : SEARCH_ICON}
       <div className='flex flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {search.tags?.map((tag, i) => (
           <Chip
@@ -246,7 +323,17 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
           onFocus={search.onFocus}
           onBlur={search.onBlur}
           placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
-          className={cn(chipFieldTextClass, 'min-w-[80px] flex-1 bg-transparent py-1')}
+          className={cn(
+            chipFieldTextClass,
+            'min-w-[80px] flex-1 bg-transparent py-1',
+            size === 'sm' && 'text-caption',
+            /*
+             * Without the leading icon the field sits flush against the bar's
+             * gutter, half a chip's padding left of the filter tags beneath it.
+             * Indenting by that padding puts the two text edges on one line.
+             */
+            search.hideIcon && 'ps-1.5'
+          )}
         />
       </div>
       {search.tags?.length || search.value ? (
@@ -273,6 +360,8 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
 
 interface SortDropdownProps {
   config: SortConfig
+  /** Control scale, matching {@link ResourceOptionsProps.size}. */
+  size?: ResourceOptionsSize
   /** Controlled open state — omit for standalone (uncontrolled) usage. */
   open?: boolean
   /** Controlled open-change handler, paired with {@link SortDropdownProps.open}. */
@@ -281,6 +370,7 @@ interface SortDropdownProps {
 
 export const SortDropdown = memo(function SortDropdown({
   config,
+  size = 'md',
   open,
   onOpenChange,
 }: SortDropdownProps) {
@@ -289,7 +379,7 @@ export const SortDropdown = memo(function SortDropdown({
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Chip active={Boolean(active)} leftIcon={ArrowUpDown}>
+        <Chip size={size} active={Boolean(active)} leftIcon={ArrowUpDown}>
           Sort
         </Chip>
       </DropdownMenuTrigger>
