@@ -5720,7 +5720,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             filter: {
               type: ['object', 'null'],
               description:
-                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit or null for an unfiltered view.',
+                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. On update_view, omit to keep the existing filter, pass null to clear it, or pass a predicate to replace it. On create_view, omit or pass null for an unfiltered view.',
             },
             hiddenColumns: {
               type: 'array',
@@ -5743,7 +5743,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             sort: {
               type: ['array', 'null'],
               description:
-                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. Omit or null for default ordering.',
+                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. On update_view, omit to keep the existing sort, pass null to clear it, or pass a sort spec to replace it. On create_view, omit or pass null for default ordering.',
             },
             tableId: {
               type: 'string',
