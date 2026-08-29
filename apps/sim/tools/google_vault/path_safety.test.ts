@@ -271,7 +271,7 @@ describe('google vault path-ID traversal safety', () => {
       })
     })
 
-    it.each(LEGITIMATE_IDS)('passes %j through unchanged %j', (value) => {
+    it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
       const encoded = expectedSegment(value)
       const actual = segmentsOf(buildUrl(tool, paramName, value))
 
