@@ -4,9 +4,13 @@
  * Guards every Box Sign tool against path traversal through the LLM-writable
  * `signRequestId`.
  *
- * This one was interpolated with no treatment at all — not even a `.trim()` —
- * into `/2.0/sign_requests/${safeUrlPathSegment(params.signRequestId, 'signRequestId')}`, and two of the three
- * call sites are state-changing (`/cancel`, `/resend`).
+ * Before this fix, `signRequestId` reached the path with no treatment at all —
+ * not even a `.trim()` — under `/2.0/sign_requests/`, so a value such as
+ * `../../users/me` re-aimed an authenticated request at another Box resource.
+ * Two of the three call sites are state-changing (`/cancel`, `/resend`).
+ *
+ * It now goes through `safeUrlPathSegment`, which is what the assertions below
+ * pin; the description above is of the defect, not of the current code.
  */
 import { describe, expect, it } from 'vitest'
 import {
