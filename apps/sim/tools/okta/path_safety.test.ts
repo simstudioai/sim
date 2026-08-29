@@ -64,20 +64,27 @@ const TRAVERSAL_IDS = [
  * login, or login shortname (as long as the shortname is unambiguous) of an
  * existing Okta user").
  *
- * KNOWN OPEN QUESTION — a login containing `/`. `safeUrlPathSegment` rejects
- * any value carrying a path separator, whereas the previous
- * `encodeURIComponent` emitted `%2F`, which survives URL normalization intact
- * (`/api/v1/users/a%2Fb` stays one segment). So for the nine `{id}` endpoints
- * that accept a login, a `/`-bearing login that Okta may previously have
- * resolved is now refused. Whether Okta ever resolved it is undocumented and
- * could not be confirmed from any reachable Okta source.
+ * A login containing `/` is the one value the guard refuses that the previous
+ * `encodeURIComponent` would have emitted as `%2F` — and `%2F` survives URL
+ * normalization intact, so the old code did put it on the wire. That is not a
+ * capability being lost. Okta's published OpenAPI description for
+ * `GET /api/v1/users/{id}` states it directly:
  *
- * This is deliberately not worked around here. `%2F` is not itself a traversal
- * vector — only literal `.`/`..` and their percent-encoded spellings are
- * removed by the parser — so the separator check is defense in depth rather
- * than the load-bearing half of the fix, and it lives in shared
- * `@/tools/url-path` used by every integration. Narrowing it is a decision for
- * that module, not for the Okta tools.
+ *   "When fetching a user by `login` or `login shortname`, URL encode the
+ *   request parameter to ensure that special characters are escaped properly.
+ *   Logins with a `/` character can only be fetched by `id` due to URL issues
+ *   with escaping the `/` character."
+ *
+ * Percent-encoding is precisely the approach Okta documents as not working, so
+ * the old behaviour produced a request Okta cannot serve. Rejecting the value
+ * by name is strictly more legible than the 404 it earned before.
+ *
+ * Verified against Okta's own spec rather than its docs site: the developer
+ * portal renders these pages client-side and serves an empty shell to a plain
+ * fetch, so the text is only reachable in the OpenAPI document the official Go
+ * SDK is generated from — `okta/okta-sdk-golang`,
+ * `.generator/okta-management-APIs-oasv3-noEnums-inheritance.yaml`, line 22166,
+ * under the path declared at line 22154.
  */
 const LEGITIMATE_IDS = [
   '00u1a2b3c4D5E6F7G8h9',
