@@ -240,6 +240,9 @@ describe('executeWorkflow', () => {
       edges: [],
       loops: {},
       parallels: {},
+      variables: {
+        'variable-1': { id: 'variable-1', name: 'deployed', value: 'frozen' },
+      },
       deploymentVersionId: 'deployment-version-1',
     }
 
@@ -254,6 +257,7 @@ describe('executeWorkflow', () => {
       snapshot: ExecutionSnapshot
     }
     expect(coreParams.snapshot.metadata.workflowStateOverride).toEqual(workflowStateOverride)
+    expect(coreParams.snapshot.workflowVariables).toEqual(workflowStateOverride.variables)
   })
 
   it('waits for post-execution persistence before resolving', async () => {

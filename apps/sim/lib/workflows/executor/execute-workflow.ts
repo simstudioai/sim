@@ -166,7 +166,7 @@ export async function executeWorkflow(
       metadata,
       workflow,
       input,
-      workflow.variables || {},
+      streamConfig?.workflowStateOverride?.variables ?? workflow.variables ?? {},
       streamConfig?.selectedOutputs || []
     )
 
