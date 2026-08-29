@@ -11,22 +11,25 @@
  *
  * Usage:
  *   DATABASE_URL=... bun run apps/sim/scripts/backfill-table-workflow-deployments.ts
+ *   AWS_PROFILE=sim-admin bun --no-env-file apps/sim/scripts/backfill-table-workflow-deployments.ts --environment=staging
  */
 
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { loadRuntimeSecrets } from '@sim/runtime-secrets'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
-import {
-  type PerformFullDeployResult,
-  performFullDeploy,
-} from '@/lib/workflows/orchestration/deploy'
+import type { PerformFullDeployResult } from '@/lib/workflows/orchestration/deploy'
 
 const logger = createLogger('BackfillTableWorkflowDeployments')
 
 export const TABLE_WORKFLOW_DEPLOYMENT_BATCH_SIZE = 25
 const BACKFILL_ACTOR_ID = 'table-workflow-deployment-backfill'
 const BACKFILL_OPERATION_VERSION = 'v2'
+const STAGING_RUNTIME_SECRET_ID = '/staging/sim/env-vars'
+
+interface TableWorkflowDeploymentBackfillCliOptions {
+  environment?: 'staging'
+}
 
 export interface TableWorkflowDeploymentCandidate {
   workflowId: string
@@ -89,8 +92,69 @@ interface DeploymentStateRow extends Record<string, unknown> {
   is_deployed: boolean
 }
 
+/** Parses the deliberately small CLI surface for the backfill. */
+export function parseTableWorkflowDeploymentBackfillArgs(
+  args: readonly string[]
+): TableWorkflowDeploymentBackfillCliOptions {
+  let environment: TableWorkflowDeploymentBackfillCliOptions['environment']
+
+  for (const arg of args) {
+    if (!arg.startsWith('--environment=')) {
+      throw new Error(`Unknown argument: ${arg}`)
+    }
+    if (environment) {
+      throw new Error('The --environment argument can only be provided once')
+    }
+
+    const requestedEnvironment = arg.slice('--environment='.length)
+    if (requestedEnvironment !== 'staging') {
+      throw new Error(`Unsupported backfill environment: ${requestedEnvironment || '(empty)'}`)
+    }
+    environment = requestedEnvironment
+  }
+
+  return { environment }
+}
+
+/** Loads staging configuration before modules that read database settings are imported. */
+export async function prepareTableWorkflowDeploymentBackfillEnvironment(
+  args: readonly string[]
+): Promise<void> {
+  const { environment } = parseTableWorkflowDeploymentBackfillArgs(args)
+  if (!environment) return
+
+  const configuredSecretId = process.env.SIM_ENV_SECRET_ID
+  if (configuredSecretId && configuredSecretId !== STAGING_RUNTIME_SECRET_ID) {
+    throw new Error(
+      `SIM_ENV_SECRET_ID is already set to ${configuredSecretId}; expected ${STAGING_RUNTIME_SECRET_ID}`
+    )
+  }
+
+  const configuredDatabaseVariables = ['DATABASE_URL', 'DATABASE_URL_WEB'].filter(
+    (key) => key in process.env
+  )
+  if (configuredDatabaseVariables.length > 0) {
+    throw new Error(
+      `Unset ${configuredDatabaseVariables.join(', ')} before using --environment=staging so local configuration cannot override staging`
+    )
+  }
+
+  process.env.SIM_ENV_SECRET_ID = STAGING_RUNTIME_SECRET_ID
+  await loadRuntimeSecrets()
+
+  if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_WEB) {
+    throw new Error(`${STAGING_RUNTIME_SECRET_ID} did not provide a database URL`)
+  }
+}
+
+async function getDatabase() {
+  const { db } = await import('@sim/db')
+  return db
+}
+
 /** Ensures the table group references can be traversed without silently dropping corrupt data. */
 async function assertTableWorkflowIntegrity(): Promise<void> {
+  const db = await getDatabase()
   const [invalidSchema] = await db.execute<InvalidTableSchemaRow>(sql`
     SELECT id AS table_id
     FROM user_table_definitions
@@ -200,6 +264,7 @@ export const postgresTableWorkflowDeploymentStore: TableWorkflowDeploymentStore 
   assertIntegrity: assertTableWorkflowIntegrity,
 
   async listCandidates(afterWorkflowId, limit) {
+    const db = await getDatabase()
     const rows = await db.execute<CandidateRow>(sql`
       WITH referenced_workflow_ids AS (
         SELECT DISTINCT workflow_group.value->>'workflowId' AS workflow_id
@@ -238,6 +303,7 @@ export const postgresTableWorkflowDeploymentStore: TableWorkflowDeploymentStore 
   },
 
   async isDeployed(workflowId) {
+    const db = await getDatabase()
     const [state] = await db.execute<DeploymentStateRow>(sql`
       SELECT
         workflow.is_deployed,
@@ -265,6 +331,7 @@ export const postgresTableWorkflowDeploymentStore: TableWorkflowDeploymentStore 
 export async function deployTableWorkflow(
   candidate: TableWorkflowDeploymentCandidate
 ): Promise<PerformFullDeployResult> {
+  const { performFullDeploy } = await import('@/lib/workflows/orchestration/deploy')
   return performFullDeploy({
     workflowId: candidate.workflowId,
     userId: candidate.userId,
@@ -365,8 +432,13 @@ export async function runTableWorkflowDeploymentBackfill(): Promise<void> {
   logger.info('Table workflow deployment backfill completed', summary)
 }
 
+async function main(): Promise<void> {
+  await prepareTableWorkflowDeploymentBackfillEnvironment(process.argv.slice(2))
+  await runTableWorkflowDeploymentBackfill()
+}
+
 if ((import.meta as { main?: boolean }).main) {
-  runTableWorkflowDeploymentBackfill()
+  main()
     .then(() => process.exit(0))
     .catch((error: unknown) => {
       logger.error('Table workflow deployment backfill failed', {

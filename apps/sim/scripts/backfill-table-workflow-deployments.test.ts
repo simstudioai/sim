@@ -1,10 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPerformFullDeploy } = vi.hoisted(() => ({
+const { mockLoadRuntimeSecrets, mockPerformFullDeploy } = vi.hoisted(() => ({
+  mockLoadRuntimeSecrets: vi.fn(),
   mockPerformFullDeploy: vi.fn(),
+}))
+
+vi.mock('@sim/runtime-secrets', () => ({
+  loadRuntimeSecrets: mockLoadRuntimeSecrets,
 }))
 
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
@@ -14,10 +19,27 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
 import {
   backfillTableWorkflowDeployments,
   deployTableWorkflow,
+  parseTableWorkflowDeploymentBackfillArgs,
+  prepareTableWorkflowDeploymentBackfillEnvironment,
   TABLE_WORKFLOW_DEPLOYMENT_BATCH_SIZE,
   type TableWorkflowDeploymentCandidate,
   type TableWorkflowDeploymentStore,
 } from '@/scripts/backfill-table-workflow-deployments'
+
+const ORIGINAL_ENV = {
+  DATABASE_URL: process.env.DATABASE_URL,
+  DATABASE_URL_WEB: process.env.DATABASE_URL_WEB,
+  SIM_ENV_SECRET_ID: process.env.SIM_ENV_SECRET_ID,
+}
+
+function restoreEnvironmentVariable(key: keyof typeof ORIGINAL_ENV): void {
+  const value = ORIGINAL_ENV[key]
+  if (value === undefined) {
+    Reflect.deleteProperty(process.env, key)
+  } else {
+    process.env[key] = value
+  }
+}
 
 function candidate(workflowId: string): TableWorkflowDeploymentCandidate {
   return {
@@ -41,6 +63,53 @@ function store(
 describe('backfillTableWorkflowDeployments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    restoreEnvironmentVariable('DATABASE_URL')
+    restoreEnvironmentVariable('DATABASE_URL_WEB')
+    restoreEnvironmentVariable('SIM_ENV_SECRET_ID')
+  })
+
+  it('loads the staging runtime secret before database modules are needed', async () => {
+    Reflect.deleteProperty(process.env, 'DATABASE_URL')
+    Reflect.deleteProperty(process.env, 'DATABASE_URL_WEB')
+    Reflect.deleteProperty(process.env, 'SIM_ENV_SECRET_ID')
+    mockLoadRuntimeSecrets.mockImplementation(async () => {
+      process.env.DATABASE_URL = 'postgres://staging/database'
+    })
+
+    await prepareTableWorkflowDeploymentBackfillEnvironment(['--environment=staging'])
+
+    expect(process.env.SIM_ENV_SECRET_ID).toBe('/staging/sim/env-vars')
+    expect(mockLoadRuntimeSecrets).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the existing local DATABASE_URL mode when no environment is requested', async () => {
+    process.env.DATABASE_URL = 'postgres://local/database'
+
+    await prepareTableWorkflowDeploymentBackfillEnvironment([])
+
+    expect(mockLoadRuntimeSecrets).not.toHaveBeenCalled()
+    expect(process.env.DATABASE_URL).toBe('postgres://local/database')
+  })
+
+  it('rejects unsupported, unknown, duplicate, and locally configured staging arguments', async () => {
+    expect(() => parseTableWorkflowDeploymentBackfillArgs(['--environment=production'])).toThrow(
+      'Unsupported backfill environment: production'
+    )
+    expect(() => parseTableWorkflowDeploymentBackfillArgs(['--dry-run'])).toThrow(
+      'Unknown argument: --dry-run'
+    )
+    expect(() =>
+      parseTableWorkflowDeploymentBackfillArgs(['--environment=staging', '--environment=staging'])
+    ).toThrow('can only be provided once')
+
+    process.env.DATABASE_URL = 'postgres://local/database'
+    await expect(
+      prepareTableWorkflowDeploymentBackfillEnvironment(['--environment=staging'])
+    ).rejects.toThrow('local configuration cannot override staging')
+    expect(mockLoadRuntimeSecrets).not.toHaveBeenCalled()
   })
 
   it('deploys bounded keyset pages and verifies the final desired state', async () => {
