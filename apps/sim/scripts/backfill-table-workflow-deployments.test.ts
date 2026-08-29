@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLoadRuntimeSecrets, mockPerformFullDeploy } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ import {
   backfillTableWorkflowDeployments,
   deployTableWorkflow,
   parseTableWorkflowDeploymentBackfillArgs,
+  postgresTableWorkflowDeploymentStore,
   prepareTableWorkflowDeploymentBackfillEnvironment,
   TABLE_WORKFLOW_DEPLOYMENT_BATCH_SIZE,
   type TableWorkflowDeploymentCandidate,
@@ -30,6 +32,10 @@ const ORIGINAL_ENV = {
   DATABASE_URL: process.env.DATABASE_URL,
   DATABASE_URL_WEB: process.env.DATABASE_URL_WEB,
   SIM_ENV_SECRET_ID: process.env.SIM_ENV_SECRET_ID,
+}
+
+interface MockSqlQuery {
+  toSQL(): { sql: string }
 }
 
 function restoreEnvironmentVariable(key: keyof typeof ORIGINAL_ENV): void {
@@ -63,6 +69,7 @@ function store(
 describe('backfillTableWorkflowDeployments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   afterEach(() => {
@@ -110,6 +117,17 @@ describe('backfillTableWorkflowDeployments', () => {
       prepareTableWorkflowDeploymentBackfillEnvironment(['--environment=staging'])
     ).rejects.toThrow('local configuration cannot override staging')
     expect(mockLoadRuntimeSecrets).not.toHaveBeenCalled()
+  })
+
+  it('silently excludes missing and archived workflow references from integrity checks', async () => {
+    await postgresTableWorkflowDeploymentStore.assertIntegrity()
+
+    const referenceQuery = dbChainMockFns.execute.mock.calls[2]?.[0] as MockSqlQuery
+    const queryText = referenceQuery.toSQL().sql
+    expect(queryText).toContain('INNER JOIN workflow')
+    expect(queryText).toContain('workflow.archived_at IS NULL')
+    expect(queryText).not.toContain('LEFT JOIN workflow')
+    expect(queryText).not.toContain('workflow.id IS NULL')
   })
 
   it('deploys bounded keyset pages and verifies the final desired state', async () => {

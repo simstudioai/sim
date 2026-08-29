@@ -73,7 +73,7 @@ interface InvalidWorkflowReferenceRow extends Record<string, unknown> {
   table_id: string
   table_workspace_id: string
   workflow_id: string
-  workflow_workspace_id: string | null
+  workflow_workspace_id: string
 }
 
 interface MultipleActiveVersionsRow extends Record<string, unknown> {
@@ -212,22 +212,16 @@ async function assertTableWorkflowIntegrity(): Promise<void> {
       table_workflow_groups.workflow_id,
       workflow.workspace_id AS workflow_workspace_id
     FROM table_workflow_groups
-    LEFT JOIN workflow ON workflow.id = table_workflow_groups.workflow_id
+    INNER JOIN workflow ON workflow.id = table_workflow_groups.workflow_id
+      AND workflow.archived_at IS NULL
     WHERE table_workflow_groups.workflow_id <> ''
-      AND (
-        workflow.id IS NULL
-        OR (
-          workflow.archived_at IS NULL
-          AND workflow.workspace_id IS DISTINCT FROM table_workflow_groups.table_workspace_id
-        )
-      )
+      AND workflow.workspace_id IS DISTINCT FROM table_workflow_groups.table_workspace_id
     LIMIT 1
   `)
   if (invalidReference) {
-    const workflowScope = invalidReference.workflow_workspace_id ?? 'missing'
     throw new Error(
       `Table ${invalidReference.table_id} in workspace ${invalidReference.table_workspace_id} ` +
-        `references workflow ${invalidReference.workflow_id} in workspace ${workflowScope}`
+        `references workflow ${invalidReference.workflow_id} in workspace ${invalidReference.workflow_workspace_id}`
     )
   }
 
