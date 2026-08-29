@@ -9,6 +9,7 @@
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
 
 const {
   mockResolveSandbox,
@@ -22,12 +23,14 @@ const {
   mockE2BFilesRead,
   mockE2BFilesRemove,
   mockE2BFilesWrite,
+  mockE2BFilesList,
   mockE2BKill,
   mockDaytonaCreate,
   mockInterpreterRunCode,
   mockProcessCodeRun,
   mockExecuteCommand,
   mockGetFileDetails,
+  mockListFiles,
   mockUploadFile,
   mockDownloadFile,
   mockDownloadFileStream,
@@ -71,12 +74,14 @@ const {
   mockE2BFilesRead: vi.fn(),
   mockE2BFilesRemove: vi.fn(),
   mockE2BFilesWrite: vi.fn(),
+  mockE2BFilesList: vi.fn(),
   mockE2BKill: vi.fn(),
   mockDaytonaCreate: vi.fn(),
   mockInterpreterRunCode: vi.fn(),
   mockProcessCodeRun: vi.fn(),
   mockExecuteCommand: vi.fn(),
   mockGetFileDetails: vi.fn(),
+  mockListFiles: vi.fn(),
   mockUploadFile: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockDownloadFileStream: vi.fn(),
@@ -266,6 +271,7 @@ beforeEach(() => {
       read: mockE2BFilesRead,
       remove: mockE2BFilesRemove,
       write: mockE2BFilesWrite,
+      list: mockE2BFilesList,
     },
     kill: mockE2BKill,
   })
@@ -296,6 +302,7 @@ beforeEach(() => {
       downloadFile: mockDownloadFile,
       downloadFileStream: mockDownloadFileStream,
       getFileDetails: mockGetFileDetails,
+      listFiles: mockListFiles,
     },
     delete: mockDelete,
   })
@@ -598,6 +605,171 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         sandboxFiles: [{ type: 'url', path: '/mnt/data/in.csv', url: 'https://example/f' }],
       })
     ).rejects.toThrow(/Failed to fetch mounted file/)
+  })
+
+  /** Stubs one directory listing in whichever shape the provider returns. */
+  function stubOutputDirListing(
+    entries: Array<{ path: string; size: number; kind?: 'file' | 'dir' }>
+  ) {
+    if (provider === 'e2b') {
+      mockE2BFilesList.mockResolvedValueOnce(
+        entries.map((entry) => ({
+          name: entry.path.split('/').pop(),
+          path: entry.path,
+          size: entry.size,
+          type: entry.kind === 'dir' ? 'dir' : 'file',
+        }))
+      )
+    } else {
+      mockListFiles.mockResolvedValueOnce(
+        entries.map((entry) => ({
+          name: entry.path.split('/').pop(),
+          path: entry.path,
+          size: entry.size,
+          isDir: entry.kind === 'dir',
+          mode: entry.kind === 'dir' ? 'drwxr-xr-x' : '-rw-r--r--',
+        }))
+      )
+    }
+  }
+
+  it('creates the output directory before user code runs', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([])
+
+    await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    // Regression guard. `outputSandboxDir` is this layer's contract, so this
+    // layer has to create the directory: when creation lived in the caller's
+    // runtime prologue instead, calling executeInSandbox directly left user
+    // code writing into a directory that did not exist, and every write was
+    // ENOENT. The sentinel must be written before the code file that runs.
+    const writeMock = provider === 'e2b' ? mockE2BFilesWrite : mockUploadFile
+    const writtenPaths = writeMock.mock.calls.map((call) =>
+      provider === 'e2b' ? call[0] : call[1]
+    )
+    const sentinelIndex = writtenPaths.findIndex((path: string) =>
+      path?.includes('/tmp/sim/outputs/.sim-keep')
+    )
+    const codeIndex = writtenPaths.findIndex((path: string) => path?.includes('.sim-function-'))
+    expect(sentinelIndex).toBeGreaterThanOrEqual(0)
+    expect(codeIndex).toBeGreaterThanOrEqual(0)
+    expect(sentinelIndex).toBeLessThan(codeIndex)
+  })
+
+  it('keeps the directory sentinel out of the harvest', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([
+      { path: `/tmp/sim/outputs/${SANDBOX_OUTPUT_DIR_SENTINEL}`, size: 0 },
+      { path: '/tmp/sim/outputs/real.txt', size: 4 },
+    ])
+    stubOutputFileSizes(provider, 4)
+    stubOutputFileRead(provider, 'real')
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles?.map((file) => file.relativePath)).toEqual(['real.txt'])
+  })
+
+  it('harvests files written to the output directory', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([{ path: '/tmp/sim/outputs/report.csv', size: 5 }])
+    stubOutputFileSizes(provider, 5)
+    stubOutputFileRead(provider, 'a,b\n1')
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles).toEqual([
+      {
+        path: '/tmp/sim/outputs/report.csv',
+        relativePath: 'report.csv',
+        // Always base64, so an arbitrary harvested filename can never be
+        // decoded as utf8 and silently corrupted.
+        contentBase64: Buffer.from('a,b\n1').toString('base64'),
+        byteLength: 5,
+      },
+    ])
+  })
+
+  it('excludes directories from the harvest', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([{ path: '/tmp/sim/outputs/nested', size: 0, kind: 'dir' }])
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles).toBeUndefined()
+  })
+
+  it('refuses a harvest whose nesting outran the listing depth', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    // A directory reported at the traversal limit still holds unlisted files.
+    // Returning the shallow ones would drop the rest without a word.
+    const deep = Array.from({ length: 12 }, (_, index) => `l${index + 1}`).join('/')
+    stubOutputDirListing([
+      { path: '/tmp/sim/outputs/shallow.txt', size: 4 },
+      { path: `/tmp/sim/outputs/${deep}`, size: 0, kind: 'dir' },
+    ])
+
+    await expect(
+      executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        outputSandboxDir: '/tmp/sim/outputs',
+      })
+    ).rejects.toThrow(/nested deeper than 12 levels/)
+  })
+
+  it('refuses a harvest over the output file count rather than truncating it', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing(
+      Array.from({ length: 21 }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+
+    await expect(
+      executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        outputSandboxDir: '/tmp/sim/outputs',
+      })
+    ).rejects.toThrow(/over the 20-file export limit/)
+  })
+
+  it('does not list the output directory when no harvest was requested', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+    })
+
+    expect(result.collectedFiles).toBeUndefined()
+    expect(provider === 'e2b' ? mockE2BFilesList : mockListFiles).not.toHaveBeenCalled()
   })
 
   it('materializes private code inputs after dependencies and user files', async () => {

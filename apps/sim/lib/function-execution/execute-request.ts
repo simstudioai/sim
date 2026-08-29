@@ -58,6 +58,10 @@ import {
   readUserFileContent,
   unavailableLargeValueError,
 } from '@/lib/execution/payloads/materialization.server'
+import {
+  collectSandboxFileMountRefs,
+  replaceSandboxFileMountRefs,
+} from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import {
@@ -76,20 +80,31 @@ import {
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
+  isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import {
+  MAX_BLOCK_MOUNTED_FILES,
+  SANDBOX_OUTPUT_DIR,
+} from '@/lib/execution/remote-sandbox/sandbox-paths'
+import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { deleteFiles } from '@/lib/uploads/core/storage-service'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
+import { escapeRegExp, normalizeName, REFERENCE, sanitizeFileName } from '@/executor/constants'
+import type { UserFile } from '@/executor/types'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
   createReferencePattern,
@@ -100,6 +115,7 @@ import {
   type ResolvedSecretMatcher,
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('FunctionExecuteAPI')
@@ -1202,11 +1218,25 @@ function activateReferencedSecretProvenance(context: FunctionRouteExecutionConte
   }
 }
 
-/** Compiled secret names that still demand redaction — the exempt ones don't count. */
+/**
+ * Compiled secret names that still demand redaction, and whose value a scan could
+ * actually find. Exempt names don't count.
+ *
+ * Non-identifying literals are excluded on the same predicate
+ * {@link createResolvedSecretMatcher} uses to drop them, because the two decisions
+ * have to agree. When every in-scope value is shorter than the substitutable-literal
+ * minimum, the matcher builds nothing and returns `undefined`; a counter that still
+ * reported those names would send
+ * {@link getOutputFileSecretProvenance} down its no-matcher branch and classify
+ * every output as `unknown` — failing an export while claiming it contains a
+ * secret that, by that very policy, is too short to be attributed to anything.
+ */
 function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext): number {
   let count = 0
-  for (const name of context.outputSecretPlaintextsByName.keys()) {
-    if (!context.unredactedSecretNames.has(name)) count += 1
+  for (const [name, plaintext] of context.outputSecretPlaintextsByName) {
+    if (context.unredactedSecretNames.has(name)) continue
+    if (isNonIdentifyingSecretLiteral(plaintext)) continue
+    count += 1
   }
   return count
 }
@@ -1824,6 +1854,179 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   })
 }
 
+/**
+ * Combines caller-supplied mounts — Copilot resolves its own workspace paths —
+ * with those resolved from platform file objects.
+ *
+ * A duplicate destination is rejected rather than settled by order:
+ * `writeSandboxInputs` materializes in sequence, so the later entry would
+ * silently overwrite the earlier one and the code would find something other
+ * than what it asked for at that path.
+ */
+function mergeSandboxFileMounts(
+  callerFiles: SandboxFile[] | undefined,
+  resolvedFiles: SandboxFile[]
+): SandboxFile[] | undefined {
+  if (!callerFiles?.length) return resolvedFiles.length > 0 ? resolvedFiles : undefined
+  if (resolvedFiles.length === 0) return callerFiles
+
+  const merged = [...callerFiles, ...resolvedFiles]
+  const seen = new Set<string>()
+  for (const file of merged) {
+    if (seen.has(file.path)) {
+      throw new Error(`Duplicate sandbox mount path: ${file.path}`)
+    }
+    seen.add(file.path)
+  }
+  return merged
+}
+
+/**
+ * A harvested file's name, derived from its path relative to the output
+ * directory. Subdirectories are folded into the name rather than dropped, so
+ * `reports/q4.csv` and `q4.csv` stay distinguishable — and a `/` never survives
+ * into a name that later reaches an email attachment or an upload filename.
+ */
+function collectedFileName(relativePath: string): string {
+  return sanitizeFileName(relativePath.split('/').filter(Boolean).join('-')) || 'file'
+}
+
+/**
+ * Persists files harvested from the sandbox output directory as platform file
+ * objects, so any downstream tool that accepts a file can consume them.
+ *
+ * Uploaded here, one at a time, rather than handed to the declarative
+ * file-output pipeline as bytes: that path would carry the whole export budget
+ * as base64 through `JSON.stringify`, a response buffer, and a re-parse, so
+ * several multiples of the payload would be live at once for a value that is a
+ * couple of hundred bytes per file once stored.
+ */
+/**
+ * Removes files already uploaded when a later one in the same harvest is refused.
+ *
+ * The route answers with a failure and hands back no references, so anything
+ * uploaded before the refusal is unreachable — but it still occupies storage,
+ * and the harvest is all-or-nothing by design. Best-effort on purpose: the
+ * caller needs to hear why its export was refused, not that the tidy-up failed.
+ */
+async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promise<void> {
+  if (files.length === 0) return
+  try {
+    await deleteFiles(
+      files.map((file) => file.key),
+      'execution'
+    )
+  } catch (error) {
+    logger.warn('Could not remove partially uploaded sandbox output files', {
+      fileCount: files.length,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+async function collectExecutionOutputFiles(args: {
+  routeContext: FunctionRouteExecutionContext
+  authUserId: string
+  workflowId?: string
+  workspaceId?: string
+  executionId?: string
+  collectedFiles: SandboxCollectedFile[]
+  stdout: string
+  executionTime: number
+}): Promise<{ files: UserFile[] } | { response: NextResponse }> {
+  const { routeContext, collectedFiles } = args
+  if (collectedFiles.length === 0) return { files: [] }
+
+  const resolvedWorkspaceId =
+    args.workspaceId ||
+    (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
+
+  // Fails rather than returning an empty list: the code did produce files, and
+  // reporting success without them would read as "your script wrote nothing".
+  if (!resolvedWorkspaceId || !args.workflowId || !args.executionId) {
+    return {
+      response: exportFailure(
+        'Workspace, workflow, and execution context are required to return files from the sandbox.',
+        400,
+        args.stdout,
+        args.executionTime
+      ),
+    }
+  }
+
+  const files: UserFile[] = []
+  // The harvest is all-or-nothing, so a throw partway through has to take the
+  // uploads that already succeeded with it. Without this they linger in storage
+  // with nothing referencing them, since the failure response carries no keys.
+  try {
+    for (const collected of args.collectedFiles) {
+      const buffer = Buffer.from(collected.contentBase64, 'base64')
+      const name = collectedFileName(collected.relativePath)
+      const mimeType = getMimeTypeFromExtension(getFileExtension(name))
+
+      // Scanned unconditionally — never gated on whether the bytes look textual.
+      // Both a filename check and a UTF-8 round-trip were trivially defeated: name
+      // the file `.png`, or append one invalid byte, and a plaintext secret sailed
+      // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
+      // findable in any buffer, textual or not.
+      //
+      // What stays out of reach is a secret carried in transformed form — deflated
+      // inside a PDF, re-encoded — which no substring scan can see. That is an
+      // inherent limit of scanning, not a hole in the gate, and it is why these
+      // files are execution-scoped rather than durable workspace files.
+      {
+        const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
+          userId: args.authUserId,
+          workspaceId: resolvedWorkspaceId,
+        })
+        // An execution-scoped file has nowhere to record a provenance envelope, so
+        // one carrying a resolved secret cannot ship under a lock the way a
+        // workspace file can — it is refused instead.
+        if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+          await discardUploadedExecutionFiles(files)
+          return {
+            response: exportFailure(
+              `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
+              400,
+              args.stdout,
+              args.executionTime
+            ),
+          }
+        }
+      }
+
+      const userFile = await uploadExecutionFile(
+        {
+          workspaceId: resolvedWorkspaceId,
+          workflowId: args.workflowId,
+          executionId: args.executionId,
+        },
+        buffer,
+        name,
+        mimeType,
+        args.authUserId
+      )
+      files.push(userFile)
+    }
+  } catch (error) {
+    await discardUploadedExecutionFiles(files)
+    throw error
+  }
+
+  // Registers the new keys on the execution so downstream blocks are authorized
+  // to read them back.
+  routeContext.fileKeys = [
+    ...new Set([...(routeContext.fileKeys ?? []), ...files.map((file) => file.key)]),
+  ]
+
+  logger.info('Returned sandbox output files', {
+    fileCount: files.length,
+    totalBytes: files.reduce((total, file) => total + file.size, 0),
+  })
+
+  return { files }
+}
+
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
@@ -1924,6 +2127,7 @@ export async function executeFunctionRequest(
       allowLargeValueWorkflowScope = false,
       workspaceId,
       isCustomTool = false,
+      files: mountedUserFiles,
       _sandboxFiles,
     } = body
 
@@ -1986,6 +2190,10 @@ export async function executeFunctionRequest(
       )
     }
 
+    // Planned before the runtime is chosen because it is pure: it decides whether
+    // this execution needs a sandbox filesystem at all, without spending a presign
+    // or a byte of transfer on a request the guard below may still refuse.
+
     const executionParams = { ...params }
     executionParams._context = undefined
 
@@ -2040,6 +2248,34 @@ export async function executeFunctionRequest(
       ...codeResolution.contextVariables,
       ...preResolvedContextVariables,
     }
+
+    /**
+     * Files this run must place on the sandbox filesystem: those a caller passed
+     * explicitly — how an agent supplies one, since a model cannot write a block
+     * reference — plus every file the code asked for with `<block.file.path>`,
+     * which arrives as a marker inside the resolved context variables.
+     */
+    const plannedFileMounts = planUserFileMounts([
+      ...((mountedUserFiles ?? []) as UserFile[]),
+      ...collectSandboxFileMountRefs(contextVariables),
+    ])
+    if (plannedFileMounts.length > MAX_BLOCK_MOUNTED_FILES) {
+      return functionJsonResponse(
+        {
+          success: false,
+          error: `Too many files mounted into the sandbox (${plannedFileMounts.length}). Maximum is ${MAX_BLOCK_MOUNTED_FILES}.`,
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 400 }
+      )
+    }
+    const requestsSandboxFilesystem =
+      plannedFileMounts.length > 0 ||
+      Boolean(_sandboxFiles?.length) ||
+      outputSandboxPaths.length > 0 ||
+      Boolean(outputSandboxPath)
+
     const compilation = await compileCodePlaceholders({
       code: codeResolution.resolvedCode,
       language: lang,
@@ -2104,13 +2340,143 @@ export async function executeFunctionRequest(
       hasImports = jsImports.trim().length > 0 || extractionResult.hasRequireCalls
     }
 
-    if (lang === CodeLanguage.Shell) {
-      if (!remoteSandboxEnabled) {
-        throw new Error(
-          'Shell execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it.'
-        )
-      }
+    if (lang === CodeLanguage.Shell && !remoteSandboxEnabled) {
+      throw new Error(
+        'Shell execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it.'
+      )
+    }
 
+    if (lang === CodeLanguage.Python && !remoteSandboxEnabled) {
+      throw new Error(
+        'Python execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it, or use JavaScript instead.'
+      )
+    }
+
+    if (lang === CodeLanguage.JavaScript && hasImports && !remoteSandboxEnabled) {
+      throw new Error(
+        'JavaScript code with import statements requires a remote code sandbox to be enabled. Please remove the import statements, or contact your administrator to enable it.'
+      )
+    }
+
+    /**
+     * Mounting files or harvesting outputs needs a real filesystem, so it selects
+     * the remote sandbox the same way a selected sandbox image does. Without this
+     * a plain-JavaScript block that merely attaches a file would land in
+     * isolated-vm and be refused by the guard below — a dead end, since "add an
+     * import" is not a fix a caller should have to discover.
+     */
+    const useRemoteSandbox =
+      usesMothershipSandbox ||
+      (remoteSandboxEnabled &&
+        !isCustomTool &&
+        (lang === CodeLanguage.Shell ||
+          lang === CodeLanguage.Python ||
+          (lang === CodeLanguage.JavaScript &&
+            (hasImports || Boolean(selectedSandboxId) || requestsSandboxFilesystem))))
+
+    if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without a remote sandbox.'
+      )
+    }
+
+    // Sandbox file mounts and file exports only exist in the remote sandbox
+    // runtime; isolated-vm has no filesystem. Silently dropping a declared
+    // sandbox input/output here produced "export succeeded" responses with zero
+    // bytes written, so refuse the call instead. Widening `useRemoteSandbox`
+    // above means the only ways to arrive here are a deployment with no remote
+    // sandbox at all, or a custom tool — which is why neither remediation
+    // suggests switching language.
+    if (!useRemoteSandbox && requestsSandboxFilesystem) {
+      const remediation = !remoteSandboxEnabled
+        ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
+        : "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
+      return functionJsonResponse(
+        {
+          success: false,
+          error: `Sandbox file inputs/outputs are unavailable for this call: ${remediation}`,
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 422 }
+      )
+    }
+
+    // Resolved only after the guard: a request about to be refused must not mint
+    // presigned URLs or buffer bytes on its way out.
+    let resolvedMounts: Awaited<ReturnType<typeof resolveUserFileMounts>>
+    try {
+      resolvedMounts = await resolveUserFileMounts({
+        planned: plannedFileMounts,
+        context: {
+          principal: auth.principal,
+          workflowId,
+          workspaceId,
+          executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          fileKeys,
+          allowLargeValueWorkflowScope,
+          userId: auth.fileAccessUserId,
+          requestId,
+          logger,
+        },
+      })
+    } catch (error) {
+      // Everything this can raise is about the files the caller named — a mount
+      // it may not read, one over a size ceiling, a set over the aggregate. The
+      // messages already say which file and what to do, so they are the response
+      // rather than a 500 that reads like the platform broke. Matches the
+      // too-many-files refusal above.
+      logger.warn(`[${requestId}] Could not resolve sandbox file mounts`, {
+        error: getErrorMessage(error),
+      })
+      return functionJsonResponse(
+        {
+          success: false,
+          error: getErrorMessage(error, 'Could not mount the requested files into the sandbox.'),
+          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
+        },
+        routeContext,
+        { status: 400 }
+      )
+    }
+    const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
+    const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
+
+    // Every `<block.file.path>` marker becomes the path its file was mounted at,
+    // so the code reads a plain string in whichever language it is written in.
+    const mountPathsByKey = new Map(
+      plannedFileMounts.map(({ userFile, mountPath }) => [userFile.key, mountPath])
+    )
+    for (const [name, value] of Object.entries(contextVariables)) {
+      contextVariables[name] = replaceSandboxFileMountRefs(
+        value,
+        (file) => mountPathsByKey.get(file.key) ?? file.name
+      )
+    }
+
+    // Harvested on every remote run rather than behind a switch: the directory is
+    // Sim's own, so nothing lands there unless the code put it there, and the cost
+    // is one listing on a run that already paid for a sandbox. Isolate runs never
+    // reach here, so they stay as fast as they were.
+    //
+    // Declared sandbox outputs opt out. That request names exactly which paths to
+    // export and answers with that export's own result, so harvesting alongside it
+    // would collect files the response has no shape to carry — they would be read,
+    // scanned, uploaded, and then dropped. Making the exclusion explicit here keeps
+    // it from resting on which branch happens to return first.
+    const declaresSandboxOutputs = outputFiles.some((file) => file.sandboxPath)
+    const outputSandboxDir =
+      useRemoteSandbox && !declaresSandboxOutputs ? SANDBOX_OUTPUT_DIR : undefined
+
+    if (mountManifest.length > 0) {
+      logger.info(`[${requestId}] Mounted files into sandbox`, {
+        mountCount: mountManifest.length,
+      })
+    }
+
+    if (lang === CodeLanguage.Shell) {
       const shellEnvs: Record<string, string> = {}
       for (const [k, v] of Object.entries(envVars)) {
         shellEnvs[k] = serializeForShellEnv(v)
@@ -2133,14 +2499,16 @@ export async function executeFunctionRequest(
         error: shellError,
         exportedFileContent,
         exportedFiles,
+        collectedFiles: shellCollectedFiles,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
         timeoutMs: timeout,
-        sandboxFiles: _sandboxFiles,
+        sandboxFiles,
         privateInputs: compilerPrivateInputs,
         outputSandboxPath,
         outputSandboxPaths,
+        outputSandboxDir,
         workspaceId,
         sandboxId: selectedSandboxId,
         ...(usesMothershipSandbox && !selectedSandboxId
@@ -2185,63 +2553,31 @@ export async function executeFunctionRequest(
         }
       }
 
+      const shellOutputFiles = await collectExecutionOutputFiles({
+        routeContext,
+        authUserId: auth.attributedUserId,
+        workflowId,
+        workspaceId,
+        executionId,
+        collectedFiles: shellCollectedFiles ?? [],
+        stdout: shellStdout,
+        executionTime,
+      })
+      if ('response' in shellOutputFiles) {
+        return appendResolvedSecretNames(shellOutputFiles.response, routeContext)
+      }
+
       return functionJsonResponse(
         {
           success: true,
-          output: { result: shellResult ?? null, stdout: cleanStdout(shellStdout), executionTime },
+          output: {
+            result: shellResult ?? null,
+            stdout: cleanStdout(shellStdout),
+            executionTime,
+            files: shellOutputFiles.files,
+          },
         },
         routeContext
-      )
-    }
-
-    if (lang === CodeLanguage.Python && !remoteSandboxEnabled) {
-      throw new Error(
-        'Python execution requires a remote code sandbox to be enabled. Please contact your administrator to enable it, or use JavaScript instead.'
-      )
-    }
-
-    if (lang === CodeLanguage.JavaScript && hasImports && !remoteSandboxEnabled) {
-      throw new Error(
-        'JavaScript code with import statements requires a remote code sandbox to be enabled. Please remove the import statements, or contact your administrator to enable it.'
-      )
-    }
-
-    const useRemoteSandbox =
-      usesMothershipSandbox ||
-      (remoteSandboxEnabled &&
-        !isCustomTool &&
-        (lang === CodeLanguage.Python ||
-          (lang === CodeLanguage.JavaScript && (hasImports || Boolean(selectedSandboxId)))))
-
-    if (useRemoteSandbox && containsLargeValueRef(contextVariables)) {
-      throw new Error(
-        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without a remote sandbox.'
-      )
-    }
-
-    // Sandbox file mounts and sandboxPath exports only exist in the remote
-    // sandbox runtime; isolated-vm has no filesystem. Silently dropping a declared
-    // sandbox input/output here produced "export succeeded" responses with
-    // zero bytes written, so refuse the call instead. The remediation depends
-    // on WHY this call runs in isolated-vm — "switch to python" is a dead end
-    // when no remote sandbox is enabled or the call is a custom tool.
-    if (
-      !useRemoteSandbox &&
-      (outputSandboxPaths.length > 0 || outputSandboxPath || _sandboxFiles?.length)
-    ) {
-      const remediation = !remoteSandboxEnabled
-        ? "No remote code sandbox is enabled on this deployment, so there is no sandbox filesystem for any language. Pass input data via params and return output as the code's return value with outputs.files[].path (no sandboxPath)."
-        : isCustomTool
-          ? "custom tools always run in the isolated JavaScript VM, which has no sandbox filesystem. Pass input data via params and return output as the code's return value."
-          : 'plain JavaScript runs in the isolated VM, which has no sandbox filesystem. Use language "python" so the code runs in the remote sandbox, or drop sandboxPath and return the file content as the code\'s return value with outputs.files[].path.'
-      return functionJsonResponse(
-        {
-          success: false,
-          error: `Sandbox file inputs/outputs are unavailable for this call: ${remediation}`,
-          output: { result: null, stdout: '', executionTime: Date.now() - startTime },
-        },
-        routeContext,
-        { status: 422 }
       )
     }
 
@@ -2300,15 +2636,17 @@ export async function executeFunctionRequest(
           error: e2bError,
           exportedFileContent,
           exportedFiles,
+          collectedFiles: jsCollectedFiles,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
-          sandboxFiles: _sandboxFiles,
+          sandboxFiles,
           privateInputs: [...compilerPrivateInputs, runtimePrivateInput],
           runtimeBindings: compilerRuntimeBindings,
           outputSandboxPath,
           outputSandboxPaths,
+          outputSandboxDir,
           workspaceId,
           sandboxId: selectedSandboxId,
           ...(usesMothershipSandbox && !selectedSandboxId
@@ -2364,10 +2702,29 @@ export async function executeFunctionRequest(
           }
         }
 
+        const jsOutputFiles = await collectExecutionOutputFiles({
+          routeContext,
+          authUserId: auth.attributedUserId,
+          workflowId,
+          workspaceId,
+          executionId,
+          collectedFiles: jsCollectedFiles ?? [],
+          stdout,
+          executionTime,
+        })
+        if ('response' in jsOutputFiles) {
+          return appendResolvedSecretNames(jsOutputFiles.response, routeContext)
+        }
+
         return functionJsonResponse(
           {
             success: true,
-            output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+            output: {
+              result: e2bResult ?? null,
+              stdout: cleanStdout(stdout),
+              executionTime,
+              files: jsOutputFiles.files,
+            },
           },
           routeContext
         )
@@ -2391,14 +2748,16 @@ export async function executeFunctionRequest(
         error: e2bError,
         exportedFileContent,
         exportedFiles,
+        collectedFiles: pythonCollectedFiles,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,
-        sandboxFiles: _sandboxFiles,
+        sandboxFiles,
         privateInputs: [...compilerPrivateInputs, runtimePrivateInput],
         outputSandboxPath,
         outputSandboxPaths,
+        outputSandboxDir,
         workspaceId,
         sandboxId: selectedSandboxId,
         ...(usesMothershipSandbox && !selectedSandboxId
@@ -2454,10 +2813,29 @@ export async function executeFunctionRequest(
         }
       }
 
+      const pythonOutputFiles = await collectExecutionOutputFiles({
+        routeContext,
+        authUserId: auth.attributedUserId,
+        workflowId,
+        workspaceId,
+        executionId,
+        collectedFiles: pythonCollectedFiles ?? [],
+        stdout,
+        executionTime,
+      })
+      if ('response' in pythonOutputFiles) {
+        return appendResolvedSecretNames(pythonOutputFiles.response, routeContext)
+      }
+
       return functionJsonResponse(
         {
           success: true,
-          output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+          output: {
+            result: e2bResult ?? null,
+            stdout: cleanStdout(stdout),
+            executionTime,
+            files: pythonOutputFiles.files,
+          },
         },
         routeContext
       )
@@ -2636,7 +3014,11 @@ export async function executeFunctionRequest(
             privateResolvedSecretNamesMetadataType
           )
     }
-    if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+    if (
+      isSandboxOutputLimitError(error) ||
+      isSandboxOutputFileError(error) ||
+      isSandboxOutputNotExportableError(error)
+    ) {
       const outputLimitResponse = {
         success: false,
         error: error.message,

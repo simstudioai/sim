@@ -18,7 +18,20 @@ export type SandboxProviderId = 'e2b' | 'daytona'
  */
 export type SandboxFile =
   | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
-  | { type: 'url'; path: string; url: string }
+  | {
+      type: 'url'
+      path: string
+      url: string
+      /**
+       * Ceiling enforced on the bytes actually transferred, rather than on a size
+       * the caller reported. A caller's pre-read check is a fast, well-worded
+       * failure; this is what makes it true when the recorded size understates
+       * the stored object. Optional only because it crosses the wire; a mount
+       * that omits it still gets `MAX_SANDBOX_URL_MOUNT_BYTES`, so the cap
+       * cannot be skipped by omission.
+       */
+      maxBytes?: number
+    }
 
 /**
  * An internal runtime payload materialized at an opaque sandbox path.
@@ -47,6 +60,12 @@ export interface SandboxExecutionRequest {
    * (mothership-docs) that has python-pptx/docx/openpyxl/reportlab installed.
    */
   sandboxKind?: 'code' | 'mothership' | 'doc'
+  /**
+   * Harvest every regular file under this directory after the code succeeds.
+   * Unlike {@link outputSandboxPaths}, the paths are discovered rather than
+   * declared, so a model that only authors `code` can still return files.
+   */
+  outputSandboxDir?: string
   /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
   workspaceId?: string
   /** Workspace sandbox whose dependency set this execution runs against. */
@@ -70,6 +89,8 @@ export interface SandboxShellExecutionRequest {
    * they run in the doc image (mothership-docs).
    */
   sandboxKind?: 'shell' | 'mothership' | 'doc'
+  /** See {@link SandboxExecutionRequest.outputSandboxDir}. */
+  outputSandboxDir?: string
   /** Scope for {@link sandboxId}; a sandbox from another workspace is rejected. */
   workspaceId?: string
   /** Workspace sandbox whose dependency set this execution runs against. */
@@ -85,6 +106,24 @@ export interface SandboxExecutionResult {
   error?: string
   exportedFileContent?: string
   exportedFiles?: Record<string, string>
+  /**
+   * Files discovered under {@link SandboxExecutionRequest.outputSandboxDir}.
+   *
+   * Always base64, never utf8: the extension allowlist that decides encoding for
+   * a declared path cannot classify an arbitrary harvested filename, and
+   * decoding real binary as utf8 substitutes U+FFFD silently — corruption that
+   * arrives looking like a valid file. Base64 is lossless for any byte
+   * sequence, and the byte budget is enforced on the decoded length.
+   */
+  collectedFiles?: SandboxCollectedFile[]
+}
+
+/** One harvested output file, carried as base64 with its decoded length. */
+export interface SandboxCollectedFile {
+  path: string
+  relativePath: string
+  contentBase64: string
+  byteLength: number
 }
 
 /** Result of one command run inside a sandbox. */
@@ -180,7 +219,48 @@ export interface SandboxHandle {
    * delivered without any shell parsing.
    */
   writeFile(path: string, content: string | ArrayBuffer): Promise<void>
+  /**
+   * Lists regular files under a directory, recursively to `depth`.
+   *
+   * Uses each provider's filesystem API rather than shelling out to `find`.
+   * A shell listing would cost a session per call on Daytona (its
+   * `runCommand` creates one, writes an env file, executes, then deletes it),
+   * depend on GNU coreutils that a future base image need not carry, and be
+   * corrupted by a filename containing a newline — which user code controls.
+   *
+   * Symlinks are followed, not excluded. Daytona's listing resolves them and
+   * reports no field distinguishing one from a regular file, so excluding them
+   * is only possible on E2B — and doing it there alone would be a cross-provider
+   * divergence that reads as a security property while providing none. It
+   * provides none because the harvest is not a privilege boundary: it runs as
+   * the same identity as the code, which can already read any file the sandbox
+   * can and copy the bytes into the output directory itself.
+   *
+   * Directories are returned alongside files rather than filtered out, because
+   * a directory sitting at the traversal limit is the only evidence that the
+   * listing was cut short — see the truncation check in the harvest.
+   *
+   * Errors propagate rather than degrading to an empty list. The output
+   * directory is created before user code runs, so a listing failure is a real
+   * fault, and reporting it as "produced nothing" would turn a transient
+   * provider error into silent loss of the caller's files.
+   */
+  listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]>
   kill(): Promise<void>
+}
+
+/** One entry discovered by {@link SandboxHandle.listFiles}. */
+export interface SandboxDirectoryEntry {
+  /** Absolute path inside the sandbox. */
+  path: string
+  /** Path relative to the listed directory, retaining any subdirectories. */
+  relativePath: string
+  kind: 'file' | 'directory'
+  /**
+   * Provider-reported size. Advisory only — the read re-enforces its own limit,
+   * since the file can change between listing and read.
+   */
+  size: number
 }
 
 export interface CreateSandboxOptions {

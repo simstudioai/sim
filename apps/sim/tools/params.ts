@@ -521,8 +521,10 @@ function buildParameterSchema(
 ): SchemaProperty {
   const surface = options.surface ?? 'default'
 
-  if (surface === 'copilot' && (param.type === 'file' || param.type === 'file[]')) {
-    return buildCopilotFileParameterSchema(param)
+  if (param.type === 'file' || param.type === 'file[]') {
+    return surface === 'copilot'
+      ? buildCopilotFileParameterSchema(param)
+      : buildFileReferenceParameterSchema(param)
   }
 
   let schemaType = param.type
@@ -547,6 +549,38 @@ function buildParameterSchema(
   }
 
   return propertySchema
+}
+
+/**
+ * File schema for model-facing surfaces other than Copilot: a reference string,
+ * not a file object.
+ *
+ * A model has no way to produce the `key`, `url`, and `size` a real file object
+ * carries — those come from a previous tool result or the block's own
+ * configuration — so asking for the object would only invite invented values. An
+ * id it can copy verbatim from what it just saw; the runtime hydrates it into
+ * the full object before the tool runs.
+ *
+ * Without this branch a file param declared `user-or-llm` emitted `{"type":
+ * "file"}`, which is not a JSON Schema type at all.
+ */
+function buildFileReferenceParameterSchema(param: ToolParamDefinition): SchemaProperty {
+  const baseDescription =
+    param.description ||
+    (param.type === 'file' ? 'A file for tool execution.' : 'Files for tool execution.')
+  const resolutionDescription =
+    'Pass the file id from an earlier tool result, or a canonical workspace file id such as "wf_123". The runtime resolves it into the full file object before the tool runs.'
+  const description = `${baseDescription} ${resolutionDescription}`
+
+  if (param.type === 'file') {
+    return { type: 'string', description }
+  }
+
+  return {
+    type: 'array',
+    description,
+    items: { type: 'string', description: 'A file id.' },
+  }
 }
 
 function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProperty {

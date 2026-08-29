@@ -143,6 +143,34 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
+/**
+ * Only the I/O half is stubbed. Path naming, transports, ceilings and
+ * authorization are covered against the real implementation in
+ * `sandbox-mounts.test.ts`; what matters here is the wiring — that a marker
+ * becomes a mount and that the context variable ends up holding the path.
+ */
+vi.mock('@/lib/function-execution/sandbox-mounts', () => ({
+  planUserFileMounts: (files: Array<{ key: string; name: string }>) =>
+    files.map((userFile) => ({ userFile, mountPath: `/tmp/sim/inputs/${userFile.name}` })),
+  resolveUserFileMounts: async ({
+    planned,
+  }: {
+    planned: Array<{ userFile: { name: string }; mountPath: string }>
+  }) => ({
+    sandboxFiles: planned.map(({ mountPath }) => ({
+      type: 'url' as const,
+      path: mountPath,
+      url: 'https://presigned.example/object',
+    })),
+    manifest: planned.map(({ userFile, mountPath }) => ({
+      name: userFile.name,
+      path: mountPath,
+      size: 1,
+      type: 'application/pdf',
+    })),
+  }),
+}))
+
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -191,6 +219,25 @@ async function POST(request: NextRequest): Promise<Response> {
 }
 
 afterAll(resetEnvFlagsMock)
+
+/**
+ * A `<block.file.path>` reference as it reaches the function runtime: the resolver
+ * leaves a mount marker in the context variables, which is what asks this run for a
+ * sandbox filesystem.
+ */
+const MOUNT_REF = {
+  __simSandboxFileMount: true,
+  version: 1,
+  file: {
+    id: 'file_1',
+    name: 'doc.pdf',
+    url: 'https://storage.example/doc.pdf',
+    size: 12,
+    type: 'application/pdf',
+    key: 'execution/workspace-1/wf-1/exec-1/abc/doc.pdf',
+    context: 'execution',
+  },
+}
 
 describe('Function execution request', () => {
   beforeEach(() => {
@@ -1500,7 +1547,7 @@ describe('Function execution request', () => {
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
-    it('rejects sandboxPath outputs when the call would run in isolated-vm (E2B enabled, JS without imports)', async () => {
+    it('routes plain JavaScript to the remote sandbox when it declares a sandboxPath output', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 
       const req = createMockRequest('POST', {
@@ -1518,6 +1565,25 @@ describe('Function execution request', () => {
         },
       })
 
+      await POST(req)
+
+      // Needing a sandbox filesystem selects the remote runtime the same way a
+      // selected sandbox image does. Refusing here instead would dead-end the
+      // caller: "add an import" is not a fix anyone should have to discover.
+      expect(mockExecuteInSandbox).toHaveBeenCalled()
+      expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
+    })
+
+    it('refuses sandbox file inputs/outputs when no remote sandbox is configured', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = false
+
+      const req = createMockRequest('POST', {
+        code: 'return "content"',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+        contextVariables: { doc: MOUNT_REF },
+      })
+
       const response = await POST(req)
       const data = await response.json()
 
@@ -1527,6 +1593,201 @@ describe('Function execution request', () => {
       expect(mockExecuteInIsolatedVM).not.toHaveBeenCalled()
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('refuses sandbox file inputs/outputs for a custom tool, which always runs in isolated-vm', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'return "content"',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+        isCustomTool: true,
+        contextVariables: { doc: MOUNT_REF },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('custom tools always run in the isolated JavaScript VM')
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    })
+
+    it('reports a harvest the sandbox refused as a 400 carrying its reason', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockRejectedValueOnce(
+        Object.assign(new Error('Sandbox produced 21 files in /tmp/sim/outputs'), {
+          code: 'sandbox_output_not_exportable',
+        })
+      )
+
+      const req = createMockRequest('POST', {
+        code: 'x',
+        language: 'python',
+        workspaceId: 'workspace-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // Writing too many files is the caller's to fix, so it must not surface
+      // as an opaque 500 that hides the count and the remedy.
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('21 files')
+    })
+
+    it('scans a harvested plaintext secret even under a binary file name', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/leak.png',
+            relativePath: 'leak.png',
+            // Valid UTF-8 carrying the resolved secret, named as an image.
+            contentBase64: Buffer.from('token=super-secret-value').toString('base64'),
+            byteLength: 24,
+          },
+        ],
+      })
+
+      const req = createMockRequest('POST', {
+        // The placeholder has to be in the code: compiling it is what puts the
+        // resolved value in scope for the output scan.
+        code: 'token = {{MY_SECRET}}',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        envVars: { MY_SECRET: 'super-secret-value' },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // Classifying by file name let a secret written as plaintext under a
+      // binary extension skip the only provenance guard and be returned with a
+      // downloadable URL. Content decides now, so the name cannot dodge it.
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('leak.png')
+      expect(data.error).toContain('resolved secret')
+    })
+
+    it('scans a harvested secret even when one invalid byte makes it non-UTF-8', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        sandboxId: 'sbx',
+        collectedFiles: [
+          {
+            path: '/tmp/sim/outputs/mixed.bin',
+            relativePath: 'mixed.bin',
+            // Literal secret plus one invalid byte, so the buffer is not valid
+            // UTF-8 — which used to be enough to skip the scan entirely.
+            contentBase64: Buffer.concat([
+              Buffer.from('token=super-secret-value'),
+              Buffer.from([0xff]),
+            ]).toString('base64'),
+            byteLength: 25,
+          },
+        ],
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'token = {{MY_SECRET}}',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        envVars: { MY_SECRET: 'super-secret-value' },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      // A lossy UTF-8 decode keeps ASCII runs intact, so the literal is still
+      // there to find — appending a byte must not buy an exemption.
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('mixed.bin')
+      expect(data.error).toContain('resolved secret')
+    })
+
+    it('mounts a <block.file.path> reference and hands the code its path', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'x',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        contextVariables: { doc: MOUNT_REF },
+      })
+
+      await POST(req)
+
+      const call = mockExecuteInSandbox.mock.calls[0]?.[0]
+      expect(call.sandboxFiles).toEqual([
+        { type: 'url', path: '/tmp/sim/inputs/doc.pdf', url: 'https://presigned.example/object' },
+      ])
+      // The marker must not survive into the code's view of the variable — the
+      // whole point is that every language sees a plain path string.
+      const runtimePayload = call.privateInputs
+        .map((input: { content: string }) => input.content)
+        .find((content: string) => content.includes('contextVariables'))
+      expect(runtimePayload).toContain('/tmp/sim/inputs/doc.pdf')
+      expect(runtimePayload).not.toContain('__simSandboxFileMount')
+    })
+
+    it('harvests the output directory on every remote run, with no toggle', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'x',
+        language: 'python',
+        workspaceId: 'workspace-1',
+      })
+
+      await POST(req)
+
+      expect(mockExecuteInSandbox.mock.calls[0]?.[0].outputSandboxDir).toBe('/tmp/sim/outputs')
+    })
+
+    it('does not ask for an output directory on an isolate run', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'return 1',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+      })
+
+      await POST(req)
+
+      // Harvesting is free only because it rides an existing sandbox; an
+      // isolate run must not gain one just to look for files.
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalled()
+    })
+
+    it('leaves a plain JavaScript call with no file inputs or outputs in isolated-vm', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const req = createMockRequest('POST', {
+        code: 'return "content"',
+        language: 'javascript',
+        workspaceId: 'workspace-1',
+      })
+
+      await POST(req)
+
+      expect(mockExecuteInIsolatedVM).toHaveBeenCalled()
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
     it('rejects sandbox file mounts when the call would run in isolated-vm', async () => {

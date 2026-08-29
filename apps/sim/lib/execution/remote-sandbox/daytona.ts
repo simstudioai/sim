@@ -27,11 +27,13 @@ import {
   SandboxProcessOutputBudget,
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,
   SandboxCodeResult,
   SandboxCommandResult,
+  SandboxDirectoryEntry,
   SandboxHandle,
   SandboxKind,
   SandboxProvider,
@@ -740,6 +742,24 @@ class DaytonaSandboxHandle implements SandboxHandle {
     const buffer =
       typeof content === 'string' ? Buffer.from(content, 'utf-8') : Buffer.from(content)
     await this.sandbox.fs.uploadFile(buffer, path)
+  }
+
+  async listFiles(path: string, options?: { depth?: number }): Promise<SandboxDirectoryEntry[]> {
+    const entries = await this.sandbox.fs.listFiles(path, {
+      ...(options?.depth !== undefined ? { depth: options.depth } : {}),
+    })
+
+    const files: SandboxDirectoryEntry[] = []
+    for (const entry of entries) {
+      const resolved = resolveSandboxDirectoryEntryPath(path, entry.path ?? entry.name)
+      if (!resolved) continue
+      files.push({
+        ...resolved,
+        kind: entry.isDir ? 'directory' : 'file',
+        size: entry.size,
+      })
+    }
+    return files
   }
 
   async kill(): Promise<void> {

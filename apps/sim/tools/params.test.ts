@@ -348,8 +348,8 @@ describe('Tool Parameters Utils', () => {
       expect(copilotSchema.required).toContain('credentialId')
     })
 
-    it.concurrent('keeps shared file params unchanged by default', () => {
-      const toolWithFileParam = {
+    it.concurrent('emits file params as reference strings by default', () => {
+      const toolWithFileParams = {
         ...mockToolConfig,
         id: 'file_schema_tool',
         params: {
@@ -359,14 +359,26 @@ describe('Tool Parameters Utils', () => {
             visibility: 'user-or-llm' as ParameterVisibility,
             description: 'Attachment file',
           },
+          attachments: {
+            type: 'file[]',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment files',
+          },
         },
       }
 
-      const schema = createUserToolSchema(toolWithFileParam)
+      const schema = createUserToolSchema(toolWithFileParams)
 
-      expect(schema.properties.attachment).toMatchObject({
-        type: 'file',
-        description: 'Attachment file',
+      // `file` is not a JSON Schema type, so emitting it verbatim produced a
+      // schema no provider could validate. A model cannot synthesize a file
+      // object's key or url either, so the reference string is both valid and
+      // the only thing it can actually supply.
+      expect(schema.properties.attachment).toMatchObject({ type: 'string' })
+      expect(schema.properties.attachment.description).toContain('Attachment file')
+      expect(schema.properties.attachments).toMatchObject({
+        type: 'array',
+        items: { type: 'string' },
       })
     })
 
