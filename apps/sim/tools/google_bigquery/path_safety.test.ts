@@ -24,15 +24,24 @@ const ORIGIN = 'https://bigquery.googleapis.com'
 const BASE_PATH = '/bigquery/v2/'
 
 /**
- * BigQuery ids carry interior dots (`project.dataset.table`), hyphens and
- * underscores; none of those may be rejected or rewritten.
+ * Values legitimate for **every** BigQuery path parameter, since the harness
+ * applies each one to each parameter in turn.
+ *
+ * Deliberately no dotted forms. A fully-qualified `project.dataset.table` is
+ * BigQuery's *SQL* syntax and appears in the `query` string, never in a path
+ * segment — no path parameter here accepts a dot, so listing one as a
+ * "legitimate id" would assert support that does not exist and would fight any
+ * future per-identifier format validation.
+ *
+ * The property those values were really covering — that a dot *inside* a
+ * segment is preserved rather than treated as traversal — belongs to the guard,
+ * not to this service, and is already pinned on it directly in
+ * `tools/url-path.test.ts` (`'..foo'`, `'foo..'`).
  */
 const LEGITIMATE_IDS = [
   'my-project-123',
   'bigquery-public-data',
   'analytics_2024',
-  'my_dataset.my_table',
-  'my-project.my_dataset.my_table',
   'job_aBcDeF-123_456',
 ] as const
 
