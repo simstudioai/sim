@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Deploys every workflow referenced by a table workflow group.
+ * Deploys every mutable workflow referenced by a table workflow group.
  *
  * The script is idempotent and resumable: it pages over only workflows that do
  * not have the full desired state, and each deployment uses a stable idempotency
@@ -52,6 +52,7 @@ export interface TableWorkflowDeploymentSummary {
   scanned: number
   deployed: number
   alreadyDeployed: number
+  skippedLocked: number
 }
 
 interface TableWorkflowDeploymentBackfillOptions {
@@ -156,6 +157,50 @@ export async function prepareTableWorkflowDeploymentBackfillEnvironment(
 async function getDatabase() {
   const { db } = await import('@sim/db')
   return db
+}
+
+function validateCandidatePage(
+  candidates: TableWorkflowDeploymentCandidate[],
+  afterWorkflowId: string,
+  limit: number
+): string | null {
+  if (candidates.length === 0) return null
+  if (candidates.length > limit) {
+    throw new Error('Table workflow deployment store returned an oversized page')
+  }
+
+  const pageIds = new Set(candidates.map((candidate) => candidate.workflowId))
+  if (pageIds.size !== candidates.length) {
+    throw new Error('Table workflow deployment store returned duplicate workflow ids')
+  }
+
+  const lastWorkflowId = candidates.at(-1)?.workflowId
+  if (!lastWorkflowId || lastWorkflowId === afterWorkflowId) {
+    throw new Error('Table workflow deployment store returned a non-advancing page')
+  }
+  return lastWorkflowId
+}
+
+async function assertOnlyLockedCandidatesRemain(
+  store: TableWorkflowDeploymentStore,
+  lockedWorkflowIds: ReadonlySet<string>
+): Promise<void> {
+  let afterWorkflowId = ''
+  for (;;) {
+    const candidates = await store.listCandidates(afterWorkflowId, 1)
+    const lastWorkflowId = validateCandidatePage(candidates, afterWorkflowId, 1)
+    if (!lastWorkflowId) return
+
+    const unexpectedCandidate = candidates.find(
+      (candidate) => !lockedWorkflowIds.has(candidate.workflowId)
+    )
+    if (unexpectedCandidate) {
+      throw new Error(
+        `Table workflow deployment backfill left workflow ${unexpectedCandidate.workflowId} undeployed`
+      )
+    }
+    afterWorkflowId = lastWorkflowId
+  }
 }
 
 /** Ensures the table group references can be traversed without silently dropping corrupt data. */
@@ -343,7 +388,7 @@ export async function deployTableWorkflow(
 }
 
 /**
- * Reaches and verifies that every table workflow has an active deployment.
+ * Reaches and verifies that every mutable table workflow has an active deployment.
  */
 export async function backfillTableWorkflowDeployments(
   store: TableWorkflowDeploymentStore,
@@ -361,24 +406,15 @@ export async function backfillTableWorkflowDeployments(
     scanned: 0,
     deployed: 0,
     alreadyDeployed: 0,
+    skippedLocked: 0,
   }
+  const lockedWorkflowIds = new Set<string>()
   let afterWorkflowId = ''
 
   for (;;) {
     const candidates = await store.listCandidates(afterWorkflowId, batchSize)
-    if (candidates.length === 0) break
-    if (candidates.length > batchSize) {
-      throw new Error('Table workflow deployment store returned an oversized page')
-    }
-
-    const pageIds = new Set(candidates.map((candidate) => candidate.workflowId))
-    if (pageIds.size !== candidates.length) {
-      throw new Error('Table workflow deployment store returned duplicate workflow ids')
-    }
-    const lastWorkflowId = candidates.at(-1)?.workflowId
-    if (!lastWorkflowId || lastWorkflowId === afterWorkflowId) {
-      throw new Error('Table workflow deployment store returned a non-advancing page')
-    }
+    const lastWorkflowId = validateCandidatePage(candidates, afterWorkflowId, batchSize)
+    if (!lastWorkflowId) break
 
     for (const candidate of candidates) {
       summary.scanned += 1
@@ -391,6 +427,16 @@ export async function backfillTableWorkflowDeployments(
         })
         const result = await deploy(candidate)
         if (!result.success) {
+          if (result.errorCode === 'locked') {
+            lockedWorkflowIds.add(candidate.workflowId)
+            summary.skippedLocked += 1
+            logger.warn('Skipping locked workflow referenced by a table workflow group', {
+              workflowId: candidate.workflowId,
+              workspaceId: candidate.workspaceId,
+              reason: result.error ?? 'Workflow is locked',
+            })
+            continue
+          }
           throw new Error(
             `Failed to deploy table workflow ${candidate.workflowId}: ${result.error ?? 'deployment returned no error'}`
           )
@@ -413,12 +459,7 @@ export async function backfillTableWorkflowDeployments(
   }
 
   await store.assertIntegrity()
-  const remaining = await store.listCandidates('', 1)
-  if (remaining.length > 0) {
-    throw new Error(
-      `Table workflow deployment backfill left workflow ${remaining[0].workflowId} undeployed`
-    )
-  }
+  await assertOnlyLockedCandidatesRemain(store, lockedWorkflowIds)
 
   return summary
 }
