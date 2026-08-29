@@ -33,11 +33,19 @@ const LEGITIMATE_IDS = ['0', '12345', '987654321012', '1608589364'] as const
  */
 const STATIC_URL_TOOLS = ['box_create_folder', 'box_search', 'box_upload_file']
 
-const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(boxTools, 'box_')
+const {
+  covered: PATH_PARAMS,
+  unbuildable: UNBUILDABLE,
+  undiscoverable: UNDISCOVERABLE,
+} = discoverPathParams(boxTools, 'box_')
 
 describe('box path-id traversal safety', () => {
   it('builds a URL for every tool in the barrel', () => {
     expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('probes every declared parameter without one silently dropping out', () => {
+    expect(UNDISCOVERABLE).toEqual([])
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {

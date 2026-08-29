@@ -53,8 +53,14 @@ export function assertNoSurroundingWhitespace(
   paramName: string
 ): void {
   if (typeof value === 'string' && value !== value.trim()) {
-    throw new Error(
-      `${paramName} cannot have leading or trailing whitespace (received ${JSON.stringify(value)})`
-    )
+    /**
+     * The rejected value is deliberately **not** echoed. These parameters are
+     * `visibility: 'user-or-llm'`, and this message travels back as a tool
+     * result the model reads, so quoting the input would copy attacker-chosen
+     * text — including U+2028/U+2029, which terminate a line for some parsers —
+     * straight into the model's context. Naming the parameter is the actionable
+     * part; the caller already knows what it sent.
+     */
+    throw new Error(`${paramName} cannot have leading or trailing whitespace`)
   }
 }

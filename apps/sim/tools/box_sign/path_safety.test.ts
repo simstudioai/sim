@@ -9,8 +9,13 @@
  * `../../users/me` re-aimed an authenticated request at another Box resource.
  * Two of the three call sites are state-changing (`/cancel`, `/resend`).
  *
- * It now goes through `safeUrlPathSegment`, which is what the assertions below
- * pin; the description above is of the defect, not of the current code.
+ * It now goes through `strictUrlPathSegment`, not plain `safeUrlPathSegment`.
+ * That distinction is the point of the whitespace pins below: the plain guard
+ * *trims* surrounding whitespace, and since `signRequestId` was previously
+ * interpolated raw, trimming would newly resolve a padded id to a real request
+ * and cancel it. The strict guard refuses instead.
+ *
+ * The description above is of the defect, not of the current code.
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -40,14 +45,19 @@ const LEGITIMATE_IDS = [
  */
 const STATIC_URL_TOOLS = ['box_sign_create_request', 'box_sign_list_requests']
 
-const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(
-  boxSignTools,
-  'box_sign_'
-)
+const {
+  covered: PATH_PARAMS,
+  unbuildable: UNBUILDABLE,
+  undiscoverable: UNDISCOVERABLE,
+} = discoverPathParams(boxSignTools, 'box_sign_')
 
 describe('box sign path-id traversal safety', () => {
   it('builds a URL for every tool in the barrel', () => {
     expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('probes every declared parameter without one silently dropping out', () => {
+    expect(UNDISCOVERABLE).toEqual([])
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {

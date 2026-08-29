@@ -143,6 +143,22 @@ export interface UnbuildableTool {
   reason: string
 }
 
+/**
+ * A declared parameter whose probe threw on **every** branch, so discovery
+ * never learned whether it reaches the path.
+ *
+ * This is distinct from a parameter that simply is not in the path: those build
+ * a URL fine, the sentinel just does not appear in it. Here nothing was built
+ * at all, so the parameter drops out of coverage with no assertion behind it —
+ * and unlike an unbuildable *tool*, its siblings keep the tool itself covered,
+ * so nothing else notices. Each suite pins this set, which is what turns a
+ * silent disappearance into a failure.
+ */
+export interface UndiscoverableParam {
+  label: string
+  reason: string
+}
+
 const SAFE_ID = 'SAFEID'
 
 /** Sentinel for the one parameter under test, so its slots are identifiable. */
@@ -280,9 +296,14 @@ export function discoverPathParams(
   barrel: Record<string, unknown>,
   idPrefix: string,
   fixed: Record<string, unknown> = {}
-): { covered: PathParam[]; unbuildable: UnbuildableTool[] } {
+): {
+  covered: PathParam[]
+  unbuildable: UnbuildableTool[]
+  undiscoverable: UndiscoverableParam[]
+} {
   const covered: PathParam[] = []
   const unbuildable: UnbuildableTool[] = []
+  const undiscoverable: UndiscoverableParam[] = []
 
   for (const exported of Object.values(barrel)) {
     const tool = asPathTool(exported)
@@ -315,28 +336,47 @@ export function discoverPathParams(
 
     for (const name of names) {
       let match: Record<string, unknown> | undefined
+      let builtOnce = false
+      let probeFailure = ''
 
       for (const branch of branches) {
         if (name in branch) continue
         const context = { ...fixed, ...branch }
         try {
-          if (buildUrl(tool, name, PROBE_ID, context).pathname.includes(PROBE_ID)) {
+          const { pathname } = buildUrl(tool, name, PROBE_ID, context)
+          builtOnce = true
+          if (pathname.includes(PROBE_ID)) {
             match = context
             break
           }
-        } catch {
+        } catch (error) {
           // A guarded parameter is expected to throw for some probes; another
-          // branch may still reach it, so keep going.
+          // branch may still reach it, so keep going and record why in case
+          // none of them do.
+          if (!probeFailure) probeFailure = getErrorMessage(error, 'unknown error')
         }
       }
 
       if (match) {
         covered.push({ label: `${tool.id} :: ${name}`, tool, paramName: name, context: match })
+        continue
+      }
+
+      /**
+       * Only a parameter that never produced a URL at all is reported. One that
+       * built fine but kept the sentinel out of `pathname` is simply not a path
+       * parameter, which is a legitimate and common outcome.
+       */
+      if (!builtOnce) {
+        undiscoverable.push({
+          label: `${tool.id} :: ${name}`,
+          reason: probeFailure || 'probe produced no URL',
+        })
       }
     }
   }
 
-  return { covered, unbuildable }
+  return { covered, unbuildable, undiscoverable }
 }
 
 /**

@@ -68,11 +68,11 @@ const STATIC_URL_TOOLS = [
   'supabase_storage_upload',
 ]
 
-const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(
-  supabaseTools,
-  'supabase_',
-  FIXED
-)
+const {
+  covered: PATH_PARAMS,
+  unbuildable: UNBUILDABLE,
+  undiscoverable: UNDISCOVERABLE,
+} = discoverPathParams(supabaseTools, 'supabase_', FIXED)
 
 /**
  * `path` is the only genuinely hierarchical parameter here, so it is the only
@@ -86,6 +86,10 @@ const FLAT_PARAMS = PATH_PARAMS.filter(({ paramName }) => paramName !== 'path')
 describe('supabase path traversal safety', () => {
   it('builds a URL for every tool in the barrel', () => {
     expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('probes every declared parameter without one silently dropping out', () => {
+    expect(UNDISCOVERABLE).toEqual([])
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {

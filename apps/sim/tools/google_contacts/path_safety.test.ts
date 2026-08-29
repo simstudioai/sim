@@ -44,14 +44,19 @@ const STATIC_URL_TOOLS = [
   'google_contacts_search',
 ]
 
-const { covered: PATH_PARAMS, unbuildable: UNBUILDABLE } = discoverPathParams(
-  googleContactsTools,
-  'google_contacts_'
-)
+const {
+  covered: PATH_PARAMS,
+  unbuildable: UNBUILDABLE,
+  undiscoverable: UNDISCOVERABLE,
+} = discoverPathParams(googleContactsTools, 'google_contacts_')
 
 describe('google contacts resourceName traversal safety', () => {
   it('builds a URL for every tool in the barrel', () => {
     expect(UNBUILDABLE).toEqual([])
+  })
+
+  it('probes every declared parameter without one silently dropping out', () => {
+    expect(UNDISCOVERABLE).toEqual([])
   })
 
   it('leaves only genuinely static-URL tools without a path parameter', () => {
