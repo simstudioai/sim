@@ -18,12 +18,15 @@ import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
+import { DATADOG_SITES } from '@/tools/datadog/types'
 import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
 import {
   buildSloPayload,
+  datadogApiUrl,
   datadogErrorMessage,
   mergeSloUpdatePayload,
+  resolveDatadogSite,
   splitCommaList,
 } from '@/tools/datadog/utils'
 
@@ -602,5 +605,50 @@ describe('undisclosed vendor limits and Sim defaults', () => {
     } as any)
 
     expect(body[0].ddsource).toBe('custom')
+  })
+})
+
+describe('datadog site is validated before it reaches the request host', () => {
+  /*
+   * `DatadogSite` is a compile-time union and is erased at runtime, so it kept
+   * nothing out of the URL. Every Datadog request carries DD-API-KEY and
+   * DD-APPLICATION-KEY, so an unchecked `site` chose where those were sent.
+   */
+  it('rejects an arbitrary host', () => {
+    expect(() => datadogApiUrl('evil.com' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('rejects a host smuggled in as userinfo', () => {
+    expect(() => datadogApiUrl('datadoghq.com@evil.com' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('rejects a value that would escape the host into a path', () => {
+    expect(() => datadogApiUrl('datadoghq.com/../..' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('defaults an absent site to US1 and keeps every published region', () => {
+    expect(datadogApiUrl(undefined, '/api/v1/slo')).toBe('https://api.datadoghq.com/api/v1/slo')
+    for (const site of DATADOG_SITES) {
+      expect(datadogApiUrl(site, '/x')).toBe(`https://api.${site}/x`)
+      expect(resolveDatadogSite(site)).toBe(site)
+    }
+  })
+
+  it('builds the logs intake host from the validated site', () => {
+    const url = sendLogsTool.request.url({
+      apiKey: 'k',
+      site: 'datadoghq.eu',
+      logs: '[]',
+    } as never)
+    expect(url).toBe('https://http-intake.logs.datadoghq.eu/api/v2/logs')
+    expect(() =>
+      sendLogsTool.request.url({ apiKey: 'k', site: 'evil.com', logs: '[]' } as never)
+    ).toThrow(/Datadog "site" must be one of/)
   })
 })

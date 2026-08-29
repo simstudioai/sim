@@ -19,6 +19,27 @@ describe('Managed Agent tool confirmations', () => {
     mockSendToolConfirmations.mockResolvedValue(undefined)
   })
 
+  /*
+   * denyMessage was read with `params.denyMessage?.trim()` above the try block, so a
+   * non-string arriving from a stored workflow threw past every `success: false` path
+   * this operation otherwise returns.
+   */
+  it('returns a result rather than throwing when denyMessage is not text', async () => {
+    const result = await executeManagedAgentRespondToolConfirmationOperation({
+      accessToken: 'token',
+      sessionId: 'session-1',
+      toolUseIds: ['tool-use-1'],
+      decision: 'deny',
+      denyMessage: 42,
+    } as never)
+    expect(result.success).toBe(true)
+    expect(mockSendToolConfirmations).toHaveBeenLastCalledWith({
+      apiKey: 'token',
+      sessionId: 'session-1',
+      confirmations: [{ toolUseId: 'tool-use-1', result: 'deny', denyMessage: '42' }],
+    })
+  })
+
   it('sends a denial message only for deny decisions', async () => {
     await executeManagedAgentRespondToolConfirmationOperation({
       accessToken: 'token',

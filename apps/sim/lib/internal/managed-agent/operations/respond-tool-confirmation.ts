@@ -36,7 +36,10 @@ export const executeManagedAgentRespondToolConfirmationOperation: InternalToolOp
     }
   }
 
-  const denyMessage = params.denyMessage?.trim()
+  /* Coerced the same way `decision` is above: this runs outside the try below, so a
+     non-string arriving from a stored workflow would throw past every `success: false`
+     path this operation otherwise returns. */
+  const denyMessage = (params.denyMessage ?? '').toString().trim()
   try {
     await sendToolConfirmations({
       apiKey: target.apiKey,

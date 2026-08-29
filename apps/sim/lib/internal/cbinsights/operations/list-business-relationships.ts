@@ -5,6 +5,7 @@ import {
   asString,
   cbInsightsRequest,
   compactBody,
+  parseOptionalStringParam,
   requireOrgIds,
 } from '@/tools/cbinsights/utils'
 
@@ -17,7 +18,7 @@ export const executeCbinsightsListBusinessRelationshipsOperation: InternalToolOp
       path: '/v2/businessrelationships',
       body: compactBody({
         orgIds: requireOrgIds(params.orgIds),
-        nextPageToken: params.nextPageToken?.trim(),
+        nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
       }),
     },
     (data) => ({ orgs: asArray(data.orgs), nextPageToken: asString(data.nextPageToken) }),

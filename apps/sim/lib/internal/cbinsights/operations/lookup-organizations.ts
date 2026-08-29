@@ -6,6 +6,7 @@ import {
   clampLimit,
   compactBody,
   pageInfo,
+  parseOptionalStringParam,
   parseStringListParam,
 } from '@/tools/cbinsights/utils'
 
@@ -14,7 +15,7 @@ export const executeCbinsightsLookupOrganizationsOperation: InternalToolOperatio
 > = async (params, signal) => {
   const names = parseStringListParam(params.names, 'names')
   const urls = parseStringListParam(params.urls, 'urls')
-  const profileUrl = params.profileUrl?.trim()
+  const profileUrl = parseOptionalStringParam(params.profileUrl, 'profileUrl')
 
   if (!names && !urls && !profileUrl) {
     throw new Error('CB Insights lookup requires at least one of "names", "urls", or "profileUrl"')
@@ -39,7 +40,7 @@ export const executeCbinsightsLookupOrganizationsOperation: InternalToolOperatio
         urls,
         profileUrl,
         limit: clampLimit(params.limit),
-        nextPageToken: params.nextPageToken?.trim(),
+        nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
       }),
     },
     (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),

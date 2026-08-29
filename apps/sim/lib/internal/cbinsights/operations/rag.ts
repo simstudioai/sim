@@ -1,13 +1,18 @@
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsRagParams } from '@/tools/cbinsights/rag'
-import { asString, asStringArray, cbInsightsRequest } from '@/tools/cbinsights/utils'
+import {
+  asString,
+  asStringArray,
+  cbInsightsRequest,
+  parseOptionalStringParam,
+} from '@/tools/cbinsights/utils'
 
 export const executeCbinsightsRagOperation: InternalToolOperationImplementation<
   CbInsightsRagParams
 > = async (params, signal) => {
-  const message = params.message?.trim()
+  const message = parseOptionalStringParam(params.message, 'message')
   if (!message) throw new Error('CB Insights "message" is required')
-  if (message.length > 10_000) {
+  if (message.length >= 10_000) {
     throw new Error('CB Insights "message" must be under 10,000 characters')
   }
 
