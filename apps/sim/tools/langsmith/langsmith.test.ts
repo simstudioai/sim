@@ -431,3 +431,58 @@ describe('langsmith batch patch entries', () => {
     ).toThrow(/patch entries must carry the id of an existing run/i)
   })
 })
+
+describe('langsmith create feedback score coercion', () => {
+  /**
+   * The block used to be the only place a string score became a number, so the LLM and
+   * direct-tool paths posted `score: "0.5"` and LangSmith rejected or mis-stored it. The
+   * coercion belongs to the tool so every caller gets it.
+   */
+  it('coerces a numeric string score to a number', () => {
+    const body = resolveBody(
+      langsmithCreateFeedbackTool as never,
+      {
+        ...createFeedbackParams,
+        score: '0.5',
+      } as never
+    )
+
+    expect(body.score).toBe(0.5)
+  })
+
+  it('keeps a number score untouched, zero included', () => {
+    const body = resolveBody(langsmithCreateFeedbackTool as never, {
+      ...createFeedbackParams,
+      score: 0,
+    })
+
+    expect(body.score).toBe(0)
+  })
+
+  it('omits the score entirely when it is absent or blank', () => {
+    expect(
+      resolveBody(langsmithCreateFeedbackTool as never, createFeedbackParams)
+    ).not.toHaveProperty('score')
+    expect(
+      resolveBody(
+        langsmithCreateFeedbackTool as never,
+        {
+          ...createFeedbackParams,
+          score: '',
+        } as never
+      )
+    ).not.toHaveProperty('score')
+  })
+
+  it('rejects a score that is not a number instead of posting NaN', () => {
+    expect(() =>
+      resolveBody(
+        langsmithCreateFeedbackTool as never,
+        {
+          ...createFeedbackParams,
+          score: 'high',
+        } as never
+      )
+    ).toThrow(/Invalid score: "high" is not a number/)
+  })
+})

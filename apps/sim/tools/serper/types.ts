@@ -234,8 +234,16 @@ export const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
  */
 export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Result title' },
-  link: { type: 'string', description: 'Result URL' },
-  snippet: { type: 'string', description: 'Result description/snippet', optional: true },
+  link: {
+    type: 'string',
+    description: 'Result URL. Absent on places results, which Google returns without a link.',
+    optional: true,
+  },
+  snippet: {
+    type: 'string',
+    description: 'Result description/snippet. Absent on places results.',
+    optional: true,
+  },
   position: { type: 'number', description: 'Position in search results' },
   date: { type: 'string', description: 'Publication date (news/videos)', optional: true },
   imageUrl: { type: 'string', description: 'Image URL (images/news/shopping)', optional: true },
@@ -243,6 +251,12 @@ export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   rating: { type: 'number', description: 'Rating (places)', optional: true },
   ratingCount: { type: 'number', description: 'Number of reviews (places)', optional: true },
   address: { type: 'string', description: 'Address (places)', optional: true },
+  category: { type: 'string', description: 'Business category (places)', optional: true },
+  phoneNumber: { type: 'string', description: 'Contact phone number (places)', optional: true },
+  website: { type: 'string', description: 'Business website (places)', optional: true },
+  latitude: { type: 'number', description: 'Latitude coordinate (places)', optional: true },
+  longitude: { type: 'number', description: 'Longitude coordinate (places)', optional: true },
+  cid: { type: 'string', description: 'Google CID identifier (places)', optional: true },
   price: { type: 'string', description: 'Price (shopping)', optional: true },
   duration: { type: 'string', description: 'Duration (videos)', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -259,7 +273,9 @@ export interface SearchParams {
 
 export interface SearchResult {
   title: string
-  link: string
+  /** Absent on places results — Google returns no result URL for a place. */
+  link?: string
+  /** Absent on places results — Google returns no snippet for a place. */
   snippet?: string
   position: number
   imageUrl?: string
@@ -267,9 +283,13 @@ export interface SearchResult {
   source?: string
   rating?: number
   ratingCount?: number
-  /** Legacy passthrough of the raw `reviews` key on places items; not an advertised output. */
-  reviews?: number
   address?: string
+  category?: string
+  phoneNumber?: string
+  website?: string
+  latitude?: number
+  longitude?: number
+  cid?: string
   price?: string
   duration?: string
 }
@@ -292,14 +312,14 @@ interface AnswerBox {
   link?: string
 }
 
-interface PeopleAlsoAsk {
+export interface PeopleAlsoAsk {
   question: string
   snippet?: string
   title?: string
   link?: string
 }
 
-interface RelatedSearch {
+export interface RelatedSearch {
   query: string
 }
 

@@ -127,3 +127,28 @@ describe('qdrant_upsert_points transformResponse', () => {
     expect(result.output.status).toBe('ok')
   })
 })
+
+describe('qdrant block declared outputs', () => {
+  /**
+   * Every Qdrant tool returns exactly `{ status, data }`. `matches` and `upsertedCount` were
+   * declared on the block but no code path has ever produced them, so they resolved to
+   * `undefined` for every reference.
+   */
+  it('declares only the keys the three tools actually emit', async () => {
+    const { QdrantBlock } = await import('@/blocks/blocks/qdrant')
+
+    expect(Object.keys(QdrantBlock.outputs)).toEqual(['data', 'status'])
+  })
+
+  it.each([searchVectorTool, fetchPointsTool, upsertPointsTool])(
+    'emits no matches or upsertedCount from $id',
+    async (tool) => {
+      const response = qdrantResponse({ status: 'ok', result: [] })
+
+      const result = await tool.transformResponse!(response, {} as never)
+
+      expect(result.output).not.toHaveProperty('matches')
+      expect(result.output).not.toHaveProperty('upsertedCount')
+    }
+  )
+})

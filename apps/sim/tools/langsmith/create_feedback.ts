@@ -7,6 +7,20 @@ import type {
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * LangSmith stores `score` as a number. The value reaches this tool as a string from the block's
+ * short-input, as a number from a direct tool call, and as either from an LLM tool call, so the
+ * coercion lives here rather than in any one caller.
+ */
+function coerceFeedbackScore(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid score: "${value}" is not a number`)
+  }
+  return parsed
+}
+
 export const langsmithCreateFeedbackTool: ToolConfig<
   LangsmithCreateFeedbackParams,
   LangsmithCreateFeedbackResponse
@@ -77,7 +91,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
         id: generateId(),
         run_id: params.runId.trim(),
         key: params.key,
-        score: params.score,
+        score: coerceFeedbackScore(params.score),
         value: params.value,
         comment: params.comment,
         correction: params.correction,

@@ -163,21 +163,48 @@ Search for information on the web using Firecrawl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | array | Search results data with scraped content and metadata |
-|   ↳ `title` | string | Search result title from search engine |
-|   ↳ `description` | string | Search result description/snippet from search engine |
-|   ↳ `url` | string | URL of the search result |
-|   ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input |
-|   ↳ `html` | string | Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input |
-|   ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
-|   ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
-|   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
-|   ↳ `metadata` | object | Metadata about the search result page |
-|     ↳ `title` | string | Page title |
-|     ↳ `description` | string | Page meta description |
-|     ↳ `sourceURL` | string | Original source URL |
-|     ↳ `statusCode` | number | HTTP status code |
-|     ↳ `error` | string | Error message if scrape failed |
+| `data` | object | Search results keyed by source \(web, news, images\), each with optional scraped content and metadata |
+|   ↳ `web` | array | Web search results |
+|     ↳ `title` | string | Search result title from search engine |
+|     ↳ `description` | string | Search result description/snippet from search engine |
+|     ↳ `url` | string | URL of the search result |
+|     ↳ `position` | number | Position of the result |
+|     ↳ `markdown` | string | Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input |
+|     ↳ `html` | string | Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input |
+|     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
+|     ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
+|     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
+|     ↳ `metadata` | object | Metadata about the search result page |
+|       ↳ `title` | string | Page title |
+|       ↳ `description` | string | Page meta description |
+|       ↳ `sourceURL` | string | Original source URL |
+|       ↳ `statusCode` | number | HTTP status code |
+|       ↳ `error` | string | Error message if scrape failed |
+|   ↳ `news` | array | News search results \(present only when "news" is among the requested sources\) |
+|     ↳ `title` | string | Title of the article |
+|     ↳ `snippet` | string | Snippet from the article |
+|     ↳ `url` | string | URL of the article |
+|     ↳ `date` | string | Publication date of the article |
+|     ↳ `imageUrl` | string | Thumbnail image URL for the article |
+|     ↳ `position` | number | Position of the article |
+|     ↳ `markdown` | string | Article content in markdown; returned only when scraping was requested via the hidden scrapeOptions input |
+|     ↳ `html` | string | Processed HTML content; returned only when "html" is among the requested scrape formats |
+|     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats |
+|     ↳ `links` | array | Links found on the article page; returned only when "links" was requested |
+|     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when requested |
+|     ↳ `metadata` | object | Metadata about the search result page |
+|       ↳ `title` | string | Page title |
+|       ↳ `description` | string | Page meta description |
+|       ↳ `sourceURL` | string | Original source URL |
+|       ↳ `statusCode` | number | HTTP status code |
+|       ↳ `error` | string | Error message if scrape failed |
+|   ↳ `images` | array | Image search results \(present only when "images" is among the requested sources\) |
+|     ↳ `title` | string | Title from the search result |
+|     ↳ `imageUrl` | string | Direct URL of the image |
+|     ↳ `imageWidth` | number | Image width in pixels |
+|     ↳ `imageHeight` | number | Image height in pixels |
+|     ↳ `url` | string | URL of the page containing the image |
+|     ↳ `position` | number | Position of the result |
 
 ### Firecrawl Crawl
 
@@ -282,7 +309,7 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `includeSubdomains` | boolean | No | Whether to include URLs from subdomains \(default: true\) |
 | `ignoreQueryParameters` | boolean | No | Exclude URLs containing query strings \(default: true\) |
 | `limit` | number | No | Maximum number of links to return \(e.g., 100, 1000, 5000\). Max: 100,000, default: 5,000 |
-| `timeout` | number | No | Request timeout in milliseconds |
+| `mapTimeout` | number | No | Firecrawl's own map deadline in milliseconds, sent as the request body's `timeout`. Named `mapTimeout` because a tool param called `timeout` is consumed as the outbound fetch deadline instead of reaching Firecrawl. |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -290,7 +317,10 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the mapping operation was successful |
-| `links` | array | Array of discovered URLs from the website |
+| `links` | array | Discovered pages. Each entry is an object with the URL plus, when Firecrawl has them, the page title and description. |
+|   ↳ `url` | string | Discovered URL |
+|   ↳ `title` | string | Title of the page, when available |
+|   ↳ `description` | string | Description of the page, when available |
 
 ### Firecrawl Extract
 

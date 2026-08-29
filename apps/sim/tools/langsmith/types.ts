@@ -110,7 +110,8 @@ export interface LangsmithCreateFeedbackParams {
   apiKey: string
   runId: string
   key: string
-  score?: number
+  /** Coerced to a number by the tool; arrives as a string from the block's short-input. */
+  score?: number | string
   value?: string
   comment?: string
   correction?: Record<string, unknown>

@@ -140,20 +140,30 @@ describe('serper searchTool.transformResponse', () => {
         position: 1,
         date: '2 hours ago',
         imageUrl: 'https://example.com/markets.png',
+        source: 'Example Wire',
       },
     ])
   })
 
-  it('maps places results unchanged', async () => {
+  /**
+   * Payload copied from the `/places` example Serper publishes on serper.dev. Place items carry
+   * neither `link` nor `snippet` nor `reviews`; the review count arrives as `ratingCount`.
+   */
+  it('maps the fields /places actually returns and invents no link or snippet', async () => {
     const response = serperResponse('https://google.serper.dev/places', {
       places: [
         {
-          title: 'Corner Coffee',
-          link: 'https://example.com/coffee',
-          snippet: 'Espresso bar',
-          rating: 4.6,
-          address: '1 Main St',
-          ratingCount: 812,
+          position: 1,
+          title: 'Whole Foods Market',
+          address: '2001 Market St, San Francisco, CA 94114',
+          latitude: 37.7687616,
+          longitude: -122.42701559999999,
+          rating: 4.2,
+          ratingCount: 1500,
+          category: 'Grocery store',
+          phoneNumber: '(415) 626-1430',
+          website: 'https://www.wholefoodsmarket.com/stores/2001marketstreet',
+          cid: '6353588238324409422',
         },
       ],
     })
@@ -162,14 +172,22 @@ describe('serper searchTool.transformResponse', () => {
 
     expect(result.output.searchResults).toEqual([
       {
-        title: 'Corner Coffee',
-        link: 'https://example.com/coffee',
-        snippet: 'Espresso bar',
+        title: 'Whole Foods Market',
         position: 1,
-        rating: 4.6,
-        address: '1 Main St',
+        address: '2001 Market St, San Francisco, CA 94114',
+        latitude: 37.7687616,
+        longitude: -122.42701559999999,
+        rating: 4.2,
+        ratingCount: 1500,
+        category: 'Grocery store',
+        phoneNumber: '(415) 626-1430',
+        website: 'https://www.wholefoodsmarket.com/stores/2001marketstreet',
+        cid: '6353588238324409422',
       },
     ])
+    expect(result.output.searchResults[0]).not.toHaveProperty('link')
+    expect(result.output.searchResults[0]).not.toHaveProperty('snippet')
+    expect(result.output.searchResults[0]).not.toHaveProperty('reviews')
   })
 
   it('maps images results unchanged', async () => {
@@ -314,6 +332,49 @@ describe('serper searchTool.transformResponse vertical dispatch', () => {
     expect(result.output.searchResults).toEqual([
       { title: 'Page', link: 'https://example.com/page', position: 1 },
     ])
+  })
+})
+
+describe('serper searchTool.transformResponse search-vertical panels', () => {
+  it('surfaces the peopleAlsoAsk and relatedSearches blocks /search returns', async () => {
+    const response = serperResponse('https://google.serper.dev/search', {
+      organic: [{ title: 'Docs', link: 'https://example.com/docs' }],
+      peopleAlsoAsk: [
+        {
+          question: 'How do I get Google to search?',
+          snippet: 'Navigate to google.com and type your query into the search box.',
+          title: '3 Ways to Search Google - wikiHow',
+          link: 'https://www.wikihow.com/Search-Google',
+        },
+      ],
+      relatedSearches: [{ query: 'Google Search Console' }, { query: 'Google Lens' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.peopleAlsoAsk).toEqual([
+      {
+        question: 'How do I get Google to search?',
+        snippet: 'Navigate to google.com and type your query into the search box.',
+        title: '3 Ways to Search Google - wikiHow',
+        link: 'https://www.wikihow.com/Search-Google',
+      },
+    ])
+    expect(result.output.relatedSearches).toEqual([
+      { query: 'Google Search Console' },
+      { query: 'Google Lens' },
+    ])
+  })
+
+  it('omits both panels on a vertical that does not return them', async () => {
+    const response = serperResponse('https://google.serper.dev/news', {
+      news: [{ title: 'Markets rally', link: 'https://example.com/markets', source: 'Wire' }],
+    })
+
+    const result = await searchTool.transformResponse!(response, {} as never)
+
+    expect(result.output.peopleAlsoAsk).toBeUndefined()
+    expect(result.output.relatedSearches).toBeUndefined()
   })
 })
 

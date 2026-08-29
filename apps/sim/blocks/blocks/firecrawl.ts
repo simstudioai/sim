@@ -792,7 +792,10 @@ Example 2 - Product Data:
     invalidURLs: { type: 'json', description: 'URLs skipped because they were invalid' },
     // Map output
     success: { type: 'boolean', description: 'Operation success status' },
-    links: { type: 'json', description: 'Discovered URLs array' },
+    links: {
+      type: 'json',
+      description: 'Discovered pages as objects with url and optional title/description',
+    },
     // Extract output
     sources: { type: 'json', description: 'Data sources array' },
     tokensUsed: { type: 'number', description: 'Tokens consumed by the extract job' },

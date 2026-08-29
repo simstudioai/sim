@@ -123,16 +123,18 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output properties for search result items
- * Based on POST /v2/search response data[] array items
+ * Output properties for web search result items.
+ * Based on the `data.web[]` items of the `POST /v2/search` 200 response.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
  */
-export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
+export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Search result title from search engine' },
   description: {
     type: 'string',
     description: 'Search result description/snippet from search engine',
   },
   url: { type: 'string', description: 'URL of the search result' },
+  position: { type: 'number', description: 'Position of the result', optional: true },
   markdown: {
     type: 'string',
     description:
@@ -168,13 +170,105 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search result output definition
+ * Output properties for news search result items.
+ * News items carry `snippet` — not the `description` web items use — plus `date` and `imageUrl`.
+ * Based on the `data.news[]` items of the `POST /v2/search` 200 response.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
  */
-export const SEARCH_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Search result item with optional scraped content',
-  properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
-}
+export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Title of the article' },
+  snippet: { type: 'string', description: 'Snippet from the article' },
+  url: { type: 'string', description: 'URL of the article' },
+  date: { type: 'string', description: 'Publication date of the article', optional: true },
+  imageUrl: { type: 'string', description: 'Thumbnail image URL for the article', optional: true },
+  position: { type: 'number', description: 'Position of the article', optional: true },
+  markdown: {
+    type: 'string',
+    description:
+      'Article content in markdown; returned only when scraping was requested via the hidden scrapeOptions input',
+    optional: true,
+  },
+  html: {
+    type: 'string',
+    description:
+      'Processed HTML content; returned only when "html" is among the requested scrape formats',
+    optional: true,
+  },
+  rawHtml: {
+    type: 'string',
+    description:
+      'Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats',
+    optional: true,
+  },
+  links: {
+    type: 'array',
+    description: 'Links found on the article page; returned only when "links" was requested',
+    optional: true,
+    items: { type: 'string', description: 'URL found on the page' },
+  },
+  screenshot: {
+    type: 'string',
+    description: 'Screenshot URL (expires after 24 hours); returned only when requested',
+    optional: true,
+  },
+  metadata: SEARCH_METADATA_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output properties for image search result items.
+ * `url` is the page containing the image; the image itself is at `imageUrl`.
+ * Based on the `data.images[]` items of the `POST /v2/search` 200 response.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+ */
+export const SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES = {
+  title: { type: 'string', description: 'Title from the search result' },
+  imageUrl: { type: 'string', description: 'Direct URL of the image' },
+  imageWidth: { type: 'number', description: 'Image width in pixels', optional: true },
+  imageHeight: { type: 'number', description: 'Image height in pixels', optional: true },
+  url: { type: 'string', description: 'URL of the page containing the image' },
+  position: { type: 'number', description: 'Position of the result', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * The source-keyed `data` envelope `POST /v2/search` returns. Which arrays are present depends on
+ * the requested `sources`; `web` is the default.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+ */
+export const SEARCH_DATA_OUTPUT_PROPERTIES = {
+  web: {
+    type: 'array',
+    description: 'Web search results',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_WEB_RESULT_OUTPUT_PROPERTIES },
+  },
+  news: {
+    type: 'array',
+    description: 'News search results (present only when "news" is among the requested sources)',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES },
+  },
+  images: {
+    type: 'array',
+    description: 'Image search results (present only when "images" is among the requested sources)',
+    optional: true,
+    items: { type: 'object', properties: SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output properties for the URLs `POST /v2/map` discovers. Each entry is an object with a required
+ * `url`, not a bare URL string.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+ */
+export const MAP_LINK_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Discovered URL' },
+  title: { type: 'string', description: 'Title of the page, when available', optional: true },
+  description: {
+    type: 'string',
+    description: 'Description of the page, when available',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
 
 // Common types
 interface LocationConfig {
@@ -293,7 +387,12 @@ export interface MapParams {
   includeSubdomains?: boolean
   ignoreQueryParameters?: boolean
   limit?: number
-  timeout?: number
+  /**
+   * Firecrawl's own map deadline, in milliseconds. Deliberately not named `timeout`:
+   * `request-transport.ts` reads `params.timeout` as the outbound fetch deadline for every tool,
+   * so that name would make the local abort fire at the same instant Firecrawl gives up.
+   */
+  mapTimeout?: number
   location?: LocationConfig
 }
 
@@ -346,25 +445,63 @@ export interface ScrapeResponse extends ToolResponse {
   }
 }
 
+interface SearchResultMetadata {
+  title?: string
+  description?: string
+  sourceURL: string
+  url?: string
+  statusCode?: number
+  error?: string | null
+}
+
+interface ScrapedSearchContent {
+  markdown?: string | null
+  html?: string | null
+  rawHtml?: string | null
+  links?: string[]
+  screenshot?: string | null
+  metadata?: SearchResultMetadata
+}
+
+export interface SearchWebResult extends ScrapedSearchContent {
+  title: string
+  description: string
+  url: string
+  position?: number
+}
+
+export interface SearchNewsResult extends ScrapedSearchContent {
+  title: string
+  snippet: string
+  url: string
+  date?: string
+  imageUrl?: string
+  position?: number
+}
+
+export interface SearchImageResult {
+  title: string
+  imageUrl: string
+  imageWidth?: number
+  imageHeight?: number
+  url: string
+  position?: number
+}
+
+/**
+ * `POST /v2/search` answers with a source-keyed envelope, not a flat array. Only the sources the
+ * request asked for are present.
+ * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+ */
+export interface SearchData {
+  web?: SearchWebResult[]
+  news?: SearchNewsResult[]
+  images?: SearchImageResult[]
+}
+
 export interface SearchResponse extends ToolResponse {
   output: {
-    data: Array<{
-      title: string
-      description: string
-      url: string
-      markdown?: string
-      html?: string
-      rawHtml?: string
-      links?: string[]
-      screenshot?: string
-      metadata: {
-        title?: string
-        description?: string
-        sourceURL: string
-        statusCode?: number
-        error?: string
-      }
-    }>
+    data: SearchData
     creditsUsed?: number
   }
 }
@@ -392,10 +529,17 @@ export interface FirecrawlCrawlResponse extends ToolResponse {
   }
 }
 
+/** One entry of the `links` array `POST /v2/map` returns. */
+export interface MapLink {
+  url: string
+  title?: string
+  description?: string
+}
+
 export interface MapResponse extends ToolResponse {
   output: {
     success: boolean
-    links: string[]
+    links: MapLink[]
     creditsUsed?: number
   }
 }

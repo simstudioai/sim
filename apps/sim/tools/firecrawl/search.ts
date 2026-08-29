@@ -3,8 +3,8 @@ import {
   applyFirecrawlScrapeOptionsModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
-import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
-import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
+import type { SearchData, SearchParams, SearchResponse } from '@/tools/firecrawl/types'
+import { SEARCH_DATA_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
@@ -79,10 +79,19 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    /**
+     * `data` is the source-keyed envelope, so an absent body must still resolve to an object —
+     * downstream references read `data.web` / `data.news` / `data.images`.
+     */
+    const searchData: SearchData =
+      data.data && typeof data.data === 'object' && !Array.isArray(data.data)
+        ? (data.data as SearchData)
+        : {}
+
     return {
       success: true,
       output: {
-        data: data.data,
+        data: searchData,
         creditsUsed: data.creditsUsed,
       },
     }
@@ -90,12 +99,10 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
 
   outputs: {
     data: {
-      type: 'array',
-      description: 'Search results data with scraped content and metadata',
-      items: {
-        type: 'object',
-        properties: SEARCH_RESULT_OUTPUT_PROPERTIES,
-      },
+      type: 'object',
+      description:
+        'Search results keyed by source (web, news, images), each with optional scraped content and metadata',
+      properties: SEARCH_DATA_OUTPUT_PROPERTIES,
     },
   },
 }

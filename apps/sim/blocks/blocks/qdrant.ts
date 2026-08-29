@@ -257,9 +257,11 @@ Return ONLY the JSON object.`,
   },
 
   outputs: {
-    matches: { type: 'json', description: 'Search matches' },
-    upsertedCount: { type: 'number', description: 'Upserted count' },
-    data: { type: 'json', description: 'Response data' },
+    data: {
+      type: 'json',
+      description:
+        'Result payload: matched points for search, fetched points for fetch, or the update result for upsert',
+    },
     status: { type: 'string', description: 'Operation status' },
   },
 }

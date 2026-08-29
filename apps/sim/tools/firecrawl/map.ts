@@ -1,5 +1,6 @@
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
-import type { MapParams, MapResponse } from '@/tools/firecrawl/types'
+import type { MapLink, MapParams, MapResponse } from '@/tools/firecrawl/types'
+import { MAP_LINK_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
@@ -47,11 +48,12 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       description:
         'Maximum number of links to return (e.g., 100, 1000, 5000). Max: 100,000, default: 5,000',
     },
-    timeout: {
+    mapTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Request timeout in milliseconds',
+      description:
+        "Firecrawl's own map deadline in milliseconds, sent as the request body's `timeout`. Named `mapTimeout` because a tool param called `timeout` is consumed as the outbound fetch deadline instead of reaching Firecrawl.",
     },
     location: {
       type: 'json',
@@ -88,7 +90,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
       if (params.limit) body.limit = Number(params.limit)
-      if (params.timeout) body.timeout = Number(params.timeout)
+      if (params.mapTimeout) body.timeout = Number(params.mapTimeout)
       if (params.location) body.location = params.location
 
       return body
@@ -102,7 +104,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       success: data.success,
       output: {
         success: data.success,
-        links: data.links || [],
+        links: Array.isArray(data.links) ? (data.links as MapLink[]) : [],
         creditsUsed: 1,
       },
     }
@@ -115,9 +117,11 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
     },
     links: {
       type: 'array',
-      description: 'Array of discovered URLs from the website',
+      description:
+        'Discovered pages. Each entry is an object with the URL plus, when Firecrawl has them, the page title and description.',
       items: {
-        type: 'string',
+        type: 'object',
+        properties: MAP_LINK_OUTPUT_PROPERTIES,
       },
     },
   },

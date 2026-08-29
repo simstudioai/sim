@@ -1,5 +1,15 @@
-import type { SearchParams, SearchResponse, SearchResult } from '@/tools/serper/types'
-import { SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/serper/types'
+import type {
+  PeopleAlsoAsk,
+  RelatedSearch,
+  SearchParams,
+  SearchResponse,
+  SearchResult,
+} from '@/tools/serper/types'
+import {
+  PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES,
+  RELATED_SEARCH_OUTPUT_PROPERTIES,
+  SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,
+} from '@/tools/serper/types'
 import type { ToolConfig } from '@/tools/types'
 
 /** Every Serper vertical this tool is verified to speak. */
@@ -38,18 +48,28 @@ const SERPER_VERTICALS: Record<SerperSearchType, SerperVertical> = {
       position: index + 1,
       date: item.date as string | undefined,
       imageUrl: item.imageUrl as string | undefined,
+      source: item.source as string | undefined,
     }),
   },
+  /**
+   * A `/places` item carries no `link`, no `snippet` and no `reviews` — the review count arrives
+   * as `ratingCount`, and the business URL as `website`. Those three keys were mapped here from
+   * a different Serper vertical and resolved to `undefined` on every result.
+   */
   places: {
     responseKey: 'places',
     toResult: (item, index) => ({
       title: item.title as string,
-      link: item.link as string,
-      snippet: item.snippet as string | undefined,
       position: index + 1,
-      rating: item.rating as number | undefined,
-      reviews: item.reviews as number | undefined,
       address: item.address as string | undefined,
+      rating: item.rating as number | undefined,
+      ratingCount: item.ratingCount as number | undefined,
+      category: item.category as string | undefined,
+      phoneNumber: item.phoneNumber as string | undefined,
+      website: item.website as string | undefined,
+      latitude: item.latitude as number | undefined,
+      longitude: item.longitude as number | undefined,
+      cid: item.cid as string | undefined,
     }),
   },
   images: {
@@ -255,10 +275,23 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       ? items.map((item, index) => vertical.toResult(item, index))
       : []
 
+    /**
+     * `peopleAlsoAsk` and `relatedSearches` are top-level keys on the `/search` payload only.
+     * Every other vertical omits them, so they stay absent rather than becoming empty arrays.
+     */
+    const peopleAlsoAsk = Array.isArray(data.peopleAlsoAsk)
+      ? (data.peopleAlsoAsk as PeopleAlsoAsk[])
+      : undefined
+    const relatedSearches = Array.isArray(data.relatedSearches)
+      ? (data.relatedSearches as RelatedSearch[])
+      : undefined
+
     return {
       success: true,
       output: {
         searchResults,
+        ...(peopleAlsoAsk ? { peopleAlsoAsk } : {}),
+        ...(relatedSearches ? { relatedSearches } : {}),
       },
     }
   },
@@ -267,10 +300,28 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     searchResults: {
       type: 'array',
       description:
-        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images, duration/source for videos, price/source for shopping)',
+        'Search results with titles, links, snippets, and type-specific metadata (date/source for news, rating/ratingCount/address/category for places, imageUrl for images, duration/source for videos, price/source for shopping)',
       items: {
         type: 'object',
         properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,
+      },
+    },
+    peopleAlsoAsk: {
+      type: 'array',
+      description: 'Related questions Google surfaces on the web search vertical',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES,
+      },
+    },
+    relatedSearches: {
+      type: 'array',
+      description: 'Suggested follow-up queries Google surfaces on the web search vertical',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: RELATED_SEARCH_OUTPUT_PROPERTIES,
       },
     },
   },
