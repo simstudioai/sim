@@ -351,6 +351,33 @@ describe('enrow_find_email', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('reports the polling window when a 200 body aborts mid-read', async () => {
+    const abort = new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    const stalled = jsonResponse(200, {})
+    stalled.json = async () => {
+      throw abort
+    }
+    const fetchMock = vi.fn().mockResolvedValue(stalled)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+  })
+
+  it('keeps the status when an error body cannot be read', async () => {
+    const unreadable = jsonResponse(403, {})
+    unreadable.text = async () => {
+      throw new Error('socket hang up')
+    }
+    const fetchMock = vi.fn().mockResolvedValue(unreadable)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('Enrow find-email poll error: 403 - <unreadable body>')
+  })
+
   it('gives up after the polling window when every poll stays 202', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(202, { qualification: 'ongoing' }))
     vi.stubGlobal('fetch', fetchMock)

@@ -75,7 +75,11 @@ export interface EnrowPollOptions {
  *
  * HTTP 202 means still running. A 429 or 5xx is retried with jittered backoff,
  * up to `MAX_TRANSIENT_RETRIES` for the whole poll. Any other non-2xx, or one
- * transient failure past the cap, throws with the status and body.
+ * transient failure past the cap, throws with the status and body — and the
+ * status survives even when that body cannot be read.
+ *
+ * The deadline covers reading the 200 body, not just receiving its headers, so
+ * a stalled body ends the poll with this function's own window error.
  *
  * Two budgets bound the call and every wait is clamped to whichever is smaller.
  * `elapsed` accumulates the delays the loop intends to wait; it drives the poll
@@ -142,11 +146,25 @@ export async function pollEnrowJob({
         }
         continue
       }
-      const errorText = await response.text()
+      const errorText = await response.text().catch(() => '<unreadable body>')
       throw new Error(`${label} poll error: ${response.status} - ${errorText}`)
     }
 
-    return ((await response.json()) as Record<string, unknown> | null) ?? {}
+    /*
+     * The body is read under the same deadline as the headers.
+     *
+     * `AbortSignal.timeout` fires against the whole exchange, so a 200 whose
+     * headers arrive just inside the window can still have its body aborted
+     * mid-read. That rejection surfaces here rather than at the `fetch` above,
+     * so it needs the same abort handling: without it the raw `TimeoutError`
+     * escapes, naming neither Enrow nor the window it exhausted.
+     */
+    try {
+      return ((await response.json()) as Record<string, unknown> | null) ?? {}
+    } catch (error) {
+      if (isAbortError(error)) break
+      throw error
+    }
   }
 
   throw new Error(`${label} did not complete within the polling window`)
