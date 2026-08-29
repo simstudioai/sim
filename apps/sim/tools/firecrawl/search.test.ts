@@ -153,3 +153,77 @@ describe('firecrawl_map', () => {
     ])
   })
 })
+
+describe('firecrawl_search sources', () => {
+  /**
+   * `data.news` and `data.images` only ever appear when the request asks for them, so the
+   * documented verticals need a reachable `sources` input.
+   * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
+   */
+  it('exposes sources so the documented news and images verticals are reachable', () => {
+    expect(searchTool.params.sources?.visibility).toBe('user-or-llm')
+  })
+
+  it('forwards the requested sources to Firecrawl', () => {
+    const body = (searchTool.request.body as (params: never) => Record<string, unknown>)({
+      query: 'firecrawl',
+      sources: ['web', 'news'],
+    } as never)
+
+    expect(body.sources).toEqual(['web', 'news'])
+  })
+
+  it('omits sources entirely when none were chosen, letting Firecrawl default to web', () => {
+    const body = (searchTool.request.body as (params: never) => Record<string, unknown>)({
+      query: 'firecrawl',
+    } as never)
+
+    expect(body).not.toHaveProperty('sources')
+  })
+})
+
+describe('firecrawl_map edge cases', () => {
+  it('sends an explicit mapTimeout of 0 instead of falling back to the provider default', () => {
+    const body = (mapTool.request.body as (params: never) => Record<string, unknown>)({
+      url: 'https://example.com',
+      mapTimeout: 0,
+    } as never)
+
+    expect(body.timeout).toBe(0)
+  })
+
+  it('omits the timeout for a blank mapTimeout', () => {
+    const body = (mapTool.request.body as (params: never) => Record<string, unknown>)({
+      url: 'https://example.com',
+      mapTimeout: '',
+    } as never)
+
+    expect(body).not.toHaveProperty('timeout')
+  })
+
+  it('widens a bare URL string link into the declared object shape', async () => {
+    const response = new Response(
+      JSON.stringify({ success: true, links: ['https://example.com/a', { url: 'https://b.com' }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+    const result = await mapTool.transformResponse!(response, {} as never)
+
+    expect(result.output.links).toEqual([
+      { url: 'https://example.com/a' },
+      { url: 'https://b.com' },
+    ])
+  })
+})
+
+describe('firecrawl_search declared nullability', () => {
+  it('marks scraped content nullable and metadata optional on web and news items', () => {
+    for (const source of ['web', 'news'] as const) {
+      const item = searchTool.outputs?.data.properties?.[source].items?.properties
+      expect(item?.metadata.optional).toBe(true)
+      for (const field of ['markdown', 'html', 'rawHtml', 'screenshot']) {
+        expect(item?.[field].nullable).toBe(true)
+      }
+    }
+  })
+})

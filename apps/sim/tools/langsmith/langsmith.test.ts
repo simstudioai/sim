@@ -486,3 +486,32 @@ describe('langsmith create feedback score coercion', () => {
     ).toThrow(/Invalid score: "high" is not a number/)
   })
 })
+
+describe('langsmith create feedback score edge cases', () => {
+  it('omits a whitespace-only score instead of recording it as 0', () => {
+    expect(
+      resolveBody(
+        langsmithCreateFeedbackTool as never,
+        {
+          ...createFeedbackParams,
+          score: '   ',
+        } as never
+      )
+    ).not.toHaveProperty('score')
+  })
+
+  it.each(['Infinity', '-Infinity', Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects the non-finite score %s rather than posting a JSON null',
+    (score) => {
+      expect(() =>
+        resolveBody(
+          langsmithCreateFeedbackTool as never,
+          {
+            ...createFeedbackParams,
+            score,
+          } as never
+        )
+      ).toThrow(/is not a number/)
+    }
+  )
+})

@@ -20,6 +20,19 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-or-llm',
       description: 'The search query to use',
     },
+    sources: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Which result sets to search: any of "web", "news", "images". Determines which arrays appear on the output. Defaults to ["web"].',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return per source',
+    },
     scrapeOptions: {
       type: 'json',
       required: false,

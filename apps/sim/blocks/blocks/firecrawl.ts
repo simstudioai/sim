@@ -7,6 +7,32 @@ import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 /** The document being parsed, whether it was uploaded or passed in by reference. */
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference'] as const
 
+const FIRECRAWL_SEARCH_SOURCES = ['web', 'news', 'images'] as const
+
+type FirecrawlSearchSource = (typeof FIRECRAWL_SEARCH_SOURCES)[number]
+
+/**
+ * The multi-select stores its value as an array, but a saved workflow can still hold the
+ * JSON-string form an earlier revision wrote. Unknown entries are dropped rather than forwarded,
+ * since Firecrawl rejects a source it does not know.
+ */
+function parseSearchSources(value: unknown): FirecrawlSearchSource[] | undefined {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    if (raw.trim() === '') return undefined
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      raw = [raw]
+    }
+  }
+  if (!Array.isArray(raw)) return undefined
+  const sources = raw.filter((entry): entry is FirecrawlSearchSource =>
+    FIRECRAWL_SEARCH_SOURCES.includes(entry as FirecrawlSearchSource)
+  )
+  return sources.length > 0 ? sources : undefined
+}
+
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
@@ -430,6 +456,24 @@ Example 2 - Product Data:
       required: true,
     },
     {
+      id: 'sources',
+      title: 'Sources',
+      type: 'dropdown',
+      multiSelect: true,
+      placeholder: 'Web',
+      description:
+        'Which result sets to search. Determines the arrays present on the output. Defaults to Web.',
+      options: [
+        { label: 'Web', id: 'web' },
+        { label: 'News', id: 'news' },
+        { label: 'Images', id: 'images' },
+      ],
+      condition: {
+        field: 'operation',
+        value: 'search',
+      },
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -550,11 +594,14 @@ Example 2 - Product Data:
             if (mobile != null) result.mobile = mobile
             break
 
-          case 'search':
+          case 'search': {
             if (query) result.query = query
             if (timeout) result.timeout = Number.parseInt(timeout)
             if (limit) result.limit = Number.parseInt(limit)
+            const sources = parseSearchSources(params.sources)
+            if (sources) result.sources = sources
             break
+          }
 
           case 'crawl':
             if (url) result.url = url
@@ -730,6 +777,7 @@ Example 2 - Product Data:
     urls: { type: 'json', description: 'Array of URLs for extraction or batch scraping' },
     jobId: { type: 'string', description: 'Job ID for status/cancel operations' },
     query: { type: 'string', description: 'Search query terms' },
+    sources: { type: 'json', description: 'Search result sources: web, news and/or images' },
     prompt: { type: 'string', description: 'Extraction prompt' },
     limit: { type: 'string', description: 'Result/page limit' },
     formats: { type: 'json', description: 'Output formats array' },

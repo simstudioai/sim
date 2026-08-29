@@ -13,9 +13,14 @@ import type { ToolConfig } from '@/tools/types'
  * coercion lives here rather than in any one caller.
  */
 function coerceFeedbackScore(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string' && value.trim() === '') return undefined
   const parsed = Number(value)
-  if (Number.isNaN(parsed)) {
+  /**
+   * `Number.isFinite` rather than `!Number.isNaN`: `Infinity` survives a NaN check but
+   * `JSON.stringify` turns it into `null`, which LangSmith would store as a blank score.
+   */
+  if (!Number.isFinite(parsed)) {
     throw new Error(`Invalid score: "${value}" is not a number`)
   }
   return parsed

@@ -88,15 +88,27 @@ export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
   description: { type: 'string', description: 'Page meta description', optional: true },
   sourceURL: { type: 'string', description: 'Original source URL' },
   statusCode: { type: 'number', description: 'HTTP status code', optional: true },
-  error: { type: 'string', description: 'Error message if scrape failed', optional: true },
+  error: {
+    type: 'string',
+    description: 'Error message if scrape failed',
+    optional: true,
+    nullable: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
  * Complete search metadata output definition
  */
+/**
+ * Present only on results Firecrawl actually scraped. An unscraped search hit carries no
+ * `metadata` at all — the official SDK models those as bare `SearchResultWeb`/`SearchResultNews`,
+ * and the v2 schema declares no required properties on either item.
+ * @see https://github.com/firecrawl/firecrawl/blob/main/apps/js-sdk/firecrawl/src/v2/types.ts
+ */
 export const SEARCH_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
-  description: 'Metadata about the search result page',
+  description: 'Metadata about the search result page; present only when the result was scraped',
+  optional: true,
   properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
 }
 
@@ -118,6 +130,7 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Screenshot URL (expires after 24 hours)',
     optional: true,
+    nullable: true,
   },
   metadata: CRAWL_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
@@ -128,10 +141,15 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
  * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
  */
 export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Search result title from search engine' },
+  title: {
+    type: 'string',
+    description: 'Search result title from search engine',
+    optional: true,
+  },
   description: {
     type: 'string',
     description: 'Search result description/snippet from search engine',
+    optional: true,
   },
   url: { type: 'string', description: 'URL of the search result' },
   position: { type: 'number', description: 'Position of the result', optional: true },
@@ -140,18 +158,21 @@ export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
     description:
       'Page content in markdown; returned only when scraping was requested via the hidden scrapeOptions input',
     optional: true,
+    nullable: true,
   },
   html: {
     type: 'string',
     description:
       'Processed HTML content; returned only when "html" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
+    nullable: true,
   },
   rawHtml: {
     type: 'string',
     description:
       'Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
+    nullable: true,
   },
   links: {
     type: 'array',
@@ -165,6 +186,7 @@ export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
     description:
       'Screenshot URL (expires after 24 hours); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input',
     optional: true,
+    nullable: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
@@ -176,9 +198,9 @@ export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
  * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
  */
 export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Title of the article' },
-  snippet: { type: 'string', description: 'Snippet from the article' },
-  url: { type: 'string', description: 'URL of the article' },
+  title: { type: 'string', description: 'Title of the article', optional: true },
+  snippet: { type: 'string', description: 'Snippet from the article', optional: true },
+  url: { type: 'string', description: 'URL of the article', optional: true },
   date: { type: 'string', description: 'Publication date of the article', optional: true },
   imageUrl: { type: 'string', description: 'Thumbnail image URL for the article', optional: true },
   position: { type: 'number', description: 'Position of the article', optional: true },
@@ -187,18 +209,21 @@ export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
     description:
       'Article content in markdown; returned only when scraping was requested via the hidden scrapeOptions input',
     optional: true,
+    nullable: true,
   },
   html: {
     type: 'string',
     description:
       'Processed HTML content; returned only when "html" is among the requested scrape formats',
     optional: true,
+    nullable: true,
   },
   rawHtml: {
     type: 'string',
     description:
       'Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats',
     optional: true,
+    nullable: true,
   },
   links: {
     type: 'array',
@@ -210,6 +235,7 @@ export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Screenshot URL (expires after 24 hours); returned only when requested',
     optional: true,
+    nullable: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
@@ -221,11 +247,15 @@ export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
  * @see https://docs.firecrawl.dev/api-reference/v2-openapi.json
  */
 export const SEARCH_IMAGE_RESULT_OUTPUT_PROPERTIES = {
-  title: { type: 'string', description: 'Title from the search result' },
-  imageUrl: { type: 'string', description: 'Direct URL of the image' },
+  title: { type: 'string', description: 'Title from the search result', optional: true },
+  imageUrl: { type: 'string', description: 'Direct URL of the image', optional: true },
   imageWidth: { type: 'number', description: 'Image width in pixels', optional: true },
   imageHeight: { type: 'number', description: 'Image height in pixels', optional: true },
-  url: { type: 'string', description: 'URL of the page containing the image' },
+  url: {
+    type: 'string',
+    description: 'URL of the page containing the image',
+    optional: true,
+  },
   position: { type: 'number', description: 'Position of the result', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
@@ -392,7 +422,7 @@ export interface MapParams {
    * `request-transport.ts` reads `params.timeout` as the outbound fetch deadline for every tool,
    * so that name would make the local abort fire at the same instant Firecrawl gives up.
    */
-  mapTimeout?: number
+  mapTimeout?: number | string
   location?: LocationConfig
 }
 
@@ -464,27 +494,27 @@ interface ScrapedSearchContent {
 }
 
 export interface SearchWebResult extends ScrapedSearchContent {
-  title: string
-  description: string
+  title?: string
+  description?: string
   url: string
   position?: number
 }
 
 export interface SearchNewsResult extends ScrapedSearchContent {
-  title: string
-  snippet: string
-  url: string
+  title?: string
+  snippet?: string
+  url?: string
   date?: string
   imageUrl?: string
   position?: number
 }
 
 export interface SearchImageResult {
-  title: string
-  imageUrl: string
+  title?: string
+  imageUrl?: string
   imageWidth?: number
   imageHeight?: number
-  url: string
+  url?: string
   position?: number
 }
 

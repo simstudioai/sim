@@ -3,6 +3,36 @@ import type { MapLink, MapParams, MapResponse } from '@/tools/firecrawl/types'
 import { MAP_LINK_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Keeps an explicit `0` rather than letting a truthy check drop it into Firecrawl's default —
+ * the official SDK guards its own map payload with `!= null` for the same reason. A blank
+ * short-input still arrives as `''` and stays omitted.
+ * @see https://github.com/firecrawl/firecrawl/blob/main/apps/js-sdk/firecrawl/src/v2/methods/map.ts
+ */
+function resolveMapTimeout(value: number | string | undefined): number | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string' && value.trim() === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
+ * `/v2/map` normally returns link objects, but the official SDK still accepts a bare URL string
+ * per entry and widens it to `{ url }`. Mirroring that keeps the declared object shape true for
+ * every payload Firecrawl can send.
+ * @see https://github.com/firecrawl/firecrawl/blob/main/apps/js-sdk/firecrawl/src/v2/methods/map.ts
+ */
+function normalizeMapLinks(links: unknown): MapLink[] {
+  if (!Array.isArray(links)) return []
+  return links.flatMap((link): MapLink[] => {
+    if (typeof link === 'string') return [{ url: link }]
+    if (link && typeof link === 'object' && typeof (link as MapLink).url === 'string') {
+      return [link as MapLink]
+    }
+    return []
+  })
+}
+
 export const mapTool: ToolConfig<MapParams, MapResponse> = {
   id: 'firecrawl_map',
   name: 'Firecrawl Map',
@@ -90,7 +120,8 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       if (typeof params.ignoreQueryParameters === 'boolean')
         body.ignoreQueryParameters = params.ignoreQueryParameters
       if (params.limit) body.limit = Number(params.limit)
-      if (params.mapTimeout) body.timeout = Number(params.mapTimeout)
+      const mapTimeout = resolveMapTimeout(params.mapTimeout)
+      if (mapTimeout !== undefined) body.timeout = mapTimeout
       if (params.location) body.location = params.location
 
       return body
@@ -104,7 +135,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       success: data.success,
       output: {
         success: data.success,
-        links: Array.isArray(data.links) ? (data.links as MapLink[]) : [],
+        links: normalizeMapLinks(data.links),
         creditsUsed: 1,
       },
     }

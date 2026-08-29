@@ -157,6 +157,8 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
+| `sources` | array | No | Which result sets to search: any of "web", "news", "images". Determines which arrays appear on the output. Defaults to \["web"\]. |
+| `limit` | number | No | Maximum number of results to return per source |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -174,7 +176,7 @@ Search for information on the web using Firecrawl
 |     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the scrape formats requested via the hidden scrapeOptions input |
 |     ↳ `links` | array | Links found on the page; returned only when "links" is among the scrape formats requested via the hidden scrapeOptions input |
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
-|     ↳ `metadata` | object | Metadata about the search result page |
+|     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
 |       ↳ `sourceURL` | string | Original source URL |
@@ -192,7 +194,7 @@ Search for information on the web using Firecrawl
 |     ↳ `rawHtml` | string | Unprocessed raw HTML; returned only when "rawHtml" is among the requested scrape formats |
 |     ↳ `links` | array | Links found on the article page; returned only when "links" was requested |
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when requested |
-|     ↳ `metadata` | object | Metadata about the search result page |
+|     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
 |       ↳ `sourceURL` | string | Original source URL |

@@ -342,7 +342,7 @@ export const QdrantBlockMeta = {
       name: 'upsert-points',
       description: 'Insert or update vector points with payload metadata into a Qdrant collection.',
       content:
-        '# Upsert Points\n\nLoad vectors into a Qdrant collection.\n\n## Steps\n1. Use the Upsert operation with the Qdrant URL, Collection name, and API Key.\n2. Provide Points as a JSON array, each with an id, a vector matching the collection dimension, and an optional payload of metadata for later filtering.\n3. Confirm the upserted count from the response.\n\n## Output\nReport how many points were upserted into which collection and surface any payload validation issues.',
+        '# Upsert Points\n\nLoad vectors into a Qdrant collection.\n\n## Steps\n1. Use the Upsert operation with the Qdrant URL, Collection name, and API Key.\n2. Provide Points as a JSON array, each with an id, a vector matching the collection dimension, and an optional payload of metadata for later filtering.\n3. Confirm the operation succeeded from `status` and read `data.operation_id` and `data.status` in the response.\n\n## Output\nReport the operation id and its status (`acknowledged` or `completed`) for the collection written to, and surface any payload validation issues. Qdrant does not return a count of upserted points, so report the number of points that were sent instead of inventing one.',
     },
     {
       name: 'search-vectors',
