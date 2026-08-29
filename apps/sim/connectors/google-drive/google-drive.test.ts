@@ -94,6 +94,18 @@ describe('Google Drive API error parsing', () => {
     expect(error.message).not.toContain('upstream unavailable')
   })
 
+  it('normalizes only structured rate-limit reasons into the shared throttle signal', async () => {
+    const rateLimit = await readGoogleDriveApiError(
+      driveErrorResponse('userRateLimitExceeded', 'Provider message')
+    )
+    const backendFailure = await readGoogleDriveApiError(
+      driveErrorResponse('backendError', 'Provider message', 503)
+    )
+
+    expect(rateLimit.rateLimited).toBe(true)
+    expect(backendFailure.rateLimited).toBe(false)
+  })
+
   it('omits provider messages from diagnostics', async () => {
     const message = `Authorization: Bearer private-token\ncontext ${'x'.repeat(700)}`
     const error = await readGoogleDriveApiError(

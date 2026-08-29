@@ -26,6 +26,8 @@ export interface HTTPError extends Error {
   status?: number
   statusText?: string
   retryAfterMs?: number
+  /** Provider-normalized signal for throttles that do not carry standard HTTP evidence. */
+  rateLimited?: boolean
   /**
    * Response headers carried onto the error so the retry loop can re-evaluate
    * rate-limit evidence (`isRetryableError` runs again on the thrown error).
@@ -239,6 +241,7 @@ export function isRateLimitError(error: unknown): boolean {
 
   while (isRetryableErrorType(current) && !seen.has(current) && seen.size < 10) {
     seen.add(current)
+    if ((current as HTTPError).rateLimited === true) return true
     if (
       hasStatus(current) &&
       (current.status === 429 ||

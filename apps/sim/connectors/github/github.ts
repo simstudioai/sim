@@ -168,6 +168,14 @@ async function fetchBlobContent(
     throw new Error(`Failed to fetch git blob ${sha}: ${response.status}`)
   }
 
+  if (!response.body) {
+    const contentLength = Number.parseInt(response.headers.get('content-length') ?? '', 10)
+    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE) {
+      throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+    }
+    throw new Error(`GitHub git blob ${sha} returned no body`)
+  }
+
   const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
   if (!buffer) {
     throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)

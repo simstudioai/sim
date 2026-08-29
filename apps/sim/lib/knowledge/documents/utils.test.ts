@@ -663,6 +663,17 @@ describe('isRateLimitError', () => {
     expect(isRateLimitError(new Error('hydration failed', { cause: providerError }))).toBe(true)
   })
 
+  it('accepts a provider-normalized throttle without HTTP rate-limit headers', () => {
+    expect(
+      isRateLimitError(
+        Object.assign(new Error('Google Drive API request failed with HTTP 403'), {
+          status: 403,
+          rateLimited: true,
+        })
+      )
+    ).toBe(true)
+  })
+
   it('does not classify retryable text or transient HTTP failures as provider throttling', () => {
     expect(isRateLimitError(new Error('rate limit exceeded'))).toBe(false)
     expect(isRateLimitError(Object.assign(new Error('unavailable'), { status: 503 }))).toBe(false)

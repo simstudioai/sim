@@ -12,13 +12,12 @@ const PERMISSION_REASONS = new Set([
 const POLICY_REASONS = new Set(['domainPolicy', 'download_restricted_for_revision'])
 const UNSUPPORTED_EXPORT_REASONS = new Set(['fileNotDownloadable', 'fileNotExportable'])
 const QUOTA_REASONS = new Set(['dailyLimitExceeded', 'quotaExceeded'])
-const TRANSIENT_REASONS = new Set([
-  'backendError',
-  'internalError',
+const RATE_LIMIT_REASONS = new Set([
   'rateLimitExceeded',
   'sharingRateLimitExceeded',
   'userRateLimitExceeded',
 ])
+const TRANSIENT_REASONS = new Set(['backendError', 'internalError', ...RATE_LIMIT_REASONS])
 
 export type GoogleDriveErrorKind =
   | 'authorization'
@@ -99,6 +98,7 @@ function classifyGoogleDriveError(
 
 export class GoogleDriveApiError extends Error {
   retryAfterMs?: number
+  readonly rateLimited: boolean
 
   constructor(
     readonly status: number,
@@ -108,6 +108,7 @@ export class GoogleDriveApiError extends Error {
     const reasonSuffix = reasons.length > 0 ? ` (${reasons.join(', ')})` : ''
     super(`Google Drive API request failed with HTTP ${status}${reasonSuffix}`)
     this.name = 'GoogleDriveApiError'
+    this.rateLimited = status === 429 || reasons.some((reason) => RATE_LIMIT_REASONS.has(reason))
   }
 }
 

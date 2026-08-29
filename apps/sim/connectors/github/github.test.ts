@@ -88,6 +88,28 @@ describe('githubConnector.getDocument', () => {
     })
   })
 
+  it('rejects a bodyless blob response instead of misreporting it as oversized', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            sha: 'blob-sha',
+            size: 2 * 1024 * 1024,
+            content: '',
+            encoding: 'none',
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      githubConnector.getDocument('token', { repository: 'owner/repo' }, 'missing-body.md')
+    ).rejects.toThrow('GitHub git blob blob-sha returned no body')
+  })
+
   it('surfaces a non-rate-limit 403 as a document failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
 
