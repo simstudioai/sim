@@ -1744,6 +1744,7 @@ describe('executeTool Function', () => {
   it('does not log plaintext or runtime aliases from Function errors', async () => {
     const secret = 'function-error-secret-value'
     const runtimeAlias = '__var_API_KEY'
+    const cost = { input: 0, output: 0, total: 0.00012345 }
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'API_KEY',
@@ -1756,6 +1757,7 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          output: { result: null, stdout: 'trace', cost },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1782,6 +1784,7 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
+    expect(result.output?.cost).toEqual(cost)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
@@ -1822,6 +1825,32 @@ describe('executeTool Function', () => {
     expect(result.error).toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+  })
+
+  it('does not lift an invalid sandbox cost from a Function error response', async () => {
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: {
+            result: null,
+            stdout: 'trace',
+            cost: { input: 0, output: 0, total: -1 },
+          },
+        },
+        { status: 422 }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'throw new Error("boom")' },
+      { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('cost')
   })
 
   it('does not log a secret-bearing non-OK response stream error', async () => {

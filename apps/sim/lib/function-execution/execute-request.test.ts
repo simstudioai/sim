@@ -400,6 +400,45 @@ describe('Function execution request', () => {
       }
     )
 
+    it.each([
+      {
+        language: 'javascript',
+        code: 'import "node:path"\nthrow new Error("boom")',
+        kind: 'code',
+      },
+      { language: 'python', code: 'raise ValueError("boom")', kind: 'code' },
+      { language: 'shell', code: 'exit 1', kind: 'shell' },
+    ])(
+      'preserves sandbox cost in a failed remote $language Function response',
+      async ({ language, code, kind }) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        const cost = { input: 0, output: 0, total: 0.00012345 }
+        const executeSandbox = kind === 'shell' ? mockExecuteShellInSandbox : mockExecuteInSandbox
+        executeSandbox.mockResolvedValueOnce({
+          result: null,
+          stdout: 'boom',
+          error: 'boom',
+          sandboxId: `sandbox-${language}`,
+          cost,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            code,
+            language,
+            workflowId: 'workflow-1',
+            workspaceId: 'workspace-1',
+            executionId: 'execution-1',
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(422)
+        expect(executeSandbox).toHaveBeenCalledWith(expect.objectContaining({ meterUsage: true }))
+        expect(data.output.cost).toEqual(cost)
+      }
+    )
+
     it('does not meter a non-workflow remote Function call', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
 

@@ -136,4 +136,25 @@ describe('Function Execute Tool', () => {
       output: { result: 42, stdout: 'done', cost },
     })
   })
+
+  it('preserves sandbox cost in a failed Function result', async () => {
+    const cost = { input: 0, output: 0, total: 0.00012345 }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: { result: null, stdout: 'trace', cost },
+        },
+        { status: 422 }
+      ),
+      { code: 'throw new Error("boom")' }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      output: { result: null, stdout: 'trace', cost },
+      error: 'boom',
+    })
+  })
 })

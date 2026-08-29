@@ -182,7 +182,6 @@ function buildSimToolSpec(
             : undefined
         if (
           toolId === 'function_execute' &&
-          result.success &&
           functionToolCost &&
           typeof resultCostTotal === 'number' &&
           Number.isFinite(resultCostTotal) &&

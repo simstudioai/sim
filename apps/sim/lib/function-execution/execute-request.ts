@@ -2545,7 +2545,12 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: scrubInternalIdentifiers(shellError, compilerInternalIdentifiers),
-            output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
+            output: {
+              result: null,
+              stdout: cleanStdout(shellStdout),
+              executionTime,
+              ...(shellCost ? { cost: shellCost } : {}),
+            },
           },
           routeContext,
           { status: 422 }
@@ -2698,7 +2703,12 @@ export async function executeFunctionRequest(
             {
               success: false,
               error: formattedError,
-              output: { result: null, stdout: cleanedOutput, executionTime },
+              output: {
+                result: null,
+                stdout: cleanedOutput,
+                executionTime,
+                ...(sandboxCost ? { cost: sandboxCost } : {}),
+              },
             },
             routeContext,
             { status: 422 }
@@ -2813,7 +2823,12 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: formattedError,
-            output: { result: null, stdout: cleanedOutput, executionTime },
+            output: {
+              result: null,
+              stdout: cleanedOutput,
+              executionTime,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
+            },
           },
           routeContext,
           { status: 422 }

@@ -1629,11 +1629,12 @@ async function executeToolImplementation(
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
+  const normalizedToolId = normalizeToolId(toolId)
   const privateToolMetadataPolicy = resolvedSecretTraceRegistry
     ? getPrivateToolMetadataPolicy(toolId)
     : undefined
   const structuralOnlyToolLogs =
-    normalizeToolId(toolId) === 'function_execute' ||
+    normalizedToolId === 'function_execute' ||
     isCustomTool(toolId) ||
     privateToolMetadataPolicy !== undefined
 
@@ -1645,7 +1646,6 @@ async function executeToolImplementation(
     let tool: ExecutableToolConfig | undefined
 
     // Preserve direct-call compatibility with legacy resource-suffixed tool ids.
-    const normalizedToolId = normalizeToolId(toolId)
     if (internalSandboxProfile && normalizedToolId !== 'function_execute') {
       throw new Error('An internal sandbox profile may only be used with function_execute')
     }
@@ -2283,9 +2283,14 @@ async function executeToolImplementation(
     const rawResponseData =
       error instanceof Error && 'data' in error ? (error as { data?: unknown }).data : undefined
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
+    const functionSandboxCost =
+      normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
     return {
       success: false,
-      output: errorDetails,
+      output: {
+        ...errorDetails,
+        ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+      },
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
@@ -2444,6 +2449,33 @@ interface ExecuteDeclaredInternalOperationInput {
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
   return isPlainRecord(value) && typeof value.code === 'string'
+}
+
+interface FunctionSandboxCost {
+  input: number
+  output: number
+  total: number
+}
+
+function readFunctionSandboxCost(value: unknown): FunctionSandboxCost | undefined {
+  if (!isRecordLike(value) || !isRecordLike(value.output) || !isRecordLike(value.output.cost)) {
+    return undefined
+  }
+  const { input, output, total } = value.output.cost
+  if (
+    typeof input !== 'number' ||
+    !Number.isFinite(input) ||
+    input < 0 ||
+    typeof output !== 'number' ||
+    !Number.isFinite(output) ||
+    output < 0 ||
+    typeof total !== 'number' ||
+    !Number.isFinite(total) ||
+    total < 0
+  ) {
+    return undefined
+  }
+  return { input, output, total }
 }
 
 function isToolResponse(value: unknown): value is ToolResponse {

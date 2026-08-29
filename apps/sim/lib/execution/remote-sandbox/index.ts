@@ -819,7 +819,7 @@ async function executeInSandboxWithinBudget(
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
   const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
-  let successfulResult: SandboxExecutionResult | undefined
+  let billableResult: SandboxExecutionResult | undefined
 
   try {
     throwIfAborted(signal)
@@ -864,12 +864,13 @@ async function executeInSandboxWithinBudget(
         sandboxId,
         hasTraceback: Boolean(execution.error.traceback),
       })
-      return {
+      billableResult = {
         result: null,
         stdout: execution.error.traceback || errorMessage,
         error: errorMessage,
         sandboxId,
       }
+      return billableResult
     }
 
     // Distinct sources (final-expression text, stdout, stderr) join with '\n' so
@@ -905,7 +906,7 @@ async function executeInSandboxWithinBudget(
     )
     throwIfAborted(signal)
 
-    successfulResult = {
+    billableResult = {
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
@@ -913,10 +914,10 @@ async function executeInSandboxWithinBudget(
       exportedFiles,
       collectedFiles,
     }
-    return successfulResult
+    return billableResult
   } finally {
     const cleanupStartedAtMs = Date.now()
-    attachSandboxCost(successfulResult, created, cleanupStartedAtMs)
+    attachSandboxCost(billableResult, created, cleanupStartedAtMs)
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -955,7 +956,7 @@ async function executeShellInSandboxWithinBudget(
   const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
   const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
-  let successfulResult: SandboxExecutionResult | undefined
+  let billableResult: SandboxExecutionResult | undefined
 
   try {
     throwIfAborted(signal)
@@ -1007,7 +1008,8 @@ async function executeShellInSandboxWithinBudget(
         sandboxId,
         exitCode: result.exitCode,
       })
-      return { result: null, stdout, error: errorMessage, sandboxId }
+      billableResult = { result: null, stdout, error: errorMessage, sandboxId }
+      return billableResult
     }
 
     // Shell scripts have no wrapper: any __SIM_RESULT__ line is user-authored
@@ -1023,7 +1025,7 @@ async function executeShellInSandboxWithinBudget(
     )
     throwIfAborted(signal)
 
-    successfulResult = {
+    billableResult = {
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
@@ -1031,10 +1033,10 @@ async function executeShellInSandboxWithinBudget(
       exportedFiles,
       collectedFiles,
     }
-    return successfulResult
+    return billableResult
   } finally {
     const cleanupStartedAtMs = Date.now()
-    attachSandboxCost(successfulResult, created, cleanupStartedAtMs)
+    attachSandboxCost(billableResult, created, cleanupStartedAtMs)
     abortBinding.detach()
     await abortBinding.cleanup()
   }

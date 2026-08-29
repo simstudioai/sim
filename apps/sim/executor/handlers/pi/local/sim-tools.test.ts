@@ -225,7 +225,7 @@ describe('buildSimToolSpecs', () => {
     })
   })
 
-  it('accumulates cost only from successful canonical Function tool results', async () => {
+  it('accumulates cost from canonical Function results while preserving failures', async () => {
     mockTransformBlockTool
       .mockResolvedValueOnce({
         id: 'function_execute',
@@ -268,9 +268,10 @@ describe('buildSimToolSpecs', () => {
 
     await functionSpec.execute({})
     await searchSpec.execute({})
-    await functionSpec.execute({})
+    const failedResult = await functionSpec.execute({})
 
-    expect(functionToolCost.total).toBe(0.125)
+    expect(functionToolCost.total).toBe(8.125)
+    expect(failedResult).toEqual({ text: 'execution failed', isError: true })
   })
 
   it('projects named provenance in successful Sim tool output', async () => {

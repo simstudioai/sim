@@ -48,7 +48,13 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
-import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import {
+  attachTrustedExecutionCost,
+  buildBlockExecutionError,
+  normalizeError,
+  readTrustedExecutionCost,
+  type TrustedExecutionCost,
+} from '@/executor/utils/errors'
 import {
   buildUnifiedParentIterations,
   getIterationContext,
@@ -75,6 +81,20 @@ import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
+
+function addTrustedExecutionCosts(
+  accumulated: TrustedExecutionCost | undefined,
+  current: TrustedExecutionCost | undefined
+): TrustedExecutionCost | undefined {
+  if (!accumulated) return current
+  if (!current) return accumulated
+
+  return {
+    input: accumulated.input + current.input,
+    output: accumulated.output + current.output,
+    total: accumulated.total + current.total,
+  }
+}
 
 export class BlockExecutor {
   private execLogger: Logger
@@ -506,15 +526,40 @@ export class BlockExecutor {
     const policy = resolveBlockRetryPolicy(block)
     if (!policy) return invoke()
 
+    const shouldAccumulateFunctionCost = block.metadata?.id === BlockType.FUNCTION
+    let accumulatedFunctionCost: TrustedExecutionCost | undefined
     let tries = 0
     try {
       for (;;) {
         tries++
         try {
-          return await invoke()
+          const output = await invoke()
+          if (!shouldAccumulateFunctionCost || !accumulatedFunctionCost || !isRecordLike(output)) {
+            return output
+          }
+
+          const totalCost = addTrustedExecutionCosts(
+            accumulatedFunctionCost,
+            readTrustedExecutionCost(output)
+          )
+          if (!totalCost) return output
+
+          const outputWithCost = { ...output, cost: totalCost }
+          attachTrustedExecutionCost(outputWithCost, totalCost)
+          return outputWithCost as T
         } catch (error) {
+          if (shouldAccumulateFunctionCost) {
+            accumulatedFunctionCost = addTrustedExecutionCosts(
+              accumulatedFunctionCost,
+              readTrustedExecutionCost(error)
+            )
+          }
+
           const isFinalTry = tries >= policy.maxTries
-          if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) throw error
+          if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+            attachTrustedExecutionCost(error, accumulatedFunctionCost)
+            throw error
+          }
 
           this.execLogger.warn('Block failed; retrying', {
             blockId: block.id,
@@ -528,7 +573,10 @@ export class BlockExecutor {
           if (policy.waitBetweenTriesMs > 0) await sleep(policy.waitBetweenTriesMs)
 
           /** `sleep` is not abort-aware, so a run stopped mid-wait must not start another try. */
-          if (ctx.abortSignal?.aborted) throw error
+          if (ctx.abortSignal?.aborted) {
+            attachTrustedExecutionCost(error, accumulatedFunctionCost)
+            throw error
+          }
         }
       }
     } finally {
@@ -620,8 +668,10 @@ export class BlockExecutor {
       return softOutput
     }
 
+    const trustedExecutionCost = readTrustedExecutionCost(error)
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+      ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }
 
     // Keep any answer text already drained before timeout/failure so logs match

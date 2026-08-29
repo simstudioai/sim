@@ -12,6 +12,7 @@ import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/acc
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -111,15 +112,18 @@ export class FunctionBlockHandler implements BlockHandler {
     const result = await executeTool('function_execute', toolParams, { executionContext: ctx })
 
     if (!result.success) {
-      if (result.retryable === false) {
-        throw new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
-      }
-      throw new Error(result.error || 'Function execution failed')
+      const error =
+        result.retryable === false
+          ? new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
+          : new Error(result.error || 'Function execution failed')
+      attachTrustedExecutionCost(error, result.output?.cost)
+      throw error
     }
 
     mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])
     mergeFileKeys(ctx, result.fileKeys ?? [])
 
+    attachTrustedExecutionCost(result.output, result.output?.cost)
     return result.output
   }
 }
