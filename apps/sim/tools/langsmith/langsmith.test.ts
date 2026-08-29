@@ -515,3 +515,17 @@ describe('langsmith create feedback score edge cases', () => {
     }
   )
 })
+
+describe('langsmith create feedback rejects non-numeric input types', () => {
+  it.each([false, true, [], {}])('rejects %s rather than coercing it to a score', (score) => {
+    expect(() =>
+      resolveBody(
+        langsmithCreateFeedbackTool as never,
+        {
+          ...createFeedbackParams,
+          score,
+        } as never
+      )
+    ).toThrow(/is not a number/)
+  })
+})

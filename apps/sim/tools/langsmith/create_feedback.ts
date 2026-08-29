@@ -14,6 +14,14 @@ import type { ToolConfig } from '@/tools/types'
  */
 function coerceFeedbackScore(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined
+  /**
+   * Only a number or a numeric string is a score. Without this guard `Number` quietly turns
+   * `false` and `[]` into `0` and `true` into `1`, recording a fabricated evaluation instead of
+   * rejecting malformed input from an LLM or a direct tool call.
+   */
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`Invalid score: "${String(value)}" is not a number`)
+  }
   if (typeof value === 'string' && value.trim() === '') return undefined
   const parsed = Number(value)
   /**

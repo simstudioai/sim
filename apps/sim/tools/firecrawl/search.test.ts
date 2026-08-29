@@ -249,3 +249,22 @@ describe('firecrawl_search round-two shape corrections', () => {
     expect(metadata?.properties?.sourceURL.optional).toBeUndefined()
   })
 })
+
+describe('firecrawl_search category', () => {
+  /**
+   * `category` is typed on `SearchResultWeb` and `SearchResultNews` in the official SDK. The v2
+   * OpenAPI omits it, so it is declared optional and never required.
+   * @see https://github.com/firecrawl/firecrawl/blob/main/apps/js-sdk/firecrawl/src/v2/types.ts
+   */
+  it.each(['web', 'news'] as const)('declares optional category on %s items', (source) => {
+    const item = searchTool.outputs?.data.properties?.[source].items?.properties
+
+    expect(item?.category).toMatchObject({ type: 'string', optional: true })
+  })
+
+  it('leaves category off image items, which the SDK does not type it on', () => {
+    expect(searchTool.outputs?.data.properties?.images.items?.properties).not.toHaveProperty(
+      'category'
+    )
+  })
+})

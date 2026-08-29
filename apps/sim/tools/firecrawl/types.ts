@@ -210,6 +210,11 @@ export const SEARCH_WEB_RESULT_OUTPUT_PROPERTIES = {
     optional: true,
     nullable: true,
   },
+  category: {
+    type: 'string',
+    description: 'Category the result was matched under, when the request narrowed by category',
+    optional: true,
+  },
   metadata: SEARCH_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
@@ -272,6 +277,11 @@ export const SEARCH_NEWS_RESULT_OUTPUT_PROPERTIES = {
       'Signed URL to the extracted video (expires after 1 hour); returned only when "video" is among the requested scrape formats',
     optional: true,
     nullable: true,
+  },
+  category: {
+    type: 'string',
+    description: 'Category the article was matched under, when the request narrowed by category',
+    optional: true,
   },
   metadata: SEARCH_METADATA_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
@@ -536,6 +546,7 @@ export interface SearchWebResult extends ScrapedSearchContent {
   description?: string
   url: string
   position?: number
+  category?: string
 }
 
 export interface SearchNewsResult extends ScrapedSearchContent {
@@ -545,6 +556,7 @@ export interface SearchNewsResult extends ScrapedSearchContent {
   date?: string
   imageUrl?: string
   position?: number
+  category?: string
 }
 
 export interface SearchImageResult {

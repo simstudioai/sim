@@ -178,6 +178,7 @@ Search for information on the web using Firecrawl
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when "screenshot" is among the scrape formats requested via the hidden scrapeOptions input |
 |     ↳ `audio` | string | Signed URL to the extracted MP3 audio \(expires after 1 hour\); returned only when "audio" is among the requested scrape formats |
 |     ↳ `video` | string | Signed URL to the extracted video \(expires after 1 hour\); returned only when "video" is among the requested scrape formats |
+|     ↳ `category` | string | Category the result was matched under, when the request narrowed by category |
 |     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
@@ -199,6 +200,7 @@ Search for information on the web using Firecrawl
 |     ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\); returned only when requested |
 |     ↳ `audio` | string | Signed URL to the extracted MP3 audio \(expires after 1 hour\); returned only when "audio" is among the requested scrape formats |
 |     ↳ `video` | string | Signed URL to the extracted video \(expires after 1 hour\); returned only when "video" is among the requested scrape formats |
+|     ↳ `category` | string | Category the article was matched under, when the request narrowed by category |
 |     ↳ `metadata` | object | Metadata about the search result page; present only when the result was scraped |
 |       ↳ `title` | string | Page title |
 |       ↳ `description` | string | Page meta description |
