@@ -1,5 +1,6 @@
 import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ListGistsParams {
   username?: string
@@ -74,7 +75,7 @@ export const listGistsTool: ToolConfig<ListGistsParams, ListGistsResponse> = {
   request: {
     url: (params) => {
       const baseUrl = params.username
-        ? `https://api.github.com/users/${params.username}/gists`
+        ? `https://api.github.com/users/${safeUrlPathSegment(params.username, 'username')}/gists`
         : 'https://api.github.com/gists'
       const url = new URL(baseUrl)
       if (params.since) url.searchParams.append('since', params.since)

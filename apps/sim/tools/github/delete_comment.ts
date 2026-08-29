@@ -1,5 +1,6 @@
 import type { DeleteCommentParams, DeleteCommentResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentResponse> = {
   id: 'github_delete_comment',
@@ -36,7 +37,7 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(params.comment_id, 'comment_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

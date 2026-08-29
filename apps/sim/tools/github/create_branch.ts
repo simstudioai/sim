@@ -1,6 +1,7 @@
 import type { CreateBranchParams, RefResponse } from '@/tools/github/types'
 import { GIT_REF_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   id: 'github_create_branch',
@@ -43,7 +44,8 @@ export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs`,
+    url: (params) =>
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/git/refs`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

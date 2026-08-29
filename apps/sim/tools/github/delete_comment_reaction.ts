@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface DeleteCommentReactionParams {
   owner: string
@@ -63,7 +64,7 @@ export const deleteCommentReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}/reactions/${params.reaction_id}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(params.comment_id, 'comment_id')}/reactions/${safeUrlPathSegment(params.reaction_id, 'reaction_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

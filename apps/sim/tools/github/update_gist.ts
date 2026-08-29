@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface UpdateGistParams {
   gist_id: string
@@ -61,7 +62,8 @@ export const updateGistTool: ToolConfig<UpdateGistParams, UpdateGistResponse> = 
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}`,
+    url: (params) =>
+      `https://api.github.com/gists/${safeUrlPathSegment(params.gist_id, 'gist_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

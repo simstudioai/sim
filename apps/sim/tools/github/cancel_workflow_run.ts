@@ -1,5 +1,6 @@
 import type { CancelWorkflowRunParams, CancelWorkflowRunResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWorkflowRunResponse> =
   {
@@ -38,7 +39,7 @@ export const cancelWorkflowRunTool: ToolConfig<CancelWorkflowRunParams, CancelWo
 
     request: {
       url: (params) =>
-        `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}/cancel`,
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs/${safeUrlPathSegment(params.run_id, 'run_id')}/cancel`,
       method: 'POST',
       headers: (params) => ({
         Accept: 'application/vnd.github+json',

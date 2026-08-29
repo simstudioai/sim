@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import type { IssueCommentResponse, UpdateCommentParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResponse> = {
   id: 'github_update_comment',
@@ -44,7 +45,7 @@ export const updateCommentTool: ToolConfig<UpdateCommentParams, IssueCommentResp
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/comments/${safeUrlPathSegment(params.comment_id, 'comment_id')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

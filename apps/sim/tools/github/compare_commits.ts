@@ -4,6 +4,7 @@ import {
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 interface CompareCommitsParams {
   owner: string
@@ -103,7 +104,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/compare/${params.base}...${params.head}`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/compare/${safeUrlPath(params.base, 'base')}...${safeUrlPath(params.head, 'head')}`
       )
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))

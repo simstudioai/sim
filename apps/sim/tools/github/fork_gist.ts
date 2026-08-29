@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ForkGistParams {
   gist_id: string
@@ -44,7 +45,8 @@ export const forkGistTool: ToolConfig<ForkGistParams, ForkGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/forks`,
+    url: (params) =>
+      `https://api.github.com/gists/${safeUrlPathSegment(params.gist_id, 'gist_id')}/forks`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

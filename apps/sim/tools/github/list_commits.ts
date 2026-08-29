@@ -5,6 +5,7 @@ import {
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ListCommitsParams {
   owner: string
@@ -117,7 +118,9 @@ export const listCommitsTool: ToolConfig<ListCommitsParams, ListCommitsResponse>
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/commits`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/commits`
+      )
       if (params.sha) url.searchParams.append('sha', params.sha)
       if (params.path) url.searchParams.append('path', params.path)
       if (params.author) url.searchParams.append('author', params.author)

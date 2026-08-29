@@ -19,6 +19,7 @@ import type {
 } from '@/tools/github/types'
 import { secureGitHubRequest } from '@/tools/github/utils.server'
 import type { ToolResponse } from '@/tools/types'
+import { safeEncodedUrlPathSegment, safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GitHubLatestCommitOperation')
 const MAX_COMMIT_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -98,7 +99,7 @@ function githubHeaders(apiKey: string): Record<string, string> {
 }
 
 function pullRequestUrl(params: CreateCommentParams): string {
-  return `${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`
+  return `${GITHUB_API_BASE}/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`
 }
 
 function isFileCommentRequest(params: CreateCommentParams): boolean {
@@ -352,9 +353,9 @@ export async function getGitHubLatestCommit(
   context: GitHubOperationContext
 ): Promise<LatestCommitResponse> {
   context.signal?.throwIfAborted()
-  const owner = encodeURIComponent(input.owner)
-  const repo = encodeURIComponent(input.repo)
-  const revision = encodeURIComponent(input.branch || 'HEAD')
+  const owner = safeUrlPathSegment(input.owner, 'owner')
+  const repo = safeUrlPathSegment(input.repo, 'repo')
+  const revision = safeEncodedUrlPathSegment(input.branch || 'HEAD', 'branch')
   const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
   const validation = await validateUrlWithDNS(commitUrl, 'commitUrl')
   context.signal?.throwIfAborted()

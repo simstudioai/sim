@@ -1,5 +1,6 @@
 import { USER_FULL_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ListStargazersParams {
   owner: string
@@ -69,7 +70,9 @@ export const listStargazersTool: ToolConfig<ListStargazersParams, ListStargazers
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/stargazers`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/stargazers`
+      )
       if (params.per_page) url.searchParams.append('per_page', String(params.per_page))
       if (params.page) url.searchParams.append('page', String(params.page))
       return url.toString()

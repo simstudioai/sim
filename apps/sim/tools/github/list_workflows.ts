@@ -1,6 +1,7 @@
 import type { ListWorkflowsParams, ListWorkflowsResponse } from '@/tools/github/types'
 import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listWorkflowsTool: ToolConfig<ListWorkflowsParams, ListWorkflowsResponse> = {
   id: 'github_list_workflows',
@@ -47,7 +48,7 @@ export const listWorkflowsTool: ToolConfig<ListWorkflowsParams, ListWorkflowsRes
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/actions/workflows`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows`
       )
       if (params.per_page) {
         url.searchParams.append('per_page', Number(params.per_page).toString())

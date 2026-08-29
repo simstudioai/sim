@@ -7,6 +7,7 @@ import {
   WORKFLOW_RUN_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkflowRunsResponse> = {
   id: 'github_list_workflow_runs',
@@ -77,7 +78,7 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs`
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs`
       )
       if (params.actor) {
         url.searchParams.append('actor', params.actor)

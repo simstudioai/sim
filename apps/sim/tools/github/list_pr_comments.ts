@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
 import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListResponse> = {
   id: 'github_list_pr_comments',
@@ -72,7 +73,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.sort) queryParams.append('sort', params.sort)

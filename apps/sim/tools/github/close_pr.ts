@@ -1,5 +1,6 @@
 import type { ClosePRParams, PRResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const closePRTool: ToolConfig<ClosePRParams, PRResponse> = {
   id: 'github_close_pr',
@@ -36,7 +37,7 @@ export const closePRTool: ToolConfig<ClosePRParams, PRResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

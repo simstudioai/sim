@@ -1,5 +1,6 @@
 import type { CreatePRParams, PRResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createPRTool: ToolConfig<CreatePRParams, PRResponse> = {
   id: 'github_create_pr',
@@ -59,7 +60,8 @@ export const createPRTool: ToolConfig<CreatePRParams, PRResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/pulls`,
+    url: (params) =>
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -20,6 +20,7 @@ import type {
 } from '@/tools/github/types'
 import { PR_BRANCH_REF_OUTPUT, PR_FILE_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 type GitHubPullRequest = Omit<GitHubPullRequestV2Output, 'files'>
 
@@ -150,7 +151,7 @@ async function fetchPullRequestFiles(
 
   for (let page = 1; page <= maxPages; page += 1) {
     const response = await fetch(
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
       {
         headers: {
           Accept: 'application/vnd.github+json',
@@ -225,7 +226,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

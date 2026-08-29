@@ -5,6 +5,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesResponse> = {
   id: 'github_list_releases',
@@ -50,7 +51,9 @@ export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesRespon
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/releases`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/releases`
+      )
       if (params.per_page) {
         url.searchParams.append('per_page', Number(params.per_page).toString())
       }

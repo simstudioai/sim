@@ -34,16 +34,22 @@ describe('github_job_logs', () => {
     expect(url).toBe('https://api.github.com/repos/octo/demo/actions/jobs/42/logs')
   })
 
-  it('escapes coordinates so they cannot redirect the authenticated request', () => {
+  it('rejects coordinates that would redirect the authenticated request', () => {
+    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+
+    expect(() => url({ ...BASE_PARAMS, owner: '../../orgs/secret' })).toThrow(
+      /owner cannot contain a path separator/
+    )
+    expect(() => url({ ...BASE_PARAMS, owner: '..' })).toThrow(/path traversal is not allowed/)
+  })
+
+  it('escapes a coordinate that cannot redirect but carries URL syntax', () => {
     const url = (jobLogsTool.request.url as (params: JobLogsParams) => string)({
       ...BASE_PARAMS,
-      owner: '../../orgs/secret',
       repo: 'demo?ref=x',
     })
 
-    expect(url).toBe(
-      'https://api.github.com/repos/..%2F..%2Forgs%2Fsecret/demo%3Fref%3Dx/actions/jobs/42/logs'
-    )
+    expect(url).toBe('https://api.github.com/repos/octo/demo%3Fref%3Dx/actions/jobs/42/logs')
   })
 
   it('rejects a job id that is not a positive integer', () => {

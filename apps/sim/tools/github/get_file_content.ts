@@ -1,6 +1,7 @@
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentResponse> = {
   id: 'github_get_file_content',
@@ -44,8 +45,8 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`
-      return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/contents/${safeUrlPath(params.path, 'path')}`
+      return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',
     headers: (params) => ({

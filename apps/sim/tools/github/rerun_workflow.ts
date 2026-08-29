@@ -1,5 +1,6 @@
 import type { RerunWorkflowParams, RerunWorkflowResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowResponse> = {
   id: 'github_rerun_workflow',
@@ -44,7 +45,7 @@ export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}/rerun`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs/${safeUrlPathSegment(params.run_id, 'run_id')}/rerun`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

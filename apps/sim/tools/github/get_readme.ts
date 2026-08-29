@@ -1,5 +1,6 @@
 import type { GetReadmeParams, ReadmeResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
   id: 'github_get_readme',
@@ -38,7 +39,7 @@ export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/readme`
+      const baseUrl = `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/readme`
       return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',

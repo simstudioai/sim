@@ -1,5 +1,6 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface ListMilestonesParams {
   owner: string
@@ -96,7 +97,9 @@ export const listMilestonesTool: ToolConfig<ListMilestonesParams, ListMilestones
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/milestones`)
+      const url = new URL(
+        `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones`
+      )
       if (params.state) url.searchParams.append('state', params.state)
       if (params.sort) url.searchParams.append('sort', params.sort)
       if (params.direction) url.searchParams.append('direction', params.direction)

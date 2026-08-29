@@ -186,3 +186,126 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
 
   return encodeSegment(trimmed, paramName)
 }
+
+/**
+ * Builds a traversal-safe **multi-segment** URL path from a parameter whose
+ * value legitimately contains `/`.
+ *
+ * A few provider parameters address a location *inside* a repository rather
+ * than a single resource: GitHub's `path` (`docs/README.md`), `branch`
+ * (`feature/my-branch`), and `ref` (`heads/release/2.0`). Passing these through
+ * {@link safeUrlPathSegment} would reject every real value, because that guard
+ * treats a separator as proof the caller supplied the wrong kind of thing. The
+ * split is therefore deliberate and narrow: use `safeUrlPathSegment` unless the
+ * provider documents the parameter as a slash-delimited path, and never widen a
+ * single-segment id to this helper merely to make a separator stop erroring.
+ *
+ * Permitting `/` does not weaken the traversal rule, which is enforced per
+ * segment: the value is split on `/`, and any segment that is `.` or `..` after
+ * trimming is rejected outright for exactly the reason the module note gives —
+ * the URL parser removes a dot segment after decoding, so encoding it cannot
+ * neutralize it. Each surviving segment is percent-encoded individually, which
+ * is what keeps a `?`, `#`, or `%` inside a filename from re-aiming the request
+ * or opening a query, while leaving the `/` separators intact.
+ *
+ * Empty segments are rejected rather than dropped. A `//` or a leading `/`
+ * changes what the joined path addresses (a leading `/` in
+ * `` `${base}/${value}` `` produces a `//` that the parser keeps), and silently
+ * collapsing it would rewrite the caller's value into a different resource.
+ * A trailing `/` is rejected on the same ground.
+ *
+ * A `:` is restored after encoding. It is a legal `pchar` with no delimiter or
+ * traversal meaning inside a path segment, and providers use it structurally:
+ * GitHub's compare endpoint addresses a cross-fork ref as `owner:branch`, which
+ * `encodeURIComponent` would rewrite to `owner%3Abranch`. Nothing else escaped
+ * by `encodeURIComponent` is restored.
+ *
+ * Backslashes are rejected everywhere in the value. They are not path
+ * separators for the URL parser, but a value carrying one is a Windows-shaped
+ * path that the caller did not mean to address literally, and accepting it
+ * would encode `\..\..` into a segment that reads as traversal to any consumer
+ * downstream that normalizes it.
+ *
+ * @param value - The raw path, typically LLM- or user-supplied.
+ * @param paramName - The parameter name, used to name the offender in errors.
+ * @returns The trimmed path with every segment percent-encoded and the `/`
+ *   separators preserved, safe to interpolate.
+ * @throws If the value is not a string or a usable number, is empty, contains
+ *   an empty or dot segment, contains a backslash, or cannot be encoded.
+ */
+export function safeUrlPath(value: string | number | bigint, paramName: string): string {
+  const trimmed = toGuardedString(value, paramName).trim()
+
+  if (!trimmed) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  if (trimmed.includes('\\')) {
+    throw new Error(`${paramName} cannot contain a backslash`)
+  }
+
+  return trimmed
+    .split('/')
+    .map((segment) => {
+      const trimmedSegment = segment.trim()
+
+      if (!trimmedSegment) {
+        throw new Error(`${paramName} cannot contain an empty path segment`)
+      }
+
+      if (trimmedSegment === '.' || trimmedSegment === '..') {
+        throw new Error(
+          `${paramName} cannot contain a "${trimmedSegment}" segment (path traversal is not allowed)`
+        )
+      }
+
+      return encodeSegment(trimmedSegment, paramName).replaceAll('%3A', ':')
+    })
+    .join('/')
+}
+
+/**
+ * Builds a traversal-safe URL path segment from a parameter whose value may
+ * legitimately contain `/` but which the provider still reads as **one** path
+ * parameter.
+ *
+ * This is the third shape, and the narrowest. {@link safeUrlPathSegment} refuses
+ * a separator outright; {@link safeUrlPath} keeps separators as structure. Some
+ * provider parameters are neither: GitHub label names are commonly namespaced
+ * (`area/api`), and `DELETE /repos/{o}/{r}/issues/{n}/labels/{name}` takes the
+ * whole label as a single parameter, so the separator must survive as `%2F`
+ * rather than as a path boundary. Emitting a real `/` there would address a
+ * different endpoint; rejecting it would break a legitimate label.
+ *
+ * Percent-encoding a separator is safe on its own — the URL parser does not
+ * decode `%2F` before removing dot segments, so `a%2F..%2F..` stays put. The
+ * one hole encoding cannot close is a value that is *entirely* a dot segment,
+ * which is why that case is still rejected here rather than encoded, exactly as
+ * the module note requires.
+ *
+ * Prefer `safeUrlPathSegment`. Reach for this helper only when the provider
+ * documents the parameter as a single value that may itself contain `/`.
+ *
+ * @param value - The raw value, typically LLM- or user-supplied.
+ * @param paramName - The parameter name, used to name the offender in errors.
+ * @returns The trimmed value percent-encoded as a single segment, separators
+ *   included, safe to interpolate.
+ * @throws If the value is not a string or a usable number, is empty, is a dot
+ *   segment, or cannot be encoded.
+ */
+export function safeEncodedUrlPathSegment(
+  value: string | number | bigint,
+  paramName: string
+): string {
+  const trimmed = toGuardedString(value, paramName).trim()
+
+  if (!trimmed) {
+    throw new Error(`${paramName} is required`)
+  }
+
+  if (trimmed === '.' || trimmed === '..') {
+    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+
+  return encodeSegment(trimmed, paramName)
+}

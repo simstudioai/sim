@@ -7,6 +7,7 @@ import {
   WORKFLOW_RUN_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunResponse> = {
   id: 'github_get_workflow_run',
@@ -44,7 +45,7 @@ export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}`,
+      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/runs/${safeUrlPathSegment(params.run_id, 'run_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
