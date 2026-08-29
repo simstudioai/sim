@@ -20,6 +20,14 @@
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
  *
+ * The probe slot is asserted, never skipped. Checking only the segment count
+ * and the surrounding segments misses a **balanced** traversal, where the
+ * removed dot segments are matched by added ones: `list_abc/../../lists/victim`
+ * resolves `/v2/lists/PROBEVALUE` to `/v2/lists/victim` — same length, same
+ * neighbours, and only the slot the loop used to skip is different. The slot
+ * must equal `encodeURIComponent` of the trimmed input, which is what a guarded
+ * param emits for any vector it does not reject outright.
+ *
  * **One param is fuzzed at a time**, with every sibling held at a safe value.
  * Fuzzing all params at once and skipping the vector when the builder throws
  * looks equivalent but is not: as soon as a tool has one guarded param, that
@@ -48,6 +56,9 @@ const TRAVERSAL_IDS = [
   'list_abc#fragment',
   'list_abc/entries/../../../webhooks',
   '\\..\\..',
+  'list_abc/../../lists/victim',
+  'people/../../objects/victim',
+  'a/../b',
 ] as const
 
 /** Values a real user legitimately supplies; none may be rejected or altered. */
@@ -185,8 +196,9 @@ describe('attio path-ID traversal safety', () => {
       const actual = segmentsOf(path)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === PROBE_ID) return
-        expect(actual[index]).toBe(segment)
+        expect(actual[index]).toBe(
+          segment === PROBE_ID ? encodeURIComponent(value.trim()) : segment
+        )
       })
     })
 
