@@ -36,35 +36,47 @@ const HUMAN_HTTP_SKILL_EDITOR_POLICY = {
  * act. Denying it keeps the whole lifecycle under one authorization model.
  * Pinned in `operations.test.ts`.
  */
+/**
+ * Every operation declares `skills.use`. The key reads "block agents from
+ * loading skills", and the skills a group's members author are exactly the ones
+ * their agents would load — so authoring, sharing, and editor grants are gated
+ * with execution rather than left as a side door that fills the workspace with
+ * skills the group may not run.
+ */
 export const skillOperations = {
   list: defineWorkspaceOperation({
     id: 'skills.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'skills.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   listAvailable: defineWorkspaceOperation({
     id: 'skills.list_available',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'skills.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'skills.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
     id: 'skills.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'skills.update',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   /**
@@ -81,30 +93,35 @@ export const skillOperations = {
     id: 'skills.upsert',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'skills.delete',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   listEditors: defineWorkspaceOperation({
     id: 'skills.editors.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'skills.use',
     ...HTTP_SKILL_EDITOR_READ_POLICY,
   }),
   grantEditor: defineWorkspaceOperation({
     id: 'skills.editors.grant',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
   revokeEditor: defineWorkspaceOperation({
     id: 'skills.editors.revoke',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'skills.use',
     ...HUMAN_HTTP_SKILL_EDITOR_POLICY,
   }),
 } as const

@@ -2,7 +2,25 @@
  * @vitest-environment node
  */
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  resolvePermission: vi.fn(),
+  resolvePermissionGroupConfig: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => ({
+  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
+}))
+
+import type { WorkspaceOperation } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { skillOperations } from '@/lib/skills/application/operations'
 
 /**
@@ -98,5 +116,48 @@ describe('skill operation registry', () => {
   it('uses unique stable operation IDs', () => {
     const ids = Object.values(skillOperations).map((operation) => operation.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const context = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: 'organization-1',
+  allowPersonalApiKeys: true,
+}
+
+/**
+ * The declaration is only half the gate. These call the funnel so a capability
+ * cannot be declared on the operations and then read by nothing.
+ */
+describe('skill operations under a group that blocks skills', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('admin')
+  })
+
+  it('refuses authoring and editor grants, not only loading', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableSkills: true,
+    })
+
+    for (const operation of Object.values(skillOperations)) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+    }
+  })
+
+  it('allows them all when the group withholds nothing', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    for (const operation of Object.values(skillOperations)) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).resolves.toBeUndefined()
+    }
   })
 })
