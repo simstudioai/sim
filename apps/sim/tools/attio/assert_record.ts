@@ -50,7 +50,15 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
 
     request: {
       url: (params) => {
-        const matchingAttribute = String(params.matchingAttribute ?? '').trim()
+        if (params.matchingAttribute === null || params.matchingAttribute === undefined) {
+          throw new Error('matchingAttribute is required')
+        }
+        if (typeof params.matchingAttribute !== 'string') {
+          throw new Error(
+            `matchingAttribute must be a string (received ${typeof params.matchingAttribute})`
+          )
+        }
+        const matchingAttribute = params.matchingAttribute.trim()
         if (!matchingAttribute) {
           throw new Error('matchingAttribute is required')
         }

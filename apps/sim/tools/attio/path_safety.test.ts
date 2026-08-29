@@ -294,4 +294,18 @@ describe('attio_assert_record matching_attribute', () => {
       expect(() => build(value)).toThrow(/matchingAttribute is required/)
     }
   )
+
+  /**
+   * `String()` turns a single-element array into its element, so
+   * `['email_addresses']` would coerce into a selector that looks entirely
+   * valid. `tools/url-path.ts` rejects non-string kinds for this exact reason:
+   * a bare `String()` produces a plausible but wrong value instead of a named
+   * error. The same rule has to hold for the one query-string selector.
+   */
+  it.each([[['email_addresses']], [{}], [true], [123], [['email_addresses', 'domains']]])(
+    'rejects %j rather than coercing it into a selector',
+    (value) => {
+      expect(() => build(value)).toThrow(/matchingAttribute must be a string/)
+    }
+  )
 })
