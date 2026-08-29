@@ -52,7 +52,9 @@ export const workspaceCreationPolicySchema = z.object({
    * Machine-readable discriminant for blocked states whose correct user-facing
    * copy the workspace mode alone cannot determine.
    */
-  blockedReasonCode: z.literal('organization-subscription-inactive').optional(),
+  blockedReasonCode: z
+    .enum(['organization-subscription-inactive', 'permission-group-denied'])
+    .optional(),
 })
 
 export type WorkspaceCreationPolicy = z.output<typeof workspaceCreationPolicySchema>

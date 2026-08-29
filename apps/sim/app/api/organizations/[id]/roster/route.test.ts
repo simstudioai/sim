@@ -17,8 +17,13 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExpireStaleInvitations } = vi.hoisted(() => ({
+const { mockExpireStaleInvitations, mockIsOrgMemberDirectoryHidden } = vi.hoisted(() => ({
   mockExpireStaleInvitations: vi.fn(),
+  mockIsOrgMemberDirectoryHidden: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  isOrgMemberDirectoryHidden: mockIsOrgMemberDirectoryHidden,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -61,6 +66,23 @@ describe('GET /api/organizations/[id]/roster', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockExpireStaleInvitations.mockResolvedValue(undefined)
+    mockIsOrgMemberDirectoryHidden.mockResolvedValue(false)
+  })
+
+  it('refuses a member whose permission group hides the member directory', async () => {
+    mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
+    mockIsOrgMemberDirectoryHidden.mockResolvedValue(true)
+    queueTableRows(member, [{ role: 'member' }])
+
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Forbidden - The organization member directory is not available to you',
+    })
   })
 
   it('returns a redacted roster to a target-organization member', async () => {

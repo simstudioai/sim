@@ -12,6 +12,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isOrgMemberDirectoryHidden } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -59,6 +60,17 @@ export const GET = withRouteHandler(
       if (memberEntry.length === 0) {
         return NextResponse.json(
           { error: 'Forbidden - Not a member of this organization' },
+          { status: 403 }
+        )
+      }
+
+      if (await isOrgMemberDirectoryHidden(organizationId)) {
+        logger.warn('Organization member directory blocked by permission group', {
+          organizationId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          { error: 'Forbidden - The organization member directory is not available to you' },
           { status: 403 }
         )
       }

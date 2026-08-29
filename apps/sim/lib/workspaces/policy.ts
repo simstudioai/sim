@@ -18,6 +18,7 @@ import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
 } from '@/lib/workspaces/policy-constants'
+import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -92,7 +93,7 @@ export interface WorkspaceCreationPolicy {
    */
   observedOrganizationId: string | null
   /** Discriminant for blocked states the workspace mode cannot distinguish. */
-  blockedReasonCode?: 'organization-subscription-inactive'
+  blockedReasonCode?: 'organization-subscription-inactive' | 'permission-group-denied'
 }
 
 export class WorkspaceCreationContextChangedError extends Error {
@@ -349,6 +350,42 @@ export async function getWorkspaceCreationPolicy({
               .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
               .limit(1)
           )[0]?.role
+
+  const governingOrganizationId = organizationId ?? membership?.organizationId ?? null
+  if (governingOrganizationId) {
+    /**
+     * A new workspace carries no `permissionGroupWorkspace` row, so a member of
+     * a scoped group would land in a workspace that group does not target — the
+     * one place the whole regime can be stepped out of. Gating the policy rather
+     * than the create route also covers forking and the "can I create?" signal
+     * the sidebar renders from the same decision.
+     *
+     * Governed by the organization the caller belongs to even when the resulting
+     * workspace would be personal: a personal workspace is precisely the escape,
+     * so exempting it would leave the gate answering only the case it is not for.
+     */
+    // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
+    const config = await getUserPermissionConfigForOrganization(governingOrganizationId)
+    if (config?.disableWorkspaceCreation) {
+      return {
+        canCreate: false,
+        workspaceMode:
+          organizationId === null ? WORKSPACE_MODE.PERSONAL : WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId:
+          organizationId === null
+            ? userId
+            : ((await getOrganizationOwnerId(organizationId)) ?? userId),
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason:
+          'Your permission group does not allow creating workspaces. Ask an organization admin to change it.',
+        status: 403,
+        observedOrganizationId: membership?.organizationId ?? null,
+        blockedReasonCode: 'permission-group-denied',
+      }
+    }
+  }
 
   if (activeOrganizationId && !orgRole) {
     const billedAccountUserId = await requireOrganizationOwnerId(activeOrganizationId)

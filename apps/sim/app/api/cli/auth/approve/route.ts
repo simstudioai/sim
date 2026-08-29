@@ -7,6 +7,7 @@ import { createApproval } from '@/lib/cli-auth/approval-store'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { isCliAccessDisabled } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('CliAuthApproveAPI')
 
@@ -18,9 +19,11 @@ const logger = createLogger('CliAuthApproveAPI')
  * user id here would let any caller approve a request redeemable for someone
  * else's key. No key is generated until the CLI polls.
  *
- * Workspace binding is authorized here rather than at poll time: the poll is
- * unauthenticated by necessity, so it has no session to check a permission
- * against. Approving is the only moment a human is present.
+ * Workspace binding and CLI-access permission are authorized here rather than at
+ * poll time: the poll is unauthenticated by necessity, so it has no session to
+ * check a permission against, and re-checking there would duplicate this
+ * decision while racing a permission-group change made between the two calls.
+ * Approving is the only moment a human is present.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
@@ -71,6 +74,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 403 }
       )
     }
+  }
+
+  if (await isCliAccessDisabled(session.user.id, workspaceId)) {
+    logger.warn('CLI authorization blocked by permission group', {
+      userId: session.user.id,
+      scope,
+      workspaceId: workspaceId ?? null,
+    })
+    return NextResponse.json(
+      { error: 'CLI access is not allowed based on your permission group settings' },
+      { status: 403 }
+    )
   }
 
   await createApproval(session.user.id, requestId, challenge, {
