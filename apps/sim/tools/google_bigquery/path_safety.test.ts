@@ -74,9 +74,26 @@ const STATIC_URL_TOOLS = []
  * where it is merely unhelpful.
  *
  * Identifiers already `.trim()`-ed before this branch are absent for a separate
- * reason: `datasetId` on the delete tools, `tableId` on `delete_table`, `jobId`
- * on `get_query_results`. Trimming those is not a change made here, and
- * refusing them would break callers whose stored value works today.
+ * reason: trimming those is not a change made here, and refusing them would
+ * break callers whose stored value works today.
+ *
+ * That exception is easy to misread as a short illustrative list, so here it is
+ * in full for the write tools above. `git show origin/staging:<file>` verifies
+ * each line — a parameter is exempt exactly when it already appeared as
+ * `params.<name>.trim()` before this branch:
+ *
+ * | tool | newly trimmed (listed) | already trimmed (exempt) |
+ * |---|---|---|
+ * | `delete_dataset` | `projectId` | `datasetId` |
+ * | `delete_table` | `projectId` | `datasetId`, `tableId` |
+ * | `create_dataset` | `projectId` | `datasetId` |
+ * | `create_table` | `projectId` | `datasetId`, `tableId` |
+ * | `query` | `projectId` | — |
+ * | `insert_rows` | `projectId`, `datasetId`, `tableId` | — |
+ *
+ * `insert_rows` is the one write tool where all three were previously raw,
+ * which is why it alone lists more than `projectId`. The exemptions are pinned
+ * below so the limit is testable rather than merely asserted.
  */
 const NEWLY_TRIMMED_BY_THIS_CHANGE: Record<string, readonly string[]> = {
   google_bigquery_delete_dataset: ['projectId'],
@@ -303,16 +320,54 @@ describe('a padded projectId cannot become a successful destructive request', ()
    * rule — "do not turn a failing request into a succeeding one" — rather than
    * left ambiguous.
    */
-  it('still trims datasetId, which this change did not newly trim', () => {
-    const url = new URL(
-      (
-        bigQueryTools.googleBigQueryDeleteDatasetTool.request?.url as (
-          p: Record<string, unknown>
-        ) => string
-      )({ accessToken: 't', projectId: 'my-project', datasetId: '  prod_dataset  ' })
-    )
+  /**
+   * The exemptions, pinned so the limit is testable rather than argued.
+   *
+   * Each of these was already `params.<name>.trim()` before this branch, so
+   * trimming them is not a change made here and refusing them would break
+   * callers whose stored value works today. They therefore still trim — and a
+   * reader who suspects a coverage gap can see the deliberate boundary here
+   * instead of inferring it from a comment.
+   */
+  const PADDED = {
+    accessToken: 't',
+    projectId: 'my-project',
+    datasetId: '  prod_dataset  ',
+    tableId: '  prod_table  ',
+    schema: '[{"name":"id","type":"STRING"}]',
+    query: 'SELECT 1',
+  }
 
-    expect(url.pathname).toContain('/datasets/prod_dataset')
+  const buildUrlPath = (tool: (typeof bigQueryTools)[keyof typeof bigQueryTools]) =>
+    new URL(
+      (tool as { request?: { url?: unknown } }).request?.url instanceof Function
+        ? (tool as { request: { url: (p: Record<string, unknown>) => string } }).request.url(PADDED)
+        : ''
+    ).pathname
+
+  it.each([
+    ['google_bigquery_delete_dataset', bigQueryTools.googleBigQueryDeleteDatasetTool],
+    ['google_bigquery_delete_table', bigQueryTools.googleBigQueryDeleteTableTool],
+    ['google_bigquery_create_table', bigQueryTools.googleBigQueryCreateTableTool],
+  ] as const)('%s still trims a padded datasetId', (_name, tool) => {
+    expect(buildUrlPath(tool)).toContain('/datasets/prod_dataset')
+  })
+
+  it('google_bigquery_delete_table still trims a padded tableId', () => {
+    expect(buildUrlPath(bigQueryTools.googleBigQueryDeleteTableTool)).toContain(
+      '/tables/prod_table'
+    )
+  })
+
+  it.each([
+    ['google_bigquery_create_dataset', bigQueryTools.googleBigQueryCreateDatasetTool],
+    ['google_bigquery_create_table', bigQueryTools.googleBigQueryCreateTableTool],
+  ] as const)('%s still trims padded ids in the request body', (_name, tool) => {
+    const body = (
+      tool as { request: { body: (p: Record<string, unknown>) => unknown } }
+    ).request.body(PADDED)
+
+    expect(JSON.stringify(body)).toContain('"datasetId":"prod_dataset"')
   })
 })
 
