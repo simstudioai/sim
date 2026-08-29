@@ -30,10 +30,15 @@
  * existing tool — is therefore covered without anyone remembering to register
  * it, and a still-guarded sibling parameter cannot mask an unguarded one by
  * throwing first.
+ *
+ * Discovery inspects what `request.url` returns. That is total for this
+ * service: no Clerk tool issues a `fetch` of its own from `transformResponse`,
+ * so `request.url` is the only place a URL is built. Jira does build a second
+ * URL there, and its suite carries an extra block for it — if a Clerk tool ever
+ * grows one, this file needs the same.
  */
 import { describe, expect, it } from 'vitest'
 import * as clerkTools from '@/tools/clerk/index'
-import type { ToolConfig } from '@/tools/types'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
@@ -79,30 +84,59 @@ const BASE_PATH = '/v1/'
 /** Supplied by the platform, never by the model. */
 const FIXED_PARAMS: Record<string, unknown> = { secretKey: 'sk_test_token' }
 
-type AnyTool = ToolConfig<any, any>
+/**
+ * The slice of a tool this suite drives. Narrowing to it — rather than reaching
+ * for `ToolConfig<any, any>` and an `as any` at the call site — keeps the
+ * harness typed end to end while staying agnostic about each tool's own param
+ * and response generics, which differ per tool and are irrelevant here.
+ */
+type ToolParams = Record<string, unknown>
 
-function isClerkTool(value: unknown): value is AnyTool {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('clerk_')
-  )
+type UrlBuilder = (params: ToolParams) => string
+
+interface ParamDefinition {
+  readonly type?: string
+}
+
+interface PathBuildingTool {
+  readonly id: string
+  readonly params: Readonly<Record<string, ParamDefinition>>
+  readonly buildUrl: UrlBuilder
+}
+
+/**
+ * Narrows a barrel export to a Clerk tool that builds its URL from params.
+ * Anything else — a type-only re-export, a tool with a static URL — yields
+ * `null` and drops out of the suite.
+ */
+function asPathBuildingTool(value: unknown): PathBuildingTool | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const candidate = value as { id?: unknown; params?: unknown; request?: unknown }
+  if (typeof candidate.id !== 'string' || !candidate.id.startsWith('clerk_')) return null
+
+  const request = candidate.request as { url?: unknown } | undefined
+  if (typeof request?.url !== 'function') return null
+
+  return {
+    id: candidate.id,
+    params: (candidate.params ?? {}) as Record<string, ParamDefinition>,
+    buildUrl: request.url as UrlBuilder,
+  }
 }
 
 /**
  * Fills every declared parameter with a type-appropriate safe value, then
  * overrides the single parameter under test.
  */
-function buildParams(tool: AnyTool, paramName: string, value: string): Record<string, unknown> {
-  const params: Record<string, unknown> = {}
-  for (const [name, def] of Object.entries(tool.params ?? {})) {
-    const type = (def as { type?: string }).type
-    if (type === 'json' || type === 'array') {
+function buildParams(tool: PathBuildingTool, paramName: string, value: string): ToolParams {
+  const params: ToolParams = {}
+  for (const [name, definition] of Object.entries(tool.params)) {
+    if (definition.type === 'json' || definition.type === 'array') {
       params[name] = []
-    } else if (type === 'number') {
+    } else if (definition.type === 'number') {
       params[name] = 1
-    } else if (type === 'boolean') {
+    } else if (definition.type === 'boolean') {
       params[name] = false
     } else {
       params[name] = SAFE_ID
@@ -113,24 +147,20 @@ function buildParams(tool: AnyTool, paramName: string, value: string): Record<st
   return params
 }
 
-function buildUrl(tool: AnyTool, paramName: string, value: string): URL {
-  const url = tool.request?.url
-  if (typeof url !== 'function') {
-    throw new Error(`${tool.id} does not build its URL from params`)
-  }
-  return new URL(url(buildParams(tool, paramName, value) as any))
+function buildUrl(tool: PathBuildingTool, paramName: string, value: string): URL {
+  return new URL(tool.buildUrl(buildParams(tool, paramName, value)))
 }
 
-function segmentsOf(tool: AnyTool, paramName: string, value: string): string[] {
+function segmentsOf(tool: PathBuildingTool, paramName: string, value: string): string[] {
   return buildUrl(tool, paramName, value).pathname.split('/')
 }
 
 /** Every (tool, parameter) pair whose value lands in a URL path segment. */
 const PATH_PARAMS = Object.values(clerkTools)
-  .filter(isClerkTool)
-  .filter((tool) => typeof tool.request?.url === 'function')
+  .map(asPathBuildingTool)
+  .filter((tool): tool is PathBuildingTool => tool !== null)
   .flatMap((tool) =>
-    Object.keys(tool.params ?? {})
+    Object.keys(tool.params)
       .filter((name) => !(name in FIXED_PARAMS))
       .filter((name) => {
         try {

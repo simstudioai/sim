@@ -35,10 +35,19 @@
  * existing tool — is therefore covered without anyone remembering to register
  * it, and a still-guarded sibling parameter cannot mask an unguarded one by
  * throwing first.
+ *
+ * Jira builds its URLs in **two** places, and this file has a suite for each.
+ * `request.url` covers the call made when a `cloudId` is already present; the
+ * second block at the bottom covers the URL a tool constructs inside
+ * `transformResponse` after resolving one, which `request.url` cannot expose
+ * (`jira_bulk_read.projectId` reaches a path segment only that way). The
+ * fallback block discovers its parameters by running `transformResponse`
+ * against a stubbed `fetch` and reading back what was requested, so the
+ * enumeration is total for URLs a tool actually sends — a URL a tool built but
+ * never fetched would still be invisible to both.
  */
 import { describe, expect, it } from 'vitest'
 import * as jiraTools from '@/tools/jira/index'
-import type { ToolConfig } from '@/tools/types'
 
 /**
  * The bare `.` and `..` entries are the whole point: their omission is why an
@@ -87,30 +96,67 @@ const FIXED_PARAMS: Record<string, unknown> = {
   cloudId: CLOUD_ID,
 }
 
-type AnyTool = ToolConfig<any, any>
+/**
+ * The slice of a tool this suite drives. Narrowing to it — rather than reaching
+ * for `ToolConfig<any, any>` and an `as any` at the call site — keeps the
+ * harness typed end to end while staying agnostic about each tool's own param
+ * and response generics, which differ per tool and are irrelevant here.
+ */
+type ToolParams = Record<string, unknown>
 
-function isJiraTool(value: unknown): value is AnyTool {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as AnyTool).id === 'string' &&
-    (value as AnyTool).id.startsWith('jira_')
-  )
+type UrlBuilder = (params: ToolParams) => string
+
+interface ParamDefinition {
+  readonly type?: string
+}
+
+type TransformResponse = (response: Response, params: ToolParams) => Promise<unknown>
+
+interface PathBuildingTool {
+  readonly id: string
+  readonly params: Readonly<Record<string, ParamDefinition>>
+  readonly buildUrl: UrlBuilder
+  /** Present on the Jira tools that re-issue the call after resolving a cloudId. */
+  readonly transformResponse: TransformResponse | null
+}
+
+/**
+ * Narrows a barrel export to a Jira tool that builds its URL from params.
+ * Anything else — a type-only re-export, a tool with a static URL — yields
+ * `null` and drops out of the suite.
+ */
+function asPathBuildingTool(value: unknown): PathBuildingTool | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const candidate = value as { id?: unknown; params?: unknown; request?: unknown }
+  if (typeof candidate.id !== 'string' || !candidate.id.startsWith('jira_')) return null
+
+  const request = candidate.request as { url?: unknown } | undefined
+  if (typeof request?.url !== 'function') return null
+
+  return {
+    id: candidate.id,
+    params: (candidate.params ?? {}) as Record<string, ParamDefinition>,
+    buildUrl: request.url as UrlBuilder,
+    transformResponse:
+      typeof candidate.transformResponse === 'function'
+        ? (candidate.transformResponse as TransformResponse)
+        : null,
+  }
 }
 
 /**
  * Fills every declared parameter with a type-appropriate safe value, then
  * overrides the single parameter under test.
  */
-function buildParams(tool: AnyTool, paramName: string, value: string): Record<string, unknown> {
-  const params: Record<string, unknown> = {}
-  for (const [name, def] of Object.entries(tool.params ?? {})) {
-    const type = (def as { type?: string }).type
-    if (type === 'json' || type === 'array') {
+function buildParams(tool: PathBuildingTool, paramName: string, value: string): ToolParams {
+  const params: ToolParams = {}
+  for (const [name, definition] of Object.entries(tool.params)) {
+    if (definition.type === 'json' || definition.type === 'array') {
       params[name] = []
-    } else if (type === 'number') {
+    } else if (definition.type === 'number') {
       params[name] = 1
-    } else if (type === 'boolean') {
+    } else if (definition.type === 'boolean') {
       params[name] = false
     } else {
       params[name] = SAFE_ID
@@ -121,24 +167,20 @@ function buildParams(tool: AnyTool, paramName: string, value: string): Record<st
   return params
 }
 
-function buildUrl(tool: AnyTool, paramName: string, value: string): URL {
-  const url = tool.request?.url
-  if (typeof url !== 'function') {
-    throw new Error(`${tool.id} does not build its URL from params`)
-  }
-  return new URL(url(buildParams(tool, paramName, value) as any))
+function buildUrl(tool: PathBuildingTool, paramName: string, value: string): URL {
+  return new URL(tool.buildUrl(buildParams(tool, paramName, value)))
 }
 
-function segmentsOf(tool: AnyTool, paramName: string, value: string): string[] {
+function segmentsOf(tool: PathBuildingTool, paramName: string, value: string): string[] {
   return buildUrl(tool, paramName, value).pathname.split('/')
 }
 
 /** Every (tool, parameter) pair whose value lands in a URL path segment. */
 const PATH_PARAMS = Object.values(jiraTools)
-  .filter(isJiraTool)
-  .filter((tool) => typeof tool.request?.url === 'function')
+  .map(asPathBuildingTool)
+  .filter((tool): tool is PathBuildingTool => tool !== null)
   .flatMap((tool) =>
-    Object.keys(tool.params ?? {})
+    Object.keys(tool.params)
       .filter((name) => !(name in FIXED_PARAMS))
       .filter((name) => {
         try {
@@ -202,6 +244,146 @@ describe('jira path-ID traversal safety', () => {
       const url = buildUrl(tool, paramName, `${PROBE_ID}?injectedProbe=attacker`)
 
       expect(url.searchParams.get('injectedProbe')).toBeNull()
+    })
+  })
+})
+
+/**
+ * The second URL construction.
+ *
+ * A Jira tool that is invoked without a `cloudId` sends its configured request
+ * to the fixed `accessible-resources` discovery endpoint, then builds the real
+ * per-site URL inside `transformResponse` and issues it with a bare `fetch`.
+ * `PATH_PARAMS` above cannot see that URL — it only inspects what
+ * `request.url` returns — and `jira_bulk_read.projectId` reaches a path segment
+ * *only* through this second construction, so it would otherwise never be
+ * fuzzed at all.
+ *
+ * This block closes that gap by actually running `transformResponse` with the
+ * `cloudId` withheld, against a stubbed `fetch` that records the URLs the tool
+ * asks for. Discovery is driven the same way `PATH_PARAMS` is — probe every
+ * declared parameter, keep the ones that land in a path segment — so a new tool
+ * or a new ID parameter is covered here too, without registration.
+ */
+const DISCOVERY_PAYLOAD = [{ id: CLOUD_ID, url: `https://${FIXED_PARAMS.domain}`, name: 'example' }]
+
+function stubResponse(): Response {
+  return new Response(JSON.stringify(DISCOVERY_PAYLOAD), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+function requestedUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
+/**
+ * Runs a tool's `transformResponse` with `cloudId` withheld and returns the
+ * per-site URLs it tried to fetch. The discovery hop itself is filtered out, and
+ * a throw is swallowed: a guard rejecting the value is a pass, and the only
+ * thing this function reports is what reached the network.
+ */
+async function fallbackUrls(
+  tool: PathBuildingTool,
+  paramName: string,
+  value: string
+): Promise<string[]> {
+  if (!tool.transformResponse) return []
+
+  const requested: string[] = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = ((input: RequestInfo | URL) => {
+    requested.push(requestedUrl(input))
+    return Promise.resolve(stubResponse())
+  }) as typeof globalThis.fetch
+
+  const params = buildParams(tool, paramName, value)
+  params.cloudId = undefined
+
+  try {
+    await tool.transformResponse(stubResponse(), params)
+  } catch {
+    /* Only the URLs the tool asked for matter here. */
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+
+  return requested.filter((url) => new URL(url).pathname.startsWith('/ex/jira/'))
+}
+
+async function fallbackPaths(
+  tool: PathBuildingTool,
+  paramName: string,
+  value: string
+): Promise<string[]> {
+  const urls = await fallbackUrls(tool, paramName, value)
+  return urls.map((url) => new URL(url).pathname)
+}
+
+/**
+ * Whether two resolved pathnames differ only where the probe sentinel sat.
+ * Segment *count* is part of the shape, which is what catches a popped prefix:
+ * a removed dot segment always shortens the path by one.
+ */
+function hasSameShape(baseline: string, actual: string): boolean {
+  const baselineSegments = baseline.split('/')
+  const actualSegments = actual.split('/')
+  if (baselineSegments.length !== actualSegments.length) return false
+  return baselineSegments.every(
+    (segment, index) => segment.includes(PROBE_ID) || segment === actualSegments[index]
+  )
+}
+
+const FALLBACK_CANDIDATES = Object.values(jiraTools)
+  .map(asPathBuildingTool)
+  .filter((tool): tool is PathBuildingTool => tool !== null)
+  .filter((tool) => tool.transformResponse !== null)
+  .flatMap((tool) =>
+    Object.keys(tool.params)
+      .filter((name) => !(name in FIXED_PARAMS))
+      .map((name) => ({ label: `${tool.id} :: ${name}`, tool, paramName: name }))
+  )
+
+const FALLBACK_PATH_PARAMS: typeof FALLBACK_CANDIDATES = []
+for (const candidate of FALLBACK_CANDIDATES) {
+  const urls = await fallbackUrls(candidate.tool, candidate.paramName, PROBE_ID)
+  if (urls.some((url) => new URL(url).pathname.includes(PROBE_ID))) {
+    FALLBACK_PATH_PARAMS.push(candidate)
+  }
+}
+
+describe('jira path-ID traversal safety in transformResponse-built URLs', () => {
+  it('covers every parameter that reaches a path segment of the second URL', () => {
+    expect(FALLBACK_PATH_PARAMS.length).toBeGreaterThanOrEqual(24)
+  })
+
+  it('reaches jira_bulk_read.projectId, which request.url cannot expose', () => {
+    expect(FALLBACK_PATH_PARAMS.map((entry) => entry.label)).toContain(
+      'jira_bulk_read :: projectId'
+    )
+  })
+
+  describe.each(FALLBACK_PATH_PARAMS)('$label', ({ tool, paramName }) => {
+    it.each(TRAVERSAL_IDS)('cannot reshape the second URL with %j', async (value) => {
+      const baseline = await fallbackPaths(tool, paramName, PROBE_ID)
+      const actual = await fallbackPaths(tool, paramName, value)
+
+      for (const pathname of actual) {
+        expect(pathname.startsWith(BASE_PATH)).toBe(true)
+        expect(baseline.some((shape) => hasSameShape(shape, pathname))).toBe(true)
+      }
+    })
+
+    it.each(LEGITIMATE_IDS)('passes %j into the second URL unchanged', async (value) => {
+      const baseline = await fallbackPaths(tool, paramName, PROBE_ID)
+      const actual = await fallbackPaths(tool, paramName, value)
+
+      for (const pathname of baseline.filter((entry) => entry.includes(PROBE_ID))) {
+        expect(actual).toContain(pathname.split(PROBE_ID).join(value))
+      }
     })
   })
 })
