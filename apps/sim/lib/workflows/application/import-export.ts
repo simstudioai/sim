@@ -48,6 +48,7 @@ export interface ExportWorkflowResult {
 function importErrorCode(status: number): OrchestrationErrorCode {
   if (status === 400) return 'validation'
   if (status === 404) return 'not_found'
+  if (status === 403) return 'forbidden'
   if (status === 409) return 'conflict'
   if (status === 423) return 'locked'
   return 'internal'

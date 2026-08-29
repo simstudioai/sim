@@ -23,6 +23,10 @@ import {
   performCreateWorkflow,
   performCreateWorkflowTransition,
 } from '@/lib/workflows/orchestration'
+import {
+  findWithheldBlockType,
+  withheldBlockTypeMessage,
+} from '@/lib/workflows/persistence/block-access-guard'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -255,6 +259,25 @@ async function executeImportWorkflowIntoWorkspace(
   }
 
   const workflowState: WorkflowState = { ...parsedState, ...preparedState }
+
+  /**
+   * Nothing has been written yet, which is why the check sits here: an import
+   * carries blocks the caller never added through the editing operations, so
+   * this is the only place the workspace's integration allowlist is consulted
+   * before the graph becomes a stored workflow.
+   */
+  const withheldBlockType = await findWithheldBlockType({
+    userId,
+    workspaceId,
+    blocks: Object.values(workflowState.blocks),
+  })
+  if (withheldBlockType) {
+    return {
+      success: false,
+      status: 403,
+      error: withheldBlockTypeMessage(withheldBlockType),
+    }
+  }
 
   let parsedPayload: unknown = rawWorkflow
   if (typeof rawWorkflow === 'string') {
