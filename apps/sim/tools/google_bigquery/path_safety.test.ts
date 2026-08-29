@@ -67,3 +67,46 @@ describe('bigquery path-id traversal safety', () => {
     itPassesLegitimateValues(param, { values: LEGITIMATE_IDS })
   })
 })
+
+/**
+ * The URL and the request body must name the **same** project.
+ *
+ * `safeUrlPathSegment` trims before encoding, so guarding the path introduced a
+ * divergence that the previous `encodeURIComponent(params.projectId)` did not
+ * have: the URL addressed the trimmed project while the body still carried the
+ * padded string. `datasetId` and `tableId` were already `.trim()`-ed in these
+ * bodies, so `projectId` was the one identifier out of step.
+ *
+ * BigQuery resolves `defaultDataset` and `tableReference` from the body, so a
+ * mismatch either 404s or, worse, names a project the path does not — which is
+ * precisely the kind of split-brain reference these guards exist to prevent.
+ */
+describe('projectId agrees between URL and body', () => {
+  const BODY_TOOLS = [
+    { name: 'google_bigquery_query', tool: bigQueryTools.googleBigQueryQueryTool },
+    { name: 'google_bigquery_create_table', tool: bigQueryTools.googleBigQueryCreateTableTool },
+    { name: 'google_bigquery_create_dataset', tool: bigQueryTools.googleBigQueryCreateDatasetTool },
+  ]
+
+  it.each(BODY_TOOLS)('$name sends one project id', ({ tool }) => {
+    const params = {
+      accessToken: 't',
+      projectId: '  my-project  ',
+      datasetId: 'my_dataset',
+      defaultDatasetId: 'my_dataset',
+      tableId: 'my_table',
+      query: 'SELECT 1',
+      schema: '[{"name":"id","type":"STRING"}]',
+    }
+
+    const url = new URL((tool.request?.url as (p: typeof params) => string)(params))
+    const body = (tool.request?.body as ((p: typeof params) => unknown) | undefined)?.(params)
+    const serialized = JSON.stringify(body)
+
+    expect(url.pathname).toContain('/projects/my-project/')
+    expect(serialized).not.toContain('  my-project  ')
+    if (serialized?.includes('projectId')) {
+      expect(serialized).toContain('"projectId":"my-project"')
+    }
+  })
+})
