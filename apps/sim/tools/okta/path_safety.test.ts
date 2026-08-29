@@ -18,6 +18,15 @@
  * Every assertion here resolves the built URL with `new URL(...)` — the same
  * normalization `fetch` performs — rather than string-matching the template
  * output, because string matching is exactly what let this through.
+ *
+ * The suite enumerates **(tool, param) pairs**, not tools, and fuzzes exactly
+ * one param per case while every sibling holds a distinct safe value. Fuzzing a
+ * whole tool at once cannot work here: the first guarded param throws, the case
+ * is skipped, and every sibling silently stops being tested. That matters for
+ * Okta specifically because most membership and assignment paths carry two IDs
+ * (`groupId` + `userId`, `appId` + `userId`, `appId` + `groupId`, `userId` +
+ * `factorId`, `userId` + `roleAssignmentId`), which is exactly the shape a
+ * whole-tool fuzz under-tests.
  */
 import { describe, expect, it, vi } from 'vitest'
 import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
@@ -58,8 +67,6 @@ const LEGITIMATE_IDS = [
   'v1.2.3',
 ] as const
 
-const SAFE_ID = 'SAFEID'
-
 type AnyTool = ToolConfig<any, any>
 
 function isOktaTool(value: unknown): value is AnyTool {
@@ -72,71 +79,105 @@ function isOktaTool(value: unknown): value is AnyTool {
 }
 
 /**
- * Builds a param object for a tool, filling every declared string param with
- * `value` so whichever one reaches the path is exercised.
+ * Assigns every declared string param its own alphanumeric sentinel.
  *
- * `domain` is pinned to a real org host: it is `visibility: 'user-only'` and
- * already goes through `validateOktaDomain`, so feeding it a traversal vector
- * would only assert that guard rather than the path-segment guards under test.
+ * Distinct sentinels are what make a two-ID path attributable: with one shared
+ * value, a guard on either param would look like coverage of both.
+ *
+ * `domain` is excluded and pinned to a real org host: it is
+ * `visibility: 'user-only'` and already goes through `validateOktaDomain`, so
+ * feeding it a traversal vector would only assert that guard rather than the
+ * path-segment guards under test.
  */
-function buildParams(tool: AnyTool, value: string): Record<string, unknown> {
-  const params: Record<string, unknown> = { apiKey: 'token', domain: DOMAIN }
+function safeValues(tool: AnyTool): Record<string, string> {
+  const values: Record<string, string> = {}
+  let index = 0
   for (const [name, def] of Object.entries(tool.params ?? {})) {
     if (name === 'apiKey' || name === 'domain') continue
     const type = (def as { type?: string }).type
-    if (type === 'json' || type === 'array') {
-      params[name] = []
-    } else if (type === 'number') {
-      params[name] = 1
-    } else if (type === 'boolean') {
-      params[name] = false
-    } else {
-      params[name] = value
-    }
+    if (type === 'json' || type === 'array' || type === 'number' || type === 'boolean') continue
+    values[name] = `SAFEID${index++}`
   }
+  return values
+}
+
+/** Builds a param object with every sibling at its sentinel, overriding one. */
+function buildParams(
+  tool: AnyTool,
+  override?: { name: string; value: string }
+): Record<string, unknown> {
+  const params: Record<string, unknown> = {
+    apiKey: 'token',
+    domain: DOMAIN,
+    ...safeValues(tool),
+  }
+  for (const [name, def] of Object.entries(tool.params ?? {})) {
+    if (name === 'apiKey' || name === 'domain') continue
+    const type = (def as { type?: string }).type
+    if (type === 'json' || type === 'array') params[name] = []
+    else if (type === 'number') params[name] = 1
+    else if (type === 'boolean') params[name] = false
+  }
+  if (override) params[override.name] = override.value
   return params
 }
 
-function buildUrl(tool: AnyTool, value: string): URL {
+function buildUrl(tool: AnyTool, override?: { name: string; value: string }): URL {
   const url = tool.request?.url
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, value) as any))
-}
-
-function buildPath(tool: AnyTool, value: string): string {
-  return buildUrl(tool, value).pathname
+  return new URL(url(buildParams(tool, override) as any))
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const DYNAMIC_PATH_TOOLS = Object.values(oktaTools)
+/** Every (tool, param) pair whose sentinel lands in a path segment. */
+const PATH_PARAM_PAIRS = Object.values(oktaTools)
   .filter(isOktaTool)
   .filter((tool) => typeof tool.request?.url === 'function')
-  .filter((tool) => {
+  .flatMap((tool) => {
+    let segments: string[]
     try {
-      return buildPath(tool, SAFE_ID).includes(SAFE_ID)
+      segments = segmentsOf(buildUrl(tool).pathname)
     } catch {
-      return false
+      return []
     }
+    return Object.entries(safeValues(tool))
+      .filter(([, sentinel]) => segments.includes(sentinel))
+      .map(([param, sentinel]) => ({ name: `${tool.id} / ${param}`, tool, param, sentinel }))
   })
-  .map((tool) => ({ name: tool.id, tool }))
 
 describe('okta path-ID traversal safety', () => {
-  it('covers every Okta tool that interpolates an ID into its path', () => {
-    expect(DYNAMIC_PATH_TOOLS.length).toBeGreaterThanOrEqual(25)
+  it('covers every Okta tool param that reaches a path segment', () => {
+    expect(PATH_PARAM_PAIRS.length).toBeGreaterThanOrEqual(40)
   })
 
-  describe.each(DYNAMIC_PATH_TOOLS)('$name', ({ tool }) => {
-    const baseline = segmentsOf(buildPath(tool, SAFE_ID))
+  it('covers both IDs on every two-ID path', () => {
+    const twoIdTools = [
+      'okta_add_user_to_group',
+      'okta_remove_user_from_group',
+      'okta_assign_group_to_app',
+      'okta_remove_group_from_app',
+      'okta_remove_user_from_app',
+      'okta_get_factor',
+      'okta_reset_factor',
+      'okta_remove_user_role',
+    ]
+    for (const toolId of twoIdTools) {
+      expect(PATH_PARAM_PAIRS.filter((pair) => pair.tool.id === toolId)).toHaveLength(2)
+    }
+  })
+
+  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param, sentinel }) => {
+    const baseline = segmentsOf(buildUrl(tool).pathname)
 
     it.each(TRAVERSAL_IDS)('cannot reshape the path with %j', (value) => {
       let url: URL
       try {
-        url = buildUrl(tool, value)
+        url = buildUrl(tool, { name: param, value })
       } catch {
         return
       }
@@ -147,36 +188,42 @@ describe('okta path-ID traversal safety', () => {
       const actual = segmentsOf(url.pathname)
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        if (segment === SAFE_ID) return
+        if (segment === sentinel) return
         expect(actual[index]).toBe(segment)
       })
     })
 
     it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(buildPath(tool, value))
+      const actual = segmentsOf(buildUrl(tool, { name: param, value }).pathname)
 
       expect(actual).toHaveLength(baseline.length)
       baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment === SAFE_ID ? encodeURIComponent(value) : segment)
+        expect(actual[index]).toBe(segment === sentinel ? encodeURIComponent(value) : segment)
       })
     })
 
     it('rejects a bare dot-dot segment instead of silently popping the prefix', () => {
-      expect(() => buildUrl(tool, '..')).toThrow(/path traversal/)
+      expect(() => buildUrl(tool, { name: param, value: '..' })).toThrow(/path traversal/)
     })
 
     it('rejects a bare dot segment', () => {
-      expect(() => buildUrl(tool, '.')).toThrow(/path traversal/)
+      expect(() => buildUrl(tool, { name: param, value: '.' })).toThrow(/path traversal/)
+    })
+
+    it('names the offending param in the rejection', () => {
+      expect(() => buildUrl(tool, { name: param, value: '..' })).toThrow(new RegExp(param))
     })
 
     it('does not let the id forge the sendEmail lifecycle flag', () => {
-      expect(buildUrl(tool, `${SAFE_ID}?sendEmail=true`).searchParams.get('sendEmail')).not.toBe(
-        'true'
-      )
+      const url = buildUrl(tool, { name: param, value: `${sentinel}?sendEmail=true` })
+
+      expect(url.searchParams.get('sendEmail')).not.toBe('true')
     })
 
     it('trims surrounding whitespace rather than encoding it into the path', () => {
-      expect(buildPath(tool, `  ${SAFE_ID}  `)).toBe(buildPath(tool, SAFE_ID))
+      expect(buildUrl(tool, { name: param, value: `  ${sentinel}  ` }).pathname).toBe(
+        buildUrl(tool).pathname
+      )
     })
   })
 })
