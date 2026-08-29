@@ -256,7 +256,15 @@ attached, including on DELETE routes. Path IDs are typically `visibility: 'user-
 injection controls them. Rejection is the only mechanism that closes this; the module note at the top
 of `apps/sim/tools/url-path.ts` states the rule in full.
 
-Never interpolate a param into a request path yourself. Use the helpers in `apps/sim/tools/url-path.ts`:
+Never interpolate a param into a request path yourself. Use the helpers in `apps/sim/tools/url-path.ts`.
+
+**Check what your checkout exports before you start.** `safeUrlPathSegment` is on `staging`; the rest
+of this module — `safeUrlPath`, `safeEncodedUrlPathSegment`, `strictUrlPathSegment`,
+`strictEncodedUrlPathSegment` — and the `path_safety.test.ts` suites cited throughout arrive with the
+path-safety sweep. If a helper you need is absent, **add it to `apps/sim/tools/url-path.ts`** with the
+semantics this section specifies — rejection of a bare `.`/`..`, per-segment where the value is
+hierarchical — and never hand-roll a local encoder at the call site. Citations into those files name
+**module and symbol** rather than a line, because they are still being rebased.
 
 | Helper | Use when the parameter is | Trims? |
 |---|---|---|
@@ -274,13 +282,6 @@ is greedy on its final parameter, so a branch named `feature/api` is addressed a
 a parameter the provider reads as one value *and* does not treat as greedy, such as a label name in
 `DELETE .../labels/{name}`. Read the provider's route, not the value's shape.
 
-**Availability.** `safeUrlPathSegment` is on `staging`. The rest of this module — `safeUrlPath`,
-`safeEncodedUrlPathSegment`, `strictUrlPathSegment`, `strictEncodedUrlPathSegment` — and the
-`path_safety.test.ts` suites cited throughout arrive with the path-safety sweep. Check what
-`apps/sim/tools/url-path.ts` and `apps/sim/tools/__tests__/path-safety.ts` actually export in your
-checkout; if a helper you need is absent, add it there rather than hand-rolling a local encoder.
-Citations below name **module and symbol** rather than a line, because those files are still moving.
-
 ### Never let a new guard rescue a request that used to fail
 
 If a parameter you are now routing through a helper previously went out raw or through a bare
@@ -290,14 +291,13 @@ destructive action the caller never asked for.
 
 For a newly-trimmed identifier on an irreversible request, use `strictUrlPathSegment` in
 `apps/sim/tools/url-path.ts` — `safeUrlPathSegment` plus a refusal of surrounding whitespace —
-rather than trimming (`strictEncodedUrlPathSegment` is its `%2F`-preserving counterpart). Identifiers that were already trimmed before your change keep
-plain `safeUrlPathSegment`. The full rule, its two confirmed instances, and how to scope the check are
+rather than trimming (`strictEncodedUrlPathSegment` is its `%2F`-preserving counterpart). Identifiers
+that were already trimmed before your change keep plain `safeUrlPathSegment`. The full rule, its two confirmed instances, and how to scope the check are
 in **A hardening change must not turn a failing request into a succeeding one** in
 `.agents/skills/validate-integration/SKILL.md`.
 
 Note the matching asymmetry inside `safeUrlPath`: it rejects only a **truly empty** path component,
-never a whitespace-only one. Git tracks a file and a directory whose entire name
-is spaces, and the URL parser never removes `%20%20%20` the way it removes a dot segment — so
+never a whitespace-only one. Git tracks a file and a directory whose entire name is spaces, and the URL parser never removes `%20%20%20` the way it removes a dot segment — so
 rejecting it has no security value and breaks a legitimate path. `safeUrlPathSegment` still rejects an
 all-whitespace value, because it trims opaque ids first.
 
