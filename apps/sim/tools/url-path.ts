@@ -373,3 +373,87 @@ export function safeEncodedUrlPathSegment(
 
   return encodeSegment(trimmed, paramName)
 }
+
+/**
+ * Rejects a value whose text is surrounded by whitespace.
+ *
+ * Shared by the strict guards below. Only a string can be padded — a number or
+ * bigint has no surrounding text — and a value that is *entirely* whitespace is
+ * deliberately allowed through to the wrapped guard, so it reports the more
+ * accurate "is required" rather than complaining about padding on a value that
+ * has no content at all.
+ */
+function assertUnpadded(value: string | number | bigint, paramName: string): void {
+  if (typeof value !== 'string') return
+
+  const trimmed = value.trim()
+  if (trimmed && trimmed !== value) {
+    throw new Error(
+      `${paramName} must not have leading or trailing whitespace (refusing to guess which resource was meant on a request that changes state)`
+    )
+  }
+}
+
+/**
+ * {@link safeUrlPathSegment} for an identifier on a request that **changes
+ * state** — a POST, PUT, PATCH, or DELETE.
+ *
+ * Identical in every respect except one: it refuses a padded value instead of
+ * trimming it.
+ *
+ * The reason is a rule about what a security fix is allowed to change. Before
+ * these guards existed, the GitHub tools interpolated identifiers raw, so a
+ * padded `owner` reached the provider as `%20%20acme%20%20`, matched no
+ * repository, and the request was a 404 no-op. Routing that same value through
+ * a *trimming* guard silently converts the no-op into a real mutation:
+ *
+ * ```
+ * before: DELETE /repos/%20%20acme%20%20/sim/git/refs/heads/main -> 404, nothing happens
+ * after:  DELETE /repos/acme/sim/git/refs/heads/main             -> the branch is gone
+ * ```
+ *
+ * Nothing about that is traversal, and every traversal test still passes, which
+ * is exactly why it would ship unnoticed. So the rule these strict guards
+ * encode is: **a hardening change must never turn a failing request into a
+ * succeeding one.**
+ *
+ * This applies only where the change *introduces* the trim. A parameter that
+ * already trimmed before the guards landed — the gist tools' `gist_id`, which
+ * read `params.gist_id?.trim()` — keeps trimming, because preserving its
+ * behaviour is the same rule, not an exception to it.
+ *
+ * Reads deliberately keep {@link safeUrlPathSegment}. Trimming a padded id on a
+ * GET is the copy-paste convenience that helper exists for, and its worst case
+ * is returning data the caller can simply ignore — not destroying a branch,
+ * closing someone's pull request, or filing an issue in a real repository.
+ *
+ * @param value - The raw identifier, typically LLM- or user-supplied.
+ * @param paramName - The parameter name, used to name the offender in errors.
+ * @returns The percent-encoded segment, safe to interpolate.
+ * @throws Everything {@link safeUrlPathSegment} throws, plus a padded value.
+ */
+export function strictUrlPathSegment(value: string | number | bigint, paramName: string): string {
+  assertUnpadded(value, paramName)
+  return safeUrlPathSegment(value, paramName)
+}
+
+/**
+ * {@link safeEncodedUrlPathSegment} for a state-changing request.
+ *
+ * Same rule as {@link strictUrlPathSegment}; see that function for why. This
+ * variant exists because `remove_label` is a DELETE whose label `name` is one
+ * path parameter that may itself contain `/`, so it needs the encoding
+ * behaviour of `safeEncodedUrlPathSegment` and the padding refusal together.
+ *
+ * @param value - The raw value, typically LLM- or user-supplied.
+ * @param paramName - The parameter name, used to name the offender in errors.
+ * @returns The value percent-encoded as a single segment.
+ * @throws Everything {@link safeEncodedUrlPathSegment} throws, plus a padded value.
+ */
+export function strictEncodedUrlPathSegment(
+  value: string | number | bigint,
+  paramName: string
+): string {
+  assertUnpadded(value, paramName)
+  return safeEncodedUrlPathSegment(value, paramName)
+}

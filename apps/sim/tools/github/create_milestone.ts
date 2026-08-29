@@ -1,6 +1,6 @@
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 interface CreateMilestoneParams {
   owner: string
@@ -85,7 +85,7 @@ export const createMilestoneTool: ToolConfig<CreateMilestoneParams, CreateMilest
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/milestones`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

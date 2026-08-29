@@ -1,5 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 interface StarRepoParams {
   owner: string
@@ -48,7 +48,7 @@ export const starRepoTool: ToolConfig<StarRepoParams, StarRepoResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/user/starred/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}`,
+      `https://api.github.com/user/starred/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

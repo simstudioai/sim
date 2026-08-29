@@ -1,6 +1,6 @@
 import type { MergePRParams, MergeResultResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
   id: 'github_merge_pr',
@@ -56,7 +56,7 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/merge`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/pulls/${strictUrlPathSegment(params.pullNumber, 'pullNumber')}/merge`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

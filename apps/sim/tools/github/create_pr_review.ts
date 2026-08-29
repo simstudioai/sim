@@ -19,7 +19,7 @@ import type {
 } from '@/tools/github/types'
 import { USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
 
@@ -160,7 +160,7 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}/reviews`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/pulls/${strictUrlPathSegment(params.pullNumber, 'pullNumber')}/reviews`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

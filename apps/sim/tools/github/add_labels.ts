@@ -1,6 +1,6 @@
 import type { AddLabelsParams, LabelsResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
   id: 'github_add_labels',
@@ -43,7 +43,7 @@ export const addLabelsTool: ToolConfig<AddLabelsParams, LabelsResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/labels`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/issues/${strictUrlPathSegment(params.issue_number, 'issue_number')}/labels`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

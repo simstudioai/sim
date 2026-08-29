@@ -6,7 +6,7 @@ import {
   USER_OUTPUT,
 } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   id: 'github_create_issue',
@@ -67,7 +67,7 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/issues`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
+import {
+  safeUrlPath,
+  safeUrlPathSegment,
+  strictEncodedUrlPathSegment,
+  strictUrlPathSegment,
+} from '@/tools/url-path'
 
 const ORIGIN = 'https://api.example.com'
 
@@ -419,5 +424,57 @@ describe('whitespace handling differs by purpose', () => {
 
   it('keeps a colon so a cross-fork compare ref still addresses its owner', () => {
     expect(safeUrlPath('octocat:feature/my-branch', 'base')).toBe('octocat:feature/my-branch')
+  })
+})
+
+/**
+ * The strict guards exist because a hardening change must never turn a failing
+ * request into a succeeding one. Before the guards, a padded identifier reached
+ * GitHub raw, matched nothing, and the request was a 404 no-op; trimming it
+ * would silently convert that into a real mutation.
+ */
+describe('strict guards refuse padding on state-changing requests', () => {
+  it.each(['  acme  ', 'acme ', ' acme', '\tacme', 'acme\n'])(
+    'strictUrlPathSegment rejects %j',
+    (value) => {
+      expect(() => strictUrlPathSegment(value, 'owner')).toThrow(
+        /owner must not have leading or trailing whitespace/
+      )
+    }
+  )
+
+  it('strictEncodedUrlPathSegment rejects padding too', () => {
+    expect(() => strictEncodedUrlPathSegment('  area/api  ', 'name')).toThrow(
+      /name must not have leading or trailing whitespace/
+    )
+  })
+
+  it.each([
+    ['acme', 'acme'],
+    ['my-repo', 'my-repo'],
+    ['1234', '1234'],
+  ])('passes the unpadded value %j through unchanged', (value, expected) => {
+    expect(strictUrlPathSegment(value, 'owner')).toBe(expected)
+  })
+
+  it('keeps a namespaced label encoded as one segment', () => {
+    expect(strictEncodedUrlPathSegment('area/api', 'name')).toBe('area%2Fapi')
+  })
+
+  it('reports an all-whitespace value as missing, not as padded', () => {
+    expect(() => strictUrlPathSegment('   ', 'owner')).toThrow(/owner is required/)
+  })
+
+  it('accepts a number, which cannot be padded', () => {
+    expect(strictUrlPathSegment(1234, 'issue_number')).toBe('1234')
+  })
+
+  it('still rejects traversal, inheriting the safe guard', () => {
+    expect(() => strictUrlPathSegment('..', 'owner')).toThrow(/path traversal is not allowed/)
+    expect(() => strictUrlPathSegment('a/b', 'owner')).toThrow(/cannot contain a path separator/)
+  })
+
+  it('leaves the non-strict guard trimming, for reads and pre-trimmed ids', () => {
+    expect(safeUrlPathSegment('  acme  ', 'owner')).toBe('acme')
   })
 })

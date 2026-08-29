@@ -20,7 +20,11 @@ import type {
 } from '@/tools/github/types'
 import { secureGitHubRequest } from '@/tools/github/utils.server'
 import type { ToolResponse } from '@/tools/types'
-import { safeEncodedUrlPathSegment, safeUrlPathSegment } from '@/tools/url-path'
+import {
+  safeEncodedUrlPathSegment,
+  safeUrlPathSegment,
+  strictUrlPathSegment,
+} from '@/tools/url-path'
 
 const logger = createLogger('GitHubLatestCommitOperation')
 const MAX_COMMIT_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -119,10 +123,19 @@ function buildGuardedUrl(build: () => string): string {
   }
 }
 
+/**
+ * The pull-request URL, and the base for the comment and review URLs built from
+ * it.
+ *
+ * Uses the strict guards even though this same URL is also fetched with a GET
+ * to read the head SHA: every caller reaches it on the way to creating a
+ * comment or a review, so the operation as a whole changes state and must not
+ * have a padded identifier quietly resolved to a real pull request.
+ */
 function pullRequestUrl(params: CreateCommentParams): string {
   return buildGuardedUrl(
     () =>
-      `${GITHUB_API_BASE}/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`
+      `${GITHUB_API_BASE}/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/pulls/${strictUrlPathSegment(params.pullNumber, 'pullNumber')}`
   )
 }
 

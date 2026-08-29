@@ -1,6 +1,6 @@
 import type { DeleteReleaseParams, DeleteReleaseResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const deleteReleaseTool: ToolConfig<DeleteReleaseParams, DeleteReleaseResponse> = {
   id: 'github_delete_release',
@@ -38,7 +38,7 @@ export const deleteReleaseTool: ToolConfig<DeleteReleaseParams, DeleteReleaseRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/releases/${safeUrlPathSegment(params.release_id, 'release_id')}`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/releases/${strictUrlPathSegment(params.release_id, 'release_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

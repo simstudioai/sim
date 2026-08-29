@@ -1,7 +1,7 @@
 import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/tools/github/types'
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
+import { safeUrlPath, strictUrlPathSegment } from '@/tools/url-path'
 
 export const updateBranchProtectionTool: ToolConfig<
   UpdateBranchProtectionParams,
@@ -69,7 +69,7 @@ export const updateBranchProtectionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/branches/${safeUrlPath(params.branch, 'branch')}/protection`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/branches/${safeUrlPath(params.branch, 'branch')}/protection`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

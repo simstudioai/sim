@@ -1,6 +1,6 @@
 import type { LabelsResponse, RemoveLabelParams } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeEncodedUrlPathSegment, safeUrlPathSegment } from '@/tools/url-path'
+import { strictEncodedUrlPathSegment, strictUrlPathSegment } from '@/tools/url-path'
 
 export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
   id: 'github_remove_label',
@@ -43,7 +43,7 @@ export const removeLabelTool: ToolConfig<RemoveLabelParams, LabelsResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/labels/${safeEncodedUrlPathSegment(params.name, 'name')}`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/issues/${strictUrlPathSegment(params.issue_number, 'issue_number')}/labels/${strictEncodedUrlPathSegment(params.name, 'name')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

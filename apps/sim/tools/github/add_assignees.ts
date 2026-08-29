@@ -1,6 +1,6 @@
 import type { AddAssigneesParams, IssueResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const addAssigneesTool: ToolConfig<AddAssigneesParams, IssueResponse> = {
   id: 'github_add_assignees',
@@ -43,7 +43,7 @@ export const addAssigneesTool: ToolConfig<AddAssigneesParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/assignees`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/issues/${strictUrlPathSegment(params.issue_number, 'issue_number')}/assignees`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -1,6 +1,6 @@
 import type { TriggerWorkflowParams, TriggerWorkflowResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkflowResponse> = {
   id: 'github_trigger_workflow',
@@ -50,7 +50,7 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/actions/workflows/${safeUrlPathSegment(params.workflow_id, 'workflow_id')}/dispatches`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/actions/workflows/${strictUrlPathSegment(params.workflow_id, 'workflow_id')}/dispatches`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 import type { CreateIssueCommentParams, IssueCommentResponse } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueCommentResponse> = {
   id: 'github_issue_comment',
@@ -45,7 +45,7 @@ export const issueCommentTool: ToolConfig<CreateIssueCommentParams, IssueComment
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/issues/${safeUrlPathSegment(params.issue_number, 'issue_number')}/comments`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/issues/${strictUrlPathSegment(params.issue_number, 'issue_number')}/comments`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

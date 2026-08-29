@@ -290,6 +290,133 @@ const PATHLESS_TOOLS = new Set([
   'github_create_gist_v2',
 ])
 
+/**
+ * Every (tool, parameter) pair where this PR newly introduced trimming on a
+ * request that changes state, derived the same way the fix was: the parameter
+ * was interpolated raw before the guards landed, and its tool's method is not
+ * GET.
+ *
+ * Before the guards, a padded identifier reached GitHub as `%20%20acme%20%20`,
+ * matched nothing, and the request was a 404 no-op. A trimming guard would turn
+ * that no-op into a real mutation — a deleted branch, a closed pull request —
+ * while every traversal assertion in this file kept passing, which is precisely
+ * why it needed pinning rather than reasoning.
+ *
+ * The list is explicit rather than computed so that removing a guard cannot
+ * also remove its own assertion.
+ */
+const MUTATING_STRICT_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  github_delete_branch: ['owner', 'repo'],
+  github_delete_comment: ['owner', 'repo', 'comment_id'],
+  github_delete_comment_reaction: ['owner', 'repo', 'comment_id', 'reaction_id'],
+  github_delete_file: ['owner', 'repo'],
+  github_delete_issue_reaction: ['owner', 'repo', 'issue_number', 'reaction_id'],
+  github_delete_milestone: ['owner', 'repo', 'milestone_number'],
+  github_delete_release: ['owner', 'repo', 'release_id'],
+  github_remove_label: ['owner', 'repo', 'issue_number', 'name'],
+  github_unstar_repo: ['owner', 'repo'],
+  github_close_issue: ['owner', 'repo', 'issue_number'],
+  github_close_pr: ['owner', 'repo', 'pullNumber'],
+  github_update_comment: ['owner', 'repo', 'comment_id'],
+  github_update_issue: ['owner', 'repo', 'issue_number'],
+  github_update_milestone: ['owner', 'repo', 'milestone_number'],
+  github_update_pr: ['owner', 'repo', 'pullNumber'],
+  github_update_release: ['owner', 'repo', 'release_id'],
+  github_add_assignees: ['owner', 'repo', 'issue_number'],
+  github_add_labels: ['owner', 'repo', 'issue_number'],
+  github_cancel_workflow_run: ['owner', 'repo', 'run_id'],
+  github_create_branch: ['owner', 'repo'],
+  github_create_comment_reaction: ['owner', 'repo', 'comment_id'],
+  github_create_issue: ['owner', 'repo'],
+  github_create_issue_reaction: ['owner', 'repo', 'issue_number'],
+  github_create_milestone: ['owner', 'repo'],
+  github_create_pr: ['owner', 'repo'],
+  github_create_pr_review: ['owner', 'repo', 'pullNumber'],
+  github_create_release: ['owner', 'repo'],
+  github_fork_repo: ['owner', 'repo'],
+  github_issue_comment: ['owner', 'repo', 'issue_number'],
+  github_request_reviewers: ['owner', 'repo', 'pullNumber'],
+  github_rerun_workflow: ['owner', 'repo', 'run_id'],
+  github_trigger_workflow: ['owner', 'repo', 'workflow_id'],
+  github_create_file: ['owner', 'repo'],
+  github_merge_pr: ['owner', 'repo', 'pullNumber'],
+  github_star_repo: ['owner', 'repo'],
+  github_update_branch_protection: ['owner', 'repo'],
+  github_update_file: ['owner', 'repo'],
+}
+
+/** Identifiers that already trimmed before this PR, so they must keep trimming. */
+const PRE_TRIMMED_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  github_delete_gist: ['gist_id'],
+  github_star_gist: ['gist_id'],
+  github_unstar_gist: ['gist_id'],
+  github_fork_gist: ['gist_id'],
+  github_update_gist: ['gist_id'],
+}
+
+const PADDED_VALUES = ['  octocat  ', 'octocat ', ' octocat', '\toctocat'] as const
+
+describe('mutating routes refuse a padded identifier', () => {
+  const entries = Object.entries(MUTATING_STRICT_PARAMS).flatMap(([id, params]) =>
+    params.map((param) => ({ name: `${id} / ${param}`, id, param }))
+  )
+
+  it('pins every mutating tool this PR newly trimmed', () => {
+    expect(entries.length).toBe(101)
+  })
+
+  describe.each(entries)('$name', ({ id, param }) => {
+    const tool = Object.values(githubTools)
+      .filter(isGitHubTool)
+      .find((candidate) => candidate.id === id)
+
+    it('is present in the barrel', () => {
+      expect(tool).toBeDefined()
+    })
+
+    it.each(PADDED_VALUES)('throws on %j rather than resolving it', (value) => {
+      expect(() => buildPath(tool as UrlBuildingTool, param, value)).toThrow(
+        /must not have leading or trailing whitespace/
+      )
+    })
+
+    it('still accepts the same value unpadded', () => {
+      expect(() => buildPath(tool as UrlBuildingTool, param, 'octocat')).not.toThrow()
+    })
+  })
+})
+
+describe('reads and already-trimmed identifiers keep trimming', () => {
+  const preTrimmed = Object.entries(PRE_TRIMMED_PARAMS).flatMap(([id, params]) =>
+    params.map((param) => ({ name: `${id} / ${param}`, id, param }))
+  )
+
+  it.each(preTrimmed)('$name trims, because it trimmed before this PR', ({ id, param }) => {
+    const tool = Object.values(githubTools)
+      .filter(isGitHubTool)
+      .find((candidate) => candidate.id === id)
+    expect(tool).toBeDefined()
+
+    const padded = buildPath(tool as UrlBuildingTool, param, '  abc123  ')
+    expect(padded).toBe(buildPath(tool as UrlBuildingTool, param, 'abc123'))
+  })
+
+  it.each([
+    { id: 'github_get_issue', param: 'owner' },
+    { id: 'github_repo_info', param: 'repo' },
+    { id: 'github_get_file_content', param: 'owner' },
+  ])('$id / $param trims on a read', ({ id, param }) => {
+    const tool = Object.values(githubTools)
+      .filter(isGitHubTool)
+      .find((candidate) => candidate.id === id)
+    expect(tool).toBeDefined()
+
+    expect(buildPath(tool as UrlBuildingTool, param, '  octocat  ')).toBe(
+      buildPath(tool as UrlBuildingTool, param, 'octocat')
+    )
+  })
+})
+
 describe('github path traversal safety', () => {
   it('covers every GitHub tool parameter that reaches the request path', () => {
     expect(PATH_PARAM_CASES.length).toBeGreaterThanOrEqual(60)

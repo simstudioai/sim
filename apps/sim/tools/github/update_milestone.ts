@@ -1,5 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { strictUrlPathSegment } from '@/tools/url-path'
 
 interface UpdateMilestoneParams {
   owner: string
@@ -89,7 +89,7 @@ export const updateMilestoneTool: ToolConfig<UpdateMilestoneParams, UpdateMilest
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/milestones/${safeUrlPathSegment(params.milestone_number, 'milestone_number')}`,
+      `https://api.github.com/repos/${strictUrlPathSegment(params.owner, 'owner')}/${strictUrlPathSegment(params.repo, 'repo')}/milestones/${strictUrlPathSegment(params.milestone_number, 'milestone_number')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
