@@ -538,13 +538,34 @@ export function mergeResumeLegOutputs(
   if (leg.completionStatus) context.completionStatus = leg.completionStatus
 }
 
-async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
+async function waitForToolIds(
+  context: StreamingContext,
+  toolIds: string[],
+  abortSignal?: AbortSignal
+): Promise<boolean> {
   const promises: Promise<unknown>[] = []
   for (const id of toolIds) {
     const p = context.pendingToolPromises.get(id)
     if (p) promises.push(p)
   }
-  if (promises.length > 0) await Promise.allSettled(promises)
+  if (promises.length === 0) return true
+  if (!abortSignal) {
+    await Promise.allSettled(promises)
+    return true
+  }
+  if (abortSignal.aborted) return false
+
+  let onAbort = () => {}
+  const aborted = new Promise<false>((resolve) => {
+    onAbort = () => resolve(false)
+    abortSignal.addEventListener('abort', onAbort, { once: true })
+    if (abortSignal.aborted) onAbort()
+  })
+  try {
+    return await Promise.race([Promise.allSettled(promises).then(() => true as const), aborted])
+  } finally {
+    abortSignal.removeEventListener('abort', onAbort)
+  }
 }
 
 interface ResumeToolResult {
@@ -689,7 +710,8 @@ async function driveOneChildChain(
   for (;;) {
     if (isAborted(options, context)) return null
 
-    await waitForToolIds(context, toolIds)
+    const toolsSettled = await waitForToolIds(context, toolIds, options.abortSignal)
+    if (!toolsSettled || isAborted(options, context)) return null
     const results = collectResultsForToolIds(context, toolIds, checkpointId)
 
     const leg = makeResumeLegContext(context)
@@ -1007,7 +1029,15 @@ async function runCheckpointLoop(
           next = null
           break
         }
-        await waitForToolIds(context, next.pendingToolCallIds)
+        const toolsSettled = await waitForToolIds(
+          context,
+          next.pendingToolCallIds,
+          options.abortSignal
+        )
+        if (!toolsSettled || isAborted(options, context)) {
+          next = null
+          break
+        }
         next = await driveSubagentChains(
           next,
           context,
@@ -1018,7 +1048,10 @@ async function runCheckpointLoop(
           hostedBillingRequest
         )
       }
-      if (!next) break
+      if (!next) {
+        if (isAborted(options, context)) cancelPendingTools(context)
+        break
+      }
       continuation = next
     }
 
@@ -1049,6 +1082,7 @@ async function runCheckpointLoop(
        * sibling. Unchanged promises retain their absolute deadlines.
        */
       while (context.pendingToolPromises.size > 0) {
+        if (isAborted(options, context)) break
         const now = Date.now()
         for (const [toolCallId, watchdog] of pendingWatchdogs) {
           if (context.pendingToolPromises.get(toolCallId) !== watchdog.promise) {
@@ -1116,14 +1150,17 @@ async function runCheckpointLoop(
         })
 
         const watchdogController = new AbortController()
+        const waitSignal = options.abortSignal
+          ? AbortSignal.any([watchdogController.signal, options.abortSignal])
+          : watchdogController.signal
         try {
           const wake = await Promise.race([
             ...activeWatchdogs.map(([, watchdog]) => watchdog.settlement),
-            interruptibleSleep(
-              Math.max(0, nextDeadlineAt - Date.now()),
-              watchdogController.signal
-            ).then(() => null),
+            interruptibleSleep(Math.max(0, nextDeadlineAt - Date.now()), waitSignal).then(
+              () => null
+            ),
           ])
+          if (isAborted(options, context)) break
           if (wake && context.pendingToolPromises.get(wake.toolCallId) === wake.promise) {
             context.pendingToolPromises.delete(wake.toolCallId)
           }
@@ -1131,13 +1168,18 @@ async function runCheckpointLoop(
           watchdogController.abort()
         }
       }
+      const waitWasAborted = isAborted(options, context)
       waitSpan.attributes = {
         ...waitSpan.attributes,
         waitBudgetMs: maximumWaitBudgetMs,
         timedOutCount,
-        settledInTime: timedOutCount === 0,
+        aborted: waitWasAborted,
+        settledInTime: timedOutCount === 0 && !waitWasAborted,
       }
-      context.trace.endSpan(waitSpan)
+      context.trace.endSpan(
+        waitSpan,
+        waitWasAborted ? RequestTraceV1SpanStatus.cancelled : RequestTraceV1SpanStatus.ok
+      )
     }
 
     if (isAborted(options, context)) {

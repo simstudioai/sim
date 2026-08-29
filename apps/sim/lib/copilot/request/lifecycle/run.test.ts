@@ -2063,6 +2063,73 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
+  it('cancels promptly while a sequential tool promise remains unsettled', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const fetchUrls: string[] = []
+      let capturedContext: StreamingContext | null = null
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+
+      mockPendingToolWaitBudgetMs.mockReturnValue(3_600_000)
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          capturedContext = context
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'terminal',
+            status: 'awaiting_approval',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-hung'],
+          }
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-aborted-tool-wait' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+          abortSignal: controller.signal,
+        }
+      )
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockPendingToolWaitBudgetMs).toHaveBeenCalled()
+      controller.abort('user_stop')
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(result.success).toBe(false)
+      expect(result.cancelled).toBe(true)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
+
+      await vi.advanceTimersByTimeAsync(3_700_000)
+      expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('force-fails each hung tool on its own budget while awaiting a long approval', async () => {
     vi.useFakeTimers()
     try {
@@ -2418,6 +2485,57 @@ describe('runCopilotLifecycle', () => {
       }),
     ])
     expect(result.success).toBe(true)
+  })
+
+  it('cancels promptly while a per-subagent tool promise remains unsettled', async () => {
+    const controller = new AbortController()
+    const addAbortListener = vi.spyOn(controller.signal, 'addEventListener')
+    const fetchUrls: string[] = []
+    let capturedContext: StreamingContext | null = null
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+        fetchUrls.push(fetchUrl)
+        capturedContext = context
+        context.toolCalls.set('tool-hung', {
+          id: 'tool-hung',
+          name: 'read',
+          status: 'executing',
+        })
+        context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'cp-root',
+          pendingToolCallIds: ['tool-hung'],
+          frames: [
+            {
+              parentToolCallId: 'subagent-file',
+              parentToolName: 'file',
+              pendingToolIds: ['tool-hung'],
+              checkpointId: 'cp-file',
+            },
+          ],
+        }
+      }
+    )
+
+    const lifecycle = runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-aborted-subagent-wait' },
+      { userId: 'user-1', workspaceId: 'ws-1', abortSignal: controller.signal }
+    )
+
+    await vi.waitFor(() => {
+      expect(addAbortListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true })
+    })
+    controller.abort('user_stop')
+    const result = await lifecycle
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(true)
+    expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+    expect(mockForceFailHungToolCall).not.toHaveBeenCalled()
+    expect(capturedContext?.toolCalls.get('tool-hung')).toMatchObject({
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: 'Stopped by user',
+    })
   })
 
   it('classifies a Stop landing during a subagent fanout as cancelled', async () => {
