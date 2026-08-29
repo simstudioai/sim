@@ -23,8 +23,8 @@ const PutFunctionEventInvokeConfigSchema = z.object({
     .optional(),
   maximumRetryAttempts: z.number().int().min(0).max(2).optional(),
   maximumEventAgeInSeconds: z.number().int().min(60).max(21600).optional(),
-  onSuccessDestination: z.string().optional(),
-  onFailureDestination: z.string().optional(),
+  onSuccessDestination: z.string().min(1, 'onSuccessDestination cannot be empty').optional(),
+  onFailureDestination: z.string().min(1, 'onFailureDestination cannot be empty').optional(),
 })
 
 const PutFunctionEventInvokeConfigResponseSchema = z.object({

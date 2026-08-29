@@ -22,7 +22,7 @@ const ListLayerVersionsSchema = z.object({
       /^(arn:[a-zA-Z0-9-]+:lambda:[a-zA-Z0-9-]+:\d{12}:layer:[a-zA-Z0-9-_]+)$|^[a-zA-Z0-9-_]+$/,
       'layerName must be a layer name or a layer ARN'
     ),
-  compatibleRuntime: z.string().optional(),
+  compatibleRuntime: z.string().min(1, 'compatibleRuntime cannot be empty').optional(),
   compatibleArchitecture: z.enum(['x86_64', 'arm64']).optional(),
 })
 

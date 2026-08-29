@@ -528,6 +528,36 @@ describe('executeLambdaTool', () => {
     expect(JSON.stringify(await response.json())).toContain('not both')
   })
 
+  it('rejects an empty event source ARN rather than treating it as absent', async () => {
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_create_event_source_mapping',
+        input: {
+          ...CONNECTION,
+          functionName: 'alpha',
+          eventSourceArn: '',
+          selfManagedKafkaBootstrapServers: ['broker-1:9092'],
+        },
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockOperations.executeLambdaCreateEventSourceMapping).not.toHaveBeenCalled()
+  })
+
+  it('still accepts an empty description, which AWS documents as clearing it', async () => {
+    mockOperations.executeLambdaPublishVersion.mockResolvedValue({ success: true, output: {} })
+
+    const response = await executeLambdaTool(
+      createRequest({
+        toolId: 'lambda_publish_version',
+        input: { ...CONNECTION, functionName: 'alpha', description: '' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('rejects an empty code-source field rather than treating it as absent', async () => {
     const response = await executeLambdaTool(
       createRequest({

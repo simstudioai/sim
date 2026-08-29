@@ -18,8 +18,8 @@ const CreateFunctionSchema = z
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
     role: z.string().min(1, 'role is required'),
-    runtime: z.string().optional(),
-    handler: z.string().optional(),
+    runtime: z.string().min(1, 'runtime cannot be empty').optional(),
+    handler: z.string().min(1, 'handler cannot be empty').optional(),
     packageType: z.enum(['Zip', 'Image']).optional(),
     s3Bucket: z.string().min(1, 's3Bucket cannot be empty').optional(),
     s3Key: z.string().min(1, 's3Key cannot be empty').optional(),
@@ -41,11 +41,11 @@ const CreateFunctionSchema = z
     vpcSubnetIds: z.array(z.string()).optional(),
     vpcSecurityGroupIds: z.array(z.string()).optional(),
     tracingMode: z.enum(['Active', 'PassThrough']).optional(),
-    deadLetterTargetArn: z.string().optional(),
-    kmsKeyArn: z.string().optional(),
+    deadLetterTargetArn: z.string().min(1, 'deadLetterTargetArn cannot be empty').optional(),
+    kmsKeyArn: z.string().min(1, 'kmsKeyArn cannot be empty').optional(),
     snapStartApplyOn: z.enum(['PublishedVersions', 'None']).optional(),
     logFormat: z.enum(['JSON', 'Text']).optional(),
-    logGroup: z.string().optional(),
+    logGroup: z.string().min(1, 'logGroup cannot be empty').optional(),
   })
   .superRefine((value, ctx) => {
     const hasAnyZipField = Boolean(

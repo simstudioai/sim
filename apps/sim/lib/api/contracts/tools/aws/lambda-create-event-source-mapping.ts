@@ -18,7 +18,7 @@ const CreateEventSourceMappingSchema = z
       .string()
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
-    eventSourceArn: z.string().optional(),
+    eventSourceArn: z.string().min(1, 'eventSourceArn cannot be empty').optional(),
     enabled: z.boolean().optional(),
     batchSize: z.number().int().min(1).max(10000).optional(),
     maximumBatchingWindowInSeconds: z.number().int().min(0).max(300).optional(),
@@ -36,9 +36,9 @@ const CreateEventSourceMappingSchema = z
     queues: z.array(z.string()).optional(),
     functionResponseTypes: z.array(z.enum(['ReportBatchItemFailures'])).optional(),
     filterPatterns: z.array(z.string()).optional(),
-    onSuccessDestination: z.string().optional(),
-    onFailureDestination: z.string().optional(),
-    kmsKeyArn: z.string().optional(),
+    onSuccessDestination: z.string().min(1, 'onSuccessDestination cannot be empty').optional(),
+    onFailureDestination: z.string().min(1, 'onFailureDestination cannot be empty').optional(),
+    kmsKeyArn: z.string().min(1, 'kmsKeyArn cannot be empty').optional(),
     tags: z.record(z.string(), z.string()).optional(),
     sourceAccessConfigurations: z
       .array(
@@ -49,11 +49,20 @@ const CreateEventSourceMappingSchema = z
       )
       .max(22, 'sourceAccessConfigurations accepts at most 22 entries')
       .optional(),
-    documentDbDatabaseName: z.string().optional(),
-    documentDbCollectionName: z.string().optional(),
+    documentDbDatabaseName: z.string().min(1, 'documentDbDatabaseName cannot be empty').optional(),
+    documentDbCollectionName: z
+      .string()
+      .min(1, 'documentDbCollectionName cannot be empty')
+      .optional(),
     documentDbFullDocument: z.enum(['UpdateLookup', 'Default']).optional(),
-    amazonManagedKafkaConsumerGroupId: z.string().optional(),
-    selfManagedKafkaConsumerGroupId: z.string().optional(),
+    amazonManagedKafkaConsumerGroupId: z
+      .string()
+      .min(1, 'amazonManagedKafkaConsumerGroupId cannot be empty')
+      .optional(),
+    selfManagedKafkaConsumerGroupId: z
+      .string()
+      .min(1, 'selfManagedKafkaConsumerGroupId cannot be empty')
+      .optional(),
     selfManagedKafkaBootstrapServers: z
       .array(z.string().min(1, 'a bootstrap server cannot be empty'))
       .optional(),

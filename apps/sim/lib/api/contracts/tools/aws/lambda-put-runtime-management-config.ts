@@ -15,7 +15,7 @@ const PutRuntimeManagementConfigSchema = z
       .min(1, 'functionName is required')
       .max(256, 'functionName cannot exceed 256 characters'),
     updateRuntimeOn: z.enum(['Auto', 'FunctionUpdate', 'Manual']),
-    runtimeVersionArn: z.string().optional(),
+    runtimeVersionArn: z.string().min(1, 'runtimeVersionArn cannot be empty').optional(),
     qualifier: z
       .string()
       .min(1, 'qualifier cannot be empty')

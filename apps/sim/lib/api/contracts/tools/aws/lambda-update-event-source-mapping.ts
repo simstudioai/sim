@@ -30,9 +30,9 @@ const UpdateEventSourceMappingSchema = z.object({
   maximumConcurrency: z.number().int().min(2).max(1000).optional(),
   functionResponseTypes: z.array(z.enum(['ReportBatchItemFailures'])).optional(),
   filterPatterns: z.array(z.string()).optional(),
-  onSuccessDestination: z.string().optional(),
-  onFailureDestination: z.string().optional(),
-  kmsKeyArn: z.string().optional(),
+  onSuccessDestination: z.string().min(1, 'onSuccessDestination cannot be empty').optional(),
+  onFailureDestination: z.string().min(1, 'onFailureDestination cannot be empty').optional(),
+  kmsKeyArn: z.string().min(1, 'kmsKeyArn cannot be empty').optional(),
   sourceAccessConfigurations: z
     .array(
       z.object({
@@ -42,11 +42,20 @@ const UpdateEventSourceMappingSchema = z.object({
     )
     .max(22, 'sourceAccessConfigurations accepts at most 22 entries')
     .optional(),
-  documentDbDatabaseName: z.string().optional(),
-  documentDbCollectionName: z.string().optional(),
+  documentDbDatabaseName: z.string().min(1, 'documentDbDatabaseName cannot be empty').optional(),
+  documentDbCollectionName: z
+    .string()
+    .min(1, 'documentDbCollectionName cannot be empty')
+    .optional(),
   documentDbFullDocument: z.enum(['UpdateLookup', 'Default']).optional(),
-  amazonManagedKafkaConsumerGroupId: z.string().optional(),
-  selfManagedKafkaConsumerGroupId: z.string().optional(),
+  amazonManagedKafkaConsumerGroupId: z
+    .string()
+    .min(1, 'amazonManagedKafkaConsumerGroupId cannot be empty')
+    .optional(),
+  selfManagedKafkaConsumerGroupId: z
+    .string()
+    .min(1, 'selfManagedKafkaConsumerGroupId cannot be empty')
+    .optional(),
 })
 
 const UpdateEventSourceMappingResponseSchema = z.object({

@@ -18,6 +18,7 @@ const InvokeSchema = z.object({
   logType: z.enum(['None', 'Tail']).optional(),
   clientContext: z
     .string()
+    .min(1, 'clientContext cannot be empty')
     .max(3583, 'clientContext cannot exceed 3583 bytes of base64 data')
     .optional(),
   qualifier: z

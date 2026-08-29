@@ -16,7 +16,7 @@ const ListFunctionsSchema = z
     ...lambdaConnectionFields,
     ...lambdaPaginationFields,
     functionVersion: z.literal('ALL').optional(),
-    masterRegion: z.string().optional(),
+    masterRegion: z.string().min(1, 'masterRegion cannot be empty').optional(),
   })
   .superRefine((value, ctx) => {
     if (value.masterRegion && value.functionVersion !== 'ALL') {

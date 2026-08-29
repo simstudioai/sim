@@ -28,7 +28,7 @@ const UpdateFunctionCodeSchema = z
       .optional(),
     publish: z.boolean().optional(),
     dryRun: z.boolean().optional(),
-    revisionId: z.string().optional(),
+    revisionId: z.string().min(1, 'revisionId cannot be empty').optional(),
   })
   .superRefine((value, ctx) => {
     const hasAnyZipField = Boolean(

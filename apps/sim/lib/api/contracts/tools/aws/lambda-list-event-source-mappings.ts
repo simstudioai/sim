@@ -19,7 +19,7 @@ const ListEventSourceMappingsSchema = z.object({
     .min(1, 'functionName cannot be empty')
     .max(256, 'functionName cannot exceed 256 characters')
     .optional(),
-  eventSourceArn: z.string().optional(),
+  eventSourceArn: z.string().min(1, 'eventSourceArn cannot be empty').optional(),
 })
 
 const ListEventSourceMappingsResponseSchema = z.object({
