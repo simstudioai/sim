@@ -384,6 +384,18 @@ interface CdpViewport {
   clientHeight: number
 }
 
+interface ScreenshotSize {
+  width: number
+  height: number
+}
+
+export interface ScreenshotCapture {
+  dataUrl: string
+  scale: number
+  viewport: ScreenshotSize | null
+  imageSize: ScreenshotSize | null
+}
+
 /**
  * Screenshot via CDP (works while the view is hidden), bounded in resolution.
  *
@@ -401,18 +413,18 @@ interface CdpViewport {
  * (cssX = imageX / scale) — including on a 2x display, where an unclipped
  * capture arrives at device resolution and this is what brings it back down.
  */
-export async function captureScreenshot(
-  contents: WebContents
-): Promise<{ dataUrl: string; scale: number; viewport: { width: number; height: number } | null }> {
+export async function captureScreenshot(contents: WebContents): Promise<ScreenshotCapture> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
   }>(contents, 'Page.getLayoutMetrics').catch(() => null)
 
-  const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
-  const width = viewport?.clientWidth ?? 0
-  const height = viewport?.clientHeight ?? 0
-  const cssViewport = width > 0 && height > 0 ? { width, height } : null
+  const captureViewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
+  const width = captureViewport?.clientWidth ?? 0
+  const height = captureViewport?.clientHeight ?? 0
+  const cssWidth = metrics?.cssLayoutViewport?.clientWidth ?? 0
+  const cssHeight = metrics?.cssLayoutViewport?.clientHeight ?? 0
+  const cssViewport = cssWidth > 0 && cssHeight > 0 ? { width: cssWidth, height: cssHeight } : null
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
@@ -424,20 +436,20 @@ export async function captureScreenshot(
 
   const targetWidth = Math.round(width * scale)
   const targetHeight = Math.round(height * scale)
-  // Without layout metrics there is no CSS frame of reference to resize
-  // against, so the raw capture is the honest answer — the same fallback the
-  // clipped path took.
-  if (targetWidth <= 0 || targetHeight <= 0) {
-    return { dataUrl: captured, scale, viewport: cssViewport }
-  }
-
   const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
   if (size.width === 0 || size.height === 0) {
-    return { dataUrl: captured, scale, viewport: cssViewport }
+    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
+  }
+  // Without layout metrics there is no CSS frame of reference to resize
+  // against, so the raw capture is the honest answer — the same fallback the
+  // clipped path took. Its decoded size still lets the driver establish the
+  // coordinate scale after obtaining the CSS viewport in-page.
+  if (targetWidth <= 0 || targetHeight <= 0) {
+    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
   }
   if (size.width === targetWidth && size.height === targetHeight) {
-    return { dataUrl: captured, scale, viewport: cssViewport }
+    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
   }
 
   const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })
@@ -445,6 +457,7 @@ export async function captureScreenshot(
     dataUrl: `data:image/jpeg;base64,${resized.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
     scale,
     viewport: cssViewport,
+    imageSize: { width: targetWidth, height: targetHeight },
   }
 }
 

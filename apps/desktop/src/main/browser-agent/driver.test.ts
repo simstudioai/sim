@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, Menu } from 'electron'
+import { BrowserWindow, Menu, nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
@@ -1173,6 +1173,15 @@ describe('credential protection', () => {
     return vi
       .mocked(contents.debugger.sendCommand)
       .mock.calls.filter(([called]) => called === method)
+  }
+
+  function mockScreenshotImage(size: { width: number; height: number } | null): void {
+    vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
+      isEmpty: vi.fn(() => size === null),
+      getSize: vi.fn(() => size ?? { width: 0, height: 0 }),
+      resize: vi.fn(() => ({ toJPEG: vi.fn(() => Buffer.from('resized')) })),
+      toJPEG: vi.fn(() => Buffer.alloc(0)),
+    } as unknown as ReturnType<typeof nativeImage.createFromBuffer>)
   }
 
   it('refuses a keystroke while a password field holds focus', async () => {
@@ -2385,6 +2394,7 @@ describe('credential protection', () => {
 
   it('returns the screenshot scale for coordinate mapping', async () => {
     const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
@@ -2402,12 +2412,132 @@ describe('credential protection', () => {
 
     expect(result).toMatchObject({
       ok: true,
-      result: { scale: 0.5, viewport: { width: 2048, height: 1024 } },
+      result: {
+        scale: 0.5,
+        viewport: {
+          url: 'https://example.com/login',
+          title: 'Example',
+          width: 2048,
+          height: 1024,
+        },
+      },
     })
     expect(
       vi
         .mocked(contents.executeJavaScript)
         .mock.calls.some(([expression]) => isPageCall(String(expression), 'getViewportInfo'))
     ).toBe(false)
+  })
+
+  it('uses the in-page CSS viewport when CDP exposes only deprecated device metrics', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') {
+        return Promise.resolve({ data: 'c2lt' })
+      }
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        scale: 1,
+        viewport: {
+          url: 'https://example.com/login',
+          title: 'Example',
+          width: 1024,
+          height: 512,
+        },
+      },
+    })
+    if (
+      !result.ok ||
+      typeof result.result !== 'object' ||
+      result.result === null ||
+      !('scale' in result.result) ||
+      typeof result.result.scale !== 'number'
+    ) {
+      throw new Error('browser_screenshot did not return a numeric coordinate scale')
+    }
+    expect(1024 / result.result.scale).toBe(1024)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'getViewportInfo'))
+    ).toBe(true)
+  })
+
+  it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
+    const contents = await openPage()
+    mockScreenshotImage(null)
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
+        })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/verify the screenshot dimensions/)
+  })
+
+  it('rejects a screenshot when no CSS viewport can be established', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, { getViewportInfo: null })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/verify the page viewport/)
+  })
+
+  it('rejects coordinate mapping when the viewport changes during capture', async () => {
+    const contents = await openPage()
+    mockScreenshotImage({ width: 1024, height: 256 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') return Promise.resolve({})
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+    respondWith(contents, {
+      getViewportInfo: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        width: 1024,
+        height: 512,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/viewport changed while the screenshot was captured/)
   })
 })

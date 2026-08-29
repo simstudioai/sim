@@ -2139,11 +2139,53 @@ async function executeToolInner(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
         )
       }
-      const viewport =
-        shot.viewport ?? (await execInPage(contents, getViewportInfo, []).catch(() => null))
+      if (!shot.imageSize) {
+        throw new ToolError(
+          'Could not verify the screenshot dimensions. Retry browser_screenshot or use browser_snapshot instead.'
+        )
+      }
+      const viewport = shot.viewport
+        ? {
+            url: contents.getURL().slice(0, 4096),
+            title: contents.getTitle().slice(0, 500),
+            ...shot.viewport,
+          }
+        : await execInPage(contents, getViewportInfo, []).catch(() => null)
+      let scale = shot.scale
+      const viewportWidth =
+        isRecordLike(viewport) && typeof viewport.width === 'number' ? viewport.width : 0
+      const viewportHeight =
+        isRecordLike(viewport) && typeof viewport.height === 'number' ? viewport.height : 0
+      if (
+        !Number.isFinite(viewportWidth) ||
+        !Number.isFinite(viewportHeight) ||
+        viewportWidth <= 0 ||
+        viewportHeight <= 0
+      ) {
+        throw new ToolError(
+          'Could not verify the page viewport for this screenshot. Retry browser_screenshot or use browser_snapshot instead.'
+        )
+      }
+      if (!shot.viewport) {
+        const widthScale = shot.imageSize.width / viewportWidth
+        const heightScale = shot.imageSize.height / viewportHeight
+        const scaleDelta = Math.abs(widthScale - heightScale)
+        if (
+          !Number.isFinite(widthScale) ||
+          !Number.isFinite(heightScale) ||
+          widthScale <= 0 ||
+          heightScale <= 0 ||
+          scaleDelta > Math.max(widthScale, heightScale) * 0.02
+        ) {
+          throw new ToolError(
+            'The page viewport changed while the screenshot was captured. Retry browser_screenshot before using image coordinates.'
+          )
+        }
+        scale = widthScale
+      }
       // scale maps image pixels back to CSS viewport pixels for the
       // coordinate tools: cssX = imageX / scale.
-      return { dataUrl: shot.dataUrl, viewport, scale: shot.scale }
+      return { dataUrl: shot.dataUrl, viewport, scale }
     }
 
     case 'browser_extract': {

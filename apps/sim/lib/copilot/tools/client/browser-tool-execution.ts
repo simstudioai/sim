@@ -184,7 +184,14 @@ function sanitizeResultForModel(
         note: 'The screenshot could not be encoded. Use browser_snapshot or browser_read_text instead.',
       }
     }
-    const location = typeof rest.url === 'string' && rest.url ? ` of ${rest.url}` : ''
+    const viewport = isRecordLike(rest.viewport) ? rest.viewport : null
+    const screenshotUrl =
+      typeof rest.url === 'string' && rest.url
+        ? rest.url
+        : viewport && typeof viewport.url === 'string'
+          ? viewport.url
+          : ''
+    const location = screenshotUrl ? ` of ${screenshotUrl}` : ''
     return {
       ...rest,
       content: `Screenshot${location}. This is the rendered viewport only — it carries no element ids, so use browser_snapshot before interacting.`,
@@ -300,6 +307,7 @@ async function doExecuteBrowserTool(
         error: toError(error).message,
       })
       const compactCompletion = compactCompletionForPageExit(toolCallId, completion)
+      pendingTerminalCompletion = compactCompletion
       try {
         await reportClientToolCompletionOnPageExit(
           toolCallId,

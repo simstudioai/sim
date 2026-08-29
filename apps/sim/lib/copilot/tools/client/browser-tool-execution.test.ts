@@ -548,9 +548,12 @@ describe('executeBrowserToolOnClient', () => {
   it('reshapes a screenshot into an image attachment the model can see', async () => {
     mockExecuteBrowserTool.mockResolvedValue({
       dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
-      url: 'https://example.com/pricing',
-      width: 1024,
-      height: 640,
+      viewport: {
+        url: 'https://example.com/pricing',
+        title: 'Pricing',
+        width: 1024,
+        height: 640,
+      },
     })
     const toolCallId = nextToolCallId()
 
@@ -564,7 +567,7 @@ describe('executeBrowserToolOnClient', () => {
     })
     expect(reported.content).toContain('https://example.com/pricing')
     expect(reported.dataUrl).toBeUndefined()
-    expect(reported.width).toBe(1024)
+    expect(reported.viewport).toMatchObject({ width: 1024, height: 640 })
   })
 
   it('falls back to a note when a screenshot is not a usable data URL', async () => {

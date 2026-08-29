@@ -30,7 +30,7 @@ const {
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
-  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string }) => 60_000 as number | null),
+  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string }) => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUpdateRunStatus: vi.fn(),
@@ -1964,114 +1964,6 @@ describe('runCopilotLifecycle', () => {
 
     expect(result.success).toBe(false)
     expect(result.errors).toEqual(['The provider is overloaded'])
-  })
-
-  it('keeps a human wait durable while force-failing a hung parallel tool', async () => {
-    vi.useFakeTimers()
-    try {
-      let releaseTakeover = () => {}
-      let lifecycleSettled = false
-      const fetchUrls: string[] = []
-      const executionContext: ExecutionContext = {
-        userId: 'user-1',
-        workflowId: '',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-      }
-
-      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
-        toolCall?.name === 'browser_request_takeover' ? null : 60_000
-      )
-      mockForceFailHungToolCall.mockImplementation(
-        async (toolCallId: string, context: StreamingContext, message: string) => {
-          const tool = context.toolCalls.get(toolCallId)
-          if (!tool) return
-          tool.status = MothershipStreamV1ToolOutcome.error
-          tool.endTime = Date.now()
-          tool.result = { success: false }
-          tool.error = message
-        }
-      )
-
-      mockRunStreamLoop.mockImplementationOnce(
-        async (
-          fetchUrl: string,
-          _fetchOptions: RequestInit,
-          context: StreamingContext
-        ): Promise<void> => {
-          fetchUrls.push(fetchUrl)
-          const takeoverId = 'tool-takeover'
-          context.toolCalls.set(takeoverId, {
-            id: takeoverId,
-            name: 'browser_request_takeover',
-            status: 'executing',
-          })
-          const takeover = new Promise<{ status: 'success' }>((resolve) => {
-            releaseTakeover = () => {
-              const tool = context.toolCalls.get(takeoverId)
-              if (tool) {
-                tool.status = MothershipStreamV1ToolOutcome.success
-                tool.endTime = Date.now()
-                tool.result = { success: true, output: { completed: true } }
-              }
-              context.pendingToolPromises.delete(takeoverId)
-              resolve({ status: 'success' })
-            }
-          })
-          context.pendingToolPromises.set(takeoverId, takeover)
-
-          context.toolCalls.set('tool-hung', {
-            id: 'tool-hung',
-            name: 'read',
-            status: 'executing',
-          })
-          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
-          context.awaitingAsyncContinuation = {
-            checkpointId: 'ckpt-1',
-            pendingToolCallIds: [takeoverId, 'tool-hung'],
-          }
-        }
-      )
-      mockRunStreamLoop.mockImplementationOnce(
-        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
-          fetchUrls.push(fetchUrl)
-          context.accumulatedContent = 'Continued after browser control resumed.'
-        }
-      )
-
-      const lifecycle = runCopilotLifecycle(
-        { message: 'hello', messageId: 'stream-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'exec-1',
-          runId: 'run-1',
-          executionContext,
-        }
-      ).finally(() => {
-        lifecycleSettled = true
-      })
-
-      await vi.advanceTimersByTimeAsync(91_000)
-      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
-      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
-        'tool-hung',
-        expect.anything(),
-        expect.stringContaining('hung')
-      )
-      expect(lifecycleSettled).toBe(false)
-      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
-
-      releaseTakeover()
-      await vi.advanceTimersByTimeAsync(0)
-      const result = await lifecycle
-
-      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
-      expect(result.success).toBe(true)
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {

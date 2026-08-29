@@ -1022,8 +1022,6 @@ async function runCheckpointLoop(
     }
 
     if (context.pendingToolPromises.size > 0) {
-      // Snapshot the gate by tool. Human waits remain durable, but they must
-      // not disable the structural watchdog for an unrelated parallel tool.
       const pendingTools = Array.from(context.pendingToolPromises.entries()).map(
         ([toolCallId, promise]) => ({
           toolCallId,
@@ -1031,43 +1029,31 @@ async function runCheckpointLoop(
           waitBudgetMs: pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)),
         })
       )
-      const durableTools = pendingTools.filter((tool) => tool.waitBudgetMs === null)
-      const boundedTools = pendingTools.flatMap((tool) =>
-        tool.waitBudgetMs === null ? [] : [{ ...tool, waitBudgetMs: tool.waitBudgetMs }]
-      )
-      const boundedWaitBudgetMs =
-        boundedTools.length > 0
-          ? Math.max(...boundedTools.map((tool) => tool.waitBudgetMs)) +
-            TOOL_WATCHDOG_RESUME_GRACE_MS
-          : null
+      const waitBudgetMs =
+        Math.max(...pendingTools.map((tool) => tool.waitBudgetMs)) + TOOL_WATCHDOG_RESUME_GRACE_MS
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        durableCount: durableTools.length,
-        ...(boundedWaitBudgetMs !== null ? { waitBudgetMs: boundedWaitBudgetMs } : {}),
+        waitBudgetMs,
       })
       logger.info('Waiting for in-flight tool executions before resume', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        durableCount: durableTools.length,
-        waitBudgetMs: boundedWaitBudgetMs,
+        waitBudgetMs,
       })
-      const boundedSettledInTime =
-        boundedWaitBudgetMs === null
-          ? true
-          : await Promise.race([
-              Promise.allSettled(boundedTools.map((tool) => tool.promise)).then(() => true),
-              sleep(boundedWaitBudgetMs).then(() => false),
-            ])
-      if (!boundedSettledInTime) {
-        const hungToolCallIds = boundedTools
+      const settledInTime = await Promise.race([
+        Promise.allSettled(pendingTools.map((tool) => tool.promise)).then(() => true),
+        sleep(waitBudgetMs).then(() => false),
+      ])
+      if (!settledInTime) {
+        const hungToolCallIds = pendingTools
           .filter(
             ({ toolCallId, promise }) => context.pendingToolPromises.get(toolCallId) === promise
           )
           .map(({ toolCallId }) => toolCallId)
         logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
           checkpointId: continuation.checkpointId,
-          waitBudgetMs: boundedWaitBudgetMs,
+          waitBudgetMs,
           hungToolCallIds,
         })
         for (const toolCallId of hungToolCallIds) {
@@ -1079,8 +1065,7 @@ async function runCheckpointLoop(
           context.pendingToolPromises.delete(toolCallId)
         }
       }
-      await Promise.allSettled(durableTools.map((tool) => tool.promise))
-      waitSpan.attributes = { ...waitSpan.attributes, settledInTime: boundedSettledInTime }
+      waitSpan.attributes = { ...waitSpan.attributes, settledInTime }
       context.trace.endSpan(waitSpan)
     }
 

@@ -549,6 +549,7 @@ describe('browser-agent screenshot capture', () => {
       dataUrl: `data:image/jpeg;base64,${Buffer.from('resized').toString('base64')}`,
       scale: 0.5,
       viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
     })
   })
 
@@ -563,6 +564,7 @@ describe('browser-agent screenshot capture', () => {
       dataUrl: 'data:image/jpeg;base64,c2lt',
       scale: 0.5,
       viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
     })
   })
 
@@ -575,6 +577,23 @@ describe('browser-agent screenshot capture', () => {
       dataUrl: 'data:image/jpeg;base64,c2lt',
       scale: 0.5,
       viewport: { width: 2048, height: 1024 },
+      imageSize: null,
     })
+  })
+
+  it('does not expose deprecated device-pixel metrics as a CSS viewport', async () => {
+    const { contents } = captureFixture({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    const shot = await captureScreenshot(contents)
+
+    expect(shot.viewport).toBeNull()
+    expect(shot.imageSize).toEqual({ width: 1024, height: 512 })
   })
 })

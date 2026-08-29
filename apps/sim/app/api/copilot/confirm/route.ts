@@ -263,7 +263,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           )
         }
 
-        const isUnboundTerminalWorkflowOutcome =
+        const isErrorOrCancelledOutcome =
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
           status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
         const isNativeClientTool =
@@ -271,7 +271,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const isPreclaimNativeTerminalOutcome =
           isNativeClientTool &&
           existing.status === ASYNC_TOOL_STATUS.pending &&
-          isUnboundTerminalWorkflowOutcome
+          isErrorOrCancelledOutcome
         const isMutableClientToolCall = isWorkflowTool
           ? isWorkflowToolExecutionClaimable(existing.status, existing.permissionDecision)
           : existing.status === ASYNC_TOOL_STATUS.running || isPreclaimNativeTerminalOutcome
@@ -315,7 +315,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             if (status !== ASYNC_TOOL_CONFIRMATION_STATUS.background) {
               if (trustedExecution) {
                 effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
-              } else if (!isUnboundTerminalWorkflowOutcome) {
+              } else if (!isErrorOrCancelledOutcome) {
                 span.setAttribute(
                   TraceAttr.CopilotConfirmOutcome,
                   CopilotConfirmOutcome.ToolCallNotFound
@@ -328,7 +328,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
           } else if (trustedExecution) {
             executionId = trustedExecution.executionId
             effectiveStatus = getWorkflowToolConfirmationStatus(trustedExecution.status)
-          } else if (!isUnboundTerminalWorkflowOutcome) {
+          } else if (!isErrorOrCancelledOutcome) {
             effectiveStatus = ASYNC_TOOL_CONFIRMATION_STATUS.error
             executionId = undefined
           } else {
