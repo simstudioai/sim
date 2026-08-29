@@ -52,11 +52,16 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  /**
+   * The only operation that brings a knowledge base into existence, so it is the
+   * only one `knowledge.create` governs — a group may be allowed to query,
+   * populate and organize the bases it already has without opening new ones.
+   */
   create: defineWorkspaceOperation({
     id: 'knowledge.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.create',
     ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -185,11 +190,17 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
+  /**
+   * The single-request upload path: the caller hands over file bytes, so the
+   * document's provenance is whatever the caller chose. `knowledge.upload` is
+   * what an organization withholds to admit documents only from the connectors
+   * it sanctioned.
+   */
   uploadDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.upload',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.upload',
     ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   addWorkspaceFiles: defineWorkspaceOperation({
@@ -402,32 +413,38 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * The four session operations are one upload, split across requests only
+   * because a large file cannot arrive in one. They carry the same capability
+   * for that reason — including cancel, which would otherwise be the one open
+   * door into a surface the group was denied.
+   */
   uploadCreate: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.upload',
     principalKinds: HTTP_PRINCIPAL_KINDS,
   }),
   uploadParts: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.parts',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.upload',
     principalKinds: HTTP_PRINCIPAL_KINDS,
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.complete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.upload',
     principalKinds: HTTP_PRINCIPAL_KINDS,
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.cancel',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    capability: 'knowledge.use',
+    capability: 'knowledge.upload',
     principalKinds: HTTP_PRINCIPAL_KINDS,
   }),
 } as const

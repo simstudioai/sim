@@ -271,19 +271,26 @@ export const CAPABILITY_RULES = {
     describe: 'Execution cost',
     deniedBy: (config) => config.hideCostInfo,
   },
+  /**
+   * Also reads `hideKnowledgeBaseTab`, because an operation declares exactly one
+   * capability: moving knowledge-base creation off `knowledge.use` would
+   * otherwise let a group that withheld the whole module still create one
+   * through the API. The narrower capability has to subsume the broader.
+   */
   'knowledge.create': {
     kind: 'static',
-    configKeys: ['disableKnowledgeBaseCreation'],
+    configKeys: ['disableKnowledgeBaseCreation', 'hideKnowledgeBaseTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Creating knowledge bases',
-    deniedBy: (config) => config.disableKnowledgeBaseCreation,
+    deniedBy: (config) => config.disableKnowledgeBaseCreation || config.hideKnowledgeBaseTab,
   },
+  /** Subsumes `knowledge.use` for the same reason as {@link CAPABILITY_RULES}'s `knowledge.create`. */
   'knowledge.upload': {
     kind: 'static',
-    configKeys: ['disableKnowledgeBaseFileUpload'],
+    configKeys: ['disableKnowledgeBaseFileUpload', 'hideKnowledgeBaseTab'],
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Uploading documents to a knowledge base',
-    deniedBy: (config) => config.disableKnowledgeBaseFileUpload,
+    deniedBy: (config) => config.disableKnowledgeBaseFileUpload || config.hideKnowledgeBaseTab,
   },
   /**
    * Parameterized on the connector id, because the decision is which source a

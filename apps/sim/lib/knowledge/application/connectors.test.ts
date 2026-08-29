@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   refreshToken: vi.fn(),
   validateConnectorConfig: vi.fn(),
   recordAudit: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -67,6 +68,10 @@ vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: mocks.refreshToken,
 }))
 
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mocks.getUserPermissionConfig,
+}))
+
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     confluence: {
@@ -84,6 +89,7 @@ import {
   updateKnowledgeConnector,
   updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const crossWorkspaceContext = {
   workspaceId: 'workspace-b',
@@ -141,6 +147,7 @@ describe('knowledge connector application use cases', () => {
     mocks.refreshToken.mockResolvedValue('access-token')
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
     mocks.resolveBilling.mockResolvedValue(BILLING)
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
@@ -661,4 +668,82 @@ describe('knowledge connector application use cases', () => {
       )
     }
   )
+
+  describe('connector allow-list', () => {
+    const sameWorkspaceContext = {
+      ...crossWorkspaceContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+    }
+
+    const createInput = {
+      knowledgeBaseId: 'knowledge-a',
+      assertedWorkspaceId: 'workspace-a',
+      connectorType: 'confluence',
+      credentialId: 'credential-1',
+      sourceConfig: {},
+      syncIntervalMinutes: 1440,
+      resolveBillingAttribution: mocks.resolveBilling,
+    }
+
+    beforeEach(() => {
+      mocks.resolveKnowledgeBase.mockResolvedValue(sameWorkspaceContext)
+    })
+
+    function allowOnly(connectorTypes: string[] | null) {
+      mocks.getUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        allowedKnowledgeConnectors: connectorTypes,
+      })
+    }
+
+    it('refuses a connector the group withholds, before the connector is created', async () => {
+      allowOnly(['google_drive'])
+
+      await expect(
+        createKnowledgeConnector.execute({ principal: delegatedPrincipal, input: createInput })
+      ).rejects.toMatchObject({
+        code: 'forbidden',
+        message: expect.stringContaining('confluence'),
+      })
+
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['the group names it', ['confluence', 'google_drive']],
+      ['the group restricts nothing', null],
+    ])('permits a connector when %s', async (_case, allowed) => {
+      allowOnly(allowed as string[] | null)
+      mocks.createConnector.mockResolvedValueOnce({
+        success: true,
+        connector: { id: 'connector-a', connectorType: 'confluence', syncIntervalMinutes: 1440 },
+      })
+
+      const result = await createKnowledgeConnector.execute({
+        principal: delegatedPrincipal,
+        input: createInput,
+      })
+
+      expect(result.connector.id).toBe('connector-a')
+      expect(mocks.createConnector).toHaveBeenCalledTimes(1)
+    })
+
+    it('leaves an ungoverned caller unaffected', async () => {
+      mocks.getUserPermissionConfig.mockResolvedValue(null)
+      mocks.createConnector.mockResolvedValueOnce({
+        success: true,
+        connector: { id: 'connector-a', connectorType: 'confluence', syncIntervalMinutes: 1440 },
+      })
+
+      await createKnowledgeConnector.execute({
+        principal: delegatedPrincipal,
+        input: createInput,
+      })
+
+      expect(mocks.createConnector).toHaveBeenCalledTimes(1)
+    })
+  })
 })
