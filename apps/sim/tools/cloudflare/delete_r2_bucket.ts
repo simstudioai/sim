@@ -65,7 +65,16 @@ export const deleteR2BucketTool: ToolConfig<
       }
     }
 
-    return { success: true, output: { name: params?.bucketName ?? '' } }
+    /**
+     * Echo the name the request actually addressed. `safeUrlPathSegment` trims
+     * before building the path, so reporting the raw param would name a bucket
+     * that was not the one deleted whenever the input carried whitespace.
+     */
+    const deleted = params?.bucketName
+    return {
+      success: true,
+      output: { name: typeof deleted === 'string' ? deleted.trim() : (deleted ?? '') },
+    }
   },
 
   outputs: {

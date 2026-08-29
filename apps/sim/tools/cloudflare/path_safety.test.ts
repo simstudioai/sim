@@ -245,6 +245,8 @@ interface PathParamCase {
   param: string
   overrides: Record<string, unknown>
   baseline: string[]
+  /** The query string the tool builds on its own, with no vector involved. */
+  baselineSearch: string
 }
 
 /**
@@ -262,8 +264,11 @@ for (const tool of TOOLS) {
       if (param === CREDENTIAL_PARAM || param in context.overrides) continue
 
       let baseline: string[]
+      let baselineSearch: string
       try {
-        baseline = segmentsOf(buildUrl(tool, { ...context.overrides, [param]: PROBE }).pathname)
+        const probed = buildUrl(tool, { ...context.overrides, [param]: PROBE })
+        baseline = segmentsOf(probed.pathname)
+        baselineSearch = probed.search
       } catch (error) {
         if (context.label === 'all params') {
           UNBUILDABLE.push(`${tool.id} / ${param}: ${(error as Error).message}`)
@@ -283,6 +288,7 @@ for (const tool of TOOLS) {
         param,
         overrides: context.overrides,
         baseline,
+        baselineSearch,
       })
     }
   }
@@ -310,88 +316,105 @@ describe('cloudflare path-param traversal safety', () => {
     expect([...counts.values()].filter((count) => count > 1).length).toBeGreaterThanOrEqual(15)
   })
 
-  describe.each(PATH_PARAM_PAIRS)('$name', ({ tool, param, overrides, baseline }) => {
-    const withValue = (value: unknown) => buildUrl(tool, { ...overrides, [param]: value })
+  describe.each(PATH_PARAM_PAIRS)(
+    '$name',
+    ({ tool, param, overrides, baseline, baselineSearch }) => {
+      const withValue = (value: unknown) => buildUrl(tool, { ...overrides, [param]: value })
 
-    it.each(MUST_REJECT)('rejects %j outright', (value) => {
-      expect(() => withValue(value)).toThrow(new RegExp(`${param}|path traversal|path separator`))
-    })
-
-    it.each(MUST_NEUTRALIZE)('confines %j to a single segment', (value) => {
-      const url = withValue(value)
-
-      expect(url.origin).toBe(API_ORIGIN)
-      expect(url.pathname.startsWith(API_PREFIX)).toBe(true)
-      expect(url.searchParams.get('account_id')).toBeNull()
-      expect(url.hash).toBe('')
-
-      const actual = segmentsOf(url.pathname)
-      expect(actual).toHaveLength(baseline.length)
-      baseline.forEach((segment, index) => {
-        if (segment.includes(PROBE)) return
-        expect(actual[index]).toBe(segment)
+      it.each(MUST_REJECT)('rejects %j outright', (value) => {
+        expect(() => withValue(value)).toThrow(new RegExp(`${param}|path traversal|path separator`))
       })
-    })
 
-    it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
-      const actual = segmentsOf(withValue(value).pathname)
+      it.each(MUST_NEUTRALIZE)('confines %j to a single segment', (value) => {
+        const url = withValue(value)
 
-      expect(actual).toHaveLength(baseline.length)
-      baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment.replaceAll(PROBE, value))
+        expect(url.origin).toBe(API_ORIGIN)
+        expect(url.pathname.startsWith(API_PREFIX)).toBe(true)
+        expect(url.hash).toBe('')
+
+        /**
+         * The query string must be byte-identical to what the tool builds alone.
+         * Without this, a raw interpolation of `id?x=y` passes every other
+         * assertion here: the `?` starts a query, so the PATH keeps its segment
+         * count and every surrounding segment, and only `search` reveals that the
+         * id was torn in half. Shape alone cannot see it.
+         */
+        expect(url.search).toBe(baselineSearch)
+
+        const actual = segmentsOf(url.pathname)
+        expect(actual).toHaveLength(baseline.length)
+        /**
+         * Every segment is pinned, including the one under test — it must equal
+         * the trimmed, percent-encoded value. Skipping the probe slot would let a
+         * balanced traversal (`id/../../other/victim`) pass with the guard gone,
+         * because only that slot changes.
+         */
+        const expected = encodeURIComponent(value.trim())
+        baseline.forEach((segment, index) => {
+          expect(actual[index]).toBe(segment.replaceAll(PROBE, expected))
+        })
       })
-    })
 
-    /**
-     * A safe-range numeric id must build the same path as its decimal string.
-     *
-     * This is what catches a pre-trim anywhere in a URL builder. A
-     * `params.x?.trim()` ahead of the guard throws a bare
-     * `TypeError: params.x?.trim is not a function` on a JSON number, and it
-     * throws BEFORE `safeUrlPathSegment` — which accepts numbers and bigints —
-     * ever runs. The first version of this suite passed only strings, so the
-     * `remove_reaction` and `create_thread` pre-trims survived it; both bots
-     * caught what the harness could not.
-     */
-    it('accepts a safe-range numeric id identically to its decimal string', () => {
-      const numeric = 8035111022467891
+      it.each(LEGITIMATE_IDS)('passes %j through unchanged', (value) => {
+        const actual = segmentsOf(withValue(value).pathname)
 
-      expect(segmentsOf(withValue(numeric).pathname)).toEqual(
-        segmentsOf(withValue(String(numeric)).pathname)
-      )
-    })
-
-    it('accepts a bigint id identically to its decimal string', () => {
-      const snowflake = 1234567890123456789n
-
-      expect(segmentsOf(withValue(snowflake).pathname)).toEqual(
-        segmentsOf(withValue(snowflake.toString()).pathname)
-      )
-    })
-
-    /**
-     * The URL is not the only builder that touches an id. `create_thread` also
-     * reads `messageId` in its `body` to decide the thread type, and a
-     * `?.trim()` there threw a bare TypeError on a numeric id *after* the URL
-     * had already accepted it — caught by review, not by this suite, because
-     * the suite only ever exercised `request.url`.
-     */
-    it('builds body and headers from a numeric id without a TypeError', () => {
-      const numericParams = buildParams(tool, { ...overrides, [param]: 8035111022467891 })
-
-      expect(throwsTypeError(() => tool.request.url(numericParams))).toBe(false)
-      expect(throwsTypeError(() => tool.request.body?.(numericParams))).toBe(false)
-      expect(throwsTypeError(() => tool.request.headers?.(numericParams))).toBe(false)
-    })
-
-    it('trims surrounding whitespace off a legitimate value', () => {
-      const actual = segmentsOf(withValue(`  ${TRIM_SAMPLE}  `).pathname)
-
-      baseline.forEach((segment, index) => {
-        expect(actual[index]).toBe(segment.replaceAll(PROBE, TRIM_SAMPLE))
+        expect(actual).toHaveLength(baseline.length)
+        baseline.forEach((segment, index) => {
+          expect(actual[index]).toBe(segment.replaceAll(PROBE, value))
+        })
       })
-    })
-  })
+
+      /**
+       * A safe-range numeric id must build the same path as its decimal string.
+       *
+       * This is what catches a pre-trim anywhere in a URL builder. A
+       * `params.x?.trim()` ahead of the guard throws a bare
+       * `TypeError: params.x?.trim is not a function` on a JSON number, and it
+       * throws BEFORE `safeUrlPathSegment` — which accepts numbers and bigints —
+       * ever runs. The first version of this suite passed only strings, so the
+       * `remove_reaction` and `create_thread` pre-trims survived it; both bots
+       * caught what the harness could not.
+       */
+      it('accepts a safe-range numeric id identically to its decimal string', () => {
+        const numeric = 8035111022467891
+
+        expect(segmentsOf(withValue(numeric).pathname)).toEqual(
+          segmentsOf(withValue(String(numeric)).pathname)
+        )
+      })
+
+      it('accepts a bigint id identically to its decimal string', () => {
+        const snowflake = 1234567890123456789n
+
+        expect(segmentsOf(withValue(snowflake).pathname)).toEqual(
+          segmentsOf(withValue(snowflake.toString()).pathname)
+        )
+      })
+
+      /**
+       * The URL is not the only builder that touches an id. `create_thread` also
+       * reads `messageId` in its `body` to decide the thread type, and a
+       * `?.trim()` there threw a bare TypeError on a numeric id *after* the URL
+       * had already accepted it — caught by review, not by this suite, because
+       * the suite only ever exercised `request.url`.
+       */
+      it('builds body and headers from a numeric id without a TypeError', () => {
+        const numericParams = buildParams(tool, { ...overrides, [param]: 8035111022467891 })
+
+        expect(throwsTypeError(() => tool.request.url(numericParams))).toBe(false)
+        expect(throwsTypeError(() => tool.request.body?.(numericParams))).toBe(false)
+        expect(throwsTypeError(() => tool.request.headers?.(numericParams))).toBe(false)
+      })
+
+      it('trims surrounding whitespace off a legitimate value', () => {
+        const actual = segmentsOf(withValue(`  ${TRIM_SAMPLE}  `).pathname)
+
+        baseline.forEach((segment, index) => {
+          expect(actual[index]).toBe(segment.replaceAll(PROBE, TRIM_SAMPLE))
+        })
+      })
+    }
+  )
 })
 
 /**
