@@ -1,12 +1,16 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
-import { isPrivateIp } from '@sim/security/ssrf'
 import type { Agent } from 'undici'
 import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
 } from '@/lib/core/security/input-validation.server'
-import { MCP_EGRESS_PROFILE, validateMcpServerSsrf } from '@/lib/mcp/domain-check'
+import {
+  MCP_EGRESS_PROFILE,
+  McpSsrfError,
+  OAUTH_EGRESS_PROFILE,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthFetch')
@@ -293,30 +297,25 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
     let dispatcher: Agent | undefined
     try {
       logger.info('OAuth guarded fetch: validating', { host })
-      const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
-      logger.info('OAuth guarded fetch: requesting', { host, guarded: Boolean(resolvedIP) })
-      let response: Response
-      if (resolvedIP && isPrivateIp(resolvedIP)) {
-        // Self-hosted private/loopback resolution (policy-permitted): the guarded lookup
-        // would filter the address, and an unguarded fallback would reopen rebinding —
-        // keep the legacy pin to the validated address for exactly this case.
-        const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
-          profile: MCP_EGRESS_PROFILE,
-          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
-        })
-        dispatcher = pinned.dispatcher
-        response = await withDeadline(pinned.fetch(url, { ...init, signal }), signal)
-      } else if (resolvedIP) {
-        const guarded = createSsrfGuardedFetchWithDispatcher({
-          profile: MCP_EGRESS_PROFILE,
-          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
-        })
-        dispatcher = guarded.dispatcher
-        response = await withDeadline(guarded.fetch(url, { ...init, signal }), signal)
-      } else {
-        // No guard (self-hosted allowlist / localhost carve-out) — global fetch as before.
-        response = await withDeadline(globalThis.fetch(url, { ...init, signal }), signal)
+      const resolvedIP = await withDeadline(
+        validateMcpServerSsrf(target, OAUTH_EGRESS_PROFILE),
+        signal
+      )
+      if (!resolvedIP) {
+        // No leg of this flow may run unguarded. Under `contentFetch` the only
+        // way here is an unresolved env-var reference in the hostname, which is
+        // never a real authorization-server URL by the time OAuth runs.
+        throw new McpSsrfError('MCP OAuth request URL could not be validated')
       }
+      logger.info('OAuth guarded fetch: requesting', { host })
+      // Always the guarded connector: `contentFetch` cannot yield a private
+      // address, so there is no pinned-private case to carve out here.
+      const guarded = createSsrfGuardedFetchWithDispatcher({
+        profile: OAUTH_EGRESS_PROFILE,
+        maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+      })
+      dispatcher = guarded.dispatcher
+      const response = await withDeadline(guarded.fetch(url, { ...init, signal }), signal)
       // The probe's `initialize` can stream (text/event-stream); hand it back live so the
       // buffer doesn't drain/stall it. Every OAuth leg is single-shot JSON and is buffered.
       const contentType = response.headers.get('content-type') ?? ''

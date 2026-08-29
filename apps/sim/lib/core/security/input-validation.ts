@@ -1123,6 +1123,13 @@ function validateVendorHostedUrl(
 
   const candidate = assumeHttps && !/^https?:\/\//i.test(raw) ? `https://${raw}` : raw
 
+  // These vendors are public SaaS reached over TLS. Enforced here rather than
+  // left to the egress policy, which would permit plain HTTP to a host an
+  // operator happened to put in their allowlist.
+  if (/^http:\/\//i.test(candidate)) {
+    return { isValid: false, error: `${paramName} must use https://` }
+  }
+
   const urlResult = validateExternalUrl(candidate, paramName, 'configuredEndpoint')
   if (!urlResult.isValid) return urlResult
 

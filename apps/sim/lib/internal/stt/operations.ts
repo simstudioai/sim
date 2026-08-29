@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -255,13 +256,18 @@ export async function executeSttOperation(
         }
       }
 
-      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl', 'contentFetch')
+      // A caller-supplied audio URL is content; a resolved internal one is a
+      // presigned URL against Sim's own storage, which on a self-hosted
+      // deployment legitimately sits on a private address.
+      const audioProfile: EgressProfile = internalAudioUrl ? 'configuredEndpoint' : 'contentFetch'
+
+      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl', audioProfile)
       if (!urlValidation.isValid) {
         return Response.json({ error: urlValidation.error }, { status: 400 })
       }
 
       const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP, {
-        profile: 'contentFetch',
+        profile: audioProfile,
         method: 'GET',
         maxResponseBytes: MAX_FILE_SIZE,
         signal,

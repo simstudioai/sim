@@ -125,13 +125,18 @@ export const envFlagsMockFns = {
    * Egress config is exposed as functions by the real module, but held as
    * mutable state here so a test can still write
    * `envFlagsMock.egressAllowedHosts = '...'` and have the read observe it.
+   *
+   * The hosted gate is mirrored from production: a deployment on sim.ai ignores
+   * these entirely, so a test that sets both must see the same thing.
    */
-  getEgressAllowedHosts: vi.fn<() => string | undefined>(() => envFlagsState.egressAllowedHosts),
-  getEgressAllowedIpRanges: vi.fn<() => string | undefined>(
-    () => envFlagsState.egressAllowedIpRanges
+  getEgressAllowedHosts: vi.fn<() => string | undefined>(() =>
+    envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedHosts
+  ),
+  getEgressAllowedIpRanges: vi.fn<() => string | undefined>(() =>
+    envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
   ),
   isLegacyPrivateDatabaseAccessAllowed: vi.fn<() => boolean>(
-    () => envFlagsState.legacyPrivateDatabaseAccess
+    () => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess
   ),
   getAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(() => null),
   getPreviewBlocksFromEnv: vi.fn<() => string[]>(() => []),
@@ -169,13 +174,17 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
   envFlagsMockFns.getEgressAllowedHosts
     .mockReset()
-    .mockImplementation(() => envFlagsState.egressAllowedHosts)
+    .mockImplementation(() =>
+      envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedHosts
+    )
   envFlagsMockFns.getEgressAllowedIpRanges
     .mockReset()
-    .mockImplementation(() => envFlagsState.egressAllowedIpRanges)
+    .mockImplementation(() =>
+      envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
+    )
   envFlagsMockFns.isLegacyPrivateDatabaseAccessAllowed
     .mockReset()
-    .mockImplementation(() => envFlagsState.legacyPrivateDatabaseAccess)
+    .mockImplementation(() => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess)
 }
 
 /**

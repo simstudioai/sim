@@ -13,6 +13,17 @@ const logger = createLogger('McpDomainCheck')
  */
 export const MCP_EGRESS_PROFILE: EgressProfile = 'selfHostedService'
 
+/**
+ * Profile for an MCP OAuth leg — discovery, registration, token exchange,
+ * revocation.
+ *
+ * Every hop after the first takes its URL from authorization-server metadata,
+ * which the remote server controls. Treating those as configured endpoints would
+ * let a hostile server steer a leg at whatever the operator allowlisted for their
+ * own workflows, so they get the provenance they actually have.
+ */
+export const OAUTH_EGRESS_PROFILE: EgressProfile = 'contentFetch'
+
 export class McpDomainNotAllowedError extends Error {
   constructor(domain: string) {
     super(`MCP server domain "${domain}" is not allowed by the server's ALLOWED_MCP_DOMAINS policy`)
@@ -113,6 +124,10 @@ export function validateMcpDomain(url: string | undefined): void {
  * list disabled this entirely — which left an allowlisted domain free to redirect
  * anywhere, cloud metadata included.
  *
+ * `profile` defaults to the configured-server one. An OAuth leg passes
+ * `contentFetch` instead, because those URLs come out of authorization-server
+ * metadata rather than from whoever configured the server.
+ *
  * Returns null only when the hostname still contains an unresolved env-var
  * reference. That URL is checked again after resolution, at which point it takes
  * the normal path.
@@ -120,11 +135,14 @@ export function validateMcpDomain(url: string | undefined): void {
  * @throws McpSsrfError when the policy refuses the destination
  * @throws McpDnsResolutionError when the hostname cannot be resolved
  */
-export async function validateMcpServerSsrf(url: string | undefined): Promise<string | null> {
+export async function validateMcpServerSsrf(
+  url: string | undefined,
+  profile: EgressProfile = MCP_EGRESS_PROFILE
+): Promise<string | null> {
   if (!url) return null
   if (hasEnvVarInHostname(url)) return null
 
-  const validation = await validateUrlWithDNS(url, 'MCP server URL', MCP_EGRESS_PROFILE)
+  const validation = await validateUrlWithDNS(url, 'MCP server URL', profile)
   if (validation.isValid) return validation.resolvedIP
 
   const error = validation.error ?? 'MCP server URL is not reachable'

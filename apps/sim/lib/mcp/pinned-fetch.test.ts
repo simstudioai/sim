@@ -32,9 +32,12 @@ vi.mock('@sim/security/ssrf', () => ({
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 
+import { McpSsrfError } from '@/lib/mcp/domain-check'
 import { createGuardedMcpFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 /** The per-request guarded Agent is always built with a DoS-backstop response cap. */
@@ -114,7 +117,10 @@ describe('createSsrfGuardedMcpFetch', () => {
     const fetchLike = createSsrfGuardedMcpFetch()
     await fetchLike('https://attacker.example/revoke', { method: 'POST' })
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/revoke')
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(
+      'https://attacker.example/revoke',
+      'contentFetch'
+    )
     // The guarded Agent is always built with the DoS-backstop response-size cap.
     expect(mockCreateGuardedFetchWithDispatcher).toHaveBeenCalledWith(withResponseCap)
     expect(sentinelFetch).toHaveBeenCalledWith(
@@ -181,27 +187,6 @@ describe('createSsrfGuardedMcpFetch', () => {
 
     expect(res.status).toBe(204)
     expect(mockDestroy).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns a streaming response live (un-buffered) over the unpinned fallback', async () => {
-    // resolvedIP null → global fetch; a text/event-stream reply (the auth-type probe)
-    // must be handed back as-is so the caller reads headers without draining the stream.
-    // Identity (same object) proves it was NOT re-wrapped into a buffered copy.
-    mockValidateMcpServerSsrf.mockResolvedValue(null)
-    const streamingRes = new Response(new ReadableStream<Uint8Array>({ start() {} }), {
-      headers: { 'content-type': 'text/event-stream' },
-    })
-    const globalFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => streamingRes)
-    try {
-      const fetchLike = createSsrfGuardedMcpFetch()
-      const res = await fetchLike('https://allowed.internal/mcp', { method: 'POST' })
-
-      expect(res).toBe(streamingRes)
-      // No per-request Agent on the unpinned path, so nothing to tear down.
-      expect(mockDestroy).not.toHaveBeenCalled()
-    } finally {
-      globalFetch.mockRestore()
-    }
   })
 
   it('streams (does not buffer) a pinned text/event-stream reply and tears down after it drains', async () => {
@@ -370,23 +355,27 @@ describe('createSsrfGuardedMcpFetch', () => {
     const fetchLike = createSsrfGuardedMcpFetch()
     await fetchLike(new URL('https://attacker.example/discover'))
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/discover')
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(
+      'https://attacker.example/discover',
+      'contentFetch'
+    )
     expect(mockCreateGuardedFetchWithDispatcher).toHaveBeenCalledWith(withResponseCap)
   })
 
-  it('falls back to global fetch when validation returns no IP', async () => {
+  it('refuses rather than falling back to an unguarded fetch when validation yields no IP', async () => {
     mockValidateMcpServerSsrf.mockResolvedValue(null)
     const globalFetch = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => new Response('ok'))
     try {
       const fetchLike = createSsrfGuardedMcpFetch()
-      await fetchLike('https://allowed.internal/mcp')
 
+      await expect(fetchLike('https://allowed.internal/mcp')).rejects.toThrow(
+        'could not be validated'
+      )
+      // No leg of the OAuth flow may reach the network unguarded.
+      expect(globalFetch).not.toHaveBeenCalled()
       expect(mockCreateGuardedFetchWithDispatcher).not.toHaveBeenCalled()
-      expect(globalFetch).toHaveBeenCalledTimes(1)
-      // No pinned Agent was created, so there is nothing to tear down.
-      expect(mockDestroy).not.toHaveBeenCalled()
     } finally {
       globalFetch.mockRestore()
     }
@@ -394,22 +383,15 @@ describe('createSsrfGuardedMcpFetch', () => {
 })
 
 describe('self-hosted private-resolution carve-out', () => {
-  it('keeps the legacy pin for a loopback-resolving host (guarded lookup would filter it)', async () => {
-    // Self-hosted DNS alias -> 127.0.0.1: policy allows it. The guarded lookup would
-    // strand the connect and an unguarded fallback would reopen rebinding — so this case
-    // pins to the validated address, preserving the old behavior and its security property.
-    mockValidateMcpServerSsrf.mockResolvedValue('127.0.0.1')
-    mockCreatePinnedFetchWithDispatcher.mockReturnValue({
-      fetch: sentinelFetch,
-      dispatcher: { destroy: mockDestroy },
-    })
-    sentinelFetch.mockImplementation(async () => new Response('ok'))
+  it('refuses a loopback resolution instead of pinning to it', async () => {
+    // OAuth legs run under `contentFetch`, which vouches for nothing — so a
+    // hostile authorization server cannot steer a leg at the deployment's own
+    // loopback, which the previous pinned carve-out would have permitted.
+    mockValidateMcpServerSsrf.mockRejectedValue(new McpSsrfError('blocked'))
     const fetchLike = createSsrfGuardedMcpFetch()
-    await fetchLike('https://my-local-alias/mcp')
-    expect(mockCreatePinnedFetchWithDispatcher).toHaveBeenCalledWith(
-      '127.0.0.1',
-      expect.objectContaining({ maxResponseSize: expect.any(Number) })
-    )
+
+    await expect(fetchLike('https://my-local-alias/mcp')).rejects.toThrow(McpSsrfError)
+    expect(mockCreatePinnedFetchWithDispatcher).not.toHaveBeenCalled()
     expect(mockCreateGuardedFetchWithDispatcher).not.toHaveBeenCalled()
   })
 })

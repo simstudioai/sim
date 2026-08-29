@@ -14,7 +14,7 @@
  *
  * Not checked: bare `fetch()`. It is used constantly for same-origin and
  * server-action calls where the guard does not apply, so flagging it would be
- * noise. The transports it can reach are covered by the import rule above.
+ * noise. The transports it can reach are covered by the rules above.
  *
  * Usage: bun run scripts/check-egress-boundary.ts
  */
@@ -35,14 +35,32 @@ const SCAN_DIRS = [
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
 
+/** Modules that can open a socket directly. */
+const TRANSPORTS = ['http', 'https', 'undici', 'http-proxy-agent', 'https-proxy-agent']
+
+const MODULE_ALTERNATION = TRANSPORTS.map((name) => name.replace(/[-]/g, '\\-')).join('|')
+const SPECIFIER = `['"](?:node:)?(?:${MODULE_ALTERNATION})['"]`
+
 /**
- * Raw HTTP transports. Reaching one directly bypasses DNS pinning.
+ * Every way a module reaches one of these at runtime.
  *
  * Matched against the whole source rather than line by line, because an import
- * list broken across lines would otherwise slip past.
+ * list broken across lines would otherwise slip past. `import type` is excluded:
+ * a type has no runtime presence and cannot open anything.
  */
-const TRANSPORT_IMPORT =
-  /^[ \t]*import\b[\s\S]*?from\s*['"](?:node:)?(?:http|https|undici|http-proxy-agent|https-proxy-agent)['"]/gm
+const RUNTIME_LOADS: ReadonlyArray<{ pattern: RegExp; kind: string }> = [
+  {
+    pattern: new RegExp(`^[ \t]*import\\s+(?!type\\s)[\\s\\S]*?from\\s*${SPECIFIER}`, 'gm'),
+    kind: 'import',
+  },
+  { pattern: new RegExp(`^[ \t]*import\\s*${SPECIFIER}`, 'gm'), kind: 'side-effect import' },
+  {
+    pattern: new RegExp(`^[ \t]*export\\s+(?!type\\s)[\\s\\S]*?from\\s*${SPECIFIER}`, 'gm'),
+    kind: 're-export',
+  },
+  { pattern: new RegExp(`\\bimport\\s*\\(\\s*${SPECIFIER}\\s*\\)`, 'g'), kind: 'dynamic import' },
+  { pattern: new RegExp(`\\brequire\\s*\\(\\s*${SPECIFIER}\\s*\\)`, 'g'), kind: 'require' },
+]
 
 /**
  * Modules allowed to hold a transport import, each because it *is* part of the
@@ -70,6 +88,7 @@ function walk(dir: string, out: string[] = []): string[] {
 interface Violation {
   file: string
   line: number
+  kind: string
   snippet: string
 }
 
@@ -84,14 +103,16 @@ function main() {
       if (ALLOWED.has(rel)) continue
       scanned++
       const source = readFileSync(file, 'utf8')
-      TRANSPORT_IMPORT.lastIndex = 0
-      for (const match of source.matchAll(TRANSPORT_IMPORT)) {
-        const line = source.slice(0, match.index).split('\n').length
-        violations.push({
-          file: rel,
-          line,
-          snippet: match[0].replace(/\s+/g, ' ').trim(),
-        })
+      for (const { pattern, kind } of RUNTIME_LOADS) {
+        pattern.lastIndex = 0
+        for (const match of source.matchAll(pattern)) {
+          violations.push({
+            file: rel,
+            line: source.slice(0, match.index).split('\n').length,
+            kind,
+            snippet: match[0].replace(/\s+/g, ' ').trim(),
+          })
+        }
       }
     }
   }
@@ -103,7 +124,7 @@ function main() {
 
   console.error('✗ check-egress-boundary: raw HTTP transport outside the egress guard\n')
   for (const violation of violations) {
-    console.error(`    ${violation.file}:${violation.line}`)
+    console.error(`    ${violation.file}:${violation.line}  (${violation.kind})`)
     console.error(`      ${violation.snippet}`)
   }
   console.error(

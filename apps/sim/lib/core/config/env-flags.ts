@@ -196,9 +196,10 @@ if (env.EGRESS_ALLOWED_HOSTS || env.EGRESS_ALLOWED_IP_RANGES) {
           'EGRESS_ALLOWED_HOSTS/EGRESS_ALLOWED_IP_RANGES are set but ignored on hosted environment. Private, reserved, and loopback destinations remain blocked for security.'
         )
       } else {
+        // The entries themselves are internal network topology and stay out of
+        // the log line, which may leave the deployment.
         logger.warn(
-          'Private-network egress allowlist is configured. Outbound requests may reach the listed destinations. Only use this on a trusted private network.',
-          { hosts: env.EGRESS_ALLOWED_HOSTS, ipRanges: env.EGRESS_ALLOWED_IP_RANGES }
+          'Private-network egress allowlist is configured. Outbound requests may reach the listed destinations. Only use this on a trusted private network.'
         )
       }
     })

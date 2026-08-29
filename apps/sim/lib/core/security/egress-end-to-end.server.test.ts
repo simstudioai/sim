@@ -74,9 +74,11 @@ describe.skipIf(!host)('issue #7200 — reaching a service on a private network'
   it('does not extend that reach to a content-provenance URL', async () => {
     setEnvFlags({ egressAllowedIpRanges: `${host}/32` })
 
+    // https, so the refusal has to come from the address rather than the scheme —
+    // otherwise this passes even if contentFetch started honouring the allowlist.
     await expect(
-      secureFetchWithValidation(`http://${host}:${port}/`, { profile: 'contentFetch' })
-    ).rejects.toThrow()
+      secureFetchWithValidation(`https://${host}:${port}/`, { profile: 'contentFetch' })
+    ).rejects.toThrow(/private or reserved address/)
   })
 
   it('reaches a loopback service without any allowlist, as a self-hosted deployment does', async () => {

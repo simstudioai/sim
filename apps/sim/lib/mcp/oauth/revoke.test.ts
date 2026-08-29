@@ -45,6 +45,8 @@ vi.mock('@sim/security/ssrf', () => ({
 }))
 vi.mock('@/lib/mcp/domain-check', () => ({
   MCP_EGRESS_PROFILE: 'selfHostedService',
+  OAUTH_EGRESS_PROFILE: 'contentFetch',
+  McpSsrfError: class McpSsrfError extends Error {},
   validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({
@@ -115,7 +117,7 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
   it('validates the attacker-controlled revocation_endpoint before issuing the request', async () => {
     await revokeMcpOauthTokens('server-1', 'workspace-1')
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(BLOCKED_ENDPOINT)
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(BLOCKED_ENDPOINT, 'contentFetch')
   })
 
   it('never issues an outbound request to the blocked revocation endpoint', async () => {
@@ -146,7 +148,7 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
 
     await revokeMcpOauthTokens('server-1', 'workspace-1')
 
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint)
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint, 'contentFetch')
     const revokeCalls = mockUndiciFetch.mock.calls.filter((call) => {
       const target = typeof call[0] === 'string' ? call[0] : String(call[0])
       return target === publicEndpoint

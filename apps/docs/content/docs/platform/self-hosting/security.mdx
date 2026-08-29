@@ -149,9 +149,11 @@ Content fetches never reach a private destination, allowlist or not — that is 
 Deployments frequently need to reach an internal service by name or address. Name the destinations:
 
 ```bash
-EGRESS_ALLOWED_HOSTS=host.docker.internal,*.svc.cluster.local
-EGRESS_ALLOWED_IP_RANGES=10.0.0.0/8,192.168.65.254/32
+EGRESS_ALLOWED_HOSTS=host.docker.internal,vllm.ai.svc.cluster.local
+EGRESS_ALLOWED_IP_RANGES=10.4.2.17/32,10.4.9.0/24
 ```
+
+A wildcard (`*.svc.cluster.local`) and a broad range (`10.0.0.0/8`) are accepted, but they hand every workflow author the whole namespace or network. Name the hosts you actually use.
 
 Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
 
