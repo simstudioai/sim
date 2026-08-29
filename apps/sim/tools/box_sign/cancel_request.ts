@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxSignCancelRequestParams, BoxSignResponse } from './types'
 import { SIGN_REQUEST_OUTPUT_PROPERTIES } from './types'
 
@@ -29,7 +30,8 @@ export const boxSignCancelRequestTool: ToolConfig<BoxSignCancelRequestParams, Bo
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/sign_requests/${params.signRequestId}/cancel`,
+    url: (params) =>
+      `https://api.box.com/2.0/sign_requests/${safeUrlPathSegment(params.signRequestId, 'signRequestId')}/cancel`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

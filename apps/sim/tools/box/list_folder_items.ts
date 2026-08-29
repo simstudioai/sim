@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxFolderItemsResponse, BoxListFolderItemsParams } from './types'
 import { FOLDER_ITEMS_OUTPUT_PROPERTIES } from './types'
 
@@ -61,7 +62,7 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
         if (params.sort) queryParams.set('sort', params.sort)
         if (params.direction) queryParams.set('direction', params.direction)
         const qs = queryParams.toString()
-        return `https://api.box.com/2.0/folders/${params.folderId.trim()}/items${qs ? `?${qs}` : ''}`
+        return `https://api.box.com/2.0/folders/${safeUrlPathSegment(params.folderId, 'folderId')}/items${qs ? `?${qs}` : ''}`
       },
       method: 'GET',
       headers: (params) => ({

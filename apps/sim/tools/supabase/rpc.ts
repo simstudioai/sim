@@ -2,6 +2,7 @@ import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation
 import type { SupabaseRpcParams, SupabaseRpcResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
   id: 'supabase_rpc',
@@ -40,7 +41,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
     url: (params) => {
       const fnValidation = validateDatabaseIdentifier(params.functionName, 'functionName')
       if (!fnValidation.isValid) throw new Error(fnValidation.error)
-      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${encodeURIComponent(params.functionName)}`
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${safeUrlPathSegment(params.functionName, 'functionName')}`
     },
     method: 'POST',
     headers: (params) => ({

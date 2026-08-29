@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryDeleteDatasetResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryDeleteDatasetTool: ToolConfig<
   GoogleBigQueryDeleteDatasetParams,
@@ -48,7 +49,7 @@ export const googleBigQueryDeleteDatasetTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId.trim())}`
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}`
       )
       if (params.deleteContents !== undefined) {
         url.searchParams.set('deleteContents', String(params.deleteContents))

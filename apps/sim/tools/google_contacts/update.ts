@@ -7,6 +7,7 @@ import {
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath } from '@/tools/url-path'
 
 const logger = createLogger('GoogleContactsUpdate')
 
@@ -111,7 +112,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
 
       const updatePersonFields = updateFields.join(',')
 
-      return `${PEOPLE_API_BASE}/${params.resourceName.trim()}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
+      return `${PEOPLE_API_BASE}/${safeUrlPath(params.resourceName, 'resourceName')}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
     },
     method: 'PATCH',
     headers: (params: GoogleContactsUpdateParams) => ({

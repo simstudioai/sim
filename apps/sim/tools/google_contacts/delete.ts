@@ -5,6 +5,7 @@ import {
   PEOPLE_API_BASE,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPath } from '@/tools/url-path'
 
 const logger = createLogger('GoogleContactsDelete')
 
@@ -36,7 +37,7 @@ export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDe
 
   request: {
     url: (params: GoogleContactsDeleteParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName.trim()}:deleteContact`,
+      `${PEOPLE_API_BASE}/${safeUrlPath(params.resourceName, 'resourceName')}:deleteContact`,
     method: 'DELETE',
     headers: (params: GoogleContactsDeleteParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -12,10 +12,24 @@ import {
   GOOGLE_WORKSPACE_MIME_TYPES,
 } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
-export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetContentResponse> = {
+/**
+ * Narrows the shared Drive param type, which declares every id optional so one
+ * interface can serve every tool. This tool declares `fileId` as required, so
+ * the narrowed shape is what it actually receives — and it lets the path guard
+ * take the value without a cast.
+ */
+interface GoogleDriveGetContentParams extends GoogleDriveToolParams {
+  fileId: string
+}
+
+export const getContentTool: ToolConfig<
+  GoogleDriveGetContentParams,
+  GoogleDriveGetContentResponse
+> = {
   id: 'google_drive_get_content',
   name: 'Get Content from Google Drive',
   description:
@@ -57,7 +71,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

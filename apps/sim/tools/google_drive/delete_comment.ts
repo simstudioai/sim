@@ -1,5 +1,6 @@
 import type { GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveDeleteCommentParams extends GoogleDriveToolParams {
   fileId: string
@@ -51,7 +52,7 @@ export const deleteCommentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/comments/${params.commentId?.trim()}`,
+      `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}/comments/${safeUrlPathSegment(params.commentId, 'commentId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

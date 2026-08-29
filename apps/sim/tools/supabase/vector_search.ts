@@ -5,6 +5,7 @@ import type {
 } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const vectorSearchTool: ToolConfig<
   SupabaseVectorSearchParams,
@@ -59,7 +60,7 @@ export const vectorSearchTool: ToolConfig<
     url: (params) => {
       const fnValidation = validateDatabaseIdentifier(params.functionName, 'functionName')
       if (!fnValidation.isValid) throw new Error(fnValidation.error)
-      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${encodeURIComponent(params.functionName)}`
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${safeUrlPathSegment(params.functionName, 'functionName')}`
     },
     method: 'POST',
     headers: (params) => ({
