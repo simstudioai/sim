@@ -29,6 +29,7 @@ import {
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('CopilotToolPermissionAPI')
 
@@ -74,9 +75,26 @@ async function applyDecision(
       : null
   }
 
+  /**
+   * permission-group-enforced: copilot.tool_auto_approval — nothing durable is
+   * written when the group withholds it. The decision itself stands — this call
+   * runs the tool the user just allowed — only the memory of it is refused, so
+   * the next call prompts again. Not a 403: the answer to *this* prompt was
+   * legitimate, and failing the request would strand the waiting orchestrator.
+   */
+  const permissionConfig = run.workspaceId
+    ? await getUserPermissionConfig(userId, run.workspaceId)
+    : null
+  const mayRemember = permissionConfig?.disableToolAutoApproval !== true
+
   // Best-effort: failing to remember the preference must not block the tool the
   // user just allowed. Worst case they get prompted again next time.
-  if (decision === TOOL_PERMISSION_DECISION.always_allow) {
+  if (!mayRemember) {
+    logger.info('Not persisting an always-allow decision withheld by permission group', {
+      toolCallId,
+      toolName: claimed.toolName,
+    })
+  } else if (decision === TOOL_PERMISSION_DECISION.always_allow) {
     await addAutoAllowedTool(userId, claimed.toolName).catch((err) => {
       logger.error('Failed to persist always-allow preference', {
         toolCallId,

@@ -16,11 +16,17 @@ const {
   mockExpandFolderIdsWithDescendants,
   mockMapWithConcurrency,
   mockMaterializeExecutionDataForDisplay,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockExpandFolderIdsWithDescendants: vi.fn(),
   mockMapWithConcurrency: vi.fn(),
   mockMaterializeExecutionDataForDisplay: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -88,6 +94,7 @@ describe('GET /api/logs/export', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+    mockGetUserPermissionConfig.mockResolvedValue(null)
     mockExpandFolderIdsWithDescendants.mockImplementation(
       async (_workspaceId: string, folderIds: string | undefined) => folderIds
     )
@@ -235,5 +242,39 @@ describe('GET /api/logs/export', () => {
     resolveMaterialization?.([{ message: 'message-0' }])
 
     await expect(Promise.all([pendingRead, cancellation])).resolves.toBeDefined()
+  })
+
+  /**
+   * A whole-workspace CSV of run spend is the widest disclosure of the figures
+   * the detail view already withholds. The header keeps its column so the file
+   * shape does not depend on who downloaded it.
+   */
+  it('blanks the cost column and span spend when the group withholds cost', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    queueTableRows(workflowExecutionLogs, [
+      logRow(0, {
+        executionData: {
+          message: 'message-0',
+          traceSpans: [{ id: 'span-1', name: 'Agent', type: 'agent', cost: { total: 0.01 } }],
+        },
+      }),
+    ])
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(lines[0]).toContain('costTotal')
+    expect(lines[1].split(',')[5]).toBe('')
+    expect(lines[1]).toContain('span-1')
+    expect(lines[1]).not.toContain('0.01')
+  })
+
+  it('keeps the cost column when no group withholds it', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+    const lines = (await response.text()).trimEnd().split('\n')
+
+    expect(lines[1].split(',')[5]).toBe('0.01')
   })
 })

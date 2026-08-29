@@ -48,6 +48,14 @@ interface FetchLogDetailArgs {
    * a caller reading the route directly.
    */
   hideTraceSpans?: boolean
+  /**
+   * Whether the viewer's permission group withholds spend. Applied here for the
+   * same reason as {@link FetchLogDetailArgs.hideTraceSpans}: the run total, the
+   * itemized ledger and the per-block and per-span costs are the figures the
+   * restriction exists to withhold, and a hidden column withholds nothing from a
+   * caller reading the route directly.
+   */
+  hideCostInfo?: boolean
 }
 
 /**
@@ -70,6 +78,33 @@ function withheldExecutionData(executionData: Record<string, unknown>): Record<s
   return retained
 }
 
+/** A span or block execution with the spend fields stripped from it. */
+function withoutSpend(entry: unknown): unknown {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry
+  const { cost: _cost, tokens: _tokens, children, ...retained } = entry as Record<string, unknown>
+  return Array.isArray(children) ? { ...retained, children: children.map(withoutSpend) } : retained
+}
+
+/**
+ * Strips spend from the execution payloads a permission group withholds.
+ *
+ * Reaches into trace spans and block executions rather than only blanking the
+ * run total: both carry their own `cost` and `tokens`, and a viewer who can sum
+ * the spans has not been withheld anything. Deletes rather than relies on the
+ * schema, because `executionDataDetailSchema` is a passthrough and a span's own
+ * shape is a `catchall`, so a field left in place would survive validation.
+ */
+export function withheldSpendData(executionData: Record<string, unknown>): Record<string, unknown> {
+  const projected: Record<string, unknown> = { ...executionData }
+  if (Array.isArray(projected.traceSpans)) {
+    projected.traceSpans = projected.traceSpans.map(withoutSpend)
+  }
+  if (Array.isArray(projected.blockExecutions)) {
+    projected.blockExecutions = projected.blockExecutions.map(withoutSpend)
+  }
+  return projected
+}
+
 /**
  * Canonical workflow-log detail loader after workspace authorization. Returns
  * `null` when no matching row exists in either execution-log table.
@@ -85,6 +120,7 @@ export async function readLogDetail({
   lookupValue,
   signal,
   hideTraceSpans = false,
+  hideCostInfo = false,
 }: FetchLogDetailArgs): Promise<WorkflowLogDetail | null> {
   signal?.throwIfAborted()
   const workflowMatch: SQL =
@@ -157,7 +193,7 @@ export async function readLogDetail({
 
     // Cost is sourced exclusively from the usage_log ledger (itemized breakdown)
     // and its cost_total projection (run total). The cost jsonb is never read.
-    const costLedger = await buildCostLedger(log.executionId)
+    const costLedger = hideCostInfo ? null : await buildCostLedger(log.executionId)
     signal?.throwIfAborted()
     const totalDollars = costLedger?.total ?? (log.costTotal != null ? Number(log.costTotal) : null)
 
@@ -172,7 +208,8 @@ export async function readLogDetail({
         userId: viewerUserId,
       }
     )
-    const executionData = hideTraceSpans ? withheldExecutionData(materialized) : materialized
+    const withheldPayloads = hideTraceSpans ? withheldExecutionData(materialized) : materialized
+    const executionData = hideCostInfo ? withheldSpendData(withheldPayloads) : withheldPayloads
     signal?.throwIfAborted()
 
     // A custom block's child ran in another workspace and kept its spans on its
@@ -212,8 +249,8 @@ export async function readLogDetail({
       createdAt: log.startedAt.toISOString(),
       workflow: workflowSummary,
       jobTitle: null,
-      cost: totalDollars != null ? { total: totalDollars } : null,
-      costLedger,
+      cost: hideCostInfo || totalDollars == null ? null : { total: totalDollars },
+      ...(hideCostInfo ? {} : { costLedger }),
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -267,7 +304,10 @@ export async function readLogDetail({
       userId: viewerUserId,
     }
   )
-  const execData = hideTraceSpans ? withheldExecutionData(materializedJobData) : materializedJobData
+  const withheldJobPayloads = hideTraceSpans
+    ? withheldExecutionData(materializedJobData)
+    : materializedJobData
+  const execData = hideCostInfo ? withheldSpendData(withheldJobPayloads) : withheldJobPayloads
   signal?.throwIfAborted()
   return workflowLogDetailSchema.parse({
     id: jobLog.id,
@@ -284,7 +324,7 @@ export async function readLogDetail({
     createdAt: jobLog.startedAt.toISOString(),
     workflow: null,
     jobTitle: ((execData.trigger as Record<string, unknown> | undefined)?.source as string) ?? null,
-    cost: jobCostTotal(jobLog.cost),
+    cost: hideCostInfo ? null : jobCostTotal(jobLog.cost),
     pauseSummary: { status: null, total: 0, resumed: 0 },
     hasPendingPause: false,
     executionData: {

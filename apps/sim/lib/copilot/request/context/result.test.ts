@@ -35,6 +35,7 @@ function makeContext(): StreamingContext {
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     },
   }
 }

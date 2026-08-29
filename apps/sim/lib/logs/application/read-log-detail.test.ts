@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   readLogDetail: vi.fn(),
   resolveWorkspace: vi.fn(),
   resolvePermission: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/logs/fetch-log-detail', () => ({
@@ -19,6 +20,10 @@ vi.mock('@/lib/logs/fetch-log-detail', () => ({
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -93,6 +98,7 @@ describe('readLogDetailUseCase', () => {
     })
     mocks.readLogDetail.mockResolvedValue({ id: 'log-1', executionId: EXECUTION_ID })
     mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
@@ -121,6 +127,37 @@ describe('readLogDetailUseCase', () => {
 
     expect(mocks.readLogDetail).toHaveBeenCalledWith(
       expect.objectContaining({ viewerUserId: 'user-1' })
+    )
+  })
+
+  /**
+   * A projection, not a refusal: the loader is still asked for the log, just
+   * told to leave the spend out of it.
+   */
+  it('tells the loader to withhold spend when the group does', async () => {
+    queueLogRow()
+    mocks.getUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+
+    await readLogDetailUseCase.execute({
+      principal: HUMAN_PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ hideCostInfo: true })
+    )
+  })
+
+  it('leaves spend in place when no group withholds it', async () => {
+    queueLogRow()
+
+    await readLogDetailUseCase.execute({
+      principal: HUMAN_PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
+    })
+
+    expect(mocks.readLogDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ hideCostInfo: false })
     )
   })
 })

@@ -64,6 +64,7 @@ import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -205,8 +206,28 @@ async function resolveToolPermissions(
     isCopilotToolPermissionsEnabled &&
     options.interactive !== false &&
     (options.goRoute ?? '').startsWith('/api/mothership')
-  if (!enabled) return { enabled: false, autoAllowed: new Set() }
-  return { enabled: true, autoAllowed: await getAutoAllowedTools(options.userId, options.chatId) }
+  if (!enabled) return { enabled: false, autoAllowed: new Set(), autoAllowPermitted: true }
+
+  /**
+   * permission-group-enforced: copilot.tool_auto_approval — read at the point
+   * the decision is made, not only where one is saved. A member who clicked
+   * "always allow" before the key was set would otherwise keep the prompt
+   * silenced forever, so the stored list is not even loaded once the group
+   * withholds the capability.
+   */
+  const permissionConfig =
+    options.userId && options.workspaceId
+      ? await getUserPermissionConfig(options.userId, options.workspaceId)
+      : null
+  if (permissionConfig?.disableToolAutoApproval) {
+    return { enabled: true, autoAllowed: new Set(), autoAllowPermitted: false }
+  }
+
+  return {
+    enabled: true,
+    autoAllowed: await getAutoAllowedTools(options.userId, options.chatId),
+    autoAllowPermitted: true,
+  }
 }
 
 export async function runCopilotLifecycle(

@@ -28,6 +28,7 @@ import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WebhooksAPI')
 
@@ -379,6 +380,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .where(eq(webhook.id, targetWebhookId))
         .limit(1)
       existingWebhook = existingRows[0] || null
+    }
+
+    /**
+     * permission-group-enforced: triggers.webhook — a raw upsert handler with no
+     * application operation to declare the capability on, so it is asserted
+     * here.
+     *
+     * Creation only. An already-created webhook must keep firing: inbound
+     * delivery runs with no session to resolve a group against, and refusing
+     * there would silently break live integrations the moment an admin ticked
+     * the box, with the failure surfacing at the provider rather than in Sim.
+     * Withholding the capability stops new exposure; removing existing exposure
+     * is a deliberate act of deleting the webhook.
+     */
+    if (!existingWebhook) {
+      const permissionConfig = workflowRecord.workspaceId
+        ? await getUserPermissionConfig(userId, workflowRecord.workspaceId)
+        : null
+      if (permissionConfig?.disableWebhookTriggers) {
+        logger.warn(`[${requestId}] Webhook creation blocked by permission group`, {
+          userId,
+          workflowId,
+        })
+        return NextResponse.json(
+          {
+            error: "Webhook triggers are not available under your organization's permission group",
+          },
+          { status: 403 }
+        )
+      }
     }
 
     const shouldRecreateSubscription =

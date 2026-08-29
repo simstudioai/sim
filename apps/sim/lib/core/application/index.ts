@@ -38,6 +38,7 @@ export {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
+  requireWorkspaceCapability,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'
