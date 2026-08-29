@@ -100,6 +100,13 @@ export const MUST_REJECT = [
   '../../about',
   'abc/../../../drives',
   'abc/items/../../../v2/other',
+  /**
+   * A **balanced** traversal: it pops exactly as many segments as it adds, so
+   * the resolved path keeps the baseline's segment count and only the guarded
+   * slot's neighbourhood changes. A count-only shape check cannot see it, which
+   * is why every value here is asserted to throw instead.
+   */
+  'id/../../other/victim',
   '\\..\\..',
 ] as const
 
@@ -368,7 +375,9 @@ export function itResistsTraversal(
   { origin, basePath, preservesWhitespace = false }: TraversalOptions
 ): void {
   const baselinePath = buildUrl(tool, paramName, PROBE_ID, context).pathname
-  const prefix = baselinePath.split('/').slice(0, baselinePath.split('/').indexOf(PROBE_ID))
+  const baselineSegments = baselinePath.split('/')
+  const probeIndex = baselineSegments.indexOf(PROBE_ID)
+  const prefix = baselineSegments.slice(0, probeIndex)
 
   const mustReject = preservesWhitespace
     ? MUST_REJECT.filter((value) => value !== PADDED_DOT_SEGMENT)
@@ -409,10 +418,30 @@ export function itResistsTraversal(
     expect(url.pathname.startsWith(basePath)).toBe(true)
 
     const segments = url.pathname.split('/')
-    expect(segments.slice(0, prefix.length)).toEqual(prefix)
     expect(segments).not.toContain('..')
     expect(segments).not.toContain('.')
     expect(url.searchParams.get('injectedProbe')).toBeNull()
+
+    if (preservesWhitespace) {
+      /**
+       * A hierarchical value legitimately changes the segment count, so only
+       * the fixed prefix ahead of it can be pinned.
+       */
+      expect(segments.slice(0, prefix.length)).toEqual(prefix)
+      return
+    }
+
+    /**
+     * A single-segment guard must always yield exactly one segment, so the
+     * whole shape is pinned — count included, and every slot but the guarded
+     * one compared against the baseline. Checking only the prefix would let a
+     * value that expands its own slot (`a/b/../c`) through unnoticed.
+     */
+    expect(segments).toHaveLength(baselineSegments.length)
+    segments.forEach((segment, index) => {
+      if (index === probeIndex) return
+      expect(segment).toBe(baselineSegments[index])
+    })
   })
 
   /**
