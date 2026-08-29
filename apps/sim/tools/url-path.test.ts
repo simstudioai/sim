@@ -377,8 +377,28 @@ describe('whitespace handling differs by purpose', () => {
     expect(decodeURIComponent(url.pathname)).toBe('/repos/o/r/contents/docs/my file .txt')
   })
 
-  it('still rejects a segment that is only whitespace', () => {
-    expect(() => safeUrlPath('docs/   /file.md', 'path')).toThrow(/whitespace-only path segment/)
+  it.each([
+    ['docs/   /file.txt', 'docs/%20%20%20/file.txt'],
+    ['   ', '%20%20%20'],
+    ['e/   /f.txt', 'e/%20%20%20/f.txt'],
+    ['d/   ', 'd/%20%20%20'],
+  ])('permits the whitespace-only component in %j', (value, expected) => {
+    expect(safeUrlPath(value, 'path')).toBe(expected)
+  })
+
+  it('round-trips a whitespace-only component through the URL parser', () => {
+    const url = new URL(`${ORIGIN}/repos/o/r/contents/${safeUrlPath('docs/   /file.txt', 'path')}`)
+
+    expect(url.pathname).toBe('/repos/o/r/contents/docs/%20%20%20/file.txt')
+    expect(decodeURIComponent(url.pathname)).toBe('/repos/o/r/contents/docs/   /file.txt')
+  })
+
+  it('rejects only a truly empty component', () => {
+    expect(() => safeUrlPath('docs//file.txt', 'path')).toThrow(/empty path segment/)
+  })
+
+  it('still rejects an opaque id that is only whitespace, since it trims first', () => {
+    expect(() => safeUrlPathSegment('   ', 'edgeConfigId')).toThrow(/edgeConfigId is required/)
   })
 
   it('still rejects a dot segment inside a path', () => {

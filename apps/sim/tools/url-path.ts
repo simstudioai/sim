@@ -243,8 +243,33 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
  * 404 for a file that does not exist rather than a quiet success against the
  * wrong one.
  *
- * A segment that is *only* whitespace is still rejected: it names nothing the
- * caller could have meant, and it is indistinguishable from the `//` case above.
+ * A segment that is only whitespace is **permitted**, for the same reason the
+ * rest of the value is not trimmed, and the temptation to reject it on the
+ * grounds that it "names nothing" should be resisted. It names something: git
+ * tracks a file and a directory whose entire name is spaces, exactly as typed.
+ *
+ * ```
+ * $ git ls-files | sed -n 'l'   # `l` makes the line ends visible
+ * d/   $
+ * e/   /f.txt$
+ * ```
+ *
+ * And rejecting it would buy nothing, because a whitespace-only segment is not
+ * a dot segment and the parser never removes it — the encoded form survives
+ * intact, where a dot segment does not:
+ *
+ * ```
+ * new URL('https://x/a/%20%20%20/b').pathname // => '/a/%20%20%20/b'  (kept)
+ * new URL('https://x/a/../b').pathname        // => '/b'              (removed)
+ * ```
+ *
+ * So the check would carry no security value and a real cost: a legitimate file
+ * that could not be read, updated, or deleted. Only a *truly* empty component
+ * — the `//` case above, where the caller wrote no name at all — is rejected.
+ *
+ * {@link safeUrlPathSegment} does still reject an all-whitespace value, and
+ * that asymmetry is correct rather than an oversight: it trims first, so an
+ * opaque id of only spaces really has named nothing.
  *
  * Not trimming also does not weaken the dot-segment check, which compares the
  * raw segment. A space-wrapped dot segment needs no rejection because encoding
@@ -271,7 +296,7 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
  * @returns The trimmed path with every segment percent-encoded and the `/`
  *   separators preserved, safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, contains
- *   an empty or whitespace-only segment, contains a dot segment, contains a
+ *   a truly empty segment (a `//`), contains a dot segment, contains a
  *   backslash, or cannot be encoded.
  */
 export function safeUrlPath(value: string | number | bigint, paramName: string): string {
@@ -288,8 +313,8 @@ export function safeUrlPath(value: string | number | bigint, paramName: string):
   return path
     .split('/')
     .map((segment) => {
-      if (!segment.trim()) {
-        throw new Error(`${paramName} cannot contain an empty or whitespace-only path segment`)
+      if (!segment) {
+        throw new Error(`${paramName} cannot contain an empty path segment`)
       }
 
       if (segment === '.' || segment === '..') {

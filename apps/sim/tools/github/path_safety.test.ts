@@ -91,14 +91,19 @@ const MULTI_SEGMENT_PARAMS = new Set(['path', 'branch', 'ref', 'base', 'head'])
 
 /**
  * Filenames whose own leading, trailing, or interior spaces are content, not
- * padding. Git tracks all three verbatim, so trimming any of them would make
+ * padding. Git tracks all of these verbatim, so trimming any of them would make
  * `update_file` and `delete_file` act on a different file than the caller named
  * — a silent wrong-target write, which is why `safeUrlPath` does not trim.
+ *
+ * The last entry is a directory whose entire name is spaces. It is a legal git
+ * path and `%20%20%20` is never normalized away, so rejecting it would only
+ * make a real file unreachable.
  */
 const WHITESPACE_PATHS: ReadonlyArray<readonly [string, string]> = [
   ['docs/my file .txt', 'docs/my%20file%20.txt'],
   ['docs/ leading.md', 'docs/%20leading.md'],
   ['docs/trailing.md ', 'docs/trailing.md%20'],
+  ['docs/   /file.txt', 'docs/%20%20%20/file.txt'],
 ]
 
 /**
