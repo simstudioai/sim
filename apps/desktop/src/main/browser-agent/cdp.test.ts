@@ -597,6 +597,29 @@ describe('browser-agent screenshot capture', () => {
     expect(shot.imageSize).toEqual({ width: 1024, height: 512 })
   })
 
+  it('accepts stable finite scroll offsets around the capture', async () => {
+    const { contents } = captureFixture({ width: 1024, height: 512 })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
+      if (method === 'Page.getLayoutMetrics') {
+        return Promise.resolve({
+          cssLayoutViewport: {
+            clientWidth: 2048,
+            clientHeight: 1024,
+            pageX: 12,
+            pageY: 34,
+          },
+        })
+      }
+      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
+      return Promise.resolve(undefined)
+    })
+
+    await expect(captureScreenshot(contents)).resolves.toMatchObject({
+      viewport: { width: 2048, height: 1024 },
+      imageSize: { width: 1024, height: 512 },
+    })
+  })
+
   it.each([
     [
       'dimensions',

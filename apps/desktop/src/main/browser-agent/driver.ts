@@ -2151,8 +2151,11 @@ async function executeToolInner(
           'The page changed while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
         )
       }
-      const shot = await cdp.captureScreenshot(contents).catch(() => null)
-      if (shot === null) {
+      const shot = await cdp.captureScreenshot(contents).catch((error) => {
+        logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
+        return null
+      })
+      if (!shot) {
         throw new ToolError(
           'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
         )

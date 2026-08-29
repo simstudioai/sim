@@ -501,13 +501,6 @@ export async function captureScreenshot(contents: WebContents): Promise<Screensh
   if (size.width === 0 || size.height === 0) {
     return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
   }
-  // Without layout metrics there is no CSS frame of reference to resize
-  // against, so the raw capture is the honest answer — the same fallback the
-  // clipped path took. Its decoded size still lets the driver establish the
-  // coordinate scale after obtaining the CSS viewport in-page.
-  if (targetWidth <= 0 || targetHeight <= 0) {
-    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
-  }
   if (size.width === targetWidth && size.height === targetHeight) {
     return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
   }

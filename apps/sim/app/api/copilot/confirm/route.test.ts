@@ -9,6 +9,7 @@ const {
   getAsyncToolCall,
   getRunSegment,
   completeAsyncToolCall,
+  completeClaimedAsyncToolCall,
   completePendingAsyncToolCall,
   detachAsyncToolCall,
   publishToolConfirmation,
@@ -18,6 +19,7 @@ const {
   getAsyncToolCall: vi.fn(),
   getRunSegment: vi.fn(),
   completeAsyncToolCall: vi.fn(),
+  completeClaimedAsyncToolCall: vi.fn(),
   completePendingAsyncToolCall: vi.fn(),
   detachAsyncToolCall: vi.fn(),
   publishToolConfirmation: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getAsyncToolCall,
   getRunSegment,
   completeAsyncToolCall,
+  completeClaimedAsyncToolCall,
   completePendingAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId: (claimedBy?: string | null) =>
@@ -75,6 +78,7 @@ describe('Copilot Confirm API Route', () => {
       workflowId: 'workflow-from-run',
     })
     completeAsyncToolCall.mockResolvedValue(existingRow)
+    completeClaimedAsyncToolCall.mockResolvedValue(existingRow)
     completePendingAsyncToolCall.mockResolvedValue(existingRow)
     detachAsyncToolCall.mockResolvedValue(existingRow)
     encryptSecret.mockResolvedValue({ encrypted: 'sealed-client-result', iv: 'iv' })
@@ -328,11 +332,94 @@ describe('Copilot Confirm API Route', () => {
       expect(response.status).toBe(404)
       expect(await response.json()).toEqual({ error: 'Pending client tool call not found' })
       expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
+      expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
       expect(completeAsyncToolCall).not.toHaveBeenCalled()
       expect(detachAsyncToolCall).not.toHaveBeenCalled()
       expect(publishToolConfirmation).not.toHaveBeenCalled()
     }
   )
+
+  it.each([
+    ['browser_snapshot', 'desktop-browser'],
+    ['terminal', 'desktop-terminal'],
+  ] as const)(
+    'settles an indeterminate pending %s result when the exact %s claim wins the race',
+    async (toolName, claimOwner) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
+      })
+      completePendingAsyncToolCall.mockResolvedValueOnce(null)
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'error',
+          message: 'untrusted page-exit message',
+          data: { outcomeUnknown: true, doNotRetry: true, untrusted: 'discard me' },
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
+      expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
+        {
+          toolCallId: 'tool-call-123',
+          status: 'failed',
+          result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+          error: 'Tool failed',
+        },
+        claimOwner
+      )
+      expect(encryptSecret).toHaveBeenCalledWith(expect.stringContaining('"outcomeUnknown":true'))
+      expect(encryptSecret).toHaveBeenCalledWith(expect.not.stringContaining('discard me'))
+      expect(publishToolConfirmation).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'pending',
+    })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    completeClaimedAsyncToolCall.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        data: { outcomeUnknown: true, doNotRetry: true },
+      })
+    )
+
+    expect(response.status).toBe(404)
+    expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(expect.any(Object), 'desktop-browser')
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 without publishing when exact claim reconciliation fails', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'pending',
+    })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    completeClaimedAsyncToolCall.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        data: { outcomeUnknown: true, doNotRetry: true },
+      })
+    )
+
+    expect(response.status).toBe(500)
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
 
   it.each(['error', 'cancelled'] as const)(
     'rejects a pending retired browser tool %s before a native claim',

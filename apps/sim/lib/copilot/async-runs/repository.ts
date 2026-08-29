@@ -280,7 +280,8 @@ async function markAsyncToolStatus(
     error?: string | null
     completedAt?: Date | null
   } = {},
-  expectedStatuses?: CopilotAsyncToolStatus[]
+  expectedStatuses?: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -290,7 +291,7 @@ async function markAsyncToolStatus(
       [TraceAttr.ToolCallId]: toolCallId,
       [TraceAttr.CopilotAsyncToolStatus]: status,
       [TraceAttr.CopilotAsyncToolHasError]: !!updates.error,
-      [TraceAttr.CopilotAsyncToolClaimedBy]: updates.claimedBy ?? undefined,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: expectedClaimedBy ?? updates.claimedBy ?? undefined,
     },
     async () => {
       const claimedAt =
@@ -314,12 +315,11 @@ async function markAsyncToolStatus(
           updatedAt: new Date(),
         })
         .where(
-          expectedStatuses
-            ? and(
-                eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-                inArray(copilotAsyncToolCalls.status, expectedStatuses)
-              )
-            : eq(copilotAsyncToolCalls.toolCallId, toolCallId)
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            expectedStatuses ? inArray(copilotAsyncToolCalls.status, expectedStatuses) : undefined,
+            expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined
+          )
         )
         .returning()
 
@@ -462,7 +462,8 @@ interface CompleteAsyncToolCallInput {
 
 async function completeAsyncToolCallFromStatuses(
   input: CompleteAsyncToolCallInput,
-  expectedStatuses: CopilotAsyncToolStatus[]
+  expectedStatuses: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string
 ) {
   return await markAsyncToolStatus(
     input.toolCallId,
@@ -474,7 +475,8 @@ async function completeAsyncToolCallFromStatuses(
       error: input.error ?? null,
       completedAt: new Date(),
     },
-    expectedStatuses
+    expectedStatuses,
+    expectedClaimedBy
   )
 }
 
@@ -492,6 +494,14 @@ export async function completeAsyncToolCall(input: CompleteAsyncToolCallInput) {
  */
 export async function completePendingAsyncToolCall(input: CompleteAsyncToolCallInput) {
   return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.pending])
+}
+
+/** Finalizes only the exact native claim that won a pending completion race. */
+export async function completeClaimedAsyncToolCall(
+  input: CompleteAsyncToolCallInput,
+  claimedBy: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], claimedBy)
 }
 
 /**

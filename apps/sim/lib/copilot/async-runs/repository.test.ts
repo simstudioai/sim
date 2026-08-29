@@ -9,6 +9,7 @@ import {
   claimPendingAsyncToolCall,
   claimWorkflowToolExecution,
   completeAsyncToolCall,
+  completeClaimedAsyncToolCall,
   completePendingAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
@@ -114,6 +115,59 @@ describe('async tool repository single-row semantics', () => {
         result: { cancelled: true },
         error: 'Tool cancelled',
       })
+    ).resolves.toBeNull()
+  })
+
+  it('atomically completes only the exact running native claim', async () => {
+    const failedRow = {
+      toolCallId: 'browser-tool',
+      status: 'failed',
+      claimedBy: null,
+    }
+    dbChainMockFns.returning.mockResolvedValueOnce([failedRow])
+
+    const result = await completeClaimedAsyncToolCall(
+      {
+        toolCallId: 'browser-tool',
+        status: 'failed',
+        result: { outcomeUnknown: true, doNotRetry: true },
+        error: 'Native outcome unknown',
+      },
+      'desktop-browser'
+    )
+
+    expect(result).toEqual(failedRow)
+    const where = dbChainMockFns.where.mock.calls[0]?.[0]
+    expect(
+      hasMockCondition(
+        where,
+        (condition) =>
+          condition.type === 'inArray' &&
+          Array.isArray(condition.values) &&
+          condition.values.length === 1 &&
+          condition.values[0] === 'running'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (condition) => condition.type === 'eq' && condition.right === 'desktop-browser'
+      )
+    ).toBe(true)
+  })
+
+  it('returns null when the exact native claim is no longer running', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      completeClaimedAsyncToolCall(
+        {
+          toolCallId: 'browser-tool',
+          status: 'failed',
+          error: 'Native outcome unknown',
+        },
+        'desktop-browser'
+      )
     ).resolves.toBeNull()
   })
 

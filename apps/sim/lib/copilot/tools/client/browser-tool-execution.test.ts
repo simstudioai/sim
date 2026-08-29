@@ -582,11 +582,11 @@ describe('executeBrowserToolOnClient', () => {
     expect(reported.note).toContain('could not be encoded')
   })
 
-  // The desktop driver parses browser_wait_for.timeoutMs with a lenient num()
-  // that coerces numeric strings, then clamps to 120s. This side has to match:
-  // budgeting less time than the desktop actually waits makes the renderer
-  // abort first, which strands the native promise on the serialized tool queue
-  // and stalls every later browser call behind it.
+  /**
+   * Shared normalization coerces numeric strings and caps the requested wait
+   * at 120 seconds. The renderer adds delivery grace so it cannot abandon the
+   * native queue while the desktop is still honoring that same wait.
+   */
   it.each([
     ['number', 30_000, 45_000],
     ['numeric string', '30000', 45_000],
