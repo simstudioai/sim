@@ -68,14 +68,15 @@ export interface EnrowPollOptions {
  * up to `MAX_TRANSIENT_RETRIES` for the whole poll. Any other non-2xx, or one
  * transient failure past the cap, throws with the status and body.
  *
- * Two things bound the call, and both are needed. `elapsed` accumulates the
- * delays the loop intends to wait, which is what decides when to stop polling
- * and keeps the poll count deterministic. A wall-clock `deadline` additionally
- * caps each individual request, because `await fetch` on a hung socket advances
- * no accumulator at all — without it a single stalled connection outlives the
+ * Two budgets bound the call and every wait is clamped to whichever is smaller.
+ * `elapsed` accumulates the delays the loop intends to wait; it drives the poll
+ * count and keeps that count deterministic under a stubbed `sleep`. The
+ * wall-clock `deadline` is the one that actually holds, because `elapsed`
+ * charges nothing for time spent inside `await fetch` — with slow or hung polls
+ * the real clock runs ahead of it, so a wait sized against `elapsed` alone can
+ * land past the deadline, and a request awaited without a deadline outlives the
  * window entirely. Backoff is charged against the budget rather than added to
- * it, and is clamped to whatever remains so the loop waits out the full window
- * instead of stopping short of it.
+ * it, so the loop waits out the full window without ever overrunning it.
  */
 export async function pollEnrowJob({
   resultUrl,
@@ -88,18 +89,24 @@ export async function pollEnrowJob({
   let elapsed = 0
   let transientFailures = 0
 
-  while (elapsed < MAX_POLL_TIME_MS) {
-    await sleep(POLL_INTERVAL_MS)
-    elapsed += POLL_INTERVAL_MS
+  /** Whichever of the two budgets has less left, floored at zero. */
+  const remainingBudgetMs = () =>
+    Math.max(0, Math.min(MAX_POLL_TIME_MS - elapsed, deadline - Date.now()))
 
-    const remainingMs = deadline - Date.now()
-    if (remainingMs <= 0) break
+  while (true) {
+    const pollDelayMs = Math.min(POLL_INTERVAL_MS, remainingBudgetMs())
+    if (pollDelayMs <= 0) break
+    await sleep(pollDelayMs)
+    elapsed += pollDelayMs
+
+    const requestBudgetMs = deadline - Date.now()
+    if (requestBudgetMs <= 0) break
 
     let response: Response
     try {
       response = await fetch(url, {
         headers: { 'x-api-key': apiKey },
-        signal: AbortSignal.timeout(remainingMs),
+        signal: AbortSignal.timeout(requestBudgetMs),
       })
     } catch (error) {
       if (isAbortError(error)) break
@@ -119,9 +126,11 @@ export async function pollEnrowJob({
           maxMs: TRANSIENT_BACKOFF_MAX_MS,
         })
         await discardBody(response)
-        const delayMs = Math.min(backoffMs, MAX_POLL_TIME_MS - elapsed)
-        elapsed += delayMs
-        if (delayMs > 0) await sleep(delayMs)
+        const delayMs = Math.min(backoffMs, remainingBudgetMs())
+        if (delayMs > 0) {
+          await sleep(delayMs)
+          elapsed += delayMs
+        }
         continue
       }
       const errorText = await response.text()

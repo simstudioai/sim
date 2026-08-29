@@ -100,7 +100,9 @@ const MAX_TRANSIENT_RETRIES = 3
 describe('enrow_find_email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
     cancelledBodies = []
+    vi.mocked(sleep).mockImplementation(async () => undefined)
   })
 
   afterEach(() => {
@@ -264,6 +266,36 @@ describe('enrow_find_email', () => {
     ).rejects.toThrow('fetch failed')
   })
 
+  it('never sleeps past the wall-clock deadline when the polls themselves are slow', async () => {
+    // `elapsed` charges nothing for time spent inside `fetch`, so with slow polls
+    // the real clock runs ahead of it. A backoff sized against `elapsed` alone
+    // lands well past the deadline; it has to be clamped to the real remainder.
+    let now = Date.now()
+    const deadline = now + MAX_POLL_TIME_MS
+    const sleepStarts: number[] = []
+
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.mocked(sleep).mockImplementation(async (ms: number) => {
+      sleepStarts.push(now)
+      now += ms
+    })
+
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      now += 55_000
+      return jsonResponse(500, { message: 'boom' }, { 'retry-after': '15' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+
+    // Second poll ends past the deadline, so its 15s backoff must be dropped to
+    // zero rather than clamped against the 99s that `elapsed` still thinks it has.
+    expect(sleepDelays()).toEqual([POLL_INTERVAL_MS, 15_000, POLL_INTERVAL_MS])
+    expect(sleepStarts.every((startedAt) => startedAt < deadline)).toBe(true)
+  })
+
   it('waits out the whole window when a late backoff would overrun it', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => {
       // 38 in-progress polls, then a transient failure asking for far more time
@@ -323,7 +355,9 @@ describe('enrow_find_email', () => {
 describe('enrow_verify_email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
     cancelledBodies = []
+    vi.mocked(sleep).mockImplementation(async () => undefined)
   })
 
   afterEach(() => {
