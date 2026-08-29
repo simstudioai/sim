@@ -69,12 +69,33 @@ describe('parseCloudId', () => {
 
   /**
    * `extractPortFromName` splits at the last colon, so a second colon survives
-   * in the *name* half, where the `#@?/\` reject set does not catch it. Left
-   * unchecked this builds `https://<uuid>.<host>:<port>:<port>`, which throws a
-   * bare `TypeError: Invalid URL` inside the transport instead of naming the
-   * real problem.
+   * in the *name* half. Both halves are numeric here on purpose: the all-digits
+   * port check passes, so only the reject set can catch it. Left unchecked this
+   * assembles `https://<uuid>.<host>:9243:5`, which surfaces as a bare
+   * `TypeError: Invalid URL` inside the transport instead of naming the real
+   * problem.
    */
-  it('rejects a second colon in the parent domain rather than building an invalid authority', () => {
+  it('rejects a second colon in the parent domain when both halves are numeric', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}:9243:5$${ES_UUID}$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
+  it('rejects a second colon in the parent domain when the service port is explicit', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}:9243:5$${ES_UUID}:9200$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
+  it('rejects a second colon in the Elasticsearch component', () => {
+    const hostile = cloudId(`${PARENT_DOMAIN}$${ES_UUID}:9243:5$${KIBANA_UUID}`)
+    expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
+  })
+
+  /**
+   * Distinct from the cases above: here the trailing half is non-numeric, so
+   * the all-digits port check rejects it before the reject set is reached.
+   * Kept separate so neither check can silently stop carrying its own case.
+   */
+  it('rejects a second colon whose trailing half is not a port', () => {
     const hostile = cloudId(`${PARENT_DOMAIN}:9243:evil@x$${ES_UUID}:9243$${KIBANA_UUID}`)
     expect(() => parseCloudId(hostile)).toThrow(/Invalid Cloud ID/)
   })

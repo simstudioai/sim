@@ -7,18 +7,23 @@ import type { ElasticsearchBaseParams } from '@/tools/elasticsearch/types'
 const DEFAULT_CLOUD_PORT = '443'
 
 /**
- * Characters that must not appear in a decoded Cloud ID component. An `@` would
- * turn the rest of the authority into a host and send the credential headers to
- * an attacker-controlled origin; `#`, `?` and `/` truncate the authority.
- * Mirrors the `strings.IndexAny(component, "#@?/")` reject set in Beats, plus
- * `\`, which the WHATWG URL parser treats as a path separator for special
- * schemes and which therefore truncates the authority exactly as `/` does.
+ * Characters that must not appear in a decoded Cloud ID component name. An `@`
+ * would turn the rest of the authority into a host and send the credential
+ * headers to an attacker-controlled origin; `#`, `?` and `/` truncate the
+ * authority. Mirrors the `strings.IndexAny(component, "#@?/")` reject set in
+ * Beats, plus two additions:
  *
- * A `:` is deliberately absent — `extractPortFromName` has already split each
- * component at its last colon, so a surviving colon means a second one, which
- * the all-digits port check below rejects.
+ * - `\`, which the WHATWG URL parser treats as a path separator for special
+ *   schemes and which therefore truncates the authority exactly as `/` does.
+ * - `:`, because `extractPortFromName` has already split the component at its
+ *   last colon, so a colon surviving in the *name* half means the component
+ *   carried two. The all-digits port check below does not catch that when the
+ *   trailing half is numeric: `found.io:9243:5` yields name `found.io:9243`
+ *   and port `5`, which assembles `https://<uuid>.found.io:9243:5` and fails
+ *   as a bare `TypeError: Invalid URL` inside the transport. A hostname cannot
+ *   contain a colon, so rejecting it here cannot refuse a legitimate ID.
  */
-const CLOUD_ID_REJECTED_CHARACTERS = /[#@?/\\]/
+const CLOUD_ID_REJECTED_CHARACTERS = /[#@?/\\:]/
 
 /**
  * Splits a Cloud ID component of the form `name:port` at its last colon.
