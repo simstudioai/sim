@@ -252,3 +252,46 @@ describe('attio path-ID traversal safety', () => {
     })
   })
 })
+
+/**
+ * `assert_record` is the only Attio tool that puts a caller-supplied value in
+ * the query string rather than the path. `matching_attribute` selects which
+ * attribute the upsert matches on, so an empty selector is not a narrower
+ * request — it is an incomplete one, and the same reject-don't-substitute rule
+ * that governs the path segments applies to it.
+ */
+describe('attio_assert_record matching_attribute', () => {
+  const tool = ALL_ATTIO_TOOLS.filter(isAttioTool).find(
+    (candidate) => candidate.id === 'attio_assert_record'
+  )
+
+  function build(matchingAttribute: unknown): URL {
+    const url = tool?.request?.url
+    if (typeof url !== 'function') throw new Error('assert_record builds no URL')
+    return new URL(
+      url({ accessToken: 'token', objectType: 'people', matchingAttribute, values: {} })
+    )
+  }
+
+  it('encodes a legitimate selector unchanged', () => {
+    expect(build('email_addresses').searchParams.get('matching_attribute')).toBe('email_addresses')
+  })
+
+  it('trims surrounding whitespace', () => {
+    expect(build('  domains  ').searchParams.get('matching_attribute')).toBe('domains')
+  })
+
+  it('cannot inject an extra query parameter', () => {
+    const url = build('email_addresses&limit=500')
+
+    expect(url.searchParams.get('limit')).toBeNull()
+    expect(url.searchParams.get('matching_attribute')).toBe('email_addresses&limit=500')
+  })
+
+  it.each([undefined, null, '', '   '])(
+    'rejects %j rather than sending an empty selector',
+    (value) => {
+      expect(() => build(value)).toThrow(/matchingAttribute is required/)
+    }
+  )
+})

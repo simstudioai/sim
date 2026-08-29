@@ -50,9 +50,11 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
 
     request: {
       url: (params) => {
-        const searchParams = new URLSearchParams({
-          matching_attribute: String(params.matchingAttribute ?? '').trim(),
-        })
+        const matchingAttribute = String(params.matchingAttribute ?? '').trim()
+        if (!matchingAttribute) {
+          throw new Error('matchingAttribute is required')
+        }
+        const searchParams = new URLSearchParams({ matching_attribute: matchingAttribute })
         return `https://api.attio.com/v2/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/records?${searchParams.toString()}`
       },
       method: 'PUT',
