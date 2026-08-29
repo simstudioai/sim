@@ -106,6 +106,27 @@ describe('Google Drive API error parsing', () => {
     expect(backendFailure.rateLimited).toBe(false)
   })
 
+  it('detects a structured rate limit beyond the bounded diagnostic reasons', async () => {
+    const reasons = [
+      ...Array.from({ length: 16 }, (_, index) => `providerReason${index}`),
+      'userRateLimitExceeded',
+    ]
+    const error = await readGoogleDriveApiError(
+      jsonResponse(
+        {
+          error: {
+            errors: reasons.map((reason) => ({ reason })),
+          },
+        },
+        403
+      )
+    )
+
+    expect(error.reasons).toEqual(reasons.slice(0, 16))
+    expect(error.kind).toBe('transient')
+    expect(error.rateLimited).toBe(true)
+  })
+
   it('omits provider messages from diagnostics', async () => {
     const message = `Authorization: Bearer private-token\ncontext ${'x'.repeat(700)}`
     const error = await readGoogleDriveApiError(
