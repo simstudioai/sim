@@ -223,7 +223,8 @@ export const SixtyfourBlock: BlockConfig = {
       /**
        * Renames the operation-scoped subBlock ids onto the tool's param names.
        *
-       * Every assignment is guarded on the source being present. The agent path
+       * Every assignment is guarded on the source being present — see `present` below
+       * for why `undefined` alone is not a sufficient test. The agent path
        * overlays this return on top of the model's own tool-call arguments, and
        * the model supplies the *tool* names (`struct`, `targetCompany`), not the
        * subBlock names (`leadStruct`, `companyStruct`) — so an unguarded write
@@ -233,19 +234,31 @@ export const SixtyfourBlock: BlockConfig = {
       params: (params) => {
         const result: Record<string, unknown> = {}
 
+        /**
+         * Whether a source value is present enough to overwrite what the model sent.
+         *
+         * `undefined` alone is not sufficient: the serializer stores every untouched
+         * subBlock as `params[id] ?? null`, so an unfilled field arrives as `null`,
+         * and a cleared one as `''`. Both would otherwise be written over a valid
+         * model argument — `null` reaching the tool as an invalid required param,
+         * `''` failing its `JSON.parse` with "struct must be valid JSON". This is
+         * the same guard `trigger_dev`'s `scoped()` and the `enrow` mapper use.
+         */
+        const present = (value: unknown) => value !== undefined && value !== null && value !== ''
+
         if (params.operation === 'find_phone') {
           if (params.emailInput) result.email = params.emailInput
         } else if (params.operation === 'find_email') {
           if (params.phoneInput) result.phone = params.phoneInput
         } else if (params.operation === 'enrich_lead') {
-          if (params.leadInfo !== undefined) result.leadInfo = params.leadInfo
-          if (params.leadStruct !== undefined) result.struct = params.leadStruct
+          if (present(params.leadInfo)) result.leadInfo = params.leadInfo
+          if (present(params.leadStruct)) result.struct = params.leadStruct
           if (params.leadResearchPlan) result.researchPlan = params.leadResearchPlan
         } else if (params.operation === 'enrich_company') {
-          if (params.targetCompany !== undefined) result.targetCompany = params.targetCompany
-          if (params.companyStruct !== undefined) result.struct = params.companyStruct
-          if (params.findPeople !== undefined) result.findPeople = Boolean(params.findPeople)
-          if (params.fullOrgChart !== undefined) result.fullOrgChart = Boolean(params.fullOrgChart)
+          if (present(params.targetCompany)) result.targetCompany = params.targetCompany
+          if (present(params.companyStruct)) result.struct = params.companyStruct
+          if (present(params.findPeople)) result.findPeople = Boolean(params.findPeople)
+          if (present(params.fullOrgChart)) result.fullOrgChart = Boolean(params.fullOrgChart)
           if (params.peopleFocusPrompt) result.peopleFocusPrompt = params.peopleFocusPrompt
           if (params.companyLeadStruct) result.leadStruct = params.companyLeadStruct
           if (params.companyResearchPlan) result.researchPlan = params.companyResearchPlan

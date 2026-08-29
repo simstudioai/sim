@@ -72,6 +72,55 @@ describe('SixtyfourBlock agent path', () => {
     expect(sent.targetCompany).toBe('{"name":"Acme Inc"}')
   })
 
+  it.each([
+    ['null', null],
+    ['an empty string', ''],
+  ])('keeps the model-supplied struct when the subBlock resolves to %s', async (_label, empty) => {
+    const transform = await agentParamsTransform('enrich_lead', { apiKey: 'key' })
+
+    const sent = transform({
+      operation: 'enrich_lead',
+      apiKey: 'key',
+      leadInfo: '{"name":"John Doe"}',
+      leadStruct: empty,
+      struct: '{"email":"Work email address"}',
+    })
+
+    expect(sent.struct).toBe('{"email":"Work email address"}')
+  })
+
+  it('keeps the model-supplied company struct when the subBlock resolves to null', async () => {
+    const transform = await agentParamsTransform('enrich_company', { apiKey: 'key' })
+
+    const sent = transform({
+      operation: 'enrich_company',
+      apiKey: 'key',
+      companyStruct: null,
+      targetCompany: '{"name":"Acme Inc"}',
+      struct: '{"website":"Company website URL"}',
+    })
+
+    expect(sent.struct).toBe('{"website":"Company website URL"}')
+    expect(sent.targetCompany).toBe('{"name":"Acme Inc"}')
+  })
+
+  it('forwards an explicit false switch without coercing an untouched one', () => {
+    const mapped = buildParams({
+      operation: 'enrich_company',
+      apiKey: 'key',
+      targetCompany: '{"name":"Acme Inc"}',
+      companyStruct: '{"website":"Company website URL"}',
+      findPeople: false,
+      fullOrgChart: null,
+    })
+
+    // A switch the user actually turned off must still reach the tool as `false`.
+    expect(mapped.findPeople).toBe(false)
+    // An untouched one must not be written at all, so `Boolean(null)` cannot
+    // force `false` over a `true` the model sent.
+    expect('fullOrgChart' in mapped).toBe(false)
+  })
+
   it('lets a configured block value win over the model for enrich_lead', async () => {
     const transform = await agentParamsTransform('enrich_lead', {
       apiKey: 'key',

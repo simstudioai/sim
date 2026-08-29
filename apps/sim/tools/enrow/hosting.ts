@@ -45,9 +45,19 @@ export function enrowHosting<P>(
     },
     rateLimit: {
       mode: 'per_request',
-      // Enrow allows 10 req/s per API key on every POST endpoint — 600/min
-      // (https://docs.enrow.io/rate-limits). Cap at 60 req/min to stay well
-      // clear of it and avoid bursting into the limit during polling.
+      /*
+       * A per-workspace cap on hosted-key tool *executions* — not on outbound
+       * provider requests. The limiter is consulted once per `executeTool`
+       * call, so the poll loop's own GETs are not counted against it; nothing
+       * here throttles a single call's polling.
+       *
+       * That is the right shape for what Enrow actually publishes. Its
+       * documented limit is 10 req/s per API key on every *POST* endpoint —
+       * 600/min (https://docs.enrow.io/rate-limits). Each execution issues
+       * exactly one POST, so 60/min sits an order of magnitude under the
+       * documented ceiling. The polling GETs are not covered by that limit at
+       * all, and each one is separated by a 3s interval within a 120s budget.
+       */
       requestsPerMinute: 60,
     },
   }
