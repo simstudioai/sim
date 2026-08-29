@@ -4,7 +4,7 @@ import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 /** Delay between two ordinary (202 in-progress) polls. */
 const POLL_INTERVAL_MS = 3000
 
-/** Total wall-clock budget for a poll, retries included. */
+/** Total budget for a poll, retries included. */
 const MAX_POLL_TIME_MS = 120_000
 
 /**
@@ -29,6 +29,29 @@ function readRetryAfterMs(response: Response): number | null {
   return parseRetryAfter(response.headers?.get('retry-after') ?? null, TRANSIENT_BACKOFF_MAX_MS)
 }
 
+/**
+ * Releases a response whose body this poll will never read.
+ *
+ * A 202 or a to-be-retried 5xx is discarded mid-stream; without cancelling it
+ * the socket stays checked out of the connection pool for the rest of the poll.
+ * A cancel on an already-broken stream throws and is ignored — the connection
+ * is gone either way, which is the outcome the cancel was asking for.
+ */
+async function discardBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel()
+  } catch {
+    return
+  }
+}
+
+/** Distinguishes an abort/timeout rejection from a genuine transport failure. */
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')
+  )
+}
+
 export interface EnrowPollOptions {
   /** Result URL, minus the job id. */
   resultUrl: string
@@ -42,10 +65,17 @@ export interface EnrowPollOptions {
  * Polls an Enrow async job until it completes, and returns the decoded 200 body.
  *
  * HTTP 202 means still running. A 429 or 5xx is retried with jittered backoff,
- * up to `MAX_TRANSIENT_RETRIES` for the whole poll and always inside the same
- * `MAX_POLL_TIME_MS` budget — the backoff is charged against that budget rather
- * than added to it. Any other non-2xx, or one transient failure past the cap,
- * throws with the status and body.
+ * up to `MAX_TRANSIENT_RETRIES` for the whole poll. Any other non-2xx, or one
+ * transient failure past the cap, throws with the status and body.
+ *
+ * Two things bound the call, and both are needed. `elapsed` accumulates the
+ * delays the loop intends to wait, which is what decides when to stop polling
+ * and keeps the poll count deterministic. A wall-clock `deadline` additionally
+ * caps each individual request, because `await fetch` on a hung socket advances
+ * no accumulator at all — without it a single stalled connection outlives the
+ * window entirely. Backoff is charged against the budget rather than added to
+ * it, and is clamped to whatever remains so the loop waits out the full window
+ * instead of stopping short of it.
  */
 export async function pollEnrowJob({
   resultUrl,
@@ -53,6 +83,8 @@ export async function pollEnrowJob({
   apiKey,
   label,
 }: EnrowPollOptions): Promise<Record<string, unknown>> {
+  const deadline = Date.now() + MAX_POLL_TIME_MS
+  const url = `${resultUrl}?id=${encodeURIComponent(jobId)}`
   let elapsed = 0
   let transientFailures = 0
 
@@ -60,22 +92,36 @@ export async function pollEnrowJob({
     await sleep(POLL_INTERVAL_MS)
     elapsed += POLL_INTERVAL_MS
 
-    const response = await fetch(`${resultUrl}?id=${encodeURIComponent(jobId)}`, {
-      headers: { 'x-api-key': apiKey },
-    })
+    const remainingMs = deadline - Date.now()
+    if (remainingMs <= 0) break
 
-    if (response.status === 202) continue
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: { 'x-api-key': apiKey },
+        signal: AbortSignal.timeout(remainingMs),
+      })
+    } catch (error) {
+      if (isAbortError(error)) break
+      throw error
+    }
+
+    if (response.status === 202) {
+      await discardBody(response)
+      continue
+    }
 
     if (!response.ok) {
       if (isTransientStatus(response.status) && transientFailures < MAX_TRANSIENT_RETRIES) {
         transientFailures += 1
-        const delayMs = backoffWithJitter(transientFailures, readRetryAfterMs(response), {
+        const backoffMs = backoffWithJitter(transientFailures, readRetryAfterMs(response), {
           baseMs: TRANSIENT_BACKOFF_BASE_MS,
           maxMs: TRANSIENT_BACKOFF_MAX_MS,
         })
+        await discardBody(response)
+        const delayMs = Math.min(backoffMs, MAX_POLL_TIME_MS - elapsed)
         elapsed += delayMs
-        if (elapsed >= MAX_POLL_TIME_MS) break
-        await sleep(delayMs)
+        if (delayMs > 0) await sleep(delayMs)
         continue
       }
       const errorText = await response.text()

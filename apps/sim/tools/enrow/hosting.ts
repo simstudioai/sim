@@ -9,8 +9,10 @@ export const ENROW_API_KEY_PREFIX = 'ENROW_API_KEY'
 /**
  * Dollar cost of a single Enrow credit, as billed to a hosted-key workspace.
  *
- * The email finder costs 1 credit per valid result and the email verifier
- * 0.25 credits per check (https://docs.enrow.io/api-reference/email-finder/find-single).
+ * The email finder costs 1 credit per valid result
+ * (https://docs.enrow.io/api-reference/email-finder/find-single) and the email
+ * verifier 0.25 credits per check, which that endpoint reports back on the
+ * response (https://docs.enrow.io/api-reference/email-verifier/verify-single).
  *
  * Enrow's published monthly tiers are Start $17 / 1,000 credits ($0.017),
  * Pro $87 / 10,000 ($0.0087) and Scale $397 / 50,000 ($0.00794), with a 40%

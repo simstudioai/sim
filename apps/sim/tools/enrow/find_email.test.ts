@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
 
+import { sleep } from '@sim/utils/helpers'
 import { enrowFindEmailTool } from '@/tools/enrow/find_email'
 import type {
   EnrowFindEmailParams,
@@ -42,14 +43,26 @@ const DOCUMENTED_FIND_BODY = {
   custom: {},
 }
 
+/** Records `body.cancel()` so the tests can prove an abandoned stream is released. */
 function jsonResponse(status: number, body: unknown, headers?: Record<string, string>): Response {
+  const cancel = vi.fn().mockResolvedValue(undefined)
+  cancelledBodies.push(cancel)
   return {
     ok: status >= 200 && status < 300,
     status,
     headers: new Headers(headers),
+    body: { cancel } as unknown as ReadableStream<Uint8Array>,
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as Response
+}
+
+/** Every `body.cancel` spy handed out by `jsonResponse`, in creation order. */
+let cancelledBodies: Array<ReturnType<typeof vi.fn>> = []
+
+/** The delays the tool actually asked `sleep` for, in order. */
+function sleepDelays(): number[] {
+  return vi.mocked(sleep).mock.calls.map((call) => call[0] as number)
 }
 
 const findParams: EnrowFindEmailParams = {
@@ -72,8 +85,14 @@ const submittedFindResult: EnrowFindEmailResponse = {
   },
 }
 
-/** `MAX_POLL_TIME_MS / POLL_INTERVAL_MS` in `poll.ts` — 120_000 / 3_000. */
-const MAX_POLLS = 40
+/** `POLL_INTERVAL_MS` in `poll.ts`. */
+const POLL_INTERVAL_MS = 3000
+
+/** `MAX_POLL_TIME_MS` in `poll.ts`. */
+const MAX_POLL_TIME_MS = 120_000
+
+/** `MAX_POLL_TIME_MS / POLL_INTERVAL_MS`. */
+const MAX_POLLS = MAX_POLL_TIME_MS / POLL_INTERVAL_MS
 
 /** `MAX_TRANSIENT_RETRIES` in `poll.ts`. */
 const MAX_TRANSIENT_RETRIES = 3
@@ -81,6 +100,7 @@ const MAX_TRANSIENT_RETRIES = 3
 describe('enrow_find_email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cancelledBodies = []
   })
 
   afterEach(() => {
@@ -143,7 +163,7 @@ describe('enrow_find_email', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('retries a transient 5xx and still resolves the result', async () => {
+  it('backs off exponentially after a transient 5xx, then resolves', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(202, { qualification: 'ongoing' }))
@@ -159,9 +179,21 @@ describe('enrow_find_email', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(result.output.email).toBe('john.doe@stripe.com')
+
+    // Three poll intervals plus one backoff, which is attempt 1 off the 1000ms
+    // base with +/-20% jitter — and notably not another 3000ms poll interval.
+    const delays = sleepDelays()
+    expect(delays).toHaveLength(4)
+    expect([delays[0], delays[1], delays[3]]).toEqual([
+      POLL_INTERVAL_MS,
+      POLL_INTERVAL_MS,
+      POLL_INTERVAL_MS,
+    ])
+    expect(delays[2]).toBeGreaterThanOrEqual(800)
+    expect(delays[2]).toBeLessThanOrEqual(1200)
   })
 
-  it('retries a 429 and honours Retry-After', async () => {
+  it('waits exactly the Retry-After delay on a 429 instead of its own backoff', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(429, { message: 'slow down' }, { 'retry-after': '2' }))
@@ -176,6 +208,82 @@ describe('enrow_find_email', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.output.qualification).toBe('valid')
+
+    // `Retry-After: 2` is honoured verbatim (2000ms, no jitter), not replaced by
+    // the 1000ms exponential base the 5xx path would have produced.
+    expect(sleepDelays()).toEqual([POLL_INTERVAL_MS, 2000, POLL_INTERVAL_MS])
+  })
+
+  it('releases the body of every response it abandons', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(202, { qualification: 'ongoing' }))
+      .mockResolvedValueOnce(jsonResponse(503, { message: 'upstream unavailable' }))
+      .mockResolvedValueOnce(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+
+    const [inProgress, transient, completed] = cancelledBodies
+    expect(inProgress).toHaveBeenCalledTimes(1)
+    expect(transient).toHaveBeenCalledTimes(1)
+    expect(completed).not.toHaveBeenCalled()
+  })
+
+  it('bounds every poll request with an abort signal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, DOCUMENTED_FIND_BODY))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.enrow.io/email/find/single?id=job-123',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('reports the polling window when a request is aborted at the deadline', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rethrows a genuine transport failure rather than calling it a timeout', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('fetch failed')
+  })
+
+  it('waits out the whole window when a late backoff would overrun it', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      // 38 in-progress polls, then a transient failure asking for far more time
+      // than the window has left. The wait must be clipped to the remainder, not
+      // skipped — skipping it abandons a live job before the window is spent.
+      const call = fetchMock.mock.calls.length
+      return call <= 38
+        ? jsonResponse(202, { qualification: 'ongoing' })
+        : jsonResponse(500, { message: 'boom' }, { 'retry-after': '60' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enrowFindEmailTool.postProcess!(submittedFindResult, findParams, executeTool)
+    ).rejects.toThrow('Enrow find-email did not complete within the polling window')
+
+    expect(fetchMock).toHaveBeenCalledTimes(39)
+    const total = sleepDelays().reduce((sum, delay) => sum + delay, 0)
+    expect(total).toBe(MAX_POLL_TIME_MS)
+    expect(sleepDelays().at(-1)).toBe(MAX_POLL_TIME_MS - 39 * POLL_INTERVAL_MS)
   })
 
   it('gives up after a bounded number of transient failures', async () => {
@@ -215,6 +323,7 @@ describe('enrow_find_email', () => {
 describe('enrow_verify_email', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cancelledBodies = []
   })
 
   afterEach(() => {
