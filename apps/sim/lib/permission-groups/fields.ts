@@ -331,6 +331,82 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Logs',
     hint: 'Prevent downloading execution logs as a CSV.',
   }),
+  hideCostInfo: booleanRestriction('capability', {
+    id: 'hide-cost-info',
+    label: 'Execution Cost',
+    category: 'Logs',
+    hint: 'Hide per-execution cost and token spend in logs.',
+  }),
+  disableKnowledgeBaseCreation: booleanRestriction('capability', {
+    id: 'disable-knowledge-base-creation',
+    label: 'Knowledge Base Creation',
+    category: 'Sidebar',
+    hint: 'Allow querying existing knowledge bases without creating new ones.',
+  }),
+  disableKnowledgeBaseFileUpload: booleanRestriction('capability', {
+    id: 'disable-knowledge-base-upload',
+    label: 'Knowledge Base Uploads',
+    category: 'Sidebar',
+    hint: 'Allow documents only from sanctioned connectors, never local upload.',
+  }),
+  allowedKnowledgeConnectors: allowlist(z.string(), 'capability', {
+    limited: 'Knowledge base connectors are limited to effectiveConfig.allowedKnowledgeConnectors.',
+    empty: 'No knowledge base connectors are allowed.',
+  }),
+  disableTableCreation: booleanRestriction('capability', {
+    id: 'disable-table-creation',
+    label: 'Table Creation',
+    category: 'Sidebar',
+    hint: 'Allow using existing tables without creating new ones.',
+  }),
+  disableTableExport: booleanRestriction('capability', {
+    id: 'disable-table-export',
+    label: 'Table Export',
+    category: 'Sidebar',
+    hint: 'Prevent downloading a whole table as CSV or JSON.',
+  }),
+  disableBulkFileDownload: booleanRestriction('capability', {
+    id: 'disable-bulk-file-download',
+    label: 'Bulk Download',
+    category: 'Files',
+    hint: 'Prevent downloading folders as an archive.',
+  }),
+  disablePersonalCredentials: booleanRestriction('capability', {
+    id: 'disable-personal-credentials',
+    label: 'Personal Credentials',
+    category: 'Settings Tabs',
+    hint: 'Allow only workspace-shared credentials, never personally connected ones.',
+  }),
+  disableWorkspaceCreation: booleanRestriction('capability', {
+    id: 'disable-workspace-creation',
+    label: 'Workspace Creation',
+    category: 'Collaboration',
+    hint: 'Prevent creating new workspaces, which no existing group would govern.',
+  }),
+  hideOrgMemberDirectory: booleanRestriction('capability', {
+    id: 'hide-org-member-directory',
+    label: 'Member Directory',
+    category: 'Collaboration',
+    hint: 'Hide the names and email addresses of other organization members.',
+  }),
+  disableCliAccess: booleanRestriction('capability', {
+    id: 'disable-cli-access',
+    label: 'CLI Access',
+    category: 'Features',
+    hint: 'Prevent approving a CLI login, which mints a key for the public API.',
+  }),
+  disableWebhookTriggers: booleanRestriction('capability', {
+    id: 'disable-webhook-triggers',
+    label: 'Webhook Triggers',
+    category: 'Deploy Tabs',
+    hint: 'Prevent making a workflow reachable from an inbound webhook.',
+  }),
+  disableToolAutoApproval: booleanRestriction('capability', {
+    id: 'disable-tool-auto-approval',
+    label: 'Tool Auto-Approval',
+    category: 'Tools',
+    hint: 'Require confirmation every time, so a member cannot silence a tool prompt permanently.',
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

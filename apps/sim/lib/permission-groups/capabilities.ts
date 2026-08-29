@@ -44,6 +44,19 @@ export const CAPABILITY_IDS = [
   'logs.trace_spans',
   'personal_api_key.use',
   'logs.export',
+  'logs.cost',
+  'knowledge.create',
+  'knowledge.upload',
+  'knowledge.connectors',
+  'tables.create',
+  'tables.export',
+  'files.bulk_download',
+  'credentials.personal',
+  'workspace.create',
+  'organization.member_directory',
+  'cli.use',
+  'triggers.webhook',
+  'copilot.tool_auto_approval',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -74,13 +87,18 @@ export interface StaticCapabilityRule extends CapabilityRuleBase {
  */
 export interface ParameterizedCapabilityRule extends CapabilityRuleBase {
   readonly kind: 'parameterized'
-  deniedBy(config: PermissionGroupConfig, parameter: ShareAuthMode): boolean
+  deniedBy(config: PermissionGroupConfig, parameter: string): boolean
 }
 
 export type CapabilityRule = StaticCapabilityRule | ParameterizedCapabilityRule
 
-function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: ShareAuthMode): boolean {
-  return allowed !== null && !allowed.includes(mode)
+function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: string): boolean {
+  return allowed !== null && !allowed.some((allowedMode) => allowedMode === mode)
+}
+
+/** An allowlist denies a member when it is set and does not name it; `null` names everything. */
+function allowlistDenies(allowed: readonly string[] | null, member: string): boolean {
+  return allowed !== null && !allowed.includes(member)
 }
 
 /**
@@ -245,6 +263,104 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Exporting execution logs',
     deniedBy: (config) => config.disableLogExport,
+  },
+  'logs.cost': {
+    kind: 'static',
+    configKeys: ['hideCostInfo'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Execution cost',
+    deniedBy: (config) => config.hideCostInfo,
+  },
+  'knowledge.create': {
+    kind: 'static',
+    configKeys: ['disableKnowledgeBaseCreation'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Creating knowledge bases',
+    deniedBy: (config) => config.disableKnowledgeBaseCreation,
+  },
+  'knowledge.upload': {
+    kind: 'static',
+    configKeys: ['disableKnowledgeBaseFileUpload'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Uploading documents to a knowledge base',
+    deniedBy: (config) => config.disableKnowledgeBaseFileUpload,
+  },
+  /**
+   * Parameterized on the connector id, because the decision is which source a
+   * member may sync — a connector pulls a whole external corpus into the
+   * workspace, and an organization that sanctions Drive rarely sanctions every
+   * one of the other sixty.
+   */
+  'knowledge.connectors': {
+    kind: 'parameterized',
+    configKeys: ['allowedKnowledgeConnectors'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'This knowledge base connector',
+    deniedBy: (config, connectorType) =>
+      allowlistDenies(config.allowedKnowledgeConnectors, connectorType),
+  },
+  'tables.create': {
+    kind: 'static',
+    configKeys: ['disableTableCreation'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Creating tables',
+    deniedBy: (config) => config.disableTableCreation,
+  },
+  'tables.export': {
+    kind: 'static',
+    configKeys: ['disableTableExport'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Exporting a table',
+    deniedBy: (config) => config.disableTableExport,
+  },
+  'files.bulk_download': {
+    kind: 'static',
+    configKeys: ['disableBulkFileDownload'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Downloading files in bulk',
+    deniedBy: (config) => config.disableBulkFileDownload,
+  },
+  'credentials.personal': {
+    kind: 'static',
+    configKeys: ['disablePersonalCredentials'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Connecting personal credentials',
+    deniedBy: (config) => config.disablePersonalCredentials,
+  },
+  'workspace.create': {
+    kind: 'static',
+    configKeys: ['disableWorkspaceCreation'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Creating workspaces',
+    deniedBy: (config) => config.disableWorkspaceCreation,
+  },
+  'organization.member_directory': {
+    kind: 'static',
+    configKeys: ['hideOrgMemberDirectory'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'The organization member directory',
+    deniedBy: (config) => config.hideOrgMemberDirectory,
+  },
+  'cli.use': {
+    kind: 'static',
+    configKeys: ['disableCliAccess'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'CLI access',
+    deniedBy: (config) => config.disableCliAccess,
+  },
+  'triggers.webhook': {
+    kind: 'static',
+    configKeys: ['disableWebhookTriggers'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Webhook triggers',
+    deniedBy: (config) => config.disableWebhookTriggers,
+  },
+  'copilot.tool_auto_approval': {
+    kind: 'static',
+    configKeys: ['disableToolAutoApproval'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Silencing a tool confirmation',
+    deniedBy: (config) => config.disableToolAutoApproval,
   },
   'logs.trace_spans': {
     kind: 'static',
