@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
+import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { GitHubBlock } from '@/blocks/blocks/github'
 import type { SubBlockConfig } from '@/blocks/types'
 import { tools as toolRegistry } from '@/tools/registry'
@@ -25,14 +26,34 @@ const operations: string[] = (
   (subBlocks.find((sb) => sb.id === 'operation')?.options as { id: string }[] | undefined) ?? []
 ).map((option) => option.id)
 
-/** The subBlocks the editor renders once `operation` is chosen. */
+/**
+ * The subBlocks that can be rendered for an operation, evaluated with the
+ * block's own condition evaluator rather than a reimplementation of it.
+ *
+ * "Can be" rather than "are": a compound condition gates a subBlock on a second
+ * field as well as the operation — `github_comment`'s `path` and `line` need
+ * `commentType: 'file_comment'` — so the secondary gate is satisfied here
+ * before evaluating. That is the right question for a reachability guard, which
+ * asks whether an operation has *any* way to supply a required param, not
+ * whether one particular editor state happens to show it. Hand-rolling the
+ * match instead would silently ignore `and:` and over-report, which is the same
+ * false confidence this file exists to remove.
+ */
 function visibleSubBlocks(operation: string): SubBlockConfig[] {
   return subBlocks.filter((sb) => {
-    const condition = sb.condition as { field: string; value: unknown; not?: boolean } | undefined
+    const condition = sb.condition
     if (!condition) return true
-    if (condition.field !== 'operation') return false
-    const allowed = Array.isArray(condition.value) ? condition.value : [condition.value]
-    return condition.not ? !allowed.includes(operation) : allowed.includes(operation)
+    if (typeof condition === 'function') return false
+
+    const values: AnyRecord = { operation }
+    const secondary = (condition as { and?: { field: string; value: unknown } }).and
+    if (secondary) {
+      values[secondary.field] = Array.isArray(secondary.value)
+        ? secondary.value[0]
+        : secondary.value
+    }
+
+    return condition.field === 'operation' && evaluateSubBlockCondition(condition, values)
   })
 }
 
