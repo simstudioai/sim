@@ -624,7 +624,7 @@ export async function followRedirectsGuarded(
     })
     const status = response.status
     const location = response.headers.get('location')
-    if (![301, 302, 303, 307, 308].includes(status) || !location) {
+    if (!isRedirectStatus(status) || !location) {
       // `response.url` is already the final hop's URL (set per-request by the raw fetch); flag
       // `redirected` too when at least one hop was followed, matching fetch semantics.
       if (hop > 0)

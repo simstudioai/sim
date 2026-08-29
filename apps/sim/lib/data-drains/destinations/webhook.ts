@@ -47,8 +47,8 @@ const HEADER_INJECTION_PATTERN = /[\r\n\0]/
 
 async function resolvePublicTarget(url: string): Promise<string> {
   const result = await validateUrlWithDNS(url, 'url', 'configuredEndpoint')
-  if (!result.isValid || !result.resolvedIP) {
-    throw new Error(result.error ?? 'Webhook URL failed SSRF validation')
+  if (!result.isValid) {
+    throw new Error(result.error)
   }
   return result.resolvedIP
 }

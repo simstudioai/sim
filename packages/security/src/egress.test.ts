@@ -418,12 +418,25 @@ describe('IPv6 forms that carry an IPv4 destination', () => {
     }
   )
 
-  it('refuses even a public IPv4 carried in a NAT64 prefix unless the policy vouches', () => {
-    // `ipaddr.js` classifies the whole RFC 6052 prefix as non-unicast, so an
-    // unvouched destination never reaches it. Fail-closed is the right default:
-    // a DNS64 answer is a translated route, not the destination itself.
-    expect(reason(hosted, 'https://example.com/', '64:ff9b::5db8:d822')).toBe('address-blocked')
-    expect(decide(vouchesByName, 'https://internal.corp/', '64:ff9b::5db8:d822').allowed).toBe(true)
+  it('judges a public IPv4 carried in a translation prefix as that IPv4', () => {
+    expect(decide(hosted, 'https://example.com/', '64:ff9b::5db8:d822').allowed).toBe(true)
+    expect(decide(hosted, 'https://example.com/', '2002:5db8:d822::').allowed).toBe(true)
+  })
+
+  it.each([
+    ['2002:a9fe:a9fe::', 'RFC 3056 6to4'],
+    ['fe80::5efe:169.254.169.254', 'RFC 5214 ISATAP'],
+  ])('reads %s as the metadata endpoint it carries — %s', (address) => {
+    expect(reason(vouchesByName, 'https://internal.corp/', address)).toBe('address-metadata')
+  })
+
+  it.each([
+    ['2001:0:a9fe:a9fe::', 'Teredo, which carries two IPv4 addresses'],
+    ['::1:7f00:1', 'the reserved ::/64 block'],
+    ['::ffff:1:a9fe:a9fe', 'one group outside the IPv4-translated prefix'],
+  ])('refuses %s — %s', (address) => {
+    expect(reason(hosted, 'https://example.com/', address)).toBe('address-blocked')
+    expect(reason(vouchesByName, 'https://internal.corp/', address)).toBe('address-blocked')
   })
 })
 
@@ -509,7 +522,7 @@ describe('createEgressPolicy validates wildcard entries too', () => {
     ['*.foo.com/x', /expected a hostname/],
     ['*.a*.com', /leading/],
     ['*..com', /non-empty/],
-    ['*.', /non-empty/],
+    ['*.', /leading/],
     ['.example.com', /non-empty/],
   ])('rejects %s', (entry, message) => {
     expect(() => createEgressPolicy({ allowedHosts: [entry] })).toThrow(message)
@@ -519,5 +532,59 @@ describe('createEgressPolicy validates wildcard entries too', () => {
     const policy = createEgressPolicy({ allowedHosts: '*.svc.cluster.local' })
     expect(decide(policy, 'https://vllm.ai.svc.cluster.local/', '10.4.2.9').allowed).toBe(true)
     expect(decide(policy, 'https://svc.cluster.local/', '10.4.2.9').allowed).toBe(false)
+  })
+})
+
+describe('a scope id does not change what an address is', () => {
+  it('still reads a zoned metadata address as metadata', () => {
+    const policy = createEgressPolicy({ allowPrivate: true })
+    expect(reason(policy, 'https://pg.corp/', 'fd00:ec2::254%eth0')).toBe('address-metadata')
+  })
+})
+
+describe('an explicit allowlist grant outranks the loopback carve-out', () => {
+  it('lifts the port denylist that the carve-out alone leaves in place', () => {
+    const named = createEgressPolicy({
+      allowedRanges: '127.0.0.1/32',
+      allowLoopback: true,
+      insecureHttp: 'whenVouched',
+    })
+    const carveOutOnly = createEgressPolicy({ allowLoopback: true, insecureHttp: 'whenVouched' })
+    expect(decide(named, 'http://localhost:5432/', '127.0.0.1').allowed).toBe(true)
+    expect(reason(carveOutOnly, 'http://localhost:5432/', '127.0.0.1')).toBe('port-denied')
+  })
+})
+
+describe('loopback names beyond the bare label', () => {
+  it.each([
+    ['https://localhost./x', 'a trailing dot'],
+    ['https://foo.localhost/x', 'the RFC 6761 suffix'],
+  ])('refuses %s pre-DNS — %s', (href) => {
+    expect(reason(hosted, href)).toBe('address-loopback')
+  })
+})
+
+describe('a trailing dot does not defeat the host allowlist', () => {
+  it('matches an entry written without one', () => {
+    const policy = createEgressPolicy({ allowedHosts: 'api.example.com' })
+    expect(decide(policy, 'https://api.example.com./', '10.0.0.1').allowed).toBe(true)
+  })
+})
+
+describe('an operator range naming a translation prefix still matches', () => {
+  it('vouches for an address inside it', () => {
+    const policy = createEgressPolicy({ allowedRanges: '64:ff9b::/96' })
+    expect(decide(policy, 'https://svc.internal/', '64:ff9b::a00:1').allowed).toBe(true)
+  })
+})
+
+describe('an internationalized allowlist entry names the form that works', () => {
+  it('refuses the Unicode spelling rather than silently never matching', () => {
+    expect(() => createEgressPolicy({ allowedHosts: ['*.exämple.com'] })).toThrow(/punycode/)
+  })
+
+  it('accepts the A-label form', () => {
+    const policy = createEgressPolicy({ allowedHosts: '*.xn--exmple-cua.com' })
+    expect(decide(policy, 'https://api.xn--exmple-cua.com/', '10.0.0.1').allowed).toBe(true)
   })
 })

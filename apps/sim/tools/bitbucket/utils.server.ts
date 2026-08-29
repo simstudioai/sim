@@ -143,10 +143,8 @@ export async function resolveBitbucketPullRequestRedirect(
     'bitbucketPullRequestUrl',
     'configuredEndpoint'
   )
-  if (!initialValidation.isValid || !initialValidation.resolvedIP) {
-    throw new Error(
-      `Invalid Bitbucket pull request URL: ${initialValidation.error ?? 'DNS resolution failed'}`
-    )
+  if (!initialValidation.isValid) {
+    throw new Error(`Invalid Bitbucket pull request URL: ${initialValidation.error}`)
   }
 
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(

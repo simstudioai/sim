@@ -158,7 +158,9 @@ A wildcard (`*.svc.cluster.local`) and a broad range (`10.0.0.0/8`) are accepted
 
 Both lists are validated when Sim starts, and a malformed entry stops it with a message naming the setting. `EGRESS_ALLOWED_HOSTS` takes hostnames only — a URL or a CIDR is rejected — and a wildcard has to be a leading `*.` covering at least two labels, so `*.local` is refused and `*.svc.cluster.local` matches `vllm.ai.svc.cluster.local` but not the bare `svc.cluster.local`. `EGRESS_ALLOWED_IP_RANGES` takes CIDRs and bare addresses; `0.0.0.0/0` is refused as a catch-all.
 
-Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+On Sim Cloud plain HTTP is refused for every provenance, self-hosted-service ones included: nothing is vouched there, so a credential would cross the wire in the clear.
+
+Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. The loopback carve-out does not: it is granted without being asked for, so `http://localhost:5432` stays refused until `localhost` is named. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
 
 The allowlist reaches the four provenances marked **Yes** above. It does not reach a content fetch, and it does not reach a proxy: an HTTP block's `proxyUrl` must be a public address, because the proxy is what decides where every other request may go. Adding an internal proxy to the allowlist will not make it work.
 
@@ -169,18 +171,18 @@ EGRESS_ALLOWED_HOSTS=host.docker.internal
 ```
 
 <Callout type="warn">
-  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach. The chart's own NetworkPolicy permits broad egress on port 443 only, so an allowlisted in-cluster target on another port also has to be added to `networkPolicy.egress`.
+  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach. When `networkPolicy.enabled` is true the chart permits broad egress on port 443 only, so an allowlisted in-cluster target on another port also needs a `networkPolicy.egress` rule — or `networkPolicy.allowExternalEgress: true` for unrestricted egress.
 </Callout>
 
 ### Upgrading from an earlier release
 
 The allowlist replaces four separate escape hatches, so a few deployments that worked before now need a destination named:
 
-- **`ALLOW_PRIVATE_DATABASE_HOSTS`** still works, but it is deprecated and logs a warning at startup. It vouches for the whole private address space for database, cache, and mail connector hosts. Replace it with `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES` naming the hosts you actually use.
+- **`ALLOW_PRIVATE_DATABASE_HOSTS`** still works, but it is deprecated and logs a warning at startup. It vouches for the whole private address space, loopback included, for database, cache, and mail connector hosts. Replace it with `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES` naming the hosts you actually use.
 - **1Password Connect** on a private, non-loopback address, and an **MCP server** on a private address or reached through a DNS name that points at loopback, are no longer reachable implicitly. Name them.
 - **`ALLOWED_MCP_DOMAINS`** governs which domains may be used; it no longer disables the address check, so an MCP server on a private address needs the allowlist too.
-- **Content fetches** — an image URL, a file imported by URL, an OIDC endpoint discovered from a provider's metadata, an MCP OAuth endpoint the server's metadata names — never use the allowlist. Those destinations have to be publicly routable.
-- **Redirects** are re-judged at every hop, so a redirect that downgrades to plain HTTP or lands on a blocked port is now refused. Credentials are dropped when a redirect crosses origins, and a cross-origin redirect that would carry a request body to the new origin is refused outright rather than replayed — a POST that lands on a cross-origin redirect now fails with a message saying so.
+- **Content fetches** — an image URL, a file imported by URL, an MCP OAuth endpoint on a different origin than the MCP server itself — never use the allowlist. Those destinations have to be publicly routable. (An SSO OIDC *discovery* URL is a configured endpoint and does use the allowlist; the endpoints inside the discovery document are used by the auth library and sit outside this boundary.)
+- **Redirects** are re-judged at every hop under the request's own provenance, so a redirect that lands on a blocked port is refused, and one that downgrades to plain HTTP is refused for every provenance except the self-hosted-service and proxy classes, which expect plain HTTP by design. Only 301, 302, 303, 307 and 308 are followed; 300, 305 and 306 are not. Credentials are dropped when a redirect crosses origins, and a cross-origin redirect that would carry a request body to the new origin is refused outright rather than replayed — a POST that lands on a cross-origin redirect now fails with a message saying so.
 
 ## Client IP and forwarded headers
 

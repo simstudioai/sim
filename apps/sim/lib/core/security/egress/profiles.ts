@@ -72,7 +72,8 @@ interface ProfileSpec {
    * `always` is capped at `whenVouched` when hosted, where nothing is vouched —
    * software served without TLS is a self-hosted arrangement, and a hosted
    * deployment sending a credential over cleartext to a user-supplied host is
-   * not one this taxonomy should permit.
+   * not one this taxonomy should permit. {@link ProfileSpec.schemeFixedByProtocol}
+   * exempts the one profile whose scheme is not a trust decision.
    */
   readonly insecureHttp: InsecureHttpPolicy
   /**
@@ -86,6 +87,13 @@ interface ProfileSpec {
    * hosted branch is reachable from a test.
    */
   readonly allowLoopbackOffHosted: boolean
+  /**
+   * Whether this profile's scheme is fixed by the protocol rather than by how
+   * much the destination is trusted. Only `proxy` is: an HTTP proxy is spoken to
+   * over HTTP by definition, so the hosted cap below would leave it with no
+   * reachable configuration at all.
+   */
+  readonly schemeFixedByProtocol?: boolean
   /**
    * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` applies. Only
    * `databaseHost` sets this, because that is the only thing the flag ever
@@ -117,7 +125,12 @@ const PROFILE_SPECS: Record<EgressProfile, ProfileSpec> = {
     allowLoopbackOffHosted: false,
     honorsLegacyPrivateFlag: true,
   },
-  proxy: { honorsAllowlist: false, insecureHttp: 'always', allowLoopbackOffHosted: false },
+  proxy: {
+    honorsAllowlist: false,
+    insecureHttp: 'always',
+    allowLoopbackOffHosted: false,
+    schemeFixedByProtocol: true,
+  },
 }
 
 const SOURCE_NAMES = {
@@ -151,7 +164,9 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
           allowedHosts: spec.honorsAllowlist ? config.hosts : undefined,
           allowedRanges: spec.honorsAllowlist ? config.ranges : undefined,
           insecureHttp:
-            config.hosted && spec.insecureHttp === 'always' ? 'whenVouched' : spec.insecureHttp,
+            config.hosted && spec.insecureHttp === 'always' && !spec.schemeFixedByProtocol
+              ? 'whenVouched'
+              : spec.insecureHttp,
           allowLoopback: spec.allowLoopbackOffHosted && !config.hosted,
           allowPrivate: Boolean(spec.honorsLegacyPrivateFlag && config.legacyPrivate),
           sourceNames: SOURCE_NAMES,

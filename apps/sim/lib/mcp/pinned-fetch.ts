@@ -93,11 +93,12 @@ function capResponseBody(response: Response, maxBytes: number): Response {
 }
 
 /**
- * Legacy single-IP pin, kept ONLY for self-hosted private/loopback resolutions
- * (a DNS alias the policy explicitly permits): the guarded lookup would filter
- * the address and strand the connect, while an unguarded fallback would reopen
- * rebinding/redirect escape. Pinning to the validated address preserves the old
- * behavior and its security property for exactly this carve-out.
+ * Single-IP pin, used for the self-hosted private/loopback resolutions the
+ * policy explicitly permits. The guarded transport would reach them too, but a
+ * destination vouched by hostname is vouched for wherever it points, so on this
+ * one path pinning to the address that was actually validated is the stricter
+ * choice: it holds the connection to that address rather than to whatever the
+ * name resolves to next.
  */
 export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch {
   const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP, {
@@ -322,8 +323,9 @@ export function createSsrfGuardedMcpFetch(
         throw new McpSsrfError('MCP OAuth request URL could not be validated')
       }
       logger.info('OAuth guarded fetch: requesting', { host, configured: sameAsConfigured })
-      // A private address only survives validation on the configured first hop,
-      // and the guarded lookup would filter it, so that case pins instead.
+      // A private address only survives validation on the configured first hop.
+      // Pinning it holds the connection to the address that was validated, which
+      // a hostname-vouched destination would otherwise not be held to.
       const transport = isPrivateIp(resolvedIP)
         ? createPinnedFetchWithDispatcher(resolvedIP, {
             profile,

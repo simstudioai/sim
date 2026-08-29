@@ -30,8 +30,6 @@ import { isIpLiteral, isLoopbackIp, isPrivateIp } from './ssrf'
 
 type IpAddress = ipaddr.IPv4 | ipaddr.IPv6
 
-/** Schemes that may ever carry an outbound request. */
-
 /** When a policy tolerates plain HTTP. */
 export type InsecureHttpPolicy = 'never' | 'whenVouched' | 'always'
 
@@ -167,8 +165,13 @@ function splitEntries(value: string | readonly string[] | undefined): string[] {
   return parts.map((entry) => entry.trim()).filter((entry) => entry.length > 0)
 }
 
+/** A hostname as the allowlist compares it: lower-cased, with no trailing dot. */
+function normalizeHost(host: string): string {
+  return unwrapIpv6Brackets(host.toLowerCase()).replace(/\.$/, '')
+}
+
 function parseHostPattern(entry: string, sourceName: string): HostPattern {
-  const value = unwrapIpv6Brackets(entry.toLowerCase())
+  const value = normalizeHost(entry)
   const wildcard = value.startsWith('*.')
   const host = wildcard ? value.slice(2) : value
 
@@ -184,6 +187,15 @@ function parseHostPattern(entry: string, sourceName: string): HostPattern {
   }
   if (host.length === 0 || host.split('.').some((label) => label.length === 0)) {
     throw new Error(`Invalid ${sourceName} entry "${entry}": every label must be non-empty`)
+  }
+  // A URL hostname is always the A-label form, so a Unicode entry could never
+  // match and would present as an unexplained connection failure. Refusing it
+  // says so, and names the form that works.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
+  if (/[^\x21-\x7e]/.test(host)) {
+    throw new Error(
+      `Invalid ${sourceName} entry "${entry}": use the punycode form of an internationalized name`
+    )
   }
   if (wildcard && !host.includes('.')) {
     throw new Error(
@@ -238,7 +250,7 @@ export const STRICT_EGRESS_POLICY: EgressPolicy = createEgressPolicy()
 
 function matchesHostAllowlist(host: string, policy: EgressPolicy): boolean {
   if (policy.allowedHosts.length === 0) return false
-  const clean = unwrapIpv6Brackets(host.toLowerCase())
+  const clean = normalizeHost(host)
   return policy.allowedHosts.some((pattern) =>
     pattern.wildcard ? clean.endsWith(pattern.value) : clean === pattern.value
   )
@@ -246,15 +258,21 @@ function matchesHostAllowlist(host: string, policy: EgressPolicy): boolean {
 
 function matchesRangeAllowlist(address: string, policy: EgressPolicy): boolean {
   if (policy.allowedRanges.length === 0) return false
-  // Canonical form, so an operator's IPv4 CIDR still matches a resolver that
-  // answered with the IPv4-compatible IPv6 spelling of the same address.
-  const clean = canonicalAddress(address)
-  if (clean === null) return false
-  const parsed = ipaddr.process(clean)
-  return policy.allowedRanges.some(
-    (range) =>
-      range.address.kind() === parsed.kind() && parsed.match(range.address, range.prefixLength)
-  )
+
+  // Both spellings are compared: the canonical one so an operator's IPv4 CIDR
+  // matches a resolver that answered with an IPv4-in-IPv6 form, and the literal
+  // one so an entry naming the wrapping IPv6 prefix itself still matches.
+  const literal = unwrapIpv6Brackets(address).split('%')[0]
+  const candidates = [canonicalAddress(address), ipaddr.isValid(literal) ? literal : null]
+
+  return candidates.some((candidate) => {
+    if (candidate === null) return false
+    const parsed = ipaddr.process(candidate)
+    return policy.allowedRanges.some(
+      (range) =>
+        range.address.kind() === parsed.kind() && parsed.match(range.address, range.prefixLength)
+    )
+  })
 }
 
 /** The IPv4 carried in an address's last 32 bits. */
@@ -283,6 +301,53 @@ const IPV4_EMBEDDING_PREFIXES: readonly (readonly number[])[] = [
 const NAT64_LOCAL_USE_PREFIX = [0x0064, 0xff9b, 0x0001] as const
 
 /**
+ * The IPv4 an IPv6 address carries under one of the transition schemes, or null
+ * when it carries none. Each of these is a real route to the IPv4 address they
+ * name, so judging the wrapper instead of the destination is how an IPv6
+ * spelling of a metadata endpoint gets through.
+ */
+function transitionIpv4(parts: readonly number[]): string | null {
+  // RFC 3056 6to4, `2002:a.b.c.d::/48`.
+  if (parts[0] === 0x2002) {
+    return ipaddr
+      .fromByteArray([
+        (parts[1] >> 8) & 0xff,
+        parts[1] & 0xff,
+        (parts[2] >> 8) & 0xff,
+        parts[2] & 0xff,
+      ])
+      .toString()
+  }
+  // RFC 5214 ISATAP, `<prefix>:0:5efe:a.b.c.d`, and its `0:200:5efe` variant.
+  if (parts[4] === 0x0000 && parts[5] === 0x5efe) return embeddedIpv4(parts)
+  if (parts[4] === 0x0200 && parts[5] === 0x5efe) return embeddedIpv4(parts)
+  return null
+}
+
+/**
+ * Whether the address is RFC 4380 Teredo, `2001:0::/32`, which carries the
+ * client's IPv4 obfuscated (bitwise-inverted) in its low 32 bits and the relay
+ * server's in the middle. Both are IPv4 destinations, so rather than pick one to
+ * canonicalize, the address is refused outright.
+ */
+function isTeredo(parts: readonly number[]): boolean {
+  return parts[0] === 0x2001 && parts[1] === 0x0000
+}
+
+/**
+ * Whether the address sits in `::/64` without being one of the forms folded
+ * above. That block is reserved, nothing routes there, and an address in it
+ * carries something this code cannot read — `::` and `::1` are excluded because
+ * they are the unspecified and loopback addresses, which are classified
+ * normally.
+ */
+function isUnreadableReservedLowBlock(parts: readonly number[]): boolean {
+  if (!parts.slice(0, 4).every((part) => part === 0)) return false
+  const trailing = (((parts[4] << 16) >>> 0) + parts[5]) | (((parts[6] << 16) >>> 0) + parts[7])
+  return trailing !== 0 && !(parts.slice(0, 7).every((part) => part === 0) && parts[7] === 1)
+}
+
+/**
  * Canonical form of an address, folding every IPv4-in-IPv6 spelling down to the
  * IPv4 it carries. `ipaddr.process` handles the IPv4-mapped form (`::ffff:x`)
  * but leaves the deprecated IPv4-compatible one (`::a.b.c.d`, which the WHATWG
@@ -290,7 +355,9 @@ const NAT64_LOCAL_USE_PREFIX = [0x0064, 0xff9b, 0x0001] as const
  * metadata endpoint written that way.
  */
 function canonicalAddress(address: string): string | null {
-  const clean = unwrapIpv6Brackets(address)
+  // A scope id names an interface, not a destination, and leaving it on would
+  // make `fd00:ec2::254%eth0` a different string from the metadata address it is.
+  const clean = unwrapIpv6Brackets(address).split('%')[0]
   if (!ipaddr.isValid(clean)) return null
 
   const parsed = ipaddr.process(clean)
@@ -313,6 +380,9 @@ function canonicalAddress(address: string): string | null {
     if (parts.slice(0, 6).every((part) => part === 0) && embedded > 1) {
       return embeddedIpv4(parts)
     }
+
+    const transition = transitionIpv4(parts)
+    if (transition !== null) return transition
   }
   return parsed.toString()
 }
@@ -327,17 +397,24 @@ function isMetadataAddress(address: string): boolean {
 }
 
 /**
- * Whether the address sits in the RFC 8215 local-use NAT64 prefix, where the
- * embedded IPv4 destination sits at an offset chosen by the network operator
- * and so cannot be read off the address.
+ * Whether the address carries an IPv4 destination this code cannot read: the
+ * RFC 8215 local-use NAT64 prefix, whose embedded IPv4 sits at an offset the
+ * network operator chooses; Teredo, which carries two; and the rest of the
+ * reserved `::/64` block.
  */
 function hidesItsIpv4Destination(address: string): boolean {
-  const clean = unwrapIpv6Brackets(address)
+  const clean = unwrapIpv6Brackets(address).split('%')[0]
   if (!ipaddr.isValid(clean)) return false
   const parsed = ipaddr.process(clean)
   if (parsed.kind() !== 'ipv6') return false
+  // An address whose IPv4 the folding above could read is judged as that IPv4.
+  if (canonicalAddress(address) !== parsed.toString()) return false
   const { parts } = parsed as ipaddr.IPv6
-  return NAT64_LOCAL_USE_PREFIX.every((part, index) => parts[index] === part)
+  return (
+    NAT64_LOCAL_USE_PREFIX.every((part, index) => parts[index] === part) ||
+    isTeredo(parts) ||
+    isUnreadableReservedLowBlock(parts)
+  )
 }
 
 /**
@@ -350,8 +427,10 @@ function hidesItsIpv4Destination(address: string): boolean {
  * route to the deployment's own loopback services.
  */
 function isLoopbackDestination(host: string): boolean {
-  const clean = unwrapIpv6Brackets(host)
-  return isLoopbackHostname(clean) || isLoopbackIp(clean)
+  // RFC 6761 reserves `localhost` and everything under it, and a fully qualified
+  // name may carry a trailing dot the URL parser keeps.
+  const clean = unwrapIpv6Brackets(host).replace(/\.$/, '')
+  return isLoopbackHostname(clean) || clean.endsWith('.localhost') || isLoopbackIp(clean)
 }
 
 /**
@@ -375,19 +454,23 @@ type Vouch = 'allowlist' | 'loopback' | null
 function isVouched(url: URL, address: string | undefined, policy: EgressPolicy): Vouch {
   if (matchesHostAllowlist(url.hostname, policy)) return 'allowlist'
 
+  // The operator's explicit grants are checked first, so a deployment that named
+  // a loopback range gets more than one that named nothing — the carve-out below
+  // is the weaker of the two.
+  if (address !== undefined) {
+    if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return 'allowlist'
+    if (matchesRangeAllowlist(address, policy)) return 'allowlist'
+  }
+
   if (policy.allowLoopback && isLoopbackDestination(url.hostname)) {
     // Before DNS there is no address to judge; evaluateAddress rules later.
     if (address === undefined) return 'loopback'
     // The address must land on loopback too, so a resolver answering
-    // `localhost` with a routable address cannot borrow the carve-out — but it
-    // may still be vouched by an allowlist entry, so this falls through rather
-    // than refusing outright.
+    // `localhost` with a routable address cannot borrow the carve-out.
     if (isLoopbackIp(unwrapIpv6Brackets(address))) return 'loopback'
   }
 
-  if (address === undefined) return null
-  if (policy.allowPrivate && isPrivateIp(unwrapIpv6Brackets(address))) return 'allowlist'
-  return matchesRangeAllowlist(address, policy) ? 'allowlist' : null
+  return null
 }
 
 function checkSchemeAndPort(url: URL, vouch: Vouch, policy: EgressPolicy): EgressDecision {
@@ -417,7 +500,9 @@ function checkSchemeAndPort(url: URL, vouch: Vouch, policy: EgressPolicy): Egres
 function checkAddressClass(address: string, vouch: Vouch): EgressDecision {
   if (vouch !== null) return ALLOWED
 
-  const clean = unwrapIpv6Brackets(address)
+  // Classified on the canonical form, so an IPv6 wrapper around an IPv4 address
+  // is judged as the destination it carries rather than as the wrapper.
+  const clean = canonicalAddress(address) ?? unwrapIpv6Brackets(address)
   if (isLoopbackIp(clean)) {
     return deny('address-loopback', address)
   }

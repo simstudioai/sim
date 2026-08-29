@@ -36,12 +36,12 @@ EGRESS_ALLOWED_HOSTS=host.docker.internal,*.svc.cluster.local
 EGRESS_ALLOWED_IP_RANGES=10.0.0.0/8
 ```
 
-Naming a destination also permits plain HTTP to it and lifts the blocked-port list for it. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked however broad the list is, and both variables are ignored on Sim Cloud.
+Naming a destination also permits plain HTTP to it and lifts the blocked-port list for it. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked however broad the list is, and both variables are ignored on Sim Cloud.
 
 Two things this does not cover:
 
 - Inside a container `localhost` is the container itself, so it will never reach a service on your host. Use `host.docker.internal` (the Compose files map it) and name it above.
-- URLs harvested from content or from a third-party API response — an image URL, a file imported by URL, an OIDC or MCP OAuth endpoint discovered from a provider's metadata — never reach a private network, allowlist or not. Nor does an HTTP block's `proxyUrl`.
+- URLs harvested from content or from a third-party API response — an image URL, a file imported by URL, an MCP OAuth endpoint on a different origin than the MCP server itself — never reach a private network, allowlist or not. Nor does an HTTP block's `proxyUrl`.
 
 ## LM Studio Requests Route to Ollama
 

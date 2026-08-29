@@ -87,7 +87,7 @@ Self-hosted deployments can restrict which MCP server domains are allowed by set
 
 This governs which domains may be used. It is separate from where those domains are allowed to resolve: an MCP server on a private address is reached by naming it in `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES`, described in [Security](/platform/self-hosting/security#the-ssrf-boundary). Both checks apply.
 
-The allowlist covers the server URL itself. If the server requires OAuth, the endpoints its authorization-server metadata names are treated as content rather than as configuration, so they have to be publicly routable.
+The allowlist covers the server URL itself. If the server requires OAuth, any endpoint its metadata names on a *different* origin than the server you configured is treated as content rather than as configuration, so that one has to be publicly routable. Endpoints on the server's own origin keep the server's reachability.
 
 ## Using MCP Tools in Agents
 

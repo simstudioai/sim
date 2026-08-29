@@ -322,7 +322,7 @@ async function uploadSessionBytes(
 
     const response = await graphFetch(
       uploadUrl,
-      'documentUploadUrl',
+      'documentUploadSessionUrl',
       {
         method: 'PUT',
         headers: {

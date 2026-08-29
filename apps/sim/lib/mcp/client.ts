@@ -104,11 +104,11 @@ export class McpClient {
       throw new McpError('OAuth MCP server requires an authProvider')
     }
     const useOauth = this.config.authType === 'oauth'
-    // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
-    // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
-    // A private/loopback resolvedIP only reaches here on self-hosted (where the policy
-    // permits it) — the guarded lookup would filter it, so that case keeps the legacy pin
-    // to the validated address (old behavior + its anti-rebinding property).
+    // `resolvedIP` is null only when the hostname still carries an unresolved env-var
+    // reference, which is checked again once it resolves. Otherwise the guard validates
+    // addresses per-connect. A private/loopback resolvedIP only reaches here on a
+    // self-hosted deployment whose policy permits it, and that case pins to the address
+    // that was validated rather than to whatever the name resolves to next.
     const guarded = resolvedIP
       ? isPrivateIp(resolvedIP)
         ? createPinnedPrivateMcpFetch(resolvedIP)

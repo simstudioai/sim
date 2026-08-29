@@ -71,8 +71,11 @@ async function resolveMediaKind(args: {
   const extensionKind = mediaKindFromExtension(pathOrName)
   if (extensionKind) return extensionKind
 
-  // `fileUrl` is minted by `resolveFileInputToUrl` against Sim's own storage,
-  // which on a self-hosted deployment legitimately sits on a private address.
+  // A `fileUrl` minted by `resolveFileInputToUrl` is a presigned URL against
+  // Sim's own storage, which on a self-hosted deployment legitimately sits on a
+  // private address. A caller-supplied URL passes through that helper unchanged
+  // and was already judged as content there, so widening here re-permits
+  // nothing it refused.
   try {
     const validation = await validateUrlWithDNS(fileUrl, 'media', 'configuredEndpoint')
     context.signal?.throwIfAborted()

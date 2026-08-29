@@ -553,6 +553,10 @@ describe('validateMcpServerSsrf', () => {
 })
 
 describe('the OAuth provenance', () => {
+  beforeEach(() => {
+    setEnvFlags({ isHosted: false })
+  })
+
   it('is contentFetch, so a hop the metadata names inherits nothing from the server', () => {
     expect(OAUTH_EGRESS_PROFILE).toBe('contentFetch')
     expect(MCP_EGRESS_PROFILE).toBe('selfHostedService')

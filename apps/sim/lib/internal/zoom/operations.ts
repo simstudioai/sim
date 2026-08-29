@@ -107,7 +107,7 @@ export async function getZoomMeetingRecordings(
           'downloadUrl',
           'contentFetch'
         )
-        if (!fileValidation.isValid || !fileValidation.resolvedIP) continue
+        if (!fileValidation.isValid) continue
         const downloadResponse = await secureFetchWithPinnedIP(
           file.download_url,
           fileValidation.resolvedIP,
