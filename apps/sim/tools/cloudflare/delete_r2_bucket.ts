@@ -66,14 +66,19 @@ export const deleteR2BucketTool: ToolConfig<
     }
 
     /**
-     * Echo the name the request actually addressed. `safeUrlPathSegment` trims
-     * before building the path, so reporting the raw param would name a bucket
-     * that was not the one deleted whenever the input carried whitespace.
+     * Echo the name the request actually addressed, as a string.
+     *
+     * `safeUrlPathSegment` trims before building the path, so reporting the raw
+     * param would name a bucket that was not the one deleted whenever the input
+     * carried whitespace. It also accepts a number, and a digits-only bucket
+     * name is valid under R2's `^[a-z0-9][a-z0-9-]*[a-z0-9]` rule, so an id
+     * supplied as JSON `12345` must still leave here as the string `'12345'`
+     * that `outputs.name` declares.
      */
     const deleted = params?.bucketName
     return {
       success: true,
-      output: { name: typeof deleted === 'string' ? deleted.trim() : (deleted ?? '') },
+      output: { name: deleted === null || deleted === undefined ? '' : String(deleted).trim() },
     }
   },
 
