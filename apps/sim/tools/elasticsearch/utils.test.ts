@@ -194,20 +194,38 @@ describe('elasticsearch_bulk wire format', () => {
 })
 
 /**
- * `host` is a user-supplied origin, so a redirect off it must not carry the
- * credential. The shared transport only strips `Authorization` cross-origin
- * when the tool opts in — `redirectPolicy` is undefined unless declared, and
- * the stripping branch in `input-validation.server.ts` is gated on it — so
- * every Elasticsearch tool has to set this explicitly.
+ * `host` is a user-supplied origin, so a redirect to a *different* origin must
+ * not carry the credential. The shared transport only strips credentials
+ * cross-origin when the tool declares a redirect policy — `prepareToolRequest`
+ * leaves `redirectPolicy` undefined otherwise, and the stripping branch in
+ * `input-validation.server.ts` is gated on it — so every Elasticsearch tool has
+ * to declare one.
+ *
+ * `stripAuthOnRedirect` is deliberately NOT used here: it drops `Authorization`
+ * on every hop including same-origin, which is right for tools that redirect to
+ * signed storage URLs but would turn a proxy's same-origin redirect into a 401.
  */
-describe('every Elasticsearch tool strips credentials on redirect', () => {
+describe('every Elasticsearch tool strips credentials only on cross-origin redirects', () => {
   const tools = Object.values(elasticsearchTools) as ToolConfig[]
 
   it('covers all 13 tools', () => {
     expect(tools).toHaveLength(13)
   })
 
-  it.each(tools.map((tool) => [tool.id, tool] as const))('%s opts in', (_id, tool) => {
-    expect(tool.request?.stripAuthOnRedirect).toBe(true)
-  })
+  it.each(tools.map((tool) => [tool.id, tool] as const))(
+    '%s declines cross-origin credentials while preserving legacy replay',
+    (_id, tool) => {
+      expect(tool.request?.redirectPolicy?.({})).toEqual({
+        mode: 'legacy',
+        sendCredentialsOnCrossOriginRedirect: false,
+      })
+    }
+  )
+
+  it.each(tools.map((tool) => [tool.id, tool] as const))(
+    '%s does not strip credentials on a same-origin hop',
+    (_id, tool) => {
+      expect(tool.request?.stripAuthOnRedirect).toBeUndefined()
+    }
+  )
 })

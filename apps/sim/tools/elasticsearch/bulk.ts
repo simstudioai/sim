@@ -89,11 +89,18 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     method: 'POST',
     headers: (params) => buildAuthHeaders(params, 'application/x-ndjson'),
     /**
-     * `host` is a user-supplied origin and Elastic Cloud endpoints sit behind
-     * proxies, so a redirect off the configured origin must not carry the API
-     * key or Basic credentials with it.
+     * `host` is a user-supplied origin, so a redirect to a *different* origin
+     * must not carry the API key or Basic credentials with it. Credentials are
+     * kept on a same-origin hop: a reverse proxy in front of Elasticsearch can
+     * legitimately redirect within its own origin, and dropping the header
+     * there would turn a valid request into a 401.
+     *
+     * `mode: 'legacy'` preserves the existing method and body replay semantics,
+     * so the only behavior change is the cross-origin credential strip. Under
+     * `'standard'` a 301/302 would rewrite POST to GET, breaking the `_search`,
+     * `_count` and `_bulk` calls.
      */
-    stripAuthOnRedirect: true,
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       // The body should be NDJSON format - we pass it as raw string
       // Ensure it ends with a newline
