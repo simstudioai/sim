@@ -35,6 +35,7 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it } from 'vitest'
+import { TriggerDevBlock } from '@/blocks/blocks/trigger_dev'
 import * as triggerDevTools from '@/tools/trigger_dev/index'
 
 /**
@@ -276,5 +277,50 @@ describe('trigger_dev_create_waitpoint_token does not shadow the transport deadl
     } as never) as Record<string, unknown>
 
     expect(body.timeout).toBe('1d')
+  })
+})
+
+/**
+ * The rename only pays off if the value still arrives. `TriggerDevBlock.tools.config.params`
+ * is spread over its own input on BOTH execution paths, so any key it assigns wins — including
+ * when it assigns `undefined`. The generic block handler spreads it over the resolved subBlock
+ * inputs (`{ ...inputs, ...params(inputs) }`), while the provider layer installs the same
+ * function as `paramsTransform` and spreads it over the model's tool-call arguments
+ * (`{ ...result, ...params(result) }`). The two paths spell the same value differently — the
+ * subBlock id `timeout` versus the tool param `waitpointTimeout` — so the mapping has to read
+ * both or it erases whichever one it does not read.
+ */
+describe('trigger_dev_create_waitpoint_token block mapping', () => {
+  const mapParams = TriggerDevBlock.tools.config.params!
+  const OPERATION = 'trigger_dev_create_waitpoint_token'
+
+  it('maps the subBlock value onto the tool param and clears the reserved name', () => {
+    const inputs = { operation: OPERATION, apiKey: 'tr_test', timeout: '1d' }
+    const mapped = { ...inputs, ...mapParams(inputs) } as Record<string, unknown>
+
+    expect(mapped.waitpointTimeout).toBe('1d')
+    expect(mapped.timeout).toBeUndefined()
+  })
+
+  it('keeps a model-supplied waitpointTimeout when no subBlock value exists', () => {
+    const args = { operation: OPERATION, apiKey: 'tr_test', waitpointTimeout: '1d' }
+    const mapped = { ...args, ...mapParams(args) } as Record<string, unknown>
+
+    expect(mapped.waitpointTimeout).toBe('1d')
+    expect(mapped.timeout).toBeUndefined()
+  })
+
+  it('lets a configured subBlock value win over the model argument', () => {
+    const args = { operation: OPERATION, apiKey: 'tr_test', timeout: '1d', waitpointTimeout: '5m' }
+    const mapped = { ...args, ...mapParams(args) } as Record<string, unknown>
+
+    expect(mapped.waitpointTimeout).toBe('1d')
+  })
+
+  it('does not leak the waitpoint timeout into another operation', () => {
+    const args = { operation: 'trigger_dev_get_run', apiKey: 'tr_test', waitpointTimeout: '1d' }
+    const mapped = { ...args, ...mapParams(args) } as Record<string, unknown>
+
+    expect(mapped.waitpointTimeout).toBeUndefined()
   })
 })

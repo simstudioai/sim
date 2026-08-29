@@ -1012,8 +1012,18 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
          * transport reads `params.timeout` as the outbound HTTP deadline in
          * milliseconds. Remap it here — in `params`, which runs after variable
          * resolution — and clear the original so it cannot shadow the deadline.
+         *
+         * The second branch is what keeps the agent path working. This function
+         * also runs as the provider `paramsTransform`, whose result is spread
+         * OVER the model's own tool-call arguments, so every key assigned here
+         * overwrites the model's value — including with `undefined`. On that
+         * path the model supplies the tool's own param name,
+         * `waitpointTimeout`, and no `timeout` subBlock value exists, so
+         * reading `params.timeout` alone would erase what the model sent.
          */
-        result.waitpointTimeout = scoped(params.timeout, ['trigger_dev_create_waitpoint_token'])
+        result.waitpointTimeout =
+          scoped(params.timeout, ['trigger_dev_create_waitpoint_token']) ??
+          scoped(params.waitpointTimeout, ['trigger_dev_create_waitpoint_token'])
         result.timeout = undefined
         result.period = scoped(params.period, CREATED_AT_FILTER_OPERATIONS)
         result.from = scoped(params.from, CREATED_AT_FILTER_OPERATIONS)
