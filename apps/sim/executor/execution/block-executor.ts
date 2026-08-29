@@ -249,6 +249,17 @@ export class BlockExecutor {
     cleanupSelfReference?.()
 
     let streamingPartialOutput: Record<string, any> | undefined
+    /**
+     * Cost of a handler that already finished, kept for the catch below.
+     *
+     * A Function block's sandbox is paid for the moment it completes, but the
+     * steps after the handler returns — base64 hydration, and large-value
+     * redaction that deliberately throws rather than emit unredacted data — can
+     * still fail the block. The error those raise carries no cost of its own, so
+     * without holding it here the completed sandbox would go unbilled. Hoisted
+     * for the same reason `streamingPartialOutput` above is.
+     */
+    let completedHandlerCost: TrustedExecutionCost | undefined
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -260,6 +271,8 @@ export class BlockExecutor {
           ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
           : handler.execute(blockCtx, block, resolvedInputs, nodeMetadata)
       )
+
+      completedHandlerCost = readTrustedExecutionCost(output)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -436,7 +449,8 @@ export class BlockExecutor {
           inputDisplayRegistry,
           isSentinel,
           'execution',
-          streamingPartialOutput
+          streamingPartialOutput,
+          completedHandlerCost
         )
       } finally {
         commitBlockRegistry()
@@ -596,7 +610,8 @@ export class BlockExecutor {
     inputDisplayRegistry: ResolvedSecretTraceRegistry | undefined,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution',
-    streamingPartialOutput?: Record<string, any>
+    streamingPartialOutput?: Record<string, any>,
+    completedHandlerCost?: TrustedExecutionCost
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
@@ -668,7 +683,7 @@ export class BlockExecutor {
       return softOutput
     }
 
-    const trustedExecutionCost = readTrustedExecutionCost(error)
+    const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),

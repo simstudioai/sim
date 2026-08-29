@@ -18,6 +18,7 @@ import {
   attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
+  isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
@@ -919,7 +920,19 @@ async function executeInSandboxWithinBudget(
       billableResult.exportedFiles = exportedFiles
       billableResult.collectedFiles = collectedFiles
     } catch (error) {
-      if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
         billableOutputError = error
       }
       throw error
@@ -1050,7 +1063,19 @@ async function executeShellInSandboxWithinBudget(
       billableResult.exportedFiles = exportedFiles
       billableResult.collectedFiles = collectedFiles
     } catch (error) {
-      if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
         billableOutputError = error
       }
       throw error

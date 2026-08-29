@@ -134,6 +134,7 @@ import {
 } from '@/lib/execution/remote-sandbox/e2b'
 import {
   MAX_SANDBOX_OUTPUT_BYTES,
+  MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
   MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES,
   readTrustedSandboxOutputCost,
@@ -712,6 +713,34 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       )
     }
   }
+
+  it('bills a completed run whose harvest produced more files than it can export', async () => {
+    // The sandbox executed and was paid for; the refusal is about what the code
+    // wrote, so it belongs with the post-completion export failures rather than
+    // the provider failures the policy absorbs.
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    stubOutputDirListing(
+      Array.from({ length: MAX_SANDBOX_OUTPUT_FILES + 1 }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({ code: 'sandbox_output_not_exportable' })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+    })
+  })
 
   it('creates the output directory before user code runs', async () => {
     stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
