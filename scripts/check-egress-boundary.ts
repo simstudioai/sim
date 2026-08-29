@@ -46,11 +46,19 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'
 const TRANSPORTS = new Set([
   'http',
   'https',
+  'http2',
   'node:http',
   'node:https',
+  'node:http2',
   'undici',
   'http-proxy-agent',
   'https-proxy-agent',
+  // Present in node_modules as transitive dependencies. Nothing scanned imports
+  // them today; listing them keeps that true.
+  'axios',
+  'node-fetch',
+  'got',
+  'superagent',
 ])
 
 /**

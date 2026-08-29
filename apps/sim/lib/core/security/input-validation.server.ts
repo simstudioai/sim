@@ -486,7 +486,11 @@ const MAX_GUARDED_REDIRECTS = 5
  * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
  * targets are covered by {@link createSsrfGuardedLookup} at connect time.
  */
-function assertGuardedRedirectTarget(url: URL, profile: EgressProfile): void {
+function assertGuardedRedirectTarget(
+  url: URL,
+  profile: EgressProfile,
+  knownAddress?: string
+): void {
   const host = unwrapIpv6Brackets(url.hostname)
 
   // The request's own policy decides, which is how a self-hosted server on a
@@ -497,9 +501,14 @@ function assertGuardedRedirectTarget(url: URL, profile: EgressProfile): void {
   // scheme and port — which used to be skipped entirely, so a hop could downgrade
   // to plain HTTP or land on a denied port as long as it was named rather than
   // numbered. Its address is judged by the connect-time lookup.
-  const decision = isIpLiteral(host)
-    ? checkResolvedEgress(url, host, profile)
-    : checkEgressUrl(url, profile)
+  // `knownAddress` is the address a caller already resolved for this exact URL.
+  // Re-judging the hostname without it would refuse a destination the operator
+  // allowlisted by IP range, since a range match is only visible post-DNS.
+  const decision = knownAddress
+    ? checkResolvedEgress(url, knownAddress, profile)
+    : isIpLiteral(host)
+      ? checkResolvedEgress(url, host, profile)
+      : checkEgressUrl(url, profile)
 
   if (!decision.allowed) {
     throw new Error(
@@ -570,12 +579,15 @@ export async function followRedirectsGuarded(
   rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
   input: string,
   init: UndiciRequestInit,
-  profile: EgressProfile
+  profile: EgressProfile,
+  initialAddress?: string
 ): Promise<Response> {
   let currentUrl = new URL(input)
-  // The initial URL gets the same IP-literal check as redirect hops, so the exported guard is
-  // self-contained even when a caller skips its own up-front validation.
-  assertGuardedRedirectTarget(currentUrl, profile)
+  // The initial URL is checked too, so the guard is self-contained even when a
+  // caller skips its own up-front validation. A caller that already resolved it
+  // passes that address, so a destination allowlisted by range is not refused
+  // here for want of a lookup. Redirect hops are always judged afresh.
+  assertGuardedRedirectTarget(currentUrl, profile, initialAddress)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -971,7 +983,7 @@ export function createPinnedFetchWithDispatcher(
       }
       return response
     }
-    return followRedirectsGuarded(rawFetch, target, undiciInit, options.profile)
+    return followRedirectsGuarded(rawFetch, target, undiciInit, options.profile, resolvedIP)
   }
 
   return { fetch: pinned, dispatcher }

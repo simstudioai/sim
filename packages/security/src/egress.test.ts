@@ -232,6 +232,18 @@ describe('loopback is vouched by name, never by resolved address', () => {
     expect(reason(selfHostedLoopback, 'https://svc.internal/', '10.0.0.5')).toBe('address-blocked')
   })
 
+  it('falls through to the allowlist when localhost resolves off loopback', () => {
+    // The carve-out not applying is not a refusal: an operator who allowlisted
+    // the range the resolver actually answered with still gets their host.
+    const withRange = createEgressPolicy({
+      allowedRanges: '10.0.0.0/8',
+      allowLoopback: true,
+      insecureHttp: 'whenVouched',
+    })
+    expect(decide(withRange, 'https://localhost/', '10.0.0.5').allowed).toBe(true)
+    expect(reason(withRange, 'https://localhost/', '172.16.0.5')).toBe('address-blocked')
+  })
+
   it('is absent when the policy does not permit loopback', () => {
     expect(reason(hosted, 'http://localhost:11434/api', '127.0.0.1')).toBe('insecure-scheme')
   })

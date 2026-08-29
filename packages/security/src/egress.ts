@@ -336,10 +336,13 @@ function isVouched(url: URL, address: string | undefined, policy: EgressPolicy):
   if (matchesHostAllowlist(url.hostname, policy)) return true
 
   if (policy.allowLoopback && isLoopbackDestination(url.hostname)) {
+    // Before DNS there is no address to judge; evaluateAddress rules later.
+    if (address === undefined) return true
     // The address must land on loopback too, so a resolver answering
-    // `localhost` with a routable address cannot borrow the carve-out. Before
-    // DNS there is no address to judge, and evaluateAddress rules later.
-    return address === undefined || isLoopbackIp(unwrapIpv6Brackets(address))
+    // `localhost` with a routable address cannot borrow the carve-out — but it
+    // may still be vouched by an allowlist entry, so this falls through rather
+    // than refusing outright.
+    if (isLoopbackIp(unwrapIpv6Brackets(address))) return true
   }
 
   if (address === undefined) return false
