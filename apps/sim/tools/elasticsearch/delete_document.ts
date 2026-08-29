@@ -87,6 +87,7 @@ export const deleteDocumentTool: ToolConfig<
     },
     method: 'DELETE',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {
@@ -142,6 +143,7 @@ export const deleteDocumentTool: ToolConfig<
     _version: {
       type: 'number',
       description: 'Document version',
+      optional: true,
     },
     result: {
       type: 'string',

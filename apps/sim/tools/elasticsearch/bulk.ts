@@ -88,6 +88,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params, 'application/x-ndjson'),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       // The body should be NDJSON format - we pass it as raw string
       // Ensure it ends with a newline

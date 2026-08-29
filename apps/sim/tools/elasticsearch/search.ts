@@ -109,6 +109,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       const body: Record<string, unknown> = {}
 

@@ -56,6 +56,12 @@ export const listIndicesTool: ToolConfig<
       visibility: 'user-only',
       description: 'Password for basic auth',
     },
+    includeSystemIndices: {
+      type: 'boolean',
+      required: false,
+      description:
+        'Include Elasticsearch system indices (names starting with "."). Omitted by default.',
+    },
   },
 
   request: {
@@ -65,9 +71,10 @@ export const listIndicesTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: ElasticsearchListIndicesParams) => {
     if (!response.ok) {
       const errorText = await response.text()
       let errorMessage = `Elasticsearch error: ${response.status}`
@@ -89,12 +96,14 @@ export const listIndicesTool: ToolConfig<
 
     const data = await response.json()
 
-    const indices = data
-      .filter((item: Record<string, unknown>) => {
-        const indexName = item.index as string
-        return !indexName.startsWith('.')
+    const rows: Array<Record<string, unknown>> = Array.isArray(data) ? data : []
+
+    const indices = rows
+      .filter((item) => {
+        if (params?.includeSystemIndices) return true
+        return typeof item.index === 'string' ? !item.index.startsWith('.') : true
       })
-      .map((item: Record<string, unknown>) => ({
+      .map((item) => ({
         index: item.index as string,
         health: item.health as string,
         status: item.status as string,
@@ -120,7 +129,8 @@ export const listIndicesTool: ToolConfig<
     },
     indices: {
       type: 'json',
-      description: 'Array of index information objects',
+      description:
+        'Array of index information objects (index, health, status, docsCount, storeSize, primaryShards, replicaShards). System indices are omitted unless includeSystemIndices is set.',
     },
   },
 }

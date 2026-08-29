@@ -64,6 +64,7 @@ export const clusterStatsTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {
@@ -127,6 +128,7 @@ export const clusterStatsTool: ToolConfig<
     status: {
       type: 'string',
       description: 'Cluster health status',
+      optional: true,
     },
     nodes: {
       type: 'object',

@@ -60,10 +60,11 @@ export const clusterHealthTool: ToolConfig<
       required: false,
       description: 'Wait until cluster reaches this status: green, yellow, or red',
     },
-    timeout: {
+    clusterTimeout: {
       type: 'string',
       required: false,
-      description: 'Timeout for the wait operation (e.g., 30s, 1m)',
+      description:
+        'How long Elasticsearch waits for the cluster to reach the requested status, as an Elasticsearch time value (e.g., 30s, 1m). Not named "timeout": that name is reserved by the tool transport as a client-side abort deadline in milliseconds.',
     },
   },
 
@@ -76,8 +77,8 @@ export const clusterHealthTool: ToolConfig<
       if (params.waitForStatus) {
         queryParams.push(`wait_for_status=${params.waitForStatus}`)
       }
-      if (params.timeout) {
-        queryParams.push(`timeout=${encodeURIComponent(params.timeout)}`)
+      if (params.clusterTimeout) {
+        queryParams.push(`timeout=${encodeURIComponent(params.clusterTimeout)}`)
       }
       if (queryParams.length > 0) {
         url += `?${queryParams.join('&')}`
@@ -87,6 +88,7 @@ export const clusterHealthTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {

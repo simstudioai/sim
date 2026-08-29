@@ -93,6 +93,7 @@ export const indexDocumentTool: ToolConfig<
     },
     method: (params) => (params.documentId ? 'PUT' : 'POST'),
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       try {
         return JSON.parse(params.document)

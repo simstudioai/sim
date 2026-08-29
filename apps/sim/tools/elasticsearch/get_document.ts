@@ -99,6 +99,7 @@ export const getDocumentTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {
@@ -155,6 +156,7 @@ export const getDocumentTool: ToolConfig<
     _version: {
       type: 'number',
       description: 'Document version',
+      optional: true,
     },
     found: {
       type: 'boolean',
@@ -163,6 +165,7 @@ export const getDocumentTool: ToolConfig<
     _source: {
       type: 'json',
       description: 'Document content',
+      optional: true,
     },
   },
 }

@@ -80,6 +80,7 @@ export const createIndexTool: ToolConfig<
     },
     method: 'PUT',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       const body: Record<string, unknown> = {}
 
@@ -140,10 +141,12 @@ export const createIndexTool: ToolConfig<
     shards_acknowledged: {
       type: 'boolean',
       description: 'Whether the shards were acknowledged',
+      optional: true,
     },
     index: {
       type: 'string',
       description: 'Created index name',
+      optional: true,
     },
   },
 }

@@ -74,6 +74,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       if (params.query) {
         try {

@@ -68,6 +68,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
       },
       method: 'GET',
       headers: (params) => buildAuthHeaders(params),
+      redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     },
 
     transformResponse: async (response: Response) => {
@@ -82,7 +83,7 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
         }
         return {
           success: false,
-          output: {},
+          output: { indices: {} },
           error: errorMessage,
         }
       }
@@ -91,14 +92,15 @@ export const getIndexTool: ToolConfig<ElasticsearchGetIndexParams, Elasticsearch
 
       return {
         success: true,
-        output: data,
+        output: { indices: data, ...data },
       }
     },
 
     outputs: {
-      index: {
+      indices: {
         type: 'json',
-        description: 'Index information including aliases, mappings, and settings',
+        description:
+          'Matched indices keyed by index name, each with its aliases, mappings, and settings',
       },
     },
   }

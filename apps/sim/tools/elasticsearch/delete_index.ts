@@ -70,6 +70,7 @@ export const deleteIndexTool: ToolConfig<
     },
     method: 'DELETE',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
   },
 
   transformResponse: async (response: Response) => {

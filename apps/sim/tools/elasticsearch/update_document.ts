@@ -92,6 +92,7 @@ export const updateDocumentTool: ToolConfig<
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       try {
         return { doc: JSON.parse(params.document) }
