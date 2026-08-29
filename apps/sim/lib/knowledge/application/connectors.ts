@@ -1,9 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -41,6 +43,8 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -100,6 +104,34 @@ export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConne
 export interface UpdateKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
   operation: 'restore' | 'exclude'
   documentIds: string[]
+}
+
+const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
+
+/**
+ * Refuses a connector the caller's permission group has not sanctioned.
+ *
+ * A connector pulls a whole external corpus into the workspace, so which source
+ * a member may attach is a per-request decision — the authorization funnel
+ * applies an operation's capability knowing only the principal, the workspace
+ * and the operation, and never sees `connectorType`. Hence the assertion here,
+ * ahead of the write, rather than a `capability` on `knowledge.connectors.create`.
+ *
+ * No-op when no permission group governs the caller, which is what keeps
+ * non-enterprise and ungoverned organizations unaffected.
+ */
+async function assertConnectorTypeAllowed(
+  userId: string,
+  workspaceId: string,
+  connectorType: string
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
+
+  throw new ForbiddenOperationError(
+    CONNECTOR_ALLOWLIST_RULE.detailCode,
+    `The ${connectorType} connector is not available under your organization's permission group`
+  )
 }
 
 function requireSuccessfulOutcome<T extends object>(
@@ -293,6 +325,12 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const requestId = generateRequestId()
     const workspaceId = requireConnectorWorkspaceId(context)
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
+    // permission-group-enforced: knowledge.connectors — needs the request's connector id, which the funnel never sees
+    await assertConnectorTypeAllowed(
+      requirePrincipalSubjectUserId(principal),
+      workspaceId,
+      input.connectorType
+    )
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorType: input.connectorType,
@@ -337,6 +375,13 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+/**
+ * Deliberately not gated by `knowledge.connectors`: an update may change the
+ * source config, sync interval or status, never the connector type. The
+ * sanctioned-source decision was made when the connector was created, and
+ * re-asserting it here would strand an existing connector — including the
+ * ability to pause it — the moment an admin narrowed the allowlist.
+ */
 export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnector,
   resolveContext: ({ input }: { input: UpdateKnowledgeConnectorInput }) =>

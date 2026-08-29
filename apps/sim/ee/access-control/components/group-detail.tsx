@@ -54,6 +54,7 @@ import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   type PermissionGroup,
@@ -106,6 +107,18 @@ const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTION
   (o) => o.value
 )
 
+/**
+ * Knowledge base connectors an admin can allow/disallow. `null` config = all
+ * allowed. Sorted by display name because the picker is read alphabetically,
+ * while the registry is keyed by the snake_case id the server stores.
+ */
+const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.values(
+  CONNECTOR_META_REGISTRY
+)
+  .map((meta) => ({ value: meta.id, label: meta.name }))
+  .sort((a, b) => a.label.localeCompare(b.label))
+const ALL_KNOWLEDGE_CONNECTORS: string[] = KNOWLEDGE_CONNECTOR_OPTIONS.map((o) => o.value)
+
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -136,21 +149,21 @@ function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   )
 }
 
-interface AuthModeFieldProps {
+interface AllowlistFieldProps {
   label: string
-  value: ShareAuthType[]
+  value: string[]
   onChange: (values: string[]) => void
-  options: { value: ShareAuthType; label: string }[]
+  options: { value: string; label: string }[]
   disabled: boolean
 }
 
 /**
- * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
+ * The allowed-values multi-select nested under a platform toggle. Dims and
  * disables together with the toggle that owns it. The left padding lines both
  * children up with the parent's label text — row gutter (8) + checkbox (16) +
  * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
  */
-function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
+function AllowlistField({ label, value, onChange, options, disabled }: AllowlistFieldProps) {
   const labelId = useId()
   const triggerId = useId()
   return (
@@ -1191,13 +1204,30 @@ export function GroupDetail({
     }))
   }, [])
 
+  const knowledgeConnectorValue = useMemo(
+    () => editingConfig.allowedKnowledgeConnectors ?? ALL_KNOWLEDGE_CONNECTORS,
+    [editingConfig.allowedKnowledgeConnectors]
+  )
+
+  const setKnowledgeConnectors = useCallback((values: string[]) => {
+    // At least one connector must stay allowed while the Knowledge Base module
+    // is visible — an empty allow-list would silently block every connector
+    // while the add-connector button still offered them. To withhold connectors
+    // along with the rest of the module, uncheck Knowledge Base instead.
+    if (values.length === 0) return
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedKnowledgeConnectors: values.length === ALL_KNOWLEDGE_CONNECTORS.length ? null : values,
+    }))
+  }, [])
+
   /**
    * Nested controls rendered under a platform feature's checkbox, keyed by
    * feature id. Kept out of `PLATFORM_FEATURES` so that array stays pure data.
    */
   const featureExtras: Partial<Record<string, ReactNode>> = {
     'hide-deploy-chatbot': (
-      <AuthModeField
+      <AllowlistField
         label='Auth modes chat deployments may use'
         value={chatDeployAuthValue}
         onChange={setChatDeployAuthTypes}
@@ -1206,12 +1236,27 @@ export function GroupDetail({
       />
     ),
     'disable-public-file-sharing': (
-      <AuthModeField
+      <AllowlistField
         label='Auth modes public file-share links may use'
         value={fileShareAuthValue}
         onChange={setFileShareAuthTypes}
         options={FILE_SHARE_AUTH_TYPE_OPTIONS}
         disabled={editingConfig.disablePublicFileSharing}
+      />
+    ),
+    /**
+     * Nested under Knowledge Base rather than Knowledge Base Creation: a
+     * connector attaches to an existing knowledge base, so the allow-list still
+     * governs a group that may sync but never create. Hanging it off creation
+     * would dim the picker for exactly the group it was written for.
+     */
+    'hide-knowledge-base': (
+      <AllowlistField
+        label='Connectors knowledge bases may sync from'
+        value={knowledgeConnectorValue}
+        onChange={setKnowledgeConnectors}
+        options={KNOWLEDGE_CONNECTOR_OPTIONS}
+        disabled={editingConfig.hideKnowledgeBaseTab}
       />
     ),
   }
