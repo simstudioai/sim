@@ -67,7 +67,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        keyId: params?.keyId ?? '',
+        keyId: String(params?.keyId ?? ''),
       },
     }
   },

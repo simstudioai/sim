@@ -12,13 +12,19 @@
  *
  * These call sites already wrapped the value in `encodeURIComponent`, and that
  * is precisely why the bare `.` and `..` vectors below are the point of this
- * file. Reverting one guard to `encodeURIComponent(params.deviceId.trim())`
- * turns *only* the `.` and `..` cases red — every slash-bearing vector still
- * passes, because encoding does neutralize a separator. That narrow red band is
- * the whole defect: both dot spellings are made of unreserved characters, so
- * they survive encoding untouched and the URL parser then removes them as dot
- * segments, popping one path segment off a fixed host. An encode-only fix looks
- * correct under any test that omits them.
+ * file. Encoding does neutralize a separator, so a slash-bearing vector was
+ * never the thing an encode-only fix got wrong; the dot segments were. Both
+ * spellings are made of unreserved characters, so they survive encoding
+ * untouched and the URL parser then removes them as dot segments, popping one
+ * path segment off a fixed host — which is why rejection, not encoding, is the
+ * mechanism here.
+ *
+ * The *shape* assertions are what an encode-only fix slips past: reverting one
+ * guard to `encodeURIComponent(params.deviceId.trim())` leaves every
+ * slash-bearing vector's path intact and reddens only the two dot cases. The
+ * `rejects %j outright` assertions below are deliberately stricter than that —
+ * they require the guard to refuse a separator rather than merely encode it —
+ * so the same revert fails those too.
  *
  * A tailnet is legitimately an organization name (`example.com`), an emailish
  * login name (`user@example.com`), or the literal `-` alias for the caller's
@@ -114,6 +120,7 @@ interface PathTool {
   params: Record<string, { type?: string }>
   buildUrl: UrlBuilder
   body?: (params: Fill) => unknown
+  transformResponse?: (response: Response, params?: Fill) => Promise<unknown>
 }
 
 /**
@@ -154,7 +161,13 @@ function asPathTool(value: unknown): PathTool | null {
   const rawBody = (request as { body?: unknown }).body
   const body = typeof rawBody === 'function' ? (rawBody as (params: Fill) => unknown) : undefined
 
-  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body }
+  const rawTransform = (value as { transformResponse?: unknown }).transformResponse
+  const transformResponse =
+    typeof rawTransform === 'function'
+      ? (rawTransform as (response: Response, params?: Fill) => Promise<unknown>)
+      : undefined
+
+  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body, transformResponse }
 }
 
 /**
@@ -290,7 +303,7 @@ describe('tailscale path-ID traversal safety', () => {
     expect(PATH_PARAMS.length).toBeGreaterThanOrEqual(26)
   })
 
-  it('discovers every identifier of a multi-ID route, not just the first', () => {
+  it('pins how many Tailscale routes carry more than one path identifier', () => {
     const perTool = new Map<string, number>()
     for (const { tool } of PATH_PARAMS) {
       perTool.set(tool.id, (perTool.get(tool.id) ?? 0) + 1)
@@ -356,5 +369,52 @@ describe('tailscale path-ID traversal safety', () => {
     it('does not let the ID add to or rewrite the query string', () => {
       expect(fuzz(pathParam, 'example.com?fields=all').search).toBe(baselineSearch)
     })
+  })
+})
+
+/**
+ * Tools that echo a guarded identifier straight back into their success output.
+ *
+ * Widening the guard to accept a numeric id made these reachable: before, a
+ * numeric `userId` threw from `params.userId.trim()` in the URL builder and
+ * never reached `transformResponse`. Now the request succeeds, so whatever the
+ * echo emits has to match the declared `type: 'string'` output — otherwise the
+ * guard has quietly turned a hard failure into a contract violation.
+ */
+const ECHOED_ID_TOOLS: ReadonlyArray<{ name: string; param: string }> = [
+  { name: 'tailscale_suspend_user', param: 'userId' },
+  { name: 'tailscale_delete_user', param: 'userId' },
+  { name: 'tailscale_delete_device', param: 'deviceId' },
+  { name: 'tailscale_authorize_device', param: 'deviceId' },
+  { name: 'tailscale_expire_device_key', param: 'deviceId' },
+  { name: 'tailscale_update_device_key', param: 'deviceId' },
+  { name: 'tailscale_set_device_tags', param: 'deviceId' },
+  { name: 'tailscale_delete_auth_key', param: 'keyId' },
+]
+
+async function echoOutput(name: string, param: string, value: string | number) {
+  const tool = TOOLS.find((candidate) => candidate.id === name)
+  if (!tool?.transformResponse) throw new Error(`${name} does not transform a response`)
+
+  const result = await tool.transformResponse(new Response('{}', { status: 200 }), {
+    ...baseFill(tool),
+    [param]: value,
+  })
+
+  return (result as { output: Record<string, unknown> }).output
+}
+
+describe.each(ECHOED_ID_TOOLS)('$name echoed identifier', ({ name, param }) => {
+  it('emits a string for a numeric id, matching the declared output type', async () => {
+    const output = await echoOutput(name, param, 123456)
+
+    expect(output[param]).toBe('123456')
+    expect(typeof output[param]).toBe('string')
+  })
+
+  it('leaves a string id untouched', async () => {
+    const output = await echoOutput(name, param, 'nodeIdABC123CNTRL')
+
+    expect(output[param]).toBe('nodeIdABC123CNTRL')
   })
 })

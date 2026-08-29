@@ -66,7 +66,7 @@ export const tailscaleSuspendUserTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        userId: params?.userId ?? '',
+        userId: String(params?.userId ?? ''),
       },
     }
   },

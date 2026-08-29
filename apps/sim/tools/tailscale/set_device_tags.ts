@@ -75,7 +75,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        deviceId: params?.deviceId ?? '',
+        deviceId: String(params?.deviceId ?? ''),
         tags,
       },
     }

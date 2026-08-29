@@ -66,7 +66,7 @@ export const tailscaleDeleteUserTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        userId: params?.userId ?? '',
+        userId: String(params?.userId ?? ''),
       },
     }
   },

@@ -117,6 +117,7 @@ interface PathTool {
   params: Record<string, { type?: string }>
   buildUrl: UrlBuilder
   body?: (params: Fill) => unknown
+  transformResponse?: (response: Response, params?: Fill) => Promise<unknown>
 }
 
 /**
@@ -157,7 +158,13 @@ function asPathTool(value: unknown): PathTool | null {
   const rawBody = (request as { body?: unknown }).body
   const body = typeof rawBody === 'function' ? (rawBody as (params: Fill) => unknown) : undefined
 
-  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body }
+  const rawTransform = (value as { transformResponse?: unknown }).transformResponse
+  const transformResponse =
+    typeof rawTransform === 'function'
+      ? (rawTransform as (response: Response, params?: Fill) => Promise<unknown>)
+      : undefined
+
+  return { id: candidate.id, params, buildUrl: url as UrlBuilder, body, transformResponse }
 }
 
 /**
@@ -293,7 +300,7 @@ describe('x path-ID traversal safety', () => {
     expect(PATH_PARAMS.length).toBeGreaterThanOrEqual(29)
   })
 
-  it('discovers every identifier of a multi-ID route, not just the first', () => {
+  it('pins how many X routes carry more than one path identifier', () => {
     const perTool = new Map<string, number>()
     for (const { tool } of PATH_PARAMS) {
       perTool.set(tool.id, (perTool.get(tool.id) ?? 0) + 1)
