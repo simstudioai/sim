@@ -3,6 +3,7 @@ import type {
   SpotifyRemoveTracksFromPlaylistResponse,
 } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   SpotifyRemoveTracksFromPlaylistParams,
@@ -36,7 +37,8 @@ export const spotifyRemoveTracksFromPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) =>
+      `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/tracks`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

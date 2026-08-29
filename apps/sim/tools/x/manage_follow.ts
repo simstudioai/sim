@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageFollowParams, XManageFollowResponse } from '@/tools/x/types'
 
 const logger = createLogger('XManageFollowTool')
@@ -45,9 +46,9 @@ export const xManageFollowTool: ToolConfig<XManageFollowParams, XManageFollowRes
   request: {
     url: (params) => {
       if (params.action === 'unfollow') {
-        return `https://api.x.com/2/users/${params.userId.trim()}/following/${params.targetUserId.trim()}`
+        return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/following/${safeUrlPathSegment(params.targetUserId, 'targetUserId')}`
       }
-      return `https://api.x.com/2/users/${params.userId.trim()}/following`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/following`
     },
     method: (params) => (params.action === 'unfollow' ? 'DELETE' : 'POST'),
     headers: (params) => ({

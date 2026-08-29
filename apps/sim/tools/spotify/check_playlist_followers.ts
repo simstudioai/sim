@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyCheckPlaylistFollowersParams {
   accessToken: string
@@ -47,7 +48,7 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
         .map((id) => id.trim())
         .slice(0, 5)
         .join(',')
-      return `https://api.spotify.com/v1/playlists/${params.playlistId}/followers/contains?ids=${ids}`
+      return `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/followers/contains?ids=${ids}`
     },
     method: 'GET',
     headers: (params) => ({

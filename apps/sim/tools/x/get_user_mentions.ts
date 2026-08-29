@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetUserMentionsParams, XTweetListResponse } from '@/tools/x/types'
 import { transformTweet, transformUser } from '@/tools/x/types'
 
@@ -86,7 +87,7 @@ export const xGetUserMentionsTool: ToolConfig<XGetUserMentionsParams, XTweetList
       if (params.sinceId) queryParams.append('since_id', params.sinceId)
       if (params.untilId) queryParams.append('until_id', params.untilId)
 
-      return `https://api.x.com/2/users/${params.userId.trim()}/mentions?${queryParams.toString()}`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/mentions?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

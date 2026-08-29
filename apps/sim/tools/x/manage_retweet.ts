@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XManageRetweetParams, XManageRetweetResponse } from '@/tools/x/types'
 
 const logger = createLogger('XManageRetweetTool')
@@ -45,9 +46,9 @@ export const xManageRetweetTool: ToolConfig<XManageRetweetParams, XManageRetweet
   request: {
     url: (params) => {
       if (params.action === 'unretweet') {
-        return `https://api.x.com/2/users/${params.userId.trim()}/retweets/${params.tweetId.trim()}`
+        return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/retweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}`
       }
-      return `https://api.x.com/2/users/${params.userId.trim()}/retweets`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/retweets`
     },
     method: (params) => (params.action === 'unretweet' ? 'DELETE' : 'POST'),
     headers: (params) => ({

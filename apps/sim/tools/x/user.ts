@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XUserParams, XUserResponse } from '@/tools/x/types'
 import { transformUser } from '@/tools/x/types'
 
@@ -33,7 +34,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
 
   request: {
     url: (params) => {
-      const username = encodeURIComponent(params.username)
+      const username = safeUrlPathSegment(params.username, 'username')
       // Keep fields minimal to reduce chance of rate limits
       const userFields = 'description,profile_image_url,verified,public_metrics'
 

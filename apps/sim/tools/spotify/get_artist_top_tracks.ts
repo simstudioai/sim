@@ -4,6 +4,7 @@ import type {
 } from '@/tools/spotify/types'
 import { ARTIST_TOP_TRACK_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetArtistTopTracksTool: ToolConfig<
   SpotifyGetArtistTopTracksParams,
@@ -39,7 +40,7 @@ export const spotifyGetArtistTopTracksTool: ToolConfig<
   request: {
     url: (params) => {
       const market = params.market || 'US'
-      return `https://api.spotify.com/v1/artists/${params.artistId}/top-tracks?market=${market}`
+      return `https://api.spotify.com/v1/artists/${safeUrlPathSegment(params.artistId, 'artistId')}/top-tracks?market=${market}`
     },
     method: 'GET',
     headers: (params) => ({

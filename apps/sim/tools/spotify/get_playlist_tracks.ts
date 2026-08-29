@@ -4,6 +4,7 @@ import type {
 } from '@/tools/spotify/types'
 import { TRACK_LIST_OUTPUT_PROPERTIES } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetPlaylistTracksTool: ToolConfig<
   SpotifyGetPlaylistTracksParams,
@@ -52,7 +53,7 @@ export const spotifyGetPlaylistTracksTool: ToolConfig<
     url: (params) => {
       const limit = Math.min(Math.max(params.limit || 50, 1), 100)
       const offset = params.offset || 0
-      let url = `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks?limit=${limit}&offset=${offset}`
+      let url = `https://api.spotify.com/v1/playlists/${safeUrlPathSegment(params.playlistId, 'playlistId')}/tracks?limit=${limit}&offset=${offset}`
       if (params.market) {
         url += `&market=${params.market}`
       }

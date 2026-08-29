@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetLikingUsersParams, XUserListResponse } from '@/tools/x/types'
 import { transformUser } from '@/tools/x/types'
 
@@ -55,7 +56,7 @@ export const xGetLikingUsersTool: ToolConfig<XGetLikingUsersParams, XUserListRes
       }
       if (params.paginationToken) queryParams.append('pagination_token', params.paginationToken)
 
-      return `https://api.x.com/2/tweets/${params.tweetId.trim()}/liking_users?${queryParams.toString()}`
+      return `https://api.x.com/2/tweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}/liking_users?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

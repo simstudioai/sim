@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetBookmarksParams, XTweetListResponse } from '@/tools/x/types'
 import { transformTweet, transformUser } from '@/tools/x/types'
 
@@ -58,7 +59,7 @@ export const xGetBookmarksTool: ToolConfig<XGetBookmarksParams, XTweetListRespon
       }
       if (params.paginationToken) queryParams.append('pagination_token', params.paginationToken)
 
-      return `https://api.x.com/2/users/${params.userId.trim()}/bookmarks?${queryParams.toString()}`
+      return `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/bookmarks?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

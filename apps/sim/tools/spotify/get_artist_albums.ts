@@ -3,6 +3,7 @@ import type {
   SpotifyGetArtistAlbumsResponse,
 } from '@/tools/spotify/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const spotifyGetArtistAlbumsTool: ToolConfig<
   SpotifyGetArtistAlbumsParams,
@@ -57,7 +58,7 @@ export const spotifyGetArtistAlbumsTool: ToolConfig<
     url: (params) => {
       const limit = Math.min(Math.max(params.limit || 20, 1), 50)
       const offset = params.offset || 0
-      let url = `https://api.spotify.com/v1/artists/${params.artistId}/albums?limit=${limit}&offset=${offset}`
+      let url = `https://api.spotify.com/v1/artists/${safeUrlPathSegment(params.artistId, 'artistId')}/albums?limit=${limit}&offset=${offset}`
       if (params.include_groups) {
         url += `&include_groups=${encodeURIComponent(params.include_groups)}`
       }

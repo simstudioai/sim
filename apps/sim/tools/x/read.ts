@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
 import { transformTweet } from '@/tools/x/types'
 
@@ -72,7 +73,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
         'user.fields': userFields,
       })
 
-      return `https://api.twitter.com/2/tweets/${params.tweetId}?${queryParams.toString()}`
+      return `https://api.twitter.com/2/tweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface SpotifyGetEpisodeParams {
   accessToken: string
@@ -50,7 +51,7 @@ export const spotifyGetEpisodeTool: ToolConfig<SpotifyGetEpisodeParams, SpotifyG
 
     request: {
       url: (params) => {
-        let url = `https://api.spotify.com/v1/episodes/${params.episodeId}`
+        let url = `https://api.spotify.com/v1/episodes/${safeUrlPathSegment(params.episodeId, 'episodeId')}`
         if (params.market) url += `?market=${params.market}`
         return url
       },

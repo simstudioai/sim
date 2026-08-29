@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XCreateBookmarkParams, XCreateBookmarkResponse } from '@/tools/x/types'
 
 const logger = createLogger('XCreateBookmarkTool')
@@ -37,7 +38,8 @@ export const xCreateBookmarkTool: ToolConfig<XCreateBookmarkParams, XCreateBookm
   },
 
   request: {
-    url: (params) => `https://api.x.com/2/users/${params.userId.trim()}/bookmarks`,
+    url: (params) =>
+      `https://api.x.com/2/users/${safeUrlPathSegment(params.userId, 'userId')}/bookmarks`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { XGetQuoteTweetsParams, XTweetListResponse } from '@/tools/x/types'
 import { transformTweet, transformUser } from '@/tools/x/types'
 
@@ -57,7 +58,7 @@ export const xGetQuoteTweetsTool: ToolConfig<XGetQuoteTweetsParams, XTweetListRe
       }
       if (params.paginationToken) queryParams.append('pagination_token', params.paginationToken)
 
-      return `https://api.x.com/2/tweets/${params.tweetId.trim()}/quote_tweets?${queryParams.toString()}`
+      return `https://api.x.com/2/tweets/${safeUrlPathSegment(params.tweetId, 'tweetId')}/quote_tweets?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({
