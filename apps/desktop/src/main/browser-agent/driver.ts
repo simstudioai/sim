@@ -24,6 +24,7 @@ import {
   type BrowserPanelAction,
   type BrowserTabsState,
   type BrowserToolName,
+  normalizeBrowserWaitForTimeoutMs,
 } from '@sim/browser-protocol'
 import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
@@ -71,8 +72,6 @@ const logger = createLogger('BrowserAgentDriver')
 
 const NAVIGATION_TIMEOUT_MS = 25_000
 const NAVIGATION_SETTLE_MS = 400
-const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
-const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 const TAKEOVER_POLL_MS = 1_500
 /**
  * Hard ceiling on any single tool execution (takeover excepted): whatever
@@ -718,10 +717,9 @@ function num(params: Record<string, unknown>, key: string): number | undefined {
 }
 
 /**
- * Native execution must time out before the renderer gives up (30s default,
- * 45s navigation, requested wait + 15s). Otherwise the abandoned native
- * promise keeps owning the serialized queue and every later browser action
- * times out behind it.
+ * Bounds native execution after a call reaches the head of its serialized
+ * scope queue. The renderer separately budgets authorization, queueing, and
+ * bridge delivery around this watchdog.
  */
 export function browserToolWatchdogMs(
   tool: BrowserToolName,
@@ -738,10 +736,7 @@ export function browserToolWatchdogMs(
     return NAVIGATION_TOOL_WATCHDOG_MS
   }
   if (tool === 'browser_wait_for') {
-    const requested = Math.min(
-      num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
-      MAX_WAIT_FOR_TIMEOUT_MS
-    )
+    const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
     return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS
   }
   return DEFAULT_TOOL_WATCHDOG_MS
@@ -889,12 +884,11 @@ function sanitizeBrowserResult(
 
 /**
  * Covers focusing, clicking, and typing: the agent has no legitimate reason to
- * reach a credential field, and takeover is the sanctioned path when a task
- * needs one.
+ * reach a credential field. The user can enter credentials directly in the
+ * visible embedded browser before the agent resumes from a fresh snapshot.
  */
 const PASSWORD_REFUSAL =
-  'Refusing to act on a password field. Call browser_request_takeover so the user ' +
-  'can enter their credentials themselves.'
+  'Refusing to act on a password field. Ask the user to enter their credentials in the visible browser, then take a fresh browser_snapshot.'
 
 /** Maps sentinel `{ error: ... }` results from injected functions to ToolErrors. */
 function unwrapPageResult(result: unknown): unknown {
@@ -2069,10 +2063,7 @@ async function executeToolInner(
 
     case 'browser_wait_for': {
       const text = str(params, 'text')
-      const timeoutMs = Math.min(
-        num(params, 'timeoutMs') ?? DEFAULT_WAIT_FOR_TIMEOUT_MS,
-        MAX_WAIT_FOR_TIMEOUT_MS
-      )
+      const timeoutMs = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
       const startedAt = Date.now()
       if (!text) {
         await sleep(timeoutMs)
@@ -2136,22 +2127,102 @@ async function executeToolInner(
     }
 
     case 'browser_screenshot': {
-      const contents = session.requireAutomationTab().view.webContents
-      const shot = await cdp.captureScreenshot(contents).catch(() => null)
-      if (shot === null) {
+      const capturedTab = session.requireAutomationTab()
+      const contents = capturedTab.view.webContents
+      const capturedNavigationEpoch = navigationEpoch(contents)
+      const capturedUrl = contents.getURL()
+      const capturedTitle = contents.getTitle()
+      const capturedViewportUrl = capturedUrl.slice(0, 4096)
+      const capturedViewportTitle = capturedTitle.slice(0, 500)
+      const captureIsCurrent = (): boolean => {
+        const activeTab = session.automationTab()
+        return (
+          activeTab?.id === capturedTab.id &&
+          activeTab.view.webContents === contents &&
+          !contents.isDestroyed() &&
+          navigationEpoch(contents) === capturedNavigationEpoch &&
+          contents.getURL() === capturedUrl &&
+          contents.getTitle() === capturedTitle
+        )
+      }
+      const assertCaptureIsCurrent = (): void => {
+        if (captureIsCurrent()) return
+        throw new ToolError(
+          'The page changed while its screenshot was being captured. Retry browser_screenshot before using image coordinates.'
+        )
+      }
+      const shot = await cdp.captureScreenshot(contents).catch((error) => {
+        logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
+        return null
+      })
+      if (!shot) {
         throw new ToolError(
           'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
         )
       }
+      assertCaptureIsCurrent()
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
         )
       }
-      const viewport = await execInPage(contents, getViewportInfo, []).catch(() => null)
+      if (!shot.imageSize) {
+        throw new ToolError(
+          'Could not verify the screenshot dimensions. Retry browser_screenshot or use browser_snapshot instead.'
+        )
+      }
+      const viewport = shot.viewport
+        ? {
+            url: capturedViewportUrl,
+            title: capturedViewportTitle,
+            ...shot.viewport,
+          }
+        : await execInPage(contents, getViewportInfo, []).catch(() => null)
+      assertCaptureIsCurrent()
+      if (
+        !shot.viewport &&
+        isRecordLike(viewport) &&
+        (viewport.url !== capturedViewportUrl || viewport.title !== capturedViewportTitle)
+      ) {
+        throw new ToolError(
+          'The page changed while its screenshot viewport was being verified. Retry browser_screenshot before using image coordinates.'
+        )
+      }
+      let scale = shot.scale
+      const viewportWidth =
+        isRecordLike(viewport) && typeof viewport.width === 'number' ? viewport.width : 0
+      const viewportHeight =
+        isRecordLike(viewport) && typeof viewport.height === 'number' ? viewport.height : 0
+      if (
+        !Number.isFinite(viewportWidth) ||
+        !Number.isFinite(viewportHeight) ||
+        viewportWidth <= 0 ||
+        viewportHeight <= 0
+      ) {
+        throw new ToolError(
+          'Could not verify the page viewport for this screenshot. Retry browser_screenshot or use browser_snapshot instead.'
+        )
+      }
+      if (!shot.viewport) {
+        const widthScale = shot.imageSize.width / viewportWidth
+        const heightScale = shot.imageSize.height / viewportHeight
+        const scaleDelta = Math.abs(widthScale - heightScale)
+        if (
+          !Number.isFinite(widthScale) ||
+          !Number.isFinite(heightScale) ||
+          widthScale <= 0 ||
+          heightScale <= 0 ||
+          scaleDelta > Math.max(widthScale, heightScale) * 0.02
+        ) {
+          throw new ToolError(
+            'The page viewport changed while the screenshot was captured. Retry browser_screenshot before using image coordinates.'
+          )
+        }
+        scale = widthScale
+      }
       // scale maps image pixels back to CSS viewport pixels for the
       // coordinate tools: cssX = imageX / scale.
-      return { dataUrl: shot.dataUrl, viewport, scale: shot.scale }
+      return { dataUrl: shot.dataUrl, viewport, scale }
     }
 
     case 'browser_extract': {
@@ -2928,8 +2999,8 @@ async function executeToolInner(
       if (secrecy === 'opaque' && !safeForOpaqueFocus) {
         throw new ToolError(
           'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
-            'keystroke could mutate or activate a password field. Call browser_request_takeover if the ' +
-            'user needs to type here.'
+            'keystroke could mutate or activate a password field. Ask the user to type in the visible ' +
+            'browser, then take a fresh browser_snapshot.'
         )
       }
       let trusted = true
@@ -3051,6 +3122,10 @@ async function executeToolInner(
     }
 
     case 'browser_scroll': {
+      const direction = requireStr(params, 'direction')
+      if (direction !== 'up' && direction !== 'down') {
+        throw new ToolError('Scroll direction must be "up" or "down".')
+      }
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
@@ -3071,7 +3146,7 @@ async function executeToolInner(
         await execInPage(
           target,
           scrollPage,
-          [requireStr(params, 'direction'), num(params, 'amount'), elementId],
+          [direction, num(params, 'amount'), elementId],
           false,
           executionDeadline
         )
@@ -3379,7 +3454,7 @@ async function executeToolInner(
       const notes: string[] = []
       if (pointTarget.secret === true) {
         notes.push(
-          'The point resolves to a password field. Focusing it is fine, but typing there is refused — call browser_request_takeover for credentials.'
+          'The point resolves to a password field. Focusing it is fine, but typing there is refused — ask the user to enter credentials in the visible browser, then take a fresh browser_snapshot.'
         )
       }
       if (pointTarget.crossOriginFrame === true) {
@@ -3424,7 +3499,8 @@ async function executeToolInner(
       if (secrecy === 'opaque') {
         throw new ToolError(
           'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
-            'insertion could reach a password field. Call browser_request_takeover if the user needs to type here.'
+            'insertion could reach a password field. Ask the user to type in the visible browser, then ' +
+            'take a fresh browser_snapshot.'
         )
       }
       const focusState = unwrapPageResult(
@@ -3491,15 +3567,15 @@ async function executeToolInner(
       const topObservation = insertInFrame
         ? pageEffect(beforeTopPage, await pageActionState(contents, true), beforeElement, state)
         : observation
+      const effect: Record<string, boolean> = {
+        ...observation.effect,
+        urlChanged: observation.effect.urlChanged || topObservation.effect.urlChanged,
+        dialogChanged: observation.effect.dialogChanged || topObservation.effect.dialogChanged,
+      }
       // targetChanged is deliberately absent: this tool has no elementId, so
       // pageActionState captures no targetState and the term could only ever
       // be false. Listing it read as coverage this tool does not have.
-      const effectObserved =
-        observation.effect.fieldChanged ||
-        observation.effect.urlChanged ||
-        observation.effect.dialogChanged ||
-        topObservation.effect.urlChanged ||
-        topObservation.effect.dialogChanged
+      const effectObserved = effect.fieldChanged || effect.urlChanged || effect.dialogChanged
       return {
         dispatched: true,
         trusted: true,
@@ -3507,8 +3583,9 @@ async function executeToolInner(
         insertedChars: text.length,
         ...state,
         effectObserved,
-        possibleEffectObserved: observation.possibleEffectObserved,
-        effect: observation.effect,
+        possibleEffectObserved:
+          observation.possibleEffectObserved || topObservation.possibleEffectObserved,
+        effect,
         submitRequested: submit,
         submitDispatched,
         ...(focusState.kind === 'canvas' || focusState.kind === 'textbox-role'
@@ -3676,6 +3753,7 @@ export async function executeTool(
   toolCallId?: string,
   authorizationBoundary?: BrowserToolQueueBoundary
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  const queuedAt = Date.now()
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (session.isBrowserScopeSuspended(resolvedScopeId)) {
     return {
@@ -3688,6 +3766,8 @@ export async function executeTool(
   const invocationEpoch = ++state.toolInvocationEpoch
   const queueCancellationEpoch = state.toolQueueCancellationEpoch
   const run = async () => {
+    const queueWaitMs = Date.now() - queuedAt
+    const executionStartedAt = Date.now()
     if (
       (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
       queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
@@ -3702,7 +3782,12 @@ export async function executeTool(
     })
     state.activeToolCancel = cancelActiveExecution
     return await session.withBrowserScope(resolvedScopeId, async () => {
-      logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
+      logger.info('Executing browser tool', {
+        tool,
+        toolCallId,
+        scopeId: resolvedScopeId,
+        queueWaitMs,
+      })
       const keepHiddenPageActive = tool !== 'browser_request_takeover'
       if (keepHiddenPageActive) {
         session.setAutomationActive(true)
@@ -3732,7 +3817,15 @@ export async function executeTool(
                   invalidateSnapshot(state)
                 }
               })
-        return withNotices(await Promise.race([guardedExecution, cancellation]))
+        const result = withNotices(await Promise.race([guardedExecution, cancellation]))
+        logger.info('Browser tool completed', {
+          tool,
+          toolCallId,
+          scopeId: resolvedScopeId,
+          queueWaitMs,
+          executionMs: Date.now() - executionStartedAt,
+        })
+        return result
       } finally {
         if (keepHiddenPageActive) {
           session.setAutomationActive(false)
@@ -3757,7 +3850,13 @@ export async function executeTool(
       invalidateSnapshot(state)
     }
     const message = String(sanitizeBrowserResult(getErrorMessage(error), undefined, 0, 'error'))
-    logger.warn('Browser tool failed', { tool, error: message })
+    logger.warn('Browser tool failed', {
+      tool,
+      toolCallId,
+      scopeId: resolvedScopeId,
+      totalMs: Date.now() - queuedAt,
+      error: message,
+    })
     return { ok: false, error: message }
   }
 }

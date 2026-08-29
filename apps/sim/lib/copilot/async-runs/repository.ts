@@ -280,7 +280,8 @@ async function markAsyncToolStatus(
     error?: string | null
     completedAt?: Date | null
   } = {},
-  expectedStatuses?: CopilotAsyncToolStatus[]
+  expectedStatuses?: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string
 ) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -290,7 +291,7 @@ async function markAsyncToolStatus(
       [TraceAttr.ToolCallId]: toolCallId,
       [TraceAttr.CopilotAsyncToolStatus]: status,
       [TraceAttr.CopilotAsyncToolHasError]: !!updates.error,
-      [TraceAttr.CopilotAsyncToolClaimedBy]: updates.claimedBy ?? undefined,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: expectedClaimedBy ?? updates.claimedBy ?? undefined,
     },
     async () => {
       const claimedAt =
@@ -314,12 +315,11 @@ async function markAsyncToolStatus(
           updatedAt: new Date(),
         })
         .where(
-          expectedStatuses
-            ? and(
-                eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-                inArray(copilotAsyncToolCalls.status, expectedStatuses)
-              )
-            : eq(copilotAsyncToolCalls.toolCallId, toolCallId)
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            expectedStatuses ? inArray(copilotAsyncToolCalls.status, expectedStatuses) : undefined,
+            expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined
+          )
         )
         .returning()
 
@@ -453,13 +453,19 @@ export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: s
   )
 }
 
-export async function completeAsyncToolCall(input: {
+interface CompleteAsyncToolCallInput {
   toolCallId: string
   status: Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
   result?: AsyncCompletionData | null
   error?: string | null
-}) {
-  return markAsyncToolStatus(
+}
+
+async function completeAsyncToolCallFromStatuses(
+  input: CompleteAsyncToolCallInput,
+  expectedStatuses: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string
+) {
+  return await markAsyncToolStatus(
     input.toolCallId,
     input.status,
     {
@@ -469,8 +475,33 @@ export async function completeAsyncToolCall(input: {
       error: input.error ?? null,
       completedAt: new Date(),
     },
-    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+    expectedStatuses,
+    expectedClaimedBy
   )
+}
+
+export async function completeAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [
+    ASYNC_TOOL_STATUS.pending,
+    ASYNC_TOOL_STATUS.running,
+  ])
+}
+
+/**
+ * Finalizes a client tool only while it remains unclaimed. This is the inverse
+ * CAS of `claimPendingAsyncToolCall`: exactly one of a renderer-side preclaim
+ * failure or the native authorization claim may transition the pending row.
+ */
+export async function completePendingAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.pending])
+}
+
+/** Finalizes only the exact native claim that won a pending completion race. */
+export async function completeClaimedAsyncToolCall(
+  input: CompleteAsyncToolCallInput,
+  claimedBy: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], claimedBy)
 }
 
 /**

@@ -799,6 +799,45 @@ describe('registerIpcHandlers', () => {
     cancelActive.mockRestore()
   })
 
+  it('rejects browser tools whose server authorization exceeds its execution budget', async () => {
+    const { invoke } = collectHandlers()
+    const executeTool = vi.spyOn(browserDriver, 'executeTool')
+    const authorizationController = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(authorizationController.signal)
+    const fetchAuthorization = vi.fn((_url: string, request?: RequestInit) => {
+      const signal = request?.signal
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    const delayedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+
+    const execution = invoke.get('browser-agent:execute-tool')?.(
+      delayedEvent,
+      'tool-stalled-authorization',
+      'browser_snapshot',
+      {},
+      'chat-stalled-authorization'
+    )
+    authorizationController.abort(new DOMException('timed out', 'TimeoutError'))
+
+    await expect(execution).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
+    expect(fetchAuthorization).toHaveBeenCalledWith(
+      `${APP}/api/desktop/tool/authorize`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(timeout).toHaveBeenCalledWith(8_000)
+    expect(executeTool).not.toHaveBeenCalled()
+    timeout.mockRestore()
+    executeTool.mockRestore()
+  })
+
   it('rejects a browser tool when the renderer claims a different scope than authorization', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('browser-agent:execute-tool')
@@ -819,6 +858,40 @@ describe('registerIpcHandlers', () => {
       ok: false,
       error: expect.stringContaining('authorized pending Copilot tool call'),
     })
+  })
+
+  it('rejects a retired browser tool even if authorization echoes it', async () => {
+    const { invoke } = collectHandlers()
+    const executeTool = vi.spyOn(browserDriver, 'executeTool')
+    const authorizedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: {
+        session: {
+          fetch: vi.fn(async () =>
+            Response.json({
+              chatId: 'chat-1',
+              toolName: 'browser_request_takeover',
+              args: { reason: 'Legacy handoff' },
+            })
+          ),
+        },
+      },
+    }
+
+    await expect(
+      invoke.get('browser-agent:execute-tool')?.(
+        authorizedEvent,
+        'tool-retired',
+        'browser_request_takeover',
+        {},
+        'chat-1'
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('authorized pending Copilot tool call'),
+    })
+    expect(executeTool).not.toHaveBeenCalled()
+    executeTool.mockRestore()
   })
 
   it('rejects a browser tool authorized after its scope cancellation boundary', async () => {
