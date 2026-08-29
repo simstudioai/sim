@@ -328,6 +328,7 @@ describe('Function execution request', () => {
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00012345 },
         exportedFiles: { '/tmp/out.txt': 'owned by attacker' },
       })
       mockWriteWorkspaceFileByPath.mockRejectedValueOnce(
@@ -338,6 +339,8 @@ describe('Function execution request', () => {
         code: 'print("done")',
         language: 'python',
         workspaceId: 'workspace-victim',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
         outputs: {
           files: [{ path: 'files/README.md', mode: 'overwrite', sandboxPath: '/tmp/out.txt' }],
         },
@@ -348,6 +351,7 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(403)
       expect(data).toHaveProperty('error', 'Insufficient workspace permissions')
+      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00012345 })
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
     })
 
@@ -1543,6 +1547,7 @@ describe('Function execution request', () => {
         result: 'done',
         stdout: 'ok',
         sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.00023456 },
         exportedFiles: {
           '/home/user/first.json': '{"first":true}',
           '/home/user/second.json': '{"second":true}',
@@ -1556,6 +1561,8 @@ describe('Function execution request', () => {
         code: 'print("done")',
         language: 'python',
         workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
         outputs: {
           files: [
             {
@@ -1578,6 +1585,7 @@ describe('Function execution request', () => {
       expect(response.status).toBe(400)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Directory not yet created')
+      expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
       expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 

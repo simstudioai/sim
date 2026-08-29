@@ -864,13 +864,14 @@ async function executeInSandboxWithinBudget(
         sandboxId,
         hasTraceback: Boolean(execution.error.traceback),
       })
-      billableResult = {
+      const executionResult = {
         result: null,
         stdout: execution.error.traceback || errorMessage,
         error: errorMessage,
         sandboxId,
       }
-      return billableResult
+      if (execution.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Distinct sources (final-expression text, stdout, stderr) join with '\n' so
@@ -1008,8 +1009,9 @@ async function executeShellInSandboxWithinBudget(
         sandboxId,
         exitCode: result.exitCode,
       })
-      billableResult = { result: null, stdout, error: errorMessage, sandboxId }
-      return billableResult
+      const executionResult = { result: null, stdout, error: errorMessage, sandboxId }
+      if (result.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Shell scripts have no wrapper: any __SIM_RESULT__ line is user-authored

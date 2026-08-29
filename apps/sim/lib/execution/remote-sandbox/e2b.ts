@@ -372,7 +372,7 @@ class E2BSandboxHandle implements SandboxHandle {
         return { text: '', stdout: result.stdout, stderr: result.stderr, timedOut: true }
       }
       if (result.exitCode !== 0) {
-        if (result.stderr === E2B_PROVIDER_LIMIT_ERROR) {
+        if (result.providerFailure === 'provider_limit') {
           return {
             text: '',
             stdout: result.stdout,
@@ -382,6 +382,7 @@ class E2BSandboxHandle implements SandboxHandle {
               value: E2B_PROVIDER_LIMIT_ERROR,
               traceback: E2B_PROVIDER_LIMIT_ERROR,
             },
+            providerFailure: result.providerFailure,
           }
         }
         return processCodeFailure(result)
@@ -541,7 +542,12 @@ class E2BSandboxHandle implements SandboxHandle {
       if (isNonRetryableExecutionError(error)) throw error
       if (reachedE2BProviderLimit(error, this.providerLimitAtMs, options.signal)) {
         recordSandboxProviderLimit({ provider: 'e2b', operation })
-        return { stdout: '', stderr: E2B_PROVIDER_LIMIT_ERROR, exitCode: 1 }
+        return {
+          stdout: '',
+          stderr: E2B_PROVIDER_LIMIT_ERROR,
+          exitCode: 1,
+          providerFailure: 'provider_limit',
+        }
       }
       // The SDK throws on non-zero exit; callers want the streams, not a throw.
       const failure = error as {

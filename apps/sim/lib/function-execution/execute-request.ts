@@ -1438,10 +1438,20 @@ function exportFailure(
   error: string,
   status: number,
   stdout: string,
-  executionTime: number
+  executionTime: number,
+  cost: FunctionExecutionCost | undefined
 ): NextResponse {
   return NextResponse.json(
-    { success: false, error, output: { result: null, stdout: cleanStdout(stdout), executionTime } },
+    {
+      success: false,
+      error,
+      output: {
+        result: null,
+        stdout: cleanStdout(stdout),
+        executionTime,
+        ...(cost ? { cost } : {}),
+      },
+    },
     { status }
   )
 }
@@ -1490,7 +1500,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1502,7 +1513,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       'Workspace context required to save sandbox file to workspace',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1511,7 +1523,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
       500,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
@@ -1529,7 +1542,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
   const fileBuffer = isBinary
@@ -1612,7 +1626,8 @@ async function maybeExportSandboxFileToWorkspace(args: {
       getErrorMessage(error, 'Failed to export sandbox file'),
       workspaceFileExportErrorStatus(error),
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 }
@@ -1636,7 +1651,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1669,7 +1685,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       'Workspace context required to save sandbox files to workspace',
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1683,7 +1700,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         `Sandbox file "${sandboxPath}" was not found or could not be read`,
         500,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
     const outputPath = file.formatPath ?? file.path
@@ -1700,7 +1718,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
     const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
@@ -1749,7 +1768,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       getErrorMessage(error, 'Invalid sandbox output destination'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
   const duplicateDestination = validationPaths.find(
@@ -1760,7 +1780,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       `Duplicate sandbox output destination: ${duplicateDestination}`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1816,7 +1837,8 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       getErrorMessage(error, 'Failed to export sandbox files'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 

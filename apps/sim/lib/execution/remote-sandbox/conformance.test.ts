@@ -2504,10 +2504,12 @@ describe('Pi sandbox lifetime', () => {
         code: 'x',
         language: CodeLanguage.Python,
         timeoutMs: 7 * 24 * 60 * 60 * 1000,
+        meterUsage: true,
       })
 
       expect(result.error).toContain('E2B reached its 24-hour limit')
       expect(result.error).toContain('workflow timeout may be longer')
+      expect(result.cost).toBeUndefined()
       expect(mockRecordSandboxProviderLimit).toHaveBeenCalledWith({
         provider: 'e2b',
         operation: 'code',
@@ -2531,9 +2533,11 @@ describe('Pi sandbox lifetime', () => {
       const result = await executeShellInSandbox({
         code: 'sleep infinity',
         timeoutMs: 7 * 24 * 60 * 60 * 1000,
+        meterUsage: true,
       })
 
       expect(result.error).toContain('E2B reached its 24-hour limit')
+      expect(result.cost).toBeUndefined()
       expect(mockRecordSandboxProviderLimit).toHaveBeenCalledWith({
         provider: 'e2b',
         operation: 'command',

@@ -72,7 +72,7 @@ export interface SandboxExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
-  /** Adds the remote provider cost to a successful Function result. */
+  /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
 }
 
@@ -99,7 +99,7 @@ export interface SandboxShellExecutionRequest {
   sandboxId?: string
   /** Cancels the provider sandbox when the caller's execution budget expires. */
   signal?: AbortSignal
-  /** Adds the remote provider cost to a successful Function result. */
+  /** Adds the remote provider cost to a completed, billable Function outcome. */
   meterUsage?: boolean
 }
 
@@ -138,6 +138,8 @@ export interface SandboxCommandResult {
   exitCode: number
   /** The provider stopped the command because its supplied execution budget elapsed. */
   timedOut?: boolean
+  /** The provider ended execution for an infrastructure reason, not a user-process outcome. */
+  providerFailure?: 'provider_limit'
 }
 
 /**
@@ -161,6 +163,8 @@ export interface SandboxCodeResult {
   error?: SandboxCodeError
   /** The provider stopped the code runner because its supplied execution budget elapsed. */
   timedOut?: boolean
+  /** The provider ended execution for an infrastructure reason, not a user-program outcome. */
+  providerFailure?: 'provider_limit'
 }
 
 export interface RunCommandOptions {
