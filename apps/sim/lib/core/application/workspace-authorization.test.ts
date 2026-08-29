@@ -32,6 +32,7 @@ import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
   PermissionGroupCapabilityError,
+  PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
@@ -447,5 +448,66 @@ describe('defineWorkspaceOperation capability policy', () => {
         capability: 'none',
       })
     ).not.toThrow()
+  })
+})
+
+const personalKeyOperation = defineWorkspaceOperation({
+  id: 'test.personal-key-read',
+  minimumRole: 'read',
+  workspaceApiKey: 'allow',
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+  capability: 'none',
+})
+
+/**
+ * The workspace column and the group key combine with AND. The column is the
+ * coarse switch every workspace has; the group narrows it for one cohort inside
+ * an enterprise organization.
+ */
+describe('authorizeWorkspaceOperation personal API key policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(null)
+  })
+
+  it('refuses when the permission group withholds personal keys', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, context)
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
+  })
+
+  it('refuses when the workspace withholds them, without consulting the group', async () => {
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, {
+        ...context,
+        allowPersonalApiKeys: false,
+      })
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
+    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('allows when both layers permit', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, context)
+    ).resolves.toBeUndefined()
+  })
+
+  it('leaves a session principal alone', async () => {
+    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(principal, personalKeyOperation, context)
+    ).resolves.toBeUndefined()
   })
 })

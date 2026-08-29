@@ -203,6 +203,27 @@ async function requireCapability(
 }
 
 /**
+ * Refuses a personal API key the caller's permission group withholds.
+ *
+ * Separate from {@link requireCapability} because it is not a property of the
+ * operation: no operation opts into it, and every operation a personal key can
+ * reach is subject to it.
+ */
+async function requirePersonalApiKeysAllowed(
+  userId: string,
+  context: WorkspaceAuthorizationContext
+): Promise<void> {
+  if (context.workspaceOrganizationId === null) return
+
+  const config = await resolvePermissionGroupConfig(
+    userId,
+    context.workspaceId,
+    context.workspaceOrganizationId
+  )
+  if (config?.disablePersonalApiKeys) throw new PersonalApiKeysDisabledError()
+}
+
+/**
  * The workspace role check, then the permission-group capability check.
  *
  * Capability comes second on purpose. `requirePermission` throws
@@ -243,9 +264,20 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       await requireCurrentHumanAccess(principal.userId, context, operation, options)
       return
     case 'personal_api_key':
+      /**
+       * permission-group-enforced: personal_api_key.use — refuses a principal
+       * kind rather than a capability of the resource, so it cannot ride on an
+       * operation's `capability` the way the others do.
+       *
+       * The workspace column and the group key combine with AND, not override.
+       * The column is the coarse switch every workspace has; the group key
+       * narrows it further for one cohort inside an enterprise organization.
+       * Either one saying no is a no.
+       */
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
+      await requirePersonalApiKeysAllowed(principal.userId, context)
       await requireCurrentHumanAccess(principal.userId, context, operation, options)
       return
     /**

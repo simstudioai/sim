@@ -42,6 +42,7 @@ export const CAPABILITY_IDS = [
   'custom_tools.use',
   'skills.use',
   'logs.trace_spans',
+  'personal_api_key.use',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -224,6 +225,18 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Skills',
     deniedBy: (config) => config.disableSkills,
+  },
+  /**
+   * Not declarable on an operation: it refuses a *principal kind* rather than a
+   * capability of the resource, so it applies to every operation a personal key
+   * could reach. Asserted in the authorization funnel's personal-key branch.
+   */
+  'personal_api_key.use': {
+    kind: 'static',
+    configKeys: ['disablePersonalApiKeys'],
+    detailCode: 'PERSONAL_API_KEYS_DISABLED',
+    describe: 'Personal API keys',
+    deniedBy: (config) => config.disablePersonalApiKeys,
   },
   'logs.trace_spans': {
     kind: 'static',

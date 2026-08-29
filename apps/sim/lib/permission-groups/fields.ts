@@ -314,6 +314,17 @@ export const PERMISSION_GROUP_FIELDS = {
       'Chat deployment authentication is limited to effectiveConfig.allowedChatDeployAuthTypes.',
     empty: 'No chat deployment authentication modes are allowed.',
   }),
+  /**
+   * Appended rather than grouped with the other restrictions: declaration order
+   * is the wire order, and moving an existing key would read as an unsaved
+   * change in every open group editor.
+   */
+  disablePersonalApiKeys: booleanRestriction('capability', {
+    id: 'disable-personal-api-keys',
+    label: 'Personal API Keys',
+    category: 'Settings Tabs',
+    hint: 'Prevent members from using a personal API key against this workspace.',
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS

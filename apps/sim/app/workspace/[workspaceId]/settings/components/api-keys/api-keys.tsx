@@ -27,6 +27,7 @@ import {
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
@@ -105,8 +106,17 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const conflictNames = useMemo(() => new Set(conflicts), [conflicts])
   const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
 
+  const { config: permissionConfig } = usePermissionConfig()
+
+  /**
+   * Both layers have to agree. The workspace column is the coarse switch every
+   * workspace has; the permission group narrows it for one cohort inside an
+   * enterprise organization. The server combines them the same way, so offering
+   * a key type here that it would refuse is the only failure worth avoiding.
+   */
   const allowPersonalApiKeys =
-    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+    (workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true) &&
+    !permissionConfig.disablePersonalApiKeys
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)

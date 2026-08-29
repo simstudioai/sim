@@ -16,6 +16,7 @@ import {
   getWorkspaceBillingSettings,
 } from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
+import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
@@ -258,6 +259,23 @@ export async function resolveWorkspaceScope(
         status: 403,
         code: 'FORBIDDEN',
         message: PERSONAL_KEY_DENIED,
+      }
+    }
+
+    /**
+     * permission-group-enforced: personal_api_key.use — v1 authorizes in this
+     * middleware rather than through the application funnel, so the group check
+     * the funnel applies has to be repeated here or the same key that v2
+     * refuses would still work against v1.
+     */
+    if (rateLimit.userId) {
+      const permissionConfig = await getUserPermissionConfig(rateLimit.userId, requestedWorkspaceId)
+      if (permissionConfig?.disablePersonalApiKeys) {
+        return {
+          status: 403,
+          code: 'FORBIDDEN',
+          message: PERSONAL_KEY_DENIED,
+        }
       }
     }
   }
