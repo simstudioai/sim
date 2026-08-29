@@ -13,6 +13,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mocks.validateUrlWithDNS,
 }))
 
+import { GitHubOperationError } from '@/lib/internal/github/errors'
 import { getGitHubLatestCommit } from '@/lib/internal/github/operations'
 
 describe('getGitHubLatestCommit', () => {
@@ -59,5 +60,42 @@ describe('getGitHubLatestCommit', () => {
     expect(result.output.metadata.files?.[0]).toEqual(
       expect.objectContaining({ filename: 'README.md', content: 'updated readme' })
     )
+  })
+})
+
+/**
+ * The path guards throw a plain `Error`, which `executeGitHubTool` maps to 500.
+ * Every value they reject is caller-supplied, so it must surface as a 400 with
+ * the guard's own named message rather than as a server failure.
+ */
+describe('getGitHubLatestCommit path validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+  })
+
+  it.each([
+    ['..', 'path traversal is not allowed'],
+    ['../../orgs/secret', 'cannot contain a path separator'],
+  ])('reports owner %j as a client error, not a server failure', async (owner, message) => {
+    const error = await getGitHubLatestCommit(
+      { owner, repo: 'sim', apiKey: 'token' },
+      { requestId: 'request-1' }
+    ).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(GitHubOperationError)
+    expect((error as GitHubOperationError).status).toBe(400)
+    expect((error as GitHubOperationError).message).toContain(message)
+    expect(mocks.secureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('rejects a branch that is a bare dot segment', async () => {
+    const error = await getGitHubLatestCommit(
+      { owner: 'simstudioai', repo: 'sim', branch: '..', apiKey: 'token' },
+      { requestId: 'request-1' }
+    ).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(GitHubOperationError)
+    expect((error as GitHubOperationError).status).toBe(400)
   })
 })

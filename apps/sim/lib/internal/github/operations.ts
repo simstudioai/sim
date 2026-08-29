@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   secureFetchWithPinnedIP,
@@ -98,8 +99,31 @@ function githubHeaders(apiKey: string): Record<string, string> {
   }
 }
 
+/**
+ * Runs the path guards for one provider URL, reporting a rejected value as a
+ * client error.
+ *
+ * The guards in `@/tools/url-path` throw a plain `Error`, and the catch in
+ * `executeGitHubTool` maps anything that is not a `GitHubOperationError` to
+ * 500. Every value they reject is caller-supplied — an `owner` of `..`, a
+ * `branch` carrying a separator — so reporting it as a server failure both
+ * misattributes the fault and hides the guard's message behind a generic
+ * status. 400 is the accurate answer, and it keeps the named
+ * "<param> cannot be ..." text reaching the caller who can act on it.
+ */
+function buildGuardedUrl(build: () => string): string {
+  try {
+    return build()
+  } catch (error) {
+    throw new GitHubOperationError(getErrorMessage(error, 'Invalid GitHub request path'), 400)
+  }
+}
+
 function pullRequestUrl(params: CreateCommentParams): string {
-  return `${GITHUB_API_BASE}/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`
+  return buildGuardedUrl(
+    () =>
+      `${GITHUB_API_BASE}/repos/${safeUrlPathSegment(params.owner, 'owner')}/${safeUrlPathSegment(params.repo, 'repo')}/pulls/${safeUrlPathSegment(params.pullNumber, 'pullNumber')}`
+  )
 }
 
 function isFileCommentRequest(params: CreateCommentParams): boolean {
@@ -353,10 +377,12 @@ export async function getGitHubLatestCommit(
   context: GitHubOperationContext
 ): Promise<LatestCommitResponse> {
   context.signal?.throwIfAborted()
-  const owner = safeUrlPathSegment(input.owner, 'owner')
-  const repo = safeUrlPathSegment(input.repo, 'repo')
-  const revision = safeEncodedUrlPathSegment(input.branch || 'HEAD', 'branch')
-  const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
+  const commitUrl = buildGuardedUrl(() => {
+    const owner = safeUrlPathSegment(input.owner, 'owner')
+    const repo = safeUrlPathSegment(input.repo, 'repo')
+    const revision = safeEncodedUrlPathSegment(input.branch || 'HEAD', 'branch')
+    return `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
+  })
   const validation = await validateUrlWithDNS(commitUrl, 'commitUrl')
   context.signal?.throwIfAborted()
   if (!validation.isValid || !validation.resolvedIP) {

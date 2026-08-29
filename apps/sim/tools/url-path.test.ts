@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { safeUrlPathSegment } from '@/tools/url-path'
+import { safeUrlPath, safeUrlPathSegment } from '@/tools/url-path'
 
 const ORIGIN = 'https://api.example.com'
 
@@ -343,5 +343,61 @@ describe('live call-site values', () => {
   it.concurrent('stringifies a numeric id these call sites used to reject', () => {
     expect(safeUrlPathSegment(2487956, 'deploymentId')).toBe('2487956')
     expect(safeUrlPathSegment(0, 'sandboxId')).toBe('0')
+  })
+})
+
+/**
+ * The two helpers take opposite positions on surrounding whitespace, and that
+ * split is load-bearing in both directions — so both directions are pinned.
+ *
+ * An id is an opaque copy-pasted token, so whitespace around it is transport
+ * noise. A path is content: a leading or trailing space is a legal filename
+ * character that git stores verbatim, so trimming one silently addresses a
+ * different file. See the TSDoc on `safeUrlPath` for the full reasoning.
+ */
+describe('whitespace handling differs by purpose', () => {
+  it('trims an opaque identifier, because the padding is not part of the id', () => {
+    expect(safeUrlPathSegment('  ecfg_abc123  ', 'edgeConfigId')).toBe('ecfg_abc123')
+  })
+
+  it.each([
+    ['docs/my file .txt', 'docs/my%20file%20.txt'],
+    ['docs/ leading.md', 'docs/%20leading.md'],
+    ['docs/trailing.md ', 'docs/trailing.md%20'],
+    [' leading-dir/file.md', '%20leading-dir/file.md'],
+    ['docs/trailing-dir /file.md', 'docs/trailing-dir%20/file.md'],
+  ])('preserves %j byte-for-byte as a path', (value, expected) => {
+    expect(safeUrlPath(value, 'path')).toBe(expected)
+  })
+
+  it('round-trips a padded filename through the URL parser unchanged', () => {
+    const url = new URL(`${ORIGIN}/repos/o/r/contents/${safeUrlPath('docs/my file .txt', 'path')}`)
+
+    expect(url.pathname).toBe('/repos/o/r/contents/docs/my%20file%20.txt')
+    expect(decodeURIComponent(url.pathname)).toBe('/repos/o/r/contents/docs/my file .txt')
+  })
+
+  it('still rejects a segment that is only whitespace', () => {
+    expect(() => safeUrlPath('docs/   /file.md', 'path')).toThrow(/whitespace-only path segment/)
+  })
+
+  it('still rejects a dot segment inside a path', () => {
+    expect(() => safeUrlPath('docs/../../etc/passwd', 'path')).toThrow(
+      /path traversal is not allowed/
+    )
+  })
+
+  it('leaves a space-wrapped dot segment inert rather than rejecting it', () => {
+    const url = new URL(`${ORIGIN}/repos/o/r/contents/${safeUrlPath('docs/ .. /x', 'path')}`)
+
+    expect(url.pathname).toBe('/repos/o/r/contents/docs/%20..%20/x')
+  })
+
+  it('rejects a backslash anywhere in a path', () => {
+    expect(() => safeUrlPath('docs\\..\\..', 'path')).toThrow(/cannot contain a backslash/)
+  })
+
+  it('keeps a colon so a cross-fork compare ref still addresses its owner', () => {
+    expect(safeUrlPath('octocat:feature/my-branch', 'base')).toBe('octocat:feature/my-branch')
   })
 })

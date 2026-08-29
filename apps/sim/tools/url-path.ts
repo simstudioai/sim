@@ -154,6 +154,13 @@ function encodeSegment(segment: string, paramName: string): string {
  * Builds a single, traversal-safe URL path segment from an identifier that a
  * tool interpolates into a request path.
  *
+ * The value is trimmed first: these are opaque, copy-pasted identifiers, so
+ * surrounding whitespace is transport noise rather than part of the id, and
+ * call sites depend on that. {@link safeUrlPath} deliberately does **not**
+ * trim, because a path segment's leading and trailing spaces are legal
+ * filename characters and dropping them would address a different file — see
+ * the note on that function for the full reasoning.
+ *
  * Rejects empty values, dot segments, and any value still carrying a `/` or
  * `\` separator (defense in depth — encoding already neutralizes those, but a
  * separator in a single-segment parameter means the caller passed something
@@ -214,6 +221,39 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
  * collapsing it would rewrite the caller's value into a different resource.
  * A trailing `/` is rejected on the same ground.
  *
+ * **This helper does not trim, and that is the deliberate difference from
+ * {@link safeUrlPathSegment}.** The two take opposite positions because their
+ * inputs are opposite kinds of thing:
+ *
+ * - A single-segment id (`ecfg_abc123`, a repo name, a numeric id) is an opaque
+ *   token that a human copy-pastes, so surrounding whitespace is transport
+ *   noise and `safeUrlPathSegment` strips it. Callers depend on that.
+ * - A path is *content*. A leading or trailing space is a legal character in a
+ *   filename on every filesystem this addresses, and git stores it verbatim —
+ *   `docs/ draft.md` and `docs/draft.md ` are three distinct files alongside
+ *   `docs/draft.md`. Trimming here would silently rewrite the caller's path and
+ *   read, update, or **delete** a different file than the one requested. That
+ *   is a data-integrity bug, and a worse one than the traversal this module
+ *   exists to stop, because it succeeds instead of failing.
+ *
+ * So whitespace inside the value is preserved byte-for-byte and percent-encoded
+ * (` ` becomes `%20`), including at the very start and end of the whole
+ * parameter, since those positions belong to the first and last filename just
+ * as much as any interior one. A caller who pastes a padded path gets a loud
+ * 404 for a file that does not exist rather than a quiet success against the
+ * wrong one.
+ *
+ * A segment that is *only* whitespace is still rejected: it names nothing the
+ * caller could have meant, and it is indistinguishable from the `//` case above.
+ *
+ * Not trimming also does not weaken the dot-segment check, which compares the
+ * raw segment. A space-wrapped dot segment needs no rejection because encoding
+ * it makes it inert — the URL parser removes `%2e%2e` but not `%20..%20`:
+ *
+ * ```
+ * new URL('https://x/a/b/%20..%20').pathname // => '/a/b/%20..%20'  (kept)
+ * ```
+ *
  * A `:` is restored after encoding. It is a legal `pchar` with no delimiter or
  * traversal meaning inside a path segment, and providers use it structurally:
  * GitHub's compare endpoint addresses a cross-fork ref as `owner:branch`, which
@@ -231,35 +271,34 @@ export function safeUrlPathSegment(value: string | number | bigint, paramName: s
  * @returns The trimmed path with every segment percent-encoded and the `/`
  *   separators preserved, safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, contains
- *   an empty or dot segment, contains a backslash, or cannot be encoded.
+ *   an empty or whitespace-only segment, contains a dot segment, contains a
+ *   backslash, or cannot be encoded.
  */
 export function safeUrlPath(value: string | number | bigint, paramName: string): string {
-  const trimmed = toGuardedString(value, paramName).trim()
+  const path = toGuardedString(value, paramName)
 
-  if (!trimmed) {
+  if (!path) {
     throw new Error(`${paramName} is required`)
   }
 
-  if (trimmed.includes('\\')) {
+  if (path.includes('\\')) {
     throw new Error(`${paramName} cannot contain a backslash`)
   }
 
-  return trimmed
+  return path
     .split('/')
     .map((segment) => {
-      const trimmedSegment = segment.trim()
-
-      if (!trimmedSegment) {
-        throw new Error(`${paramName} cannot contain an empty path segment`)
+      if (!segment.trim()) {
+        throw new Error(`${paramName} cannot contain an empty or whitespace-only path segment`)
       }
 
-      if (trimmedSegment === '.' || trimmedSegment === '..') {
+      if (segment === '.' || segment === '..') {
         throw new Error(
-          `${paramName} cannot contain a "${trimmedSegment}" segment (path traversal is not allowed)`
+          `${paramName} cannot contain a "${segment}" segment (path traversal is not allowed)`
         )
       }
 
-      return encodeSegment(trimmedSegment, paramName).replaceAll('%3A', ':')
+      return encodeSegment(segment, paramName).replaceAll('%3A', ':')
     })
     .join('/')
 }
