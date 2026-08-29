@@ -33,27 +33,27 @@ export const updateBranchProtectionTool: ToolConfig<
     },
     required_status_checks: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
         'Required status check configuration (null to disable). Object with strict (boolean) and contexts (string array)',
     },
     enforce_admins: {
       type: 'boolean',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Whether to enforce restrictions for administrators',
     },
     required_pull_request_reviews: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
         'PR review requirements (null to disable). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews',
     },
     restrictions: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
         'Push restrictions (null to disable). Object with users (string array) and teams (string array)',
@@ -77,11 +77,18 @@ export const updateBranchProtectionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: any = {
-        required_status_checks: params.required_status_checks,
-        enforce_admins: params.enforce_admins,
-        required_pull_request_reviews: params.required_pull_request_reviews,
-        restrictions: params.restrictions,
+      /**
+       * All four keys are in the endpoint's `required` list and all four are
+       * `nullable`, so the request must carry each one and `null` is how a
+       * caller turns that protection off. An omitted value is therefore sent as
+       * `null` rather than dropped — `JSON.stringify` would strip an
+       * `undefined`, and GitHub rejects the body for the missing key.
+       */
+      const body: Record<string, unknown> = {
+        required_status_checks: params.required_status_checks ?? null,
+        enforce_admins: params.enforce_admins ?? null,
+        required_pull_request_reviews: params.required_pull_request_reviews ?? null,
+        restrictions: params.restrictions ?? null,
       }
 
       return body

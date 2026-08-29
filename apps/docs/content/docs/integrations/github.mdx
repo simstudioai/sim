@@ -1019,10 +1019,10 @@ Update branch protection rules for a specific branch, including status checks, r
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
 | `branch` | string | Yes | Branch name |
-| `required_status_checks` | object | Yes | Required status check configuration \(null to disable\). Object with strict \(boolean\) and contexts \(string array\) |
-| `enforce_admins` | boolean | Yes | Whether to enforce restrictions for administrators |
-| `required_pull_request_reviews` | object | Yes | PR review requirements \(null to disable\). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews |
-| `restrictions` | object | Yes | Push restrictions \(null to disable\). Object with users \(string array\) and teams \(string array\) |
+| `required_status_checks` | object | No | Required status check configuration \(null to disable\). Object with strict \(boolean\) and contexts \(string array\) |
+| `enforce_admins` | boolean | No | Whether to enforce restrictions for administrators |
+| `required_pull_request_reviews` | object | No | PR review requirements \(null to disable\). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews |
+| `restrictions` | object | No | Push restrictions \(null to disable\). Object with users \(string array\) and teams \(string array\) |
 | `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
