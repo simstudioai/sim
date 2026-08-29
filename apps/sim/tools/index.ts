@@ -1561,7 +1561,19 @@ export async function executeTool(
     : parentRegistry.forkForToolCall()
   if (!paramEntries) toolRegistry.markIncomplete('tool-input-not-enumerable')
   const executionContext = options.executionContext
-    ? { ...options.executionContext, resolvedSecretTraceRegistry: toolRegistry }
+    ? {
+        ...options.executionContext,
+        /**
+         * Materialized on the source before the spread so both objects hold the
+         * same `Map` instance. The index is lazily built on first access, and
+         * this clone is discarded when the call returns — so letting it be
+         * created here would record every file a tool produced onto a throwaway,
+         * and the next call in the run would rebuild an index that never saw
+         * them.
+         */
+        executionFilesById: getExecutionFileIndex(options.executionContext),
+        resolvedSecretTraceRegistry: toolRegistry,
+      }
     : undefined
   const operationContext = options.operationContext
     ? { ...options.operationContext, resolvedSecretTraceRegistry: toolRegistry }

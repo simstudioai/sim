@@ -80,6 +80,9 @@ const APPEND_FILE_FIELD = ['appendFile', 'appendFileName'] as const
 const COMPRESS_FILE_FIELD = ['compressFile', 'compressFileId'] as const
 const DECOMPRESS_FILE_FIELD = ['decompressFile', 'decompressFileId'] as const
 const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
+/* Text and file are mutually exclusive sources, so the clause names whichever
+   one the card actually carries. */
+const WRITE_CONTENT_FIELD = ['content', 'writeFile', 'writeFileId'] as const
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
@@ -921,7 +924,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
         file_write: [
           { text: 'Create', field: 'fileName', core: true },
-          { text: 'containing', field: 'content' },
+          { text: 'containing', field: WRITE_CONTENT_FIELD },
         ],
         file_append: [
           { text: 'Append', field: 'appendContent', core: true },
@@ -1031,7 +1034,25 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'long-input' as SubBlockType,
       placeholder: 'File content to write...',
       condition: { field: 'operation', value: 'file_write' },
-      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'writeFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'writeFileInput',
+      acceptedTypes: '*',
+      placeholder: 'Store an existing file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'writeFileId',
+      title: 'File',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'writeFileInput',
+      placeholder: 'File from an earlier block',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'contentType',
@@ -1206,9 +1227,14 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         const operation = params.operation || 'file_read'
 
         if (operation === 'file_write') {
+          // Writing stores one file, so the single form. The contract rejects a
+          // request carrying both this and `content`, which is why neither
+          // sub-block is marked required.
+          const fileInput = normalizeFileInput(params.writeFileInput, { single: true })
           return {
             fileName: params.fileName,
             content: params.content,
+            ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType,
             workspaceId: params._context?.workspaceId,
           }
@@ -1432,6 +1458,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     fileType: { type: 'string', description: 'File type for fetch' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
     content: { type: 'string', description: 'File content to write' },
+    writeFileInput: {
+      type: 'json',
+      description: 'An existing file to store in the workspace, instead of text content',
+    },
     contentType: { type: 'string', description: 'MIME content type for write' },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },

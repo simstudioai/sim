@@ -780,6 +780,16 @@ export async function executeFileManageOperation(
         let sourceContent = content ?? ''
         let sourceName = fileName
         let sourceContentType = contentType
+        /**
+         * Copying bytes carries the source's secret lineage, exactly as archiving
+         * does. Without this the copy would land with no provenance row — the
+         * "safe" state — and a file the platform had locked as secret-derived
+         * would be readable again under its new id.
+         *
+         * A source with no workspace row resolves to `unknown` rather than empty,
+         * because nothing durable records what went into it.
+         */
+        let inputProvenance: WorkspaceFileSecretProvenance | undefined
         if (fileInput !== undefined && fileInput !== null) {
           if (!isUserFileWithMetadata(fileInput)) {
             return Response.json(
@@ -791,6 +801,13 @@ export async function executeFileManageOperation(
           const denied = await assertOperationFileAccess(sourceFile, context)
           if (denied) return denied
 
+          inputProvenance = await deriveWorkspaceFileSecretProvenance({
+            principal,
+            workspaceId,
+            targetOwnerUserId: userId,
+            sources: [await bindSelectedContentFile(principal, workspaceId, sourceFile)],
+          })
+
           const downloaded = await downloadServableFileFromStorage(sourceFile, requestId, logger, {
             maxBytes: MAX_WRITE_FILE_INPUT_BYTES,
             signal,
@@ -800,6 +817,15 @@ export async function executeFileManageOperation(
           sourceName = fileName?.trim() || sourceFile.name
           sourceContentType = contentType || downloaded.contentType || sourceFile.type
         }
+        const writeProvenanceSources = [
+          provenanceResolution.contentProvenance,
+          inputProvenance,
+        ].filter((entry): entry is WorkspaceFileSecretProvenance => entry !== undefined)
+        // Left undefined when neither side recorded anything, so a plain text
+        // write still stores no provenance row rather than an empty one.
+        const writeProvenance = writeProvenanceSources.length
+          ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
+          : undefined
 
         const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
         await admitCreateWorkspaceFile(principal, workspaceId)
@@ -818,9 +844,7 @@ export async function executeFileManageOperation(
             encoding: sourceEncoding,
             folderId,
             exactName: false,
-            ...(provenanceResolution.contentProvenance
-              ? { secretProvenance: provenanceResolution.contentProvenance }
-              : {}),
+            ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
           },
         })
         const fileBuffer = Buffer.from(sourceContent, sourceEncoding)

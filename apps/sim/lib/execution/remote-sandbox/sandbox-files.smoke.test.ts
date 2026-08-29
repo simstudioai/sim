@@ -146,7 +146,7 @@ describe.skipIf(!smokeEnabled)('sandbox file I/O smoke', () => {
         code: [
           `test -d ${SANDBOX_OUTPUT_DIR} || { echo "output dir missing" >&2; exit 1; }`,
           `cp ${SANDBOX_INPUT_DIR}/seed.txt ${SANDBOX_OUTPUT_DIR}/from-shell.txt`,
-          'echo "__SIM_RESULT__=\\"done\\""',
+          `echo "${SIM_RESULT_PREFIX}\\"done\\""`,
         ].join('\n'),
         envs: {},
         timeoutMs: RUN_TIMEOUT_MS,

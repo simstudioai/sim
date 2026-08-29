@@ -15,6 +15,7 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+  MAX_SANDBOX_URL_MOUNT_BYTES,
   SandboxOutputDepthError,
   SandboxOutputDirectoryMissingError,
   SandboxOutputFileCountError,
@@ -230,10 +231,19 @@ async function writeSandboxInputs(
       const dir = file.path.slice(0, file.path.lastIndexOf('/'))
       let result: SandboxCommandResult
       try {
+        // `--max-filesize` refuses an oversized object up front on its
+        // Content-Length and aborts mid-transfer if the body outruns it, so the
+        // ceiling holds against the stored bytes rather than a reported size.
+        // Passed as an env var like the URL, never interpolated into the shell.
         result = await sandbox.runCommand(
-          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 "$URL" -o "$DST"',
+          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" -o "$DST"',
           {
-            envs: { URL: file.url, DST: file.path, DIR: dir },
+            envs: {
+              URL: file.url,
+              DST: file.path,
+              DIR: dir,
+              MAX_BYTES: String(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES),
+            },
             timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
             maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
             signal: opts.signal,

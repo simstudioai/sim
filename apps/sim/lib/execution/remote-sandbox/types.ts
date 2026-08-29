@@ -18,7 +18,20 @@ export type SandboxProviderId = 'e2b' | 'daytona'
  */
 export type SandboxFile =
   | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
-  | { type: 'url'; path: string; url: string }
+  | {
+      type: 'url'
+      path: string
+      url: string
+      /**
+       * Ceiling enforced on the bytes actually transferred, rather than on a size
+       * the caller reported. A caller's pre-read check is a fast, well-worded
+       * failure; this is what makes it true when the recorded size understates
+       * the stored object. Optional only because it crosses the wire; a mount
+       * that omits it still gets `MAX_SANDBOX_URL_MOUNT_BYTES`, so the cap
+       * cannot be skipped by omission.
+       */
+      maxBytes?: number
+    }
 
 /**
  * An internal runtime payload materialized at an opaque sandbox path.

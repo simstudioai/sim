@@ -708,13 +708,61 @@ export class VariableResolver {
       contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
     }
 
-    // Formatted through the shared helper, not as a bare identifier: the runtime
-    // value is a path string, and Shell needs its environment-variable form while
-    // a reference inside a quoted string needs to be spliced rather than named.
     return {
-      replacement: this.formatContextVariableReference(varName, language, template, matchIndex, ''),
+      replacement: this.formatContextVariablePathReference(varName, language, template, matchIndex),
       display: reference,
     }
+  }
+
+  /**
+   * Formats a mount-path reference for splicing into code.
+   *
+   * Unlike {@link formatContextVariableReference}, a path inside a quoted string is
+   * spliced raw rather than JSON-encoded. The general formatter is right to encode
+   * an arbitrary value — the author of `"<block.output>"` wants its JSON form — but
+   * a path is always a plain string, so encoding it would put literal quote
+   * characters inside the string the code then opens, turning `open('<file.path>')`
+   * into a lookup for a filename that begins with `"`.
+   *
+   * Splicing raw is safe precisely here: mount paths are built segment by segment
+   * through `buildStorageKeySegment`, which reduces anything outside
+   * `[A-Za-z0-9.-]` to `_`, so the value cannot carry a quote, backslash, backtick,
+   * or `$` that would escape the surrounding literal.
+   *
+   * Shell is delegated unchanged — its formatter already closes and reopens a
+   * single-quoted context around a double-quoted expansion, which expands
+   * correctly and needs no path-specific case.
+   */
+  private formatContextVariablePathReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string {
+    if (language === 'shell') {
+      return this.formatShellContextVariableReference(varName, template, matchIndex, '')
+    }
+
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
+
+    if (language === 'python') {
+      const expression = `globals()[${JSON.stringify(varName)}]`
+      if (this.isPythonStringQuoteContext(quoteContext)) {
+        const quote = this.getCodeStringQuoteToken(quoteContext)
+        return `${quote} + ${expression} + ${quote}`
+      }
+      return expression
+    }
+
+    const expression = `globalThis[${JSON.stringify(varName)}]`
+    if (quoteContext === 'template') {
+      return `\${${expression}}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + ${expression} + ${quote}`
+    }
+    return expression
   }
 
   private async resolveLazyFileBase64Reference(

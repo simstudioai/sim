@@ -114,6 +114,7 @@ import {
   type ResolvedSecretMatcher,
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('FunctionExecuteAPI')
@@ -1216,11 +1217,25 @@ function activateReferencedSecretProvenance(context: FunctionRouteExecutionConte
   }
 }
 
-/** Compiled secret names that still demand redaction — the exempt ones don't count. */
+/**
+ * Compiled secret names that still demand redaction, and whose value a scan could
+ * actually find. Exempt names don't count.
+ *
+ * Non-identifying literals are excluded on the same predicate
+ * {@link createResolvedSecretMatcher} uses to drop them, because the two decisions
+ * have to agree. When every in-scope value is shorter than the substitutable-literal
+ * minimum, the matcher builds nothing and returns `undefined`; a counter that still
+ * reported those names would send
+ * {@link getOutputFileSecretProvenance} down its no-matcher branch and classify
+ * every output as `unknown` — failing an export while claiming it contains a
+ * secret that, by that very policy, is too short to be attributed to anything.
+ */
 function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext): number {
   let count = 0
-  for (const name of context.outputSecretPlaintextsByName.keys()) {
-    if (!context.unredactedSecretNames.has(name)) count += 1
+  for (const [name, plaintext] of context.outputSecretPlaintextsByName) {
+    if (context.unredactedSecretNames.has(name)) continue
+    if (isNonIdentifyingSecretLiteral(plaintext)) continue
+    count += 1
   }
   return count
 }
@@ -2390,7 +2405,15 @@ export async function executeFunctionRequest(
     // Sim's own, so nothing lands there unless the code put it there, and the cost
     // is one listing on a run that already paid for a sandbox. Isolate runs never
     // reach here, so they stay as fast as they were.
-    const outputSandboxDir = useRemoteSandbox ? SANDBOX_OUTPUT_DIR : undefined
+    //
+    // Declared sandbox outputs opt out. That request names exactly which paths to
+    // export and answers with that export's own result, so harvesting alongside it
+    // would collect files the response has no shape to carry — they would be read,
+    // scanned, uploaded, and then dropped. Making the exclusion explicit here keeps
+    // it from resting on which branch happens to return first.
+    const declaresSandboxOutputs = outputFiles.some((file) => file.sandboxPath)
+    const outputSandboxDir =
+      useRemoteSandbox && !declaresSandboxOutputs ? SANDBOX_OUTPUT_DIR : undefined
 
     if (mountManifest.length > 0) {
       logger.info(`[${requestId}] Mounted files into sandbox`, {

@@ -35,6 +35,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', 
 }))
 
 import {
+  MOUNT_URL_MAX_BYTES,
   MOUNT_URL_TTL_SECONDS,
   planUserFileMounts,
   resolveUserFileMounts,
@@ -137,7 +138,14 @@ describe('resolveUserFileMounts', () => {
 
     // The sandbox fetches the bytes itself, so nothing transits the web process.
     expect(sandboxFiles).toEqual([
-      { type: 'url', path: '/tmp/sim/inputs/report.csv', url: 'https://presigned.example/object' },
+      {
+        type: 'url',
+        path: '/tmp/sim/inputs/report.csv',
+        url: 'https://presigned.example/object',
+        // The recorded size is only a pre-check; this is the ceiling the
+        // sandbox enforces on the bytes it actually pulls down.
+        maxBytes: MOUNT_URL_MAX_BYTES,
+      },
     ])
     expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
       planned[0].userFile.key,

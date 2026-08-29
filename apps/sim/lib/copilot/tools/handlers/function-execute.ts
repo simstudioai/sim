@@ -459,7 +459,7 @@ export async function resolveInputFiles(
           'execution',
           MOUNT_URL_TTL_SECONDS
         )
-        sandboxFiles.push({ type: 'url', path: mountPath, url })
+        sandboxFiles.push({ type: 'url', path: mountPath, url, maxBytes: SNAPSHOT_MAX_BYTES })
         mounted.url += snapshot.size
         continue
       }

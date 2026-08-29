@@ -69,6 +69,14 @@ export function replaceSandboxFileMountRefs(
     return next
   }
 
+  // Only plain containers are rebuilt. A Date, Buffer, Map, or class instance
+  // has no own enumerable entries worth walking, and reconstructing one from
+  // Object.entries would quietly replace it with a stripped plain object — a
+  // Date becoming `{}` on its way to the sandbox. Such a value cannot hold a
+  // mount marker anyway, so passing it through is both safer and complete.
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) return value
+
   const next: Record<string, unknown> = {}
   seen.set(value, next)
   for (const [key, item] of Object.entries(value)) {
@@ -98,7 +106,18 @@ export function collectSandboxFileMountRefs(
   if (seen.has(value)) return found
   seen.add(value)
 
-  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectSandboxFileMountRefs(item, found, seen)
+    return found
+  }
+
+  // Same plain-container rule the replacement pass applies. The two walks have to
+  // agree on the tree: a marker counted here but skipped there would mount a file
+  // whose reference never became a path.
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) return found
+
+  for (const item of Object.values(value)) {
     collectSandboxFileMountRefs(item, found, seen)
   }
   return found

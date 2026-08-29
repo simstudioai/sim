@@ -1,6 +1,18 @@
 export const MAX_SANDBOX_OUTPUT_BYTES = 50 * 1024 * 1024
 
 /**
+ * Hard ceiling on a single URL-mounted input, enforced inside the sandbox by
+ * `curl --max-filesize` against the bytes actually served.
+ *
+ * The planner checks a recorded size first for a fast, well-worded failure; this
+ * is the backstop for when that size understates the stored object, and it is
+ * what a URL mount falls back to when the caller declares no ceiling of its own.
+ * URL bytes never enter the web process, so the resource being bounded is
+ * sandbox disk.
+ */
+export const MAX_SANDBOX_URL_MOUNT_BYTES = 500 * 1024 * 1024
+
+/**
  * How many files one execution may export, whether declared by path or
  * discovered by harvesting the output directory. Exceeding it is an error rather
  * than a truncation: silently returning the first 20 of 100 files reads as
@@ -189,7 +201,10 @@ export class SandboxOutputDirectoryMissingError extends Error {
 
 export function isSandboxOutputNotExportableError(
   error: unknown
-): error is SandboxOutputFileCountError | SandboxOutputDepthError {
+): error is
+  | SandboxOutputFileCountError
+  | SandboxOutputDepthError
+  | SandboxOutputDirectoryMissingError {
   return (
     typeof error === 'object' &&
     error !== null &&

@@ -4,6 +4,7 @@ import {
   type ExecutionMaterializationContext,
   readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
+import { MAX_SANDBOX_URL_MOUNT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -30,11 +31,11 @@ const logger = createLogger('SandboxMounts')
 export const MOUNT_URL_TTL_SECONDS = 1800
 
 /**
- * Per-file ceiling for URL-mounted files. The bytes never transit the web
- * process — the sandbox fetches them straight from storage — so the bound is
- * sandbox disk, not web heap.
+ * Per-file ceiling for URL-mounted files, shared with the sandbox layer that
+ * enforces it on the transferred bytes so the pre-check and the backstop can
+ * never drift apart.
  */
-const MOUNT_URL_MAX_BYTES = 500 * 1024 * 1024
+export const MOUNT_URL_MAX_BYTES = MAX_SANDBOX_URL_MOUNT_BYTES
 
 /**
  * Aggregate ceiling across all URL mounts in one request. Rejects an oversized
@@ -121,7 +122,15 @@ export async function pushSandboxFileMount(
       source.storageContext,
       MOUNT_URL_TTL_SECONDS
     )
-    sandboxFiles.push({ type: 'url', path: source.mountPath, url })
+    // The checks above run on the size the record reported; this caps what the
+    // sandbox will actually accept, so an understated size cannot pull down an
+    // object larger than the per-file limit.
+    sandboxFiles.push({
+      type: 'url',
+      path: source.mountPath,
+      url,
+      maxBytes: MOUNT_URL_MAX_BYTES,
+    })
     budget.url += source.declaredSize
     return
   }
