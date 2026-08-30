@@ -1,7 +1,8 @@
+import { getWallClockParts } from '@/lib/core/utils/timezone'
 import type { ColumnDefinition, JsonValue } from '@/lib/table'
 import type { ColumnType } from '@/lib/table/column-types'
 import { columnTypeById, columnTypeOf } from '@/lib/table/column-types'
-import { formatDateCellDisplay, getWallClockParts, normalizeDateCellValue } from '@/lib/table/dates'
+import { formatDateCellDisplay, normalizeDateCellValue } from '@/lib/table/dates'
 
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
@@ -55,7 +56,7 @@ export function cleanCellValue(
   // Everything else runs the SAME coercion the server will run, so the
   // optimistic cache holds exactly the value that gets persisted.
   const columnType = columnTypeOf(column)
-  const coerced = columnType.coerce(value as JsonValue, column)
+  const coerced = columnType.coerce(value as JsonValue, column, { timezone: timeZone })
   if (coerced.ok) return coerced.value
   const salvaged = columnType.salvage?.(value as JsonValue, column)
   return salvaged?.ok ? salvaged.value : null
@@ -68,7 +69,7 @@ export function cleanCellValue(
  * row data already has the new mapping's value) would otherwise render
  * `[object Object]` via `String(value)`.
  */
-export function formatValueForInput(value: unknown, type: string): string {
+export function formatValueForInput(value: unknown, type: string, timeZone?: string): string {
   if (value === null || value === undefined) return ''
   const definition = columnTypeById(type)
   // Shape-drift guard, kept ahead of the registry: a column whose declared type
@@ -78,7 +79,11 @@ export function formatValueForInput(value: unknown, type: string): string {
   if (typeof value === 'object' && !definition.storesOpaqueIds && type !== 'json') {
     return JSON.stringify(value)
   }
-  return definition.formatForInput(value, { name: '', type: type as ColumnType })
+  return definition.formatForInput(
+    value,
+    { name: '', type: type as ColumnType },
+    { timezone: timeZone }
+  )
 }
 
 /** A canonical date-cell value split into its wall-clock editing parts. */
@@ -142,46 +147,12 @@ export function storageToDisplay(stored: string, options?: { seconds?: boolean }
  */
 export function displayToStorage(display: string, timeZone?: string): string | null {
   const trimmed = display.trim()
-  const withTime = trimmed.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i
-  )
-  if (withTime) {
-    const [, m, d, y, h, min, sec, meridiem] = withTime
-    let hours = Number(h)
-    if (meridiem) {
-      if (hours < 1 || hours > 12) return null
-      hours = (hours % 12) + (meridiem.toUpperCase() === 'PM' ? 12 : 0)
-    } else if (hours > 23) {
-      return null
-    }
-    if (Number(min) > 59 || Number(sec ?? 0) > 59) return null
-    if (!isValidCalendarDay(Number(y), Number(m), Number(d))) return null
-    const pad = (n: string) => n.padStart(2, '0')
-    // Route through the shared normalizer so the wall time resolves in the
-    // effective zone.
-    return normalizeDateCellValue(
-      `${y}-${pad(m)}-${pad(d)}T${String(hours).padStart(2, '0')}:${min}:${sec ?? '00'}`,
-      { timezone: timeZone }
-    )
-  }
-  const full = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (full) {
-    if (!isValidCalendarDay(Number(full[3]), Number(full[1]), Number(full[2]))) return null
-    return `${full[3]}-${full[1].padStart(2, '0')}-${full[2].padStart(2, '0')}`
-  }
   const partial = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/)
   if (partial) {
     const year = Number(todayLocalCalendarDate(timeZone).slice(0, 4))
-    if (!isValidCalendarDay(year, Number(partial[1]), Number(partial[2]))) return null
-    return `${year}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
+    return normalizeDateCellValue(
+      `${year}-${partial[1].padStart(2, '0')}-${partial[2].padStart(2, '0')}`
+    )
   }
   return normalizeDateCellValue(trimmed, { timezone: timeZone })
-}
-
-/** True when Y/M/D is a real calendar day — `Date` rolls impossible days over
- *  (02/30 → 03/02) instead of rejecting them, so compare the round-trip. */
-function isValidCalendarDay(year: number, month: number, day: number): boolean {
-  if (month < 1 || month > 12 || day < 1 || day > 31) return false
-  const check = new Date(year, month - 1, day)
-  return check.getMonth() === month - 1 && check.getDate() === day
 }

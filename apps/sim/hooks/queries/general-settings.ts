@@ -149,8 +149,25 @@ export function useBillingUsageNotifications(): boolean {
  * captured so scheduling honors the account preference rather than the device.
  */
 export function useTimezone(): string {
-  const { data } = useGeneralSettings()
-  return data?.timezone ?? getBrowserTimezone()
+  return useTimezoneState().timezone
+}
+
+export interface TimezoneState {
+  timezone: string
+  status: 'loading' | 'ready' | 'error'
+}
+
+/**
+ * The effective timezone together with whether the saved preference is known.
+ * Destructive time-based editors use the status to avoid capturing the browser
+ * fallback while the preference request is still in flight.
+ */
+export function useTimezoneState(): TimezoneState {
+  const { data, isError } = useGeneralSettings()
+  return {
+    timezone: data?.timezone ?? getBrowserTimezone(),
+    status: data ? 'ready' : isError ? 'error' : 'loading',
+  }
 }
 
 /**

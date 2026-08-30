@@ -800,7 +800,7 @@ describe('executeTool Function', () => {
     cleanupEnvVars()
   })
 
-  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+  it('stamps standard Function identity and preserves trusted execution context', async () => {
     const fetchSpy = vi.fn()
     global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
 
@@ -856,7 +856,7 @@ describe('executeTool Function', () => {
         workspaceId: 'workspace-456',
         body: {
           code: 'return [{{API_KEY}}, __blockRef_0.field]',
-          isCustomTool: true,
+          isCustomTool: false,
           inputs: { location: 'San Francisco' },
           envVars: { API_KEY: 'resolved-secret' },
           contextVariables: {
@@ -1744,6 +1744,7 @@ describe('executeTool Function', () => {
   it('does not log plaintext or runtime aliases from Function errors', async () => {
     const secret = 'function-error-secret-value'
     const runtimeAlias = '__var_API_KEY'
+    const cost = { input: 0, output: 0, total: 0.00012345 }
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'API_KEY',
@@ -1756,6 +1757,7 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          output: { result: null, stdout: 'trace', cost },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1782,6 +1784,7 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
+    expect(result.output?.cost).toEqual(cost)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
@@ -1822,6 +1825,32 @@ describe('executeTool Function', () => {
     expect(result.error).toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+  })
+
+  it('does not lift an invalid sandbox cost from a Function error response', async () => {
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: {
+            result: null,
+            stdout: 'trace',
+            cost: { input: 0, output: 0, total: -1 },
+          },
+        },
+        { status: 422 }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'throw new Error("boom")' },
+      { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('cost')
   })
 
   it('does not log a secret-bearing non-OK response stream error', async () => {
@@ -4149,7 +4178,7 @@ describe('Internal Route Trust', () => {
   })
 })
 
-describe('Copilot File Parameter Normalization', () => {
+describe('File Parameter Normalization', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -4275,7 +4304,16 @@ describe('Copilot File Parameter Normalization', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledTimes(3)
   })
 
-  it('does not resolve file params outside copilot execution', async () => {
+  it('resolves file params outside copilot execution too', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_123',
+      name: 'brief.pdf',
+      path: '/api/files/wf_123',
+      size: 512,
+      type: 'application/pdf',
+      key: 'uploads/wf_123',
+    })
+
     const context = createToolExecutionContext({
       workspaceId: 'workspace-456',
       userId: 'user-1',
@@ -4287,11 +4325,72 @@ describe('Copilot File Parameter Normalization', () => {
       { executionContext: context }
     )
 
+    // By-reference is the only way any model can pass a file — it cannot
+    // synthesize a key or url — so resolution is not copilot-specific.
     expect(result.success).toBe(true)
     expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
-      attachment: 'wf_123',
+      attachment: {
+        id: 'wf_123',
+        name: 'brief.pdf',
+        url: '/api/files/wf_123',
+        size: 512,
+        type: 'application/pdf',
+        key: 'uploads/wf_123',
+        context: 'workspace',
+      },
+    })
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', 'wf_123')
+  })
+
+  it('resolves a file produced earlier in the same execution without a workspace lookup', async () => {
+    const executionFile = {
+      id: 'file_1700000000_abc',
+      name: 'invoice.pdf',
+      url: 'https://storage.example/invoice.pdf',
+      size: 2048,
+      type: 'application/pdf',
+      key: 'execution/workspace-456/wf-1/exec-1/abc/invoice.pdf',
+      context: 'execution',
+    }
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+    context.executionFilesById = new Map([[executionFile.id, executionFile]])
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: executionFile.id },
+      { executionContext: context }
+    )
+
+    // An execution-scoped attachment — a Gmail file fetched moments ago in the
+    // same agent turn — has no workspace row, so the workspace lookup would
+    // never find it.
+    expect(result.success).toBe(true)
+    expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
+      attachment: executionFile,
     })
     expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+
+  it('fails a file param naming an id that exists nowhere in scope', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_nope' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Could not resolve file reference "wf_nope"')
   })
 })
 

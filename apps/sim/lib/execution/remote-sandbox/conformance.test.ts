@@ -9,6 +9,7 @@
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
+import { SANDBOX_OUTPUT_DIR_SENTINEL } from '@/lib/execution/remote-sandbox/sandbox-paths'
 
 const {
   mockResolveSandbox,
@@ -22,12 +23,14 @@ const {
   mockE2BFilesRead,
   mockE2BFilesRemove,
   mockE2BFilesWrite,
+  mockE2BFilesList,
   mockE2BKill,
   mockDaytonaCreate,
   mockInterpreterRunCode,
   mockProcessCodeRun,
   mockExecuteCommand,
   mockGetFileDetails,
+  mockListFiles,
   mockUploadFile,
   mockDownloadFile,
   mockDownloadFileStream,
@@ -71,12 +74,14 @@ const {
   mockE2BFilesRead: vi.fn(),
   mockE2BFilesRemove: vi.fn(),
   mockE2BFilesWrite: vi.fn(),
+  mockE2BFilesList: vi.fn(),
   mockE2BKill: vi.fn(),
   mockDaytonaCreate: vi.fn(),
   mockInterpreterRunCode: vi.fn(),
   mockProcessCodeRun: vi.fn(),
   mockExecuteCommand: vi.fn(),
   mockGetFileDetails: vi.fn(),
+  mockListFiles: vi.fn(),
   mockUploadFile: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockDownloadFileStream: vi.fn(),
@@ -118,12 +123,21 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
-import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
-import { E2B_MAX_SANDBOX_LIFETIME_MS, e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
+import {
+  daytonaProvider,
+  resolveDaytonaSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/daytona'
+import {
+  E2B_MAX_SANDBOX_LIFETIME_MS,
+  e2bProvider,
+  resolveE2BSandboxLifetimeMs,
+} from '@/lib/execution/remote-sandbox/e2b'
 import {
   MAX_SANDBOX_OUTPUT_BYTES,
+  MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
   MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES,
+  readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   PI_SANDBOX_MIN_LIFETIME_MS,
@@ -133,6 +147,27 @@ import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 
 type Provider = 'e2b' | 'daytona'
 const PROVIDERS: Provider[] = ['e2b', 'daytona']
+
+describe('provider-effective sandbox lifetimes', () => {
+  it('matches E2B second and Daytona minute rounding', () => {
+    expect(resolveE2BSandboxLifetimeMs(1001)).toBe(2000)
+    expect(resolveDaytonaSandboxLifetimeMs(1001)).toBe(60_000)
+  })
+
+  it.each(PROVIDERS)('reports the %s SDK create dispatch time', async (provider) => {
+    useProvider(provider)
+    const onProviderRequestStarted = vi.fn()
+    const createMock = provider === 'e2b' ? mockE2BCreate : mockDaytonaCreate
+
+    await resolveProvider().create('code', { lifetimeMs: 1000, onProviderRequestStarted })
+
+    expect(onProviderRequestStarted).toHaveBeenCalledOnce()
+    expect(onProviderRequestStarted).toHaveBeenCalledWith(expect.any(Number))
+    expect(onProviderRequestStarted.mock.invocationCallOrder[0]).toBeLessThan(
+      createMock.mock.invocationCallOrder[0]
+    )
+  })
+})
 
 /** Points the shared layer at one provider via the SANDBOX_PROVIDER env var. */
 function useProvider(provider: Provider) {
@@ -266,6 +301,7 @@ beforeEach(() => {
       read: mockE2BFilesRead,
       remove: mockE2BFilesRemove,
       write: mockE2BFilesWrite,
+      list: mockE2BFilesList,
     },
     kill: mockE2BKill,
   })
@@ -296,6 +332,7 @@ beforeEach(() => {
       downloadFile: mockDownloadFile,
       downloadFileStream: mockDownloadFileStream,
       getFileDetails: mockGetFileDetails,
+      listFiles: mockListFiles,
     },
     delete: mockDelete,
   })
@@ -330,6 +367,47 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(res.result).toEqual({ ok: true })
     expect(res.stdout).toBe('hello')
     expect(res.error).toBeUndefined()
+    expect(res.cost).toBeUndefined()
+  })
+
+  it('adds provider cost to a metered successful code result', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}{"ok":true}`)
+    let now = 1_800_000_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => ++now)
+
+    try {
+      const res = await executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        meterUsage: true,
+      })
+
+      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost?.total).toBeGreaterThan(0)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('adds provider cost to a metered successful shell result', async () => {
+    stubShellCommand(provider, 'ok', '', 0)
+    let now = 1_800_000_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => ++now)
+
+    try {
+      const res = await executeShellInSandbox({
+        code: 'echo ok',
+        envs: {},
+        timeoutMs: 1000,
+        meterUsage: true,
+      })
+
+      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost?.total).toBeGreaterThan(0)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 
   it('takes the LAST marker so user output cannot shadow the real result', async () => {
@@ -354,10 +432,12 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       code: 'x',
       language: CodeLanguage.Python,
       timeoutMs: 1000,
+      meterUsage: true,
     })
 
     expect(res.result).toBeNull()
     expect(res.error).toContain('corrupted in transport')
+    expect(res.cost).toBeUndefined()
   })
 
   it('survives a large single-line payload without chunk corruption', async () => {
@@ -386,13 +466,19 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       })
     }
 
-    await expect(
-      executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
-    ).rejects.toMatchObject({
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({
       code: 'sandbox_output_limit_exceeded',
       outputKind: 'process',
       limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
     })
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
   })
 
@@ -495,11 +581,13 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       code: 'raise ValueError("boom")',
       language: CodeLanguage.Python,
       timeoutMs: 1000,
+      meterUsage: true,
     })
 
     expect(res.error).toBe('ValueError: boom')
     expect(res.stdout).toContain('ValueError: boom')
     expect(res.result).toBeNull()
+    expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
   })
 
   it('normalizes Python code budget expiry to a typed timeout abort', async () => {
@@ -598,6 +686,199 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         sandboxFiles: [{ type: 'url', path: '/mnt/data/in.csv', url: 'https://example/f' }],
       })
     ).rejects.toThrow(/Failed to fetch mounted file/)
+  })
+
+  /** Stubs one directory listing in whichever shape the provider returns. */
+  function stubOutputDirListing(
+    entries: Array<{ path: string; size: number; kind?: 'file' | 'dir' }>
+  ) {
+    if (provider === 'e2b') {
+      mockE2BFilesList.mockResolvedValueOnce(
+        entries.map((entry) => ({
+          name: entry.path.split('/').pop(),
+          path: entry.path,
+          size: entry.size,
+          type: entry.kind === 'dir' ? 'dir' : 'file',
+        }))
+      )
+    } else {
+      mockListFiles.mockResolvedValueOnce(
+        entries.map((entry) => ({
+          name: entry.path.split('/').pop(),
+          path: entry.path,
+          size: entry.size,
+          isDir: entry.kind === 'dir',
+          mode: entry.kind === 'dir' ? 'drwxr-xr-x' : '-rw-r--r--',
+        }))
+      )
+    }
+  }
+
+  it('bills a completed run whose harvest produced more files than it can export', async () => {
+    // The sandbox executed and was paid for; the refusal is about what the code
+    // wrote, so it belongs with the post-completion export failures rather than
+    // the provider failures the policy absorbs.
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    stubOutputDirListing(
+      Array.from({ length: MAX_SANDBOX_OUTPUT_FILES + 1 }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({ code: 'sandbox_output_not_exportable' })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+    })
+  })
+
+  it('creates the output directory before user code runs', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([])
+
+    await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    // Regression guard. `outputSandboxDir` is this layer's contract, so this
+    // layer has to create the directory: when creation lived in the caller's
+    // runtime prologue instead, calling executeInSandbox directly left user
+    // code writing into a directory that did not exist, and every write was
+    // ENOENT. The sentinel must be written before the code file that runs.
+    const writeMock = provider === 'e2b' ? mockE2BFilesWrite : mockUploadFile
+    const writtenPaths = writeMock.mock.calls.map((call) =>
+      provider === 'e2b' ? call[0] : call[1]
+    )
+    const sentinelIndex = writtenPaths.findIndex((path: string) =>
+      path?.includes('/tmp/sim/outputs/.sim-keep')
+    )
+    const codeIndex = writtenPaths.findIndex((path: string) => path?.includes('.sim-function-'))
+    expect(sentinelIndex).toBeGreaterThanOrEqual(0)
+    expect(codeIndex).toBeGreaterThanOrEqual(0)
+    expect(sentinelIndex).toBeLessThan(codeIndex)
+  })
+
+  it('keeps the directory sentinel out of the harvest', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([
+      { path: `/tmp/sim/outputs/${SANDBOX_OUTPUT_DIR_SENTINEL}`, size: 0 },
+      { path: '/tmp/sim/outputs/real.txt', size: 4 },
+    ])
+    stubOutputFileSizes(provider, 4)
+    stubOutputFileRead(provider, 'real')
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles?.map((file) => file.relativePath)).toEqual(['real.txt'])
+  })
+
+  it('harvests files written to the output directory', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([{ path: '/tmp/sim/outputs/report.csv', size: 5 }])
+    stubOutputFileSizes(provider, 5)
+    stubOutputFileRead(provider, 'a,b\n1')
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles).toEqual([
+      {
+        path: '/tmp/sim/outputs/report.csv',
+        relativePath: 'report.csv',
+        // Always base64, so an arbitrary harvested filename can never be
+        // decoded as utf8 and silently corrupted.
+        contentBase64: Buffer.from('a,b\n1').toString('base64'),
+        byteLength: 5,
+      },
+    ])
+  })
+
+  it('excludes directories from the harvest', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing([{ path: '/tmp/sim/outputs/nested', size: 0, kind: 'dir' }])
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    expect(result.collectedFiles).toBeUndefined()
+  })
+
+  it('refuses a harvest whose nesting outran the listing depth', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    // A directory reported at the traversal limit still holds unlisted files.
+    // Returning the shallow ones would drop the rest without a word.
+    const deep = Array.from({ length: 12 }, (_, index) => `l${index + 1}`).join('/')
+    stubOutputDirListing([
+      { path: '/tmp/sim/outputs/shallow.txt', size: 4 },
+      { path: `/tmp/sim/outputs/${deep}`, size: 0, kind: 'dir' },
+    ])
+
+    await expect(
+      executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        outputSandboxDir: '/tmp/sim/outputs',
+      })
+    ).rejects.toThrow(/nested deeper than 12 levels/)
+  })
+
+  it('refuses a harvest over the output file count rather than truncating it', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputDirListing(
+      Array.from({ length: 21 }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+
+    await expect(
+      executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        outputSandboxDir: '/tmp/sim/outputs',
+      })
+    ).rejects.toThrow(/over the 20-file export limit/)
+  })
+
+  it('does not list the output directory when no harvest was requested', async () => {
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+    })
+
+    expect(result.collectedFiles).toBeUndefined()
+    expect(provider === 'e2b' ? mockE2BFilesList : mockListFiles).not.toHaveBeenCalled()
   })
 
   it('materializes private code inputs after dependencies and user files', async () => {
@@ -816,11 +1097,17 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
      */
     stubShellCommand(provider, provider === 'daytona' ? 'boom detail' : '', 'boom detail', 3)
 
-    const res = await executeShellInSandbox({ code: 'false', envs: {}, timeoutMs: 1000 })
+    const res = await executeShellInSandbox({
+      code: 'false',
+      envs: {},
+      timeoutMs: 1000,
+      meterUsage: true,
+    })
 
     expect(res.result).toBeNull()
     expect(res.error).toContain('boom detail')
     expect(res.stdout).toContain('boom detail')
+    expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
   })
 
   it('terminates shell execution when streamed process output exceeds the byte budget', async () => {
@@ -922,17 +1209,23 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
     stubOutputFileSizes(provider, MAX_SANDBOX_OUTPUT_BYTES + 1)
 
-    await expect(
-      executeInSandbox({
-        code: 'x',
-        language: CodeLanguage.Python,
-        timeoutMs: 1000,
-        outputSandboxPath: '/out/report.txt',
-      })
-    ).rejects.toMatchObject({
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/report.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({
       code: 'sandbox_output_limit_exceeded',
       attemptedBytes: MAX_SANDBOX_OUTPUT_BYTES + 1,
       limitBytes: MAX_SANDBOX_OUTPUT_BYTES,
+    })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
     })
 
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
@@ -986,15 +1279,96 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
     }
 
-    await expect(
-      executeInSandbox({
-        code: 'x',
-        language: CodeLanguage.Python,
-        timeoutMs: 1000,
-        outputSandboxPath: '/out/link.txt',
-      })
-    ).rejects.toMatchObject({ code: 'sandbox_output_file_invalid' })
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/link.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toMatchObject({ code: 'sandbox_output_file_invalid' })
+    expect(readTrustedSandboxOutputCost(error)).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+    })
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
+  })
+
+  it.each(['oversized', 'non-regular'] as const)(
+    'retains metered shell cost for a completed execution with %s output',
+    async (failure) => {
+      stubShellCommand(provider, '', '', 0)
+      if (failure === 'oversized') {
+        stubOutputFileSizes(provider, MAX_SANDBOX_OUTPUT_BYTES + 1)
+      } else if (provider === 'e2b') {
+        mockE2BFilesGetInfo.mockResolvedValueOnce({ size: 1, type: 'symlink' })
+      } else {
+        mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
+      }
+
+      const error = await executeShellInSandbox({
+        code: 'echo done',
+        envs: {},
+        timeoutMs: 1000,
+        outputSandboxPath: '/out/result.txt',
+        meterUsage: true,
+      }).catch((error: unknown) => error)
+
+      expect(error).toMatchObject({
+        code:
+          failure === 'oversized' ? 'sandbox_output_limit_exceeded' : 'sandbox_output_file_invalid',
+      })
+      expect(readTrustedSandboxOutputCost(error)).toEqual({
+        input: 0,
+        output: 0,
+        total: expect.any(Number),
+      })
+    }
+  )
+
+  it('does not attach cost to a generic provider failure during output collection', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    stubOutputFileSizes(provider, 1, 1)
+    const failure = new Error('provider file read failed')
+    if (provider === 'e2b') {
+      mockE2BFilesRead.mockRejectedValueOnce(failure)
+    } else {
+      mockDownloadFileStream.mockRejectedValueOnce(failure)
+    }
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/result.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toBe(failure)
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
+  })
+
+  it('does not attach cost to a generic provider failure during output inspection', async () => {
+    stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
+    const failure = new Error('provider file metadata failed')
+    if (provider === 'e2b') {
+      mockE2BFilesGetInfo.mockRejectedValueOnce(failure)
+    } else {
+      mockGetFileDetails.mockRejectedValueOnce(failure)
+    }
+
+    const error = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/out/result.txt',
+      meterUsage: true,
+    }).catch((error: unknown) => error)
+
+    expect(error).toBe(failure)
+    expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
   })
 
   it('does not return code results when cancellation arrives during output collection', async () => {
@@ -1311,6 +1685,58 @@ describe('provider stream recovery', () => {
     })
     expect(mockGetSessionCommandLogs).toHaveBeenCalledTimes(2)
     expect(mockGetSessionCommand).toHaveBeenCalledWith(expect.any(String), 'cmd_1')
+  })
+
+  it('fails an at-most-once Daytona run closed when final status has no exit code', async () => {
+    mockGetSessionCommand.mockResolvedValueOnce({})
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+  })
+
+  it('fails an at-most-once Daytona run closed when its readiness handshake never completes', async () => {
+    mockGetSessionCommandLogs.mockResolvedValueOnce(undefined)
+    mockGetSessionCommand.mockResolvedValueOnce({ exitCode: 78 })
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+    expect(mockSendSessionCommandInput).not.toHaveBeenCalled()
+  })
+
+  it('fails an at-most-once Daytona run closed when final status lookup fails', async () => {
+    mockGetSessionCommand.mockRejectedValueOnce(new Error('control plane unavailable'))
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toMatchObject({
+      name: 'SandboxLaunchIndeterminateError',
+      retryable: false,
+      code: 'sandbox_launch_indeterminate',
+    })
+  })
+
+  it('preserves a pre-dispatch Daytona failure for at-most-once runs', async () => {
+    const failure = new Error('session unavailable')
+    mockCreateSession.mockRejectedValueOnce(failure)
+    const sandbox = await daytonaProvider.create('code')
+
+    await expect(
+      sandbox.runCommand('node function.js', { timeoutMs: 1000, atMostOnce: true })
+    ).rejects.toBe(failure)
+    expect(mockExecuteSessionCommand).not.toHaveBeenCalled()
   })
 
   it('keeps the original Daytona deadline while recovering a disconnected stream', async () => {
@@ -2253,10 +2679,12 @@ describe('Pi sandbox lifetime', () => {
         code: 'x',
         language: CodeLanguage.Python,
         timeoutMs: 7 * 24 * 60 * 60 * 1000,
+        meterUsage: true,
       })
 
       expect(result.error).toContain('E2B reached its 24-hour limit')
       expect(result.error).toContain('workflow timeout may be longer')
+      expect(result.cost).toBeUndefined()
       expect(mockRecordSandboxProviderLimit).toHaveBeenCalledWith({
         provider: 'e2b',
         operation: 'code',
@@ -2280,9 +2708,11 @@ describe('Pi sandbox lifetime', () => {
       const result = await executeShellInSandbox({
         code: 'sleep infinity',
         timeoutMs: 7 * 24 * 60 * 60 * 1000,
+        meterUsage: true,
       })
 
       expect(result.error).toContain('E2B reached its 24-hour limit')
+      expect(result.cost).toBeUndefined()
       expect(mockRecordSandboxProviderLimit).toHaveBeenCalledWith({
         provider: 'e2b',
         operation: 'command',

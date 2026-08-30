@@ -4979,7 +4979,16 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                      "enum": [
+                        "string",
+                        "number",
+                        "currency",
+                        "boolean",
+                        "date",
+                        "ttl",
+                        "json",
+                        "select"
+                      ],
                       "description": "Data type of values stored in the column."
                     },
                     "required": {
@@ -5257,7 +5266,16 @@
                     },
                     "type": {
                       "type": "string",
-                      "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                      "enum": [
+                        "string",
+                        "number",
+                        "currency",
+                        "boolean",
+                        "date",
+                        "ttl",
+                        "json",
+                        "select"
+                      ],
                       "description": "Column data type."
                     },
                     "required": {
@@ -5436,7 +5454,16 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
                   "description": "Data type of values stored in the column."
                 },
                 "required": {
@@ -5536,7 +5563,16 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                "enum": [
+                  "string",
+                  "number",
+                  "currency",
+                  "boolean",
+                  "date",
+                  "ttl",
+                  "json",
+                  "select"
+                ],
                 "description": "Column data type."
               },
               "required": {
@@ -5633,7 +5669,7 @@
               "type": {
                 "description": "Replacement column data type.",
                 "type": "string",
-                "enum": ["string", "number", "currency", "boolean", "date", "json", "select"]
+                "enum": ["string", "number", "currency", "boolean", "date", "ttl", "json", "select"]
               },
               "required": {
                 "description": "Whether inserts must supply a value for this column.",
@@ -7397,7 +7433,16 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
                   "description": "Data type of values stored in the column."
                 },
                 "required": {
@@ -7597,7 +7642,16 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
                   "description": "Output column data type."
                 },
                 "required": {
@@ -7738,7 +7792,16 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
                   "description": "Output column data type."
                 },
                 "required": {
@@ -7856,7 +7919,16 @@
                 },
                 "type": {
                   "type": "string",
-                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
                   "description": "Data type of values stored in the column."
                 },
                 "required": {

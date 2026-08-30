@@ -5,7 +5,7 @@ export const tableNewRowTrigger: TriggerConfig = {
   id: 'table_new_row',
   name: 'Table Trigger',
   provider: 'table',
-  description: 'Triggers when rows are inserted or updated in a table',
+  description: 'Triggers when rows are inserted, updated, or deleted in a table',
   version: '1.0.0',
   icon: Table,
 
@@ -37,6 +37,7 @@ export const tableNewRowTrigger: TriggerConfig = {
       options: [
         { id: 'insert', label: 'Row Inserted' },
         { id: 'update', label: 'Row Updated' },
+        { id: 'delete', label: 'Row Deleted' },
       ],
       defaultValue: 'insert',
       description: 'The type of event to trigger on.',
@@ -73,7 +74,7 @@ export const tableNewRowTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Select the table to monitor',
-        'Choose whether to trigger on row inserts or updates',
+        'Choose whether to trigger on row inserts, updates, or deletes',
         'For updates, optionally select specific columns to watch',
         'The workflow will trigger automatically when the event occurs',
       ]
@@ -97,11 +98,11 @@ export const tableNewRowTrigger: TriggerConfig = {
     },
     previousRow: {
       type: 'json',
-      description: 'Previous row data before the update (null for inserts)',
+      description: 'Previous row data before an update or deletion (null for inserts)',
     },
     changedColumns: {
       type: 'json',
-      description: 'List of column names that changed (empty for inserts)',
+      description: 'List of column names that changed (empty for inserts and deletes)',
     },
     rowId: {
       type: 'string',

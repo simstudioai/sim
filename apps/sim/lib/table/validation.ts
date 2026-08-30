@@ -14,6 +14,7 @@ import {
   columnTypeOf,
   isColumnType,
   TYPE_SPECIFIC_COLUMN_KEYS,
+  validateColumnTypeLimits,
   validateTypeMetadata,
 } from '@/lib/table/column-types'
 import {
@@ -243,6 +244,8 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   if (uniqueNames.size !== columnNames.length) {
     errors.push('Duplicate column names found')
   }
+
+  errors.push(...validateColumnTypeLimits(schema.columns))
 
   return { valid: errors.length === 0, errors }
 }

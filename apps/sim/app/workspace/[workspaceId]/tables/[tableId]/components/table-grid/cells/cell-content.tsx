@@ -13,6 +13,7 @@ interface CellContentProps {
   /** Current workspace id — lets string cells holding an in-workspace resource
    *  URL render as a tagged-resource chip instead of a plain external link. */
   workspaceId: string
+  timeZone: string
   isEditing: boolean
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
@@ -38,6 +39,7 @@ export function CellContent({
   exec,
   column,
   workspaceId,
+  timeZone,
   isEditing,
   initialCharacter,
   onSave,
@@ -52,6 +54,7 @@ export function CellContent({
     waitingOnLabels,
     isEnrichmentOutput,
     currentWorkspaceId: workspaceId,
+    timeZone,
   })
 
   return (

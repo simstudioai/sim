@@ -49,6 +49,22 @@ export function attachExecutionResult(error: Error, executionResult: ExecutionRe
  */
 const attemptedExecutionIds = new WeakMap<object, string>()
 
+/** Cost emitted by a trusted execution boundary and safe to project into a block trace. */
+export interface TrustedExecutionCost {
+  readonly input: number
+  readonly output: number
+  readonly total: number
+}
+
+/**
+ * Trusted execution costs, keyed by the value crossing the handler boundary.
+ *
+ * Cost stays in a side table until the executor deliberately copies it into block output. This
+ * prevents arbitrary properties on provider errors (or user-thrown values) from becoming billed
+ * trace data while still allowing a handler to preserve cost when it throws.
+ */
+const trustedExecutionCosts = new WeakMap<object, TrustedExecutionCost>()
+
 /**
  * Names the run a failure belongs to once dispatch has been attempted.
  *
@@ -70,6 +86,46 @@ export function attachAttemptedExecutionId(error: unknown, executionId: string):
 /** Reads the dispatched-run id a thrown value carries, if dispatch was reached at all. */
 export function readAttemptedExecutionId(error: unknown): string | undefined {
   return isRecordedThrown(error) ? attemptedExecutionIds.get(error) : undefined
+}
+
+/** Attaches a validated, Sim-produced execution cost to an object crossing the handler boundary. */
+export function attachTrustedExecutionCost(subject: unknown, cost: unknown): void {
+  if (!isRecordedThrown(subject)) return
+
+  const normalizedCost = normalizeTrustedExecutionCost(cost)
+  if (!normalizedCost) return
+
+  trustedExecutionCosts.set(subject, normalizedCost)
+}
+
+/** Reads execution cost only when a trusted caller previously attached it. */
+export function readTrustedExecutionCost(subject: unknown): TrustedExecutionCost | undefined {
+  return isRecordedThrown(subject) ? trustedExecutionCosts.get(subject) : undefined
+}
+
+function normalizeTrustedExecutionCost(cost: unknown): TrustedExecutionCost | undefined {
+  if (!cost || typeof cost !== 'object' || Array.isArray(cost)) return undefined
+
+  const candidate = cost as Record<string, unknown>
+  if (
+    typeof candidate.input !== 'number' ||
+    !Number.isFinite(candidate.input) ||
+    candidate.input < 0 ||
+    typeof candidate.output !== 'number' ||
+    !Number.isFinite(candidate.output) ||
+    candidate.output < 0 ||
+    typeof candidate.total !== 'number' ||
+    !Number.isFinite(candidate.total) ||
+    candidate.total < 0
+  ) {
+    return undefined
+  }
+
+  return {
+    input: candidate.input,
+    output: candidate.output,
+    total: candidate.total,
+  }
 }
 
 /**
