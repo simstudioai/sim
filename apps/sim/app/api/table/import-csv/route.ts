@@ -9,11 +9,13 @@ import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { CSV_SYNC_MAX_FILE_SIZE_BYTES } from '@/lib/table'
 import { performCreateTableFromCsv } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
+  capabilityRefusalResponse,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   orchestrationOutcomeErrorResponse,
@@ -69,6 +71,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'write' && permission !== 'admin') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // permission-group-enforced: tables.use — raw route that queries directly and predates the operation boundary
+    if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'tables.use')) {
+      return capabilityRefusalResponse('tables.use')
     }
 
     let folderId: string | null = null

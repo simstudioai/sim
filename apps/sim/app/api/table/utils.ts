@@ -10,6 +10,11 @@ import {
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
+import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -222,7 +227,15 @@ interface TableAccessDenied {
 
 export type TableAccessCheck = TableAccessResult | TableAccessDenied
 
-export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
+/**
+ * A denial carries `capability` when the caller's permission group withheld the
+ * Tables module, so {@link accessError} can say so rather than reporting the
+ * role failure it is not. Optional because the other two denials — the table
+ * does not exist, the role is too low — have no capability to name.
+ */
+export type AccessResult =
+  | { ok: true; table: TableDefinition }
+  | { ok: false; status: 404 | 403; capability?: StaticPermissionGroupCapability }
 
 interface ApiErrorResponse {
   error: string
@@ -269,7 +282,23 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
 
 /**
  * Access check returning `{ ok, table }` or `{ ok: false, status }`.
- * Uses workspace permissions only.
+ *
+ * The workspace role, then the permission group's `tables.use` capability — the
+ * one gate every raw table route under `/api/table/**` shares. These routes
+ * predate the operation boundary and query the table service directly, so the
+ * authorization funnel that applies `tables.use` to `tableOperations` never
+ * sees them; without this a member of a group denied Tables could still drive
+ * all of them.
+ *
+ * Capability comes second for the same reason it does in
+ * `authorizeWorkspaceOperation`: the role failure conceals whether the table
+ * exists, and refusing on capability first would tell a non-member which
+ * modules the organization withholds.
+ *
+ * Nothing here exempts the executor. A workflow run reaches tables through
+ * `tableOperations`, where the delegated-principal branch already withholds
+ * capabilities from an executor subject; these HTTP routes are UI surfaces, and
+ * the internal-JWT branch of `checkSessionOrInternalAuth` acts as the person.
  */
 export async function checkAccess(
   tableId: string,
@@ -283,16 +312,53 @@ export async function checkAccess(
   }
 
   const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  const hasAccess = permissionSatisfies(permission, level)
+  if (!permissionSatisfies(permission, level)) {
+    return { ok: false, status: 403 }
+  }
 
-  return hasAccess ? { ok: true, table } : { ok: false, status: 403 }
+  // permission-group-enforced: tables.use — raw routes that query directly and predate the operation boundary
+  if (
+    table.workspaceId &&
+    (await isWorkspaceCapabilityWithheld(userId, table.workspaceId, 'tables.use'))
+  ) {
+    return { ok: false, status: 403, capability: 'tables.use' }
+  }
+
+  return { ok: true, table }
+}
+
+/**
+ * The 403 a raw table route returns when a permission group withholds a
+ * capability, as opposed to the caller's role being too low.
+ *
+ * One place so the sentence and the detail code cannot drift between the routes
+ * that gate through {@link checkAccess} and the few that assert inline because
+ * they name a workspace rather than a table.
+ */
+export function capabilityRefusalResponse(
+  capability: StaticPermissionGroupCapability
+): NextResponse<ApiErrorResponse> {
+  return NextResponse.json(
+    {
+      error: capabilityRefusal(capability),
+      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+    },
+    { status: 403 }
+  )
 }
 
 export function accessError(
-  result: { ok: false; status: 404 | 403 },
+  result: Extract<AccessResult, { ok: false }>,
   requestId: string,
   context?: string
 ): NextResponse {
+  if (result.capability) {
+    logger.warn(
+      `[${requestId}] ${capabilityRefusal(result.capability)}${context ? `: ${context}` : ''}`
+    )
+    return capabilityRefusalResponse(result.capability)
+  }
+
   const message = result.status === 404 ? 'Table not found' : 'Access denied'
   logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
   return NextResponse.json({ error: message }, { status: result.status })
