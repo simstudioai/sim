@@ -7,16 +7,16 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
-import { chatPubSub } from '@/lib/copilot/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import { chatPubSub } from '@/lib/mothership/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   assertActiveWorkspaceAccess,

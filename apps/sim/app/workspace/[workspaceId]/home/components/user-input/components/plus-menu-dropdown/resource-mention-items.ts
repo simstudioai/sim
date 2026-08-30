@@ -3,7 +3,7 @@ import type { TerminalTabState } from '@sim/terminal-protocol'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { browserTabTitle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'

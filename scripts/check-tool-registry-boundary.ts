@@ -145,7 +145,7 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
      * nothing was holding that win — the tool appeared in no guarded subtree, so
      * a single `getTool` import could have spent all of it silently.
      */
-    root: 'lib/copilot/tools/server/blocks',
+    root: 'lib/mothership/tools/server/blocks',
     matches: (filename) => filename === 'get-blocks-metadata-tool.ts',
     reason: 'the Copilot block-metadata tool, which reads block and tool metadata only',
   },

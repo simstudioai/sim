@@ -3,11 +3,11 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotModelsContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { fetchGo } from '@/lib/copilot/request/go/fetch'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/mothership/request/http'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 interface AvailableModel {
   id: string

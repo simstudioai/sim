@@ -19,6 +19,8 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ATTRIBUTION_HEADER,
@@ -26,14 +28,12 @@ import {
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
   type CopilotBillingProtocol,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { checkInternalApiKey } from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isHosted } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/generated/billing-protocol-v1'
+import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { checkInternalApiKey } from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotApiKeysValidate')
 

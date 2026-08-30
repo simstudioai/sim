@@ -117,11 +117,11 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   deriveBillingContext: mockDeriveBillingContext,
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   checkInternalApiKey: mockCheckInternalApiKey,
 }))
 
-vi.mock('@/lib/copilot/request/otel', () => ({
+vi.mock('@/lib/mothership/request/otel', () => ({
   withIncomingGoSpan: (
     _headers: unknown,
     _span: unknown,

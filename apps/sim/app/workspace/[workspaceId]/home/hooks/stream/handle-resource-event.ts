@@ -1,10 +1,10 @@
 import {
   type MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { canonicalizeDesktopSessionResource } from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { canonicalizeDesktopSessionResource } from '@/lib/mothership/resources/types'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   hasRenderableFilePreviewContent,

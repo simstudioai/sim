@@ -3,11 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/copilot/resources/extraction', () => ({
+vi.mock('@/lib/mothership/resources/extraction', () => ({
   isResourceToolName: vi.fn(() => false),
   extractResourcesFromToolResult: vi.fn(() => []),
 }))
-vi.mock('@/lib/copilot/tools/workflow-tools', () => ({
+vi.mock('@/lib/mothership/tools/workflow-tools', () => ({
   isWorkflowToolName: vi.fn(() => false),
 }))
 vi.mock(
@@ -15,8 +15,8 @@ vi.mock(
   () => ({ invalidateResourceQueries: vi.fn() })
 )
 
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { dispatchStreamEvent } from './dispatch-stream-event'
 import { createStreamLoopContext, type StreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'

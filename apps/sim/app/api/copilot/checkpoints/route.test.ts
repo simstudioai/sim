@@ -19,7 +19,7 @@ const { mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
 }))

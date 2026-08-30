@@ -10,7 +10,7 @@ import {
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
-} from '@/lib/copilot/generated/billing-protocol-v1'
+} from '@/lib/mothership/generated/billing-protocol-v1'
 
 const booleanQueryParamSchema = z
   .preprocess((value) => {

@@ -11,9 +11,9 @@ const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment } = vi.hoiste
   getRunSegment: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimPendingAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,

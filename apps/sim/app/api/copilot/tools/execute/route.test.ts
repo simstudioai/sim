@@ -10,19 +10,19 @@ const { mockCheckInternalApiKey, mockPrepareEnvironmentContext, mockHandler } = 
   mockHandler: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   checkInternalApiKey: mockCheckInternalApiKey,
 }))
 
-vi.mock('@/lib/copilot/environment-context', () => ({
+vi.mock('@/lib/mothership/environment-context', () => ({
   prepareCopilotEnvironmentContext: mockPrepareEnvironmentContext,
 }))
 
-vi.mock('@/lib/copilot/tool-executor', () => ({
+vi.mock('@/lib/mothership/tool-executor', () => ({
   ensureHandlersRegistered: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/tool-executor/executor', () => ({
+vi.mock('@/lib/mothership/tool-executor/executor', () => ({
   executeTool: (
     _toolName: string,
     params: Record<string, unknown>,
@@ -30,11 +30,11 @@ vi.mock('@/lib/copilot/tool-executor/executor', () => ({
   ) => mockHandler(params, context),
 }))
 
-vi.mock('@/lib/copilot/request/tools/resources', () => ({
+vi.mock('@/lib/mothership/request/tools/resources', () => ({
   handleResourceSideEffects: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/copilot/request/otel', () => ({
+vi.mock('@/lib/mothership/request/otel', () => ({
   withIncomingGoSpan: (
     _headers: Headers,
     _span: string,

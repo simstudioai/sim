@@ -2,7 +2,7 @@ import { z } from 'zod'
 import {
   MAX_SECRET_MOUNT_NAME_LENGTH,
   MAX_SECRET_MOUNT_NAMES,
-} from '@/lib/copilot/secret-mount-policy'
+} from '@/lib/mothership/secret-mount-policy'
 
 export const secretMountScopeSchema = z.enum(['all', 'selected'])
 

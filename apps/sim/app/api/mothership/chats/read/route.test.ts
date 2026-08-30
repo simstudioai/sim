@@ -9,7 +9,7 @@ const { mockParseRequest } = vi.hoisted(() => ({
   mockParseRequest: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/api/server', () => ({ parseRequest: mockParseRequest }))
 vi.mock('@/lib/api/contracts/mothership-chats', () => ({ markMothershipChatReadContract: {} }))
 

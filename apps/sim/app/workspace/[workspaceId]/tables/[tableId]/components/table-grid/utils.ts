@@ -3,7 +3,7 @@ import {
   buildTableSelectionLabel,
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
-} from '@/lib/copilot/chat/selection-context'
+} from '@/lib/mothership/chat/selection-context'
 import type {
   ColumnDefinition,
   RowExecutionMetadata,

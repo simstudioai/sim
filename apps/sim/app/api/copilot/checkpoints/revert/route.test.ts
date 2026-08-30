@@ -34,7 +34,7 @@ vi.mock('@/lib/workflows/persistence/save-normalized-state', () => ({
   saveWorkflowNormalizedState: mockSaveWorkflowNormalizedState,
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
 }))

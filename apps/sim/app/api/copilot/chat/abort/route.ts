@@ -3,19 +3,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatAbortBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
-import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
+import { CopilotAbortOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/mothership/request/http'
+import { withCopilotSpan, withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
   abortActiveStream,
   releasePendingChatStream,
   waitForPendingChatStream,
-} from '@/lib/copilot/request/session'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/session'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000

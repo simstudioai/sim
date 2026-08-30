@@ -20,8 +20,8 @@ vi.mock('@/lib/core/security/encryption', () => ({
   encryptSecret: mockEncryptSecret,
 }))
 
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
-import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
 import { ExecutionState } from '@/executor/execution/state'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import { runWorkflowTool } from '@/executor/handlers/workflow/workflow-tool-runner'

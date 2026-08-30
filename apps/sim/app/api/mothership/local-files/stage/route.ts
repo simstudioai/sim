@@ -5,14 +5,14 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { stageLocalFileUploadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
+import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
 import {
   trackChatUpload,
   WorkspaceFileKeyOwnershipError,

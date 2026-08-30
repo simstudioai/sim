@@ -10,7 +10,7 @@ const { mockAssertActiveWorkspaceAccess, mockPublishStatusChanged } = vi.hoisted
   mockPublishStatusChanged: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   ...copilotHttpMock,
   createForbiddenResponse: vi.fn((message: string) => ({
     status: 403,
@@ -25,7 +25,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
     error instanceof Error && error.message === 'ACCESS_DENIED',
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
 }))
 

@@ -9,20 +9,20 @@ import {
   reorderCopilotChatResourcesContract,
 } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import type { ChatResource } from '@/lib/copilot/resources/persistence'
+} from '@/lib/mothership/request/http'
+import type { ChatResource } from '@/lib/mothership/resources/persistence'
 import {
   canonicalizeDesktopSessionResource,
   GENERIC_RESOURCE_TITLES,
   sanitizeChatResources,
-} from '@/lib/copilot/resources/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/resources/types'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 

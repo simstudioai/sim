@@ -13,7 +13,7 @@ import type {
   SpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
 import { createLogger } from '@sim/logger'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
 import { parseOtlpHeaders } from './lib/monitoring/otlp'
 

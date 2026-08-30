@@ -50,10 +50,10 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/api/server', () => ({ parseRequest: mockParseRequest }))
 vi.mock('@/lib/api/contracts/mothership-chats', () => ({ stageLocalFileUploadContract: {} }))
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({

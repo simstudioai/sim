@@ -1,0 +1,583 @@
+import { type Context, context as otelContextApi } from '@opentelemetry/api'
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+  createAttributedBillingRequestEnvelope,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { createRunSegment } from '@/lib/mothership/async-runs/repository'
+import { chatPubSub } from '@/lib/mothership/chat-status'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1SessionKind,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  RequestTraceV1Outcome,
+  RequestTraceV1SpanStatus,
+} from '@/lib/mothership/generated/request-trace-v1'
+import {
+  CopilotRequestCancelReason,
+  type CopilotRequestCancelReasonValue,
+  CopilotTransport,
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
+import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mothership/request/otel'
+import {
+  cleanupAbortMarker,
+  clearFilePreviewSessions,
+  isExplicitStopReason,
+  registerActiveStream,
+  releasePendingChatStream,
+  resetBuffer,
+  StreamWriter,
+  scheduleBufferCleanup,
+  scheduleFilePreviewSessionCleanup,
+  startAbortPoller,
+  unregisterActiveStream,
+} from '@/lib/mothership/request/session'
+import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
+import { TraceCollector } from '@/lib/mothership/request/trace'
+import {
+  getMothershipBaseURL,
+  getMothershipSourceEnvHeaders,
+} from '@/lib/mothership/server/agent-url'
+
+export { SSE_RESPONSE_HEADERS }
+
+const logger = createLogger('CopilotChatStreaming')
+
+type CurrentChatSummary = {
+  title?: string | null
+} | null
+
+export interface StreamingOrchestrationParams {
+  requestPayload: Record<string, unknown>
+  userId: string
+  streamId: string
+  executionId: string
+  runId: string
+  chatId?: string
+  currentChat: CurrentChatSummary
+  isNewChat: boolean
+  message: string
+  titleModel: string
+  titleProvider?: string
+  requestId: string
+  workspaceId?: string
+  orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
+  /**
+   * Pre-started root; child spans bind to it and `finish()` fires on
+   * termination. Omit to let the stream start its own root (headless).
+   */
+  otelRoot?: ReturnType<typeof startCopilotOtelRoot>
+}
+
+export function createSSEStream(params: StreamingOrchestrationParams): ReadableStream {
+  const {
+    requestPayload,
+    userId,
+    streamId,
+    executionId,
+    runId,
+    chatId,
+    currentChat,
+    isNewChat,
+    message,
+    titleModel,
+    titleProvider,
+    requestId,
+    workspaceId,
+    orchestrateOptions,
+    otelRoot,
+  } = params
+
+  // Reuse caller's root if provided; otherwise start our own.
+  const activeOtelRoot =
+    otelRoot ??
+    startCopilotOtelRoot({
+      requestId,
+      route: orchestrateOptions.goRoute,
+      chatId,
+      workflowId: orchestrateOptions.workflowId,
+      executionId,
+      runId,
+      streamId,
+      transport: CopilotTransport.Stream,
+    })
+
+  const abortController = new AbortController()
+  registerActiveStream(streamId, abortController)
+
+  const publisher = new StreamWriter({ streamId, chatId, requestId })
+
+  // Declared at function scope (same rationale as `cancelReason` below) so the
+  // leak backstop in the orchestration's outer finally can always reach them:
+  // the stream registration above, the abort poller, and the keepalive are
+  // process-held resources, and a throw that bypasses the inner finally's
+  // ordered teardown (e.g. `resetBuffer` failing on a Redis blip before the
+  // lifecycle starts) previously orphaned them — the poller and keepalive
+  // intervals then ran, and the activeStreams entry sat, for the life of the
+  // process.
+  let abortPoller: ReturnType<typeof startAbortPoller> | undefined
+  let processResourcesReleased = false
+
+  // Classify cancel: signal.reason (explicit-stop set) wins, then
+  // clientDisconnected, else Unknown (latent contract bug — log it).
+  const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
+    const rawReason = abortController.signal.reason
+    let cancelReason: CopilotRequestCancelReasonValue
+    if (isExplicitStopReason(rawReason)) {
+      cancelReason = CopilotRequestCancelReason.ExplicitStop
+    } else if (publisher.clientDisconnected) {
+      cancelReason = CopilotRequestCancelReason.ClientDisconnect
+    } else {
+      cancelReason = CopilotRequestCancelReason.Unknown
+      const serializedReason =
+        rawReason === undefined
+          ? 'undefined'
+          : rawReason instanceof Error
+            ? `${rawReason.name}: ${rawReason.message}`
+            : typeof rawReason === 'string'
+              ? rawReason
+              : (() => {
+                  try {
+                    return JSON.stringify(rawReason)
+                  } catch {
+                    return String(rawReason)
+                  }
+                })()
+      // Contract violation: add the new reason to AbortReason /
+      // isExplicitStopReason or extend the classifier.
+      logger.error(`[${requestId}] Stream cancelled with unknown abort reason`, {
+        streamId,
+        chatId,
+        reason: serializedReason,
+      })
+      activeOtelRoot.span.setAttribute(TraceAttr.CopilotAbortUnknownReason, serializedReason)
+    }
+    activeOtelRoot.span.setAttribute(TraceAttr.CopilotRequestCancelReason, cancelReason)
+    activeOtelRoot.span.addEvent(TraceEvent.RequestCancelled, {
+      [TraceAttr.CopilotRequestCancelReason]: cancelReason,
+      ...(errorMessage ? { [TraceAttr.ErrorMessage]: errorMessage } : {}),
+    })
+    return cancelReason
+  }
+
+  const collector = new TraceCollector()
+
+  return new ReadableStream({
+    async start(controller) {
+      publisher.attach(controller)
+
+      // Re-enter the root OTel context — ALS doesn't survive the
+      // Next handler → ReadableStream.start boundary.
+      await otelContextApi.with(activeOtelRoot.context, async () => {
+        const otelContext = activeOtelRoot.context
+        let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+        let rootError: unknown
+        // `cancelReason` must be declared OUTSIDE the outer `try` so
+        // it remains in scope for the outer `finally` that calls
+        // `activeOtelRoot.finish(rootOutcome, rootError, cancelReason)`.
+        // `let` bindings declared inside a `try` block are NOT visible
+        // in the paired `finally`; referencing one there raises a
+        // TDZ ReferenceError, skipping `finish()`, leaving the root
+        // span never-ended, and making Tempo see every child as an
+        // orphan under a phantom parent. (Regression landed 2026-04-21.)
+        let cancelReason: CopilotRequestCancelReasonValue | undefined
+        try {
+          const requestSpan = collector.startSpan('Sim Agent Request', 'request', {
+            streamId,
+            chatId,
+            runId,
+          })
+          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+          let lifecycleResult:
+            | {
+                usage?: { prompt: number; completion: number }
+                cost?: { input: number; output: number; total: number }
+              }
+            | undefined
+
+          await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
+
+          if (chatId) {
+            createRunSegment({
+              id: runId,
+              executionId,
+              chatId,
+              userId,
+              workflowId: (requestPayload.workflowId as string | undefined) || null,
+              workspaceId,
+              streamId,
+              model: (requestPayload.model as string | undefined) || null,
+              provider: (requestPayload.provider as string | undefined) || null,
+              requestContext: { requestId },
+            }).catch((error) => {
+              logger.warn(`[${requestId}] Failed to create copilot run segment`, {
+                error: getErrorMessage(error),
+              })
+            })
+          }
+
+          abortPoller = startAbortPoller(streamId, abortController, {
+            requestId,
+            chatId,
+          })
+          publisher.startKeepalive()
+
+          if (chatId) {
+            publisher.publish({
+              type: MothershipStreamV1EventType.session,
+              payload: {
+                kind: MothershipStreamV1SessionKind.chat,
+                chatId,
+              },
+            })
+          }
+
+          fireTitleGeneration({
+            chatId,
+            currentChat,
+            isNewChat,
+            userId,
+            message,
+            titleModel,
+            titleProvider,
+            workspaceId,
+            billingAttribution: orchestrateOptions.billingAttribution,
+            requestId,
+            publisher,
+            otelContext,
+          })
+
+          try {
+            const result = await runCopilotLifecycle(requestPayload, {
+              ...orchestrateOptions,
+              executionId,
+              runId,
+              trace: collector,
+              simRequestId: requestId,
+              otelContext,
+              abortSignal: abortController.signal,
+              onEvent: async (event) => {
+                await publisher.publish(event)
+              },
+              onAbortObserved: (reason) => {
+                if (!abortController.signal.aborted) {
+                  abortController.abort(reason)
+                }
+              },
+            })
+
+            lifecycleResult = result
+            // Outcome classification (priority order):
+            //   1. `result.success` → success. The orchestrator
+            //      reporting "finished cleanly" wins over any later
+            //      signal change. Matters for the narrow race where
+            //      the user clicks Stop a beat after the stream
+            //      completed.
+            //   2. `signal.aborted` (from `abortActiveStream` or the
+            //      Redis-marker poller) OR `clientDisconnected` with
+            //      a non-success result → cancelled. `recordCancelled`
+            //      further refines into explicit_stop / client_disconnect
+            //      / unknown via `signal.reason`.
+            //   3. Otherwise → error.
+            outcome = result.success
+              ? RequestTraceV1Outcome.success
+              : result.cancelled || abortController.signal.aborted || publisher.clientDisconnected
+                ? RequestTraceV1Outcome.cancelled
+                : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              cancelReason = recordCancelled()
+            }
+            // Pass the resolved outcome — not `signal.aborted` — so
+            // `finalizeStream` classifies the same way we did above.
+            // A client-disconnect-without-controller-abort still needs
+            // to hit `handleAborted` (not `handleError`) so the chat
+            // row gets `cancelled` terminal state instead of `error`.
+            await finalizeStream(result, publisher, runId, outcome, requestId)
+          } catch (error) {
+            // Error-path classification: if the abort signal fired or
+            // the client disconnected, treat the thrown error as a
+            // cancel (same rationale as the try-path above).
+            const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
+            outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              cancelReason = recordCancelled(getErrorMessage(error))
+            }
+            if (publisher.clientDisconnected) {
+              logger.info(`[${requestId}] Stream errored after client disconnect`, {
+                error: getErrorMessage(error, 'Stream error'),
+              })
+            }
+            // Demote to warn when the throw came from a user-initiated
+            // cancel — it isn't an "unexpected" failure then, and the
+            // error-level log pollutes alerting on normal Stop presses.
+            const logFn = outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
+            logFn.call(logger, `[${requestId}] Orchestration ended with ${outcome}:`, error)
+
+            const syntheticResult = {
+              success: false as const,
+              content: '',
+              contentBlocks: [],
+              toolCalls: [],
+              error: 'An unexpected error occurred while processing the response.',
+            }
+            await finalizeStream(syntheticResult, publisher, runId, outcome, requestId)
+          } finally {
+            collector.endSpan(
+              requestSpan,
+              outcome === RequestTraceV1Outcome.success
+                ? RequestTraceV1SpanStatus.ok
+                : outcome === RequestTraceV1Outcome.cancelled
+                  ? RequestTraceV1SpanStatus.cancelled
+                  : RequestTraceV1SpanStatus.error
+            )
+
+            clearInterval(abortPoller)
+            try {
+              await publisher.close()
+            } catch (error) {
+              logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
+                error: getErrorMessage(error),
+              })
+            }
+            unregisterActiveStream(streamId)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId)
+            }
+            processResourcesReleased = true
+            await scheduleBufferCleanup(streamId)
+            await scheduleFilePreviewSessionCleanup(streamId)
+            await cleanupAbortMarker(streamId)
+
+            rootOutcome = outcome
+            if (lifecycleResult?.usage) {
+              activeOtelRoot.span.setAttributes({
+                [TraceAttr.GenAiUsageInputTokens]: lifecycleResult.usage.prompt ?? 0,
+                [TraceAttr.GenAiUsageOutputTokens]: lifecycleResult.usage.completion ?? 0,
+              })
+            }
+            if (lifecycleResult?.cost) {
+              activeOtelRoot.span.setAttributes({
+                [TraceAttr.BillingCostInputUsd]: lifecycleResult.cost.input ?? 0,
+                [TraceAttr.BillingCostOutputUsd]: lifecycleResult.cost.output ?? 0,
+                [TraceAttr.BillingCostTotalUsd]: lifecycleResult.cost.total ?? 0,
+              })
+            }
+          }
+        } catch (error) {
+          rootOutcome = RequestTraceV1Outcome.error
+          rootError = error
+          throw error
+        } finally {
+          // Leak backstop for throws that bypassed the inner finally's
+          // ordered teardown (a session reset failing before the lifecycle
+          // started, or the teardown itself throwing before its release
+          // lines). Every step is idempotent — clearInterval and
+          // stopKeepalive no-op when already stopped, unregister is a keyed
+          // delete, and the chat-stream release is ownership-guarded against
+          // a successor stream — and none of them throw, so the otel finish
+          // below always still runs. On the normal path the flag set by the
+          // ordered teardown skips this entirely.
+          if (!processResourcesReleased) {
+            processResourcesReleased = true
+            clearInterval(abortPoller)
+            publisher.stopKeepalive()
+            unregisterActiveStream(streamId)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId)
+            }
+          }
+          // `finish` is idempotent, so it's safe whether the POST
+          // handler started the root (and may also call finish on an
+          // error path before the stream ran) or we did. The cancel
+          // reason (if any) determines whether `cancelled` is an
+          // expected outcome (explicit_stop → status OK) or a real
+          // error (client_disconnect / unknown → status ERROR).
+          //
+          // Belt-and-suspenders: if `finish()` itself throws (e.g. an
+          // argument in the TDZ, a bad attribute, a regression in
+          // status-setting), fall back to `span.end()` directly. A
+          // root that never ends leaves every child orphaned in Tempo
+          // under a phantom parent; force-ending it keeps the trace
+          // shape intact even when the pretty-finalize path is
+          // broken. The error is logged so Loki greps surface the
+          // regression instead of it silently costing us trace
+          // fidelity for hours.
+          try {
+            activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
+          } catch (finishError) {
+            logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
+              error: getErrorMessage(finishError),
+            })
+            try {
+              activeOtelRoot.span.end()
+            } catch {
+              // Already ended or an OTel internal failure — nothing
+              // more we can do. The export pipe has already had its
+              // chance; swallow to avoid masking the original error
+              // path.
+            }
+          }
+        }
+      })
+    },
+    cancel() {
+      // The browser's SSE reader closed. Flip `clientDisconnected` so
+      // in-flight `publisher.publish` calls silently no-op (prevents
+      // enqueueing on a closed controller).
+      //
+      // Browser disconnect is NOT an abort — firing the controller
+      // here retroactively reclassifies in-flight successful streams
+      // as aborted and skips assistant persistence. Let the
+      // orchestrator drain naturally; publish no-ops post-disconnect.
+      // Explicit Stop still fires the controller via /chat/abort.
+      publisher.markDisconnected()
+    },
+  })
+}
+
+// Title generation (fire-and-forget side effect)
+
+function fireTitleGeneration(params: {
+  chatId?: string
+  currentChat: CurrentChatSummary
+  isNewChat: boolean
+  userId?: string
+  message: string
+  titleModel: string
+  titleProvider?: string
+  workspaceId?: string
+  billingAttribution?: BillingAttributionSnapshot
+  requestId: string
+  publisher: StreamWriter
+  otelContext?: Context
+}): void {
+  const {
+    chatId,
+    currentChat,
+    isNewChat,
+    userId,
+    message,
+    titleModel,
+    titleProvider,
+    workspaceId,
+    billingAttribution,
+    requestId,
+    publisher,
+    otelContext,
+  } = params
+  if (!chatId || currentChat?.title || !isNewChat) return
+
+  requestChatTitle({
+    message,
+    model: titleModel,
+    provider: titleProvider,
+    userId,
+    workspaceId,
+    billingAttribution,
+    otelContext,
+  })
+    .then(async (title) => {
+      if (!title) return
+      await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
+      await publisher.publish({
+        type: MothershipStreamV1EventType.session,
+        payload: { kind: MothershipStreamV1SessionKind.title, title },
+      })
+      if (workspaceId) {
+        chatPubSub?.publishStatusChanged({
+          workspaceId,
+          chatId,
+          type: 'renamed',
+        })
+      }
+    })
+    .catch((error) => {
+      logger.error(`[${requestId}] Title generation failed:`, error)
+    })
+}
+
+// Chat title helper
+
+export async function requestChatTitle(params: {
+  message: string
+  model: string
+  provider?: string
+  userId?: string
+  workspaceId?: string
+  billingAttribution?: BillingAttributionSnapshot
+  otelContext?: Context
+}): Promise<string | null> {
+  const { message, model, provider, userId, workspaceId, billingAttribution, otelContext } = params
+  if (!message || !model) return null
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+  Object.assign(headers, getMothershipSourceEnvHeaders())
+
+  try {
+    if (isHosted) {
+      if (!userId || !workspaceId) {
+        throw new Error('Title generation requires a billing actor and workspace')
+      }
+      const attribution = billingAttribution
+        ? assertBillingAttributionSnapshot(billingAttribution)
+        : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+      if (attribution.actorUserId !== userId || attribution.workspaceId !== workspaceId) {
+        throw new Error('Title billing attribution does not match its actor and workspace')
+      }
+
+      const billingRequest = createAttributedBillingRequestEnvelope(attribution)
+      Object.assign(headers, billingRequest.headers)
+    }
+
+    const { fetchGo } = await import('@/lib/mothership/request/go/fetch')
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message,
+      }),
+      otelContext,
+      spanName: 'sim → go /api/generate-chat-title',
+      operation: 'generate_chat_title',
+      attributes: {
+        [TraceAttr.GenAiRequestModel]: model,
+        ...(provider ? { [TraceAttr.GenAiSystem]: provider } : {}),
+      },
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      logger.warn('Failed to generate chat title via copilot backend', {
+        status: response.status,
+        error: payload,
+      })
+      return null
+    }
+
+    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+    return title || null
+  } catch (error) {
+    logger.error('Error generating chat title:', error)
+    return null
+  }
+}

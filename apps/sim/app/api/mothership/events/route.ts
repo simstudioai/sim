@@ -10,10 +10,10 @@
 import type { NextRequest } from 'next/server'
 import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
-import { chatPubSub } from '@/lib/copilot/chat-status'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 
 export const dynamic = 'force-dynamic'
 

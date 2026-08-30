@@ -10,7 +10,7 @@ const { mockCheckInternalApiKey, mockBuildFileDocSeed } = vi.hoisted(() => ({
   mockBuildFileDocSeed: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   checkInternalApiKey: mockCheckInternalApiKey,
   createUnauthorizedResponse: () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
 }))

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
-} from '@/lib/copilot/chat/selection-context'
+} from '@/lib/mothership/chat/selection-context'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { DisplayColumn } from './types'
 import {

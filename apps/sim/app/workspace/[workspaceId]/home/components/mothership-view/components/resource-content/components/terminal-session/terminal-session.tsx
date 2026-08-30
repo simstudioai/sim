@@ -42,8 +42,6 @@ import {
   type TerminalTabState,
   type TerminalTabsState,
 } from '@sim/terminal-protocol'
-import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
@@ -54,6 +52,8 @@ import {
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/mothership/resource-types'
+import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/mothership/resources/types'
 import {
   clearTerminalScrollback,
   closeTerminal,

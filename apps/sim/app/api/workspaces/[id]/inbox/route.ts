@@ -7,9 +7,9 @@ import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxConfigAPI')

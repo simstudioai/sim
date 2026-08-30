@@ -1,6 +1,6 @@
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
+import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import {
   buildCompletedPreviewSessions,
   hasRenderableFilePreviewContent,

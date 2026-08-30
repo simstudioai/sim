@@ -24,20 +24,6 @@ import {
   getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import {
-  claimWorkflowToolExecution,
-  getAsyncToolCall,
-  getRunSegment,
-  releaseWorkflowToolExecutionClaim,
-} from '@/lib/copilot/async-runs/repository'
-import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
-import { CopilotDegradedReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { recordDegraded } from '@/lib/copilot/request/metrics'
-import {
-  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
-  type CopilotWorkflowToolBindingResult,
-  classifyWorkflowToolBinding,
-} from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import {
   createTimeoutAbortController,
@@ -99,6 +85,20 @@ import {
   MCP_TOOL_BRIDGE_ACTOR_HEADER,
   MCP_TOOL_BRIDGE_HEADER,
 } from '@/lib/mcp/constants'
+import {
+  claimWorkflowToolExecution,
+  getAsyncToolCall,
+  getRunSegment,
+  releaseWorkflowToolExecutionClaim,
+} from '@/lib/mothership/async-runs/repository'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
+import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/mothership/request/metrics'
+import {
+  ASYNC_WORKFLOW_DEPLOYMENT_ERRORS,
+  type CopilotWorkflowToolBindingResult,
+  classifyWorkflowToolBinding,
+} from '@/lib/mothership/tools/workflow-tools'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,

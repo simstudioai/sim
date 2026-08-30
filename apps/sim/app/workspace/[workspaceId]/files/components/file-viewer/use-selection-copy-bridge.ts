@@ -1,7 +1,7 @@
 'use client'
 
 import { type RefObject, useEffect } from 'react'
-import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
+import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
 import type { ChatContext } from '@/stores/panel'
 
 /**

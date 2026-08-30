@@ -3,8 +3,8 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 
 const mocks = vi.hoisted(() => ({ uploadDaytonaFile: vi.fn() }))
 

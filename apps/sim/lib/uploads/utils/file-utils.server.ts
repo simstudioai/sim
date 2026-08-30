@@ -472,7 +472,9 @@ export async function downloadServableFileFromStorage(
       undefined)
     : undefined
 
-  const { resolveServableDocBytes } = await import('@/lib/copilot/tools/server/files/doc-compile')
+  const { resolveServableDocBytes } = await import(
+    '@/lib/mothership/tools/server/files/doc-compile'
+  )
   const resolved = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: userFile.name,

@@ -27,7 +27,7 @@ import { truncate } from '@sim/utils/string'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
-} from '@/lib/copilot/chat/desktop-capabilities'
+} from '@/lib/mothership/chat/desktop-capabilities'
 
 /** The preload bridge, or undefined outside the desktop app (and on the server). */
 export function getDesktopBridge(): SimDesktopApi | undefined {

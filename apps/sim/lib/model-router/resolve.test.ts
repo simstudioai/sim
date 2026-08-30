@@ -26,11 +26,11 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: () => undefined,
 }))
 
-vi.mock('@/lib/copilot/request/go/fetch', () => ({
+vi.mock('@/lib/mothership/request/go/fetch', () => ({
   fetchGo: mockFetchGo,
 }))
 
-vi.mock('@/lib/copilot/server/agent-url', () => ({
+vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipBaseURL: mockGetMothershipBaseURL,
 }))
 

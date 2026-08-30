@@ -7,15 +7,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { revertCopilotCheckpointContract } from '@/lib/api/contracts/copilot'
 import type { CleanedWorkflowState } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 import {
   parseWorkflowStateForPersistence,
   saveWorkflowNormalizedState,

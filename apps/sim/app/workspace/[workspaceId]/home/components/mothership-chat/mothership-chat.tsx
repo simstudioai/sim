@@ -740,6 +740,29 @@ export function MothershipChat({
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
   }, [chatId, hasMessages, initialScrollBlocked, lastIndex, virtualizer])
 
+  /**
+   * The user's OWN send always snaps the viewport to their message: sending IS the intent
+   * to watch the reply, and the streaming sticky-scroll only engages when already pinned
+   * to the bottom — from a scrolled-up position a fresh turn would stream out of view
+   * (verified live, three-for-three, during the revamp browser pass).
+   */
+  // The send commit appends the user message AND the live-assistant placeholder together,
+  // so the LAST row is never the user's — track the newest user message wherever it sits.
+  let lastUserMessageId: string | undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const candidate = messages[i]
+    if (candidate?.role === 'user') {
+      lastUserMessageId = candidate.id
+      break
+    }
+  }
+  const scrolledForUserMsgRef = useRef<string | undefined>(undefined)
+  useLayoutEffect(() => {
+    if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return
+    scrolledForUserMsgRef.current = lastUserMessageId
+    virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+  }, [lastUserMessageId, lastIndex, virtualizer])
+
   const virtualItems = virtualizer.getVirtualItems()
 
   return (

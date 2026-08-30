@@ -9,15 +9,15 @@ import {
   listCopilotCheckpointsContract,
 } from '@/lib/api/contracts/copilot'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 

@@ -5,17 +5,17 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { replaceCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
-import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
+import { replaceCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { normalizeMessage, type PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 

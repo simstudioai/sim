@@ -17,7 +17,7 @@ const { mockReplaceCopilotChatMessages } = vi.hoisted(() => ({
   mockReplaceCopilotChatMessages: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   replaceCopilotChatMessages: mockReplaceCopilotChatMessages,
 }))
 

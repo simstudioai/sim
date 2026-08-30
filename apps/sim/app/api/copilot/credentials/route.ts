@@ -2,9 +2,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotCredentialsContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/mothership/request/http'
+import { routeExecution } from '@/lib/mothership/tools/server/router'
 
 /**
  * GET /api/copilot/credentials

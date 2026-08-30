@@ -76,39 +76,39 @@ vi.mock('@/lib/environment/utils', () => ({
   getPersonalAndWorkspaceEnv: vi.fn().mockResolvedValue({ personal: {}, workspace: {} }),
 }))
 
-vi.mock('@/lib/copilot/environment-context', () => ({
+vi.mock('@/lib/mothership/environment-context', () => ({
   createCopilotEnvironmentContext: vi.fn().mockResolvedValue({ id: 'env-context' }),
 }))
 
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
+vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue('workspace context'),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   resolveOrCreateChat: mockResolveOrCreateChat,
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   persistCopilotChatTurn: mockPersistCopilotChatTurn,
 }))
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
+vi.mock('@/lib/mothership/chat/payload', () => ({
   buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'run_workflow' }]),
 }))
 
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-vi.mock('@/lib/copilot/secret-mount-policy', () => ({
+vi.mock('@/lib/mothership/secret-mount-policy', () => ({
   normalizeSecretMountPolicy: vi.fn(() => ({ secretScope: 'all', mountedSecrets: [] })),
 }))
 
@@ -311,22 +311,23 @@ describe('POST /api/v2/chat', () => {
     })
 
     const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    // The wire payload IS the shared ChatRequest contract; this surface rides the full
+    // CHAT pipeline now (persona + skills + CLI), not the persona-less execute surface.
     expect(payload).toMatchObject({
-      messages: [{ role: 'user', content: 'hi' }],
+      message: 'hi',
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      mode: 'agent',
-      isHosted: true,
-      workspaceContext: 'workspace context',
       integrationTools: [{ name: 'run_workflow' }],
-      userPermission: 'admin',
     })
+    for (const legacy of ['messages', 'mode', 'isHosted', 'workspaceContext', 'userPermission']) {
+      expect(payload).not.toHaveProperty(legacy)
+    }
     expect(options).toMatchObject({
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       // Hosted execution refuses to run without attribution, so the resolved
@@ -405,7 +406,7 @@ describe('POST /api/v2/chat', () => {
     // and the Sim Chat block do. Replaying the transcript here would duplicate
     // every prior turn.
     expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({
-      messages: [{ role: 'user', content: 'and then?' }],
+      message: 'and then?',
       chatId: OWNED_CONVERSATION_ID,
     })
   })

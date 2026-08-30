@@ -5,26 +5,25 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { chatPubSub } from '@/lib/copilot/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
-import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
+} from '@/lib/mothership/chat/persisted-message'
+import { chatPubSub } from '@/lib/mothership/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestChatTitle } from '@/lib/mothership/request/lifecycle/start'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
@@ -226,13 +225,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       secretScope: ws.inboxSecretScope,
       mountedSecrets: ws.inboxMountedSecrets,
     })
-    const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
+    const [attachmentResult, integrationTools, billingAttribution, delegationToken] =
       await Promise.all([
         fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId, { workspaceAccess, secretMountPolicy }),
         buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
         resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
-        computeWorkspaceEntitlements(ws.id, userId),
+        // Trigger-runtime caveat (see docs/revamp/06-cutover.md): a failed mint falls
+        // back to null and the turn proceeds without CLI-backed capabilities.
+        mintDelegationToken({ workspaceId: ws.id, userId }),
       ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
 
@@ -243,26 +243,25 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
 
+    /** The wire payload IS the shared ChatRequest contract; the inbox rides the full
+     * chat pipeline (persona + skills + CLI) — binary attachment passthrough is a noted
+     * follow-up; the formatted email body carries attachment summaries. */
     const requestPayload: Record<string, unknown> = {
       message: messageContent,
       userId,
+      protocolVersion: PROTOCOL_VERSION,
+      workspaceId: ws.id,
       chatId,
-      mode: 'agent',
       messageId: userMessageId,
-      isHosted,
-      workspaceContext,
-      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(userPermission ? { userPermission } : {}),
-      ...(entitlements.length > 0 ? { entitlements } : {}),
-      ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
+      ...(delegationToken ? { delegationToken } : {}),
     }
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,

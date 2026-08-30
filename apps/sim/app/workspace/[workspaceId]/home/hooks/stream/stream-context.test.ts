@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { createStreamLoopContext } from './stream-context'

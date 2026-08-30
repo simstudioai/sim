@@ -12,8 +12,8 @@ import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
 import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
-import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
+import { decodeVfsSegmentSafe } from '@/lib/mothership/vfs/path-utils'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   type ContentSegment,

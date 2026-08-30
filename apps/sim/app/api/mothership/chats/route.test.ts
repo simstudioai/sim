@@ -17,14 +17,14 @@ const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
   mockReconcileChatStreamMarkers: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
+vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 

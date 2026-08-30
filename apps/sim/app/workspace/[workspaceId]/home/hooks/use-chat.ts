@@ -32,59 +32,6 @@ import {
   initBrowserAgentTransport,
   openUrlInNewBrowserTab,
 } from '@/lib/browser-agent/transport'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
-import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import type {
-  PersistedFileAttachment,
-  PersistedMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
-import {
-  type RevealedSimKeysByMessage,
-  restoreRevealedSimKeysForMessage,
-} from '@/lib/copilot/chat/sim-key-redaction'
-import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import {
-  MothershipStreamV1CompletionStatus,
-  MothershipStreamV1EventType,
-  MothershipStreamV1SessionKind,
-  MothershipStreamV1SpanLifecycleEvent,
-  MothershipStreamV1SpanPayloadKind,
-  MothershipStreamV1TextChannel,
-  MothershipStreamV1ToolOutcome,
-  MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import {
-  type ParseStreamEventEnvelopeFailure,
-  parsePersistedStreamEventEnvelope,
-  parsePersistedStreamEventEnvelopeJson,
-} from '@/lib/copilot/request/session/contract'
-import {
-  type FilePreviewSession,
-  isFilePreviewSession,
-} from '@/lib/copilot/request/session/file-preview-session-contract'
-import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { canDisplayResource } from '@/lib/copilot/resources/availability'
-import {
-  BROWSER_SESSION_RESOURCE_ID,
-  isAddressableResource,
-  isEphemeralResource,
-  sanitizeChatResources,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
-import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
-import {
-  bindRunToolToExecution,
-  cancelRunToolExecution,
-  executeRunToolOnClient,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal-tool-execution'
-import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
-import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
@@ -95,7 +42,42 @@ import {
   migrateDesktopChatScopes,
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/effective-transcript'
+import type {
+  PersistedFileAttachment,
+  PersistedMessage,
+} from '@/lib/mothership/chat/persisted-message'
+import {
+  type RevealedSimKeysByMessage,
+  restoreRevealedSimKeysForMessage,
+} from '@/lib/mothership/chat/sim-key-redaction'
+import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
+import { parsePersistedStreamEventEnvelopeJson } from '@/lib/mothership/request/session/contract'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import { canDisplayResource } from '@/lib/mothership/resources/availability'
+import {
+  BROWSER_SESSION_RESOURCE_ID,
+  isAddressableResource,
+  isEphemeralResource,
+  sanitizeChatResources,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/mothership/resources/types'
+import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
+import {
+  bindRunToolToExecution,
+  cancelRunToolExecution,
+  executeRunToolOnClient,
+  markRunToolManuallyStopped,
+  reportManualRunToolStop,
+} from '@/lib/mothership/tools/client/run-tool-execution'
+import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
+import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
+import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -150,6 +132,39 @@ import type {
   QueuedMessage,
   ToolCallInfo,
 } from '../types'
+import {
+  buildAssistantSnapshotMessage,
+  buildChatHistoryHydrationKey,
+  getReplayCompletedWorkflowToolCallIds,
+  hasTerminalPersistedAssistantForStream,
+  markMessageStopped,
+  type ReconnectReplaySelection,
+  reconcileLiveAssistantTurn,
+  selectReconnectReplayState,
+} from './message-reconcile'
+import {
+  clearQueuedSendHandoffClaim,
+  clearQueuedSendHandoffState,
+  hasQueuedSendHandoffClaimOwner,
+  queuedSendHandoffClaimRetryDelay,
+  queuedSendHandoffResolveRetryDelay,
+  readQueuedSendHandoffClaim,
+  readQueuedSendHandoffState,
+  writeQueuedSendHandoffClaim,
+  writeQueuedSendHandoffState,
+} from './send-handoff'
+import {
+  buildReplayStream,
+  createStreamSchemaValidationError,
+  isAlreadyProcessedStreamCursor,
+  isStreamGoneError,
+  isStreamSchemaValidationError,
+  isTerminalStreamStatus,
+  parseStreamBatchResponse,
+  resolveChatIdFromStreamBatch,
+  type StreamBatchResponse,
+  StreamGoneError,
+} from './stream-protocol'
 
 export interface SendMessageOptions {
   /**
@@ -235,12 +250,6 @@ const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
-const QUEUED_SEND_HANDOFF_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff`
-const QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff-claim`
-const QUEUED_SEND_HANDOFF_TTL_MS = 5 * 60 * 1000
-const QUEUED_SEND_HANDOFF_CLAIM_TTL_MS = 30_000
-const QUEUED_SEND_HANDOFF_RETRY_BASE_MS = 1000
-const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 const DETACHED_CHAT_RETRY_BASE_MS = 1000
 const DETACHED_CHAT_RETRY_MAX_MS = 30_000
 
@@ -288,25 +297,6 @@ type ActiveTurn = {
 interface DetachedChatResolution {
   chatId?: string
   terminal: boolean
-}
-
-interface QueuedSendHandoffState {
-  id: string
-  chatId?: string
-  workspaceId: string
-  supersededStreamId: string | null
-  userMessageId: string
-  message: string
-  fileAttachments?: FileAttachmentForApi[]
-  contexts?: ChatContext[]
-  requestedAt: number
-  resolveAttempts?: number
-}
-
-interface QueuedSendHandoffClaim {
-  id: string
-  ownerId: string
-  claimedAt: number
 }
 
 interface ActiveQueuedSendHandoffRecovery {
@@ -498,623 +488,6 @@ function isChatContext(value: unknown): value is ChatContext {
   }
 }
 
-function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const raw = window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-    if (!raw) return null
-
-    const parsed = JSON.parse(raw) as Partial<QueuedSendHandoffState>
-    const chatId = typeof parsed.chatId === 'string' ? parsed.chatId : undefined
-    const supersededStreamId =
-      typeof parsed.supersededStreamId === 'string' ? parsed.supersededStreamId : null
-    if (
-      typeof parsed?.id !== 'string' ||
-      typeof parsed.workspaceId !== 'string' ||
-      typeof parsed.userMessageId !== 'string' ||
-      typeof parsed.message !== 'string' ||
-      typeof parsed.requestedAt !== 'number' ||
-      (!chatId && !supersededStreamId)
-    ) {
-      return null
-    }
-    if (Date.now() - parsed.requestedAt > QUEUED_SEND_HANDOFF_TTL_MS) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-      if (readQueuedSendHandoffClaim() === parsed.id) {
-        window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      }
-      return null
-    }
-
-    return {
-      id: parsed.id,
-      ...(chatId ? { chatId } : {}),
-      workspaceId: parsed.workspaceId,
-      supersededStreamId,
-      userMessageId: parsed.userMessageId,
-      message: parsed.message,
-      ...(Array.isArray(parsed.fileAttachments)
-        ? { fileAttachments: parsed.fileAttachments.filter(isFileAttachmentForApi) }
-        : {}),
-      ...(Array.isArray(parsed.contexts)
-        ? { contexts: parsed.contexts.filter(isChatContext) }
-        : {}),
-      requestedAt: parsed.requestedAt,
-      ...(typeof parsed.resolveAttempts === 'number' &&
-      Number.isFinite(parsed.resolveAttempts) &&
-      parsed.resolveAttempts > 0
-        ? { resolveAttempts: parsed.resolveAttempts }
-        : {}),
-    }
-  } catch {
-    return null
-  }
-}
-
-function writeQueuedSendHandoffState(state: QueuedSendHandoffState) {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.setItem(QUEUED_SEND_HANDOFF_STORAGE_KEY, JSON.stringify(state))
-}
-
-function clearQueuedSendHandoffState(expectedId?: string) {
-  if (typeof window === 'undefined') return
-  if (expectedId) {
-    const current = readQueuedSendHandoffState()
-    if (current && current.id !== expectedId) {
-      return
-    }
-  }
-  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
-}
-
-function readQueuedSendHandoffClaimState(): QueuedSendHandoffClaim | null {
-  if (typeof window === 'undefined') return null
-  const raw = window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<QueuedSendHandoffClaim>
-    if (
-      typeof parsed?.id !== 'string' ||
-      typeof parsed.ownerId !== 'string' ||
-      typeof parsed.claimedAt !== 'number'
-    ) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      return null
-    }
-    if (Date.now() - parsed.claimedAt > QUEUED_SEND_HANDOFF_CLAIM_TTL_MS) {
-      window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-      return null
-    }
-    return { id: parsed.id, ownerId: parsed.ownerId, claimedAt: parsed.claimedAt }
-  } catch {
-    window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-    return null
-  }
-}
-
-function readQueuedSendHandoffClaim(): string | null {
-  return readQueuedSendHandoffClaimState()?.id ?? null
-}
-
-function hasQueuedSendHandoffClaimOwner(id: string, ownerId: string): boolean {
-  const claim = readQueuedSendHandoffClaimState()
-  return claim?.id === id && claim.ownerId === ownerId
-}
-
-function queuedSendHandoffClaimRetryDelay(id: string): number | null {
-  const claim = readQueuedSendHandoffClaimState()
-  if (!claim || claim.id !== id) return null
-  const elapsed = Date.now() - claim.claimedAt
-  return Math.max(0, QUEUED_SEND_HANDOFF_CLAIM_TTL_MS - elapsed + 1)
-}
-
-function queuedSendHandoffResolveRetryDelay(resolveAttempts: number): number {
-  return Math.min(
-    QUEUED_SEND_HANDOFF_RETRY_MAX_MS,
-    QUEUED_SEND_HANDOFF_RETRY_BASE_MS * 2 ** Math.max(0, resolveAttempts - 1)
-  )
-}
-
-function writeQueuedSendHandoffClaim(id: string): string {
-  const ownerId = generateId()
-  if (typeof window === 'undefined') return ownerId
-  window.sessionStorage.setItem(
-    QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY,
-    JSON.stringify({ id, ownerId, claimedAt: Date.now() } satisfies QueuedSendHandoffClaim)
-  )
-  return ownerId
-}
-
-function clearQueuedSendHandoffClaim(expectedId?: string, expectedOwnerId?: string) {
-  if (typeof window === 'undefined') return
-  if (expectedId) {
-    const current = readQueuedSendHandoffClaimState()
-    if (
-      current &&
-      (current.id !== expectedId || (expectedOwnerId && current.ownerId !== expectedOwnerId))
-    ) {
-      return
-    }
-  }
-  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
-}
-
-type StreamBatchResponse = {
-  success: boolean
-  events: StreamBatchEvent[]
-  previewSessions?: FilePreviewSession[]
-  status: string
-  chatId?: string
-}
-
-const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
-
-class StreamSchemaValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'StreamSchemaValidationError'
-  }
-}
-
-function createStreamSchemaValidationError(
-  failure: ParseStreamEventEnvelopeFailure,
-  context?: string
-): StreamSchemaValidationError {
-  const details = failure.errors?.filter(Boolean).join('; ')
-  return new StreamSchemaValidationError(
-    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details].filter(Boolean).join(' ')
-  )
-}
-
-function createBatchSchemaValidationError(message: string): StreamSchemaValidationError {
-  return new StreamSchemaValidationError([STREAM_SCHEMA_ENFORCEMENT_PREFIX, message].join(' '))
-}
-
-function isStreamSchemaValidationError(error: unknown): error is StreamSchemaValidationError {
-  return error instanceof StreamSchemaValidationError
-}
-
-function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
-  if (!isRecordLike(value)) {
-    throw new Error('Invalid stream batch response')
-  }
-
-  const rawEvents = Array.isArray(value.events) ? value.events : []
-  const events: StreamBatchEvent[] = []
-  for (const [index, entry] of rawEvents.entries()) {
-    if (!isRecordLike(entry)) {
-      throw createBatchSchemaValidationError(`Reconnect batch event ${index + 1} is not an object.`)
-    }
-    if (
-      typeof entry.eventId !== 'number' ||
-      !Number.isFinite(entry.eventId) ||
-      typeof entry.streamId !== 'string'
-    ) {
-      throw createBatchSchemaValidationError(
-        `Reconnect batch event ${index + 1} is missing required metadata.`
-      )
-    }
-
-    const parsedEvent = parsePersistedStreamEventEnvelope(entry.event)
-    if (!parsedEvent.ok) {
-      throw createStreamSchemaValidationError(parsedEvent, `Reconnect batch event ${index + 1}.`)
-    }
-
-    events.push({
-      eventId: entry.eventId,
-      streamId: entry.streamId,
-      event: parsedEvent.event,
-    })
-  }
-
-  const rawPreviewSessions = Array.isArray(value.previewSessions)
-    ? value.previewSessions
-    : undefined
-  const previewSessions =
-    rawPreviewSessions?.map((session, index) => {
-      if (!isFilePreviewSession(session)) {
-        throw createBatchSchemaValidationError(
-          `Reconnect preview session ${index + 1} failed validation.`
-        )
-      }
-      return session
-    }) ?? undefined
-
-  return {
-    success: value.success === true,
-    events,
-    ...(previewSessions ? { previewSessions } : {}),
-    status: typeof value.status === 'string' ? value.status : 'unknown',
-    ...(typeof value.chatId === 'string' && value.chatId ? { chatId: value.chatId } : {}),
-  }
-}
-
-function resolveChatIdFromStreamBatch(batch: StreamBatchResponse): string | undefined {
-  if (batch.chatId) return batch.chatId
-
-  for (const { event } of batch.events) {
-    const streamChatId = typeof event.stream?.chatId === 'string' ? event.stream.chatId : undefined
-    if (streamChatId) return streamChatId
-    if (
-      event.type === MothershipStreamV1EventType.session &&
-      event.payload.kind === MothershipStreamV1SessionKind.chat
-    ) {
-      return event.payload.chatId
-    }
-  }
-
-  return undefined
-}
-
-function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
-  const persisted = toRawPersistedContentBlockBody(block)
-  if (!persisted) return null
-  if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
-  // Carry deterministic span identity onto the live streaming snapshot so the
-  // rendered live message nests subagents via the span tree. Without this the
-  // live blocks lose spanId and parseBlocks falls back to legacy flat grouping,
-  // rendering nested subagents (e.g. deploy) at the top level mid-stream until
-  // the persisted message (which keeps spanId) replaces it.
-  if (block.spanId) persisted.spanId = block.spanId
-  if (block.parentSpanId) persisted.parentSpanId = block.parentSpanId
-  return withBlockTiming(persisted, block)
-}
-
-function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unknown> | null {
-  switch (block.type) {
-    case 'text':
-      return {
-        type: MothershipStreamV1EventType.text,
-        ...(block.subagent ? { lane: 'subagent' } : {}),
-        channel: MothershipStreamV1TextChannel.assistant,
-        content: block.content ?? '',
-      }
-    case 'thinking':
-      return {
-        type: MothershipStreamV1EventType.text,
-        channel: MothershipStreamV1TextChannel.thinking,
-        content: block.content ?? '',
-      }
-    case 'subagent_thinking':
-      return {
-        type: MothershipStreamV1EventType.text,
-        lane: 'subagent',
-        channel: MothershipStreamV1TextChannel.thinking,
-        content: block.content ?? '',
-        ...(block.subagent ? { agent: block.subagent } : {}),
-      }
-    case 'subagent_text':
-      return {
-        type: MothershipStreamV1EventType.text,
-        lane: 'subagent',
-        channel: MothershipStreamV1TextChannel.assistant,
-        content: block.content ?? '',
-        ...(block.subagent ? { agent: block.subagent } : {}),
-      }
-    case 'tool_call':
-      if (!block.toolCall) {
-        return null
-      }
-      return {
-        type: MothershipStreamV1EventType.tool,
-        phase: MothershipStreamV1ToolPhase.call,
-        toolCall: {
-          id: block.toolCall.id,
-          name: block.toolCall.name,
-          state: block.toolCall.status,
-          ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
-          ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
-          ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
-          ...(block.toolCall.displayTitle
-            ? {
-                display: {
-                  title: block.toolCall.displayTitle,
-                },
-              }
-            : {}),
-        },
-      }
-    case 'subagent':
-      return {
-        type: MothershipStreamV1EventType.span,
-        kind: MothershipStreamV1SpanPayloadKind.subagent,
-        lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
-        content: block.content ?? '',
-      }
-    case 'subagent_end':
-      return {
-        type: MothershipStreamV1EventType.span,
-        kind: MothershipStreamV1SpanPayloadKind.subagent,
-        lifecycle: MothershipStreamV1SpanLifecycleEvent.end,
-      }
-    case 'stopped':
-      return {
-        type: MothershipStreamV1EventType.complete,
-        status: MothershipStreamV1CompletionStatus.cancelled,
-      }
-    default:
-      return null
-  }
-}
-
-function buildAssistantSnapshotMessage(params: {
-  id: string
-  content: string
-  contentBlocks: ContentBlock[]
-  requestId?: string
-}): PersistedMessage {
-  const rawContentBlocks = params.contentBlocks
-    .map(toRawPersistedContentBlock)
-    .filter((block): block is Record<string, unknown> => block !== null)
-
-  return normalizeMessage({
-    id: params.id,
-    role: 'assistant',
-    content: params.content,
-    timestamp: new Date().toISOString(),
-    ...(params.requestId ? { requestId: params.requestId } : {}),
-    ...(rawContentBlocks.length > 0 ? { contentBlocks: rawContentBlocks } : {}),
-  })
-}
-
-function markMessageStopped(message: PersistedMessage): PersistedMessage {
-  const hasExecutingTool = message.contentBlocks?.some(
-    (block) => block.toolCall?.state === 'executing'
-  )
-  const hasOpenBlock = message.contentBlocks?.some((block) => block.endedAt === undefined)
-  if (!hasExecutingTool && !hasOpenBlock) {
-    return message
-  }
-
-  const stopTs = Date.now()
-  const nextBlocks = (message.contentBlocks ?? []).map((block) => {
-    const stamped = block.endedAt === undefined ? { ...block, endedAt: stopTs } : block
-    if (stamped.toolCall?.state !== 'executing') {
-      return stamped
-    }
-    return {
-      ...stamped,
-      toolCall: {
-        ...stamped.toolCall,
-        state: 'cancelled' as const,
-        display: {
-          ...(stamped.toolCall.display ?? {}),
-          title: 'Stopped by user',
-        },
-      },
-    }
-  })
-
-  if (
-    !nextBlocks.some(
-      (block) =>
-        block.type === MothershipStreamV1EventType.complete &&
-        block.status === MothershipStreamV1CompletionStatus.cancelled
-    )
-  ) {
-    nextBlocks.push({
-      type: MothershipStreamV1EventType.complete,
-      status: MothershipStreamV1CompletionStatus.cancelled,
-    })
-  }
-
-  return normalizeMessage({
-    ...message,
-    contentBlocks: nextBlocks,
-  })
-}
-
-function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
-  const resourceKey = chatHistory.resources
-    .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
-    .join('|')
-  const messageKey = chatHistory.messages.map((message) => message.id).join('|')
-  const streamSnapshot = chatHistory.streamSnapshot
-  const snapshotKey = streamSnapshot
-    ? [
-        streamSnapshot.status,
-        streamSnapshot.events.length,
-        streamSnapshot.events[streamSnapshot.events.length - 1]?.eventId ?? '',
-        streamSnapshot.previewSessions
-          .map(
-            (session) =>
-              `${session.id}:${session.previewVersion}:${session.status}:${session.updatedAt}`
-          )
-          .join('|'),
-      ].join('~')
-    : 'none'
-
-  return [
-    chatHistory.id,
-    chatHistory.activeStreamId ?? '',
-    messageKey,
-    resourceKey,
-    snapshotKey,
-  ].join('::')
-}
-
-const TERMINAL_STREAM_STATUSES = new Set(['complete', 'error', 'cancelled'])
-
-function isTerminalStreamStatus(status: string | null | undefined): boolean {
-  return TERMINAL_STREAM_STATUSES.has(status ?? '')
-}
-
-function isAlreadyProcessedStreamCursor(
-  eventCursor: string | undefined,
-  currentCursor: string
-): boolean {
-  if (!eventCursor) return false
-
-  const eventSequence = Number(eventCursor)
-  const currentSequence = Number(currentCursor)
-  return (
-    Number.isFinite(eventSequence) &&
-    Number.isFinite(currentSequence) &&
-    eventSequence <= currentSequence
-  )
-}
-
-function isZeroStreamCursor(cursor: string): boolean {
-  const sequence = Number(cursor)
-  return Number.isFinite(sequence) && sequence <= 0
-}
-
-/**
- * The resume endpoint 404s when no run exists for the stream — there is
- * nothing left to resume, so reconnect falls back to the persisted DB
- * transcript instead of retrying or surfacing an error.
- */
-class StreamGoneError extends Error {
-  constructor(streamId: string) {
-    super(`Stream ${streamId} no longer exists`)
-    this.name = 'StreamGoneError'
-  }
-}
-
-function isStreamGoneError(error: unknown): error is StreamGoneError {
-  return error instanceof Error && error.name === 'StreamGoneError'
-}
-
-function isPersistedAssistantMessage(message: PersistedMessage, liveAssistantId: string): boolean {
-  return (
-    message.role === 'assistant' &&
-    message.id !== liveAssistantId &&
-    !message.id.startsWith('live-assistant:')
-  )
-}
-
-function findStreamOwnerIndex(messages: PersistedMessage[], streamId: string): number {
-  return messages.findIndex((message) => message.role === 'user' && message.id === streamId)
-}
-
-function findAssistantAfterOwner(messages: PersistedMessage[], ownerIndex: number): number {
-  for (let index = ownerIndex + 1; index < messages.length; index++) {
-    const message = messages[index]
-    if (message.role === 'user') return -1
-    if (message.role === 'assistant') return index
-  }
-  return -1
-}
-
-function hasTerminalPersistedAssistantForStream(
-  messages: PersistedMessage[],
-  streamId: string,
-  liveAssistantId: string
-): boolean {
-  const ownerIndex = findStreamOwnerIndex(messages, streamId)
-  if (ownerIndex === -1) return false
-
-  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
-  if (assistantIndex === -1) return false
-
-  return isPersistedAssistantMessage(messages[assistantIndex], liveAssistantId)
-}
-
-export function reconcileLiveAssistantTurn(params: {
-  messages: PersistedMessage[]
-  streamId: string
-  liveAssistant: PersistedMessage
-  activeStreamId: string | null
-}): PersistedMessage[] {
-  const { messages, streamId, liveAssistant, activeStreamId } = params
-  const ownerIndex = findStreamOwnerIndex(messages, streamId)
-  if (ownerIndex === -1) {
-    return [...messages.filter((message) => message.id !== liveAssistant.id), liveAssistant]
-  }
-
-  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
-  const existingAssistant = assistantIndex >= 0 ? messages[assistantIndex] : undefined
-  if (
-    activeStreamId !== streamId &&
-    existingAssistant &&
-    isPersistedAssistantMessage(existingAssistant, liveAssistant.id)
-  ) {
-    const withoutStaleLiveAssistant = messages.filter((message) => message.id !== liveAssistant.id)
-    return withoutStaleLiveAssistant.length === messages.length
-      ? messages
-      : withoutStaleLiveAssistant
-  }
-
-  const withoutDuplicateLiveAssistant = messages.filter(
-    (message, index) => index === assistantIndex || message.id !== liveAssistant.id
-  )
-  const adjustedOwnerIndex = withoutDuplicateLiveAssistant.findIndex(
-    (message) => message.role === 'user' && message.id === streamId
-  )
-  const adjustedAssistantIndex =
-    adjustedOwnerIndex >= 0
-      ? findAssistantAfterOwner(withoutDuplicateLiveAssistant, adjustedOwnerIndex)
-      : -1
-
-  if (adjustedAssistantIndex >= 0) {
-    return withoutDuplicateLiveAssistant.map((message, index) =>
-      index === adjustedAssistantIndex ? liveAssistant : message
-    )
-  }
-
-  if (adjustedOwnerIndex >= 0) {
-    return [
-      ...withoutDuplicateLiveAssistant.slice(0, adjustedOwnerIndex + 1),
-      liveAssistant,
-      ...withoutDuplicateLiveAssistant.slice(adjustedOwnerIndex + 1),
-    ]
-  }
-
-  return [...withoutDuplicateLiveAssistant, liveAssistant]
-}
-
-export interface ReconnectReplaySelection {
-  afterCursor: string
-  preserveExistingState: boolean
-  source: 'live' | 'reset'
-}
-
-/**
- * Decides how a reconnect replay starts. The only state a resumed stream may
- * continue from is the live in-memory pair (streaming refs + lastCursorRef)
- * maintained together by this mount's stream loop — those are coherent by
- * construction. Anything else (fresh mount, cleared refs, cache-derived
- * transcripts) replays the Redis buffer from seq 0 into a fresh model: the
- * buffer is the source of truth for an in-flight turn and replay is
- * idempotent, so a full rebuild is always safe. Seeding the model from a
- * cached transcript paired stale content with a newer cursor, which dropped
- * replayed events and rendered empty or suffix-only messages.
- */
-export function selectReconnectReplayState(params: {
-  afterCursor: string
-  currentContent: string
-  currentBlocks: ContentBlock[]
-}): ReconnectReplaySelection {
-  const { afterCursor, currentContent, currentBlocks } = params
-  const hasLiveState = currentContent.length > 0 || currentBlocks.length > 0
-  if (!isZeroStreamCursor(afterCursor) && hasLiveState) {
-    return { afterCursor, preserveExistingState: true, source: 'live' }
-  }
-  return { afterCursor: '0', preserveExistingState: false, source: 'reset' }
-}
-
-export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]): Set<string> {
-  const completedToolCallIds = new Set<string>()
-  for (const entry of events) {
-    const event = entry.event
-    if (event.type !== MothershipStreamV1EventType.tool) continue
-    const payload = event.payload
-    if (!('phase' in payload)) continue
-    if (payload.phase !== MothershipStreamV1ToolPhase.result) continue
-    // Client-executed tools (workflow runs, browser actions) must never
-    // re-fire when their completed call replays after reconnect/reload.
-    if (
-      typeof payload.toolCallId === 'string' &&
-      (isWorkflowToolName(payload.toolName) || isBrowserToolName(payload.toolName))
-    ) {
-      completedToolCallIds.add(payload.toolCallId)
-    }
-  }
-  return completedToolCallIds
-}
-
 /**
  * Which live panel the transcript is mid-action on, or null for neither.
  *
@@ -1145,17 +518,6 @@ function buildRecoverySubjectKey(
   selectedChatId: string | undefined
 ): string {
   return `${chatId ?? ''}:${selectedChatId ?? ''}`
-}
-
-const sseEncoder = new TextEncoder()
-function buildReplayStream(events: StreamBatchEvent[]): ReadableStream<Uint8Array> {
-  return new ReadableStream({
-    start(controller) {
-      const payload = events.map((entry) => `data: ${JSON.stringify(entry.event)}\n\n`).join('')
-      controller.enqueue(sseEncoder.encode(payload))
-      controller.close()
-    },
-  })
 }
 
 /** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
@@ -2022,7 +1384,7 @@ export function useChat(
        * report an error completion rather than leaving it hanging with the dedupe ref
        * already marked handled.
        */
-      import('@/lib/copilot/tools/client/local-filesystem').then(
+      import('@/lib/mothership/tools/client/local-filesystem').then(
         (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
         async (error) => {
           logger.error('Failed to load local filesystem tool executor', { error })
@@ -2035,8 +1397,8 @@ export function useChat(
           try {
             const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
               await Promise.all([
-                import('@/lib/copilot/tools/client/completion'),
-                import('@/lib/copilot/async-runs/lifecycle'),
+                import('@/lib/mothership/tools/client/completion'),
+                import('@/lib/mothership/async-runs/lifecycle'),
               ])
             await reportClientToolCompletion(
               toolCallId,

@@ -110,7 +110,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', 
   readWorkspaceFileContentByKey: { execute: mockReadWorkspaceFileContentByKey },
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 

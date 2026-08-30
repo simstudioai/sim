@@ -7,7 +7,6 @@ import { isRecordLike } from '@sim/utils/object'
 import JSZip from 'jszip'
 import type { ContractBody } from '@/lib/api/contracts'
 import type { fileManageContract } from '@/lib/api/contracts/tools/file'
-import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -27,6 +26,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { buildFolderPath } from '@/lib/folders/paths'
+import { splitWorkspaceFilePath } from '@/lib/mothership/tools/server/files/workspace-file'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,

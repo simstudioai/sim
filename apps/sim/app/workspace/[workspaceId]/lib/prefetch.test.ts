@@ -66,7 +66,7 @@ vi.mock('@/lib/workspaces/list', () => ({
 vi.mock('@/lib/users/queries', () => ({
   getUserProfile: mockGetUserProfile,
 }))
-vi.mock('@/lib/copilot/chat/list-mothership-chats', () => ({
+vi.mock('@/lib/mothership/chat/list-mothership-chats', () => ({
   listMothershipChats: mockListMothershipChats,
 }))
 vi.mock('@/lib/table/service', () => ({

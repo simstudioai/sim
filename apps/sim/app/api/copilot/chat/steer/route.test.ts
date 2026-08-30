@@ -12,16 +12,16 @@ const { mockAuthenticate, mockGetLatestRunForStream, mockRequestStreamSteering, 
     mockAppend: vi.fn(),
   }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticate,
 }))
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream: mockGetLatestRunForStream,
 }))
-vi.mock('@/lib/copilot/request/session/steer', () => ({
+vi.mock('@/lib/mothership/request/session/steer', () => ({
   requestStreamSteering: mockRequestStreamSteering,
 }))
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppend,
 }))
 

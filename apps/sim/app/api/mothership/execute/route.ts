@@ -6,24 +6,6 @@ import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
-import { processContextsServer } from '@/lib/copilot/chat/process-contents'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import {
-  type CopilotEnvironmentContext,
-  createCopilotEnvironmentContext,
-} from '@/lib/copilot/environment-context'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { StreamEvent } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import {
@@ -32,6 +14,23 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/mothership/environment-context'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1TextChannel,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import type { StreamEvent } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -230,72 +229,61 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
       return [...byName.values()]
     })
-    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, {
-          workspaceAccess,
-          secretMountPolicy,
-        }),
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-        mothershipToolsPromise,
-        computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          nonMcpAgentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId,
-          activeResolvedSecretTraceRegistry
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    const [integrationTools, mothershipTools, agentContexts] = await Promise.all([
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      mothershipToolsPromise,
+      processContextsServer(
+        nonMcpAgentMentions,
+        userId,
+        lastUserMessage,
+        workspaceId,
+        effectiveChatId,
+        activeResolvedSecretTraceRegistry
+      ).catch((error) => {
+        reqLogger.warn('Failed to resolve agent contexts for execution', {
+          error: toError(error).message,
+        })
+        return []
+      }),
+    ])
+    /**
+     * The wire payload IS the shared ExecuteRequest contract. Caller-side context —
+     * resolved mentions and the MCP-enablement notice — folds into the message array
+     * itself (the worker adds no persona of its own on this surface), and the run-scoped
+     * delegation credential is minted here exactly as on the chat path.
+     */
+    const contextBlocks: string[] = [
+      ...agentContexts.map((ctx) => {
+        const c = ctx as { type?: string; content?: string }
+        return `[Attached ${c.type ?? 'context'}]\n${c.content ?? ''}`
+      }),
+      ...(mothershipTools.length > 0
+        ? [
+            [
+              'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
+              'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+              ...mothershipTools.map((tool) => `- ${tool.name}: ${tool.description || tool.name}`),
+            ].join('\n'),
+          ]
+        : []),
+    ]
+    const wireMessages = messages.map((m, i) =>
+      i === messages.length - 1 && contextBlocks.length > 0
+        ? { ...m, content: `${contextBlocks.join('\n\n')}\n\n${m.content}` }
+        : m
+    )
+    const delegationToken = await mintDelegationToken({ workspaceId, userId })
     const requestPayload: Record<string, unknown> = {
-      messages,
+      messages: wireMessages,
       ...(responseFormat !== undefined ? { responseFormat } : {}),
       userId,
-      // Go's auth middleware reads workspaceId off the request body to forward
-      // to /api/copilot/api-keys/validate (per-member org usage gate). Omitting
-      // it makes that validation 400 ("API key validation failed"), which kills
-      // the block. The chat path sends it via buildCopilotRequestPayload; the
-      // block path must too.
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       chatId: effectiveChatId,
-      mode: 'agent',
       messageId,
-      isHosted: true,
-      workspaceContext,
-      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-      ...(userMetadata ? { userMetadata } : {}),
-      ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-      ...(agentContexts.length > 0 || mothershipTools.length > 0
-        ? {
-            contexts: [
-              ...agentContexts,
-              ...(mothershipTools.length > 0
-                ? [
-                    {
-                      type: 'mcp',
-                      content: [
-                        'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
-                        'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-                        ...mothershipTools.map(
-                          (tool) => `- ${tool.name}: ${tool.description || tool.name}`
-                        ),
-                      ].join('\n'),
-                    },
-                  ]
-                : []),
-            ],
-          }
-        : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
-      ...(userPermission ? { userPermission } : {}),
-      ...(entitlements.length > 0 ? { entitlements } : {}),
+      ...(delegationToken ? { delegationToken } : {}),
     }
 
     let allowExplicitAbort = true

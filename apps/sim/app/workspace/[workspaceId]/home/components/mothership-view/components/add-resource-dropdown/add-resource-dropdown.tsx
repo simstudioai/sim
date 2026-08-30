@@ -21,7 +21,7 @@ import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/resources/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import {
   type AvailableItem,

@@ -22,15 +22,15 @@ const {
   addChatAutoAllowedTool: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getAsyncToolCall,
   getRunSegment,
   recordToolPermissionDecision,
 }))
 
-vi.mock('@/lib/copilot/persistence/tool-permission', () => ({
+vi.mock('@/lib/mothership/persistence/tool-permission', () => ({
   publishToolPermissionDecision,
   TOOL_PERMISSION_DECISION: {
     allow: 'allow',
@@ -40,7 +40,7 @@ vi.mock('@/lib/copilot/persistence/tool-permission', () => ({
   },
 }))
 
-vi.mock('@/lib/copilot/persistence/tool-permission/auto-allow', () => ({
+vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
   addAutoAllowedTool,
   addChatAutoAllowedTool,
 }))

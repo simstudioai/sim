@@ -4,19 +4,19 @@ import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeDesktopToolContract } from '@/lib/api/contracts/desktop-tool-authorization'
 import { parseRequest } from '@/lib/api/server'
-import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/copilot/async-runs/lifecycle'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { DESKTOP_TOOL_CLAIM_OWNER } from '@/lib/mothership/async-runs/lifecycle'
 import {
   claimPendingAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
-} from '@/lib/copilot/async-runs/repository'
+} from '@/lib/mothership/async-runs/repository'
 import {
   authenticateCopilotRequestSessionOnly,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
+import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
 /**
  * Electron calls this endpoint from the main process before every privileged

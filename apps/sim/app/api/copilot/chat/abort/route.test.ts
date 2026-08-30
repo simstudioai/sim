@@ -30,18 +30,18 @@ const {
   }
 })
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticate,
 }))
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream: mockGetLatestRunForStream,
 }))
-vi.mock('@/lib/copilot/request/session', () => ({
+vi.mock('@/lib/mothership/request/session', () => ({
   abortActiveStream: mockAbortActiveStream,
   waitForPendingChatStream: mockWaitForPendingChatStream,
   releasePendingChatStream: mockReleasePendingChatStream,
 }))
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 

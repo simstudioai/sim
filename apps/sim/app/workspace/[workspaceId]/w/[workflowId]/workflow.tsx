@@ -40,8 +40,8 @@ import {
 } from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
-import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import type { OAuthConnectEventDetail } from '@/lib/mothership/tools/client/base-tool'
 import type { OAuthProvider } from '@/lib/oauth'
 import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import {

@@ -13,32 +13,31 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { chatOperations } from '@/lib/copilot/application/operations'
-import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { persistCopilotChatTurn } from '@/lib/copilot/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { chatOperations } from '@/lib/mothership/application/operations'
+import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
+import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
-} from '@/lib/copilot/chat/persisted-message'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
+} from '@/lib/mothership/chat/persisted-message'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import {
   type CopilotEnvironmentContext,
   createCopilotEnvironmentContext,
-} from '@/lib/copilot/environment-context'
+} from '@/lib/mothership/environment-context'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { OrchestratorResult, StreamEvent } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import type { OrchestratorResult, StreamEvent } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -233,30 +232,30 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [workspaceContext, integrationTools, entitlements, billingAttribution] =
-        await Promise.all([
-          generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
-          buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-          computeWorkspaceEntitlements(workspaceId, userId),
-          // Hosted execution refuses to run without an attribution snapshot;
-          // the executor path receives it as a header, this path resolves it
-          // from the authenticated actor and asserted workspace.
-          resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-        ])
+      const [integrationTools, billingAttribution, delegationToken] = await Promise.all([
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        // Hosted execution refuses to run without an attribution snapshot;
+        // the executor path receives it as a header, this path resolves it
+        // from the authenticated actor and asserted workspace.
+        resolveBillingAttribution({ actorUserId: userId, workspaceId }),
+        mintDelegationToken({ workspaceId, userId }),
+      ])
 
+      /**
+       * The wire payload IS the shared ChatRequest contract, and this surface now rides
+       * the full CHAT pipeline (persona + skills + CLI under the user's delegation
+       * token) — "talk to Sim" over the public API is the same agent as the workspace
+       * chat, not a persona-less one-shot.
+       */
       const requestPayload: Record<string, unknown> = {
-        messages: [{ role: 'user', content: message }],
+        message,
         userId,
+        protocolVersion: PROTOCOL_VERSION,
         workspaceId,
         chatId,
-        mode: 'agent',
         messageId,
-        isHosted: true,
-        workspaceContext,
-        ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
         ...(integrationTools.length > 0 ? { integrationTools } : {}),
-        ...(userPermission ? { userPermission } : {}),
-        ...(entitlements.length > 0 ? { entitlements } : {}),
+        ...(delegationToken ? { delegationToken } : {}),
       }
 
       let allowExplicitAbort = true
@@ -300,10 +299,7 @@ export const POST = withRouteHandler(
           workspaceId,
           chatId,
           simRequestId: requestId,
-          // The Go copilot route this turn is POSTed to — the same headless
-          // execute surface the Sim Chat block uses (it also selects the
-          // mothership sandbox profile for code tools).
-          goRoute: '/api/mothership/execute',
+          goRoute: '/api/mothership',
           autoExecuteTools: true,
           interactive: false,
           abortSignal: lifecycleAbortController.signal,

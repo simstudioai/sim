@@ -6,7 +6,7 @@ import { mountedSecretNamesSchema } from '@/lib/api/contracts/secret-mount-polic
 import {
   MAX_SECRET_MOUNT_NAME_LENGTH,
   MAX_SECRET_MOUNT_NAMES,
-} from '@/lib/copilot/secret-mount-policy'
+} from '@/lib/mothership/secret-mount-policy'
 
 describe('mountedSecretNamesSchema', () => {
   it('accepts the bounded names-only policy shape', () => {

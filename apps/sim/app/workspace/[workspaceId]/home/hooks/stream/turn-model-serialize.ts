@@ -1,4 +1,4 @@
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,

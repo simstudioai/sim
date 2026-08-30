@@ -3,32 +3,32 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getAsyncToolCall,
   getRunSegment,
   recordToolPermissionDecision,
-} from '@/lib/copilot/async-runs/repository'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+} from '@/lib/mothership/async-runs/repository'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
   publishToolPermissionDecision,
   TOOL_PERMISSION_DECISION,
   type ToolPermissionDecision,
-} from '@/lib/copilot/persistence/tool-permission'
+} from '@/lib/mothership/persistence/tool-permission'
 import {
   addAutoAllowedTool,
   addChatAutoAllowedTool,
-} from '@/lib/copilot/persistence/tool-permission/auto-allow'
+} from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { isCopilotToolPermissionsEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotToolPermissionAPI')
 

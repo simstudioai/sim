@@ -1,8 +1,8 @@
 import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type {
   StreamEventScope,
   StreamLoopContext,

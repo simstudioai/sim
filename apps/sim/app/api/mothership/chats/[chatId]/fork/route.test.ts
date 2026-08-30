@@ -43,36 +43,36 @@ const {
   mockRemoveChatResources: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/resources/persistence', () => ({
+vi.mock('@/lib/mothership/resources/persistence', () => ({
   removeChatResources: mockRemoveChatResources,
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/chat/fork-chat-files', () => ({
+vi.mock('@/lib/mothership/chat/fork-chat-files', () => ({
   filterForkableChatFiles: mockFilterForkableChatFiles,
   listForkableChatFiles: mockListForkableChatFiles,
   planChatFileCopies: mockPlanChatFileCopies,
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   loadCopilotChatMessages: mockLoadCopilotChatMessages,
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
 }))
 
-vi.mock('@/lib/copilot/request/go/fetch', () => ({
+vi.mock('@/lib/mothership/request/go/fetch', () => ({
   fetchGo: mockFetchGo,
 }))
 
-vi.mock('@/lib/copilot/server/agent-url', () => ({
+vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipBaseURL: vi.fn().mockResolvedValue('http://mothership.test'),
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
 }))

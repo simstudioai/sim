@@ -3,9 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
-import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import type {
   BlockChildWorkflowStartedData,
   BlockCompletedData,

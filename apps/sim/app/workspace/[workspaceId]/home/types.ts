@@ -8,7 +8,7 @@ export type {
   MothershipResource,
   MothershipResourceType,
   WorkspaceResourceRef,
-} from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
 export type ChatContextKind = ChatContext['kind']

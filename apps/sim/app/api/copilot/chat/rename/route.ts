@@ -6,9 +6,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { renameCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { chatPubSub } from '@/lib/copilot/chat-status'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 
 const logger = createLogger('RenameChatAPI')
 

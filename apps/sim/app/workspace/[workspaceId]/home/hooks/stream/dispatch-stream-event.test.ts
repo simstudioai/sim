@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { StreamLoopContext } from './stream-context'
 
 const handlers = vi.hoisted(() => ({

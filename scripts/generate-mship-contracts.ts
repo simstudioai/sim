@@ -29,7 +29,7 @@ const GENERATORS = [
 
 // Generated files under this path. We biome-format this whole dir on
 // each generate (and the temp copy on each check).
-const GENERATED_DIR = 'apps/sim/lib/copilot/generated'
+const GENERATED_DIR = 'apps/sim/lib/mothership/generated'
 
 // `tool-schemas-v1.ts` goes through biome's `--unsafe` bracket-quote
 // fixer which reformats every key of TOOL_RUNTIME_SCHEMAS. Strip it

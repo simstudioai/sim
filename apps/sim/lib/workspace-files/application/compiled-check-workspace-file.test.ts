@@ -19,11 +19,11 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   getE2BDocFormat: mocks.getE2BDocFormat,
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-recalc', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-recalc', () => ({
   runE2BCompiledCheck: mocks.runE2BCompiledCheck,
 }))
 

@@ -12,14 +12,14 @@ const { mockFetch, mockGetMothershipBaseURL } = vi.hoisted(() => ({
   mockGetMothershipBaseURL: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/constants', () => ({
+vi.mock('@/lib/mothership/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
   SIM_AGENT_API_URL: 'https://agent.sim.example.com',
   COPILOT_MODES: ['ask', 'build', 'plan'] as const,
   COPILOT_REQUEST_MODES: ['ask', 'build', 'plan', 'agent'] as const,
 }))
 
-vi.mock('@/lib/copilot/server/agent-url', () => ({
+vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipBaseURL: mockGetMothershipBaseURL,
 }))
 

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { WorkspaceResourceRef } from '@/lib/copilot/resources/types'
+import type { WorkspaceResourceRef } from '@/lib/mothership/resources/types'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveWorkspaceResourceRef } from './resolve-resource-ref'
 

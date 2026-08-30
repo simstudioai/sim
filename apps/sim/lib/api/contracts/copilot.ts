@@ -5,15 +5,15 @@ import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
-} from '@/lib/copilot/async-runs/lifecycle'
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   BILLING_ATTRIBUTION_HEADER,
   BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/generated/billing-protocol-v1'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/mothership/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),

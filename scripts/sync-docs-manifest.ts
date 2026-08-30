@@ -26,13 +26,16 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { foldDocsIndexPath, UNMOUNTED_DOCS_SECTIONS } from '../apps/sim/lib/copilot/docs/docs-path'
+import {
+  foldDocsIndexPath,
+  UNMOUNTED_DOCS_SECTIONS,
+} from '../apps/sim/lib/mothership/docs/docs-path'
 import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const DOCS_CONTENT_DIR = resolve(ROOT, 'apps/docs/content/docs')
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/docs-manifest.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/docs-manifest.ts')
 
 /**
  * Top-level docs sections deliberately left out of the copilot's `docs/` tree.

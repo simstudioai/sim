@@ -69,7 +69,7 @@ describe('guarded entries', () => {
    * so nothing held it.
    */
   it('guards the Copilot block-metadata tool', () => {
-    expect(entries).toContain('lib/copilot/tools/server/blocks/get-blocks-metadata-tool.ts')
+    expect(entries).toContain('lib/mothership/tools/server/blocks/get-blocks-metadata-tool.ts')
   })
 
   it('guards every catalog projection module rather than a barrel over them', () => {
