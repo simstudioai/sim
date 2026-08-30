@@ -41,7 +41,8 @@ export const GET = withRouteHandler(
         knowledgeBaseId,
         parsed.data.query.workspaceId,
         userId,
-        rateLimit
+        rateLimit,
+        'knowledge.use'
       )
       if (result instanceof NextResponse) return result
 
@@ -133,6 +134,7 @@ export const DELETE = withRouteHandler(
         parsed.data.query.workspaceId,
         userId,
         rateLimit,
+        'knowledge.use',
         'write'
       )
       if (result instanceof NextResponse) return result

@@ -26,7 +26,15 @@ interface FileRouteParams {
   params: Promise<{ fileId: string }>
 }
 
-/** GET /api/v1/files/[fileId] — Download file content. */
+/**
+ * GET /api/v1/files/[fileId] — Download file content.
+ *
+ * permission-group-exempt: none is declared here because this handler already
+ * runs through the application funnel — `downloadWorkspaceFileStream` is the
+ * `files.download` operation, which declares `files.use` and has it applied by
+ * `authorizeWorkspaceOperation` for the personal-API-key principal. Adding a
+ * middleware gate would check the same capability twice.
+ */
 export const GET = withRouteHandler(async (request: NextRequest, context: FileRouteParams) => {
   const requestId = generateRequestId()
 
@@ -106,7 +114,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Fil
     const { fileId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'files.use',
+      'write'
+    )
     if (accessError) return accessError
 
     const fileRecord = await getWorkspaceFile(workspaceId, fileId)

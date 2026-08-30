@@ -40,7 +40,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId } = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'knowledge.use'
+    )
     if (accessError) return accessError
 
     /** Read only after `validateWorkspaceAccess` authorized this caller; same list the
@@ -78,7 +83,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId, name, description, chunkingConfig } = parsed.data.body
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'knowledge.create',
+      'write'
+    )
     if (accessError) return accessError
 
     const outcome = await performCreateKnowledgeBase({

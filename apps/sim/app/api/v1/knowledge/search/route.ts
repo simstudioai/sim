@@ -48,7 +48,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const { workspaceId, topK, query, tagFilters, searchMode } = parsed.data.body
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      workspaceId,
+      'knowledge.use'
+    )
     if (accessError) return accessError
 
     const hasBillableQuery = Boolean(query?.trim())

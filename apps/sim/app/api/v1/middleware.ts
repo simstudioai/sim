@@ -7,10 +7,18 @@ import { getValidationErrorMessage, isZodError, validationErrorResponse } from '
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import {
+  CAPABILITY_RULES,
+  type StaticPermissionGroupCapability,
+} from '@/lib/permission-groups/capabilities'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   getWorkspaceBilledAccountUserId,
@@ -227,6 +235,66 @@ export interface WorkspaceAccessError {
   status: number
   code: 'FORBIDDEN'
   message: string
+  /**
+   * The detail code a client can branch on, present only when a permission
+   * group withheld a capability. Read from {@link CAPABILITY_RULES} rather than
+   * spelled out, so v1 renders the same code as the funnel and the raw internal
+   * routes for the same refusal.
+   */
+  details?: { code: ForbiddenDetailCode }
+}
+
+/**
+ * The permission-group capability a v1 route requires, or `'none'` when no
+ * group governs it.
+ *
+ * Required rather than optional wherever it is threaded, and `'none'` spelled
+ * out rather than omitted, for the same reason `capability` is required on
+ * `defineWorkspaceOperation`: an absent declaration cannot be told apart from an
+ * unreviewed one, and unreviewed omission is how twelve config keys shipped
+ * enforcing nothing. Each route's value is the one its v2 or internal
+ * counterpart already declares — v1 does not get a mapping of its own.
+ */
+export type V1RouteCapability = StaticPermissionGroupCapability | 'none'
+
+/**
+ * The permission-group gate for a v1 route, as a structured failure.
+ *
+ * Only a personal key carries capabilities. A workspace key authorizes as the
+ * workspace and has no user, so there is no group to resolve — and its
+ * `rateLimit.userId` is the key's *creator*, a bystander whose group must not
+ * govern every caller of a shared credential. That is the same reasoning the
+ * `workspace_api_key` branch of `authorizeWorkspaceOperation` applies; the
+ * escape is closed at the door instead, because minting a workspace key is
+ * itself capability-gated.
+ *
+ * No `permission-group-enforced:` annotation, because this gate names no
+ * capability of its own: it applies whichever one the route declares, and every
+ * one of those is already reachable through the operation its v2 or internal
+ * counterpart declares.
+ *
+ * Never call this before the workspace role check. A capability refusal handed
+ * to a non-member would confirm the workspace exists and disclose which modules
+ * the organization withholds; the role failure conceals both.
+ */
+export async function resolveCapabilityRefusal(
+  rateLimit: RateLimitResult,
+  userId: string,
+  workspaceId: string,
+  capability: V1RouteCapability
+): Promise<WorkspaceAccessError | null> {
+  if (capability === 'none') return null
+  if (rateLimit.keyType !== 'personal') return null
+
+  if (!(await isWorkspaceCapabilityWithheld(userId, workspaceId, capability))) return null
+
+  logger.warn('v1 request blocked by permission group', { workspaceId, userId, capability })
+  return {
+    status: 403,
+    code: 'FORBIDDEN',
+    message: capabilityRefusal(capability),
+    details: { code: CAPABILITY_RULES[capability].detailCode },
+  }
 }
 
 /**
@@ -288,13 +356,18 @@ export async function resolveWorkspaceScope(
 }
 
 /**
- * Core workspace-access check (scope + the user's workspace permission level),
- * shared by v1 and v2. Returns a structured failure or null on success.
+ * Core workspace-access check: key scope, then the user's workspace permission
+ * level, then the permission-group capability the route declares. Returns a
+ * structured failure or null on success.
+ *
+ * Capability comes last, matching `authorizeWorkspaceOperation` — see
+ * {@link resolveCapabilityRefusal} for why the ordering is load-bearing.
  */
 export async function resolveWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
+  capability: V1RouteCapability,
   level: PermissionType = 'read'
 ): Promise<WorkspaceAccessError | null> {
   const scopeError = await resolveWorkspaceScope(rateLimit, workspaceId)
@@ -304,18 +377,34 @@ export async function resolveWorkspaceAccess(
   if (!permissionSatisfies(permission, level)) {
     return { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
   }
-  return null
+
+  return resolveCapabilityRefusal(rateLimit, userId, workspaceId, capability)
 }
 
 /**
  * v1 wrapper: renders {@link resolveWorkspaceScope} as the v1 `{ error }` body.
+ *
+ * Scope only — it deliberately gates no module capability, because it runs
+ * before the route's role check. A route using it authorizes its resource
+ * through a domain helper afterwards (the table routes call `checkAccess`,
+ * which applies `tables.use` itself), so the capability is declared there.
  */
 export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
   requestedWorkspaceId: string
 ): Promise<NextResponse | null> {
   const failure = await resolveWorkspaceScope(rateLimit, requestedWorkspaceId)
-  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+  return failure ? workspaceAccessErrorResponse(failure) : null
+}
+
+/** Renders a {@link WorkspaceAccessError} as the v1 `{ error, details? }` body. */
+function workspaceAccessErrorResponse(failure: WorkspaceAccessError): NextResponse {
+  return NextResponse.json(
+    failure.details
+      ? { error: failure.message, details: failure.details }
+      : { error: failure.message },
+    { status: failure.status }
+  )
 }
 
 /**
@@ -341,10 +430,11 @@ export async function validateWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
+  capability: V1RouteCapability,
   level: PermissionType = 'read'
 ): Promise<NextResponse | null> {
-  const failure = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, level)
-  return failure ? NextResponse.json({ error: failure.message }, { status: failure.status }) : null
+  const failure = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, capability, level)
+  return failure ? workspaceAccessErrorResponse(failure) : null
 }
 
 /**
