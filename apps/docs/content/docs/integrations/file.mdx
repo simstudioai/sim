@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read, get content, fetch, write, append, compress, decompress, and manage sharing for files
+description: Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,23 +11,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
+The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, searching, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
 
 With the File block, you can:
 
 - **Read and extract content**: Load workspace file objects and extract their text content
+- **Search workspace content**: Find literal text across indexed active workspace files with bounded line-level results
 - **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
 - **Write and append**: Create new workspace files or append content to existing ones
 - **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
 - **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
 
-In Sim, the File block allows your agents to read and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -66,6 +67,35 @@ Extract the text content of one or more workspace files from selected file objec
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contents` | array | Array of file text contents, one entry per file in input order |
+
+### File Search
+
+Search indexed text across active workspace files using literal smart-case substring matching.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Literal text to find \(3-512 characters\). Uppercase Unicode letters make matching case-sensitive. |
+| `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching logical lines with their workspace file ID and 1-based line number. |
+|   ↳ `fileId` | string | Canonical workspace file ID. |
+|   ↳ `lineNumber` | number | 1-based logical line number. |
+|   ↳ `text` | string | Matching line or bounded match-centered preview. |
+| `count` | number | Number of returned matching lines. |
+| `truncated` | boolean | Whether more matching lines exist beyond the configured hard cap. |
+| `complete` | boolean | Whether every current file revision is indexed without failures. |
+| `indexStatus` | object | Current workspace search-index coverage by file status. |
+|   ↳ `readyFiles` | number | Files whose current revision is searchable. |
+|   ↳ `pendingFiles` | number | Files still waiting to be indexed. |
+|   ↳ `failedFiles` | number | Files whose current indexing attempt failed. |
+|   ↳ `skippedFiles` | number | Files intentionally excluded because they are unsupported or oversized. |
+|   ↳ `partialFiles` | number | Searchable files whose extracted text was truncated by the parser or cap. |
 
 ### File Fetch
 

@@ -899,15 +899,17 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v5',
   name: 'File',
   description:
-    'Read, get content, fetch, write, append, compress, decompress, and manage sharing for files',
+    'Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
+    'Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
   - Get Content is how you read file text. It accepts file objects or canonical file IDs and returns a "contents" array with one extracted text string per file (PDF, DOCX, CSV, etc. are parsed automatically).
   - To read the text of files produced by another block, chain into Get Content: set its file input to the upstream file output, e.g. <file.files>, <agent.files>, or <start.files>. Never assume Read (or any file-object output) already contains the text.
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
+  - Search finds literal text across all active workspace files and returns structured results with fileId, lineNumber, and text. Lowercase queries are case-insensitive; adding any uppercase letter makes the search case-sensitive.
+  - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one.
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
@@ -921,6 +923,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         file_get_content: [
           { text: 'Extract text from', field: GET_CONTENT_FILE_FIELD, core: true },
         ],
+        file_search: [{ text: 'Search workspace files for', field: 'query', core: true }],
         file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
         file_write: [
           { text: 'Create', field: 'fileName', core: true },
@@ -950,6 +953,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       options: [
         { label: 'Read', id: 'file_read' },
         { label: 'Get Content', id: 'file_get_content' },
+        { label: 'Search', id: 'file_search' },
         { label: 'Fetch', id: 'file_fetch' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
@@ -1002,6 +1006,28 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'file_get_content' },
       required: { field: 'operation', value: 'file_get_content' },
+    },
+    {
+      id: 'query',
+      title: 'Query',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Text to find across workspace files',
+      description: 'Literal search text, 3-512 characters. Leave blank for the agent to supply.',
+      condition: { field: 'operation', value: 'file_search' },
+      required: { field: 'operation', value: 'file_search' },
+      paramVisibility: 'user-or-llm',
+    },
+    {
+      id: 'maxResults',
+      title: 'Maximum Results',
+      type: 'short-input' as SubBlockType,
+      placeholder: '50',
+      description: 'Hard cap for results returned to the agent (1-200).',
+      value: () => '50',
+      condition: { field: 'operation', value: 'file_search' },
+      required: { field: 'operation', value: 'file_search' },
+      mode: 'advanced',
+      paramVisibility: 'user-only',
     },
     {
       id: 'fileUrl',
@@ -1214,6 +1240,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     access: [
       'file_read',
       'file_get_content',
+      'file_search',
       'file_fetch',
       'file_write',
       'file_append',
@@ -1225,6 +1252,14 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       tool: (params) => params.operation || 'file_read',
       params: (params) => {
         const operation = params.operation || 'file_read'
+
+        if (operation === 'file_search') {
+          const maxResults = Number.parseInt(String(params.maxResults ?? '50'), 10)
+          return {
+            query: params.query,
+            maxResults: Number.isNaN(maxResults) ? 50 : maxResults,
+          }
+        }
 
         if (operation === 'file_write') {
           // Writing stores one file, so the single form.
@@ -1451,8 +1486,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   inputs: {
     operation: {
       type: 'string',
-      description: 'Operation to perform (read, get content, fetch, write, or append)',
+      description: 'Operation to perform (read, search, get content, fetch, write, or append)',
     },
+    query: { type: 'string', description: 'Literal workspace file search query' },
+    maxResults: { type: 'number', description: 'Hard maximum search results (1-200)' },
     readFileInput: {
       type: 'json',
       description: 'Selected workspace file or canonical file ID for read',
@@ -1505,6 +1542,24 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     contents: {
       type: 'array',
       description: 'Array of file text contents, one entry per file (get content)',
+    },
+    results: {
+      type: 'array',
+      description: 'Matching lines as objects with fileId, lineNumber, and text fields (search)',
+    },
+    count: { type: 'number', description: 'Returned matching line count (search)' },
+    truncated: {
+      type: 'boolean',
+      description: 'Whether more search matches exist beyond the configured cap',
+    },
+    complete: {
+      type: 'boolean',
+      description: 'Whether all current workspace file revisions are indexed without failures',
+    },
+    indexStatus: {
+      type: 'json',
+      description:
+        'Workspace search-index coverage counts: readyFiles, pendingFiles, failedFiles, skippedFiles, and partialFiles',
     },
     combinedContent: {
       type: 'string',

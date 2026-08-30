@@ -305,10 +305,13 @@ const extractUserFileTextContent = async (
   return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
-interface FileContentSource {
-  file: UserFile
+export interface FileContentProvenanceSource {
   identity?: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
+}
+
+interface FileContentSource extends FileContentProvenanceSource {
+  file: UserFile
 }
 
 async function bindSelectedContentFile(
@@ -339,10 +342,10 @@ async function bindSelectedContentFile(
   }
 }
 
-async function getFileContentProvenance(
+export async function getFileContentProvenance(
   principal: Principal,
   workspaceId: string,
-  sources: readonly FileContentSource[]
+  sources: readonly FileContentProvenanceSource[]
 ): Promise<ResolvedSecretTraceProvenanceV1> {
   const ownerIds = new Set(
     sources
@@ -362,7 +365,11 @@ async function getFileContentProvenance(
     }
     const { provenance } = await readWorkspaceFileSecretProvenance.execute({
       principal,
-      input: { fileId: source.identity.fileId, assertedWorkspaceId: workspaceId },
+      input: {
+        fileId: source.identity.fileId,
+        assertedWorkspaceId: workspaceId,
+        expectedContentUpdatedAt: source.identity.contentUpdatedAt,
+      },
     })
     /**
      * `unrecorded` is a more specific `unknown`, and this accumulator has not opted into the
@@ -493,7 +500,7 @@ async function deriveWorkspaceFileSecretProvenance(options: {
   return mergeWorkspaceFileSecretProvenance(...provenances)
 }
 
-function fileContentJsonResponse(
+export function fileContentJsonResponse(
   body: Record<string, unknown>,
   includePrivateProvenance: boolean,
   init?: ResponseInit,
