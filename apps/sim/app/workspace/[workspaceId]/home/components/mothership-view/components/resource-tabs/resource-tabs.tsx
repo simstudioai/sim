@@ -28,8 +28,8 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
-import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isEphemeralResource } from '@/lib/copilot/resources/types'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
+import { isEphemeralResource } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId, terminalResourceId } from '@/lib/terminal/resource-id'
 import { terminalTabTitle, terminalTooltip } from '@/lib/terminal/tab-label'

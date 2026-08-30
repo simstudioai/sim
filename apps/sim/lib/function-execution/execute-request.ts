@@ -6,17 +6,6 @@ import { toRecord } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
-import {
-  FORMAT_TO_CONTENT_TYPE,
-  getOutputFileDeclarations,
-  normalizeOutputWorkspaceFileName,
-  type OutputFileDeclaration,
-  resolveOutputFormat,
-} from '@/lib/copilot/request/tools/files'
-import {
-  validateWorkspaceFileWriteTarget,
-  writeWorkspaceFileByPath,
-} from '@/lib/copilot/vfs/resource-writer'
 import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import {
   createTimeoutAbortController,
@@ -92,6 +81,17 @@ import {
 import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
+import {
+  FORMAT_TO_CONTENT_TYPE,
+  getOutputFileDeclarations,
+  normalizeOutputWorkspaceFileName,
+  type OutputFileDeclaration,
+  resolveOutputFormat,
+} from '@/lib/mothership/request/tools/files'
+import {
+  validateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,

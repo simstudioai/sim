@@ -5,7 +5,7 @@ import { escapeRegExp } from '@sim/utils/string'
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
-} from '@/lib/copilot/chat/selection-clipboard'
+} from '@/lib/mothership/chat/selection-clipboard'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,

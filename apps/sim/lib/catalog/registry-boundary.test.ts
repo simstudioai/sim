@@ -32,7 +32,7 @@ const CATALOG_ROOTS = [
   'app/api/v2/tools',
   'app/api/v2/connector-types',
   /** The Copilot tool the shared projection was extracted for: ~6,756 modules down to ~1,321. */
-  'lib/copilot/tools/server/blocks',
+  'lib/mothership/tools/server/blocks',
 ] as const
 
 /** Modules no catalog file may import, with what each would drag in. */

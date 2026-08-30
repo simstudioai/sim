@@ -2,7 +2,7 @@
 
 import { forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'

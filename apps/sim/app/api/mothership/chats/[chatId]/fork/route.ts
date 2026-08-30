@@ -6,21 +6,23 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   executeChatFileBlobCopies,
   filterForkableChatFiles,
   listForkableChatFiles,
   planChatFileCopies,
-} from '@/lib/copilot/chat/fork-chat-files'
-import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
-import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
+} from '@/lib/mothership/chat/fork-chat-files'
+import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import {
   rewriteMessageFileRefs,
   rewriteResourceFileRefs,
-} from '@/lib/copilot/chat/rewrite-file-references'
-import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
-import { fetchGo } from '@/lib/copilot/request/go/fetch'
+} from '@/lib/mothership/chat/rewrite-file-references'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -28,13 +30,14 @@ import {
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { removeChatResources } from '@/lib/copilot/resources/persistence'
-import { type MothershipResource, sanitizeChatResources } from '@/lib/copilot/resources/types'
-import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
-import { env } from '@/lib/core/config/env'
+} from '@/lib/mothership/request/http'
+import { removeChatResources } from '@/lib/mothership/resources/persistence'
+import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
+import {
+  getMothershipBaseURL,
+  getMothershipSourceEnvHeaders,
+} from '@/lib/mothership/server/agent-url'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   assertActiveWorkspaceAccess,

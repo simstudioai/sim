@@ -35,40 +35,40 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   resolveOrCreateChat: mockResolveOrCreateChat,
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
+vi.mock('@/lib/mothership/chat/payload', () => ({
   buildIntegrationToolSchemas: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/copilot/chat/persisted-message', () => ({
+vi.mock('@/lib/mothership/chat/persisted-message', () => ({
   buildPersistedAssistantMessage: vi.fn().mockReturnValue({ id: 'assistant-message' }),
   buildPersistedUserMessage: vi.fn().mockReturnValue({ id: 'user-message' }),
 }))
 
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
+vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/start', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
   requestChatTitle: vi.fn(),
 }))
 
@@ -96,7 +96,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('owner-1'),
 }))
 
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 
 const INBOX_TASK = {

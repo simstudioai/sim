@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from '@/lib/copilot/generated/mothership-stream-v1'
+} from '@/lib/mothership/generated/mothership-stream-v1'
 
 const {
   mockGetAccessibleChat,
@@ -28,11 +28,11 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream,
 }))
 
-vi.mock('@/lib/copilot/request/session', () => ({
+vi.mock('@/lib/mothership/request/session', () => ({
   readEvents,
   readFilePreviewSessions,
   checkForReplayGap,
@@ -53,7 +53,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
   },
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
 import { GET } from './route'
 

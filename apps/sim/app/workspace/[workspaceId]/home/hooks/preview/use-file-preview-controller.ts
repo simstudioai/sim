@@ -9,8 +9,8 @@ import {
 } from 'react'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { deriveFilePreviewSession } from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 import {

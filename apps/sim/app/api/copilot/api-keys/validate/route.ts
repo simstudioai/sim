@@ -23,16 +23,17 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authorizeCopilotChatCallback,
   type CopilotContinuationBilling,
   checkCopilotContinuationBilling,
-} from '@/lib/copilot/application/authorize-chat-callback'
+} from '@/lib/mothership/application/authorize-chat-callback'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createTrustedOrganizationCopilotPrincipal,
-} from '@/lib/copilot/auth/application-delegation'
-import { authorizeOrganizationChatDelegation } from '@/lib/copilot/chat/organization-chats'
+} from '@/lib/mothership/auth/application-delegation'
+import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ATTRIBUTION_HEADER,
@@ -41,15 +42,14 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_VALIDATION_PURPOSE,
   type CopilotBillingProtocol,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { checkInternalApiKey } from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/generated/billing-protocol-v1'
+import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { checkInternalApiKey } from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
 

@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateCopilotApiKeyContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/mothership/server/api-keys'
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
