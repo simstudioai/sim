@@ -44,6 +44,7 @@ const writeOperation = defineWorkspaceOperation({
   minimumRole: 'write',
   workspaceApiKey: 'deny',
   principalKinds: ['session'],
+  capability: 'none',
 })
 
 const principal: SessionPrincipal = {
@@ -57,6 +58,7 @@ const workspaceKeyOperation = defineWorkspaceOperation({
   minimumRole: 'write',
   workspaceApiKey: 'allow',
   principalKinds: ['workspace_api_key'],
+  capability: 'none',
 })
 
 const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
@@ -71,6 +73,7 @@ const executorOperation = defineWorkspaceOperation({
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
   delegatedServices: ['executor'],
+  capability: 'none',
 })
 
 function executorPrincipal(

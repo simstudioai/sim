@@ -90,6 +90,7 @@ describe('workspace file reference application service', () => {
       minimumRole: 'write',
       workspaceApiKey: 'deny',
       principalKinds: ['session'],
+      capability: 'files.use',
     })
 
     await expect(

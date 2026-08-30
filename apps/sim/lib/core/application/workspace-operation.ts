@@ -122,7 +122,27 @@ export function defineWorkspaceOperation<
 
   if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
 
-  if (operation.capability !== undefined && operation.capability !== 'none') {
+  /**
+   * `capability` is required, so refusing an absent one reads as unreachable.
+   * It is not. `apps/sim/tsconfig.json` excludes test files from type-checking,
+   * and `check-permission-group-enforcement.ts` walks past them too, so a test
+   * fixture is the one construction site no static check reads — and fixtures
+   * are where an operation is written from memory rather than from the
+   * surrounding domain.
+   *
+   * Left to reach authorization, an absent capability does not deny; it throws
+   * `Cannot read properties of undefined` from inside `capabilityDeniedBy`, and
+   * only for a caller whose organization has a permission group. It would pass
+   * every personal workspace and every non-enterprise test, then fail in the
+   * tenants that bought the feature. Named here instead, at definition time.
+   */
+  if (operation.capability === undefined) {
+    throw new Error(
+      `Operation ${operation.id} declares no capability; name one, or 'none' with a reason`
+    )
+  }
+
+  if (operation.capability !== 'none') {
     const rule = CAPABILITY_RULES[operation.capability]
     if (!rule) {
       throw new Error(`Operation ${operation.id} names unknown capability ${operation.capability}`)
