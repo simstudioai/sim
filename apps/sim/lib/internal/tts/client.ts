@@ -16,6 +16,7 @@ import type {
   CartesiaTtsParams,
   DeepgramTtsParams,
   ElevenLabsTtsUnifiedParams,
+  GandrTtsParams,
   GoogleTtsParams,
   OpenAiTtsParams,
   PlayHtTtsParams,
@@ -132,6 +133,44 @@ export async function synthesizeOpenAi(
   }
   return {
     audioBuffer: await readAudio(response, 'OpenAI TTS audio response', signal),
+    format,
+    mimeType: getTtsMimeType(format),
+  }
+}
+
+export async function synthesizeGandr(
+  input: GandrTtsParams,
+  signal?: AbortSignal
+): Promise<TtsAudioResult> {
+  assertTextWithinLimit(input.text)
+  if (input.text.length > 2000) {
+    throw new TtsOperationError('Gandr TTS accepts up to 2000 characters per request', 400)
+  }
+  const voice = input.voice || 'gandr-mia'
+  const format = input.responseFormat || 'mp3'
+  const response = await providerFetch(
+    'https://tts.gandr.ai/v1/audio/speech',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        input: input.text,
+        voice,
+        response_format: format,
+      }),
+    },
+    signal
+  )
+  if (!response.ok) {
+    const error = await readTtsErrorJson(response, 'Gandr TTS error response', signal)
+    throw new Error(`Gandr TTS API error: ${getTtsErrorMessage(error, response.statusText)}`)
+  }
+  return {
+    audioBuffer: await readAudio(response, 'Gandr TTS audio response', signal),
     format,
     mimeType: getTtsMimeType(format),
   }

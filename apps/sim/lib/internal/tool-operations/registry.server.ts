@@ -818,6 +818,7 @@ const TTS_TOOL_IDS = [
   'tts_cartesia',
   'tts_deepgram',
   'tts_elevenlabs',
+  'tts_gandr',
   'tts_google',
   'tts_openai',
   'tts_playht',
