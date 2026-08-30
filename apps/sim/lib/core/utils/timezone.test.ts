@@ -62,6 +62,10 @@ describe('getWallClockParts', () => {
       second: 30,
     })
   })
+
+  it('rejects an empty timezone instead of using the runtime local timezone', () => {
+    expect(() => getWallClockParts(new Date('2026-06-15T00:15:30Z'), '')).toThrow(RangeError)
+  })
 })
 
 describe('zonedWallClockToUtc', () => {

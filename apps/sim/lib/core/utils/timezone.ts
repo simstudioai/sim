@@ -165,7 +165,7 @@ export function getTimezoneOptions(): TimezoneOption[] {
  * timezone when omitted.
  */
 export function getWallClockParts(instant: Date, timeZone?: string): WallClockParts {
-  if (!timeZone) {
+  if (timeZone === undefined) {
     return {
       year: instant.getFullYear(),
       month: instant.getMonth() + 1,
