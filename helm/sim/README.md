@@ -515,6 +515,10 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ---
 
+## Upgrading to 1.6.4
+
+* `appVersion` — the default image tag for every first-party image (`app`, `realtime`, `migrations`, `pii`, `copilot`) when `image.tag` is unset — moves from `v0.7.44` to `v0.8.18`. It had not been bumped since chart 1.2.0, so an unpinned install deployed an application dozens of releases behind the chart it shipped with, and values keys added by newer charts had no effect because the running image did not read them. **An unpinned release rolls every first-party pod on upgrade.** Installs that pin `image.tag` or `image.digest` are unaffected; pinning explicitly remains the recommendation for production.
+
 ## Upgrading to 1.5.0
 
 Two changes alter behavior on an existing release. Neither requires action, but read both.
