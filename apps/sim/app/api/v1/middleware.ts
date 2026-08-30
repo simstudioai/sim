@@ -310,15 +310,22 @@ export type V1RouteCapability = StaticPermissionGroupCapability | 'none'
  * Never call this before the workspace role check. A capability refusal handed
  * to a non-member would confirm the workspace exists and disclose which modules
  * the organization withholds; the role failure conceals both.
+ *
+ * Takes no caller-supplied user id on purpose. It used to take the same `userId`
+ * the role check uses, guard on {@link capabilityGovernedUserId} and then assert
+ * against that *other* variable — the two agreed, but nothing made them agree,
+ * and a caller passing the key creator's id past a guard that said "personal" is
+ * the exact shape this bug has taken twice. The subject is now the guard's own
+ * return value, so there is only one id and no way to assert against another.
  */
 export async function resolveCapabilityRefusal(
   rateLimit: RateLimitResult,
-  userId: string,
   workspaceId: string,
   capability: V1RouteCapability
 ): Promise<WorkspaceAccessError | null> {
   if (capability === 'none') return null
-  if (!capabilityGovernedUserId(rateLimit)) return null
+  const userId = capabilityGovernedUserId(rateLimit)
+  if (!userId) return null
 
   if (!(await isWorkspaceCapabilityWithheld(userId, workspaceId, capability))) return null
 
@@ -370,9 +377,10 @@ export async function resolveWorkspaceScope(
      * the funnel applies has to be repeated here or the same key that v2
      * refuses would still work against v1.
      */
-    if (rateLimit.userId) {
+    const governedUserId = capabilityGovernedUserId(rateLimit)
+    if (governedUserId) {
       const withheld = await isWorkspaceCapabilityWithheld(
-        rateLimit.userId,
+        governedUserId,
         requestedWorkspaceId,
         'personal_api_key.use'
       )
@@ -412,7 +420,7 @@ export async function resolveWorkspaceAccess(
     return { status: 403, code: 'FORBIDDEN', message: 'Access denied' }
   }
 
-  return resolveCapabilityRefusal(rateLimit, userId, workspaceId, capability)
+  return resolveCapabilityRefusal(rateLimit, workspaceId, capability)
 }
 
 /**

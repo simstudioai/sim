@@ -49,6 +49,7 @@
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
     "check:actorless-executor-operations": "bun run scripts/check-actorless-executor-operations.ts",
     "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
+    "check:capability-subject": "bun run scripts/check-capability-subject.ts",
     "check:application-graph": "bun run scripts/check-application-graph.ts",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts --check",
     "check:trigger-block-cycle": "bun run scripts/check-trigger-block-cycle.ts",

@@ -275,6 +275,87 @@ describe('v1 permission-group capability gate', () => {
     })
   })
 
+  /**
+   * `personal_api_key.use` refuses a *principal kind* rather than a module, so it
+   * is asserted in `resolveWorkspaceScope` — before, and separately from, the
+   * capability the route declares. A workspace key is not a personal key, and its
+   * creator's group must not decide whether it may be used.
+   */
+  describe('personal_api_key.use — the key kind, not the module', () => {
+    it('refuses a personal key whose group disables personal API keys', async () => {
+      governedBy({ disablePersonalApiKeys: true })
+
+      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
+      const body = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(body.error).toMatch(/personal API key/i)
+      expect(mockListTables).not.toHaveBeenCalled()
+    })
+
+    it('passes a workspace key through the same group that would deny its creator', async () => {
+      mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+      governedBy({ disablePersonalApiKeys: true })
+
+      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
+
+      expect(response.status).toBe(200)
+      expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID)
+    })
+  })
+
+  /**
+   * `logs.cost` and `logs.trace_spans` are projections rather than gates: the
+   * route declares `'none'` and withholds fields instead. The substitution shows
+   * up here as silently blanked data rather than a 403 — a shared workspace key
+   * would report `cost: null` on every run because one bystander's group hides
+   * spend.
+   */
+  describe('log field projection follows the caller, not the key creator', () => {
+    const LOG_ROW = {
+      id: 'log-1',
+      workflowId: 'wf-1',
+      workspaceId: WORKSPACE_ID,
+      executionId: 'exec-1',
+      deploymentVersionId: null,
+      level: 'info',
+      trigger: 'api',
+      startedAt: new Date('2026-01-01T00:00:00.000Z'),
+      endedAt: new Date('2026-01-01T00:00:01.000Z'),
+      totalDurationMs: 1000,
+      costTotal: '1.25',
+      files: null,
+      executionData: null,
+      workflowName: 'wf',
+      workflowDescription: null,
+    }
+
+    beforeEach(() => {
+      mockListPublicWorkflowLogs.mockResolvedValue({ data: [LOG_ROW], nextCursor: null })
+    })
+
+    it('withholds cost from a personal key whose group hides spend', async () => {
+      governedBy({ hideCostInfo: true })
+
+      const response = await getLogs(get(`/api/v1/logs?workspaceId=${WORKSPACE_ID}`))
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.data[0].cost).toBeNull()
+    })
+
+    it('still reports cost to a workspace key whose creator is in that group', async () => {
+      mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+      governedBy({ hideCostInfo: true })
+
+      const response = await getLogs(get(`/api/v1/logs?workspaceId=${WORKSPACE_ID}`))
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.data[0].cost).toEqual({ total: 1.25 })
+    })
+  })
+
   it('refuses on role before capability, so a non-member learns nothing about the group', async () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)
     governedBy({ hideTablesTab: true })
