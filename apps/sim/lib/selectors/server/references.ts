@@ -49,11 +49,10 @@ export async function resolveSelectorReferences(input: {
   const manifest = getSelectorManifestEntry(input.selectorKey)
   if (!resolvableValues.some((value) => EXACT_ENVIRONMENT_REFERENCE.test(value))) {
     const context = Object.fromEntries(contextEntries) as SelectorContext
-    for (const field of manifest.context.sensitive ?? []) {
-      input.protectedValues.add(context[field])
-    }
     return { context, request: input.request, references: new Map() }
   }
+
+  const sensitiveFields = new Set<string>(manifest.context.sensitive ?? [])
 
   const referenceNames = [
     ...new Set(
@@ -78,7 +77,9 @@ export async function resolveSelectorReferences(input: {
     const variable = Object.hasOwn(resolvedVariables, name) ? resolvedVariables[name] : undefined
     if (!variable) throw new SelectorContextUnavailableError()
 
-    input.protectedValues.add(variable.value)
+    if (!variable.visible) {
+      input.protectedValues.add(variable.value, sensitiveFields.has(field) ? 'secret' : 'reference')
+    }
     references.set(field, {
       field,
       name,
@@ -91,10 +92,6 @@ export async function resolveSelectorReferences(input: {
   const context: SelectorContext = {}
   for (const [field, value] of contextEntries) {
     context[field as keyof SelectorContext] = resolve(field, value)
-  }
-
-  for (const field of manifest.context.sensitive ?? []) {
-    input.protectedValues.add(context[field])
   }
 
   const request =

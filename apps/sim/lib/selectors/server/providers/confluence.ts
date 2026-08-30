@@ -69,6 +69,8 @@ async function resolveConfluenceAuth(args: ExecuteServerSelectorArgs) {
     credential: args.credential,
     scopes: CONFLUENCE_SCOPES,
     protectedValues: args.protectedValues,
+    recordCredentialUse: args.recordCredentialUse,
+    providerId: 'confluence',
   })
   const cloudId = await resolveSelectorAtlassianCloudId({
     accessToken: bundle.accessToken,
@@ -198,5 +200,10 @@ const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['con
 
 export const confluenceSelectorAttachments = {
   'confluence.spaces': { credential, destination: 'fixed', execute: executeSpaces },
-  'confluence.pages': { credential, destination: 'fixed', execute: executePages },
+  'confluence.pages': {
+    credential,
+    destination: 'fixed',
+    auditCredentialUse: true,
+    execute: executePages,
+  },
 } satisfies ServerSelectorAttachmentMap<ConfluenceSelectorKey>

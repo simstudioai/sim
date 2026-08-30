@@ -16,6 +16,7 @@ vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
   resolveSelectorCredentialBundle: mockResolveSelectorCredentialBundle,
 }))
 
+import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { zohoDeskSelectorAttachments } from '@/lib/selectors/server/providers/zoho-desk'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -56,5 +57,27 @@ describe('Zoho Desk server selector adapters', () => {
         organizationArgs(controller.signal)
       )
     ).rejects.toBe(abortError)
+  })
+
+  it('conceals and cancels a rejected provider response while preserving its safe category', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('provider-controlled-secret'))
+      },
+      cancel,
+    })
+    mockSecureFetchWithValidation.mockResolvedValueOnce(new Response(body, { status: 401 }))
+
+    await expect(
+      zohoDeskSelectorAttachments['zoho_desk.organizations'].execute(
+        organizationArgs(new AbortController().signal)
+      )
+    ).rejects.toEqual(new SelectorConnectionUnavailableError(401))
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ logUrlValidationDetails: false })
+    )
   })
 })

@@ -35,30 +35,34 @@ async function linearClient(args: ExecuteServerSelectorArgs) {
     : new LinearClient({ accessToken: token, redirect: 'error', signal: args.signal })
 }
 
-async function fetchAllTeams(client: LinearClient): Promise<Team[]> {
+async function fetchAllTeams(client: LinearClient): Promise<{ items: Team[]; truncated: boolean }> {
   const teams: Team[] = []
   let after: string | undefined
+  let truncated = false
 
   for (let page = 0; page < MAX_LINEAR_PAGES; page++) {
     const result = await client.teams({ first: LINEAR_PAGE_SIZE, after })
     teams.push(...result.nodes)
     if (!result.pageInfo.hasNextPage || !result.pageInfo.endCursor) break
     after = result.pageInfo.endCursor
+    if (page === MAX_LINEAR_PAGES - 1) truncated = true
   }
-  return teams
+  return { items: teams, truncated }
 }
 
-async function fetchAllProjects(team: Team): Promise<Project[]> {
+async function fetchAllProjects(team: Team): Promise<{ items: Project[]; truncated: boolean }> {
   const projects: Project[] = []
   let after: string | undefined
+  let truncated = false
 
   for (let page = 0; page < MAX_LINEAR_PAGES; page++) {
     const result = await team.projects({ first: LINEAR_PAGE_SIZE, after })
     projects.push(...result.nodes)
     if (!result.pageInfo.hasNextPage || !result.pageInfo.endCursor) break
     after = result.pageInfo.endCursor
+    if (page === MAX_LINEAR_PAGES - 1) truncated = true
   }
-  return projects
+  return { items: projects, truncated }
 }
 
 function selectedTeamIds(raw: string | undefined): string[] {
@@ -76,8 +80,11 @@ async function executeTeams(args: ExecuteServerSelectorArgs) {
   requireListRequest(args.selectorKey, args.request)
   const client = await linearClient(args)
   try {
+    const { items, truncated } = await fetchAllTeams(client)
     return listSelectorResult(
-      (await fetchAllTeams(client)).map((team) => ({ id: team.id, label: team.name }))
+      items.map((team) => ({ id: team.id, label: team.name })),
+      undefined,
+      truncated ? { truncated: { reason: 'provider-cap', pages: MAX_LINEAR_PAGES } } : undefined
     )
   } catch (error) {
     if (args.signal?.aborted) throw error
@@ -95,14 +102,20 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
     )
     const seen = new Set<string>()
     const options: Array<{ id: string; label: string }> = []
-    for (const projects of perTeam) {
-      for (const project of projects) {
+    for (const result of perTeam) {
+      for (const project of result.items) {
         if (seen.has(project.id)) continue
         seen.add(project.id)
         options.push({ id: project.id, label: project.name })
       }
     }
-    return listSelectorResult(options)
+    return listSelectorResult(
+      options,
+      undefined,
+      perTeam.some((result) => result.truncated)
+        ? { truncated: { reason: 'provider-cap', pages: MAX_LINEAR_PAGES } }
+        : undefined
+    )
   } catch (error) {
     if (args.signal?.aborted) throw error
     throw new SelectorOptionsUnavailableError()

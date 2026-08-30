@@ -71,6 +71,8 @@ async function resolveJiraAuth(args: ExecuteServerSelectorArgs) {
     credential: args.credential,
     scopes: JIRA_SCOPES,
     protectedValues: args.protectedValues,
+    recordCredentialUse: args.recordCredentialUse,
+    providerId: 'jira',
   })
   const cloudId = await resolveSelectorAtlassianCloudId({
     accessToken: bundle.accessToken,
@@ -91,6 +93,7 @@ async function listProjects(args: ExecuteServerSelectorArgs) {
   const auth = await resolveJiraAuth(args)
   const projects: z.infer<typeof jiraProjectSchema>[] = []
   let startAt = 0
+  let truncated = false
 
   for (let page = 0; page < MAX_JIRA_PROJECTS_PAGES; page++) {
     const url = new URL(
@@ -117,9 +120,13 @@ async function listProjects(args: ExecuteServerSelectorArgs) {
     const pageSize = parsed.data.maxResults ?? JIRA_PROJECTS_PAGE_SIZE
     if (parsed.data.isLast === true || values.length < pageSize || values.length === 0) break
     startAt += values.length
+    if (page === MAX_JIRA_PROJECTS_PAGES - 1) truncated = true
   }
 
-  return projects.map((project) => ({ id: project.id, label: project.name }))
+  return {
+    items: projects.map((project) => ({ id: project.id, label: project.name })),
+    truncated,
+  }
 }
 
 async function getProject(args: ExecuteServerSelectorArgs, projectId: string) {
@@ -182,7 +189,14 @@ async function executeProjects(args: ExecuteServerSelectorArgs) {
   if (args.request.kind === 'detail') {
     return detailSelectorResult(await getProject(args, requirePathId(args.request.id)))
   }
-  return listSelectorResult(await listProjects(args))
+  const result = await listProjects(args)
+  return listSelectorResult(
+    result.items,
+    undefined,
+    result.truncated
+      ? { truncated: { reason: 'provider-cap', pages: MAX_JIRA_PROJECTS_PAGES } }
+      : undefined
+  )
 }
 
 async function executeIssues(args: ExecuteServerSelectorArgs) {
@@ -196,6 +210,16 @@ async function executeIssues(args: ExecuteServerSelectorArgs) {
 const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] } as const
 
 export const jiraSelectorAttachments = {
-  'jira.projects': { credential, destination: 'fixed', execute: executeProjects },
-  'jira.issues': { credential, destination: 'fixed', execute: executeIssues },
+  'jira.projects': {
+    credential,
+    destination: 'fixed',
+    auditCredentialUse: true,
+    execute: executeProjects,
+  },
+  'jira.issues': {
+    credential,
+    destination: 'fixed',
+    auditCredentialUse: true,
+    execute: executeIssues,
+  },
 } satisfies ServerSelectorAttachmentMap<JiraSelectorKey>

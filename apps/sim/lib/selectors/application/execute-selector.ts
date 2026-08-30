@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ExecuteSelectorRequest } from '@/lib/api/contracts/selectors/execute'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { selectorOperations } from '@/lib/selectors/application/operations'
 import {
   resolveSelectorApplicationContext,
@@ -24,6 +25,7 @@ const logger = createLogger('ExecuteSelector')
 
 export interface ExecuteSelectorInput extends ExecuteSelectorRequest {
   signal?: AbortSignal
+  auditRequest?: CredentialAuditRequest
 }
 
 function validateAuthorizedInput(
@@ -139,10 +141,30 @@ async function executeAuthorizedSelector(args: {
           workspaceId: args.context.workspaceId,
           policy: attachment.credential,
           protectedValues,
+          references: resolved.references,
         })
       : undefined
 
-    const providerResult = await attachment.execute({
+    const credentialAccess = credential?.access
+    let credentialUseRecorded = false
+    const recordCredentialUse =
+      attachment.auditCredentialUse && credentialAccess?.resolvedCredentialId
+        ? (providerId: string) => {
+            if (credentialUseRecorded) return
+            credentialUseRecorded = true
+            recordCredentialAccess({
+              actorId: args.principal.userId,
+              workspaceId: args.context.workspaceId,
+              resourceId: credentialAccess.resolvedCredentialId!,
+              providerId: credential?.providerId ?? providerId,
+              credentialType:
+                credentialAccess.credentialType === 'service_account' ? 'service_account' : 'oauth',
+              auditRequest: args.input.auditRequest,
+            })
+          }
+        : undefined
+
+    const selectorArgs = {
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       context: resolved.context,
       request: resolved.request,
@@ -154,7 +176,24 @@ async function executeAuthorizedSelector(args: {
       references: resolved.references,
       signal: args.input.signal,
       protectedValues,
-    })
+      ...(recordCredentialUse ? { recordCredentialUse } : {}),
+    }
+    const preparedDestination =
+      attachment.destination === 'fixed'
+        ? undefined
+        : await attachment.destination.prepare(selectorArgs)
+    const providerResult = await attachment.execute(selectorArgs, preparedDestination)
+    if (providerResult.diagnostics?.truncated) {
+      logger.warn('Selector provider result reached a configured cap', {
+        selectorKey: args.input.selectorKey,
+        requestKind: args.input.request.kind,
+        scopeKind: args.input.scope.kind,
+        workspaceId: args.context.workspaceId,
+        reason: providerResult.diagnostics.truncated.reason,
+        limit: providerResult.diagnostics.truncated.limit,
+        pages: providerResult.diagnostics.truncated.pages,
+      })
+    }
     const referencedDetailResolvedId = getReferencedDetailResolvedId({
       originalRequest: args.input.request,
       resolvedRequest: resolved.request,

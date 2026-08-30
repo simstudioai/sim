@@ -31,6 +31,7 @@ export const wealthboxSelectorAttachments = {
         protectedValues: args.protectedValues,
       })
       const contacts: Array<Record<string, unknown>> = []
+      let truncated = false
       for (let page = 1; page <= MAX_PAGES; page++) {
         const url = new URL('https://api.crmworkspace.com/v1/contacts')
         url.searchParams.set('per_page', String(PAGE_SIZE))
@@ -50,6 +51,7 @@ export const wealthboxSelectorAttachments = {
         ) {
           break
         }
+        if (page === MAX_PAGES) truncated = true
       }
       const search =
         args.request.kind === 'list' ? args.request.search?.trim().toLowerCase() : undefined
@@ -70,7 +72,12 @@ export const wealthboxSelectorAttachments = {
         }
         return [{ id, label }]
       })
-      return flatSelectorResult(args.request, items)
+      return flatSelectorResult(
+        args.request,
+        items,
+        false,
+        truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
+      )
     },
   },
 } satisfies ServerSelectorAttachmentMap<WealthboxSelectorKey>

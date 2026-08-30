@@ -4,6 +4,7 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,
@@ -43,13 +44,14 @@ interface SavedSearch {
   name: string
 }
 
-function normalizeSavedSearches(value: unknown): SavedSearch[] {
+function normalizeSavedSearches(value: unknown): { items: SavedSearch[]; truncated: boolean } {
   if (!Array.isArray(value) || value.length > MAX_PROVIDER_ROWS) {
     throw new SelectorOptionsUnavailableError()
   }
 
   const byUrn = new Map<string, SavedSearch>()
   const urnById = new Map<string, string>()
+  let truncated = false
   for (const item of value) {
     if (!isPlainRecord(item) || item.type !== 'PERSONS') continue
     const parsed = harmonicPeopleSavedSearchProviderSchema.safeParse(item)
@@ -68,16 +70,24 @@ function normalizeSavedSearches(value: unknown): SavedSearch[] {
       throw new SelectorOptionsUnavailableError()
     }
     if (existing) continue
-    if (byUrn.size >= HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS) break
+    if (byUrn.size >= HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS) {
+      truncated = true
+      break
+    }
     byUrn.set(option.urn, option)
     urnById.set(option.id, option.urn)
   }
-  return [...byUrn.values()].sort(
-    (left, right) => left.name.localeCompare(right.name) || left.urn.localeCompare(right.urn)
-  )
+  return {
+    items: [...byUrn.values()].sort(
+      (left, right) => left.name.localeCompare(right.name) || left.urn.localeCompare(right.urn)
+    ),
+    truncated,
+  }
 }
 
-async function listSavedSearches(args: ExecuteServerSelectorArgs): Promise<SavedSearch[]> {
+async function listSavedSearches(
+  args: ExecuteServerSelectorArgs
+): Promise<{ items: SavedSearch[]; truncated: boolean }> {
   const { accessToken } = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
@@ -98,7 +108,7 @@ async function listSavedSearches(args: ExecuteServerSelectorArgs): Promise<Saved
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => {})
-    throw new SelectorOptionsUnavailableError()
+    throw selectorProviderStatusError(response.status)
   }
 
   try {
@@ -124,13 +134,36 @@ function toOption(search: SavedSearch) {
 }
 
 async function executeSavedSearches(args: ExecuteServerSelectorArgs) {
-  const searches = await listSavedSearches(args)
+  const { items: searches, truncated } = await listSavedSearches(args)
   if (args.request.kind === 'detail') {
     const id = args.request.id.trim()
     const match = searches.find((search) => search.urn === id || search.id === id)
-    return detailSelectorResult(match ? toOption(match) : null)
+    return {
+      ...detailSelectorResult(match ? toOption(match) : null),
+      ...(truncated
+        ? {
+            diagnostics: {
+              truncated: {
+                reason: 'provider-cap' as const,
+                limit: HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS,
+              },
+            },
+          }
+        : {}),
+    }
   }
-  return listSelectorResult(searches.map(toOption))
+  return listSelectorResult(
+    searches.map(toOption),
+    undefined,
+    truncated
+      ? {
+          truncated: {
+            reason: 'provider-cap',
+            limit: HARMONIC_SAVED_SEARCH_SELECTOR_MAX_OPTIONS,
+          },
+        }
+      : undefined
+  )
 }
 
 export const harmonicSelectorAttachments = {

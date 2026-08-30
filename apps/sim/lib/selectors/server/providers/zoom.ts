@@ -33,6 +33,7 @@ export const zoomSelectorAttachments = {
       })
       const meetings: SafeSelectorOption[] = []
       let nextPageToken = ''
+      let truncated = false
       for (let page = 0; page < MAX_PAGES; page++) {
         const url = new URL('https://api.zoom.us/v2/users/me/meetings')
         url.searchParams.set('page_size', String(PAGE_SIZE))
@@ -49,8 +50,14 @@ export const zoomSelectorAttachments = {
         }
         nextPageToken = data.next_page_token?.trim() ?? ''
         if (!nextPageToken) break
+        if (page === MAX_PAGES - 1) truncated = true
       }
-      return flatSelectorResult(args.request, meetings, true)
+      return flatSelectorResult(
+        args.request,
+        meetings,
+        true,
+        truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
+      )
     },
   },
 } satisfies ServerSelectorAttachmentMap<ZoomSelectorKey>

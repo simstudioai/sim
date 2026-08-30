@@ -18,6 +18,8 @@ type WebflowSelectorKey = Extract<
   'webflow.sites' | 'webflow.collections' | 'webflow.items'
 >
 
+const WEBFLOW_MAX_ITEM_PAGES = 50
+
 const credential = {
   kind: 'stored',
   field: 'oauthCredential',
@@ -71,7 +73,9 @@ async function listCollections(args: ExecuteServerSelectorArgs): Promise<SafeSel
   }))
 }
 
-async function listItems(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listItems(
+  args: ExecuteServerSelectorArgs
+): Promise<{ items: SafeSelectorOption[]; truncated: boolean }> {
   const collectionId = requireWebflowId(args.context.collectionId, 'collectionId')
   const token = await tokenFor(args)
   const items: Array<{
@@ -79,7 +83,8 @@ async function listItems(args: ExecuteServerSelectorArgs): Promise<SafeSelectorO
     fieldData?: { name?: string; title?: string; slug?: string }
   }> = []
   let offset = 0
-  for (let page = 0; page < 50; page++) {
+  let truncated = false
+  for (let page = 0; page < WEBFLOW_MAX_ITEM_PAGES; page++) {
     const url = new URL(
       `https://api.webflow.com/v2/collections/${encodeURIComponent(collectionId)}/items`
     )
@@ -102,14 +107,28 @@ async function listItems(args: ExecuteServerSelectorArgs): Promise<SafeSelectorO
     ) {
       break
     }
+    if (page === WEBFLOW_MAX_ITEM_PAGES - 1) truncated = true
   }
 
   const search = args.request.kind === 'list' ? args.request.search?.toLowerCase() : undefined
-  return items.flatMap((item) => {
-    if (!item.id) return []
-    const label = item.fieldData?.name || item.fieldData?.title || item.fieldData?.slug || item.id
-    return search && !label.toLowerCase().includes(search) ? [] : [{ id: item.id, label }]
-  })
+  return {
+    items: items.flatMap((item) => {
+      if (!item.id) return []
+      const label = item.fieldData?.name || item.fieldData?.title || item.fieldData?.slug || item.id
+      return search && !label.toLowerCase().includes(search) ? [] : [{ id: item.id, label }]
+    }),
+    truncated,
+  }
+}
+
+async function executeItems(args: ExecuteServerSelectorArgs) {
+  const { items, truncated } = await listItems(args)
+  return flatSelectorResult(
+    args.request,
+    items,
+    false,
+    truncated ? { truncated: { reason: 'provider-cap', pages: WEBFLOW_MAX_ITEM_PAGES } } : undefined
+  )
 }
 
 export const webflowSelectorAttachments = {
@@ -126,6 +145,6 @@ export const webflowSelectorAttachments = {
   'webflow.items': {
     credential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listItems(args)),
+    execute: executeItems,
   },
 } satisfies ServerSelectorAttachmentMap<WebflowSelectorKey>

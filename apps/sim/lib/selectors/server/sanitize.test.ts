@@ -38,6 +38,33 @@ describe('sanitizeSelectorResult', () => {
     }
   })
 
+  it('distinguishes short identifiers from raw secrets when checking substrings', () => {
+    const referenceValues = createSelectorProtectedValues()
+    referenceValues.add('a', 'reference')
+
+    expect(
+      sanitizeSelectorResult(
+        { kind: 'list', items: [{ id: 'INBOX', label: 'Drafts' }] },
+        referenceValues
+      )
+    ).toEqual({ kind: 'list', items: [{ id: 'INBOX', label: 'Drafts' }] })
+    expect(() =>
+      sanitizeSelectorResult(
+        { kind: 'list', items: [{ id: 'a', label: 'Exact identifier' }] },
+        referenceValues
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+
+    const secretValues = createSelectorProtectedValues()
+    secretValues.add('a', 'secret')
+    expect(() =>
+      sanitizeSelectorResult(
+        { kind: 'list', items: [{ id: 'INBOX', label: 'Drafts' }] },
+        secretValues
+      )
+    ).toThrow(SelectorOptionsUnavailableError)
+  })
+
   it('returns only the normalized selector option envelope', () => {
     const result = sanitizeSelectorResult(
       {

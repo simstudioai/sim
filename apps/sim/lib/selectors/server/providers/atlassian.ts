@@ -1,18 +1,45 @@
 import { normalizeAtlassianSiteUrl, selectAtlassianCloudId } from '@/lib/atlassian/discovery'
+import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import {
+  fetchProviderJsonWithStatus,
+  RetryableProviderNetworkError,
+} from '@/lib/selectors/server/providers/provider-http'
 
 const ATLASSIAN_ACCESSIBLE_RESOURCES_URL =
   'https://api.atlassian.com/oauth/token/accessible-resources'
 const ATLASSIAN_CLOUD_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/
+const ATLASSIAN_DISCOVERY_ATTEMPT_TIMEOUT_MS = 5_000
 
 interface AtlassianAccessibleResource {
   id?: string
   url?: string
+}
+
+const ATLASSIAN_SELECTOR_RETRY_OPTIONS = {
+  maxRetries: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 8_000,
+} as const
+
+/**
+ * Intentionally generic: retry diagnostics must never include a provider body,
+ * selected domain, or credential-derived value.
+ */
+class RetryableAtlassianSelectorError extends Error {
+  readonly status: number
+  readonly retryAfterMs?: number
+
+  constructor(status: number, retryAfterMs?: number) {
+    super('Atlassian selector request unavailable')
+    this.name = 'RetryableAtlassianSelectorError'
+    this.status = status
+    this.retryAfterMs = retryAfterMs
+  }
 }
 
 function requireCloudId(value: string): string {
@@ -51,17 +78,56 @@ export async function resolveSelectorAtlassianCloudId(input: {
   const domain = input.domain?.trim()
   if (!domain) throw new SelectorContextUnavailableError()
 
-  const resources = await fetchProviderJson<AtlassianAccessibleResource[]>(
-    ATLASSIAN_ACCESSIBLE_RESOURCES_URL,
-    {
-      headers: {
-        Authorization: `Bearer ${input.accessToken}`,
-        Accept: 'application/json',
+  let resources: AtlassianAccessibleResource[]
+  try {
+    resources = await retryWithExponentialBackoff(
+      async () => {
+        const attemptTimeout = AbortSignal.timeout(ATLASSIAN_DISCOVERY_ATTEMPT_TIMEOUT_MS)
+        const attemptSignal = input.signal
+          ? AbortSignal.any([input.signal, attemptTimeout])
+          : attemptTimeout
+        const response = await fetchProviderJsonWithStatus<AtlassianAccessibleResource[]>(
+          ATLASSIAN_ACCESSIBLE_RESOURCES_URL,
+          {
+            headers: {
+              Authorization: `Bearer ${input.accessToken}`,
+              Accept: 'application/json',
+            },
+            redirect: 'error',
+            signal: attemptSignal,
+          },
+          {
+            passthroughStatus: (status) => status === 429 || status >= 500,
+            passthroughNetworkErrors: true,
+          }
+        )
+        if (response.ok) return response.data
+        throw new RetryableAtlassianSelectorError(response.status, response.retryAfterMs)
       },
-      redirect: 'error',
-      signal: input.signal,
+      {
+        ...ATLASSIAN_SELECTOR_RETRY_OPTIONS,
+        signal: input.signal,
+        retryCondition: (error) =>
+          (error instanceof RetryableAtlassianSelectorError &&
+            (error.status === 429 || error.status >= 500)) ||
+          error instanceof RetryableProviderNetworkError ||
+          (error instanceof Error && error.name === 'TimeoutError'),
+      }
+    )
+  } catch (error) {
+    if (input.signal?.aborted) throw error
+    if (
+      error instanceof SelectorConnectionUnavailableError ||
+      error instanceof SelectorContextUnavailableError ||
+      error instanceof SelectorOptionsUnavailableError
+    ) {
+      throw error
     }
-  )
+    if (error instanceof RetryableAtlassianSelectorError) {
+      throw new SelectorOptionsUnavailableError(error.status === 429 ? 429 : 502)
+    }
+    throw new SelectorOptionsUnavailableError()
+  }
 
   try {
     return requireCloudId(selectAtlassianCloudId(resources, domain, input.product))

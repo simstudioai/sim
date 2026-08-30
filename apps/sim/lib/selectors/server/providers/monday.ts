@@ -47,9 +47,10 @@ async function accessToken(args: ExecuteServerSelectorArgs): Promise<string> {
   })
 }
 
-async function listBoards(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listBoards(args: ExecuteServerSelectorArgs) {
   const token = await accessToken(args)
   const items: SafeSelectorOption[] = []
+  let truncated = false
   for (let page = 1; page <= MAX_PAGES; page++) {
     const response = await fetchProviderJson<
       MondayResponse<{ boards?: Array<{ id: string; name: string }> }>
@@ -65,8 +66,9 @@ async function listBoards(args: ExecuteServerSelectorArgs): Promise<SafeSelector
     const boards = requireMondayData(response)?.boards ?? []
     items.push(...boards.map((board) => ({ id: board.id, label: board.name })))
     if (boards.length < PAGE_SIZE) break
+    if (page === MAX_PAGES) truncated = true
   }
-  return items
+  return { items, truncated }
 }
 
 async function listGroups(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
@@ -94,7 +96,15 @@ export const mondaySelectorAttachments = {
   'monday.boards': {
     credential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listBoards(args), true),
+    execute: async (args) => {
+      const result = await listBoards(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        true,
+        result.truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
+      )
+    },
   },
   'monday.groups': {
     credential,

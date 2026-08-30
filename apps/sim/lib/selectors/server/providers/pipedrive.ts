@@ -32,6 +32,7 @@ export const pipedriveSelectorAttachments = {
       })
       const items: SafeSelectorOption[] = []
       let start = 0
+      let truncated = false
       for (let page = 0; page < 50; page++) {
         const url = new URL('https://api.pipedrive.com/v1/pipelines')
         url.searchParams.set('start', String(start))
@@ -52,8 +53,14 @@ export const pipedriveSelectorAttachments = {
           break
         }
         start = pagination.next_start
+        if (page === 49) truncated = true
       }
-      return flatSelectorResult(args.request, items, true)
+      return flatSelectorResult(
+        args.request,
+        items,
+        true,
+        truncated ? { truncated: { reason: 'provider-cap', pages: 50 } } : undefined
+      )
     },
   },
 } satisfies ServerSelectorAttachmentMap<PipedriveSelectorKey>

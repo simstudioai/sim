@@ -18,7 +18,7 @@ describe('resolveSelectorReferences', () => {
     resetEnvironmentUtilsMock()
   })
 
-  it('keeps literals local and protects sensitive literal fields without loading environments', async () => {
+  it('keeps browser-known literals local without treating them as server-only secrets', async () => {
     const protectedValues = createSelectorProtectedValues()
 
     const result = await resolveSelectorReferences({
@@ -42,7 +42,7 @@ describe('resolveSelectorReferences', () => {
       password: 'literal-password',
     })
     expect(result.references.size).toBe(0)
-    expect(protectedValues.contains('prefix-literal-password-suffix')).toBe(true)
+    expect(protectedValues.contains('prefix-literal-password-suffix')).toBe(false)
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).not.toHaveBeenCalled()
   })
 
@@ -103,6 +103,8 @@ describe('resolveSelectorReferences', () => {
       },
     ])
     expect(protectedValues.contains('hidden-password')).toBe(true)
+    expect(protectedValues.contains('prefix-personal.example.com-suffix')).toBe(false)
+    expect(protectedValues.contains('prefix-shared-user-suffix')).toBe(false)
     expect(environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables).toHaveBeenCalledWith(
       'user-1',
       'workspace-1',

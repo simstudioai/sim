@@ -56,6 +56,7 @@ async function drainGraph<T>(input: {
   initialUrl: string
   maxPages: number
   token?: string
+  truncation?: { truncated: boolean }
 }): Promise<T[]> {
   const token = input.token ?? (await graphToken(input.args, input.serviceId))
   const values: T[] = []
@@ -70,7 +71,12 @@ async function drainGraph<T>(input: {
     const nextLink = getGraphNextPageUrl(data)
     nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
   }
+  if (input.truncation) input.truncation.truncated = Boolean(nextUrl)
   return values
+}
+
+function graphCapDiagnostics(truncated: boolean, pages: number) {
+  return truncated ? { truncated: { reason: 'provider-cap' as const, pages } } : undefined
 }
 
 function requireGraphId(value: string | undefined, label: string): string {
@@ -94,68 +100,99 @@ function encodeGraphSearch(value: string): string {
   return encodeURIComponent(value).replace(/'/g, '%27')
 }
 
-async function listPlannerPlans(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listPlannerPlans(args: ExecuteServerSelectorArgs) {
+  const truncation = { truncated: false }
   const plans = await drainGraph<{ id: string; title: string }>({
     args,
     serviceId: 'microsoft-planner',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/planner/plans',
     maxPages: 20,
+    truncation,
   })
-  return plans.map((plan) => ({ id: plan.id, label: plan.title }))
+  return {
+    items: plans.map((plan) => ({ id: plan.id, label: plan.title })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listPlannerTasks(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listPlannerTasks(args: ExecuteServerSelectorArgs) {
   const planId = requireGraphId(args.context.planId, 'planId')
+  const truncation = { truncated: false }
   const tasks = await drainGraph<{ id: string; title: string }>({
     args,
     serviceId: 'microsoft-planner',
     initialUrl: `https://graph.microsoft.com/v1.0/planner/plans/${encodeURIComponent(planId)}/tasks`,
     maxPages: 20,
+    truncation,
   })
-  return tasks.map((task) => ({ id: task.id, label: task.title }))
+  return {
+    items: tasks.map((task) => ({ id: task.id, label: task.title })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listOutlookFolders(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listOutlookFolders(args: ExecuteServerSelectorArgs) {
+  const truncation = { truncated: false }
   const folders = await drainGraph<{ id: string; displayName: string }>({
     args,
     serviceId: 'outlook',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/mailFolders?$top=999',
     maxPages: 20,
+    truncation,
   })
-  return folders.map((folder) => ({ id: folder.id, label: folder.displayName }))
+  return {
+    items: folders.map((folder) => ({ id: folder.id, label: folder.displayName })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listOutlookCalendars(
-  args: ExecuteServerSelectorArgs
-): Promise<SafeSelectorOption[]> {
+async function listOutlookCalendars(args: ExecuteServerSelectorArgs) {
+  const truncation = { truncated: false }
   const calendars = await drainGraph<{ id: string; name: string }>({
     args,
     serviceId: 'outlook',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/calendars?$top=100',
     maxPages: 10,
+    truncation,
   })
-  return calendars.map((calendar) => ({ id: calendar.id, label: calendar.name }))
+  return {
+    items: calendars.map((calendar) => ({ id: calendar.id, label: calendar.name })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listTeams(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listTeams(args: ExecuteServerSelectorArgs) {
+  const truncation = { truncated: false }
   const teams = await drainGraph<{ id: string; displayName?: string }>({
     args,
     serviceId: 'microsoft-teams',
     initialUrl: 'https://graph.microsoft.com/v1.0/me/joinedTeams',
     maxPages: 20,
+    truncation,
   })
-  return teams.map((team) => ({ id: team.id, label: team.displayName || team.id }))
+  return {
+    items: teams.map((team) => ({ id: team.id, label: team.displayName || team.id })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listChannels(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listChannels(args: ExecuteServerSelectorArgs) {
   const teamId = requireGraphId(args.context.teamId, 'teamId')
+  const truncation = { truncated: false }
   const channels = await drainGraph<{ id: string; displayName?: string }>({
     args,
     serviceId: 'microsoft-teams',
     initialUrl: `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`,
     maxPages: 20,
+    truncation,
   })
-  return channels.map((channel) => ({ id: channel.id, label: channel.displayName || channel.id }))
+  return {
+    items: channels.map((channel) => ({
+      id: channel.id,
+      label: channel.displayName || channel.id,
+    })),
+    truncated: truncation.truncated,
+  }
 }
 
 async function chatDisplayName(
@@ -215,21 +252,26 @@ async function chatDisplayName(
   return `Chat ${chat.id.split(':')[0] || chat.id.slice(0, 8)}...`
 }
 
-async function listChats(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listChats(args: ExecuteServerSelectorArgs) {
   const token = await graphToken(args, 'microsoft-teams')
+  const truncation = { truncated: false }
   const chats = await drainGraph<{ id: string; topic?: string }>({
     args,
     serviceId: 'microsoft-teams',
     token,
     initialUrl: 'https://graph.microsoft.com/v1.0/me/chats?$top=50',
     maxPages: 20,
+    truncation,
   })
-  return Promise.all(
-    chats.map(async (chat) => ({
-      id: chat.id,
-      label: await chatDisplayName(chat, token, args.signal),
-    }))
-  )
+  return {
+    items: await Promise.all(
+      chats.map(async (chat) => ({
+        id: chat.id,
+        label: await chatDisplayName(chat, token, args.signal),
+      }))
+    ),
+    truncated: truncation.truncated,
+  }
 }
 
 interface DriveItem {
@@ -240,34 +282,44 @@ interface DriveItem {
   mimeType?: string
 }
 
-async function listOneDriveFiles(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listOneDriveFiles(args: ExecuteServerSelectorArgs) {
   const query = new URLSearchParams()
   query.set(
     '$select',
     'id,name,file,folder,webUrl,size,createdDateTime,lastModifiedDateTime,createdBy,thumbnails'
   )
   query.set('$top', '999')
+  const truncation = { truncated: false }
   const files = await drainGraph<DriveItem>({
     args,
     serviceId: 'onedrive',
     initialUrl: `https://graph.microsoft.com/v1.0/me/drive/root/children?${query}`,
     maxPages: 20,
+    truncation,
   })
-  return files
-    .filter((item) => item.file && !item.folder)
-    .map((item) => ({ id: item.id, label: item.name }))
+  return {
+    items: files
+      .filter((item) => item.file && !item.folder)
+      .map((item) => ({ id: item.id, label: item.name })),
+    truncated: truncation.truncated,
+  }
 }
 
-async function listOneDriveFolders(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listOneDriveFolders(args: ExecuteServerSelectorArgs) {
   const driveId = requireDriveId(args.context.driveId)
   const drivePath = driveId ? `drives/${encodeURIComponent(driveId)}` : 'me/drive'
+  const truncation = { truncated: false }
   const folders = await drainGraph<DriveItem>({
     args,
     serviceId: 'onedrive',
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=999`,
     maxPages: 20,
+    truncation,
   })
-  return folders.filter((item) => item.folder).map((item) => ({ id: item.id, label: item.name }))
+  return {
+    items: folders.filter((item) => item.folder).map((item) => ({ id: item.id, label: item.name })),
+    truncated: truncation.truncated,
+  }
 }
 
 async function listWorksheets(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
@@ -311,17 +363,20 @@ async function executeDrives(args: ExecuteServerSelectorArgs) {
     )
     return flatSelectorResult(args.request, [{ id: drive.id, label: drive.name }], true)
   }
+  const truncation = { truncated: false }
   const drives = await drainGraph<{ id: string; name: string }>({
     args,
     serviceId: 'microsoft-excel',
     token,
     initialUrl: `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drives?$select=id,name,driveType,webUrl&$top=999`,
     maxPages: 10,
+    truncation,
   })
   return flatSelectorResult(
     args.request,
     drives.map((drive) => ({ id: drive.id, label: drive.name })),
-    true
+    true,
+    graphCapDiagnostics(truncation.truncated, 10)
   )
 }
 
@@ -341,7 +396,7 @@ const OFFICE_FILE_TYPES = {
 async function listOfficeFiles(
   args: ExecuteServerSelectorArgs,
   fileType: keyof typeof OFFICE_FILE_TYPES
-): Promise<SafeSelectorOption[]> {
+) {
   const config = OFFICE_FILE_TYPES[fileType]
   const driveId = requireDriveId(args.context.driveId)
   const drivePath = driveId ? `drives/${encodeURIComponent(driveId)}` : 'me/drive'
@@ -353,18 +408,23 @@ async function listOfficeFiles(
     'id,name,mimeType,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy'
   )
   params.set('$top', '999')
+  const truncation = { truncated: false }
   const files = await drainGraph<DriveItem>({
     args,
     serviceId: config.serviceId,
     initialUrl: `https://graph.microsoft.com/v1.0/${drivePath}/root/search(q='${encodeGraphSearch(searchQuery)}')?${params}`,
     maxPages: 20,
+    truncation,
   })
-  return files
-    .filter(
-      (file) =>
-        file.name?.toLowerCase().endsWith(config.extension) || file.mimeType === config.mimeType
-    )
-    .map((file) => ({ id: file.id, label: file.name }))
+  return {
+    items: files
+      .filter(
+        (file) =>
+          file.name?.toLowerCase().endsWith(config.extension) || file.mimeType === config.mimeType
+      )
+      .map((file) => ({ id: file.id, label: file.name })),
+    truncated: truncation.truncated,
+  }
 }
 
 const plannerCredential = microsoftCredential('microsoft-planner')
@@ -383,47 +443,74 @@ export const microsoftSelectorAttachments = {
   'microsoft.planner.plans': {
     credential: plannerCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listPlannerPlans(args), true),
+    execute: async (args) => {
+      const { items, truncated } = await listPlannerPlans(args)
+      return flatSelectorResult(args.request, items, true, graphCapDiagnostics(truncated, 20))
+    },
   },
   'microsoft.planner': {
     credential: plannerCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listPlannerTasks(args), true),
+    execute: async (args) => {
+      const { items, truncated } = await listPlannerTasks(args)
+      return flatSelectorResult(args.request, items, true, graphCapDiagnostics(truncated, 20))
+    },
   },
   'outlook.folders': {
     credential: outlookCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOutlookFolders(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listOutlookFolders(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'outlook.calendars': {
     credential: outlookCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOutlookCalendars(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listOutlookCalendars(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 10))
+    },
   },
   'microsoft.teams': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listTeams(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listTeams(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'microsoft.chats': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listChats(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listChats(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'microsoft.channels': {
     credential: teamsCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listChannels(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listChannels(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'onedrive.files': {
     credential: oneDriveCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOneDriveFiles(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listOneDriveFiles(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'onedrive.folders': {
     credential: oneDriveFolderCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOneDriveFolders(args)),
+    execute: async (args) => {
+      const { items, truncated } = await listOneDriveFolders(args)
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'microsoft.excel.sheets': {
     credential: excelCredential,
@@ -438,11 +525,17 @@ export const microsoftSelectorAttachments = {
   'microsoft.excel': {
     credential: excelCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOfficeFiles(args, 'excel')),
+    execute: async (args) => {
+      const { items, truncated } = await listOfficeFiles(args, 'excel')
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
   'microsoft.word': {
     credential: wordCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listOfficeFiles(args, 'word')),
+    execute: async (args) => {
+      const { items, truncated } = await listOfficeFiles(args, 'word')
+      return flatSelectorResult(args.request, items, false, graphCapDiagnostics(truncated, 20))
+    },
   },
 } satisfies ServerSelectorAttachmentMap<MicrosoftSelectorKey>

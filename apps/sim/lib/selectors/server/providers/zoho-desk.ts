@@ -11,10 +11,12 @@ import {
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
+import { definePreparedSelectorAttachment } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { assertZohoUrl, extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 import { buildZohoDeskHeaders, getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
@@ -45,14 +47,21 @@ async function readOAuthApiDomain(credentialId: string): Promise<string | undefi
   }
 }
 
-async function resolveZohoCredential(args: ExecuteServerSelectorArgs) {
+interface ZohoDeskDestination {
+  accessToken: string
+  apiBase: string
+}
+
+async function prepareZohoDestination(
+  args: ExecuteServerSelectorArgs
+): Promise<ZohoDeskDestination> {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   const bundle = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
   })
   const apiDomain = bundle.apiDomain ?? (await readOAuthApiDomain(args.credential.suppliedId))
-  args.protectedValues.add(apiDomain)
+  args.protectedValues.add(apiDomain, 'reference')
   const apiBase = getZohoDeskApiBase({ apiDomain })
   return { accessToken: bundle.accessToken, apiBase }
 }
@@ -71,24 +80,31 @@ async function fetchZoho(
       maxResponseBytes: 2 * 1024 * 1024,
       stripAuthOnRedirect: true,
       signal: args.signal,
+      logUrlValidationDetails: false,
     })
   } catch (error) {
     if (args.signal?.aborted) throw error
     throw new SelectorOptionsUnavailableError()
   }
   if (response.status === 204) return { status: 204, data: [] }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined)
+    throw selectorProviderStatusError(response.status)
+  }
   const body = await response
     .json()
     .then((value) =>
       value && typeof value === 'object' ? (value as { data?: unknown }) : undefined
     )
     .catch(() => undefined)
-  if (!response.ok) throw new SelectorOptionsUnavailableError()
   return { status: response.status, data: Array.isArray(body?.data) ? body.data : [] }
 }
 
-async function listOrganizations(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
-  const { accessToken, apiBase } = await resolveZohoCredential(args)
+async function listOrganizations(
+  args: ExecuteServerSelectorArgs,
+  destination: ZohoDeskDestination
+): Promise<SafeSelectorOption[]> {
+  const { accessToken, apiBase } = destination
   let url: URL
   try {
     url = assertZohoUrl(`${apiBase}/organizations`)
@@ -114,14 +130,16 @@ async function listOrganizations(args: ExecuteServerSelectorArgs): Promise<SafeS
 
 async function listOrgResources(
   args: ExecuteServerSelectorArgs,
-  kind: 'departments' | 'agents'
-): Promise<SafeSelectorOption[]> {
+  kind: 'departments' | 'agents',
+  destination: ZohoDeskDestination
+) {
   const orgId = args.context.orgId
   if (!orgId) throw new SelectorContextUnavailableError()
-  const { accessToken, apiBase } = await resolveZohoCredential(args)
+  const { accessToken, apiBase } = destination
   const headers = buildZohoDeskHeaders({ accessToken, orgId })
   const items: SafeSelectorOption[] = []
   const seen = new Set<string>()
+  let truncated = false
 
   for (let page = 0; page < 20; page++) {
     let url: URL
@@ -161,26 +179,42 @@ async function listOrgResources(
       items.push({ id, label })
     }
     if (result.data.length < 200) break
+    if (page === 19) truncated = true
   }
-  return items
+  return { items, truncated }
 }
 
 export const zohoDeskSelectorAttachments = {
-  'zoho_desk.organizations': {
+  'zoho_desk.organizations': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
-    execute: async (args) => flatSelectorResult(args.request, await listOrganizations(args)),
-  },
-  'zoho_desk.departments': {
+    destination: { kind: 'credential-bound', prepare: prepareZohoDestination },
+    execute: async (args, destination) =>
+      flatSelectorResult(args.request, await listOrganizations(args, destination)),
+  }),
+  'zoho_desk.departments': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
-    execute: async (args) =>
-      flatSelectorResult(args.request, await listOrgResources(args, 'departments')),
-  },
-  'zoho_desk.agents': {
+    destination: { kind: 'credential-bound', prepare: prepareZohoDestination },
+    execute: async (args, destination) => {
+      const result = await listOrgResources(args, 'departments', destination)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        false,
+        result.truncated ? { truncated: { reason: 'provider-cap', pages: 20 } } : undefined
+      )
+    },
+  }),
+  'zoho_desk.agents': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
-    execute: async (args) =>
-      flatSelectorResult(args.request, await listOrgResources(args, 'agents')),
-  },
+    destination: { kind: 'credential-bound', prepare: prepareZohoDestination },
+    execute: async (args, destination) => {
+      const result = await listOrgResources(args, 'agents', destination)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        false,
+        result.truncated ? { truncated: { reason: 'provider-cap', pages: 20 } } : undefined
+      )
+    },
+  }),
 } satisfies ServerSelectorAttachmentMap<ZohoDeskSelectorKey>

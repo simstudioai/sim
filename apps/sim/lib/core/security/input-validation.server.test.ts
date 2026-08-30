@@ -3,7 +3,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolve } = vi.hoisted(() => ({ mockResolve: vi.fn() }))
+const { mockResolve, mockWarn } = vi.hoisted(() => ({
+  mockResolve: vi.fn(),
+  mockWarn: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ warn: mockWarn }),
+}))
 
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: mockResolve,
@@ -95,5 +102,16 @@ describe('validateUrlWithDNS address classification', () => {
     mockResolve.mockRejectedValue(new Error('ENOTFOUND'))
 
     expect((await validateUrlWithDNS('https://missing.example/api')).isValid).toBe(false)
+  })
+
+  it('can conceal credential-derived host details in validation logs', async () => {
+    mockResolve.mockRejectedValue(new Error('DNS failure with credential-host-canary'))
+
+    await validateUrlWithDNS('https://credential-host-canary.example/api', 'url', {
+      logDetails: false,
+    })
+
+    expect(mockWarn).toHaveBeenCalledWith('DNS lookup failed for URL', { paramName: 'url' })
+    expect(JSON.stringify(mockWarn.mock.calls)).not.toContain('credential-host-canary')
   })
 })

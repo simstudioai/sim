@@ -11,6 +11,8 @@ import type {
 
 export type SelectorDestinationPolicy = 'fixed' | 'credential-bound' | 'user-controlled'
 
+export type SelectorProtectedValueKind = 'secret' | 'reference'
+
 export type SelectorCredentialPolicy =
   | {
       kind: 'stored'
@@ -28,10 +30,12 @@ export interface AuthorizedSelectorCredential {
   suppliedId: string
   access?: CredentialAccessResult
   fixedToken?: string
+  /** Trusted provider id loaded during server-side credential binding. */
+  providerId?: string
 }
 
 export interface SelectorProtectedValues {
-  add(value: string | null | undefined): void
+  add(value: string | null | undefined, kind?: SelectorProtectedValueKind): void
   contains(value: string): boolean
 }
 
@@ -54,12 +58,34 @@ export interface ExecuteServerSelectorArgs {
   references: ReadonlyMap<string, ResolvedSelectorReference>
   signal?: AbortSignal
   protectedValues: SelectorProtectedValues
+  recordCredentialUse?: (providerId: string) => void
+}
+
+export interface SelectorServerDiagnostics {
+  truncated?: {
+    reason: 'provider-cap'
+    limit?: number
+    pages?: number
+  }
+}
+
+export type ServerSelectorExecutionResult = SelectorExecutionResult & {
+  diagnostics?: SelectorServerDiagnostics
+}
+
+export interface PreparedSelectorDestination {
+  kind: Exclude<SelectorDestinationPolicy, 'fixed'>
+  prepare(args: ExecuteServerSelectorArgs): Promise<unknown>
 }
 
 export interface ServerSelectorAttachment {
   credential?: SelectorCredentialPolicy
-  destination: SelectorDestinationPolicy
-  execute(args: ExecuteServerSelectorArgs): Promise<SelectorExecutionResult>
+  destination: 'fixed' | PreparedSelectorDestination
+  auditCredentialUse?: boolean
+  execute(
+    args: ExecuteServerSelectorArgs,
+    preparedDestination?: unknown
+  ): Promise<ServerSelectorExecutionResult>
 }
 
 export type ServerSelectorAttachmentMap<K extends ServerSelectorKey = ServerSelectorKey> = {
@@ -68,13 +94,48 @@ export type ServerSelectorAttachmentMap<K extends ServerSelectorKey = ServerSele
 
 export function listSelectorResult(
   items: SafeSelectorOption[],
-  nextCursor?: string
-): SelectorExecutionResult {
-  return { kind: 'list', items, ...(nextCursor ? { nextCursor } : {}) }
+  nextCursor?: string,
+  diagnostics?: SelectorServerDiagnostics
+): ServerSelectorExecutionResult {
+  return {
+    kind: 'list',
+    items,
+    ...(nextCursor ? { nextCursor } : {}),
+    ...(diagnostics ? { diagnostics } : {}),
+  }
 }
 
 export function detailSelectorResult(item: SafeSelectorOption | null): SelectorExecutionResult {
   return { kind: 'detail', item }
+}
+
+export function definePreparedSelectorAttachment<TPrepared>(input: {
+  credential?: SelectorCredentialPolicy
+  destination: {
+    kind: Exclude<SelectorDestinationPolicy, 'fixed'>
+    prepare(args: ExecuteServerSelectorArgs): Promise<TPrepared>
+  }
+  auditCredentialUse?: boolean
+  execute(
+    args: ExecuteServerSelectorArgs,
+    preparedDestination: TPrepared
+  ): Promise<ServerSelectorExecutionResult>
+}): ServerSelectorAttachment {
+  return {
+    ...(input.credential ? { credential: input.credential } : {}),
+    destination: {
+      kind: input.destination.kind,
+      prepare: input.destination.prepare,
+    },
+    ...(input.auditCredentialUse ? { auditCredentialUse: true } : {}),
+    execute: async (args, preparedDestination) =>
+      input.execute(
+        args,
+        preparedDestination === undefined
+          ? await input.destination.prepare(args)
+          : (preparedDestination as TPrepared)
+      ),
+  }
 }
 
 export function requireListRequest(

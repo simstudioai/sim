@@ -15,7 +15,7 @@ import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/provider
 describe('selector credential bundles', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('protects credential-bound cloud ids with the rest of the resolved bundle', async () => {
+  it('protects short credential-bound cloud ids as exact identifiers', async () => {
     mockResolveCredentialAccessToken.mockResolvedValue({
       accessToken: 'server-only-token',
       cloudId: 'cloud-1',
@@ -33,6 +33,7 @@ describe('selector credential bundles', () => {
       })
     ).resolves.toMatchObject({ cloudId: 'cloud-1' })
 
-    expect(protectedValues.contains('prefix-cloud-1-suffix')).toBe(true)
+    expect(protectedValues.contains('cloud-1')).toBe(true)
+    expect(protectedValues.contains('prefix-cloud-1-suffix')).toBe(false)
   })
 })

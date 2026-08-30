@@ -5,10 +5,12 @@ import {
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
+import { definePreparedSelectorAttachment } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import type { SnowflakeSelectorKind } from '@/tools/snowflake/selector-kinds'
 import { buildSelectorStatement } from '@/tools/snowflake/sql'
@@ -45,6 +47,11 @@ interface SnowflakeObject {
   detail: string | null
 }
 
+interface SnowflakeDestination {
+  accessToken: string
+  baseUrl: string
+}
+
 function parseAvailableRoles(cellValue: string | null | undefined): SnowflakeObject[] {
   if (!cellValue) return []
   let parsed: unknown
@@ -68,21 +75,34 @@ function toOption(object: SnowflakeObject): SafeSelectorOption {
   }
 }
 
-async function executeSnowflake(args: ExecuteServerSelectorArgs) {
-  const spec = SNOWFLAKE_SELECTOR_SPECS[args.selectorKey as SnowflakeSelectorKey]
-  if (!spec) throw new SelectorOptionsUnavailableError()
+async function prepareSnowflakeDestination(
+  args: ExecuteServerSelectorArgs
+): Promise<SnowflakeDestination> {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
-
   const token = await resolveSelectorCredentialBundle({
     credential: args.credential,
     protectedValues: args.protectedValues,
   })
   if (!token.domain) throw new SelectorConnectionUnavailableError()
+  try {
+    return {
+      accessToken: token.accessToken,
+      baseUrl: normalizeSnowflakeHost(token.domain),
+    }
+  } catch {
+    throw new SelectorConnectionUnavailableError()
+  }
+}
 
-  let baseUrl: string
+async function executeSnowflake(
+  args: ExecuteServerSelectorArgs,
+  destination: SnowflakeDestination
+) {
+  const spec = SNOWFLAKE_SELECTOR_SPECS[args.selectorKey as SnowflakeSelectorKey]
+  if (!spec) throw new SelectorOptionsUnavailableError()
+
   let statement: string
   try {
-    baseUrl = normalizeSnowflakeHost(token.domain)
     statement = buildSelectorStatement(
       spec.kind,
       {
@@ -99,9 +119,9 @@ async function executeSnowflake(args: ExecuteServerSelectorArgs) {
   const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal
   let response: Response
   try {
-    response = await fetch(`${baseUrl}/api/v2/statements`, {
+    response = await fetch(`${destination.baseUrl}/api/v2/statements`, {
       method: 'POST',
-      headers: buildSnowflakeAuthHeaders(token.accessToken),
+      headers: buildSnowflakeAuthHeaders(destination.accessToken),
       body: JSON.stringify({
         statement,
         timeout: SELECTOR_TIMEOUT_SECONDS,
@@ -113,6 +133,11 @@ async function executeSnowflake(args: ExecuteServerSelectorArgs) {
   } catch (error) {
     if (args.signal?.aborted) throw error
     throw new SelectorOptionsUnavailableError()
+  }
+
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined)
+    throw selectorProviderStatusError(response.status)
   }
 
   try {
@@ -140,39 +165,39 @@ const credential = {
 } as const
 
 export const snowflakeSelectorAttachments = {
-  'snowflake.databases': {
+  'snowflake.databases': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.schemas': {
+  }),
+  'snowflake.schemas': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.tables': {
+  }),
+  'snowflake.tables': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.warehouses': {
+  }),
+  'snowflake.warehouses': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.roles': {
+  }),
+  'snowflake.roles': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.fileFormats': {
+  }),
+  'snowflake.fileFormats': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
-  'snowflake.procedures': {
+  }),
+  'snowflake.procedures': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareSnowflakeDestination },
     execute: executeSnowflake,
-  },
+  }),
 } satisfies ServerSelectorAttachmentMap<SnowflakeSelectorKey>

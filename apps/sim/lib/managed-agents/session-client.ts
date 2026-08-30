@@ -494,6 +494,88 @@ interface AnthropicListPage<T> {
  */
 const MAX_LIST_PAGES = 1000
 
+/**
+ * Block-editor collection reads are a separate trust boundary from runtime
+ * session history. Keep their provider egress bounded without changing the
+ * exhaustive event reads used by the run loop.
+ */
+const SELECTOR_LIST_TIMEOUT_MS = 30_000
+const MAX_SELECTOR_LIST_RESPONSE_BYTES = 16 * 1024 * 1024
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel()
+  } catch {
+    // Best effort: cancellation must not replace the concealed provider error.
+  }
+}
+
+async function readBoundedSelectorListJson<T>(response: Response): Promise<T> {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SELECTOR_LIST_RESPONSE_BYTES) {
+    await cancelResponseBody(response)
+    throw new Error('Managed Agents collection response is unavailable')
+  }
+  if (!response.body) throw new Error('Managed Agents collection response is unavailable')
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > MAX_SELECTOR_LIST_RESPONSE_BYTES) {
+      await reader.cancel().catch(() => undefined)
+      throw new Error('Managed Agents collection response is unavailable')
+    }
+    chunks.push(value)
+  }
+
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return JSON.parse(new TextDecoder().decode(bytes)) as T
+}
+
+async function fetchSelectorListPage<T>(
+  input: SessionAuth & { path: string; beta?: string; page: string | null }
+): Promise<AnthropicListPage<T>> {
+  const url = new URL(`${ANTHROPIC_API_BASE}${input.path}`)
+  url.searchParams.set('limit', '100')
+  if (input.page) url.searchParams.set('page', input.page)
+
+  const timeoutSignal = AbortSignal.timeout(SELECTOR_LIST_TIMEOUT_MS)
+  const signal = input.signal ? AbortSignal.any([input.signal, timeoutSignal]) : timeoutSignal
+  let response: Response
+  try {
+    response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
+      redirect: 'error',
+      signal,
+    })
+  } catch (error) {
+    if (input.signal?.aborted) throw error
+    throw new Error('Managed Agents collection request failed')
+  }
+
+  if (!response.ok) {
+    await cancelResponseBody(response)
+    throw new Error('Managed Agents collection request failed')
+  }
+
+  try {
+    return await readBoundedSelectorListJson<AnthropicListPage<T>>(response)
+  } catch (error) {
+    if (input.signal?.aborted) throw error
+    throw new Error('Managed Agents collection response is unavailable')
+  }
+}
+
 async function listPaginated<T>(
   input: SessionAuth & {
     path: string
@@ -649,12 +731,18 @@ function parseProcessedAt(value: string | null | undefined): number {
 export async function managedAgentsList<T>(
   input: SessionAuth & { path: string; beta?: string }
 ): Promise<T[]> {
-  return listPaginated<T>({
-    apiKey: input.apiKey,
-    signal: input.signal,
-    path: input.path,
-    beta: input.beta,
-  })
+  const collected: T[] = []
+  let page: string | null = null
+  // Keep the editor's established 2,000-item / 1,000-page behavior while
+  // applying selector-only time and response-size limits to every page.
+  for (let pageCount = 0; pageCount < MAX_LIST_PAGES && collected.length < 2000; pageCount++) {
+    const pageBody: AnthropicListPage<T> = await fetchSelectorListPage<T>({ ...input, page })
+    const items = Array.isArray(pageBody.data) ? pageBody.data : []
+    collected.push(...items)
+    if (!pageBody.next_page || items.length === 0) break
+    page = pageBody.next_page
+  }
+  return collected.length > 2000 ? collected.slice(0, 2000) : collected
 }
 
 /**

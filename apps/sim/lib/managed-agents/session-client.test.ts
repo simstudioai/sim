@@ -8,6 +8,7 @@ import {
   deleteSession,
   listSessionEvents,
   listSessionEventsPage,
+  managedAgentsList,
   parseSessionSnapshot,
   resolvePendingToolGates,
   sendCustomToolResults,
@@ -198,6 +199,70 @@ describe('listSessionEvents — ordering', () => {
     const events = await listSessionEvents({ apiKey: 'sk-ant-fake', sessionId: 'sess_1' })
 
     expect(events.map((e) => e.id)).toEqual(['a', 'b', 'c', 'queued'])
+  })
+})
+
+describe('managedAgentsList — selector collection bounds', () => {
+  const originalFetch = global.fetch
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('cancels a non-success response and conceals its provider body', async () => {
+    let cancelled = false
+    const stream = new ReadableStream({
+      cancel() {
+        cancelled = true
+      },
+    })
+    global.fetch = vi.fn(
+      async () => new Response(stream, { status: 500, statusText: 'provider failure' })
+    ) as unknown as typeof fetch
+
+    await expect(managedAgentsList({ apiKey: 'sk-ant-fake', path: '/v1/agents' })).rejects.toThrow(
+      'Managed Agents collection request failed'
+    )
+    expect(cancelled).toBe(true)
+  })
+
+  it('cancels a declared oversized collection response before reading it', async () => {
+    let cancelled = false
+    const stream = new ReadableStream({
+      cancel() {
+        cancelled = true
+      },
+    })
+    global.fetch = vi.fn(
+      async () =>
+        new Response(stream, {
+          headers: { 'content-length': String(16 * 1024 * 1024 + 1) },
+        })
+    ) as unknown as typeof fetch
+
+    await expect(managedAgentsList({ apiKey: 'sk-ant-fake', path: '/v1/agents' })).rejects.toThrow(
+      'Managed Agents collection response is unavailable'
+    )
+    expect(cancelled).toBe(true)
+  })
+
+  it('preserves a caller cancellation instead of mapping it to a collection failure', async () => {
+    const controller = new AbortController()
+    const cancelled = new Error('caller cancelled')
+    global.fetch = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(cancelled), { once: true })
+        })
+    ) as unknown as typeof fetch
+
+    const result = managedAgentsList({
+      apiKey: 'sk-ant-fake',
+      path: '/v1/agents',
+      signal: controller.signal,
+    })
+    controller.abort()
+
+    await expect(result).rejects.toBe(cancelled)
   })
 })
 

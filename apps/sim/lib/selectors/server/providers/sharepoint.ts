@@ -11,10 +11,11 @@ import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
-import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 type SharePointSelectorKey = Extract<ServerSelectorKey, 'sharepoint.lists' | 'sharepoint.sites'>
+
+const MAX_GRAPH_PAGES = 10
 
 const sharepointCredential = {
   kind: 'stored',
@@ -37,11 +38,14 @@ async function graphToken(args: ExecuteServerSelectorArgs): Promise<string> {
   })
 }
 
-async function drainGraph<T>(args: ExecuteServerSelectorArgs, initialUrl: string): Promise<T[]> {
+async function drainGraph<T>(
+  args: ExecuteServerSelectorArgs,
+  initialUrl: string
+): Promise<{ values: T[]; truncated: boolean }> {
   const token = await graphToken(args)
   const values: T[] = []
   let nextUrl: string | undefined = initialUrl
-  for (let page = 0; page < 10 && nextUrl; page++) {
+  for (let page = 0; page < MAX_GRAPH_PAGES && nextUrl; page++) {
     const data = await fetchProviderJson<{ value?: T[] } & Record<string, unknown>>(nextUrl, {
       headers: { Authorization: `Bearer ${token}` },
       signal: args.signal,
@@ -51,15 +55,15 @@ async function drainGraph<T>(args: ExecuteServerSelectorArgs, initialUrl: string
     const nextLink = getGraphNextPageUrl(data)
     nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
   }
-  return values
+  return { values, truncated: Boolean(nextUrl) }
 }
 
-async function listLists(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listLists(args: ExecuteServerSelectorArgs) {
   const siteId = args.context.siteId
   if (!siteId) throw new SelectorContextUnavailableError()
   const validation = validateSharePointSiteId(siteId)
   if (!validation.isValid) throw new SelectorContextUnavailableError()
-  const lists = await drainGraph<{
+  const result = await drainGraph<{
     id: string
     displayName: string
     list?: { hidden?: boolean }
@@ -67,28 +71,54 @@ async function listLists(args: ExecuteServerSelectorArgs): Promise<SafeSelectorO
     args,
     `https://graph.microsoft.com/v1.0/sites/${validation.sanitized}/lists?$select=id,displayName,description,webUrl&$expand=list($select=hidden)&$top=999`
   )
-  return lists
-    .filter((list) => list.list?.hidden !== true)
-    .map((list) => ({ id: list.id, label: list.displayName }))
+  return {
+    items: result.values
+      .filter((list) => list.list?.hidden !== true)
+      .map((list) => ({ id: list.id, label: list.displayName })),
+    truncated: result.truncated,
+  }
 }
 
-async function listSites(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
-  const sites = await drainGraph<{ id: string; name: string; displayName?: string }>(
+async function listSites(args: ExecuteServerSelectorArgs) {
+  const result = await drainGraph<{ id: string; name: string; displayName?: string }>(
     args,
     'https://graph.microsoft.com/v1.0/sites?search=*&$select=id,name,displayName,webUrl,createdDateTime,lastModifiedDateTime&$top=999'
   )
-  return sites.map((site) => ({ id: site.id, label: site.displayName || site.name }))
+  return {
+    items: result.values.map((site) => ({ id: site.id, label: site.displayName || site.name })),
+    truncated: result.truncated,
+  }
 }
 
 export const sharepointSelectorAttachments = {
   'sharepoint.lists': {
     credential: sharepointCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listLists(args), true),
+    execute: async (args) => {
+      const result = await listLists(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        true,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: MAX_GRAPH_PAGES } }
+          : undefined
+      )
+    },
   },
   'sharepoint.sites': {
     credential: siteCredential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listSites(args), true),
+    execute: async (args) => {
+      const result = await listSites(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        true,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: MAX_GRAPH_PAGES } }
+          : undefined
+      )
+    },
   },
 } satisfies ServerSelectorAttachmentMap<SharePointSelectorKey>

@@ -110,7 +110,9 @@ describe('POST /api/selectors/execute', () => {
   it.each([
     [new SelectorContextUnavailableError(), 400, 'Context unavailable'],
     [new SelectorConnectionUnavailableError(), 403, 'Connection unavailable'],
+    [new SelectorConnectionUnavailableError(401), 401, 'Connection unavailable'],
     [new SelectorOptionsUnavailableError(), 502, 'Options unavailable'],
+    [new SelectorOptionsUnavailableError(429), 429, 'Options temporarily unavailable'],
   ])('preserves selector error projection for %s', (error, status, message) => {
     expect(project(error)).toEqual({
       status,

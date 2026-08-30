@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+  recordCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
   resolveReferences: vi.fn(),
   resolveScope: vi.fn(),
@@ -40,6 +41,10 @@ vi.mock('@/lib/selectors/application/resolve-scope', () => ({
   resolveSelectorApplicationContext: mocks.resolveScope,
 }))
 
+vi.mock('@/lib/oauth/token-resolution', () => ({
+  recordCredentialAccess: mocks.recordCredentialAccess,
+}))
+
 vi.mock('@/lib/selectors/server/credentials', () => ({
   authorizeSelectorCredential: mocks.authorizeCredential,
 }))
@@ -62,6 +67,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
+import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const scope = { kind: 'workspace' as const, workspaceId: 'workspace-1' }
@@ -139,6 +145,101 @@ describe('executeSelector', () => {
       'provider-execution',
       'sanitization',
     ])
+  })
+
+  it('prepares non-fixed destinations after credential authorization and before provider execution', async () => {
+    const prepare = vi.fn(async () => {
+      mocks.events.push('destination-preparation')
+      return { baseUrl: 'https://credential-bound.example.com' }
+    })
+    mocks.getAttachment.mockReturnValueOnce({
+      destination: { kind: 'credential-bound', prepare },
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['gmail'] },
+      execute: vi.fn(async (_args: ExecuteServerSelectorArgs, preparedDestination: unknown) => {
+        mocks.events.push('provider-execution')
+        expect(preparedDestination).toEqual({
+          baseUrl: 'https://credential-bound.example.com',
+        })
+        return { kind: 'list', items: [{ id: 'label-1', label: 'Inbox' }] }
+      }),
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+
+    expect(mocks.events).toEqual([
+      'canonical-scope',
+      'workspace-authorization',
+      'reference-resolution',
+      'credential-authorization',
+      'destination-preparation',
+      'provider-execution',
+      'sanitization',
+    ])
+  })
+
+  it('records legacy service-account use once with its trusted provider id', async () => {
+    mocks.authorizeCredential.mockResolvedValueOnce({
+      suppliedId: 'credential-1',
+      providerId: 'atlassian-service-account',
+      access: {
+        ok: true,
+        credentialOwnerUserId: 'owner-1',
+        resolvedCredentialId: 'resolved-credential-1',
+        credentialType: 'service_account',
+      },
+    })
+    mocks.getAttachment.mockReturnValueOnce({
+      destination: 'fixed',
+      auditCredentialUse: true,
+      credential: { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] },
+      execute: vi.fn(async (args: ExecuteServerSelectorArgs) => {
+        args.recordCredentialUse?.('jira')
+        args.recordCredentialUse?.('jira')
+        return { kind: 'list', items: [{ id: 'project-1', label: 'Project' }] }
+      }),
+    })
+
+    await execute({ auditRequest: { headers: { get: vi.fn(() => null) } } })
+
+    expect(mocks.recordCredentialAccess).toHaveBeenCalledOnce()
+    expect(mocks.recordCredentialAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'user-1',
+        workspaceId: 'workspace-1',
+        resourceId: 'resolved-credential-1',
+        providerId: 'atlassian-service-account',
+        credentialType: 'service_account',
+      })
+    )
+    expect(JSON.stringify(mocks.recordCredentialAccess.mock.calls)).not.toContain(
+      'GMAIL_CREDENTIAL_ID'
+    )
+  })
+
+  it('logs truncation diagnostics server-side but strips them from the response', async () => {
+    const { sanitizeSelectorResult } = await vi.importActual<
+      typeof import('@/lib/selectors/server/sanitize')
+    >('@/lib/selectors/server/sanitize')
+    mocks.executeAttachment.mockResolvedValueOnce({
+      kind: 'list',
+      items: [{ id: 'label-1', label: 'Inbox' }],
+      diagnostics: { truncated: { reason: 'provider-cap', pages: 10, limit: 2_000 } },
+    })
+    mocks.sanitize.mockImplementationOnce(sanitizeSelectorResult)
+
+    await expect(execute()).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'label-1', label: 'Inbox' }],
+    })
+    expect(mocks.logger.warn).toHaveBeenCalledWith(
+      'Selector provider result reached a configured cap',
+      expect.objectContaining({
+        selectorKey: 'gmail.labels',
+        reason: 'provider-cap',
+        pages: 10,
+        limit: 2_000,
+      })
+    )
   })
 
   it('rejects extra context and unsupported capabilities before secret resolution', async () => {

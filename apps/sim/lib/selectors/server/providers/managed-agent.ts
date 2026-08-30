@@ -63,13 +63,15 @@ function toOption(
 
 async function executeResource(args: ExecuteServerSelectorArgs, resource: ManagedAgentResource) {
   requireListRequest(args.selectorKey, args.request)
-  const bundle = await resolveSelectorCredentialBundle({
-    credential: args.credential,
-    protectedValues: args.protectedValues,
-  })
   const endpoint = RESOURCE_ENDPOINTS[resource]
 
   try {
+    const bundle = await resolveSelectorCredentialBundle({
+      credential: args.credential,
+      protectedValues: args.protectedValues,
+      recordCredentialUse: args.recordCredentialUse,
+      providerId: 'claude-platform',
+    })
     const rows = await managedAgentsList<ManagedAgentRow>({
       apiKey: bundle.accessToken,
       path: endpoint.path,
@@ -99,21 +101,25 @@ export const managedAgentSelectorAttachments = {
   'managedAgent.agents': {
     credential,
     destination: 'fixed',
+    auditCredentialUse: true,
     execute: (args) => executeResource(args, 'agents'),
   },
   'managedAgent.environments': {
     credential,
     destination: 'fixed',
+    auditCredentialUse: true,
     execute: (args) => executeResource(args, 'environments'),
   },
   'managedAgent.vaults': {
     credential,
     destination: 'fixed',
+    auditCredentialUse: true,
     execute: (args) => executeResource(args, 'vaults'),
   },
   'managedAgent.memoryStores': {
     credential,
     destination: 'fixed',
+    auditCredentialUse: true,
     execute: (args) => executeResource(args, 'memory-stores'),
   },
 } satisfies ServerSelectorAttachmentMap<ManagedAgentSelectorKey>

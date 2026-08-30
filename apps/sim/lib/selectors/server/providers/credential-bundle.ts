@@ -17,12 +17,16 @@ export async function resolveSelectorCredentialBundle(input: {
   scopes?: readonly string[]
   impersonateEmail?: string
   protectedValues: SelectorProtectedValues
+  recordCredentialUse?: (providerId: string) => void
+  providerId?: string
 }): Promise<ServiceAccountTokenResult> {
   const credential = input.credential
   if (!credential) throw new SelectorConnectionUnavailableError()
 
   if (credential.fixedToken) {
-    input.protectedValues.add(credential.fixedToken)
+    if (input.providerId) {
+      input.recordCredentialUse?.(credential.providerId ?? input.providerId)
+    }
     return { accessToken: credential.fixedToken }
   }
 
@@ -45,9 +49,10 @@ export async function resolveSelectorCredentialBundle(input: {
   if (!bundle?.accessToken) throw new SelectorConnectionUnavailableError()
 
   input.protectedValues.add(bundle.accessToken)
-  input.protectedValues.add(bundle.cloudId)
-  input.protectedValues.add(bundle.domain)
-  input.protectedValues.add(bundle.instanceUrl)
-  input.protectedValues.add(bundle.apiDomain)
+  input.protectedValues.add(bundle.cloudId, 'reference')
+  input.protectedValues.add(bundle.domain, 'reference')
+  input.protectedValues.add(bundle.instanceUrl, 'reference')
+  input.protectedValues.add(bundle.apiDomain, 'reference')
+  if (input.providerId) input.recordCredentialUse?.(credential.providerId ?? input.providerId)
   return bundle
 }

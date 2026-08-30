@@ -28,10 +28,18 @@ const selectorOperationErrorPolicy = extendInternalErrorPolicy(
       return internalErrorResponse(400, { error: 'Context unavailable' }, PRIVATE_NO_STORE)
     }
     if (error instanceof SelectorConnectionUnavailableError) {
-      return internalErrorResponse(403, { error: 'Connection unavailable' }, PRIVATE_NO_STORE)
+      return internalErrorResponse(
+        error.status,
+        { error: 'Connection unavailable' },
+        PRIVATE_NO_STORE
+      )
     }
     if (error instanceof SelectorOptionsUnavailableError) {
-      return internalErrorResponse(502, { error: 'Options unavailable' }, PRIVATE_NO_STORE)
+      return internalErrorResponse(
+        error.status,
+        { error: error.status === 429 ? 'Options temporarily unavailable' : 'Options unavailable' },
+        PRIVATE_NO_STORE
+      )
     }
     return null
   }
@@ -67,7 +75,7 @@ export const POST = defineInternalJsonRoute({
   }),
   errorPolicy: selectorErrorPolicy,
   parseOptions: { maxBodyBytes: 256 * 1024 },
-  mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal }),
+  mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal, auditRequest: request }),
   useCase: executeSelector,
   staticResponseHeaders: PRIVATE_NO_STORE,
 })

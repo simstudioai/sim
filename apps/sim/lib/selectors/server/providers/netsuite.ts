@@ -11,10 +11,12 @@ import {
 } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
+import { definePreparedSelectorAttachment } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { normalizeSuiteTalkUrl } from '@/tools/netsuite/utils'
@@ -26,6 +28,7 @@ type NetSuiteSelectorKey = Extract<
 >
 
 type NetSuiteSelectorKind = 'record_types' | 'async_tasks'
+type PreparedNetSuiteDestination = NetSuiteAuthParams & { instanceUrl: string }
 
 const NETSUITE_SELECTOR_KIND = {
   'netsuite.recordTypes': 'record_types',
@@ -168,6 +171,29 @@ async function requireNetSuiteServiceAccount(args: ExecuteServerSelectorArgs): P
   return access.resolvedCredentialId
 }
 
+async function prepareNetSuiteDestination(
+  args: ExecuteServerSelectorArgs
+): Promise<PreparedNetSuiteDestination> {
+  const resolvedCredentialId = await requireNetSuiteServiceAccount(args)
+  if (!args.credential) throw new SelectorConnectionUnavailableError()
+  const token = await resolveSelectorCredentialBundle({
+    credential: args.credential,
+    protectedValues: args.protectedValues,
+  })
+  if (!token.instanceUrl) throw new SelectorConnectionUnavailableError()
+  let instanceUrl: string
+  try {
+    instanceUrl = normalizeSuiteTalkUrl(token.instanceUrl)
+  } catch {
+    throw new SelectorConnectionUnavailableError()
+  }
+  return {
+    oauthCredential: resolvedCredentialId,
+    accessToken: token.accessToken,
+    instanceUrl,
+  }
+}
+
 async function executeDiscoveryTool(
   kind: NetSuiteSelectorKind,
   args: ExecuteServerSelectorArgs,
@@ -190,32 +216,19 @@ function toOptions(objects: NetSuiteSelectorObject[]): SafeSelectorOption[] {
   }))
 }
 
-async function executeNetSuite(args: ExecuteServerSelectorArgs) {
+async function executeNetSuite(args: ExecuteServerSelectorArgs, auth: PreparedNetSuiteDestination) {
   const kind = NETSUITE_SELECTOR_KIND[args.selectorKey as NetSuiteSelectorKey]
   if (!kind) throw new SelectorOptionsUnavailableError()
-  const resolvedCredentialId = await requireNetSuiteServiceAccount(args)
-  if (!args.credential) throw new SelectorConnectionUnavailableError()
-  const token = await resolveSelectorCredentialBundle({
-    credential: args.credential,
-    protectedValues: args.protectedValues,
-  })
-  if (!token.instanceUrl) throw new SelectorConnectionUnavailableError()
   const jobId = kind === 'async_tasks' ? requireJobId(args) : undefined
-  const result = await executeDiscoveryTool(
-    kind,
-    args,
-    {
-      oauthCredential: resolvedCredentialId,
-      accessToken: token.accessToken,
-      instanceUrl: token.instanceUrl,
-    },
-    jobId
-  )
-  if (!result.success) throw new SelectorOptionsUnavailableError()
+  const result = await executeDiscoveryTool(kind, args, auth, jobId)
+  if (!result.success) {
+    const status = result.output.status
+    throw selectorProviderStatusError(Number.isInteger(status) ? status : 502)
+  }
   const objects =
     kind === 'record_types'
       ? normalizeRecordTypes(result.output.data)
-      : normalizeAsyncTasks(result.output.data, token.instanceUrl, jobId as string)
+      : normalizeAsyncTasks(result.output.data, auth.instanceUrl, jobId as string)
   return flatSelectorResult(args.request, toOptions(objects), true)
 }
 
@@ -226,14 +239,14 @@ const credential = {
 } as const
 
 export const netsuiteSelectorAttachments = {
-  'netsuite.recordTypes': {
+  'netsuite.recordTypes': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareNetSuiteDestination },
     execute: executeNetSuite,
-  },
-  'netsuite.asyncTasks': {
+  }),
+  'netsuite.asyncTasks': definePreparedSelectorAttachment({
     credential,
-    destination: 'credential-bound',
+    destination: { kind: 'credential-bound', prepare: prepareNetSuiteDestination },
     execute: executeNetSuite,
-  },
+  }),
 } satisfies ServerSelectorAttachmentMap<NetSuiteSelectorKey>

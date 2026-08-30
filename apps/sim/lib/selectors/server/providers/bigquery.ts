@@ -68,6 +68,7 @@ async function listDatasets(args: ExecuteServerSelectorArgs) {
   const accessToken = await getAccessToken(args)
   const datasets: z.infer<typeof bigQueryDatasetSchema>[] = []
   let pageToken: string | undefined
+  let truncated = false
 
   for (let page = 0; page < BIGQUERY_MAX_PAGES; page++) {
     const url = new URL(
@@ -90,12 +91,16 @@ async function listDatasets(args: ExecuteServerSelectorArgs) {
     datasets.push(...(parsed.data.datasets ?? []))
     pageToken = parsed.data.nextPageToken
     if (!pageToken) break
+    if (page === BIGQUERY_MAX_PAGES - 1) truncated = true
   }
 
-  return datasets.map((dataset) => ({
-    id: dataset.datasetReference.datasetId,
-    label: dataset.friendlyName || dataset.datasetReference.datasetId,
-  }))
+  return {
+    items: datasets.map((dataset) => ({
+      id: dataset.datasetReference.datasetId,
+      label: dataset.friendlyName || dataset.datasetReference.datasetId,
+    })),
+    truncated,
+  }
 }
 
 async function listTables(args: ExecuteServerSelectorArgs) {
@@ -104,6 +109,7 @@ async function listTables(args: ExecuteServerSelectorArgs) {
   const accessToken = await getAccessToken(args)
   const tables: z.infer<typeof bigQueryTableSchema>[] = []
   let pageToken: string | undefined
+  let truncated = false
 
   for (let page = 0; page < BIGQUERY_MAX_PAGES; page++) {
     const url = new URL(
@@ -126,12 +132,16 @@ async function listTables(args: ExecuteServerSelectorArgs) {
     tables.push(...(parsed.data.tables ?? []))
     pageToken = parsed.data.nextPageToken
     if (!pageToken) break
+    if (page === BIGQUERY_MAX_PAGES - 1) truncated = true
   }
 
-  return tables.map((table) => ({
-    id: table.tableReference.tableId,
-    label: table.friendlyName || table.tableReference.tableId,
-  }))
+  return {
+    items: tables.map((table) => ({
+      id: table.tableReference.tableId,
+      label: table.friendlyName || table.tableReference.tableId,
+    })),
+    truncated,
+  }
 }
 
 const credential = {
@@ -145,14 +155,30 @@ export const bigQuerySelectorAttachments = {
     credential,
     destination: 'fixed',
     async execute(args) {
-      return flatSelectorResult(args.request, await listDatasets(args), true)
+      const result = await listDatasets(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        true,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: BIGQUERY_MAX_PAGES } }
+          : undefined
+      )
     },
   },
   'bigquery.tables': {
     credential,
     destination: 'fixed',
     async execute(args) {
-      return flatSelectorResult(args.request, await listTables(args), true)
+      const result = await listTables(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        true,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: BIGQUERY_MAX_PAGES } }
+          : undefined
+      )
     },
   },
 } satisfies ServerSelectorAttachmentMap<BigQuerySelectorKey>

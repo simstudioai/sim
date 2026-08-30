@@ -58,4 +58,36 @@ describe('selector manifest', () => {
       'microsoft-excel',
     ])
   })
+
+  it('requires executable preparation for every non-fixed destination', () => {
+    const preparedDestinations = Object.values(serverSelectorRegistry).filter(
+      (attachment) => attachment.destination !== 'fixed'
+    )
+
+    expect(preparedDestinations).toHaveLength(13)
+    for (const attachment of preparedDestinations) {
+      expect(attachment.destination).toEqual(
+        expect.objectContaining({
+          kind: expect.stringMatching(/^(credential-bound|user-controlled)$/),
+          prepare: expect.any(Function),
+        })
+      )
+    }
+  })
+
+  it('preserves credential-use auditing only for the seven legacy-audited selectors', () => {
+    const auditedKeys = Object.entries(serverSelectorRegistry)
+      .flatMap(([key, attachment]) => (attachment.auditCredentialUse ? [key] : []))
+      .sort()
+
+    expect(auditedKeys).toEqual([
+      'confluence.pages',
+      'jira.issues',
+      'jira.projects',
+      'managedAgent.agents',
+      'managedAgent.environments',
+      'managedAgent.memoryStores',
+      'managedAgent.vaults',
+    ])
+  })
 })

@@ -76,9 +76,10 @@ async function drainJsmPages<T>(input: {
   accessToken: string
   baseUrl: string
   schema: z.ZodType<T>
-}): Promise<T[]> {
+}): Promise<{ rows: T[]; truncated: boolean }> {
   const rows: T[] = []
   let start = 0
+  let truncated = true
 
   for (let page = 0; page < MAX_JSM_PAGES; page++) {
     const url = new URL(input.baseUrl)
@@ -94,44 +95,62 @@ async function drainJsmPages<T>(input: {
     const values = parsed.data.values ?? []
     rows.push(...values)
     if (parsed.data.isLastPage === true || !parsed.data._links?.next || values.length === 0) {
+      truncated = false
       break
     }
     start += values.length
   }
 
-  return rows
+  return { rows, truncated }
 }
 
 async function serviceDeskOptions(args: ExecuteServerSelectorArgs) {
   const auth = await resolveJsmAuth(args)
-  const rows = await drainJsmPages({
+  const result = await drainJsmPages({
     args,
     ...auth,
     baseUrl: `${getJsmApiBaseUrl(auth.cloudId)}/servicedesk`,
     schema: serviceDeskSchema,
   })
-  return rows.map((row) => ({ id: row.id, label: row.projectName }))
+  return {
+    items: result.rows.map((row) => ({ id: row.id, label: row.projectName })),
+    truncated: result.truncated,
+  }
 }
 
 async function requestTypeOptions(args: ExecuteServerSelectorArgs) {
   const serviceDeskId = requireServiceDeskId(args.context.serviceDeskId)
   const auth = await resolveJsmAuth(args)
-  const rows = await drainJsmPages({
+  const result = await drainJsmPages({
     args,
     ...auth,
     baseUrl: `${getJsmApiBaseUrl(auth.cloudId)}/servicedesk/${encodeURIComponent(serviceDeskId)}/requesttype`,
     schema: requestTypeSchema,
   })
-  return rows.map((row) => ({ id: row.id, label: row.name }))
+  return {
+    items: result.rows.map((row) => ({ id: row.id, label: row.name })),
+    truncated: result.truncated,
+  }
 }
 
 function resultForRequest(
   args: ExecuteServerSelectorArgs,
-  items: Array<{ id: string; label: string }>
+  result: { items: Array<{ id: string; label: string }>; truncated: boolean }
 ) {
-  if (args.request.kind === 'list') return listSelectorResult(items)
+  if (args.request.kind === 'list') {
+    return listSelectorResult(
+      result.items,
+      undefined,
+      result.truncated ? { truncated: { reason: 'provider-cap', pages: MAX_JSM_PAGES } } : undefined
+    )
+  }
   const id = requireDetailId(args.request.id)
-  return detailSelectorResult(items.find((item) => item.id === id) ?? null)
+  return {
+    ...detailSelectorResult(result.items.find((item) => item.id === id) ?? null),
+    ...(result.truncated
+      ? { diagnostics: { truncated: { reason: 'provider-cap' as const, pages: MAX_JSM_PAGES } } }
+      : {}),
+  }
 }
 
 const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] } as const

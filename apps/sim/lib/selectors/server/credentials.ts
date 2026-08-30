@@ -12,16 +12,16 @@ import { credentialProviderMatchesService, getServiceConfigByServiceId } from '@
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
 import type {
   AuthorizedSelectorCredential,
+  ResolvedSelectorReference,
   SelectorCredentialPolicy,
   SelectorProtectedValues,
 } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
 
-async function credentialMatchesService(input: {
+async function resolveCredentialProviderId(input: {
   credentialId: string
   credentialOwnerUserId: string
-  serviceId: string
-}): Promise<boolean> {
+}): Promise<string | null> {
   const [credentialRow] = await db
     .select({ accountId: credential.accountId, providerId: credential.providerId })
     .from(credential)
@@ -39,26 +39,23 @@ async function credentialMatchesService(input: {
     providerId = accountRow?.providerId ?? null
   }
 
-  const service = getServiceConfigByServiceId(input.serviceId)
-  return Boolean(providerId && service && credentialProviderMatchesService(providerId, service))
+  return providerId
 }
 
 async function requireCredentialProviderBinding(
   credentialId: string,
   access: CredentialAccessResult,
   serviceIds: readonly string[]
-): Promise<void> {
+): Promise<string> {
   if (!access.credentialOwnerUserId) throw new SelectorConnectionUnavailableError()
+  const providerId = await resolveCredentialProviderId({
+    credentialId,
+    credentialOwnerUserId: access.credentialOwnerUserId,
+  })
+  if (!providerId) throw new SelectorConnectionUnavailableError()
   for (const serviceId of serviceIds) {
-    if (
-      await credentialMatchesService({
-        credentialId,
-        credentialOwnerUserId: access.credentialOwnerUserId,
-        serviceId,
-      })
-    ) {
-      return
-    }
+    const service = getServiceConfigByServiceId(serviceId)
+    if (service && credentialProviderMatchesService(providerId, service)) return providerId
   }
   throw new SelectorConnectionUnavailableError()
 }
@@ -70,16 +67,19 @@ export async function authorizeSelectorCredential(input: {
   workspaceId: string
   policy: SelectorCredentialPolicy
   protectedValues: SelectorProtectedValues
+  references: ReadonlyMap<string, ResolvedSelectorReference>
 }): Promise<AuthorizedSelectorCredential> {
   const suppliedId = input.context[input.policy.field]
   if (!suppliedId) throw new SelectorConnectionUnavailableError()
-  input.protectedValues.add(suppliedId)
 
   if (
     input.policy.kind === 'stored-or-fixed-token' &&
     input.policy.tokenPrefixes.some((prefix) => suppliedId.startsWith(prefix))
   ) {
-    input.protectedValues.add(suppliedId)
+    const reference = input.references.get(input.policy.field)
+    if (reference && !reference.visible) {
+      input.protectedValues.add(suppliedId, 'secret')
+    }
     return { suppliedId, fixedToken: suppliedId }
   }
 
@@ -92,15 +92,20 @@ export async function authorizeSelectorCredential(input: {
     {
       credentialId: suppliedId,
       ...(input.scope.kind === 'workflow' ? { workflowId: input.scope.workflowId } : {}),
+      ...(input.scope.kind === 'workspace' ? { workspaceId: input.workspaceId } : {}),
     }
   )
   if (!access.ok || access.workspaceId !== input.workspaceId) {
     throw new SelectorConnectionUnavailableError()
   }
-  input.protectedValues.add(access.resolvedCredentialId)
+  input.protectedValues.add(access.resolvedCredentialId, 'reference')
 
-  await requireCredentialProviderBinding(suppliedId, access, input.policy.serviceIds)
-  return { suppliedId, access }
+  const providerId = await requireCredentialProviderBinding(
+    suppliedId,
+    access,
+    input.policy.serviceIds
+  )
+  return { suppliedId, access, providerId }
 }
 
 export async function resolveSelectorOAuthAccessToken(input: {
@@ -109,6 +114,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
   scopes?: readonly string[]
   impersonateEmail?: string
   protectedValues: SelectorProtectedValues
+  recordCredentialUse?: (providerId: string) => void
 }): Promise<string> {
   if (input.credential.fixedToken) return input.credential.fixedToken
 
@@ -129,8 +135,9 @@ export async function resolveSelectorOAuthAccessToken(input: {
 
   if (!token) throw new SelectorConnectionUnavailableError()
   input.protectedValues.add(token)
-  input.protectedValues.add(result.domain)
-  input.protectedValues.add(result.instanceUrl)
-  input.protectedValues.add(result.apiDomain)
+  input.protectedValues.add(result.domain, 'reference')
+  input.protectedValues.add(result.instanceUrl, 'reference')
+  input.protectedValues.add(result.apiDomain, 'reference')
+  input.recordCredentialUse?.(input.credential.providerId ?? input.serviceId)
   return token
 }

@@ -49,9 +49,9 @@ export interface AsyncValidationResult extends ValidationResult {
 export async function validateUrlWithDNS(
   url: string | null | undefined,
   paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  options: { allowHttp?: boolean; logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
-  const basicValidation = validateExternalUrl(url, paramName, options)
+  const basicValidation = validateExternalUrl(url, paramName, { allowHttp: options.allowHttp })
   if (!basicValidation.isValid) {
     return basicValidation
   }
@@ -77,11 +77,16 @@ export async function validateUrlWithDNS(
     )
 
     if (usable.length === 0) {
-      logger.warn('URL resolves to blocked IP address', {
-        paramName,
-        hostname,
-        resolvedIP: addresses.find((address) => isPrivateIp(address)),
-      })
+      logger.warn(
+        'URL resolves to blocked IP address',
+        options.logDetails === false
+          ? { paramName }
+          : {
+              paramName,
+              hostname,
+              resolvedIP: addresses.find((address) => isPrivateIp(address)),
+            }
+      )
       return {
         isValid: false,
         error: `${paramName} resolves to a blocked IP address`,
@@ -96,11 +101,12 @@ export async function validateUrlWithDNS(
       originalHostname: hostname,
     }
   } catch (error) {
-    logger.warn('DNS lookup failed for URL', {
-      paramName,
-      hostname,
-      error: toError(error).message,
-    })
+    logger.warn(
+      'DNS lookup failed for URL',
+      options.logDetails === false
+        ? { paramName }
+        : { paramName, hostname, error: toError(error).message }
+    )
     return {
       isValid: false,
       error: `${paramName} hostname could not be resolved`,
@@ -383,6 +389,8 @@ export interface SecureFetchOptions {
    * bypassed (the proxy resolves the target).
    */
   proxyUrl?: string
+  /** Hide credential-derived URL details from validation logs. */
+  logUrlValidationDetails?: boolean
 }
 
 export class SecureFetchHeaders {
@@ -1317,6 +1325,7 @@ export async function secureFetchWithValidation(
 ): Promise<SecureFetchResponse> {
   const validation = await validateUrlWithDNS(url, paramName, {
     allowHttp: options.allowHttp,
+    logDetails: options.logUrlValidationDetails,
   })
   if (!validation.isValid) {
     throw new Error(validation.error)

@@ -40,11 +40,16 @@ export const cloudWatchSelectorAttachments = {
         credentials: credentials(args.context),
         prefix: args.request.search,
         signal: args.signal,
+        suppressTruncationLog: true,
       })
       return listSelectorResult(
-        groups
+        groups.items
           .filter((group) => group.logGroupName)
-          .map((group) => ({ id: group.logGroupName, label: group.logGroupName }))
+          .map((group) => ({ id: group.logGroupName, label: group.logGroupName })),
+        undefined,
+        groups.truncated
+          ? { truncated: { reason: 'provider-cap', pages: groups.pages } }
+          : undefined
       )
     },
   },
@@ -59,11 +64,16 @@ export const cloudWatchSelectorAttachments = {
         logGroupName: args.context.logGroupName!,
         prefix: args.request.search,
         signal: args.signal,
+        suppressTruncationLog: true,
       })
       return listSelectorResult(
-        streams
+        streams.items
           .filter((stream) => stream.logStreamName)
-          .map((stream) => ({ id: stream.logStreamName, label: stream.logStreamName }))
+          .map((stream) => ({ id: stream.logStreamName, label: stream.logStreamName })),
+        undefined,
+        streams.truncated
+          ? { truncated: { reason: 'provider-cap', pages: streams.pages } }
+          : undefined
       )
     },
   },

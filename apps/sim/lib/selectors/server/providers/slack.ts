@@ -9,11 +9,11 @@ import {
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
+import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
 import type {
   ExecuteServerSelectorArgs,
   ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
-import type { SafeSelectorOption } from '@/lib/selectors/types'
 
 type SlackSelectorKey = Extract<ServerSelectorKey, 'slack.channels' | 'slack.users'>
 type SlackMethod = 'conversations.list' | 'users.conversations' | 'users.list'
@@ -47,6 +47,11 @@ interface SlackUser {
   is_bot?: boolean
 }
 
+interface SlackChannelsResult {
+  channels: SlackChannel[]
+  truncated: boolean
+}
+
 function parseScopedSlackUserId(accountId: string): string | null {
   return SCOPED_USER_ID_PATTERN.exec(accountId)?.[1] ?? null
 }
@@ -71,9 +76,9 @@ async function fetchSlackApi(
   const url = new URL(`https://slack.com/api/${method}`)
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
 
-  let response: Response
+  let data: SlackApiResponse
   try {
-    response = await fetch(url, {
+    data = await fetchProviderJson<SlackApiResponse>(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -84,13 +89,12 @@ async function fetchSlackApi(
     })
   } catch (error) {
     if (args.signal?.aborted) throw error
-    throw new SelectorOptionsUnavailableError()
-  }
-  if (!response.ok) throw new SelectorOptionsUnavailableError()
-  let data: SlackApiResponse
-  try {
-    data = (await response.json()) as SlackApiResponse
-  } catch {
+    if (
+      error instanceof SelectorConnectionUnavailableError ||
+      error instanceof SelectorOptionsUnavailableError
+    ) {
+      throw error
+    }
     throw new SelectorOptionsUnavailableError()
   }
   if (!data.ok) throw new SelectorOptionsUnavailableError()
@@ -102,9 +106,10 @@ async function fetchAllConversations(
   method: 'conversations.list' | 'users.conversations',
   accessToken: string,
   params: Record<string, string>
-): Promise<SlackChannel[]> {
+): Promise<SlackChannelsResult> {
   const channels: SlackChannel[] = []
   let cursor: string | undefined
+  let truncated = false
   for (let page = 0; page < SLACK_MAX_PAGES; page++) {
     const data = await fetchSlackApi(args, method, accessToken, {
       ...params,
@@ -114,22 +119,23 @@ async function fetchAllConversations(
     if (Array.isArray(data.channels)) channels.push(...data.channels)
     cursor = data.response_metadata?.next_cursor?.trim() || undefined
     if (!cursor) break
+    if (page === SLACK_MAX_PAGES - 1) truncated = true
   }
-  return channels
+  return { channels, truncated }
 }
 
 async function fetchChannels(
   args: ExecuteServerSelectorArgs,
   accessToken: string,
   includePrivate: boolean
-): Promise<SlackChannel[]> {
+): Promise<SlackChannelsResult> {
   return fetchAllConversations(args, 'conversations.list', accessToken, {
     types: includePrivate ? 'public_channel,private_channel' : 'public_channel',
     exclude_archived: 'true',
   })
 }
 
-async function listSlackChannels(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listSlackChannels(args: ExecuteServerSelectorArgs) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   const accessToken = await resolveSelectorOAuthAccessToken({
     credential: args.credential,
@@ -140,46 +146,53 @@ async function listSlackChannels(args: ExecuteServerSelectorArgs): Promise<SafeS
     Boolean(args.credential.fixedToken) || args.credential.access?.credentialType !== 'oauth'
   const scopedUserId = await readScopedSlackUserId(args)
 
-  let channels: SlackChannel[]
+  let channelResult: SlackChannelsResult
   try {
-    channels = await fetchChannels(args, accessToken, true)
+    channelResult = await fetchChannels(args, accessToken, true)
   } catch (error) {
+    if (args.signal?.aborted) throw error
     if (!isBotCredential) throw error
-    channels = await fetchChannels(args, accessToken, false)
+    channelResult = await fetchChannels(args, accessToken, false)
   }
 
   let allowedPrivateChannelIds: Set<string> | null = null
+  let truncated = channelResult.truncated
   if (scopedUserId) {
     try {
-      const scopedChannels = await fetchAllConversations(args, 'users.conversations', accessToken, {
+      const scopedResult = await fetchAllConversations(args, 'users.conversations', accessToken, {
         user: scopedUserId,
         types: 'private_channel',
         exclude_archived: 'true',
       })
       allowedPrivateChannelIds = new Set(
-        scopedChannels.flatMap((channel) => (channel.id ? [channel.id] : []))
+        scopedResult.channels.flatMap((channel) => (channel.id ? [channel.id] : []))
       )
-    } catch {
+      truncated ||= scopedResult.truncated
+    } catch (error) {
+      if (args.signal?.aborted) throw error
       // If user membership cannot be verified, fail closed for private channels.
       allowedPrivateChannelIds = new Set()
     }
   }
 
-  return channels.flatMap((channel) => {
-    if (!channel.id || !channel.name || channel.is_archived) return []
-    if (
-      channel.is_private &&
-      (allowedPrivateChannelIds ? !allowedPrivateChannelIds.has(channel.id) : !channel.is_member)
-    ) {
-      return []
-    }
-    const validation = validateAlphanumericId(channel.id, 'channelId', 50)
-    if (!validation.isValid || !/^[CDG][A-Z0-9]+$/i.test(channel.id)) return []
-    return [{ id: channel.id, label: `#${channel.name}` }]
-  })
+  return {
+    items: channelResult.channels.flatMap((channel) => {
+      if (!channel.id || !channel.name || channel.is_archived) return []
+      if (
+        channel.is_private &&
+        (allowedPrivateChannelIds ? !allowedPrivateChannelIds.has(channel.id) : !channel.is_member)
+      ) {
+        return []
+      }
+      const validation = validateAlphanumericId(channel.id, 'channelId', 50)
+      if (!validation.isValid || !/^[CDG][A-Z0-9]+$/i.test(channel.id)) return []
+      return [{ id: channel.id, label: `#${channel.name}` }]
+    }),
+    truncated,
+  }
 }
 
-async function listSlackUsers(args: ExecuteServerSelectorArgs): Promise<SafeSelectorOption[]> {
+async function listSlackUsers(args: ExecuteServerSelectorArgs) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   const accessToken = await resolveSelectorOAuthAccessToken({
     credential: args.credential,
@@ -188,6 +201,7 @@ async function listSlackUsers(args: ExecuteServerSelectorArgs): Promise<SafeSele
   })
   const members: SlackUser[] = []
   let cursor: string | undefined
+  let truncated = false
   for (let page = 0; page < SLACK_MAX_PAGES; page++) {
     const data = await fetchSlackApi(args, 'users.list', accessToken, {
       limit: String(SLACK_PAGE_LIMIT),
@@ -196,11 +210,15 @@ async function listSlackUsers(args: ExecuteServerSelectorArgs): Promise<SafeSele
     if (Array.isArray(data.members)) members.push(...data.members)
     cursor = data.response_metadata?.next_cursor?.trim() || undefined
     if (!cursor) break
+    if (page === SLACK_MAX_PAGES - 1) truncated = true
   }
-  return members.flatMap((user) => {
-    if (!user.id || !user.name || user.deleted || user.is_bot) return []
-    return [{ id: user.id, label: user.real_name || user.name }]
-  })
+  return {
+    items: members.flatMap((user) => {
+      if (!user.id || !user.name || user.deleted || user.is_bot) return []
+      return [{ id: user.id, label: user.real_name || user.name }]
+    }),
+    truncated,
+  }
 }
 
 const credential = {
@@ -214,11 +232,31 @@ export const slackSelectorAttachments = {
   'slack.channels': {
     credential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listSlackChannels(args)),
+    execute: async (args) => {
+      const result = await listSlackChannels(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        false,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: SLACK_MAX_PAGES } }
+          : undefined
+      )
+    },
   },
   'slack.users': {
     credential,
     destination: 'fixed',
-    execute: async (args) => flatSelectorResult(args.request, await listSlackUsers(args)),
+    execute: async (args) => {
+      const result = await listSlackUsers(args)
+      return flatSelectorResult(
+        args.request,
+        result.items,
+        false,
+        result.truncated
+          ? { truncated: { reason: 'provider-cap', pages: SLACK_MAX_PAGES } }
+          : undefined
+      )
+    },
   },
 } satisfies ServerSelectorAttachmentMap<SlackSelectorKey>

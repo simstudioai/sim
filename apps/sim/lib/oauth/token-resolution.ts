@@ -62,7 +62,7 @@ export type ResolveCredentialTokenResult =
  * Emits the semantic "credential used" trail for one resolved credential.
  * Both the audit row and the analytics event are fire-and-forget.
  */
-function recordCredentialAccess(params: {
+export function recordCredentialAccess(params: {
   actorId: string
   workspaceId: string | null
   resourceId: string

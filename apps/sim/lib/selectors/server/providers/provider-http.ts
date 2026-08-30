@@ -1,4 +1,8 @@
-import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
+import { parseRetryAfter } from '@sim/utils/retry'
+import {
+  SelectorConnectionUnavailableError,
+  SelectorOptionsUnavailableError,
+} from '@/lib/selectors/server/errors'
 
 const PROVIDER_TIMEOUT_MS = 30_000
 const MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -42,10 +46,27 @@ async function readBoundedBody(response: Response): Promise<string> {
 
 export type ProviderJsonStatusResult<T> =
   | { ok: true; status: number; data: T }
-  | { ok: false; status: number }
+  | { ok: false; status: number; retryAfterMs?: number }
 
 export interface FetchProviderJsonStatusOptions {
   passthroughStatuses?: readonly number[]
+  passthroughStatus?: (status: number) => boolean
+  /** Preserve a generic, retryable network signal without exposing the raw fetch error. */
+  passthroughNetworkErrors?: boolean
+}
+
+export class RetryableProviderNetworkError extends Error {
+  constructor() {
+    super('Provider network unavailable')
+    this.name = 'RetryableProviderNetworkError'
+  }
+}
+
+export function selectorProviderStatusError(status: number): Error {
+  if (status === 401) return new SelectorConnectionUnavailableError(401)
+  if (status === 403) return new SelectorConnectionUnavailableError(403)
+  if (status === 429) return new SelectorOptionsUnavailableError(429)
+  return new SelectorOptionsUnavailableError(502)
 }
 
 /**
@@ -65,15 +86,24 @@ export async function fetchProviderJsonWithStatus<T>(
     response = await fetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
   } catch (error) {
     if (init?.signal?.aborted) throw error
+    if (options.passthroughNetworkErrors) throw new RetryableProviderNetworkError()
     throw new SelectorOptionsUnavailableError()
   }
 
   if (!response.ok) {
+    const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
     await cancelResponseBody(response)
-    if (options.passthroughStatuses?.includes(response.status)) {
-      return { ok: false, status: response.status }
+    if (
+      options.passthroughStatuses?.includes(response.status) ||
+      options.passthroughStatus?.(response.status)
+    ) {
+      return {
+        ok: false,
+        status: response.status,
+        ...(retryAfterMs !== null && retryAfterMs > 0 ? { retryAfterMs } : {}),
+      }
     }
-    throw new SelectorOptionsUnavailableError()
+    throw selectorProviderStatusError(response.status)
   }
   try {
     return {

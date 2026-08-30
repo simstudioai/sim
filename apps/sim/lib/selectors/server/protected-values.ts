@@ -1,14 +1,24 @@
-import type { SelectorProtectedValues } from '@/lib/selectors/server/types'
+import type {
+  SelectorProtectedValueKind,
+  SelectorProtectedValues,
+} from '@/lib/selectors/server/types'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 
 export function createSelectorProtectedValues(): SelectorProtectedValues {
-  const values = new Set<string>()
+  const values = new Map<string, SelectorProtectedValueKind>()
   return {
-    add(value) {
-      if (value) values.add(value)
+    add(value, kind = 'secret') {
+      if (!value) return
+      const current = values.get(value)
+      if (current === 'secret') return
+      values.set(value, kind)
     },
     contains(value) {
-      for (const protectedValue of values) {
-        if (value.includes(protectedValue)) return true
+      for (const [protectedValue, kind] of values) {
+        if (value === protectedValue) return true
+        if (kind === 'secret' || !isNonIdentifyingSecretLiteral(protectedValue)) {
+          if (value.includes(protectedValue)) return true
+        }
       }
       return false
     },

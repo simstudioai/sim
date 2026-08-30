@@ -30,7 +30,7 @@ interface NotionSearchPage {
 async function listNotionObjects(
   args: ExecuteServerSelectorArgs,
   object: 'database' | 'page'
-): Promise<SafeSelectorOption[]> {
+): Promise<{ items: SafeSelectorOption[]; truncated: boolean }> {
   if (!args.credential) throw new SelectorOptionsUnavailableError()
   const token = await resolveSelectorOAuthAccessToken({
     credential: args.credential,
@@ -39,6 +39,7 @@ async function listNotionObjects(
   })
   const results: unknown[] = []
   let cursor: string | undefined
+  let truncated = false
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const data = await fetchProviderJson<NotionSearchPage>('https://api.notion.com/v1/search', {
@@ -59,27 +60,43 @@ async function listNotionObjects(
     if (Array.isArray(data.results)) results.push(...data.results)
     if (!data.has_more || !data.next_cursor) break
     cursor = data.next_cursor
+    if (page === MAX_PAGES - 1) truncated = true
   }
 
-  return results.flatMap((value) => {
-    if (!value || typeof value !== 'object' || typeof (value as { id?: unknown }).id !== 'string') {
-      return []
-    }
-    return [{ id: (value as { id: string }).id, label: extractTitleFromItem(value) }]
-  })
+  return {
+    items: results.flatMap((value) => {
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        typeof (value as { id?: unknown }).id !== 'string'
+      ) {
+        return []
+      }
+      return [{ id: (value as { id: string }).id, label: extractTitleFromItem(value) }]
+    }),
+    truncated,
+  }
+}
+
+async function executeNotionObjects(args: ExecuteServerSelectorArgs, object: 'database' | 'page') {
+  const { items, truncated } = await listNotionObjects(args, object)
+  return flatSelectorResult(
+    args.request,
+    items,
+    true,
+    truncated ? { truncated: { reason: 'provider-cap', pages: MAX_PAGES } } : undefined
+  )
 }
 
 export const notionSelectorAttachments = {
   'notion.databases': {
     credential,
     destination: 'fixed',
-    execute: async (args) =>
-      flatSelectorResult(args.request, await listNotionObjects(args, 'database'), true),
+    execute: async (args) => executeNotionObjects(args, 'database'),
   },
   'notion.pages': {
     credential,
     destination: 'fixed',
-    execute: async (args) =>
-      flatSelectorResult(args.request, await listNotionObjects(args, 'page'), true),
+    execute: async (args) => executeNotionObjects(args, 'page'),
   },
 } satisfies ServerSelectorAttachmentMap<NotionSelectorKey>

@@ -47,10 +47,11 @@ function requireCredential(args: ExecuteServerSelectorArgs) {
 }
 
 function requireClickupId(value: string | undefined): string {
-  if (!value || value.length > 100 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+  const normalized = value?.trim()
+  if (!normalized || normalized.length > 100 || !/^[A-Za-z0-9_-]+$/.test(normalized)) {
     throw new SelectorContextUnavailableError()
   }
-  return value
+  return normalized
 }
 
 async function getAccessToken(args: ExecuteServerSelectorArgs): Promise<string> {
@@ -114,7 +115,9 @@ export const clickupSelectorAttachments = {
     credential,
     destination: 'fixed',
     async execute(args) {
-      const spaceId = requireClickupId(args.context.spaceId || args.context.listSpaceId)
+      const spaceId = requireClickupId(
+        args.context.spaceId?.trim() || args.context.listSpaceId?.trim()
+      )
       return listSelectorResult(
         await fetchClickupOptions(args, 'folders', `/space/${encodeURIComponent(spaceId)}/folder`)
       )
@@ -124,8 +127,8 @@ export const clickupSelectorAttachments = {
     credential,
     destination: 'fixed',
     async execute(args) {
-      const folderId = args.context.folderId
-      const spaceId = args.context.spaceId
+      const folderId = args.context.folderId?.trim()
+      const spaceId = args.context.spaceId?.trim() || args.context.listSpaceId?.trim()
       const path = folderId
         ? `/folder/${encodeURIComponent(requireClickupId(folderId))}/list`
         : `/space/${encodeURIComponent(requireClickupId(spaceId))}/list`

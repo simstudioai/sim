@@ -48,6 +48,7 @@ async function getAccessToken(args: ExecuteServerSelectorArgs): Promise<string> 
 async function listBases(args: ExecuteServerSelectorArgs, accessToken: string) {
   const bases: z.infer<typeof airtableBaseSchema>[] = []
   let offset: string | undefined
+  let truncated = false
 
   for (let page = 0; page < AIRTABLE_MAX_BASE_PAGES; page++) {
     const url = new URL(AIRTABLE_BASES_URL)
@@ -67,9 +68,13 @@ async function listBases(args: ExecuteServerSelectorArgs, accessToken: string) {
     bases.push(...(parsed.data.bases ?? []))
     offset = parsed.data.offset
     if (!offset) break
+    if (page === AIRTABLE_MAX_BASE_PAGES - 1) truncated = true
   }
 
-  return bases.map((base) => ({ id: base.id, label: base.name }))
+  return {
+    items: bases.map((base) => ({ id: base.id, label: base.name })),
+    truncated,
+  }
 }
 
 async function listTables(args: ExecuteServerSelectorArgs) {
@@ -108,7 +113,15 @@ export const airtableSelectorAttachments = {
     destination: 'fixed',
     async execute(args) {
       const accessToken = await getAccessToken(args)
-      return flatSelectorResult(args.request, await listBases(args, accessToken), true)
+      const { items, truncated } = await listBases(args, accessToken)
+      return flatSelectorResult(
+        args.request,
+        items,
+        true,
+        truncated
+          ? { truncated: { reason: 'provider-cap', pages: AIRTABLE_MAX_BASE_PAGES } }
+          : undefined
+      )
     },
   },
   'airtable.tables': {

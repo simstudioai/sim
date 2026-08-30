@@ -44,6 +44,7 @@ function authorize(): Promise<unknown> {
     workspaceId: 'workspace-1',
     policy,
     protectedValues: createSelectorProtectedValues(),
+    references: new Map(),
   })
 }
 
@@ -64,6 +65,60 @@ describe('authorizeSelectorCredential', () => {
 
     await expect(authorize()).rejects.toEqual(new SelectorConnectionUnavailableError())
     expect(mocks.credentialProviderMatchesService).not.toHaveBeenCalled()
+  })
+
+  it('pins workspace-scoped credential authorization before legacy account resolution', async () => {
+    mocks.authorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      workspaceId: 'workspace-1',
+      credentialOwnerUserId: 'owner-1',
+      resolvedCredentialId: 'account-1',
+    })
+    queueTableRows(credential, [{ accountId: 'account-1', providerId: 'google' }])
+    mocks.credentialProviderMatchesService.mockReturnValue(true)
+
+    await expect(authorize()).resolves.toMatchObject({ suppliedId: 'credential-1' })
+    expect(mocks.authorizeCredentialUse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        credentialId: 'credential-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
+
+  it('promotes a hidden fixed token to an authentication secret at every length', async () => {
+    const protectedValues = createSelectorProtectedValues()
+
+    await expect(
+      authorizeSelectorCredential({
+        principal,
+        context: { oauthCredential: 'xoxb-a' },
+        scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+        workspaceId: 'workspace-1',
+        policy: {
+          kind: 'stored-or-fixed-token',
+          field: 'oauthCredential',
+          serviceIds: ['slack'],
+          tokenPrefixes: ['xoxb-'],
+        },
+        protectedValues,
+        references: new Map([
+          [
+            'oauthCredential',
+            {
+              field: 'oauthCredential',
+              name: 'SLACK_BOT_TOKEN',
+              scope: 'workspace',
+              visible: false,
+            },
+          ],
+        ]),
+      })
+    ).resolves.toMatchObject({ fixedToken: 'xoxb-a' })
+
+    expect(protectedValues.contains('prefix-xoxb-a-suffix')).toBe(true)
+    expect(mocks.authorizeCredentialUse).not.toHaveBeenCalled()
   })
 
   it('conceals a stored credential whose trusted provider does not match the selector service', async () => {

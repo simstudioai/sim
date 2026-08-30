@@ -44,6 +44,7 @@ async function listWorkspaces(args: ExecuteServerSelectorArgs) {
   })
   const workspaces: z.infer<typeof asanaWorkspaceSchema>[] = []
   let offset: string | undefined
+  let truncated = false
 
   for (let page = 0; page < ASANA_MAX_PAGES; page++) {
     const url = new URL(ASANA_WORKSPACES_URL)
@@ -64,9 +65,13 @@ async function listWorkspaces(args: ExecuteServerSelectorArgs) {
     workspaces.push(...(parsed.data.data ?? []))
     offset = parsed.data.next_page?.offset
     if (!offset) break
+    if (page === ASANA_MAX_PAGES - 1) truncated = true
   }
 
-  return workspaces.map((workspace) => ({ id: workspace.gid, label: workspace.name }))
+  return {
+    items: workspaces.map((workspace) => ({ id: workspace.gid, label: workspace.name })),
+    truncated,
+  }
 }
 
 export const asanaSelectorAttachments = {
@@ -78,8 +83,13 @@ export const asanaSelectorAttachments = {
     },
     destination: 'fixed',
     async execute(args) {
-      const items = await listWorkspaces(args)
-      return flatSelectorResult(args.request, items, true)
+      const { items, truncated } = await listWorkspaces(args)
+      return flatSelectorResult(
+        args.request,
+        items,
+        true,
+        truncated ? { truncated: { reason: 'provider-cap', pages: ASANA_MAX_PAGES } } : undefined
+      )
     },
   },
 } satisfies ServerSelectorAttachmentMap<AsanaSelectorKey>
