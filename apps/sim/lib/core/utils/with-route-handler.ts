@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withPermissionGroupScope } from '@/lib/permission-groups/config-scope.server'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 
 const logger = createLogger('RouteHandler')
 

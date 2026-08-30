@@ -37,7 +37,7 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
-import { withPermissionGroupScope } from '@/lib/permission-groups/config-scope.server'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
   assertPermissionsAllowed,
   CustomToolsNotAllowedError,

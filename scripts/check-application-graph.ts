@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Asserts the authorization funnel's module graph stays light.
+ * Asserts the authorization funnel's and the route wrapper's module graphs stay
+ * light.
  *
  * `@/lib/core/application` is imported by ~every domain `operations.ts`, and
  * `lib/permission-groups/capabilities.ts` sits below it, so anything either one
@@ -10,11 +11,17 @@
  * uploads/workflow graph are all far heavier than an authorization decision,
  * and none of them has anything to say about one.
  *
+ * `lib/core/utils/with-route-handler.ts` is guarded on the same principle with a
+ * wider list: it wraps every API route, so its graph is loaded by every route
+ * and every route test.
+ *
  * The edge this guards against is invisible without a check: adding one import
  * to a permission-group helper once widened this graph as far as
  * `lib/uploads/utils/file-utils.ts`, and the only symptom was two unrelated
  * knowledge tests failing on a partial mock of a module they never meant to
- * load.
+ * load. Later, one import in the route wrapper pulled the whole billing graph
+ * into every route test, and the only symptom was an unrelated OTP-route test
+ * failing on its own partial `zod` mock.
  *
  * Walks runtime `import`/`export … from` specifiers only. `import type` is
  * erased by the compiler and costs nothing at runtime, so a type-only edge into
@@ -28,14 +35,6 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(SCRIPT_DIR, '..')
 const APP_ROOT = resolve(REPO_ROOT, 'apps/sim')
 
-/** Entry points whose graph every authorization decision pays for. */
-export const GUARDED_ROOTS = [
-  'lib/core/application/index.ts',
-  'lib/permission-groups/capabilities.ts',
-  'lib/permission-groups/capability-assertions.ts',
-  'lib/permission-groups/config-scope.server.ts',
-] as const
-
 /**
  * Path prefixes no guarded root may reach at runtime, with the reason a reviewer
  * needs to understand the failure without re-deriving this file.
@@ -48,6 +47,50 @@ export const FORBIDDEN_PREFIXES: Record<string, string> = {
   'lib/uploads/': 'the uploads graph, which reaches file parsing and archive handling',
   'lib/workflows/': 'the workflow graph, which reaches the editor and serializer',
 }
+
+/**
+ * `withRouteHandler` wraps every API route in the app, so its graph is the one
+ * graph *every* route and every route test pays for — a strictly wider blast
+ * radius than the authorization funnel's. It is a request-lifecycle wrapper: it
+ * stamps a request id, records timings, maps typed errors to statuses, and opens
+ * the permission-group memo. It decides nothing about billing, identity, or any
+ * domain, so it has no business loading those graphs.
+ *
+ * These sit on top of FORBIDDEN_PREFIXES for this root only. They are NOT
+ * app-wide bans — `lib/permission-groups/resolve.server.ts` legitimately reads
+ * the subscription to decide whether an organization is on an enterprise plan,
+ * which is why `lib/billing/` stays allowed for the funnel roots below.
+ */
+const ROUTE_WRAPPER_FORBIDDEN_PREFIXES: Record<string, string> = {
+  'lib/billing/': 'the billing graph — the route wrapper makes no plan or subscription decision',
+  'lib/permission-groups/resolve.server':
+    'the permission-group resolver — the wrapper only opens the memo scope; the resolver ' +
+    'belongs to the gate call sites, and it is what dragged billing in',
+  'lib/auth': 'the auth graph — the wrapper wraps handlers that authenticate, it does not',
+  'lib/copilot/': 'the copilot graph',
+  'lib/knowledge/': 'the knowledge-base graph',
+}
+
+export interface GuardedRoot {
+  /** Path under `apps/sim`. */
+  root: string
+  forbidden: Record<string, string>
+}
+
+/**
+ * Entry points whose graph every authorization decision — or, for the route
+ * wrapper, every request — pays for.
+ */
+export const GUARDED_ROOTS: readonly GuardedRoot[] = [
+  { root: 'lib/core/application/index.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'lib/permission-groups/capabilities.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'lib/permission-groups/capability-assertions.ts', forbidden: FORBIDDEN_PREFIXES },
+  { root: 'lib/permission-groups/config-scope.server.ts', forbidden: FORBIDDEN_PREFIXES },
+  {
+    root: 'lib/core/utils/with-route-handler.ts',
+    forbidden: { ...FORBIDDEN_PREFIXES, ...ROUTE_WRAPPER_FORBIDDEN_PREFIXES },
+  },
+]
 
 /**
  * Matches a runtime `import … from '…'` or `export … from '…'`.
@@ -91,7 +134,7 @@ export interface GraphViolation {
  * forbidden prefix. Breadth-first on purpose: the shortest chain is the one a
  * reader can act on, and it names the single edge worth deleting.
  */
-export function findViolations(root: string): GraphViolation[] {
+export function findViolations({ root, forbidden }: GuardedRoot): GraphViolation[] {
   const start = resolve(APP_ROOT, root)
   const violations: GraphViolation[] = []
   const reported = new Set<string>()
@@ -112,14 +155,14 @@ export function findViolations(root: string): GraphViolation[] {
       if (next === null || seen.has(next)) continue
 
       const rel = relative(APP_ROOT, next)
-      const prefix = Object.keys(FORBIDDEN_PREFIXES).find((candidate) => rel.startsWith(candidate))
+      const prefix = Object.keys(forbidden).find((candidate) => rel.startsWith(candidate))
       if (prefix !== undefined) {
         if (!reported.has(prefix)) {
           reported.add(prefix)
           violations.push({
             root,
             forbidden: rel,
-            reason: FORBIDDEN_PREFIXES[prefix],
+            reason: forbidden[prefix],
             path: [...path, next].map((entry) => relative(APP_ROOT, entry)),
           })
         }
@@ -136,16 +179,16 @@ export function findViolations(root: string): GraphViolation[] {
 
 function main(): void {
   const violations: GraphViolation[] = []
-  for (const root of GUARDED_ROOTS) {
-    if (!existsSync(resolve(APP_ROOT, root))) {
+  for (const guarded of GUARDED_ROOTS) {
+    if (!existsSync(resolve(APP_ROOT, guarded.root))) {
       console.error(
-        `Application-graph audit could not find its own root '${root}'.\n` +
+        `Application-graph audit could not find its own root '${guarded.root}'.\n` +
           'The module was renamed or moved. Update GUARDED_ROOTS rather than leaving this\n' +
           'audit passing over a file that no longer exists.\n'
       )
       process.exit(1)
     }
-    violations.push(...findViolations(root))
+    violations.push(...findViolations(guarded))
   }
 
   if (violations.length > 0) {
@@ -161,9 +204,10 @@ function main(): void {
     process.exit(1)
   }
 
+  const trees = new Set(GUARDED_ROOTS.flatMap((guarded) => Object.keys(guarded.forbidden)))
   console.log(
     `✅ Application graph clean: ${GUARDED_ROOTS.length} roots reach none of ` +
-      `${Object.keys(FORBIDDEN_PREFIXES).length} forbidden module trees`
+      `${trees.size} forbidden module trees`
   )
 }
 

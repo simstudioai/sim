@@ -32,10 +32,10 @@ export const permissionGroupScopeMockFns = {
 /**
  * Static mock module for `@/lib/permission-groups/config-scope.server`.
  *
- * `withPermissionGroupScope` is a real passthrough rather than a `vi.fn()`
- * because `withRouteHandler` calls it to wrap every route handler. A factory
- * that exports only `resolvePermissionGroupConfig` leaves it `undefined`, and
- * the route then fails with a 500 that looks nothing like the gate under test.
+ * Only the resolver lives there. `withPermissionGroupScope` — which
+ * `withRouteHandler` calls to wrap every route handler — lives in the
+ * import-free `@/lib/permission-groups/request-scope.server`, so mocking this
+ * module leaves the real scope wrapper in place and there is nothing to stub.
  *
  * @example
  * ```ts
@@ -44,7 +44,6 @@ export const permissionGroupScopeMockFns = {
  */
 export const permissionGroupScopeMock = {
   resolvePermissionGroupConfig: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
-  withPermissionGroupScope: <R>(run: () => R): R => run(),
 }
 
 /** Restores the ungoverned default — no group governs the user. */

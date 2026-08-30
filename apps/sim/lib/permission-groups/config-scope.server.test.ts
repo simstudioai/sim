@@ -15,10 +15,8 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
 }))
 
-import {
-  resolvePermissionGroupConfig,
-  withPermissionGroupScope,
-} from '@/lib/permission-groups/config-scope.server'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 
 const CONFIG = { hideTablesTab: true }
 

@@ -42,9 +42,19 @@ describe('resolveSpecifier', () => {
 })
 
 describe('the guarded roots', () => {
+  it('guards the universal route wrapper against the billing graph', () => {
+    const wrapper = GUARDED_ROOTS.find(
+      (guarded) => guarded.root === 'lib/core/utils/with-route-handler.ts'
+    )
+    expect(wrapper?.forbidden['lib/billing/']).toBeTruthy()
+  })
+
   it('reaches no forbidden module tree at runtime', () => {
-    for (const root of GUARDED_ROOTS) {
-      expect({ root, violations: findViolations(root) }).toEqual({ root, violations: [] })
+    for (const guarded of GUARDED_ROOTS) {
+      expect({ root: guarded.root, violations: findViolations(guarded) }).toEqual({
+        root: guarded.root,
+        violations: [],
+      })
     }
   })
 
@@ -54,7 +64,10 @@ describe('the guarded roots', () => {
      * the walker is proven able to fail. Without this the suite above would
      * still pass if `findViolations` silently stopped finding anything.
      */
-    const violations = findViolations('lib/permission-groups/model-access.ts')
+    const violations = findViolations({
+      root: 'lib/permission-groups/model-access.ts',
+      forbidden: FORBIDDEN_PREFIXES,
+    })
     expect(violations).toHaveLength(1)
     expect(violations[0].forbidden).toBe('providers/utils.ts')
     expect(violations[0].reason).toBe(FORBIDDEN_PREFIXES['providers/'])
