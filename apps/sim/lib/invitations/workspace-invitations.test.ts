@@ -112,7 +112,13 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateInvitationsAllowed: vi.fn(),
 }))
 
-import { createWorkspaceInvitation } from '@/lib/invitations/workspace-invitations'
+import {
+  createWorkspaceInvitation,
+  prepareWorkspaceInvitationContext,
+} from '@/lib/invitations/workspace-invitations'
+import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission-check'
 
 function queueWhereResponses(responses: unknown[][]) {
   const queue = [...responses]
@@ -680,5 +686,58 @@ describe('createWorkspaceInvitation', () => {
         request,
       })
     ).rejects.toThrow('invitation changed concurrently')
+  })
+})
+
+/**
+ * The capability runs after the role check, never before it. Refusing on
+ * `invitations.send` first would answer a non-admin with a distinct `403`
+ * naming an organization setting, which tells a bystander in the same
+ * organization how another workspace's permission group is configured.
+ */
+describe('prepareWorkspaceInvitationContext refusal ordering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.mocked(validateInvitationsAllowed).mockResolvedValue(undefined)
+    vi.mocked(getWorkspaceInvitePolicy).mockResolvedValue({
+      allowed: true,
+      reason: null,
+      requiresSeat: false,
+      organizationId: 'org-1',
+      upgradeRequired: false,
+    } as unknown as Awaited<ReturnType<typeof getWorkspaceInvitePolicy>>)
+  })
+
+  it('refuses a non-admin on the role before consulting the permission group', async () => {
+    vi.mocked(hasWorkspaceAdminAccess).mockResolvedValue(false)
+    vi.mocked(validateInvitationsAllowed).mockRejectedValue(
+      new Error('Sending invitations is not available under your permission group')
+    )
+
+    await expect(
+      prepareWorkspaceInvitationContext({
+        workspaceIds: ['ws-1'],
+        inviterId: 'outsider-1',
+        inviterName: 'Outsider',
+      })
+    ).rejects.toThrow('You need admin permissions to invite users')
+    expect(validateInvitationsAllowed).not.toHaveBeenCalled()
+  })
+
+  it('still refuses an admin whose permission group withholds invitations', async () => {
+    vi.mocked(hasWorkspaceAdminAccess).mockResolvedValue(true)
+    vi.mocked(validateInvitationsAllowed).mockRejectedValue(
+      new Error('Sending invitations is not available under your permission group')
+    )
+
+    await expect(
+      prepareWorkspaceInvitationContext({
+        workspaceIds: ['ws-1'],
+        inviterId: 'user-1',
+        inviterName: 'Owner',
+      })
+    ).rejects.toThrow('Sending invitations is not available under your permission group')
+    expect(validateInvitationsAllowed).toHaveBeenCalledWith('user-1', 'ws-1')
   })
 })

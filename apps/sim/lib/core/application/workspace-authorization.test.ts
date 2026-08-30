@@ -560,6 +560,42 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
     ).resolves.toBeUndefined()
   })
 
+  /**
+   * A `NoWorkspaceAccessError` is concealed as a `404`, so it has to come first:
+   * a distinct `PersonalApiKeysDisabledError` would tell a caller with no reach
+   * into the workspace that it exists and that its organization withholds
+   * personal keys.
+   */
+  it('conceals the workspace before refusing the group personal-key setting', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, context)
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The workspace column keeps its fail-fast: it is a property of the workspace
+   * rather than of any group, so it is not the organization-configuration
+   * oracle the group key would be, and three call-site suites pin the ordering.
+   */
+  it('keeps refusing the workspace personal-key column before the role lookup', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, {
+        ...context,
+        allowPersonalApiKeys: false,
+      })
+    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+  })
+
   it('leaves a session principal alone', async () => {
     resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,

@@ -8,6 +8,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { type ListLogsParams, readLogs } from '@/lib/logs/list-logs'
+import { assertLogCostQueryAllowed } from '@/lib/logs/log-projection'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -33,10 +34,18 @@ const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
         )
       : null
 
+    const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
+    /**
+     * The list's own `sortBy=cost` and `costOperator`/`costValue` select on the
+     * very figure the row above blanks, so they have to be refused rather than
+     * answered — see {@link assertLogCostQueryAllowed}.
+     */
+    assertLogCostQueryAllowed(input, { hideCostInfo })
+
     return readLogs({
       ...input,
       workspaceId: context.workspaceId,
-      hideCostInfo: capabilityDeniedBy('logs.cost', permissionConfig),
+      hideCostInfo,
     })
   },
 })

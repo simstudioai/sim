@@ -12,6 +12,7 @@ import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-s
 import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { logQuerySelectsCost } from '@/lib/logs/log-projection'
 import {
   capabilityDeniedBy,
   capabilityRefusal,
@@ -127,6 +128,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      * file shape does not depend on who downloaded it; only its values go.
      */
     const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
+    /**
+     * The same filter the list refuses. Blanking the column while still
+     * answering `costOperator`/`costValue` faithfully would leave the CSV itself
+     * a bisection oracle over the figures it just withheld — one download per
+     * probe, with the row count as the answer.
+     */
+    if (hideCostInfo && logQuerySelectsCost(params)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.cost') }, { status: 403 })
+    }
 
     const encoder = new TextEncoder()
     const csvChunks = (async function* () {

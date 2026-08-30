@@ -129,6 +129,47 @@ const context = {
   allowPersonalApiKeys: true,
 }
 
+/**
+ * Every operation's capability, by name.
+ *
+ * Pinned as a whole map rather than derived from the registry, because the
+ * refusal tests below select their subjects with `operation.capability === x` —
+ * a filter over the very field under test. Dropping the capability from one
+ * operation would simply remove it from that filter and leave those tests green
+ * (`mcp_servers.create`, which registers a server and stores its credentials
+ * against the workspace, was verified to do exactly that). This map fails
+ * instead.
+ */
+const EXPECTED_CAPABILITIES: Record<keyof typeof mcpServerOperations, string> = {
+  list: 'mcp_tools.use',
+  read: 'mcp_tools.use',
+  create: 'mcp_tools.use',
+  register: 'mcp_tools.use',
+  update: 'mcp_tools.use',
+  reconfigure: 'mcp_tools.use',
+  delete: 'mcp_tools.use',
+  discoverTools: 'mcp_tools.use',
+  executeTool: 'mcp_tools.use',
+  listWorkflowDeployments: 'deploy.mcp',
+  readWorkflowDeploymentServer: 'deploy.mcp',
+  listWorkflowDeploymentTools: 'deploy.mcp',
+  createWorkflowDeploymentServer: 'deploy.mcp',
+  updateWorkflowDeploymentServer: 'deploy.mcp',
+  deleteWorkflowDeploymentServer: 'deploy.mcp',
+  deployWorkflowTool: 'deploy.mcp',
+  undeployWorkflowTool: 'deploy.mcp',
+}
+
+describe('MCP operation capability declarations', () => {
+  it('declares a capability on every operation, by name', () => {
+    const declared = Object.fromEntries(
+      Object.entries(mcpServerOperations).map(([key, operation]) => [key, operation.capability])
+    )
+
+    expect(declared).toEqual(EXPECTED_CAPABILITIES)
+  })
+})
+
 /** `tools.execute` admits only the executor delegation, so a session cannot stand in for it. */
 function sessionReachable(capability: string) {
   return Object.values(mcpServerOperations).filter(
