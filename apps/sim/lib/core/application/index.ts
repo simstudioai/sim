@@ -17,6 +17,7 @@ export {
 } from '@/lib/core/application/forbidden'
 export {
   type ApplicationOperation,
+  assertOperationCapability,
   assertOperationPrincipal,
   defineOperation,
   type OperationUseCase,

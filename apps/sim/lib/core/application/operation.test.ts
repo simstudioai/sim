@@ -7,6 +7,7 @@ import { assertOperationPrincipal, defineOperation } from '@/lib/core/applicatio
 
 const readSelf = defineOperation({
   id: 'meta.capabilities.read',
+  capability: 'none',
   principalKinds: ['personal_api_key', 'workspace_api_key'],
 })
 
@@ -17,14 +18,18 @@ describe('defineOperation', () => {
   })
 
   it('rejects an operation that names no principal', () => {
-    expect(() => defineOperation({ id: 'meta.empty', principalKinds: [] })).toThrow(
-      'Operation meta.empty must allow at least one principal kind'
-    )
+    expect(() =>
+      defineOperation({ id: 'meta.empty', capability: 'none', principalKinds: [] })
+    ).toThrow('Operation meta.empty must allow at least one principal kind')
   })
 
   it('rejects a duplicated principal kind', () => {
     expect(() =>
-      defineOperation({ id: 'meta.duplicate', principalKinds: ['session', 'session'] })
+      defineOperation({
+        id: 'meta.duplicate',
+        capability: 'none',
+        principalKinds: ['session', 'session'],
+      })
     ).toThrow('Operation meta.duplicate declares duplicate principal kinds')
   })
 })
@@ -57,5 +62,42 @@ describe('assertOperationPrincipal', () => {
       'Operation meta.capabilities.read reached by principal kind session, which its policy does not name'
     )
     expect(thrown).not.toHaveProperty('code')
+  })
+})
+
+/**
+ * The guard the type cannot give, because `apps/sim/tsconfig.json` excludes test
+ * files: a fixture is the one construction site no static check reads.
+ */
+describe('assertOperationCapability', () => {
+  it('refuses an operation that declares no capability', () => {
+    expect(() =>
+      // @ts-expect-error a fixture is the one place an absent capability can be written
+      defineOperation({ id: 'meta.uncapped', principalKinds: ['session'] })
+    ).toThrow("Operation meta.uncapped declares no capability; name one, or 'none' with a reason")
+  })
+
+  it('refuses a capability the registry does not declare', () => {
+    expect(() =>
+      defineOperation({
+        id: 'meta.unknown',
+        // @ts-expect-error the point of the test is a capability outside the registry
+        capability: 'meta.invented',
+        principalKinds: ['session'],
+      })
+    ).toThrow('Operation meta.unknown names unknown capability meta.invented')
+  })
+
+  it('refuses a parameterized capability the funnel cannot apply', () => {
+    expect(() =>
+      defineOperation({
+        id: 'meta.parameterized',
+        // @ts-expect-error a parameterized capability is not a StaticPermissionGroupCapability
+        capability: 'deploy.chat.auth_mode',
+        principalKinds: ['session'],
+      })
+    ).toThrow(
+      'Operation meta.parameterized declares parameterized capability deploy.chat.auth_mode; assert it from the use case instead'
+    )
   })
 })

@@ -57,6 +57,30 @@ const ENFORCED_ANNOTATION = 'permission-group-enforced:'
 const EXEMPT_ANNOTATION = 'permission-group-exempt:'
 const MAX_ANNOTATION_LOOKBACK = 3
 
+/**
+ * The naming convention every operation-minting builder follows:
+ * `defineWorkspaceOperation`, `defineOperation`, and each domain's own
+ * `define<Domain>Operation`.
+ *
+ * The audit used to look for `defineWorkspaceOperation` and nothing else, so a
+ * domain that minted operations through a builder of its own — an object frozen
+ * by hand rather than passed to the shared one — was read by neither the
+ * builder's definition-time guard nor this script. Twenty-one operations across
+ * six domains were invisible that way, and the failure was silent: the files
+ * were scanned, some other operation in them was counted, and the audit printed
+ * a tick. Matching the family rather than the one name is what makes a new
+ * builder visible by default instead of on purpose.
+ */
+const MINTING_NAME = /^define[A-Za-z0-9_$]*Operation$/
+const MINTING_CALL_SOURCE = String.raw`\b(define[A-Za-z0-9_$]*Operation)\s*\(`
+const mintingCallPattern = () => new RegExp(MINTING_CALL_SOURCE, 'g')
+/** Whether a module mints an operation at all, so files that do not are skipped cheaply. */
+const MINTS_AN_OPERATION = new RegExp(MINTING_CALL_SOURCE)
+/** An exported `*Operations` registry object, the second route by which operations reach a surface. */
+const OPERATION_REGISTRY =
+  /(?:^|\n)\s*export const ([A-Za-z0-9_$]+Operations)\s*(?::[^=\n]*)?=\s*\{/g
+const DECLARES_A_REGISTRY = /(?:^|\n)\s*export const [A-Za-z0-9_$]+Operations\s*(?::[^=\n]*)?=\s*\{/
+
 interface Finding {
   file: string
   line?: number
@@ -145,8 +169,8 @@ interface OperationDeclaration {
 interface ParsedOperations {
   declarations: OperationDeclaration[]
   /**
-   * Lines of `defineWorkspaceOperation` calls this parser could not read an id
-   * from, and which no recognized factory accounts for.
+   * Lines of operation-minting calls this parser could not read an id from,
+   * and which no recognized factory accounts for.
    *
    * A call whose `id` is a const reference, or one minted by a wrapper written
    * as an arrow const rather than a `function`, used to be dropped in silence —
@@ -158,9 +182,9 @@ interface ParsedOperations {
 }
 
 /**
- * Every `defineWorkspaceOperation` in a module and the capability it declares,
- * resolved through a same-file factory when a domain wraps the builder (the
- * table operations take only an id and a capability).
+ * Every operation minted in a module and the capability it declares, resolved
+ * through a same-file factory when a domain wraps a builder (the table
+ * operations take only an id and a capability).
  */
 export function parseOperationCapabilities(source: string): ParsedOperations {
   const declarations: OperationDeclaration[] = []
@@ -168,10 +192,12 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
   const lineAt = (index: number) => source.slice(0, index).split('\n').length
 
   /**
-   * Domains that wrap the builder in a same-file factory declare the capability
-   * one of two ways: fixed in the factory body, when every operation it makes
-   * belongs to one capability, or taken as a second argument when they differ.
-   * Both are legible at the call site, so both are read here.
+   * Domains that wrap a builder in a same-file factory declare the capability
+   * one of three ways: fixed in the factory body, when every operation it makes
+   * belongs to one capability; taken as a second argument when they differ; or
+   * passed straight through from an object literal at the call site. The first
+   * two are read from their call sites below, the third by the direct scan,
+   * which reads the literal exactly as it reads a builder's own.
    */
   const factoryCapabilities = new Map<string, string | 'positional'>()
   const factoryRanges: Array<[number, number]> = []
@@ -180,7 +206,7 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     const bodyIndex = source.indexOf('{', match.index + match[0].length - 1)
     if (bodyIndex === -1) continue
     const body = balancedGroup(source, bodyIndex)
-    if (!body.includes('defineWorkspaceOperation')) continue
+    if (!MINTS_AN_OPERATION.test(body) && !MINTING_NAME.test(match[1])) continue
     factoryRanges.push([bodyIndex, bodyIndex + body.length])
     const fixed = /capability\s*:\s*'([a-z0-9_.]+)'/.exec(body)?.[1]
     if (fixed) factoryCapabilities.set(match[1], fixed)
@@ -191,12 +217,27 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
   const insideFactory = (index: number) =>
     factoryRanges.some(([start, end]) => index >= start && index < end)
 
-  const directPattern = /defineWorkspaceOperation\s*\(/g
+  /**
+   * Ranges of calls already read. A domain wrapper such as
+   * `defineCredentialOperation(defineWorkspaceOperation({...}), 'admin')` matches
+   * twice over one operation; the outer match already carries the inner's `id`
+   * and `capability`, so the nested one is skipped rather than counted again.
+   */
+  const accepted: Array<[number, number]> = []
+
+  const directPattern = mintingCallPattern()
   for (let match = directPattern.exec(source); match; match = directPattern.exec(source)) {
-    const call = balancedGroup(source, source.indexOf('(', match.index))
+    const name = match[1]
+    if (/\bfunction\s+$/.test(source.slice(Math.max(0, match.index - 16), match.index))) continue
+    if (factoryCapabilities.has(name)) continue
+    if (insideFactory(match.index)) continue
+    const openIndex = source.indexOf('(', match.index)
+    if (accepted.some(([start, end]) => openIndex > start && openIndex < end)) continue
+    const call = balancedGroup(source, openIndex)
+    accepted.push([openIndex, openIndex + call.length])
     const id = /id\s*:\s*'([^']+)'/.exec(call)?.[1]
     if (!id) {
-      if (!insideFactory(match.index)) unreadable.push(lineAt(match.index))
+      unreadable.push(lineAt(match.index))
       continue
     }
     declarations.push({
@@ -212,6 +253,7 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
         ? new RegExp(`\\b${factory}\\s*\\(\\s*'([^']+)'\\s*,\\s*'([a-z0-9_.]+)'`, 'g')
         : new RegExp(`\\b${factory}\\s*\\(\\s*'([^']+)'`, 'g')
     for (let match = callPattern.exec(source); match; match = callPattern.exec(source)) {
+      if (insideFactory(match.index)) continue
       declarations.push({
         id: match[1],
         line: lineAt(match.index),
@@ -221,6 +263,121 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
   }
 
   return { declarations, unreadable }
+}
+
+export interface OperationRegistryMember {
+  registry: string
+  member: string
+  startLine: number
+  endLine: number
+}
+
+/** Index just past the string literal that starts at `openIndex`. */
+function skipStringLiteral(body: string, openIndex: number): number {
+  const quote = body[openIndex]
+  for (let index = openIndex + 1; index < body.length; index++) {
+    if (body[index] === '\\') {
+      index++
+      continue
+    }
+    if (body[index] === quote) return index + 1
+  }
+  return body.length
+}
+
+/** The keyed members of an object literal, at its own top level only. */
+function topLevelMembers(body: string): Array<{ key: string; start: number; end: number }> {
+  const members: Array<{ key: string; start: number; end: number }> = []
+  let depth = 0
+  let index = 0
+  let pending: { key: string; start: number } | null = null
+  const flush = (end: number) => {
+    if (pending) members.push({ ...pending, end })
+    pending = null
+  }
+
+  while (index < body.length) {
+    const char = body[index]
+    if (char === '/' && body[index + 1] === '/') {
+      const newline = body.indexOf('\n', index)
+      index = newline === -1 ? body.length : newline + 1
+      continue
+    }
+    if (char === '/' && body[index + 1] === '*') {
+      const close = body.indexOf('*/', index)
+      index = close === -1 ? body.length : close + 2
+      continue
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      index = skipStringLiteral(body, index)
+      continue
+    }
+    if (char === '{' || char === '(' || char === '[') {
+      depth++
+      index++
+      continue
+    }
+    if (char === '}' || char === ')' || char === ']') {
+      depth--
+      if (depth === 0) flush(index)
+      index++
+      continue
+    }
+    if (depth === 1) {
+      if (char === ',') {
+        flush(index)
+        index++
+        continue
+      }
+      if (!pending && /[\s{,]/.test(body[index - 1] ?? '{')) {
+        const key = /^([A-Za-z0-9_$]+)\s*:/.exec(body.slice(index))
+        if (key) {
+          pending = { key: key[1], start: index }
+          index += key[0].length
+          continue
+        }
+      }
+    }
+    index++
+  }
+  flush(body.length)
+  return members
+}
+
+/**
+ * The members of every exported `*Operations` registry, with the line span each
+ * one occupies.
+ *
+ * This is the completeness half of the audit, and it asks a different question
+ * from everything above: not *does this operation declare a capability*, but
+ * *did this audit read this operation at all*. Assertion A can only speak about
+ * operations the parsers found; a member minted by a form they do not follow
+ * yields nothing, and nothing is indistinguishable from a clean file. Comparing
+ * the registry a surface actually imports against what was parsed is what turns
+ * that silence into a failure — an undercount reads exactly like success, which
+ * is how five OAuth-connection operations shipped ungated.
+ */
+export function parseOperationRegistryMembers(source: string): OperationRegistryMember[] {
+  const members: OperationRegistryMember[] = []
+  const lineAt = (index: number) => source.slice(0, index).split('\n').length
+  OPERATION_REGISTRY.lastIndex = 0
+  for (
+    let match = OPERATION_REGISTRY.exec(source);
+    match;
+    match = OPERATION_REGISTRY.exec(source)
+  ) {
+    const openIndex = source.indexOf('{', match.index + match[0].length - 1)
+    const body = balancedGroup(source, openIndex)
+    for (const member of topLevelMembers(body)) {
+      members.push({
+        registry: match[1],
+        member: member.key,
+        startLine: lineAt(openIndex + member.start),
+        endLine: lineAt(openIndex + member.end),
+      })
+    }
+  }
+  return members
 }
 
 /** Capabilities declared enforced at a call site the funnel cannot reach. */
@@ -297,7 +454,7 @@ function main(): void {
       }
     }
 
-    if (!source.includes('defineWorkspaceOperation(')) continue
+    if (!MINTS_AN_OPERATION.test(source) && !DECLARES_A_REGISTRY.test(source)) continue
 
     const { declarations, unreadable } = parseOperationCapabilities(source)
 
@@ -306,7 +463,7 @@ function main(): void {
         file: relativePath,
         line,
         message:
-          'defineWorkspaceOperation call this audit cannot read an id from — a const-reference id, or a wrapper written as an arrow const rather than a `function`. Teach parseOperationCapabilities the form rather than letting the operation drop out of the count in silence',
+          'operation-minting call this audit cannot read an id from — a const-reference id, an id taken as a bare argument by a builder that mints the operation itself, or a wrapper written as an arrow const rather than a `function`. Teach parseOperationCapabilities the form rather than letting the operation drop out of the count in silence',
       })
     }
 
@@ -315,11 +472,29 @@ function main(): void {
      * longer understand it. Per-file rather than a count floor: a floor rots on
      * every legitimate addition and invites bumping the number.
      */
-    if (declarations.length === 0 && unreadable.length === 0) {
+    if (MINTS_AN_OPERATION.test(source) && declarations.length === 0 && unreadable.length === 0) {
       findings.push({
         file: relativePath,
         message:
-          'calls defineWorkspaceOperation but this audit parsed no operation from it — the declaration form changed and every operation in this file is now unchecked',
+          'mints an operation but this audit parsed none from it — the declaration form changed and every operation in this file is now unchecked',
+      })
+    }
+
+    /**
+     * Assertion F: every member of an exported registry was read.
+     *
+     * Everything above can only speak about what the parsers found. This asks
+     * whether they found each thing a surface can actually import, which is the
+     * only question whose answer distinguishes a clean file from one the
+     * parsers walked straight past.
+     */
+    const readLines = [...declarations.map((declaration) => declaration.line), ...unreadable]
+    for (const member of parseOperationRegistryMembers(source)) {
+      if (readLines.some((line) => line >= member.startLine && line <= member.endLine)) continue
+      findings.push({
+        file: relativePath,
+        line: member.startLine,
+        message: `'${member.registry}.${member.member}' is exported as an operation but this audit read no operation from it — it is minted by a form the parsers do not follow, so nothing here checks what capability it declares. Name the builder \`define<Domain>Operation\` and pass it an object literal with a string \`id\` and \`capability\`, or teach parseOperationCapabilities the form; do not leave the member counted as reviewed while unread`,
       })
     }
 

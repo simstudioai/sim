@@ -1,4 +1,5 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import type { ApplicationOperation } from '@/lib/core/application'
+import { assertOperationCapability, defineWorkspaceOperation } from '@/lib/core/application'
 
 const ALL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
@@ -449,12 +450,32 @@ export const knowledgeOperations = {
   }),
 } as const
 
+/**
+ * The session-scoped entry points, which resolve a knowledge base first and then
+ * hand authorization to the workspace-scoped `knowledgeOperations` sibling that
+ * matches. The capability rides on that sibling, so each of these declares
+ * `'none'` — but declares it, rather than being minted from a bare object
+ * literal as they were, which is the form that kept them out of
+ * `check:permission-group-enforcement` entirely.
+ */
+function defineKnowledgeSessionOperation<const Id extends string>(
+  operation: ApplicationOperation<Id>
+): ApplicationOperation<Id> {
+  assertOperationCapability(operation)
+  return Object.freeze(operation)
+}
+
 export const knowledgeSessionOperations = {
-  list: Object.freeze({ id: 'knowledge.session.list' as const }),
-  read: Object.freeze({ id: 'knowledge.session.read' as const }),
-  update: Object.freeze({ id: 'knowledge.session.update' as const }),
-  delete: Object.freeze({ id: 'knowledge.session.delete' as const }),
-  restore: Object.freeze({ id: 'knowledge.session.restore' as const }),
+  // permission-group-exempt: delegates to knowledgeOperations.list, which carries knowledge.use
+  list: defineKnowledgeSessionOperation({ id: 'knowledge.session.list', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.read, which carries knowledge.use
+  read: defineKnowledgeSessionOperation({ id: 'knowledge.session.read', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.update, which carries knowledge.use
+  update: defineKnowledgeSessionOperation({ id: 'knowledge.session.update', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.delete, which carries knowledge.use
+  delete: defineKnowledgeSessionOperation({ id: 'knowledge.session.delete', capability: 'none' }),
+  // permission-group-exempt: delegates to knowledgeOperations.restore, which carries knowledge.use
+  restore: defineKnowledgeSessionOperation({ id: 'knowledge.session.restore', capability: 'none' }),
 } as const
 
 export type KnowledgeOperation = (typeof knowledgeOperations)[keyof typeof knowledgeOperations]
