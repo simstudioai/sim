@@ -9,6 +9,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
@@ -22,7 +23,7 @@ import {
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { orchestrationErrorResponse } from '@/app/api/table/utils'
+import { capabilityRefusalResponse, orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportAsync')
 
@@ -45,6 +46,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission !== 'write' && permission !== 'admin') {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  // permission-group-enforced: tables.use — raw route that queries directly and predates the operation boundary
+  if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'tables.use')) {
+    return capabilityRefusalResponse('tables.use')
   }
   // The fileKey is client-supplied — ensure it points at this workspace's storage prefix so a
   // caller can't import another workspace's uploaded object.
