@@ -305,7 +305,9 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
          * product — the Tables module, the Files module — while a run reaches
          * those same resources because a block in the graph does, and what a run
          * may do is governed separately by `assertPermissionsAllowed`, which
-         * gates every block, tool and model against the same group.
+         * gates every block, tool and model against the group of whoever the run
+         * resolved as its actor — for a manually triggered run, the triggering
+         * member.
          *
          * Applying capabilities here would mean an admin ticking "hide Tables
          * from the sidebar" silently broke every workflow with a Table block for
@@ -327,8 +329,22 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
         throw new DelegatedWorkspaceAuthorizationError()
       }
       /**
-       * The same reasoning with no subject at all: a deployed workflow acts with
-       * the workspace's authority, not its author's permission group.
+       * The same reasoning with no subject at all: a deployed workflow acts on
+       * the workspace's behalf rather than any one member's.
+       *
+       * Be careful what this does *not* say. The block, tool and model gate
+       * still runs, but for an actorless run — a schedule, a webhook, a
+       * workspace-key call — `useAuthenticatedUserAsActor` is false, so
+       * `preprocessing.ts` falls back to `resolveSystemBillingAttribution` and
+       * the actor becomes the workspace's billing owner. Those gates therefore
+       * resolve the *payer's* permission group, not the workspace's and not
+       * nobody's. That predates this change and is not a capability the funnel
+       * can reach, but it means a member denied a tool can still reach it by
+       * putting the workflow on a schedule, and a billing owner who happens to
+       * sit in a restrictive group narrows every unattended run in the
+       * workspace. Fixing it means deciding what a workspace itself is allowed
+       * to do, which is a policy question this exemption deliberately leaves
+       * open.
        */
       return
     }
