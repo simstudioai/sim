@@ -146,13 +146,17 @@ export function getMaxPageBytes(): number {
 /**
  * Maximum serialized size in bytes of a single row. Defaults to
  * `TABLE_LIMITS.MAX_ROW_SIZE_BYTES`; overridable via the
- * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time).
+ * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time), capped
+ * at the delete snapshot budget so every accepted row fits in one batch.
  */
 export function getMaxRowSizeBytes(): number {
-  return envNumber(env.TABLE_MAX_ROW_SIZE_BYTES, TABLE_LIMITS.MAX_ROW_SIZE_BYTES, {
-    min: 1,
-    integer: true,
-  })
+  return Math.min(
+    envNumber(env.TABLE_MAX_ROW_SIZE_BYTES, TABLE_LIMITS.MAX_ROW_SIZE_BYTES, {
+      min: 1,
+      integer: true,
+    }),
+    TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES
+  )
 }
 
 /**
