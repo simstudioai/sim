@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 
 export const v1CopilotChatBodySchema = z.object({
   message: z.string().min(1, 'message is required'),

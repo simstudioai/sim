@@ -34,7 +34,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(),
 }))
-vi.mock('@/lib/copilot/environment-context', () => ({
+vi.mock('@/lib/mothership/environment-context', () => ({
   prepareCopilotEnvironmentContext: mocks.prepareEnvironment,
 }))
 vi.mock('@/lib/guardrails/validate_hallucination', () => ({

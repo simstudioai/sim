@@ -12,7 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
-import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
+import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,

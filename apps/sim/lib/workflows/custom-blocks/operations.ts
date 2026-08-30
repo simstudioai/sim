@@ -51,7 +51,7 @@ async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | nu
 /**
  * Whether the workspace's organization may use custom blocks. Feeds the
  * `custom-blocks` entitlement in
- * `@/lib/copilot/entitlements` and matches the REST route gates.
+ * `@/lib/mothership/entitlements` and matches the REST route gates.
  */
 export async function isCustomBlocksEligible(workspaceId: string): Promise<boolean> {
   return (await eligibleOrgForWorkspace(workspaceId)) !== null

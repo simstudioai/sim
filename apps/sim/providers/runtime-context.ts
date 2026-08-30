@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
-import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
 import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,

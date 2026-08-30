@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { copilotChatGetContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { handleUnifiedChatPost } from '@/lib/copilot/chat/post'
+import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
 import { GET as getChat } from '@/app/api/copilot/chat/queries'
 
 export const maxDuration = 3600

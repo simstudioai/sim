@@ -26,9 +26,9 @@ import {
   WebCrawl,
   WebScrape,
   WebSearch,
-} from '@/lib/copilot/generated/tool-catalog-v1'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
+} from '@/lib/mothership/generated/tool-catalog-v1'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/tool-display'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'

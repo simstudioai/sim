@@ -23,15 +23,15 @@ import {
   restoreMothershipChatContract,
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
-} from '@/lib/copilot/request/session/file-preview-session-contract'
-import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
-import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
+} from '@/lib/mothership/request/session/file-preview-session-contract'
+import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
+import { type MothershipResource, MothershipResourceType } from '@/lib/mothership/resources/types'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {

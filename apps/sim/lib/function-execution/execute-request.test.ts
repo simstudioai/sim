@@ -86,7 +86,7 @@ vi.mock('@/lib/execution/remote-sandbox', () => ({
   SIM_RESULT_PREFIX: '__SIM_RESULT__=',
 }))
 
-vi.mock('@/lib/copilot/request/tools/files', () => ({
+vi.mock('@/lib/mothership/request/tools/files', () => ({
   FORMAT_TO_CONTENT_TYPE: {
     json: 'application/json',
     csv: 'text/csv',
@@ -126,7 +126,7 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
   }),
 }))
 
-vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
+vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   validateWorkspaceFileWriteTarget: mockValidateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))

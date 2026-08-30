@@ -9,7 +9,7 @@
  * nothing to say and is dropped.
  */
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { getBrowserSession } from '@/stores/browser-session/store'
 
 export interface ResourceAttachment {
