@@ -694,9 +694,10 @@ export class VariableResolver {
       return null
     }
 
-    // Reuse an existing marker for the same file so referencing one path twice
-    // mounts it once, rather than transferring a second copy under a
-    // collision-suffixed name and spending the mount budget twice.
+    // Reuse the marker already standing for this file so a path referenced twice
+    // costs one context variable rather than two. What keeps it to one mount is
+    // `planUserFileMounts`, which collapses by storage key across every source —
+    // this only keeps the duplicate out of the request body.
     const existing = Object.entries(contextVarAccumulator).find(
       ([, value]) => isSandboxFileMountRef(value) && value.file.key === file.key
     )

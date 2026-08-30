@@ -88,7 +88,7 @@ describe('planUserFileMounts', () => {
   it('cannot be escaped by a traversal in the file name', () => {
     const planned = planUserFileMounts([
       executionFile({ name: '../../etc/passwd' }),
-      executionFile({ id: 'file_2', name: '..' }),
+      executionFile({ id: 'file_2', key: 'execution/other', name: '..' }),
     ])
 
     for (const { mountPath } of planned) {
@@ -100,15 +100,33 @@ describe('planUserFileMounts', () => {
 
   it('suffixes colliding names so neither file is silently overwritten', () => {
     const planned = planUserFileMounts([
-      executionFile({ id: 'file_1', name: 'report.csv' }),
-      executionFile({ id: 'file_2', name: 'report.csv' }),
-      executionFile({ id: 'file_3', name: 'report.csv' }),
+      executionFile({ id: 'file_1', key: 'execution/a/report.csv', name: 'report.csv' }),
+      executionFile({ id: 'file_2', key: 'execution/b/report.csv', name: 'report.csv' }),
+      executionFile({ id: 'file_3', key: 'execution/c/report.csv', name: 'report.csv' }),
     ])
 
     expect(planned.map((entry) => entry.mountPath)).toEqual([
       '/tmp/sim/inputs/report.csv',
       '/tmp/sim/inputs/report-2.csv',
       '/tmp/sim/inputs/report-3.csv',
+    ])
+  })
+
+  it('mounts one storage key once however many sources named it', () => {
+    // A caller listing the same file twice, and a `<block.file.path>` marker for
+    // a file the caller also passed explicitly, both land in one list here. A
+    // second copy of identical bytes costs a presign and a duplicate transfer,
+    // and charges the byte budget and the 20-file ceiling twice over.
+    const planned = planUserFileMounts([
+      executionFile({ id: 'file_1', name: 'report.csv' }),
+      executionFile({ id: 'file_1_again', name: 'report.csv' }),
+      executionFile({ id: 'file_2', name: 'renamed.csv' }),
+      workspaceFile(),
+    ])
+
+    expect(planned.map((entry) => entry.mountPath)).toEqual([
+      '/tmp/sim/inputs/report.csv',
+      '/tmp/sim/inputs/brief.pdf',
     ])
   })
 })
@@ -193,14 +211,16 @@ describe('resolveUserFileMounts', () => {
 
     await expect(
       resolveUserFileMounts({
-        planned: planUserFileMounts([
-          executionFile({ id: 'a', name: 'a.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'b', name: 'b.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'c', name: 'c.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'd', name: 'd.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'e', name: 'e.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'f', name: 'f.bin', size: 9 * 1024 * 1024 }),
-        ]),
+        planned: planUserFileMounts(
+          ['a', 'b', 'c', 'd', 'e', 'f'].map((id) =>
+            executionFile({
+              id,
+              key: `execution/${WORKSPACE_ID}/${WORKFLOW_ID}/${EXECUTION_ID}/${id}/${id}.bin`,
+              name: `${id}.bin`,
+              size: 9 * 1024 * 1024,
+            })
+          )
+        ),
         context: executionContext,
       })
     ).rejects.toThrow(/total mount limit/)
