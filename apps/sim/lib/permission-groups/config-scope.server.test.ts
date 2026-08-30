@@ -10,7 +10,7 @@ const { mockGetUserPermissionConfig, mockResolveVerifiedContext } = vi.hoisted((
 
 vi.mock('react', () => ({ cache: <F>(fn: F) => fn }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
   resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
 }))

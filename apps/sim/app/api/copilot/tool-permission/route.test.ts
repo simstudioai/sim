@@ -51,7 +51,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isCopilotToolPermissionsEnabled: true,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig,
 }))
 

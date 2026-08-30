@@ -5,7 +5,7 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 
 /**
  * Re-exported so a caller that gates inline reaches the refusal sentence and the

@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   extractAndPersistCustomTools: vi.fn(),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 vi.mock('@/lib/workflows/orchestration', () => ({

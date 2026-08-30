@@ -19,7 +19,7 @@ const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner, mockGetPr
     mockGetProviderFromModel: vi.fn<(model: string) => string>(),
   }))
 
-vi.mock('@/lib/billing', () => ({
+vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))
 

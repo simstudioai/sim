@@ -1,13 +1,7 @@
-import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, sql } from 'drizzle-orm'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
-  isAccessControlEnabled,
-  isHosted,
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
@@ -21,16 +15,31 @@ import {
   type StaticCapabilityRule,
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import {
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  type PermissionGroupConfig,
-  parsePermissionGroupConfig,
-} from '@/lib/permission-groups/fields'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
-import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserPermissionConfig,
+  getUserPermissionConfigForOrganization,
+  mergeEnvAllowlist,
+} from '@/lib/permission-groups/resolve.server'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
+
+/**
+ * The permission-group resolution layer lives in `@/lib/permission-groups`
+ * because ~24 domain `operations.ts` modules reach it through the authorization
+ * funnel, and none of them may pull in this module's provider, block-registry
+ * and billing imports. Re-exported here so the surfaces that already read the
+ * validators from one place keep doing so.
+ */
+export {
+  getUserPermissionConfig,
+  getUserPermissionConfigForOrganization,
+  type ResolvedPermissionGroup,
+  resolveVerifiedUserAccessControlContext,
+  resolveWorkspaceGroup,
+  type UserAccessControlContext,
+} from '@/lib/permission-groups/resolve.server'
 
 const logger = createLogger('PermissionCheck')
 
@@ -104,238 +113,6 @@ export class PublicApiNotAllowedError extends Error {
 }
 
 /**
- * Merges the env allowlist into a permission config.
- *
- * Returns null only when neither layer restricts anything. Otherwise the group's
- * own allowlist is intersected with the env one by
- * {@link intersectIntegrationAllowlists}, which case-folds both sides — callers
- * compare against a lowercased block type, and a stored config reaches here
- * straight off the wire, where the contract permits any casing.
- */
-function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGroupConfig | null {
-  const envAllowlist = getAllowedIntegrationsFromEnv()
-  if (config === null && envAllowlist === null) return null
-
-  const base = config ?? DEFAULT_PERMISSION_GROUP_CONFIG
-  return {
-    ...base,
-    allowedIntegrations: intersectIntegrationAllowlists(base.allowedIntegrations, envAllowlist),
-  }
-}
-
-/**
- * The permission group that governs a user in a given context, with its parsed
- * config. Shared by the executor path and the `/api/permission-groups/user`
- * route so resolution never drifts between the two.
- */
-export interface ResolvedPermissionGroup {
-  permissionGroupId: string
-  groupName: string
-  resolution: 'explicit-member' | 'all-members' | 'default'
-  config: PermissionGroupConfig
-}
-
-export interface UserAccessControlContext {
-  organizationId: string | null
-  entitled: boolean
-  permissionGroup: {
-    id: string
-    name: string
-    resolution: ResolvedPermissionGroup['resolution']
-  } | null
-  config: PermissionGroupConfig | null
-}
-
-function inactiveUserAccessControlContext(organizationId: string | null): UserAccessControlContext {
-  return {
-    organizationId,
-    entitled: false,
-    permissionGroup: null,
-    config: mergeEnvAllowlist(null),
-  }
-}
-
-/** The organization's single default group (`isDefault`), or `null`. */
-async function resolveDefaultGroup(
-  organizationId: string
-): Promise<ResolvedPermissionGroup | null> {
-  const [defaultGroup] = await db
-    .select({
-      id: permissionGroup.id,
-      name: permissionGroup.name,
-      config: permissionGroup.config,
-    })
-    .from(permissionGroup)
-    .where(
-      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
-    )
-    .limit(1)
-
-  if (!defaultGroup) {
-    return null
-  }
-
-  return {
-    permissionGroupId: defaultGroup.id,
-    groupName: defaultGroup.name,
-    resolution: 'default',
-    config: parsePermissionGroupConfig(defaultGroup.config),
-  }
-}
-
-/**
- * Resolve the group governing `userId` in `workspaceId` (which belongs to
- * `organizationId`). One effective group per workspace, by precedence:
- *   1. a non-default group targeting this workspace that `userId` is an explicit
- *      member of, else
- *   2. a non-default group targeting this workspace that has no explicit members
- *      — governs all members of the workspace, including external members, else
- *   3. the organization's default group (also governs external members), else
- *   4. `null` (unrestricted).
- *
- * Assignment-time conflict checks keep this unambiguous: at most one all-members
- * group per workspace, and a user is an explicit member of at most one group per
- * workspace. If an overlap nonetheless exists, the oldest group wins — rows are
- * ordered by `created_at` (then `id`).
- *
- * Callers gate on enterprise entitlement before invoking this and merge the env
- * allowlist afterwards.
- */
-export async function resolveWorkspaceGroup(
-  userId: string,
-  organizationId: string,
-  workspaceId: string
-): Promise<ResolvedPermissionGroup | null> {
-  const rows = await db
-    .select({
-      id: permissionGroup.id,
-      name: permissionGroup.name,
-      config: permissionGroup.config,
-      isMember: sql<boolean>`exists (
-        select 1 from ${permissionGroupMember}
-        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
-          and ${permissionGroupMember.userId} = ${userId}
-      )`,
-      hasMembers: sql<boolean>`exists (
-        select 1 from ${permissionGroupMember}
-        where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
-      )`,
-    })
-    .from(permissionGroup)
-    .innerJoin(
-      permissionGroupWorkspace,
-      and(
-        eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id),
-        eq(permissionGroupWorkspace.workspaceId, workspaceId)
-      )
-    )
-    .where(
-      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, false))
-    )
-    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
-
-  const explicitMemberGroup = rows.find((row) => row.isMember)
-  const winner = explicitMemberGroup ?? rows.find((row) => !row.hasMembers)
-
-  if (winner) {
-    return {
-      permissionGroupId: winner.id,
-      groupName: winner.name,
-      resolution: explicitMemberGroup ? 'explicit-member' : 'all-members',
-      config: parsePermissionGroupConfig(winner.config),
-    }
-  }
-
-  return resolveDefaultGroup(organizationId)
-}
-
-/**
- * Resolve the effective permission-group config for a user in the context of a
- * specific workspace. The workspace is mapped to its organization and the
- * governing group is resolved with specific-over-all precedence.
- *
- * Returns `null` (after env merge) when the workspace has no organization, the
- * organization isn't on an enterprise plan, or no group governs the user.
- *
- * The env-level integration allowlist is always merged last so self-hosted
- * deployments can constrain integrations without touching the DB.
- */
-async function resolveUserAccessControlContextForOrganization(
-  userId: string,
-  workspaceId: string,
-  organizationId: string | null
-): Promise<UserAccessControlContext> {
-  if (!organizationId) return inactiveUserAccessControlContext(null)
-
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
-  if (!isEnterprise) {
-    return inactiveUserAccessControlContext(organizationId)
-  }
-
-  const resolved = await resolveWorkspaceGroup(userId, organizationId, workspaceId)
-  return {
-    organizationId,
-    entitled: true,
-    permissionGroup: resolved
-      ? {
-          id: resolved.permissionGroupId,
-          name: resolved.groupName,
-          resolution: resolved.resolution,
-        }
-      : null,
-    config: mergeEnvAllowlist(resolved?.config ?? null),
-  }
-}
-
-/**
- * Resolves Access Control from an organization ID obtained from an already
- * access-checked workspace. This function does not independently authorize the
- * user for the workspace; callers must establish that boundary first.
- */
-export async function resolveVerifiedUserAccessControlContext(
-  userId: string,
-  workspaceId: string,
-  organizationId: string | null
-): Promise<UserAccessControlContext> {
-  if (!isHosted && !isAccessControlEnabled) {
-    return inactiveUserAccessControlContext(null)
-  }
-  return resolveUserAccessControlContextForOrganization(userId, workspaceId, organizationId)
-}
-
-/**
- * The unverified counterpart of {@link resolveVerifiedUserAccessControlContext}:
- * it loads the workspace itself to learn the owning organization.
- *
- * Module-private on purpose — every caller outside this file has already
- * access-checked the workspace and so holds the organization id, and exporting a
- * resolver that looks it up again invites a second query on a path that does not
- * need one. {@link getUserPermissionConfig} is the one caller.
- */
-async function resolveUserAccessControlContext(
-  userId: string,
-  workspaceId: string
-): Promise<UserAccessControlContext> {
-  if (!isHosted && !isAccessControlEnabled) {
-    return inactiveUserAccessControlContext(null)
-  }
-
-  const workspace = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
-  return resolveUserAccessControlContextForOrganization(
-    userId,
-    workspaceId,
-    workspace?.organizationId ?? null
-  )
-}
-
-export async function getUserPermissionConfig(
-  userId: string,
-  workspaceId: string
-): Promise<PermissionGroupConfig | null> {
-  return (await resolveUserAccessControlContext(userId, workspaceId)).config
-}
-
-/**
  * Refuses a public file share the caller's permission group withholds — the
  * master switch, and then — when `authType` is given — the auth mode the share
  * would carry. No-op when access control doesn't apply (non-enterprise /
@@ -396,29 +173,6 @@ export async function validateChatDeployAuth(
     })
     refuseCapability('deploy.chat.auth_mode')
   }
-}
-
-/**
- * Org-addressed variant of {@link getUserPermissionConfig}. Use when only the
- * organization is known (e.g. organization-level invitations). Non-default
- * groups target specific workspaces and never gate organization-level actions,
- * so this resolves the organization's default group — which governs everyone not
- * covered by a workspace group.
- */
-export async function getUserPermissionConfigForOrganization(
-  organizationId: string
-): Promise<PermissionGroupConfig | null> {
-  if (!isHosted && !isAccessControlEnabled) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
-  if (!isEnterprise) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const resolved = await resolveDefaultGroup(organizationId)
-  return mergeEnvAllowlist(resolved?.config ?? null)
 }
 
 /**
