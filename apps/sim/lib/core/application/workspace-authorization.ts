@@ -258,12 +258,27 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
        * The column is the coarse switch every workspace has; the group key
        * narrows it further for one cohort inside an enterprise organization.
        * Either one saying no is a no.
+       *
+       * The column is checked before the role, deliberately: it is a property of
+       * the workspace rather than of any group, it needs no query, and refusing
+       * a key the workspace has switched off is the answer whatever the caller's
+       * role turns out to be. The group key is not — it runs AFTER the role
+       * check, for the reason {@link requireCurrentHumanRole} gives: it answers
+       * with a `403` naming how an organization configured one cohort, and
+       * running it ahead of the concealed {@link NoWorkspaceAccessError} would
+       * hand that to a caller with no reach into the workspace at all.
+       *
+       * `requireCurrentHumanAccess` is unrolled below so the group's
+       * personal-key refusal sits between the role check and the operation's own
+       * capability: the remedies differ, and the narrower one is worth naming
+       * first.
        */
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
       await requirePersonalApiKeysAllowed(principal.userId, context)
-      await requireCurrentHumanAccess(principal.userId, context, operation, options)
+      await requireCapability(principal.userId, context, operation)
       return
     /**
      * A workspace API key authorizes as the workspace, so there is no user and

@@ -1,4 +1,5 @@
 import { withheldExecutionData, withheldSpendData } from '@/lib/logs/fetch-log-detail'
+import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
@@ -76,4 +77,59 @@ export function projectCostTotal(
 ): { total: number } | null {
   if (projection.hideCostInfo || costTotal == null) return null
   return { total: Number(costTotal) }
+}
+
+/**
+ * The spend-selecting halves of a log query, in the spellings the surfaces use.
+ *
+ * The first-party list spells its filter as an operator plus a value; the public
+ * adapters spell theirs as a `minCost`/`maxCost` pair. Both are read here so the
+ * rule lives once — a second copy is how one of them stops refusing.
+ */
+export interface LogCostQuerySurface {
+  sortBy?: string | null
+  costOperator?: string | null
+  costValue?: number | null
+  minCost?: number | null
+  maxCost?: number | null
+}
+
+/** Whether the query orders or selects rows by run spend. */
+export function logQuerySelectsCost(query: LogCostQuerySurface): boolean {
+  if (query.sortBy === 'cost') return true
+  if (query.costOperator && query.costValue != null) return true
+  return query.minCost != null || query.maxCost != null
+}
+
+/**
+ * Refuses a cost-ordered or cost-filtered query from a viewer whose group
+ * withholds spend.
+ *
+ * Withholding the *field* is not enough on its own: `cost > X` answered
+ * faithfully is an oracle, and a caller who can repeat it recovers every run's
+ * cost by bisection — with `includeTotal` they do not even have to read the
+ * rows. Ordering leaks the same thing more slowly, as a ranking.
+ *
+ * Refused rather than silently ignored. Dropping the clause would answer a
+ * question nobody asked — a list of every run under a `cost > 5` chip, in an
+ * order the caller did not request — and a wrong answer presented as the right
+ * one is worse than a refusal. The refusal discloses nothing new either: the
+ * workspace role check has already passed by the time this runs, so the caller
+ * is a member being told about their own group, not an outsider being handed an
+ * organization-configuration oracle.
+ *
+ * `logs.trace_spans` needs no counterpart. Nothing the trace projection
+ * withholds — `traceSpans`, `blockExecutions`, `finalOutput`, `workflowInput`,
+ * `blockInput` — is filterable or sortable on any log surface: `search` matches
+ * the execution id alone, and every sort key is a scalar column.
+ *
+ * permission-group-enforced: logs.cost
+ */
+export function assertLogCostQueryAllowed(
+  query: LogCostQuerySurface,
+  projection: Pick<LogFieldProjection, 'hideCostInfo'>
+): void {
+  if (!projection.hideCostInfo) return
+  if (!logQuerySelectsCost(query)) return
+  refuseCapability('logs.cost')
 }

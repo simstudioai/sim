@@ -46,6 +46,7 @@ vi.mock('@/lib/core/utils/concurrency', () => ({
   mapWithConcurrency: mockMapWithConcurrency,
 }))
 
+import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
 import { GET } from '@/app/api/logs/export/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -267,6 +268,71 @@ describe('GET /api/logs/export', () => {
     expect(lines[1].split(',')[5]).toBe('')
     expect(lines[1]).toContain('span-1')
     expect(lines[1]).not.toContain('0.01')
+  })
+
+  /**
+   * One download carries every execution payload the workspace ever recorded,
+   * which is why the export is withheld separately from reading a single log.
+   */
+  it('refuses the download when the group withholds log export', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ disableLogExport: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: capabilityRefusal('logs.export'),
+    })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it('exports normally when no group withholds log export', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('execution-0')
+  })
+
+  /**
+   * Blanking the column while still answering `costOperator`/`costValue`
+   * faithfully leaves the CSV itself a bisection oracle over the figures it
+   * just withheld — one download per probe, the row count as the answer.
+   */
+  it('refuses a cost-filtered export when the group withholds spend', async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/logs/export?workspaceId=workspace-1&costOperator=%3E&costValue=0.5'
+      )
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: capabilityRefusal('logs.cost') })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it('answers the same cost-filtered export when no group withholds spend', async () => {
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/logs/export?workspaceId=workspace-1&costOperator=%3E&costValue=0.5'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('execution-0')
   })
 
   it('keeps the cost column when no group withholds it', async () => {
