@@ -3,7 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type BulkAddPermissionGroupMembersBody,
   bulkAddPermissionGroupMembersContract,
+  type CreatePermissionGroupBody,
   createPermissionGroupContract,
   deletePermissionGroupContract,
   getUserPermissionConfigContract,
@@ -13,11 +15,12 @@ import {
   type PermissionGroup,
   type PermissionGroupMember,
   type PermissionGroupWorkspaceRef,
+  type RemovePermissionGroupMemberQuery,
   removePermissionGroupMemberContract,
+  type UpdatePermissionGroupBody,
   type UserPermissionConfig,
   updatePermissionGroupContract,
 } from '@/lib/api/contracts'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 
 export const PERMISSION_GROUP_MEMBERS_STALE_TIME = 30 * 1000
 export const PERMISSION_GROUPS_STALE_TIME = 60 * 1000
@@ -108,20 +111,14 @@ export function useUserPermissionConfig(workspaceId?: string) {
   })
 }
 
-interface CreatePermissionGroupData {
-  organizationId: string
-  name: string
-  description?: string
-  config?: Partial<PermissionGroupConfig>
-  isDefault?: boolean
-  workspaceIds?: string[]
-}
+/** The create body, plus the organization the route params name. */
+type CreatePermissionGroupVariables = CreatePermissionGroupBody & { organizationId: string }
 
 export function useCreatePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ organizationId, ...data }: CreatePermissionGroupData) => {
+    mutationFn: async ({ organizationId, ...data }: CreatePermissionGroupVariables) => {
       return requestJson(createPermissionGroupContract, {
         params: { id: organizationId },
         body: data,
@@ -135,21 +132,17 @@ export function useCreatePermissionGroup() {
   })
 }
 
-interface UpdatePermissionGroupData {
+/** The update body, plus the group and organization the route params name. */
+type UpdatePermissionGroupVariables = UpdatePermissionGroupBody & {
   id: string
   organizationId: string
-  name?: string
-  description?: string | null
-  config?: Partial<PermissionGroupConfig>
-  isDefault?: boolean
-  workspaceIds?: string[]
 }
 
 export function useUpdatePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, organizationId, ...data }: UpdatePermissionGroupData) => {
+    mutationFn: async ({ id, organizationId, ...data }: UpdatePermissionGroupVariables) => {
       return requestJson(updatePermissionGroupContract, {
         params: { id: organizationId, groupId: id },
         body: data,
@@ -164,7 +157,8 @@ export function useUpdatePermissionGroup() {
   })
 }
 
-interface DeletePermissionGroupParams {
+/** Route params only — the delete carries no wire payload of its own. */
+interface DeletePermissionGroupVariables {
   permissionGroupId: string
   organizationId: string
 }
@@ -173,7 +167,7 @@ export function useDeletePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ permissionGroupId, organizationId }: DeletePermissionGroupParams) => {
+    mutationFn: async ({ permissionGroupId, organizationId }: DeletePermissionGroupVariables) => {
       return requestJson(deletePermissionGroupContract, {
         params: { id: organizationId, groupId: permissionGroupId },
       })
@@ -184,15 +178,17 @@ export function useDeletePermissionGroup() {
   })
 }
 
+/** The remove query (`memberId`), plus the group and organization it targets. */
+type RemovePermissionGroupMemberVariables = RemovePermissionGroupMemberQuery & {
+  organizationId: string
+  permissionGroupId: string
+}
+
 export function useRemovePermissionGroupMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: {
-      organizationId: string
-      permissionGroupId: string
-      memberId: string
-    }) => {
+    mutationFn: async (data: RemovePermissionGroupMemberVariables) => {
       return requestJson(removePermissionGroupMemberContract, {
         params: { id: data.organizationId, groupId: data.permissionGroupId },
         query: { memberId: data.memberId },
@@ -204,18 +200,21 @@ export function useRemovePermissionGroupMember() {
   })
 }
 
-interface BulkAddMembersData {
+/** The bulk-add body, plus the group and organization the route params name. */
+type BulkAddPermissionGroupMembersVariables = BulkAddPermissionGroupMembersBody & {
   organizationId: string
   permissionGroupId: string
-  userIds?: string[]
-  addAllOrganizationMembers?: boolean
 }
 
 export function useBulkAddPermissionGroupMembers() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ organizationId, permissionGroupId, ...data }: BulkAddMembersData) => {
+    mutationFn: async ({
+      organizationId,
+      permissionGroupId,
+      ...data
+    }: BulkAddPermissionGroupMembersVariables) => {
       return requestJson(bulkAddPermissionGroupMembersContract, {
         params: { id: organizationId, groupId: permissionGroupId },
         body: data,
