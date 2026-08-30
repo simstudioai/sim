@@ -7,7 +7,7 @@ import {
   type BrowserPanelSnapshot,
   isBrowserDataKind,
   isBrowserTheme,
-  isBrowserToolName,
+  isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
@@ -94,6 +94,7 @@ const logger = createLogger('DesktopIpc')
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const TERMINAL_WRITE_CHUNK_CHARACTERS = 64 * 1024
+const DESKTOP_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
 
 function writeTerminalText(
   terminal: TerminalRegistry,
@@ -503,6 +504,7 @@ async function fetchDesktopToolAuthorization(
   if (typeof toolCallId !== 'string' || toolCallId.length < 1 || toolCallId.length > 256) {
     return null
   }
+  const startedAt = Date.now()
   try {
     const response = await event.sender.session.fetch(
       `${deps.appOrigin()}/api/desktop/tool/authorize`,
@@ -511,9 +513,17 @@ async function fetchDesktopToolAuthorization(
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolCallId }),
+        signal: AbortSignal.timeout(DESKTOP_TOOL_AUTHORIZATION_TIMEOUT_MS),
       }
     )
-    if (!response.ok) return null
+    if (!response.ok) {
+      logger.warn('Desktop tool authorization was rejected', {
+        toolCallId,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+      })
+      return null
+    }
     const authorization = (await response.json()) as {
       chatId?: unknown
       toolName?: unknown
@@ -527,6 +537,10 @@ async function fetchDesktopToolAuthorization(
       authorization.args === null ||
       Array.isArray(authorization.args)
     ) {
+      logger.warn('Desktop tool authorization returned a malformed response', {
+        toolCallId,
+        durationMs: Date.now() - startedAt,
+      })
       return null
     }
     return {
@@ -534,7 +548,12 @@ async function fetchDesktopToolAuthorization(
       toolName: authorization.toolName,
       args: authorization.args as Record<string, unknown>,
     }
-  } catch {
+  } catch (error) {
+    logger.warn('Desktop tool authorization failed', {
+      toolCallId,
+      durationMs: Date.now() - startedAt,
+      error: getErrorMessage(error),
+    })
     return null
   }
 }
@@ -825,7 +844,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           typeof scope !== 'string' ||
           typeof toolCallId !== 'string' ||
           typeof tool !== 'string' ||
-          !isBrowserToolName(tool)
+          !isCurrentBrowserToolName(tool)
         ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
@@ -1893,7 +1912,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             authorization.chatId !== requestedScope ||
             typeof requestedTool !== 'string' ||
             authorization.toolName !== requestedTool ||
-            !isBrowserToolName(authorization.toolName)
+            !isCurrentBrowserToolName(authorization.toolName)
           ) {
             return {
               ok: false,

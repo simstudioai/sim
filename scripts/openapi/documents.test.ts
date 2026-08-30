@@ -358,37 +358,27 @@ describe('generated OpenAPI documents', () => {
     }
   })
 
-  it('places audit logs at the bottom of every localized API reference sidebar', () => {
-    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
-      const metaPath = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference/meta.json`
-      )
-      const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as { pages: string[] }
-      expect(meta.pages.at(-1)).toBe('(generated)/audit-logs')
-    }
+  it('places audit logs at the bottom of the API reference sidebar', () => {
+    const metaPath = path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference/meta.json')
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as { pages: string[] }
+    expect(meta.pages.at(-1)).toBe('(generated)/audit-logs')
   })
 
-  it('keeps localized execution guides on the v2 request and run-status wire shape', () => {
-    for (const locale of ['de', 'es', 'fr', 'ja', 'zh']) {
-      const guideRoot = path.resolve(
-        process.cwd(),
-        `apps/docs/content/docs/${locale}/api-reference`
-      )
-      const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
-      const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
-      const guides = `${authentication}\n${gettingStarted}`
+  it('keeps the execution guides on the v2 request and run-status wire shape', () => {
+    const guideRoot = path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference')
+    const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
+    const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
+    const guides = `${authentication}\n${gettingStarted}`
 
-      expect(guides).not.toContain('"inputs"')
-      expect(guides).not.toContain('{ inputs:')
-      expect(guides).not.toContain('/api/jobs/')
-      expect(gettingStarted).not.toContain('jobId')
-      expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
-      expect(gettingStarted).toContain(
-        '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
-      )
-      expect(gettingStarted).toContain('"runId"')
-    }
+    expect(guides).not.toContain('"inputs"')
+    expect(guides).not.toContain('{ inputs:')
+    expect(guides).not.toContain('/api/jobs/')
+    expect(gettingStarted).not.toContain('jobId')
+    expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
+    expect(gettingStarted).toContain(
+      '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
+    )
+    expect(gettingStarted).toContain('"runId"')
   })
 
   it('serializes all documents deterministically', () => {
@@ -531,8 +521,8 @@ describe('run retention is published on both run reads', () => {
 })
 
 /**
- * Every published tag needs a sidebar entry in every locale, or its operations
- * are unbrowsable.
+ * Every published tag needs a sidebar entry, or its operations are
+ * unbrowsable.
  *
  * The specs and the reference nav are generated from different places, so a new
  * tag group ships complete — paths, schemas, examples — and simply never
@@ -540,7 +530,7 @@ describe('run retention is published on both run reads', () => {
  * were published and unreachable, and nothing failed.
  */
 describe('api-reference navigation coverage', () => {
-  it('lists every published tag group in every localized sidebar', () => {
+  it('lists every published tag group in the sidebar', () => {
     const tags = new Set<string>()
     for (const output of EXPECTED_OPERATION_COUNTS.keys()) {
       const spec = JSON.parse(readFileSync(path.resolve(process.cwd(), output), 'utf8')) as {
@@ -550,18 +540,15 @@ describe('api-reference navigation coverage', () => {
     }
     expect(tags.size).toBeGreaterThan(0)
 
-    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'zh']) {
-      const meta = JSON.parse(
-        readFileSync(
-          path.resolve(process.cwd(), `apps/docs/content/docs/${locale}/api-reference/meta.json`),
-          'utf8'
-        )
-      ) as { pages: string[] }
-      const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
-      const missing = [...tags]
-        .filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
-        .sort()
-      expect(missing, `${locale} sidebar is missing a published tag group`).toEqual([])
-    }
+    const meta = JSON.parse(
+      readFileSync(
+        path.resolve(process.cwd(), 'apps/docs/content/docs/api-reference/meta.json'),
+        'utf8'
+      )
+    ) as { pages: string[] }
+    const slugs = new Set(meta.pages.map((page) => page.split('/').at(-1)))
+    const missing = [...tags].filter((tag) => !slugs.has(tag.toLowerCase().replaceAll(' ', '-')))
+    missing.sort()
+    expect(missing, 'sidebar is missing a published tag group').toEqual([])
   })
 })

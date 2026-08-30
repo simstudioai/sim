@@ -12,6 +12,11 @@ export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
   'always_allow',
 ] as const satisfies readonly CopilotToolPermissionDecision[]
 
+export const DESKTOP_TOOL_CLAIM_OWNER = {
+  browser: 'desktop-browser',
+  terminal: 'desktop-terminal',
+} as const
+
 export type AsyncLifecycleStatus =
   | typeof ASYNC_TOOL_STATUS.pending
   | typeof ASYNC_TOOL_STATUS.running

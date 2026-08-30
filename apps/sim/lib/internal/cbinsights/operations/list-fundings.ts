@@ -6,6 +6,7 @@ import {
   clampLimit,
   compactBody,
   pageInfo,
+  parseOptionalStringParam,
   requireOrgIds,
 } from '@/tools/cbinsights/utils'
 
@@ -24,7 +25,7 @@ export const executeCbinsightsListFundingsOperation: InternalToolOperationImplem
       body: compactBody({
         orgIds: requireOrgIds(params.orgIds),
         limit: clampLimit(params.limit),
-        nextPageToken: params.nextPageToken?.trim(),
+        nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
       }),
     },
     (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),

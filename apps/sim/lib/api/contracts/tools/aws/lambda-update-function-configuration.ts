@@ -20,7 +20,7 @@ const UpdateFunctionConfigurationSchema = z
     role: z.string().optional(),
     runtime: z.string().optional(),
     handler: z.string().optional(),
-    description: z.string().optional(),
+    description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
     functionTimeout: z.number().int().min(1).max(900).optional(),
     memorySize: z.number().int().min(128).max(32768).optional(),
     ephemeralStorageSize: z.number().int().min(512).max(10240).optional(),
@@ -37,14 +37,25 @@ const UpdateFunctionConfigurationSchema = z
     revisionId: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    const hasSubnets = value.vpcSubnetIds !== undefined
-    const hasSecurityGroups = value.vpcSecurityGroupIds !== undefined
-    if (hasSubnets !== hasSecurityGroups) {
+    const subnetIds = value.vpcSubnetIds
+    const securityGroupIds = value.vpcSecurityGroupIds
+    if ((subnetIds === undefined) !== (securityGroupIds === undefined)) {
       ctx.addIssue({
         code: 'custom',
-        path: [hasSubnets ? 'vpcSecurityGroupIds' : 'vpcSubnetIds'],
+        path: [subnetIds === undefined ? 'vpcSubnetIds' : 'vpcSecurityGroupIds'],
         message:
           'vpcSubnetIds and vpcSecurityGroupIds must be supplied together: send both lists to attach a VPC, or both empty to detach',
+      })
+    } else if (
+      subnetIds !== undefined &&
+      securityGroupIds !== undefined &&
+      (subnetIds.length === 0) !== (securityGroupIds.length === 0)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [subnetIds.length === 0 ? 'vpcSubnetIds' : 'vpcSecurityGroupIds'],
+        message:
+          'vpcSubnetIds and vpcSecurityGroupIds must both be empty to detach, or both be populated to attach',
       })
     }
   })

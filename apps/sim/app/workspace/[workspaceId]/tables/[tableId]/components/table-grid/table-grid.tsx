@@ -172,6 +172,7 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
   /** Broadcast the local viewer's cell selection to the table presence room. */
@@ -434,6 +435,7 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  tableRowTtlEnabled,
   remoteSelections,
   emitCellSelection,
   locks,
@@ -4864,6 +4866,8 @@ export function TableGrid({
                       })}
                       {userPermissions.canEdit && (
                         <ColumnDropdown
+                          columns={columns}
+                          tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
@@ -4913,6 +4917,7 @@ export function TableGrid({
                                 row={row}
                                 columns={displayColumns}
                                 workspaceId={workspaceId}
+                                timeZone={timeZone}
                                 rowIndex={index}
                                 isFirstRow={index === 0}
                                 editingColumnName={

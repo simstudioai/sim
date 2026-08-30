@@ -19,6 +19,8 @@ export interface ProviderRuntimeContext {
   executionContext?: ExecutionContext
   /** Request-scoped provider wire ids mapped back to canonical tool registry ids. */
   toolIdByWireId?: ReadonlyMap<string, string>
+  /** Failed canonical Function cost omitted from provider tool-result collections. */
+  failedFunctionToolCost?: { total: number }
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -88,6 +90,20 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   }
 }
 
+function accumulateFailedFunctionToolCost(
+  toolId: string,
+  result: ToolResponse,
+  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+): void {
+  if (toolId !== 'function_execute' || result.success || !accumulator) return
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
+
+  const total = result.output.cost.total
+  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
+    accumulator.total += total
+  }
+}
+
 export async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeTool>[1],
@@ -120,6 +136,11 @@ export async function executeProviderTool(
       ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,
     })
+    accumulateFailedFunctionToolCost(
+      executionToolId,
+      result,
+      runtimeContext?.failedFunctionToolCost
+    )
     if (!registry || !toolCallRegistry) {
       return { rawResponse: result, modelResponse: withoutChildTraceHandle(result) }
     }

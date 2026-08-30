@@ -36,8 +36,16 @@ import type {
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getDesktopBridge, isBrowserAgentEnabled } from '@/lib/desktop'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
+
+const logger = createLogger('BrowserAgentTransport')
+
+class BrowserOutcomeUnknownError extends Error {
+  readonly outcomeUnknown = true
+}
 
 let initialized = false
 let activeScopeId: string | null = null
@@ -195,10 +203,45 @@ export async function executeBrowserTool(
         : await Promise.race([
             invocation,
             new Promise<never>((_, reject) => {
-              timeoutId = setTimeout(
-                () => reject(new Error(`The browser did not respond within ${timeoutMs}ms`)),
-                timeoutMs
-              )
+              timeoutId = setTimeout(() => {
+                try {
+                  const cancellation = agent.cancelTool?.(toolCallId, activeTool.scopeId)
+                  if (cancellation) {
+                    void cancellation
+                      .then((cancelled) => {
+                        if (!cancelled) {
+                          logger.warn('Native browser timeout cancellation was not accepted', {
+                            toolCallId,
+                            tool,
+                          })
+                        }
+                      })
+                      .catch((error) => {
+                        logger.warn('Native browser timeout cancellation failed', {
+                          toolCallId,
+                          tool,
+                          error: toError(error).message,
+                        })
+                      })
+                  } else {
+                    logger.warn('Installed desktop shell cannot cancel a timed-out browser tool', {
+                      toolCallId,
+                      tool,
+                    })
+                  }
+                } catch (error) {
+                  logger.warn('Native browser timeout cancellation threw synchronously', {
+                    toolCallId,
+                    tool,
+                    error: toError(error).message,
+                  })
+                }
+                reject(
+                  new BrowserOutcomeUnknownError(
+                    `The browser did not respond within ${timeoutMs}ms. Its outcome is unknown and the action may already have taken effect. Do not retry it automatically; take a fresh browser snapshot before deciding what to do.`
+                  )
+                )
+              }, timeoutMs)
             }),
           ])
     if (!response.ok) {

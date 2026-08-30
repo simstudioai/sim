@@ -23,7 +23,14 @@
  * barrel (the barrel is server-tainted).
  */
 
-const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+import {
+  formatUtcOffsetSuffix,
+  type ZonedWallClockOptions,
+  zonedWallClockWithOffset,
+} from '@/lib/core/utils/timezone'
+
+const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+const LOCALIZED_CALENDAR_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
 
 /**
  * Canonical (or canonical-enough legacy) instant: a literal wall time with an
@@ -31,7 +38,35 @@ const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
  * groups are the wall-time fields display renders verbatim.
  */
 const WALL_INSTANT_PATTERN =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:\s*(?:Z|UTC?|GMT|[ECMP][SD]T)|[+-]\d{1,2}(?::?\d{2})?)?$/i
+
+const LOCALIZED_WALL_CLOCK_PATTERN =
+  /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i
+
+const MONTH_NAME_PATTERN =
+  'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?'
+const MONTH_FIRST_DATE_PATTERN = new RegExp(
+  `\\b(${MONTH_NAME_PATTERN})\\s+(\\d{1,2})(?:,)?\\s+(\\d{4})\\b`,
+  'i'
+)
+const DAY_FIRST_DATE_PATTERN = new RegExp(
+  `\\b(\\d{1,2})\\s+(${MONTH_NAME_PATTERN})(?:,)?\\s+(\\d{4})\\b`,
+  'i'
+)
+const MONTH_BY_ABBREVIATION: Record<string, number> = {
+  JAN: 1,
+  FEB: 2,
+  MAR: 3,
+  APR: 4,
+  MAY: 5,
+  JUN: 6,
+  JUL: 7,
+  AUG: 8,
+  SEP: 9,
+  OCT: 10,
+  NOV: 11,
+  DEC: 12,
+}
 
 /**
  * Legacy shape: old CSV imports stored date-only columns as UTC-midnight
@@ -67,81 +102,10 @@ const US_ABBREVIATION_OFFSET_MINUTES: Record<string, number> = {
 
 /** True when `value` is a canonical timezone-free calendar date. */
 export function isCalendarDateString(value: string): boolean {
-  return CALENDAR_DATE_PATTERN.test(value) && !Number.isNaN(Date.parse(value))
-}
-
-/** A wall-clock reading of an instant in some timezone. */
-export interface WallClockParts {
-  year: number
-  /** 1-based month. */
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
-}
-
-/**
- * The wall-clock reading of `date` in `timeZone` — or in the runtime's local
- * zone when omitted. Throws a RangeError on an invalid IANA zone — callers
- * validate at the boundary.
- */
-export function getWallClockParts(date: Date, timeZone?: string): WallClockParts {
-  if (!timeZone) {
-    return {
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate(),
-      hour: date.getHours(),
-      minute: date.getMinutes(),
-      second: date.getSeconds(),
-    }
-  }
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(date)
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
-  return {
-    year: get('year'),
-    month: get('month'),
-    day: get('day'),
-    hour: get('hour'),
-    minute: get('minute'),
-    second: get('second'),
-  }
-}
-
-/** Offset of `timeZone` from UTC (ms east) at the moment `at`. */
-function zoneOffsetMs(timeZone: string, at: Date): number {
-  const wall = getWallClockParts(at, timeZone)
-  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second)
-  return asUtc - at.getTime()
-}
-
-/**
- * Converts a wall-clock reading in `timeZone` to the UTC instant it denotes.
- * Two-pass so readings near a DST transition resolve with the offset in
- * force at that wall time.
- */
-function wallTimeInZoneToUtc(wall: Date, timeZone: string): Date {
-  const guess = Date.UTC(
-    wall.getFullYear(),
-    wall.getMonth(),
-    wall.getDate(),
-    wall.getHours(),
-    wall.getMinutes(),
-    wall.getSeconds(),
-    wall.getMilliseconds()
+  const calendar = value.match(CALENDAR_DATE_PATTERN)
+  return Boolean(
+    calendar && isValidCalendarDay(Number(calendar[1]), Number(calendar[2]), Number(calendar[3]))
   )
-  const adjusted = guess - zoneOffsetMs(timeZone, new Date(guess))
-  return new Date(guess - zoneOffsetMs(timeZone, new Date(adjusted)))
 }
 
 function pad(n: number): string {
@@ -154,14 +118,6 @@ function toLocalCalendarDate(date: Date): string {
 
 function toUtcCalendarDate(date: Date): string {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
-}
-
-/** `Z` for zero, else `±HH:MM`. */
-function formatOffsetSuffix(offsetMinutes: number): string {
-  if (offsetMinutes === 0) return 'Z'
-  const sign = offsetMinutes > 0 ? '+' : '-'
-  const abs = Math.abs(offsetMinutes)
-  return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
 }
 
 /**
@@ -186,14 +142,118 @@ function extractExplicitOffsetMinutes(value: string): number | null {
 function formatUtcFieldsAsWall(shifted: Date, offsetMinutes: number): string {
   return `${toUtcCalendarDate(shifted)}T${pad(shifted.getUTCHours())}:${pad(
     shifted.getUTCMinutes()
-  )}:${pad(shifted.getUTCSeconds())}${formatOffsetSuffix(offsetMinutes)}`
+  )}:${pad(shifted.getUTCSeconds())}${formatUtcOffsetSuffix(offsetMinutes)}`
 }
 
 /** Serializes local-read fields of `parsed` as a wall time with `offset`. */
 function formatLocalFieldsAsWall(parsed: Date, offsetMinutes: number): string {
   return `${toLocalCalendarDate(parsed)}T${pad(parsed.getHours())}:${pad(
     parsed.getMinutes()
-  )}:${pad(parsed.getSeconds())}${formatOffsetSuffix(offsetMinutes)}`
+  )}:${pad(parsed.getSeconds())}${formatUtcOffsetSuffix(offsetMinutes)}`
+}
+
+/** True when numeric year, month, and day fields describe a real calendar day. */
+function isValidCalendarDay(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  return day <= daysInMonth[month - 1]
+}
+
+/** Validates and formats numeric wall-clock fields as naive ISO. */
+function formatValidatedWallClock(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number
+): string | null {
+  if (
+    !isValidCalendarDay(year, month, day) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return null
+  }
+  return `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`
+}
+
+/** Reads an ISO-shaped wall clock literally, before runtime timezone normalization. */
+function parseIsoWallClock(match: RegExpMatchArray): string | null {
+  return formatValidatedWallClock(
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0)
+  )
+}
+
+/** Reads a supported US numeric wall clock literally, including 12-hour input. */
+function parseLocalizedWallClock(match: RegExpMatchArray): string | null {
+  const meridiem = match[7]?.toUpperCase()
+  let hour = Number(match[4])
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null
+    hour = (hour % 12) + (meridiem === 'PM' ? 12 : 0)
+  }
+  return formatValidatedWallClock(
+    Number(match[3]),
+    Number(match[1]),
+    Number(match[2]),
+    hour,
+    Number(match[5]),
+    Number(match[6] ?? 0)
+  )
+}
+
+interface CalendarFields {
+  year: number
+  month: number
+  day: number
+}
+
+/** Extracts literal calendar fields from supported month-name date forms. */
+function extractMonthNameCalendar(value: string): CalendarFields | null {
+  const monthFirst = value.match(MONTH_FIRST_DATE_PATTERN)
+  if (monthFirst) {
+    return {
+      year: Number(monthFirst[3]),
+      month: MONTH_BY_ABBREVIATION[monthFirst[1].slice(0, 3).toUpperCase()],
+      day: Number(monthFirst[2]),
+    }
+  }
+  const dayFirst = value.match(DAY_FIRST_DATE_PATTERN)
+  if (!dayFirst) return null
+  return {
+    year: Number(dayFirst[3]),
+    month: MONTH_BY_ABBREVIATION[dayFirst[2].slice(0, 3).toUpperCase()],
+    day: Number(dayFirst[1]),
+  }
+}
+
+/** Recovers broader naive `Date.parse` inputs without consulting the runtime timezone. */
+function parseNaiveWallClockAsUtc(value: string): string | null {
+  const calendar = extractMonthNameCalendar(value)
+  if (calendar && !isValidCalendarDay(calendar.year, calendar.month, calendar.day)) return null
+  const ms = Date.parse(`${value} UTC`)
+  if (Number.isNaN(ms)) return null
+  const parsed = new Date(ms)
+  if (
+    calendar &&
+    (parsed.getUTCFullYear() !== calendar.year ||
+      parsed.getUTCMonth() + 1 !== calendar.month ||
+      parsed.getUTCDate() !== calendar.day)
+  ) {
+    return null
+  }
+  return `${toUtcCalendarDate(parsed)}T${pad(parsed.getUTCHours())}:${pad(parsed.getUTCMinutes())}:${pad(parsed.getUTCSeconds())}`
 }
 
 export interface NormalizeDateCellOptions {
@@ -205,6 +265,14 @@ export interface NormalizeDateCellOptions {
    * zone.
    */
   timezone?: string
+  /**
+   * Which instant to use when a naive wall time occurs twice during a DST
+   * fall-back. Ordinary date cells preserve their historical earlier-instant
+   * behavior; instant-like callers may explicitly choose `later`.
+   */
+  ambiguousTime?: ZonedWallClockOptions['ambiguousTime']
+  /** How sub-minute historical offsets are serialized to RFC 3339 minutes. */
+  offsetMinuteRounding?: ZonedWallClockOptions['offsetMinuteRounding']
 }
 
 /**
@@ -220,12 +288,37 @@ export function normalizeDateCellValue(
 ): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
-  if (CALENDAR_DATE_PATTERN.test(trimmed)) {
-    return Number.isNaN(Date.parse(trimmed)) ? null : trimmed
+  const calendar = trimmed.match(CALENDAR_DATE_PATTERN)
+  if (calendar) {
+    return isValidCalendarDay(Number(calendar[1]), Number(calendar[2]), Number(calendar[3]))
+      ? trimmed
+      : null
   }
+  const localizedCalendar = trimmed.match(LOCALIZED_CALENDAR_DATE_PATTERN)
+  if (localizedCalendar) {
+    const month = Number(localizedCalendar[1])
+    const day = Number(localizedCalendar[2])
+    const year = Number(localizedCalendar[3])
+    return isValidCalendarDay(year, month, day)
+      ? `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}`
+      : null
+  }
+  const isoMatch = trimmed.match(WALL_INSTANT_PATTERN)
+  const isoWallClock = isoMatch ? parseIsoWallClock(isoMatch) : undefined
+  if (isoWallClock === null) return null
+  const localizedMatch = trimmed.match(LOCALIZED_WALL_CLOCK_PATTERN)
+  const localizedWallClock = localizedMatch ? parseLocalizedWallClock(localizedMatch) : undefined
+  if (localizedWallClock === null) return null
   const ms = Date.parse(trimmed)
   if (Number.isNaN(ms)) return null
   const parsed = new Date(ms)
+  const monthNameCalendar = extractMonthNameCalendar(trimmed)
+  if (
+    monthNameCalendar &&
+    !isValidCalendarDay(monthNameCalendar.year, monthNameCalendar.month, monthNameCalendar.day)
+  ) {
+    return null
+  }
   if (!TIME_COMPONENT_PATTERN.test(trimmed)) {
     return ISO_REDUCED_DATE_PATTERN.test(trimmed)
       ? toUtcCalendarDate(parsed)
@@ -238,11 +331,12 @@ export function normalizeDateCellValue(
     return formatUtcFieldsAsWall(new Date(ms + explicitOffset * 60_000), explicitOffset)
   }
   if (options?.timezone) {
-    // `parsed`'s local getters recover the wall-clock fields V8 read from the
-    // naive string; stamp them with the requested zone's offset at that time.
-    const instant = wallTimeInZoneToUtc(parsed, options.timezone)
-    const offsetMinutes = Math.round(zoneOffsetMs(options.timezone, instant) / 60_000)
-    return formatLocalFieldsAsWall(parsed, offsetMinutes)
+    const wallClock = isoWallClock ?? localizedWallClock ?? parseNaiveWallClockAsUtc(trimmed)
+    if (!wallClock) return null
+    return zonedWallClockWithOffset(wallClock, options.timezone, {
+      ambiguousTime: options.ambiguousTime ?? 'earlier',
+      offsetMinuteRounding: options.offsetMinuteRounding,
+    })
   }
   return formatLocalFieldsAsWall(parsed, -parsed.getTimezoneOffset())
 }

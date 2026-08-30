@@ -4,7 +4,7 @@ import type {
   EventAlertType,
   EventPriority,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse> = {
@@ -88,7 +88,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v1/events`
     },
     method: 'POST',

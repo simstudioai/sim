@@ -403,6 +403,21 @@ export interface ExecutionContext {
    */
   toolBindingLabelCache?: Map<string, string | null>
 
+  /**
+   * Files produced during this execution, indexed by {@link UserFile.id}, so a
+   * model can name one by id in a tool argument and the runtime can hydrate it
+   * into the full object.
+   *
+   * Needed because a file an agent has just seen — a Gmail attachment fetched
+   * moments ago in the same turn — lives only in that turn's tool results, not
+   * in any block state or workspace row, so nothing else can resolve it. The
+   * index only *selects*; every read is still authorized on its own.
+   *
+   * A Map for the same reason as {@link toolBindingLabelCache}: `blockCtx` is a
+   * shallow clone per block execution, so only a shared reference survives.
+   */
+  executionFilesById?: Map<string, UserFile>
+
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>
 

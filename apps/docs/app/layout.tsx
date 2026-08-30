@@ -1,9 +1,97 @@
 import type { ReactNode } from 'react'
+import { DocsLayout } from 'fumadocs-ui/layouts/docs'
+import { RootProvider } from 'fumadocs-ui/provider/next'
 import type { Viewport } from 'next'
+import { Inter } from 'next/font/google'
+import { ThemeProvider } from 'next-themes'
+import {
+  SidebarFolder,
+  SidebarItem,
+  SidebarSeparator,
+} from '@/components/docs-layout/sidebar-components'
+import { Footer } from '@/components/footer/footer'
+import { Navbar } from '@/components/navbar/navbar'
+import { SimWordmark } from '@/components/ui/sim-logo'
+import { serializeJsonLd } from '@/lib/json-ld'
+import { source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
+import { season } from '@/app/fonts/season'
+import './global.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-geist-sans',
+  display: 'swap',
+})
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Sim Documentation',
+  description:
+    'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
+  url: DOCS_BASE_URL,
+  publisher: {
+    '@type': 'Organization',
+    name: 'Sim',
+    url: 'https://sim.ai',
+    logo: {
+      '@type': 'ImageObject',
+      url: `${DOCS_BASE_URL}/static/logo.png`,
+    },
+  },
+  inLanguage: 'en',
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return children
+  return (
+    <html lang='en' className={`${inter.variable} ${season.variable}`} suppressHydrationWarning>
+      <head>
+        <script
+          id='website-json-ld'
+          type='application/ld+json'
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
+        />
+      </head>
+      <body className='flex min-h-screen flex-col font-sans'>
+        <ThemeProvider
+          attribute='class'
+          defaultTheme='system'
+          enableSystem
+          disableTransitionOnChange
+        >
+          <RootProvider theme={{ enabled: false }}>
+            <Navbar />
+            <DocsLayout
+              tree={source.pageTree}
+              nav={{
+                title: <SimWordmark className='h-[18px]' />,
+              }}
+              sidebar={{
+                tabs: false,
+                defaultOpenLevel: 0,
+                collapsible: false,
+                footer: null,
+                banner: null,
+                prefetch: false,
+                components: {
+                  Item: SidebarItem,
+                  Folder: SidebarFolder,
+                  Separator: SidebarSeparator,
+                },
+              }}
+              containerProps={{
+                className: '!pt-0',
+              }}
+            >
+              {children}
+            </DocsLayout>
+            <Footer />
+          </RootProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  )
 }
 
 export const viewport: Viewport = {
@@ -62,7 +150,6 @@ export const metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    alternateLocale: ['es_ES', 'fr_FR', 'de_DE', 'ja_JP', 'zh_CN'],
     url: DOCS_BASE_URL,
     siteName: 'Sim Documentation',
     title: 'Sim Documentation — The AI Workspace for Teams',
@@ -99,14 +186,5 @@ export const metadata = {
   },
   alternates: {
     canonical: DOCS_BASE_URL,
-    languages: {
-      'x-default': DOCS_BASE_URL,
-      en: DOCS_BASE_URL,
-      es: `${DOCS_BASE_URL}/es`,
-      fr: `${DOCS_BASE_URL}/fr`,
-      de: `${DOCS_BASE_URL}/de`,
-      ja: `${DOCS_BASE_URL}/ja`,
-      zh: `${DOCS_BASE_URL}/zh`,
-    },
   },
 }

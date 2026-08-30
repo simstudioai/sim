@@ -12,6 +12,7 @@ import {
   parseIntegerParam,
   parseNumberParam,
   parseOptionalOrgIds,
+  parseOptionalStringParam,
   parseStringListParam,
 } from '@/tools/cbinsights/utils'
 
@@ -19,7 +20,7 @@ export const executeCbinsightsSearchFirmographicsOperation: InternalToolOperatio
   CbInsightsFirmographicsParams
 > = async (params, signal) => {
   const filters = compactBody({
-    keyword: params.keyword?.trim(),
+    keyword: parseOptionalStringParam(params.keyword, 'keyword'),
     orgIds: parseOptionalOrgIds(params.orgIds),
     orgNames: parseStringListParam(params.orgNames, 'orgNames'),
     urls: parseStringListParam(params.urls, 'urls'),
@@ -67,8 +68,8 @@ export const executeCbinsightsSearchFirmographicsOperation: InternalToolOperatio
       params.maxValuationInMillions,
       'maxValuationInMillions'
     ),
-    minLastFundingDate: params.minLastFundingDate?.trim(),
-    maxLastFundingDate: params.maxLastFundingDate?.trim(),
+    minLastFundingDate: parseOptionalStringParam(params.minLastFundingDate, 'minLastFundingDate'),
+    maxLastFundingDate: parseOptionalStringParam(params.maxLastFundingDate, 'maxLastFundingDate'),
     vcBacked: parseBooleanParam(params.vcBacked, 'vcBacked'),
   })
 
@@ -86,13 +87,13 @@ export const executeCbinsightsSearchFirmographicsOperation: InternalToolOperatio
     ...filters,
     ...compactBody({
       limit: clampLimit(params.limit),
-      nextPageToken: params.nextPageToken?.trim(),
+      nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
     }),
   }
 
   /* The API takes one sort object; the block exposes it as two plain fields
        so neither has to be typed as JSON. */
-  const sortField = params.sortField?.trim()
+  const sortField = parseOptionalStringParam(params.sortField, 'sortField')
   if (sortField) {
     body.sort = { field: sortField, direction: sortDirection(params.sortDirection) }
   }

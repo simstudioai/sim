@@ -435,7 +435,10 @@ async function runCloudAuthoringPi(
   const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
   const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
 
-  const authored = await withPiSandbox<AuthoringPhaseResult>({ lifetimeMs }, async (runner) => {
+  // Bound to a local so the call stays on one line: inlining the second option
+  // reflows this whole callback body and buries the change in re-indentation.
+  const sandboxOptions = { lifetimeMs, cost: context.sandboxCost }
+  const authored = await withPiSandbox<AuthoringPhaseResult>(sandboxOptions, async (runner) => {
     try {
       const clone = await raceAbort(
         runner.run(params.mode === 'cloud' ? CREATE_PR_CLONE_SCRIPT : UPDATE_BRANCH_CLONE_SCRIPT, {

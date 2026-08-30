@@ -9,6 +9,8 @@ const {
   getAsyncToolCall,
   getRunSegment,
   completeAsyncToolCall,
+  completeClaimedAsyncToolCall,
+  completePendingAsyncToolCall,
   detachAsyncToolCall,
   publishToolConfirmation,
   encryptSecret,
@@ -17,6 +19,8 @@ const {
   getAsyncToolCall: vi.fn(),
   getRunSegment: vi.fn(),
   completeAsyncToolCall: vi.fn(),
+  completeClaimedAsyncToolCall: vi.fn(),
+  completePendingAsyncToolCall: vi.fn(),
   detachAsyncToolCall: vi.fn(),
   publishToolConfirmation: vi.fn(),
   encryptSecret: vi.fn(),
@@ -29,6 +33,8 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getAsyncToolCall,
   getRunSegment,
   completeAsyncToolCall,
+  completeClaimedAsyncToolCall,
+  completePendingAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId: (claimedBy?: string | null) =>
     claimedBy?.startsWith('workflow:') ? claimedBy.slice('workflow:'.length) : undefined,
@@ -72,6 +78,8 @@ describe('Copilot Confirm API Route', () => {
       workflowId: 'workflow-from-run',
     })
     completeAsyncToolCall.mockResolvedValue(existingRow)
+    completeClaimedAsyncToolCall.mockResolvedValue(existingRow)
+    completePendingAsyncToolCall.mockResolvedValue(existingRow)
     detachAsyncToolCall.mockResolvedValue(existingRow)
     encryptSecret.mockResolvedValue({ encrypted: 'sealed-client-result', iv: 'iv' })
     getTrustedWorkflowToolExecution.mockResolvedValue({ status: 'completed' })
@@ -241,7 +249,7 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('rejects a native confirmation before the desktop authorization claim', async () => {
+  it('rejects a native success before the desktop authorization claim', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,
       toolName: 'browser_snapshot',
@@ -261,6 +269,210 @@ describe('Copilot Confirm API Route', () => {
     expect(detachAsyncToolCall).not.toHaveBeenCalled()
     expect(encryptSecret).not.toHaveBeenCalled()
     expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['browser_snapshot', 'error', 'failed'],
+    ['browser_snapshot', 'cancelled', 'cancelled'],
+    ['terminal', 'error', 'failed'],
+    ['terminal', 'cancelled', 'cancelled'],
+  ] as const)(
+    'accepts a pending %s %s before the desktop authorization claim',
+    async (toolName, status, durableStatus) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
+      })
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status,
+          message: 'The desktop action did not start.',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(completePendingAsyncToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tool-call-123',
+        status: durableStatus,
+        result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+        error: status === 'error' ? 'Tool failed' : 'Tool cancelled',
+      })
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'tool-call-123', status })
+      )
+    }
+  )
+
+  it.each([
+    ['browser_snapshot', 'error'],
+    ['terminal', 'cancelled'],
+  ] as const)(
+    'rejects a pending %s %s when the native authorization claim wins the race',
+    async (toolName, status) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
+      })
+      completePendingAsyncToolCall.mockResolvedValueOnce(null)
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status,
+          message: 'The desktop action did not start.',
+        })
+      )
+
+      expect(response.status).toBe(404)
+      expect(await response.json()).toEqual({ error: 'Pending client tool call not found' })
+      expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
+      expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['browser_snapshot', 'desktop-browser'],
+    ['terminal', 'desktop-terminal'],
+  ] as const)(
+    'settles an indeterminate pending %s result when the exact %s claim wins the race',
+    async (toolName, claimOwner) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
+      })
+      completePendingAsyncToolCall.mockResolvedValueOnce(null)
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'error',
+          message: 'untrusted page-exit message',
+          data: { outcomeUnknown: true, doNotRetry: true, untrusted: 'discard me' },
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(completePendingAsyncToolCall).toHaveBeenCalledOnce()
+      expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
+        {
+          toolCallId: 'tool-call-123',
+          status: 'failed',
+          result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+          error: 'Tool failed',
+        },
+        claimOwner
+      )
+      expect(encryptSecret).toHaveBeenCalledWith(expect.stringContaining('"outcomeUnknown":true'))
+      expect(encryptSecret).toHaveBeenCalledWith(expect.not.stringContaining('discard me'))
+      expect(publishToolConfirmation).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'pending',
+    })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    completeClaimedAsyncToolCall.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        data: { outcomeUnknown: true, doNotRetry: true },
+      })
+    )
+
+    expect(response.status).toBe(404)
+    expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(expect.any(Object), 'desktop-browser')
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 without publishing when exact claim reconciliation fails', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_snapshot',
+      status: 'pending',
+    })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    completeClaimedAsyncToolCall.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'error',
+        data: { outcomeUnknown: true, doNotRetry: true },
+      })
+    )
+
+    expect(response.status).toBe(500)
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it.each(['error', 'cancelled'] as const)(
+    'rejects a pending retired browser tool %s before a native claim',
+    async (status) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName: 'browser_request_takeover',
+        status: 'pending',
+      })
+
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status,
+          message: 'A stale renderer tried to finalize this call.',
+        })
+      )
+
+      expect(response.status).toBe(404)
+      expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(encryptSecret).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts a running retired browser tool completion for historical compatibility', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'browser_request_takeover',
+      status: 'running',
+    })
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'success',
+        data: { completed: true },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(completeAsyncToolCall).toHaveBeenCalledWith({
+      toolCallId: 'tool-call-123',
+      status: 'completed',
+      result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+      error: null,
+    })
+    expect(publishToolConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'tool-call-123', status: 'success' })
+    )
   })
 
   it('rejects a workflow confirmation before the server starts the tool call', async () => {

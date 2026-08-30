@@ -299,5 +299,5 @@ anything it lists is fair game for a chip. Dropdowns that carry a default are
 still a judgement call — `level` defaulting to `All` spends a chip to say
 nothing.
 
-For intent a tool description does not settle, `apps/docs/content/docs/en/integrations/{service}.mdx`
+For intent a tool description does not settle, `apps/docs/content/docs/integrations/{service}.mdx`
 carries hand-written `MANUAL-CONTENT-START:intro` prose.

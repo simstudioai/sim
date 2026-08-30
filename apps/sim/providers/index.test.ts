@@ -278,6 +278,33 @@ describe('executeProviderRequest — BYOK regression', () => {
     expect(result.cost?.total).toBeCloseTo(0.00675, 8)
   })
 
+  it('adds failed Function cost once alongside successful tool results', async () => {
+    mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
+    mockExecuteTool.mockResolvedValueOnce({
+      success: false,
+      output: { cost: { total: 0.004 } },
+      error: 'execution failed',
+    })
+    mockExecuteRequest.mockImplementationOnce(async () => {
+      const execution = await executeProviderTool('function_execute', {})
+      expect(execution.rawResponse.success).toBe(false)
+      return {
+        ...makeAnthropicResponse(),
+        toolResults: [{ cost: { total: 0.005 } }],
+      } as ProviderResponse
+    })
+
+    const result = (await executeProviderRequest('anthropic', {
+      model: 'claude-opus-4-6',
+      workspaceId: 'ws-1',
+      tools: [makeProviderTool('function_execute', 'credential')],
+    })) as ProviderResponse
+
+    expect(result.cost).toMatchObject({ input: 0, output: 0 })
+    expect(result.cost?.toolCost).toBeCloseTo(0.009, 8)
+    expect(result.cost?.total).toBeCloseTo(0.009, 8)
+  })
+
   /**
    * Gemini hands the same cost object to its response and its model segment.
    * Adding tool cost by mutation would charge it to the segment too.

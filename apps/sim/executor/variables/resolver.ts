@@ -10,10 +10,14 @@ import {
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  createSandboxFileMountRef,
+  isSandboxFileMountRef,
+} from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -453,6 +457,19 @@ export class VariableResolver {
       displayCursor = index + match.length
 
       try {
+        const sandboxFilePath = await this.resolveSandboxFilePathReference(
+          match,
+          resolutionContext,
+          language,
+          template,
+          index,
+          contextVarAccumulator
+        )
+        if (sandboxFilePath) {
+          displayResult += sandboxFilePath.display
+          return sandboxFilePath.replacement
+        }
+
         const lazyBase64 = await this.resolveLazyFileBase64Reference(
           match,
           resolutionContext,
@@ -646,6 +663,106 @@ export class VariableResolver {
     }
 
     return { resolvedCode: result, displayCode: displayResult }
+  }
+
+  /**
+   * Resolves `<block.file.path>` to the file's location on the sandbox filesystem.
+   *
+   * The counterpart to the `base64` reference above, and deliberately unlike it in
+   * two ways. It is not gated on the JavaScript runtime helpers, because a path is
+   * just a string and Python and Shell need it more than JavaScript does. And it
+   * stores a mount marker rather than the path itself: the sandbox does not exist
+   * yet at resolution time, and paths are assigned only once the whole mount set is
+   * known, since they are sanitized and de-duplicated together.
+   */
+  private async resolveSandboxFilePathReference(
+    reference: string,
+    context: ResolutionContext,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
+    contextVarAccumulator: Record<string, unknown>
+  ): Promise<{ replacement: string; display: string } | null> {
+    const parts = parseReferencePath(reference)
+    if (parts.length < 3 || parts.at(-1) !== 'path') {
+      return null
+    }
+
+    const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
+    const file = await this.resolveReference(fileReference, context)
+    if (!isUserFileWithMetadata(file) || !file.key) {
+      return null
+    }
+
+    // Reuse an existing marker for the same file so referencing one path twice
+    // mounts it once, rather than transferring a second copy under a
+    // collision-suffixed name and spending the mount budget twice.
+    const existing = Object.entries(contextVarAccumulator).find(
+      ([, value]) => isSandboxFileMountRef(value) && value.file.key === file.key
+    )
+    const varName = existing?.[0] ?? `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    if (!existing) {
+      // The bytes are fetched into the sandbox, so the inline copy would be dead
+      // weight in the request body.
+      const { base64: _base64, ...fileMetadata } = file
+      contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
+    }
+
+    return {
+      replacement: this.formatContextVariablePathReference(varName, language, template, matchIndex),
+      display: reference,
+    }
+  }
+
+  /**
+   * Formats a mount-path reference for splicing into code.
+   *
+   * Unlike {@link formatContextVariableReference}, a path inside a quoted string is
+   * spliced raw rather than JSON-encoded. The general formatter is right to encode
+   * an arbitrary value — the author of `"<block.output>"` wants its JSON form — but
+   * a path is always a plain string, so encoding it would put literal quote
+   * characters inside the string the code then opens, turning `open('<file.path>')`
+   * into a lookup for a filename that begins with `"`.
+   *
+   * Splicing raw is safe precisely here: mount paths are built segment by segment
+   * through `buildStorageKeySegment`, which reduces anything outside
+   * `[A-Za-z0-9.-]` to `_`, so the value cannot carry a quote, backslash, backtick,
+   * or `$` that would escape the surrounding literal.
+   *
+   * Shell is delegated unchanged — its formatter already closes and reopens a
+   * single-quoted context around a double-quoted expansion, which expands
+   * correctly and needs no path-specific case.
+   */
+  private formatContextVariablePathReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string {
+    if (language === 'shell') {
+      return this.formatShellContextVariableReference(varName, template, matchIndex, '')
+    }
+
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
+
+    if (language === 'python') {
+      const expression = `globals()[${JSON.stringify(varName)}]`
+      if (this.isPythonStringQuoteContext(quoteContext)) {
+        const quote = this.getCodeStringQuoteToken(quoteContext)
+        return `${quote} + ${expression} + ${quote}`
+      }
+      return expression
+    }
+
+    const expression = `globalThis[${JSON.stringify(varName)}]`
+    if (quoteContext === 'template') {
+      return `\${${expression}}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + ${expression} + ${quote}`
+    }
+    return expression
   }
 
   private async resolveLazyFileBase64Reference(

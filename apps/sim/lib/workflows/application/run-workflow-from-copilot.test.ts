@@ -391,4 +391,133 @@ describe('Copilot workflow run application commands', () => {
       expect(readAttemptedExecutionId(error)).toBeUndefined()
     })
   })
+
+  describe('failed-run provenance crossing', () => {
+    function trackingLifecycle() {
+      const importCrossingProvenance = vi.fn().mockResolvedValue(true)
+      return {
+        importCrossingProvenance,
+        lifecycle: {
+          resolvedSecretTraceRegistry: {
+            exportProvenanceForValue: vi.fn(() => undefined),
+            beginPendingActivation: vi.fn(() => vi.fn()),
+            importCrossingProvenance,
+          },
+        },
+      }
+    }
+
+    async function runExpectingFailure(input: { lifecycle: unknown }) {
+      await expect(
+        runWorkflowFromCopilot.execute({
+          principal,
+          input: {
+            workflowId: 'workflow-1',
+            useDraftState: true,
+            lifecycle: input.lifecycle,
+            hasWorkflowInput: false,
+            useMockPayload: true,
+          },
+        })
+      ).rejects.toThrow()
+    }
+
+    /**
+     * The executor attaches its result to every throw, so a failure without one never reached a
+     * block. Nothing crossed, and saying so keeps the caller's tool result — and the reason its
+     * run could not start — instead of reducing it to "result unavailable".
+     */
+    it('vouches for a failure that never reached the engine', async () => {
+      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
+      mocks.executeWorkflow.mockRejectedValueOnce(new Error('workflow is not deployed'))
+
+      await runExpectingFailure({ lifecycle: tracked })
+
+      expect(importCrossingProvenance).toHaveBeenCalledWith(
+        { version: 1, complete: true, entries: [] },
+        expect.objectContaining({ thrownMessage: 'workflow is not deployed' }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+
+    /**
+     * The post-run crossing is inside the same try, so its failure reaches the catch with no
+     * execution result — the same evidence a never-started run leaves. An execution exists and
+     * its provenance was never imported, so this must not be vouched for.
+     */
+    it('does not vouch when the crossing threw after the run returned', async () => {
+      const importCrossingProvenance = vi
+        .fn()
+        .mockImplementationOnce(() => {
+          throw new Error('crossing import failed')
+        })
+        .mockResolvedValue(true)
+
+      await runExpectingFailure({
+        lifecycle: {
+          resolvedSecretTraceRegistry: {
+            exportProvenanceForValue: vi.fn(() => undefined),
+            beginPendingActivation: vi.fn(() => vi.fn()),
+            importCrossingProvenance,
+          },
+        },
+      })
+
+      expect(importCrossingProvenance).toHaveBeenNthCalledWith(
+        2,
+        undefined,
+        expect.objectContaining({ thrownMessage: 'crossing import failed' }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+
+    /**
+     * The executor's post-execution work can throw after a run has already produced a result.
+     * `executeWorkflow` carries it on that throw, so this reaches the catch with a result and
+     * must not be claimed as never-started.
+     */
+    it('does not vouch when post-execution work threw after the engine ran', async () => {
+      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
+      const incomplete = { version: 1 as const, complete: false, entries: [] }
+      mocks.executeWorkflow.mockRejectedValueOnce(
+        Object.assign(new Error('post-execution persistence failed'), {
+          executionResult: {
+            success: true,
+            output: { ran: true },
+            executionState: { resolvedSecretTraceProvenance: incomplete },
+          },
+        })
+      )
+
+      await runExpectingFailure({ lifecycle: tracked })
+
+      expect(importCrossingProvenance).toHaveBeenCalledWith(
+        incomplete,
+        expect.objectContaining({ output: { ran: true } }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+
+    /** A run that did execute and could not vouch still hands back its incomplete envelope. */
+    it('passes through an incomplete envelope from a run that did execute', async () => {
+      const { importCrossingProvenance, lifecycle: tracked } = trackingLifecycle()
+      const incomplete = { version: 1 as const, complete: false, entries: [] }
+      const failure = Object.assign(new Error('block failed'), {
+        executionResult: {
+          success: false,
+          output: { partial: true },
+          executionState: { resolvedSecretTraceProvenance: incomplete },
+        },
+      })
+      mocks.executeWorkflow.mockRejectedValueOnce(failure)
+
+      await runExpectingFailure({ lifecycle: tracked })
+
+      expect(importCrossingProvenance).toHaveBeenCalledWith(
+        incomplete,
+        expect.objectContaining({ output: { partial: true } }),
+        expect.objectContaining({ origin: 'copilotWorkflowMutation.failedRunCrossing' })
+      )
+    })
+  })
 })

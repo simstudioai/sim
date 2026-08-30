@@ -119,6 +119,7 @@ vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeFunctionExecute } from '@/lib/copilot/tools/handlers/function-execute'
 import { executeRunCode } from '@/lib/copilot/tools/handlers/run-code'
+import { SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const table = {
@@ -595,6 +596,8 @@ describe('executeFunctionExecute table mounts', () => {
       type: 'url',
       path: '/home/user/tables/tbl_1.csv',
       url: 'https://s3.example/presigned?sig=abc',
+      // The snapshot's own ceiling, enforced on the bytes the sandbox pulls.
+      maxBytes: SNAPSHOT_MAX_BYTES,
     })
   })
 
@@ -764,6 +767,9 @@ describe('executeFunctionExecute file mounts', () => {
       type: 'url',
       path: '/home/user/files/data.csv',
       url: 'https://s3.example/file?sig=abc',
+      // Copilot's URL mounts share the transport, so each is granted exactly
+      // the size it was charged against the aggregate.
+      maxBytes: 100,
     })
   })
 
@@ -1025,6 +1031,9 @@ describe('executeFunctionExecute file mounts', () => {
       type: 'url',
       path: '/home/user/files/Reports/q1.csv',
       url: 'https://s3.example/file?sig=abc',
+      // Copilot's URL mounts share the transport, so each is granted exactly
+      // the size it was charged against the aggregate.
+      maxBytes: 100,
     })
   })
 

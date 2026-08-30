@@ -56,6 +56,7 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
 }))
 
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+import { hasExecutionResult } from '@/executor/utils/errors'
 
 const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowExecution'
@@ -294,6 +295,44 @@ describe('executeWorkflow', () => {
     resolvePostExecution()
     await expect(executionPromise).rejects.toBe(executionError)
     expect(executionSettled).toBe(true)
+  })
+
+  /**
+   * Post-execution work runs after the core has produced a result and the executor never sees
+   * its failure, so this layer is the only one that can carry the result onto it. Callers read a
+   * missing result as proof that no block ran — a Copilot run would report an executed workflow
+   * as never started and vouch for content it cannot describe.
+   */
+  it('carries the execution result onto a post-execution failure', async () => {
+    const result = { success: true, output: { ran: true }, logs: [] }
+    executeWorkflowCoreMock.mockResolvedValueOnce(result)
+    handlePostExecutionPauseStateMock.mockRejectedValueOnce(new Error('pause persistence failed'))
+
+    const thrown = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+    }).catch((error: unknown) => error)
+
+    expect(hasExecutionResult(thrown)).toBe(true)
+    expect((thrown as { executionResult?: unknown }).executionResult).toBe(result)
+  })
+
+  /** A non-Error cannot carry the result, so it is normalized before anything reads it. */
+  it('normalizes a non-Error post-execution failure so it can carry the result', async () => {
+    const result = { success: true, output: { ran: true }, logs: [] }
+    executeWorkflowCoreMock.mockResolvedValueOnce(result)
+    handlePostExecutionPauseStateMock.mockRejectedValueOnce('pause persistence exploded')
+
+    const thrown = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+    }).catch((error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect(hasExecutionResult(thrown)).toBe(true)
+    expect((thrown as { executionResult?: unknown }).executionResult).toBe(result)
   })
 
   it('transfers post-execution ownership with successful streaming metadata', async () => {

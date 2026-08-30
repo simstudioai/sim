@@ -30,6 +30,7 @@ import {
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
+import { ttlColumnType } from '@/lib/table/column-types/ttl'
 import type { ColumnType, ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-types/types'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
@@ -46,6 +47,7 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   number: numberColumnType,
   boolean: booleanColumnType,
   date: dateColumnType,
+  ttl: ttlColumnType,
   json: jsonColumnType,
   select: selectColumnType,
   currency: currencyColumnType,
@@ -90,6 +92,16 @@ export function isValueCompatible(value: unknown, target: ColumnDefinition): boo
   return definition.coerce(value as JsonValue, target).ok
 }
 
+/** Applies source-owned normalization before a value is converted to another type. */
+export function valueForTypeConversion(
+  value: JsonValue,
+  source: ColumnDefinition,
+  target: ColumnDefinition
+): JsonValue {
+  const normalized = columnTypeOf(source).valueForConversion?.(value, target)
+  return normalized === undefined ? value : normalized
+}
+
 /** This type's own metadata errors; types carrying no metadata report none. */
 export function validateTypeMetadata(column: ColumnDefinition): string[] {
   return columnTypeOf(column).validateDefinition?.(column) ?? []
@@ -114,4 +126,32 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null
+}
+
+/** Schema-level cardinality errors declared by column type definitions. */
+export function validateColumnTypeLimits(columns: readonly ColumnDefinition[]): string[] {
+  const errors: string[] = []
+  for (const definition of ALL_COLUMN_TYPES) {
+    if (definition.maxPerTable === undefined) continue
+    if (wouldExceedColumnTypeLimit(columns, definition.id)) {
+      errors.push(`A table can have at most ${definition.maxPerTable} ${definition.label} column`)
+    }
+  }
+  return errors
+}
+
+/** Whether adding columns of a type would exceed its registry-declared table limit. */
+export function wouldExceedColumnTypeLimit(
+  columns: readonly ColumnDefinition[],
+  type: ColumnType,
+  additionalColumns = 0
+): boolean {
+  const definition = COLUMN_TYPE_REGISTRY[type]
+  if (definition.maxPerTable === undefined) return false
+
+  const count = columns.reduce(
+    (total, column) => total + (column.type === type ? 1 : 0),
+    additionalColumns
+  )
+  return count > definition.maxPerTable
 }

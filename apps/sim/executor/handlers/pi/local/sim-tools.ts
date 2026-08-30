@@ -9,6 +9,7 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { SandboxCostSink } from '@/lib/execution/remote-sandbox/types'
 import {
   readWorkflowInputFieldsForTool,
   readWorkflowMetadataForTool,
@@ -107,7 +108,8 @@ function buildSimToolSpec(
   ctx: ExecutionContext,
   inputTools: ToolInput[],
   provider: ProviderToolConfig,
-  toolIndex: number
+  toolIndex: number,
+  sandboxCost?: SandboxCostSink
 ): PiToolSpec {
   const toolId = provider.canonicalId ?? provider.id
   const preseededParams = provider.params || {}
@@ -170,6 +172,20 @@ function buildSimToolSpec(
             resolvedSecretTraceRegistry: toolCallRegistry,
           }
         )
+        const resultCost = result.output?.cost
+        const resultCostTotal =
+          resultCost && typeof resultCost === 'object'
+            ? (resultCost as Record<string, unknown>).total
+            : undefined
+        if (
+          toolId === 'function_execute' &&
+          sandboxCost &&
+          typeof resultCostTotal === 'number' &&
+          Number.isFinite(resultCostTotal) &&
+          resultCostTotal > 0
+        ) {
+          sandboxCost.total += resultCostTotal
+        }
         const projection = projectToolResult(result, toolCallRegistry?.forkForPropagatedEntries())
         if (projection.safe && registry && toolCallRegistry?.isComplete()) {
           registry.mergeToolCallRegistry(toolCallRegistry)
@@ -199,7 +215,8 @@ function buildSimToolSpec(
  */
 export async function buildSimToolSpecs(
   ctx: ExecutionContext,
-  inputTools: unknown
+  inputTools: unknown,
+  sandboxCost?: SandboxCostSink
 ): Promise<PiToolSpec[]> {
   if (!Array.isArray(inputTools)) return []
 
@@ -243,6 +260,6 @@ export async function buildSimToolSpecs(
   await annotateDuplicateToolBindings(ctx, providers)
   assignProviderToolIdentities(providers)
   return configuredTools.map(({ provider, toolIndex }) =>
-    buildSimToolSpec(ctx, inputTools, provider, toolIndex)
+    buildSimToolSpec(ctx, inputTools, provider, toolIndex, sandboxCost)
   )
 }

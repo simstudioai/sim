@@ -39,6 +39,7 @@ declare module '@/lib/table/constants?constants-test' {
 
 import {
   getBillingDisabledTableLimits,
+  getDeleteSnapshotBatchSize,
   getMaxPageBytes,
   TABLE_LIMITS,
 } from '@/lib/table/constants?constants-test'
@@ -84,5 +85,25 @@ describe('getMaxPageBytes', () => {
     mockEnv.TABLE_MAX_PAGE_BYTES = String(2 * 1024 * 1024)
 
     expect(getMaxPageBytes()).toBe(2 * 1024 * 1024)
+  })
+})
+
+describe('getDeleteSnapshotBatchSize', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
+  })
+
+  it('derives a worst-case row cap from the delete snapshot byte budget', () => {
+    expect(getDeleteSnapshotBatchSize()).toBe(
+      Math.floor(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES / TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    )
+  })
+
+  it('always processes one row and never exceeds the delete row-count cap', () => {
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = String(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2)
+    expect(getDeleteSnapshotBatchSize()).toBe(1)
+
+    mockEnv.TABLE_MAX_ROW_SIZE_BYTES = '1'
+    expect(getDeleteSnapshotBatchSize()).toBe(TABLE_LIMITS.DELETE_BATCH_SIZE)
   })
 })

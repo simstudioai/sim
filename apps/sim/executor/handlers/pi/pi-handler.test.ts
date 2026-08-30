@@ -20,6 +20,7 @@ const {
   mockResolveSearchKey,
   mockBuildSearchTool,
   mockAssertPermissionsAllowed,
+  mockBuildSimToolSpecs,
   MockToolNotAllowedError,
 } = vi.hoisted(() => ({
   mockRunLocal: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockResolveSearchKey: vi.fn(),
   mockBuildSearchTool: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
+  mockBuildSimToolSpecs: vi.fn(),
   MockToolNotAllowedError: class ToolNotAllowedError extends Error {},
 }))
 
@@ -64,7 +66,7 @@ vi.mock('@/executor/handlers/pi/core/context', () => ({
   appendPiMemory: mockAppendMemory,
 }))
 vi.mock('@/executor/handlers/pi/local/sim-tools', () => ({
-  buildSimToolSpecs: vi.fn().mockResolvedValue([]),
+  buildSimToolSpecs: mockBuildSimToolSpecs,
 }))
 vi.mock('@/executor/handlers/pi/local/backend', () => ({ runLocalPi: mockRunLocal }))
 vi.mock('@/executor/handlers/pi/cloud/authoring/backend', () => ({
@@ -109,8 +111,10 @@ vi.mock('@/blocks/utils', () => ({
   },
 }))
 
+import type { PiRunContext } from '@/executor/handlers/pi/core/backend'
 import { PiBlockHandler, parsePiReviewMentions } from '@/executor/handlers/pi/pi-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -153,6 +157,7 @@ describe('PiBlockHandler', () => {
     mockResolveSearchKey.mockReturnValue('search-key')
     mockBuildSearchTool.mockReturnValue({ name: 'web_search' })
     mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+    mockBuildSimToolSpecs.mockResolvedValue([])
     mockResolveSkills.mockResolvedValue([])
     mockLoadMemory.mockResolvedValue([])
     mockAppendMemory.mockResolvedValue(undefined)
@@ -273,6 +278,83 @@ describe('PiBlockHandler', () => {
     expect(params.ssh.host).toBe('box.example.com')
     expect(params.repoPath).toBe('/srv/repo')
     expect((output as Record<string, unknown>).content).toBe('hi')
+  })
+
+  it('adds successful Function tool cost once to a non-streaming Local Dev result', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.125
+        return []
+      }
+    )
+
+    const output = (await handler.execute(ctx(), block, localInputs())) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.125, total: 0.125 })
+  })
+
+  it('bills the cloud sandbox a Pi session ran in, even when the model is BYOK', async () => {
+    // The regression this guards: the agent's own sandbox runs on Sim's provider
+    // account, so a BYOK run whose model cost is zero by definition would
+    // otherwise report no cost at all for tens of minutes of paid compute.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0842
+      return { totals: { finalText: 'done', inputTokens: 0, outputTokens: 0 } }
+    })
+
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'do it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as { cost: unknown }
+
+    expect(output.cost).toEqual({ input: 0, output: 0, toolCost: 0.0842, total: 0.0842 })
+  })
+
+  it('keeps the sandbox charge on a cloud session whose agent reported an error', async () => {
+    // The backend returned, so the sandbox was billed and the sink holds the
+    // charge — but this path throws instead of reaching buildOutput, which is
+    // what would otherwise have published it.
+    mockRunCloud.mockImplementation(async (_params: unknown, context: PiRunContext) => {
+      if (context.sandboxCost) context.sandboxCost.total += 0.0631
+      return {
+        totals: { finalText: '', inputTokens: 0, outputTokens: 0, errorMessage: 'agent gave up' },
+      }
+    })
+
+    const error = await handler
+      .execute(ctx(), block, {
+        mode: 'cloud',
+        task: 'do it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+      })
+      .catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(Error)
+    // `toolCost` is absent by design: the trusted envelope validates exactly the
+    // three numeric fields it will let cross the handler boundary. `total` is
+    // what the ledger bills on, and it carries the sandbox charge intact.
+    expect(readTrustedExecutionCost(error)).toEqual({ input: 0, output: 0, total: 0.0631 })
+  })
+
+  it('leaves a cloud run that provisioned no sandbox uncharged', async () => {
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud',
+      task: 'do it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as { cost: Record<string, unknown> }
+
+    expect(output.cost.toolCost).toBeUndefined()
+    expect(output.cost.total).toBe(0)
   })
 
   it('routes Create PR to the cloud backend and surfaces PR output', async () => {
@@ -942,6 +1024,12 @@ describe('PiBlockHandler', () => {
   })
 
   it('streams text when the block is selected for streaming output', async () => {
+    mockBuildSimToolSpecs.mockImplementation(
+      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+        functionToolCost.total += 0.25
+        return []
+      }
+    )
     mockRunLocal.mockImplementation(async (_params, runCtx) => {
       runCtx.onEvent({ type: 'text', text: 'streamed' })
       return { totals: { finalText: 'streamed', inputTokens: 0, outputTokens: 0, toolCalls: [] } }
@@ -965,6 +1053,12 @@ describe('PiBlockHandler', () => {
     }
     expect(text).toContain('streamed')
     expect(result.execution.output.content).toBe('streamed')
+    expect(result.execution.output.cost).toEqual({
+      input: 0,
+      output: 0,
+      toolCost: 0.25,
+      total: 0.25,
+    })
   })
 
   it('streams only the canonical final document for Plan mode', async () => {

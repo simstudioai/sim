@@ -16,9 +16,16 @@ const CreateAliasSchema = z.object({
     .string()
     .min(1, 'functionName is required')
     .max(256, 'functionName cannot exceed 256 characters'),
-  aliasName: z.string().min(1, 'aliasName is required'),
+  aliasName: z
+    .string()
+    .min(1, 'aliasName is required')
+    .max(128, 'aliasName cannot exceed 128 characters')
+    .regex(
+      /^(?![0-9]+$)[a-zA-Z0-9-_]+$/,
+      'aliasName may only contain letters, numbers, hyphens, and underscores, and cannot be all digits'
+    ),
   aliasFunctionVersion: z.string().min(1, 'aliasFunctionVersion is required'),
-  description: z.string().optional(),
+  description: z.string().max(256, 'description cannot exceed 256 characters').optional(),
   additionalVersionWeights: z
     .record(
       z.string().regex(/^[0-9]+$/, 'routing keys must be published version numbers'),
@@ -26,6 +33,10 @@ const CreateAliasSchema = z.object({
         .number()
         .min(0, 'a routing weight cannot be negative')
         .max(1, 'a routing weight cannot exceed 1')
+    )
+    .refine(
+      (weights) => Object.keys(weights).length <= 1,
+      'additionalVersionWeights routes to a single second version, so it accepts at most one entry'
     )
     .optional(),
 })
