@@ -7,11 +7,14 @@ import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/co
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import {
+  assertLogCostQueryAllowed,
+  type LogFieldProjection,
   projectCostTotal,
   projectExecutionData,
   resolveLogFieldProjection,
 } from '@/lib/logs/log-projection'
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
   capabilityGovernedUserId,
@@ -22,6 +25,32 @@ import {
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogsAPI')
+
+/**
+ * Renders {@link assertLogCostQueryAllowed}'s refusal in the v1 `{ error,
+ * details }` body, or `null` when the query selects on nothing withheld.
+ *
+ * The assertion throws so every surface refuses in the same words; this route
+ * builds its own response rather than running inside a JSON route builder, so
+ * the throw is caught here instead of by a shared error projection. Caught
+ * narrowly on purpose — the handler's outer `catch` renders a 500, and letting
+ * a 403 fall into it would report an organization's policy as a Sim fault.
+ */
+function costQueryRefusal(
+  params: { minCost?: number | null; maxCost?: number | null },
+  projection: LogFieldProjection
+): NextResponse | null {
+  try {
+    assertLogCostQueryAllowed(params, projection)
+    return null
+  } catch (error) {
+    if (!(error instanceof PermissionGroupCapabilityError)) throw error
+    return NextResponse.json(
+      { error: error.message, details: { code: error.detailCode } },
+      { status: 403 }
+    )
+  }
+}
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -67,6 +96,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       capabilityGovernedUserId(rateLimit),
       params.workspaceId
     )
+
+    /**
+     * Project the value, then refuse the query that selects on it. `minCost` and
+     * `maxCost` bisect the very total `projectCostTotal` blanks below, so
+     * withholding one while answering the other is incoherent. This surface
+     * orders by `startedAt` alone — it publishes no `sortBy` — so the ordering
+     * half of the oracle is not reachable here.
+     *
+     * It runs after the workspace access check above, so the caller is a member
+     * being told about their own group rather than an outsider handed an
+     * organization-configuration oracle.
+     */
+    const costRefusal = costQueryRefusal(
+      { minCost: params.minCost, maxCost: params.maxCost },
+      projection
+    )
+    if (costRefusal) return costRefusal
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
