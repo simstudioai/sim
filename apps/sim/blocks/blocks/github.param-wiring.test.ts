@@ -243,3 +243,42 @@ describe('absent operation degrades to a no-op, never a clobber', () => {
     expect({ ...modelArgs, ...map({ ...modelArgs, ...stale }) }).toEqual(modelArgs)
   })
 })
+
+/**
+ * `milestone_state` is a LIST filter. `create_milestone` and `update_milestone`
+ * also declare a `state` param, but no subBlock renders for them, so the value
+ * sitting in `params` is only ever a leftover from the list operation. Aliasing
+ * it onto those would silently set the state of a milestone being created.
+ */
+describe('a list filter never becomes a write value', () => {
+  it.each(['github_create_milestone', 'github_update_milestone'])(
+    '%s ignores a stale milestone_state',
+    (operation) => {
+      expect(map({ operation, milestone_state: 'closed' })).not.toHaveProperty('state')
+    }
+  )
+
+  it('while the list operation still receives it', () => {
+    expect(map({ operation: 'github_list_milestones', milestone_state: 'closed' }).state).toBe(
+      'closed'
+    )
+  })
+})
+
+/**
+ * The user-visible outcomes for gist visibility, pinned explicitly because this
+ * is the one alias whose correction moves a gist from secret to public.
+ */
+describe('create gist visibility outcomes', () => {
+  it('untouched leaves the tool default (secret)', () => {
+    expect(map({ operation: 'github_create_gist' })).not.toHaveProperty('public')
+  })
+
+  it('Secret stays secret', () => {
+    expect(map({ operation: 'github_create_gist', gist_public: 'false' }).public).toBe(false)
+  })
+
+  it('Public now actually creates a public gist', () => {
+    expect(map({ operation: 'github_create_gist', gist_public: 'true' }).public).toBe(true)
+  })
+})
