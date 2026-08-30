@@ -58,15 +58,17 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
       'slack workflow automation',
       'slack integration',
     ],
-    h1: 'Slack Integrations for Workflow Automation',
+    h1: 'Slack Workflow Automation with Sim',
     tagline:
       'Build Slack workflow automation in Sim. Send, update, delete, and read messages; manage channels, users, canvases, and modals; and trigger AI agents from mentions, messages, and reactions in real time.',
     overview:
-      'Use Sim as your Slack integration for team communication and operations. Build Slack automation that routes requests, posts alerts, summarises threads, updates tickets, and keeps work moving. Sim supports messages, reactions, canvases, views, channel and user lookups, file downloads, and real-time Slack workflows in one workspace.',
+      'Sim automates Slack workflows that depend on conversation context, including message routing, alerts, thread summaries, ticket updates, and incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
     triggersIntro:
-      'Connect the Slack Webhook trigger to Sim and run Slack workflow automation the moment a mention, message, or reaction happens, no polling, no delay.',
+      'Sim supports one real-time Slack trigger, the Slack Webhook. When Slack sends an event to the webhook endpoint, Sim starts the connected workflow immediately instead of waiting for a scheduled check. A monitoring alert posted in Slack can open an incident-response workflow, and a ticketing update posted in Slack can be summarised and passed to another connected tool.',
     templatesIntro:
-      'Ready-to-use Slack automation templates for Q&A bots, sales alerts, incident response, standups, digests, and CRM updates. Click any template to launch a workflow faster.',
+      'Pre-built agent templates turn common Slack workflows into editable starting points: routing templates classify messages and send them to the right channel or owner, summarisation templates condense long threads into updates that preserve decisions and action items, and ticket sync and incident response templates update connected records and coordinate follow-up. Every template is editable, so you can adapt its channels, routing rules, data sources, and approval requirements.',
+    toolsSubtitleSuffix:
+      ' across messaging, channels, conversations, users, reactions and files, and workspace administration. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
   },
   airtable: {
     title: 'Airtable Automation with Sim',
