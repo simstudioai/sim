@@ -39,8 +39,8 @@ const RENAMES = [
 ] as const
 
 describe('every renamed subBlock reaches its tool param', () => {
-  it.each(RENAMES)('%s -> %s', (subBlockId, paramName) => {
-    expect(map({ [subBlockId]: 'x' })).toHaveProperty(paramName)
+  it.each(RENAMES)('%s -> %s', (subBlockId, paramName, toolId) => {
+    expect(map({ operation: toolId, [subBlockId]: 'x' })).toHaveProperty(paramName)
   })
 
   it.each(RENAMES)(
@@ -73,12 +73,16 @@ describe('guarded assignment protects the agent tool-calling path', () => {
   })
 
   it('leaves a model-supplied value untouched when the block field is absent', () => {
-    const modelArgs = { content: 'rocket', title: 'from the model' }
+    const modelArgs = {
+      operation: 'github_create_issue_reaction',
+      content: 'rocket',
+      title: 'from the model',
+    }
     expect({ ...modelArgs, ...map(modelArgs) }).toEqual(modelArgs)
   })
 
   it.each(['', null, undefined])('treats %o as not provided', (empty) => {
-    expect(map({ reaction_content: empty })).toEqual({})
+    expect(map({ operation: 'github_create_issue_reaction', reaction_content: empty })).toEqual({})
   })
 })
 
@@ -88,7 +92,7 @@ describe('gist_public coercion', () => {
     ['false', false],
     [true, true],
   ])('maps %o to %o', (input, expected) => {
-    expect(map({ gist_public: input }).public).toBe(expected)
+    expect(map({ operation: 'github_create_gist', gist_public: input }).public).toBe(expected)
   })
 
   it('omits public entirely when untouched, leaving the tool default', () => {
@@ -96,7 +100,9 @@ describe('gist_public coercion', () => {
   })
 
   it.each([null, undefined, ''])('treats %o as unset rather than Secret', (unset) => {
-    expect(map({ gist_public: unset })).not.toHaveProperty('public')
+    expect(map({ operation: 'github_create_gist', gist_public: unset })).not.toHaveProperty(
+      'public'
+    )
   })
 
   /**
@@ -109,11 +115,12 @@ describe('gist_public coercion', () => {
     ['false', false],
     [false, false],
   ])('treats %o as an explicit Secret selection', (input, expected) => {
-    expect(map({ gist_public: input }).public).toBe(expected)
+    expect(map({ operation: 'github_create_gist', gist_public: input }).public).toBe(expected)
   })
 
   it.each(['false', false])('overrides a model-supplied public for %o', (secret) => {
-    expect({ public: true, ...map({ gist_public: secret }) }.public).toBe(false)
+    const inputs = { operation: 'github_create_gist', gist_public: secret }
+    expect({ public: true, ...map(inputs) }.public).toBe(false)
   })
 
   it('matches the dropdown option ids the block actually renders', () => {
@@ -159,5 +166,56 @@ describe('sources sharing a target param are condition-disjoint', () => {
 describe('the v2 block inherits the same mapper', () => {
   it('forwards params from the v1 block', () => {
     expect(GitHubV2Block.tools.config?.params).toBe(GitHubBlock.tools.config?.params)
+  })
+})
+
+/**
+ * `shouldSerializeSubBlock` (`serializer/index.ts:91-93`) serializes a
+ * non-empty `mode: 'advanced'` field WITHOUT evaluating its condition. Seven of
+ * the aliased sources are advanced, so a value left behind by an earlier
+ * operation is still present in `params` after the user switches operations.
+ * An unscoped alias would rewrite it onto the new operation's tool param.
+ */
+describe('a stale advanced field cannot leak onto another operation', () => {
+  it('does not turn a leftover milestone_title into github_update_pr title', () => {
+    const mapped = map({ operation: 'github_update_pr', milestone_title: 'Q3 milestone' })
+    expect(mapped).not.toHaveProperty('title')
+  })
+
+  it('does not clobber the PR title the user actually typed', () => {
+    const inputs = {
+      operation: 'github_update_pr',
+      title: 'Fix the parser',
+      milestone_title: 'Q3 milestone',
+    }
+    expect({ ...inputs, ...map(inputs) }.title).toBe('Fix the parser')
+  })
+
+  it.each([
+    ['github_create_pr', 'milestone_title', 'title'],
+    ['github_create_issue', 'milestone_description', 'description'],
+    ['github_list_issues', 'milestone_state', 'state'],
+    ['github_search_repos', 'milestone_sort', 'sort'],
+    ['github_search_repos', 'fork_sort', 'sort'],
+    ['github_create_gist', 'fork_name', 'name'],
+    ['github_update_project', 'gist_public', 'public'],
+  ])('%s ignores a stale %s', (operation, from, to) => {
+    expect(map({ operation, [from]: 'stale' })).not.toHaveProperty(to)
+  })
+
+  it('every advanced source is scoped to at least one operation', () => {
+    const advanced = GitHubBlock.subBlocks.filter((s) => s.mode === 'advanced').map((s) => s.id)
+    for (const src of [
+      'milestone_title',
+      'milestone_description',
+      'milestone_state',
+      'milestone_sort',
+      'fork_name',
+      'fork_sort',
+      'gist_public',
+    ]) {
+      expect(advanced, `${src} is expected to be an advanced field`).toContain(src)
+      expect(map({ operation: '', [src]: 'x' })).toEqual({})
+    }
   })
 })

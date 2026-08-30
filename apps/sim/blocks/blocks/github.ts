@@ -9,6 +9,44 @@ import { getTrigger } from '@/triggers'
 /** Reviewers can be named individually or by team slug; either identifies the request. */
 const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
 
+/**
+ * Block subBlock ids that differ from the tool param they feed, each scoped to
+ * the operations whose tool declares that target. `sort` has two sources and
+ * `title`/`description`/`state` share their names with fields on other
+ * operations, so the scoping is what keeps them from colliding.
+ *
+ * `toBoolean` marks a dropdown feeding a boolean tool param: a dropdown stores
+ * its option id, so the value arrives as the string 'true'/'false' and the
+ * generic handler only JSON-parses `json`/`array` inputs.
+ */
+const GITHUB_PARAM_ALIASES: ReadonlyArray<{
+  from: string
+  to: string
+  operations: readonly string[]
+  toBoolean?: true
+}> = [
+  {
+    from: 'reaction_content',
+    to: 'content',
+    operations: ['github_create_issue_reaction', 'github_create_comment_reaction'],
+  },
+  {
+    from: 'milestone_title',
+    to: 'title',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  {
+    from: 'milestone_description',
+    to: 'description',
+    operations: ['github_create_milestone', 'github_update_milestone'],
+  },
+  { from: 'milestone_state', to: 'state', operations: ['github_list_milestones'] },
+  { from: 'milestone_sort', to: 'sort', operations: ['github_list_milestones'] },
+  { from: 'fork_name', to: 'name', operations: ['github_fork_repo'] },
+  { from: 'fork_sort', to: 'sort', operations: ['github_list_forks'] },
+  { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
+]
+
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub (Legacy)',
@@ -2284,53 +2322,39 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
        *
        * A tool param is populated only when a subBlock's `id` equals it — the
        * serializer keys values by subBlock id, and nothing else renames them.
-       * Each field below renders, accepts input, and then arrives under a name
-       * its tool never reads.
+       * Each aliased field below renders, accepts input, and then arrives under
+       * a name its tool never reads.
        *
-       * Every assignment is guarded, and that is load-bearing rather than
-       * defensive. `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }`
-       * and `providers/utils.ts` installs this same function as the provider
-       * `paramsTransform`, spreading its result over the model's tool-call
-       * arguments. An unconditional write would therefore clobber a
-       * model-supplied `content`/`title`/`sort` with `undefined` on the agent
-       * tool-calling path — which is the one path these fields work on today.
+       * Every alias is scoped to the operations whose tool actually declares
+       * the target param, and that scoping is load-bearing. Seven of these
+       * sources are `mode: 'advanced'`, and `shouldSerializeSubBlock`
+       * (`serializer/index.ts:91-93`) serializes a non-empty advanced field
+       * WITHOUT evaluating its condition. So a `milestone_title` left over from
+       * an earlier operation is still in `params` after the user switches to,
+       * say, Update PR — and an unscoped alias would rewrite it to `title` and
+       * clobber the PR's own title with stale milestone data.
        *
-       * `sort` has two sources and `title`/`description`/`state` share their
-       * names with fields on other operations. That is safe only because each
-       * source subBlock's `condition` binds it to a single operation, so at
-       * most one source of a given target is ever present in `params`.
+       * Presence is tested rather than truthiness so that a deliberate `false`
+       * or `'false'` is not mistaken for an unset field; only nullish and empty
+       * defer to the tool's own default.
+       *
+       * `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }` and
+       * `providers/utils.ts` installs this as the provider `paramsTransform`,
+       * spreading over the model's tool-call arguments — so emitting a key the
+       * block did not supply would clobber a model-supplied value on the agent
+       * path, which is the one path these fields work on today.
        */
       params: (params) => {
         const result: Record<string, unknown> = {}
+        const operation = typeof params.operation === 'string' ? params.operation : ''
 
-        if (params.reaction_content) result.content = params.reaction_content
-        if (params.milestone_title) result.title = params.milestone_title
-        if (params.milestone_description) result.description = params.milestone_description
-        if (params.milestone_state) result.state = params.milestone_state
-        if (params.milestone_sort) result.sort = params.milestone_sort
-        if (params.fork_name) result.name = params.fork_name
-        if (params.fork_sort) result.sort = params.fork_sort
+        const isSet = (value: unknown) => value !== undefined && value !== null && value !== ''
 
-        /**
-         * A dropdown stores its option id, so this arrives as the string
-         * 'true'/'false' while the tool declares `public` as a boolean. The
-         * generic handler only JSON-parses `json`/`array` inputs, so nothing
-         * else coerces it.
-         *
-         * Presence is tested rather than truthiness, because boolean `false` is
-         * a real selection: the block declares this input as `boolean`, so a
-         * writer following that schema stores `false` rather than `'false'`.
-         * Under a truthy check the two disagree — `'false'` would force the
-         * gist secret while `false` was dropped, letting a model-supplied
-         * `public: true` through on the agent path. Only an unset field
-         * (nullish or empty) defers to the tool's own default.
-         */
-        if (
-          params.gist_public !== undefined &&
-          params.gist_public !== null &&
-          params.gist_public !== ''
-        ) {
-          result.public = params.gist_public === true || params.gist_public === 'true'
+        for (const alias of GITHUB_PARAM_ALIASES) {
+          if (!alias.operations.includes(operation)) continue
+          const value = params[alias.from]
+          if (!isSet(value)) continue
+          result[alias.to] = alias.toBoolean ? value === true || value === 'true' : value
         }
 
         return result
