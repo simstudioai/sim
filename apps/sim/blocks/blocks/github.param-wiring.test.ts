@@ -3,9 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-// vitest.setup.ts stubs `@/tools/registry` to an empty map so unrelated suites
-// do not pay to load every tool. This suite asserts against the REAL tool
-// params, so it opts back in.
+/**
+ * Uses the real tool registry: these assertions are about the params GitHub's
+ * tools actually declare, which the global `@/tools/registry` mock in
+ * vitest.setup.ts empties.
+ */
 vi.unmock('@/tools/registry')
 
 import { GitHubBlock, GitHubV2Block } from '@/blocks/blocks/github'

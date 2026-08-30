@@ -2311,8 +2311,12 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         if (params.fork_name) result.name = params.fork_name
         if (params.fork_sort) result.sort = params.fork_sort
 
-        // A dropdown stores its option id, so this arrives as the string
-        // 'true'/'false' while the tool declares `public` as a boolean.
+        /**
+         * A dropdown stores its option id, so this arrives as the string
+         * 'true'/'false' while the tool declares `public` as a boolean. The
+         * generic handler only JSON-parses `json`/`array` inputs, so nothing
+         * else coerces it.
+         */
         if (params.gist_public) {
           result.public = params.gist_public === true || params.gist_public === 'true'
         }
