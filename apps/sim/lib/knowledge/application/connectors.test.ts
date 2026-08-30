@@ -68,7 +68,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: mocks.refreshToken,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 

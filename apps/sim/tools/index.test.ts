@@ -114,7 +114,6 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateModelProvider: vi.fn().mockResolvedValue(undefined),
   validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
   ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
   IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
@@ -122,6 +121,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
   PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))

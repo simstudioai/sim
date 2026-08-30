@@ -29,7 +29,7 @@ const {
   mockGetUserPermissionConfig: vi.fn(),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 

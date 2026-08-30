@@ -79,7 +79,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: vi.fn(() => null),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: getUserPermissionConfigMock,
 }))
 

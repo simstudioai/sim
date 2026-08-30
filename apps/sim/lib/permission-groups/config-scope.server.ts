@@ -3,7 +3,7 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
   getUserPermissionConfig,
   resolveVerifiedUserAccessControlContext,
-} from '@/ee/access-control/utils/permission-check'
+} from '@/lib/permission-groups/resolve.server'
 
 type ConfigKey = `${string}:${string}`
 type ConfigStore = Map<ConfigKey, Promise<PermissionGroupConfig | null>>
