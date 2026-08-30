@@ -83,10 +83,33 @@ export function parseCloudId(cloudId: string): string {
 /**
  * Resolves the Elasticsearch base URL for a tool invocation, from either an
  * Elastic Cloud ID or a self-hosted host URL.
+ *
+ * The deployment type alone selects the branch. A cloud invocation must never
+ * fall back to `host`: the block hides `host` when cloud is selected but keeps
+ * its previous value in saved state, so a fallback sends the cloud credential
+ * to whatever cluster the user was pointed at before they switched.
+ *
+ * An unrecognized deployment type is rejected rather than treated as
+ * self-hosted, because that fallthrough is the same disclosure by another
+ * route. `deploymentType` is `required: true` with no explicit `visibility`,
+ * which `tools/params.ts` resolves to `user-or-llm`, so a model supplies it on
+ * the agent tool-calling path; a near miss such as `Cloud` is not `=== 'cloud'`
+ * and would otherwise select the self-hosted branch. Only a nullish value still
+ * means self-hosted — that is the dropdown's own default (`value: () =>
+ * 'self_hosted'`) and the shape of state saved before the field was touched.
  */
 export function buildBaseUrl(params: ElasticsearchBaseParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
+  if (params.deploymentType === 'cloud') {
+    if (!params.cloudId) {
+      throw new Error('Cloud ID is required for cloud deployments')
+    }
     return parseCloudId(params.cloudId)
+  }
+
+  if (params.deploymentType != null && params.deploymentType !== 'self_hosted') {
+    throw new Error(
+      `Unsupported deployment type "${params.deploymentType}". Expected "self_hosted" or "cloud".`
+    )
   }
 
   if (!params.host) {

@@ -122,6 +122,52 @@ describe('buildBaseUrl', () => {
     ).toBe('https://es.example.com')
   })
 
+  /**
+   * The block marks `cloudId` required and hides `host` when cloud is selected,
+   * but a user who switches the dropdown keeps their old `host` in saved state.
+   * Falling back to it would send the cloud credential to the previous cluster.
+   */
+  it('never falls back to host for a cloud deployment missing its Cloud ID', () => {
+    expect(() =>
+      buildBaseUrl({
+        deploymentType: 'cloud',
+        host: 'https://stale-self-hosted.example.com',
+        authMethod: 'api_key',
+      })
+    ).toThrow(/Cloud ID is required/)
+  })
+
+  /**
+   * `deploymentType` resolves to `user-or-llm`, so a model on the agent
+   * tool-calling path can emit a near miss for `cloud`. Treating every
+   * non-`cloud` value as self-hosted routes the credential to the stale host,
+   * which is the same disclosure the branch above exists to prevent.
+   */
+  it.each(['Cloud', 'CLOUD', 'elastic_cloud', 'cloud ', 'elasticCloud', ''])(
+    'rejects %o rather than routing it to the stale self-hosted host',
+    (deploymentType) => {
+      expect(() =>
+        buildBaseUrl({
+          deploymentType: deploymentType as unknown as 'cloud',
+          host: 'https://stale-self-hosted.example.com',
+          cloudId: cloudId(`${PARENT_DOMAIN}$${ES_UUID}$${KIBANA_UUID}`),
+          authMethod: 'api_key',
+        })
+      ).toThrow(/Unsupported deployment type/)
+    }
+  )
+
+  /** Legacy saved state can carry no value at all; that still means self-hosted. */
+  it('treats a nullish deployment type as self-hosted', () => {
+    expect(
+      buildBaseUrl({
+        deploymentType: undefined as unknown as 'self_hosted',
+        host: 'https://es.example.com/',
+        authMethod: 'api_key',
+      })
+    ).toBe('https://es.example.com')
+  })
+
   it('requires a host when self-hosted', () => {
     expect(() => buildBaseUrl({ deploymentType: 'self_hosted', authMethod: 'api_key' })).toThrow(
       /Host is required/
