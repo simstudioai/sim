@@ -46,6 +46,7 @@ const {
   sendInvitationEmail,
   countPendingSeatInvitations,
   resolveSeatCapacity,
+  collectWorkspaceCredentialSummary,
 } = vi.hoisted(() => ({
   resolveMoveEntitlements: vi.fn(() =>
     Promise.resolve({
@@ -73,7 +74,32 @@ const {
   sendInvitationEmail: vi.fn(),
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
   resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
+  collectWorkspaceCredentialSummary: vi.fn(),
 }))
+
+const EMPTY_CREDENTIALS = {
+  items: [] as Array<{
+    id: string
+    displayName: string
+    type: string
+    backedBySourceOrgMember: boolean
+  }>,
+  credentialGroupCount: 0,
+  environmentVariableKeys: [] as string[],
+  byokKeyCount: 0,
+  truncatedCredentials: 0,
+  truncatedEnvironmentVariableKeys: 0,
+}
+
+const POPULATED_CREDENTIALS = {
+  ...EMPTY_CREDENTIALS,
+  items: [
+    { id: 'credential-1', displayName: 'Slack', type: 'oauth', backedBySourceOrgMember: true },
+  ],
+  credentialGroupCount: 1,
+  environmentVariableKeys: ['OPENAI_API_KEY'],
+  byokKeyCount: 2,
+}
 
 vi.mock('@sim/audit', () => ({
   AuditAction: {
@@ -121,16 +147,7 @@ vi.mock('@/lib/table/billing', () => ({ invalidateWorkspaceTableLimitsCache }))
 vi.mock('@/lib/workflows/custom-blocks/operations', () => ({ deleteCustomBlock }))
 vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   cleanupSourceOrganizationArtifactsTx,
-  collectWorkspaceCredentialSummary: vi.fn(() =>
-    Promise.resolve({
-      items: [],
-      credentialGroupCount: 0,
-      environmentVariableKeys: [],
-      byokKeyCount: 0,
-      truncatedCredentials: 0,
-      truncatedEnvironmentVariableKeys: 0,
-    })
-  ),
+  collectWorkspaceCredentialSummary,
   countRetentionRulesForWorkspace: vi.fn(() => ({
     piiRedactionRules: 0,
     retentionOverrides: 0,
@@ -210,6 +227,30 @@ function queueMoveSelects(workspaceRow: Record<string, unknown>) {
   queueTableRows(organization, [destination])
 }
 
+/**
+ * The reload path reads the completed operation, then the workspace twice — the
+ * applied-state check and the summary reload — and the destination once.
+ */
+function queueMoveOperationSelects(audit: Record<string, unknown>) {
+  queueTableRows(outboxEvent, [
+    {
+      eventType: 'admin.workspace-move-operation',
+      status: 'completed',
+      payload: {
+        request: {
+          workspaceId: movedWorkspace.id,
+          destinationOrganizationId: destination.id,
+          expectedOwnerId: movedWorkspace.ownerId,
+        },
+        audit,
+      },
+    },
+  ])
+  queueTableRows(workspace, [movedWorkspace])
+  queueTableRows(workspace, [movedWorkspace])
+  queueTableRows(organization, [destination])
+}
+
 afterAll(resetDbChainMock)
 
 beforeEach(() => {
@@ -227,6 +268,7 @@ beforeEach(() => {
     destinationIsEnterprise: false,
     capabilitiesLost: [],
   })
+  collectWorkspaceCredentialSummary.mockResolvedValue(EMPTY_CREDENTIALS)
   changeWorkspaceStoragePayerInTx.mockResolvedValue({
     billableBytes: 128,
     newPayer: { type: 'organization', id: destination.id },
@@ -786,6 +828,132 @@ describe('moveWorkspaceToOrganization retries', () => {
         metadata: expect.objectContaining({ requestOperationId: 'operation-1' }),
       })
     )
+  })
+
+  /**
+   * A completed move records `sourceOrganizationId` even when it is `null`, so
+   * a reload can tell "this workspace came from a personal source" apart from
+   * "this operation predates the field". Collapsing the two made every reload
+   * of a personal-source move claim its origin had failed to persist.
+   */
+  it('does not warn about an unpersisted source for a move recorded as personal', async () => {
+    queueMoveOperationSelects({
+      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+      newBillingOwnerId: destination.ownerId,
+      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+      sourceOrganizationId: null,
+    })
+
+    const view = await getWorkspaceMoveOperation(
+      movedWorkspace.id,
+      destination.id,
+      movedWorkspace.ownerId,
+      'operation-1'
+    )
+
+    expect(view.notices).toEqual([])
+    expect(view.sourceOrganization).toBeNull()
+  })
+
+  it('still warns when the payload never recorded a source organization', async () => {
+    queueMoveOperationSelects({
+      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+      newBillingOwnerId: destination.ownerId,
+      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+    })
+
+    const view = await getWorkspaceMoveOperation(
+      movedWorkspace.id,
+      destination.id,
+      movedWorkspace.ownerId,
+      'operation-1'
+    )
+
+    expect(view.notices).toEqual([
+      'This move was recorded before the source organization was persisted, so it cannot be reported.',
+    ])
+  })
+
+  it('reports the workspace credentials when a completed operation is reloaded', async () => {
+    collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
+    queueMoveOperationSelects({
+      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+      newBillingOwnerId: destination.ownerId,
+      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+      sourceOrganizationId: 'org-source',
+    })
+
+    const view = await getWorkspaceMoveOperation(
+      movedWorkspace.id,
+      destination.id,
+      movedWorkspace.ownerId,
+      'operation-1'
+    )
+
+    /** Resolved against the recorded source, so `backedBySourceOrgMember` means something. */
+    expect(collectWorkspaceCredentialSummary).toHaveBeenCalledWith(movedWorkspace.id, 'org-source')
+    expect(view.credentials).toEqual(POPULATED_CREDENTIALS)
+  })
+
+  it('reports the workspace credentials in the applied summary', async () => {
+    queueMoveSelects(organizationWorkspace)
+    collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
+
+    const summary = await moveWorkspaceToOrganization({
+      workspaceId: organizationWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      durableOperationId: 'operation-1',
+    })
+
+    /** The PRE-move organization: that is what `backedBySourceOrgMember` compares against. */
+    expect(collectWorkspaceCredentialSummary).toHaveBeenCalledWith(
+      organizationWorkspace.id,
+      'org-source',
+      expect.anything()
+    )
+    expect(summary.credentials).toEqual(POPULATED_CREDENTIALS)
+  })
+
+  it('reports the workspace credentials on a retry of a completed move', async () => {
+    queueMoveSelects(movedWorkspace)
+    queueTableRows(outboxEvent, [
+      {
+        eventType: 'admin.workspace-move-operation',
+        status: 'completed',
+        payload: {
+          request: {
+            workspaceId: movedWorkspace.id,
+            destinationOrganizationId: destination.id,
+            expectedOwnerId: movedWorkspace.ownerId,
+          },
+          audit: {
+            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+            newBillingOwnerId: destination.ownerId,
+            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+            sourceOrganizationId: null,
+          },
+        },
+      },
+    ])
+    collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
+
+    const summary = await moveWorkspaceToOrganization({
+      workspaceId: movedWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      expectedOwnerId: movedWorkspace.ownerId,
+      auditOperationId: 'operation-1',
+      operationCorrelationId: 'operation-1',
+      durableOperationId: 'operation-1',
+    })
+
+    expect(summary.credentials).toEqual(POPULATED_CREDENTIALS)
+    expect(summary.notices).toEqual([])
   })
 
   it('takes shared advisory locks before the workspace row lock and payer mutation', async () => {
