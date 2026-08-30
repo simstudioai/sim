@@ -2342,7 +2342,17 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
        * `providers/utils.ts` installs this as the provider `paramsTransform`,
        * spreading over the model's tool-call arguments — so emitting a key the
        * block did not supply would clobber a model-supplied value on the agent
-       * path, which is the one path these fields work on today.
+       * path.
+       *
+       * On the agent tool-calling path `operation` is not part of the params
+       * this receives: `providers/utils.ts` spreads it in for the tool-selection
+       * call (`:736-739`) but builds the transform's input from `block.params`
+       * alone (`:776`). Every alias therefore skips there, which is the same
+       * behaviour as before this mapper existed - the agent path already works
+       * because a model supplies `content`/`title`/`sort` by their real names.
+       * That gap is shared by every block whose mapper branches on
+       * `params.operation`, so closing it belongs in the provider layer rather
+       * than here.
        */
       params: (params) => {
         const result: Record<string, unknown> = {}

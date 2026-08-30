@@ -219,3 +219,27 @@ describe('a stale advanced field cannot leak onto another operation', () => {
     }
   })
 })
+
+/**
+ * `providers/utils.ts` builds the provider `paramsTransform` input from
+ * `block.params` alone (`:776`), spreading `operation` in only for the
+ * tool-selection call (`:736-739`). Without an operation every alias skips —
+ * which must remain a no-op rather than a clobber, since that is exactly the
+ * behaviour that existed before this mapper.
+ */
+describe('absent operation degrades to a no-op, never a clobber', () => {
+  it.each([{}, { operation: undefined }, { operation: '' }, { operation: 123 }])(
+    'emits nothing for %o',
+    (opShape) => {
+      expect(
+        map({ ...opShape, milestone_title: 'x', reaction_content: 'heart', gist_public: 'true' })
+      ).toEqual({})
+    }
+  )
+
+  it('leaves every model-supplied value intact', () => {
+    const modelArgs = { content: 'rocket', title: 'model title', sort: 'newest', public: true }
+    const stale = { milestone_title: 'stale', fork_sort: 'oldest', gist_public: 'false' }
+    expect({ ...modelArgs, ...map({ ...modelArgs, ...stale }) }).toEqual(modelArgs)
+  })
+})
