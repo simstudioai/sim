@@ -246,36 +246,38 @@ export async function runCleanupTableRowTtl(
   let deleted = 0
   let batches = 0
 
-  while (
-    batches < TTL_CLEANUP_MAX_BATCHES &&
-    !signal?.aborted &&
-    tableStates.some((state) => !state.complete)
-  ) {
-    for (const state of tableStates) {
-      if (state.complete) continue
-      if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
+  try {
+    while (
+      batches < TTL_CLEANUP_MAX_BATCHES &&
+      !signal?.aborted &&
+      tableStates.some((state) => !state.complete)
+    ) {
+      for (const state of tableStates) {
+        if (state.complete) continue
+        if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-      const batch = await deleteExpiredRowsForTable(
-        state.ref,
-        nowEpochSeconds,
-        batchSize,
-        state.after
-      )
-      if (!batch.attempted) {
-        state.complete = true
-        continue
+        const batch = await deleteExpiredRowsForTable(
+          state.ref,
+          nowEpochSeconds,
+          batchSize,
+          state.after
+        )
+        if (!batch.attempted) {
+          state.complete = true
+          continue
+        }
+
+        batches++
+        deleted += batch.deleted
+        state.deleted += batch.deleted
+        state.after = batch.cursor ?? undefined
+        if (batch.deleted < batchSize) state.complete = true
       }
-
-      batches++
-      deleted += batch.deleted
-      state.deleted += batch.deleted
-      state.after = batch.cursor ?? undefined
-      if (batch.deleted < batchSize) state.complete = true
     }
-  }
-
-  for (const state of tableStates) {
-    if (state.deleted > 0) signalTableRowsChanged(state.ref.id)
+  } finally {
+    for (const state of tableStates) {
+      if (state.deleted > 0) signalTableRowsChanged(state.ref.id)
+    }
   }
 
   const limitReached =

@@ -256,6 +256,25 @@ describe('table row TTL cleanup', () => {
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
   })
 
+  it('signals tables changed before a later table cleanup failure propagates', async () => {
+    const secondTable = {
+      ...table,
+      id: 'table-2',
+    }
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
+      if (tableId === secondTable.id) throw new Error('second table cleanup failed')
+      return mutate(table, { execute: vi.fn().mockResolvedValue(returnedRows(1)) })
+    })
+
+    await expect(runCleanupTableRowTtl()).rejects.toThrow('second table cleanup failed')
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+  })
+
   it('registers one serialized Trigger.dev task', () => {
     expect(cleanupTableRowTtlTask).toEqual(
       expect.objectContaining({
