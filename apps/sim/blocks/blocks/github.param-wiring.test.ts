@@ -68,9 +68,27 @@ describe('guarded assignment protects the agent tool-calling path', () => {
     expect(map({ operation: 'github_create_milestone' })).toEqual({})
   })
 
-  it.each(RENAMES)('never writes %s target as undefined', (_s, paramName) => {
-    expect(map({ operation: 'x' })).not.toHaveProperty(paramName)
-  })
+  /**
+   * Exercised with the alias's OWN operation, so the operation guard passes and
+   * `isSet` is the only thing standing between an absent source field and an
+   * `undefined` written over the model's argument. An unmatched operation would
+   * short-circuit earlier and assert nothing about this.
+   */
+  it.each(RENAMES)(
+    'never writes %s target as undefined on its own operation',
+    (subBlockId, paramName, toolId) => {
+      expect(map({ operation: toolId, [subBlockId]: undefined })).not.toHaveProperty(paramName)
+    }
+  )
+
+  it.each(RENAMES)(
+    'leaves a model-supplied %s intact when the block field is empty',
+    (subBlockId, paramName, toolId) => {
+      const modelArgs = { [paramName]: 'from-the-model' }
+      const inputs = { operation: toolId, [subBlockId]: '', ...modelArgs }
+      expect({ ...inputs, ...map(inputs) }[paramName]).toBe('from-the-model')
+    }
+  )
 
   it('leaves a model-supplied value untouched when the block field is absent', () => {
     const modelArgs = {
