@@ -465,6 +465,14 @@ function collectFieldProperty<P extends FieldProjection>(
 /** The PATCH shape: every key optional, so a partial config is a legal write. */
 export const permissionGroupWriteShape = collectFieldProperty('writeSchema')
 
+/**
+ * The config a create or update body may carry: every key optional, so a caller
+ * patches only what it means to change. The route merges the result over the
+ * group's stored config, which is what heals a row written before a key
+ * existed.
+ */
+export const permissionGroupConfigSchema = z.object(permissionGroupWriteShape)
+
 /** The wire shape: every key present, denylists defaulted. */
 export const permissionGroupReadShape = collectFieldProperty('readSchema')
 

@@ -20,13 +20,13 @@ import {
   refuseCapability,
   type StaticCapabilityRule,
 } from '@/lib/permission-groups/capabilities'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
+import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'

@@ -9,7 +9,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
   permissionGroupConfigSchema,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
 
 /**
  * The coercion corpus, pinned against the hand-written parser before it is

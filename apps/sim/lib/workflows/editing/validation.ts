@@ -7,7 +7,7 @@ import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/block-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 import { getSkillById } from '@/lib/workflows/skills/operations'

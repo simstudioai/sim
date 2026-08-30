@@ -8,6 +8,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 import {
   createToolAccessGate,
@@ -15,7 +16,6 @@ import {
   MODEL_SUBBLOCK_ID,
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {

@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { permissionGroupReadShape } from '@/lib/permission-groups/fields'
-import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
+import {
+  permissionGroupConfigSchema,
+  permissionGroupReadShape,
+} from '@/lib/permission-groups/fields'
 
 /**
  * The wire shape of a resolved config: every key present, in registry order.

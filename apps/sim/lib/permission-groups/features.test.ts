@@ -9,7 +9,7 @@ import {
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
 
 describe('getActivePermissionGroupRestrictions', () => {
   it('returns no restrictions for an absent or unrestricted config', () => {

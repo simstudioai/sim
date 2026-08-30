@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { applyOperationsToWorkflowState } from './engine'
 

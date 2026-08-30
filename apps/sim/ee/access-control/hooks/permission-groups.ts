@@ -17,7 +17,7 @@ import {
   type UserPermissionConfig,
   updatePermissionGroupContract,
 } from '@/lib/api/contracts'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 
 export const PERMISSION_GROUP_MEMBERS_STALE_TIME = 30 * 1000
 export const PERMISSION_GROUPS_STALE_TIME = 60 * 1000

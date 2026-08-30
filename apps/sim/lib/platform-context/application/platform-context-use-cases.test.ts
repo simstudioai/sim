@@ -38,7 +38,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   resolveVerifiedUserAccessControlContext: mocks.resolveVerifiedUserAccessControlContext,
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { readAccountBilling } from '@/lib/platform-context/application/read-account-billing'
 import { readEnterpriseContext } from '@/lib/platform-context/application/read-enterprise-context'
 

@@ -55,7 +55,7 @@ import {
   updateWorkspaceCredentialUseCase,
 } from '@/lib/credentials/application/credential-crud'
 import { credentialOperations } from '@/lib/credentials/application/operations'
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const WORKSPACE_ID = 'workspace-1'
 const OTHER_WORKSPACE_ID = 'workspace-2'
