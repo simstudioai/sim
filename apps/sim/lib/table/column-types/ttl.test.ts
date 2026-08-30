@@ -10,7 +10,7 @@ import {
 } from '@/lib/core/utils/timezone'
 import { parseTtlEpochSeconds, ttlColumnType } from '@/lib/table/column-types/ttl'
 import { retypeCellRewrite } from '@/lib/table/columns/service'
-import type { ColumnDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 const column = (over: Partial<ColumnDefinition>): ColumnDefinition =>
   ({ name: 'col', type: 'string', ...over }) as ColumnDefinition
@@ -20,6 +20,30 @@ describe('TTL column type', () => {
     expect(
       retypeCellRewrite(1_700_000_000, column({ type: 'date' }), column({ type: 'ttl' }))
     ).toEqual({ value: '2023-11-14T22:13:20Z' })
+  })
+
+  it('keeps blank and malformed TTL values out of the epoch-zero formatter', () => {
+    const cases: Array<[unknown, string]> = [
+      [null, ''],
+      [undefined, ''],
+      ['', ''],
+      ['   ', '   '],
+      [false, 'false'],
+      [[], ''],
+    ]
+    for (const [value, fallback] of cases) {
+      expect(ttlColumnType.formatForDisplay(value, column({ type: 'ttl' }))).toBe(fallback)
+      expect(ttlColumnType.formatForInput(value, column({ type: 'ttl' }))).toBe(fallback)
+    }
+  })
+
+  it('preserves blank and malformed TTL values when converting to a date', () => {
+    const target = column({ type: 'date' })
+    const values: JsonValue[] = [null, '', '   ', false, []]
+
+    for (const value of values) {
+      expect(ttlColumnType.valueForConversion?.(value, target)).toEqual(value)
+    }
   })
 
   it.each([
