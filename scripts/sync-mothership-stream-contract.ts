@@ -10,10 +10,10 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/mothership-stream-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/mothership-stream-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/mothership-stream-v1.ts')
 const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
   ROOT,
-  'apps/sim/lib/copilot/generated/mothership-stream-v1-schema.ts'
+  'apps/sim/lib/mothership/generated/mothership-stream-v1-schema.ts'
 )
 
 function generateRuntimeConstants(schema: Record<string, unknown>, existingTypes: string): string {

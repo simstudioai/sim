@@ -11,7 +11,7 @@ vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
 }))
 
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   type UsePromptEditorProps,

@@ -27,9 +27,9 @@ const {
   getTrustedWorkflowToolExecution: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getAsyncToolCall,
   getRunSegment,
   completeAsyncToolCall,
@@ -40,7 +40,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
     claimedBy?.startsWith('workflow:') ? claimedBy.slice('workflow:'.length) : undefined,
 }))
 
-vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
+vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 

@@ -8,7 +8,7 @@ import type {
   AgentStreamToolStatus,
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { ShimmerText } from '@/components/ui'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { humanizeToolName } from '@/lib/mothership/tools/tool-display'
 
 /** Distance from bottom (px) within which we keep following new thinking text. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24

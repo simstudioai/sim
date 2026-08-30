@@ -5,7 +5,7 @@ import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contra
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
-} from '@/lib/copilot/async-runs/lifecycle'
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -16,8 +16,8 @@ import {
   COPILOT_BILLING_PROTOCOL_VALUES,
   COPILOT_VALIDATION_PURPOSE,
   COPILOT_VALIDATION_PURPOSE_VALUES,
-} from '@/lib/copilot/generated/billing-protocol-v1'
-import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/generated/billing-protocol-v1'
+import { PERSISTED_RESOURCE_TYPES } from '@/lib/mothership/resources/types'
 
 export const copilotApiKeySchema = z.object({
   id: z.string(),

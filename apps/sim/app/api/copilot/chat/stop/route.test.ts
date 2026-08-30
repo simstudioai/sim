@@ -12,15 +12,15 @@ const { mockAppendCopilotChatMessages, mockPublishStatusChanged, mockGetAccessib
     mockPublishStatusChanged: vi.fn(),
   }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   publishChatStatusChanged: mockPublishStatusChanged,
 }))
 

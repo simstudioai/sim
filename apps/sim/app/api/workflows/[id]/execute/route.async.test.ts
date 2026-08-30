@@ -146,7 +146,7 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
   releaseExecutionIdClaim: mockReleaseExecutionIdClaim,
 }))
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   claimWorkflowToolExecution: mockClaimWorkflowToolExecution,
   getAsyncToolCall: mockGetAsyncToolCall,
   getRunSegment: mockGetRunSegment,

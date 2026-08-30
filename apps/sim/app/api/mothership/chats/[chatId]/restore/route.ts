@@ -5,14 +5,14 @@ import { and, eq, isNotNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
-import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
+import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
+} from '@/lib/mothership/request/http'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'

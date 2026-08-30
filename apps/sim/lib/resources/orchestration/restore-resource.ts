@@ -2,13 +2,13 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
-import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import { restoreFolder } from '@/lib/folders/orchestration'
 import {
   getRestorableKnowledgeBase,
   performRestoreKnowledgeBase,
 } from '@/lib/knowledge/orchestration'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
+import type { ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
 import { performRestoreTable } from '@/lib/table/orchestration'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -40,7 +40,7 @@ export type RestorableResourceType =
  * `knowledge_folder` and `table_folder` are accepted here and by the tool handler, but the
  * model cannot emit them yet: the `restore_resource` parameter enum lives in the copilot
  * service's `contracts/tool-catalog-v1.json`, which is a different repository and is mirrored
- * into `lib/copilot/generated/**` by `scripts/sync-tool-catalog.ts`. Widening it there makes
+ * into `lib/mothership/generated/**` by `scripts/sync-tool-catalog.ts`. Widening it there makes
  * these reachable with no further change on this side.
  */
 type RestorableFolderType = 'folder' | 'knowledge_folder' | 'table_folder'

@@ -10,7 +10,7 @@ const { mockParseRequest, mockGetAccessibleChat } = vi.hoisted(() => ({
   mockGetAccessibleChat: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/api/server', () => ({ parseRequest: mockParseRequest }))
 vi.mock('@/lib/api/contracts/mothership-chats', () => ({ markMothershipChatReadContract: {} }))
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({

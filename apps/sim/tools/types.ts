@@ -1,7 +1,7 @@
-import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import type { OAuthService } from '@/lib/oauth'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'

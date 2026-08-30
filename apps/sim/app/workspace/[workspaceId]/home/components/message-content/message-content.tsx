@@ -11,17 +11,17 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
-import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
-import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
+import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
+import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
+import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
   normalizeToolActivityDescription,
-} from '@/lib/copilot/tools/tool-display'
+} from '@/lib/mothership/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   collectGroupTools,

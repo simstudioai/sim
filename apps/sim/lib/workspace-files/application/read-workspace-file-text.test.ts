@@ -42,8 +42,8 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mocks.parseBuffer,
 }))
 
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const WORKSPACE_ID = 'workspace-1'
