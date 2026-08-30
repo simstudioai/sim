@@ -20,6 +20,7 @@ export {
   assertOperationPrincipal,
   defineOperation,
   type OperationUseCase,
+  type PrincipalKind,
   type PrincipalScopedOperation,
   type UndelegatedPrincipalKind,
 } from '@/lib/core/application/operation'
@@ -34,7 +35,6 @@ export {
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
-  PermissionGroupCapabilityError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
@@ -44,6 +44,6 @@ export {
 export {
   defineWorkspaceOperation,
   type PrincipalForOperation,
-  type PrincipalKind,
   type WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
+export { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'

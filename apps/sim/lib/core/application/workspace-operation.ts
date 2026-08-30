@@ -12,8 +12,6 @@ import {
 
 type WorkspaceApiKeyPolicy<R extends PermissionType> = R extends 'admin' ? 'deny' : 'allow' | 'deny'
 
-export type { PrincipalKind }
-
 type WorkspaceOperationPrincipal = Extract<Principal, { kind: PrincipalKind }>
 
 type NonDelegatedPrincipalForOperation<

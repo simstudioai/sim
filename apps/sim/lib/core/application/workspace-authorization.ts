@@ -19,7 +19,6 @@ import {
   assertWorkspaceCapability,
   capabilityDeniedBy,
 } from '@/lib/permission-groups/capability-assertions'
-import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
 export interface WorkspaceAuthorizationContext {
@@ -58,8 +57,6 @@ export class NoWorkspaceAccessError extends OrchestrationError {
     this.name = 'NoWorkspaceAccessError'
   }
 }
-
-export { PermissionGroupCapabilityError }
 
 export class PersonalApiKeysDisabledError extends ForbiddenOperationError {
   constructor() {

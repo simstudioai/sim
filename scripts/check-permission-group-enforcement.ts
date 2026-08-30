@@ -42,6 +42,14 @@ import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
+/**
+ * Where a `defineWorkspaceOperation` can live. Every operation declared today is
+ * under one of these, and `.tsx` is excluded because an operation is policy data
+ * that no component declares. Both are deliberate rather than incidental: an
+ * operation landing in `background`, `tools`, `triggers`, `connectors` or
+ * `enrichments`, or in a `.tsx`, would be invisible here — so widen this list
+ * (and `walk`) at the same time as moving one, not afterwards.
+ */
 const SCAN_ROOTS = ['apps/sim/lib', 'apps/sim/app', 'apps/sim/ee', 'apps/sim/executor']
 const CAPABILITIES_FILE = 'apps/sim/lib/permission-groups/capabilities.ts'
 const FIELDS_FILE = 'apps/sim/lib/permission-groups/fields.ts'
@@ -134,13 +142,29 @@ interface OperationDeclaration {
   capability: string | undefined
 }
 
+interface ParsedOperations {
+  declarations: OperationDeclaration[]
+  /**
+   * Lines of `defineWorkspaceOperation` calls this parser could not read an id
+   * from, and which no recognized factory accounts for.
+   *
+   * A call whose `id` is a const reference, or one minted by a wrapper written
+   * as an arrow const rather than a `function`, used to be dropped in silence —
+   * the operation simply stopped being counted, and the audit still printed a
+   * tick. Reported instead, because an audit that quietly stops watching a
+   * domain is the failure it exists to prevent.
+   */
+  unreadable: number[]
+}
+
 /**
  * Every `defineWorkspaceOperation` in a module and the capability it declares,
  * resolved through a same-file factory when a domain wraps the builder (the
  * table operations take only an id and a capability).
  */
-export function parseOperationCapabilities(source: string): OperationDeclaration[] {
+export function parseOperationCapabilities(source: string): ParsedOperations {
   const declarations: OperationDeclaration[] = []
+  const unreadable: number[] = []
   const lineAt = (index: number) => source.slice(0, index).split('\n').length
 
   /**
@@ -150,22 +174,31 @@ export function parseOperationCapabilities(source: string): OperationDeclaration
    * Both are legible at the call site, so both are read here.
    */
   const factoryCapabilities = new Map<string, string | 'positional'>()
+  const factoryRanges: Array<[number, number]> = []
   const factoryPattern = /(?:^|\n)\s*(?:export\s+)?function\s+([A-Za-z0-9_$]+)\s*[<(]/g
   for (let match = factoryPattern.exec(source); match; match = factoryPattern.exec(source)) {
     const bodyIndex = source.indexOf('{', match.index + match[0].length - 1)
     if (bodyIndex === -1) continue
     const body = balancedGroup(source, bodyIndex)
     if (!body.includes('defineWorkspaceOperation')) continue
+    factoryRanges.push([bodyIndex, bodyIndex + body.length])
     const fixed = /capability\s*:\s*'([a-z0-9_.]+)'/.exec(body)?.[1]
     if (fixed) factoryCapabilities.set(match[1], fixed)
     else if (/capability\s*[,:}]/.test(body)) factoryCapabilities.set(match[1], 'positional')
   }
 
+  /** A call inside a recognized factory takes its id from a parameter; its call sites are read below. */
+  const insideFactory = (index: number) =>
+    factoryRanges.some(([start, end]) => index >= start && index < end)
+
   const directPattern = /defineWorkspaceOperation\s*\(/g
   for (let match = directPattern.exec(source); match; match = directPattern.exec(source)) {
     const call = balancedGroup(source, source.indexOf('(', match.index))
     const id = /id\s*:\s*'([^']+)'/.exec(call)?.[1]
-    if (!id) continue
+    if (!id) {
+      if (!insideFactory(match.index)) unreadable.push(lineAt(match.index))
+      continue
+    }
     declarations.push({
       id,
       line: lineAt(match.index),
@@ -187,7 +220,7 @@ export function parseOperationCapabilities(source: string): OperationDeclaration
     }
   }
 
-  return declarations
+  return { declarations, unreadable }
 }
 
 /** Capabilities declared enforced at a call site the funnel cannot reach. */
@@ -264,9 +297,33 @@ function main(): void {
       }
     }
 
-    if (!source.includes('defineWorkspaceOperation')) continue
+    if (!source.includes('defineWorkspaceOperation(')) continue
 
-    for (const declaration of parseOperationCapabilities(source)) {
+    const { declarations, unreadable } = parseOperationCapabilities(source)
+
+    for (const line of unreadable) {
+      findings.push({
+        file: relativePath,
+        line,
+        message:
+          'defineWorkspaceOperation call this audit cannot read an id from — a const-reference id, or a wrapper written as an arrow const rather than a `function`. Teach parseOperationCapabilities the form rather than letting the operation drop out of the count in silence',
+      })
+    }
+
+    /**
+     * A file that calls the builder and yields nothing means the parsers no
+     * longer understand it. Per-file rather than a count floor: a floor rots on
+     * every legitimate addition and invites bumping the number.
+     */
+    if (declarations.length === 0 && unreadable.length === 0) {
+      findings.push({
+        file: relativePath,
+        message:
+          'calls defineWorkspaceOperation but this audit parsed no operation from it — the declaration form changed and every operation in this file is now unchecked',
+      })
+    }
+
+    for (const declaration of declarations) {
       declaredOperations++
       if (declaration.capability === undefined) {
         findings.push({

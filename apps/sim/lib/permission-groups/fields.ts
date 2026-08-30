@@ -31,7 +31,7 @@ const shareAuthType = z.enum(FILE_SHARE_AUTH_TYPES)
  * they share, and `check:permission-group-enforcement` is what keeps it honest
  * in both directions.
  */
-export type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
+type PermissionGroupEnforcement = 'capability' | 'executor' | 'ui-only'
 
 /** The admin-editor descriptor for a boolean key, rendered from the registry. */
 interface PlatformFeatureMeta {
@@ -77,7 +77,6 @@ function tolerantArray<TItem extends z.ZodType, TFallback extends z.infer<TItem>
 
 interface BooleanRestrictionField {
   readonly kind: 'boolean-restriction'
-  readonly schema: z.ZodBoolean
   readonly writeSchema: z.ZodOptional<z.ZodBoolean>
   readonly readSchema: z.ZodBoolean
   readonly tolerantSchema: z.ZodType<boolean>
@@ -88,7 +87,6 @@ interface BooleanRestrictionField {
 
 interface AllowlistField<TItem extends z.ZodType = z.ZodType> {
   readonly kind: 'allowlist'
-  readonly schema: z.ZodNullable<z.ZodArray<TItem>>
   readonly writeSchema: z.ZodOptional<z.ZodNullable<z.ZodArray<TItem>>>
   readonly readSchema: z.ZodNullable<z.ZodArray<TItem>>
   readonly tolerantSchema: z.ZodType<z.infer<TItem>[] | null>
@@ -99,7 +97,6 @@ interface AllowlistField<TItem extends z.ZodType = z.ZodType> {
 
 interface DenylistField<TItem extends z.ZodType = z.ZodType> {
   readonly kind: 'denylist'
-  readonly schema: z.ZodArray<TItem>
   readonly writeSchema: z.ZodOptional<z.ZodArray<TItem>>
   readonly readSchema: z.ZodDefault<z.ZodArray<TItem>>
   readonly tolerantSchema: z.ZodType<z.infer<TItem>[]>
@@ -117,7 +114,6 @@ interface DenylistField<TItem extends z.ZodType = z.ZodType> {
  */
 type PermissionGroupField = {
   readonly kind: 'boolean-restriction' | 'allowlist' | 'denylist'
-  readonly schema: z.ZodType
   readonly writeSchema: z.ZodType
   readonly readSchema: z.ZodType
   readonly tolerantSchema: z.ZodType
@@ -132,7 +128,6 @@ function booleanRestriction(
   const schema = z.boolean()
   return {
     kind: 'boolean-restriction',
-    schema,
     writeSchema: schema.optional(),
     readSchema: schema,
     tolerantSchema: schema.catch(false),
@@ -150,7 +145,6 @@ function allowlist<TItem extends z.ZodType>(
   const schema = z.array(item).nullable()
   return {
     kind: 'allowlist',
-    schema,
     writeSchema: schema.optional(),
     readSchema: schema,
     tolerantSchema: tolerantArray(item, null),
@@ -168,7 +162,6 @@ function denylist<TItem extends z.ZodType>(
   const schema = z.array(item)
   return {
     kind: 'denylist',
-    schema,
     writeSchema: schema.optional(),
     readSchema: schema.default([]),
     tolerantSchema: tolerantArray(item, [] as never[]),
@@ -428,7 +421,7 @@ export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS
 export type PermissionGroupConfigKey = keyof PermissionGroupFields
 
 type DerivedPermissionGroupConfig = {
-  [K in PermissionGroupConfigKey]: z.infer<PermissionGroupFields[K]['schema']>
+  [K in PermissionGroupConfigKey]: z.infer<PermissionGroupFields[K]['readSchema']>
 }
 
 /**

@@ -1,12 +1,9 @@
 import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import type {
-  FILE_SHARE_AUTH_TYPES,
   PermissionGroupConfig,
   PermissionGroupConfigKey,
 } from '@/lib/permission-groups/fields'
-
-type ShareAuthMode = (typeof FILE_SHARE_AUTH_TYPES)[number]
 
 /**
  * Every capability a permission group can withhold.
@@ -98,24 +95,29 @@ export interface ParameterizedCapabilityRule extends CapabilityRuleBase {
 export type CapabilityRule = StaticCapabilityRule | ParameterizedCapabilityRule
 
 /**
- * The one sentence every capability refusal uses, and the error that carries it.
+ * The one sentence every capability refusal uses, wherever it is raised.
  *
  * Shared so the funnel, a raw route gating inline, and a parameterized rule
- * asserted from a use case cannot word the same refusal three ways. Accepts any
- * capability, static or parameterized, because a parameterized one is refused
- * from a call site rather than by the funnel and still has to read identically.
+ * asserted from a use case cannot word the same refusal three ways. Each rule's
+ * `describe` is written to read as this sentence's subject.
  */
-export function refuseCapability(capability: PermissionGroupCapability): never {
-  const rule = CAPABILITY_RULES[capability]
-  throw new PermissionGroupCapabilityError(
-    capability,
-    rule.detailCode,
-    `${rule.describe} is not available under your organization's permission group`
-  )
+export function capabilityRefusal(capability: PermissionGroupCapability): string {
+  return `${CAPABILITY_RULES[capability].describe} is not available under your organization's permission group`
 }
 
-function authModeDeniedBy(allowed: ShareAuthMode[] | null, mode: string): boolean {
-  return allowed !== null && !allowed.some((allowedMode) => allowedMode === mode)
+/**
+ * Throws {@link capabilityRefusal} as the error the surfaces project.
+ *
+ * Accepts any capability, static or parameterized, because a parameterized one
+ * is refused from a call site rather than by the funnel and still has to read
+ * identically.
+ */
+export function refuseCapability(capability: PermissionGroupCapability): never {
+  throw new PermissionGroupCapabilityError(
+    capability,
+    CAPABILITY_RULES[capability].detailCode,
+    capabilityRefusal(capability)
+  )
 }
 
 /** An allowlist denies a member when it is set and does not name it; `null` names everything. */
@@ -216,7 +218,7 @@ export const CAPABILITY_RULES = {
     configKeys: ['allowedChatDeployAuthTypes'],
     detailCode: 'CHAT_AUTH_MODE_NOT_PERMITTED',
     describe: 'This chat authentication mode',
-    deniedBy: (config, mode) => authModeDeniedBy(config.allowedChatDeployAuthTypes, mode),
+    deniedBy: (config, mode) => allowlistDenies(config.allowedChatDeployAuthTypes, mode),
   },
   'file_share.publish': {
     kind: 'static',
@@ -230,7 +232,7 @@ export const CAPABILITY_RULES = {
     configKeys: ['allowedFileShareAuthTypes'],
     detailCode: 'PUBLIC_SHARING_NOT_ALLOWED',
     describe: 'This file-share authentication mode',
-    deniedBy: (config, mode) => authModeDeniedBy(config.allowedFileShareAuthTypes, mode),
+    deniedBy: (config, mode) => allowlistDenies(config.allowedFileShareAuthTypes, mode),
   },
   'public_api.use': {
     kind: 'static',
@@ -313,7 +315,7 @@ export const CAPABILITY_RULES = {
     describe: 'Creating a knowledge base',
     deniedBy: (config) => config.disableKnowledgeBaseCreation || config.hideKnowledgeBaseTab,
   },
-  /** Subsumes `knowledge.use` for the same reason as {@link CAPABILITY_RULES}'s `knowledge.create`. */
+  /** Subsumes `knowledge.use` for the same reason as `knowledge.create`. */
   'knowledge.upload': {
     kind: 'static',
     configKeys: ['disableKnowledgeBaseFileUpload', 'hideKnowledgeBaseTab'],
@@ -348,7 +350,7 @@ export const CAPABILITY_RULES = {
     describe: 'Creating a table',
     deniedBy: (config) => config.disableTableCreation || config.hideTablesTab,
   },
-  /** Subsumes `hideTablesTab` for the same reason as `tables.create`. */
+  /** Subsumes `tables.use` for the same reason as `tables.create`. */
   'tables.export': {
     kind: 'static',
     configKeys: ['disableTableExport', 'hideTablesTab'],
