@@ -3,18 +3,20 @@
  */
 
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  resolveGroupConfig: vi.fn(),
   resolveWorkspaceContext: vi.fn(),
   create: vi.fn(),
   getTable: vi.fn(),
   require: vi.fn(),
   resolveContext: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { TABLE_EXPORTED: 'table.exported' },
@@ -25,9 +27,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: vi.fn(),
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolveGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/table', () => ({ getTableById: mocks.getTable }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
@@ -111,7 +111,7 @@ describe('table export application use cases', () => {
     mocks.create.mockResolvedValue(record)
     mocks.require.mockResolvedValue(record)
     mocks.cancel.mockResolvedValue({ ...record, status: 'canceled' })
-    mocks.resolveGroupConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
     mocks.resolveWorkspaceContext.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
       workspaceOrganizationId: null,
@@ -192,7 +192,7 @@ describe('table export application use cases', () => {
         allowPersonalApiKeys: true,
         billedAccountUserId: 'billing-owner-1',
       }))
-      mocks.resolveGroupConfig.mockResolvedValue({
+      resolveGroupConfigMock.mockResolvedValue({
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
         disableTableExport: true,
       })
@@ -219,7 +219,7 @@ describe('table export application use cases', () => {
     })
 
     it('generates an export when the group withholds nothing', async () => {
-      mocks.resolveGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+      resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
 
       await expect(
         createTableExportUseCase.execute({

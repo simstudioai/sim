@@ -4,15 +4,21 @@
 
 import type { Principal } from '@sim/auth/principal'
 import { workflowExecutionLogs } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readLogDetail: vi.fn(),
   resolveWorkspace: vi.fn(),
   resolvePermission: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@/lib/logs/fetch-log-detail', () => ({
   readLogDetail: mocks.readLogDetail,
@@ -22,9 +28,7 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (held: string | null, required: string) =>
@@ -98,7 +102,7 @@ describe('readLogDetailUseCase', () => {
     })
     mocks.readLogDetail.mockResolvedValue({ id: 'log-1', executionId: EXECUTION_ID })
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
   })
 
   afterAll(resetDbChainMock)
@@ -136,7 +140,7 @@ describe('readLogDetailUseCase', () => {
    */
   it('tells the loader to withhold spend when the group does', async () => {
     queueLogRow()
-    mocks.getUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await readLogDetailUseCase.execute({
       principal: HUMAN_PRINCIPAL,

@@ -5,6 +5,8 @@
 import {
   authMockFns,
   environmentUtilsMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
   permissionsMock,
   permissionsMockFns,
   resetDbChainMock,
@@ -58,6 +60,8 @@ const {
   storeChatSendResult: vi.fn(),
   releaseChatSendClaim: vi.fn(),
 }))
+
+const resolvePermissionGroupConfig = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 const getSession = authMockFns.mockGetSession
 const billingAttribution = {
@@ -129,12 +133,15 @@ vi.mock('@/lib/copilot/resources/persistence', () => ({
   persistChatResources,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
 vi.mock('@/lib/copilot/chat-status', () => ({
   chatPubSub: {
     publishStatusChanged: mockPublishStatusChanged,
   },
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
 
 describe('handleUnifiedChatPost', () => {
@@ -155,6 +162,7 @@ describe('handleUnifiedChatPost', () => {
     storeChatSendResult.mockResolvedValue(true)
     releaseChatSendClaim.mockResolvedValue(undefined)
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
+    resolvePermissionGroupConfig.mockResolvedValue(null)
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
       workflowId: 'wf-1',
@@ -898,5 +906,116 @@ describe('handleUnifiedChatPost', () => {
       expect(response.status).toBe(200)
       expect(releaseChatSendClaim).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('handleUnifiedChatPost copilot.use capability gate', () => {
+  const REFUSAL = "Chat is not available under your organization's permission group"
+
+  function chatRequest(body: Record<string, unknown> = {}) {
+    return new NextRequest('http://localhost/api/copilot/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: 'Hello', workspaceId: 'ws-1', ...body }),
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    getSession.mockResolvedValue({ user: { id: 'user-1' } })
+    atomicallyClaimChatSend.mockResolvedValue({
+      claimed: true,
+      normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+      storageMethod: 'database',
+      claimToken: 'claim-1',
+    })
+    storeChatSendResult.mockResolvedValue(true)
+    releaseChatSendClaim.mockResolvedValue(undefined)
+    resolveWorkflowIdForUser.mockResolvedValue({
+      status: 'resolved',
+      workflowId: 'wf-1',
+      workspaceId: 'ws-1',
+      workflowName: 'Workflow One',
+    })
+    getUserEntityPermissions.mockResolvedValue('write')
+    resolveBillingAttribution.mockResolvedValue(billingAttribution)
+    getEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+    generateWorkspaceSnapshot.mockResolvedValue({ markdown: '', snapshot: { workflows: [] } })
+    processContextsServer.mockResolvedValue([])
+    resolveActiveResourceContext.mockResolvedValue(null)
+    buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)
+    createSSEStream.mockReturnValue(new ReadableStream())
+    acquirePendingChatStream.mockResolvedValue(true)
+    getPendingChatStreamId.mockResolvedValue(null)
+    releasePendingChatStream.mockResolvedValue(undefined)
+    resolveOrCreateChat.mockResolvedValue({
+      chatId: 'chat-1',
+      chat: { id: 'chat-1' },
+      conversationHistory: [],
+      isNew: true,
+    })
+  })
+
+  /**
+   * Refused before the send is claimed or a chat exists, so a refused request
+   * leaves nothing behind for a resume stream to replay.
+   */
+  it('refuses the send when the group withholds copilot.use', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    expect(atomicallyClaimChatSend).not.toHaveBeenCalled()
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('streams the send when a group governs the user but withholds nothing', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+
+    expect(response.status).toBe(200)
+    expect(createSSEStream).toHaveBeenCalledTimes(1)
+  })
+
+  /** A personal workspace, or any non-enterprise organization, is governed by no group. */
+  it('streams the send when no permission group governs the user', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue(null)
+
+    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+
+    expect(response.status).toBe(200)
+    expect(createSSEStream).toHaveBeenCalledTimes(1)
+  })
+
+  /** A request naming no workspace is governed by no group, so the gate never asks. */
+  it('does not consult a permission group when the request names no workspace', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Hello', workflowId: 'wf-1', createNewChat: true }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(resolvePermissionGroupConfig).not.toHaveBeenCalled()
   })
 })

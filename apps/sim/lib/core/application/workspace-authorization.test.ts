@@ -7,12 +7,14 @@ import type {
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
-  resolvePermissionGroupConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string, required: string) => {
@@ -22,9 +24,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import {
   authorizeWorkspaceOperation,
@@ -313,11 +313,11 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
   })
 
   it('refuses a session whose group withholds the capability', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(principal, capabilityOperation, context)
@@ -325,7 +325,7 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
   })
 
   it('names the capability and a code a caller can branch on', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     const error = await authorizeWorkspaceOperation(principal, capabilityOperation, context).catch(
       (thrown: unknown) => thrown
@@ -339,7 +339,7 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
   })
 
   it('refuses a personal API key the same way', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(personalKeyPrincipal, capabilityOperation, context)
@@ -353,7 +353,7 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
    * and not what an admin ticking it intends.
    */
   it('does not apply to an executor run, even one carrying a user subject', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(
@@ -394,7 +394,7 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
    * Copilot acts as the person, so it must not reach what the person may not.
    */
   it('does apply to a Copilot delegation, which acts as the person', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(
@@ -419,12 +419,12 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
    * capability-gating key creation, not by guessing a user here.
    */
   it('does not apply to a workspace API key, which has no user', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(scopedWorkspaceKeyPrincipal, capabilityOperation, context)
     ).resolves.toBeUndefined()
-    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 
   /**
@@ -433,7 +433,7 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
    * executor.
    */
   it('does not apply to an actorless deployment run', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(
@@ -443,11 +443,11 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
         executorAuthorization
       )
     ).resolves.toBeUndefined()
-    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 
   it('allows the operation when the group permits the capability', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
 
     await expect(
       authorizeWorkspaceOperation(principal, capabilityOperation, context)
@@ -467,17 +467,17 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
         workspaceOrganizationId: null,
       })
     ).resolves.toBeUndefined()
-    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 
   it('refuses on role before capability, so a non-member learns nothing about the group', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(withholdingConfig())
+    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
 
     await expect(
       authorizeWorkspaceOperation(principal, capabilityOperation, context)
     ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
-    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 })
 
@@ -525,11 +525,11 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
   })
 
   it('refuses when the permission group withholds personal keys', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disablePersonalApiKeys: true,
     })
@@ -546,11 +546,11 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
         allowPersonalApiKeys: false,
       })
     ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
-    expect(mocks.resolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 
   it('allows when both layers permit', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
 
     await expect(
       authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, context)
@@ -558,7 +558,7 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
   })
 
   it('leaves a session principal alone', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disablePersonalApiKeys: true,
     })

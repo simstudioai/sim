@@ -123,6 +123,11 @@ export {
   OauthStepTimeoutErrorMock,
 } from './mcp-oauth.mock'
 // Permission mocks
+export {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from './permission-group-scope.mock'
 export { permissionsMock, permissionsMockFns } from './permissions.mock'
 // PostHog server mocks (for @/lib/posthog/server)
 export { posthogServerMock, posthogServerMockFns } from './posthog-server.mock'
