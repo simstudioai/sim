@@ -64,11 +64,11 @@ export const INTEGRATION_SEO: Record<string, IntegrationSeoContent> = {
     overview:
       'Sim automates Slack workflows that depend on conversation context, including message routing, alerts, thread summaries, ticket updates, and incident response. Slack messages and events start agent workflows that interpret what was said and choose the next action in Slack or a connected tool, so routine coordination and time-sensitive operations keep moving without anyone relaying details by hand.',
     triggersIntro:
-      'Sim supports one real-time Slack trigger, the Slack Webhook. When Slack sends an event to the webhook endpoint, Sim starts the connected workflow immediately instead of waiting for a scheduled check. A monitoring alert posted in Slack can open an incident-response workflow, and a ticketing update posted in Slack can be summarised and passed to another connected tool.',
+      'Sim supports one real-time Slack trigger. Select the Slack events you care about, such as mentions, messages, and reactions, and Sim starts the connected workflow the moment one arrives instead of waiting for a scheduled check. A monitoring alert posted in Slack can open an incident-response workflow, and a ticketing update posted in Slack can be summarised and passed to another connected tool.',
     templatesIntro:
       'Pre-built agent templates turn common Slack workflows into editable starting points: routing templates classify messages and send them to the right channel or owner, summarisation templates condense long threads into updates that preserve decisions and action items, and ticket sync and incident response templates update connected records and coordinate follow-up. Every template is editable, so you can adapt its channels, routing rules, data sources, and approval requirements.',
     toolsSubtitleSuffix:
-      ' across messaging, channels, conversations, users, reactions and files, and workspace administration. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
+      ' across messaging, channels, threads, users, reactions and files, and canvases and views. Combine multiple Slack actions in one workflow to summarise a message, route it, update a ticket, and post the ticket update back in Slack',
   },
   airtable: {
     title: 'Airtable Automation with Sim',
