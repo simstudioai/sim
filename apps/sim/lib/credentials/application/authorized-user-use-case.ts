@@ -1,9 +1,12 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import { resolvePrincipalAuditAttribution, type SessionPrincipal } from '@sim/auth/principal'
+import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import type { OperationUseCase } from '@/lib/core/application'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialUserOperation } from '@/lib/credentials/application/operations'
+import { refuseCapability } from '@/lib/permission-groups/capabilities'
+import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
 export interface CredentialUserAuditEntry {
   workspaceId: string | null
@@ -65,6 +68,38 @@ function recordCredentialUserAudit(
   }
 }
 
+/**
+ * Refuses when the group governing the acting user withholds the operation's
+ * capability.
+ *
+ * permission-group-enforced: integrations.manage — these operations have no
+ * workspace, so `authorizeWorkspaceOperation` never sees them and the capability
+ * is applied here instead, at the one place every current-user credential
+ * operation passes through.
+ *
+ * The user's own OAuth connections belong to no workspace, so this resolves the
+ * organization's default group — the same resolution personal API keys and
+ * invitations use for an organization-level action. A no-op when the user is in
+ * no organization or no group governs them, which is the personal-workspace and
+ * non-enterprise case.
+ *
+ * Runs after the session-principal check above, never before: the principal kind
+ * is this operation's whole access story, and answering the capability question
+ * first would tell a caller who is not a session about the organization's
+ * configuration.
+ */
+async function assertCurrentUserCapability(
+  userId: string,
+  operation: CredentialUserOperation
+): Promise<void> {
+  if (operation.capability === 'none') return
+  const membership = await getUserOrganization(userId)
+  if (!membership?.organizationId) return
+  if (await isOrganizationCapabilityWithheld(membership.organizationId, operation.capability)) {
+    refuseCapability(operation.capability)
+  }
+}
+
 /** Defines a current-user credential operation that cannot borrow workspace identity. */
 export function defineAuthorizedCredentialUserUseCase<
   const O extends CredentialUserOperation,
@@ -77,6 +112,7 @@ export function defineAuthorizedCredentialUserUseCase<
       if (principal.kind !== 'session') {
         throw new OrchestrationError('forbidden', 'Session authentication required')
       }
+      await assertCurrentUserCapability(principal.userId, definition.operation)
       try {
         const result = await definition.execute({ principal, input, request })
         recordCredentialUserAudit(
