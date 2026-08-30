@@ -3,14 +3,16 @@
  */
 
 import type { Principal } from '@sim/auth/principal'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readLogs: vi.fn(),
   resolveWorkspace: vi.fn(),
   resolvePermission: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@/lib/logs/list-logs', () => ({
   readLogs: mocks.readLogs,
@@ -26,9 +28,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'
 
@@ -46,7 +46,7 @@ describe('listLogsUseCase', () => {
     })
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.readLogs.mockResolvedValue({ data: [], nextCursor: null })
-    mocks.getUserPermissionConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
   })
 
   /**
@@ -54,7 +54,7 @@ describe('listLogsUseCase', () => {
    * nothing, so the same key has to reach both queries.
    */
   it('tells the list query to withhold spend when the group does', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ hideCostInfo: true })
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
 
     await listLogsUseCase.execute({ principal: SESSION, input: INPUT })
 
@@ -81,7 +81,7 @@ describe('listLogsUseCase', () => {
       input: INPUT,
     })
 
-    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
     expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: false }))
   })
 })

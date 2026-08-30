@@ -2,21 +2,21 @@
  * @vitest-environment node
  */
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
-  resolvePermissionGroupConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
@@ -137,7 +137,7 @@ describe('skill operations under a group that blocks skills', () => {
   })
 
   it('refuses authoring and editor grants, not only loading', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disableSkills: true,
     })
@@ -151,7 +151,7 @@ describe('skill operations under a group that blocks skills', () => {
   })
 
   it('allows them all when the group withholds nothing', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
 
     for (const operation of Object.values(skillOperations)) {
       await expect(

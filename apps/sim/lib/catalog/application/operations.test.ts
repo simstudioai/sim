@@ -1,21 +1,21 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
-  resolvePermissionGroupConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import type { WorkspaceOperation } from '@/lib/core/application'
@@ -88,7 +88,7 @@ describe('catalog operations under a group that hides knowledge bases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideKnowledgeBaseTab: true,
     })

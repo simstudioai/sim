@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, auditMockFns } from '@sim/testing'
+import {
+  auditMock,
+  auditMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,8 +17,9 @@ const mocks = vi.hoisted(() => ({
   getActor: vi.fn(),
   updateRecord: vi.fn(),
   createRecord: vi.fn(),
-  resolvePermissionGroupConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -37,9 +43,7 @@ vi.mock('@/lib/credentials/orchestration', () => ({
   createCredentialRecord: mocks.createRecord,
   isProviderOutageCode: () => false,
 }))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/credentials/oauth', () => ({ syncWorkspaceOAuthCredentialsForUser: vi.fn() }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ checkWorkspaceAccess: vi.fn() }))
@@ -321,7 +325,7 @@ describe('personal-credential capability', () => {
     vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(governedWorkspace)
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disablePersonalCredentials: true,
     })
@@ -384,7 +388,7 @@ describe('personal-credential capability', () => {
   })
 
   it('creates the personal secret when no group withholds it', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue(null)
     const created = createdCredential('env_personal')
     mocks.createRecord.mockResolvedValue({ success: true, created: true, credential: created })
     mocks.getActor.mockResolvedValue({

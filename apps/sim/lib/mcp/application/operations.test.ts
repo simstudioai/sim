@@ -1,21 +1,21 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
-  resolvePermissionGroupConfig: vi.fn(),
 }))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: () => true,
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.resolvePermissionGroupConfig,
-}))
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
@@ -148,7 +148,7 @@ describe('MCP operations under a withholding permission group', () => {
   })
 
   it('refuses every mcp_servers operation when the group blocks MCP tools', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disableMcpTools: true,
     })
@@ -165,7 +165,7 @@ describe('MCP operations under a withholding permission group', () => {
   })
 
   it('refuses every workflow-deployment operation when the group hides MCP deployment', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue({
+    resolveGroupConfigMock.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       hideDeployMcp: true,
     })
@@ -182,7 +182,7 @@ describe('MCP operations under a withholding permission group', () => {
   })
 
   it('allows the same operations when the group withholds neither', async () => {
-    mocks.resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
 
     for (const operation of [
       ...sessionReachable('mcp_tools.use'),
