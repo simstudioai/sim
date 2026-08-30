@@ -96,7 +96,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       )
     }
 
-    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    const accessResult = await checkAccess(
+      tableId,
+      { kind: 'user', userId: authResult.userId },
+      'write'
+    )
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult

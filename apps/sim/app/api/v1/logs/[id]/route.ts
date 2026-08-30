@@ -5,9 +5,15 @@ import { v1GetLogContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import {
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   validateWorkspaceAccess,
@@ -46,6 +52,16 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Log not found' }, { status: 404 })
       }
 
+      /**
+       * `logs.trace_spans` and `logs.cost` are projections, not gates — this
+       * route declares `'none'` above and withholds the fields here instead,
+       * through the same helper the internal/v2 detail path uses.
+       */
+      const projection = await resolveLogFieldProjection(
+        capabilityGovernedUserId(rateLimit),
+        log.workspaceId
+      )
+
       const workflowSummary = {
         id: log.workflowId,
         name: log.workflowName || 'Deleted Workflow',
@@ -69,16 +85,19 @@ export const GET = withRouteHandler(
         totalDurationMs: log.totalDurationMs,
         files: log.files || undefined,
         workflow: workflowSummary,
-        executionData: (await materializeExecutionDataForDisplay(
-          log.executionData as Record<string, unknown> | null,
-          {
-            workspaceId: log.workspaceId,
-            workflowId: log.workflowId,
-            executionId: log.executionId,
-            userId,
-          }
-        )) as any,
-        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+        executionData: projectExecutionData(
+          (await materializeExecutionDataForDisplay(
+            log.executionData as Record<string, unknown> | null,
+            {
+              workspaceId: log.workspaceId,
+              workflowId: log.workflowId,
+              executionId: log.executionId,
+              userId,
+            }
+          )) as Record<string, unknown> | null,
+          projection
+        ) as any,
+        cost: projectCostTotal(log.costTotal, projection),
         createdAt: log.createdAt.toISOString(),
       }
 

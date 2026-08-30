@@ -47,7 +47,11 @@ export const GET = withRouteHandler(
 
       const validated = findTableRowsQuerySchema.parse({ workspaceId, q, filter, sort })
 
-      const accessResult = await checkAccess(tableId, authResult.userId, 'read')
+      const accessResult = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'read'
+      )
       if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
       const { table } = accessResult

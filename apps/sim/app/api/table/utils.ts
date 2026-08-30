@@ -281,6 +281,49 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
 }
 
 /**
+ * Who is asking, for the purposes of {@link checkAccess}.
+ *
+ * A discriminated union rather than a user id, because the two kinds are
+ * indistinguishable as strings and the gate must treat them differently:
+ *
+ * - `user` — a session, an internal JWT acting as the person, or a personal API
+ *   key. There is a real person behind the request, so their permission group
+ *   governs it and `tables.use` applies.
+ * - `workspace_api_key` — a shared credential that authorizes as the workspace
+ *   itself. It has no user, so there is no group to resolve.
+ *   `keyCreatorUserId` is the id `authenticateApiKeyFromHeader` reports: the
+ *   person who *minted* the key, a bystander who may not even be the caller. It
+ *   carries the workspace role check that predates this union and nothing else
+ *   — applying their permission group here would break a live shared credential
+ *   for reasons that have nothing to do with whoever is calling it. Same
+ *   reasoning as the `workspace_api_key` branch of
+ *   `authorizeWorkspaceOperation` and of `resolveCapabilityRefusal`.
+ *
+ * Required, and with no permissive default, for the same reason `capability` is
+ * required on `defineWorkspaceOperation`: an absent declaration cannot be told
+ * apart from an unreviewed one. A caller holding a workspace key cannot reach
+ * the gated behavior by passing a bare id, because a bare id no longer
+ * type-checks — it has to name a kind, and the only kind that skips the gate is
+ * the one that says so.
+ */
+export type TableAccessPrincipal =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace_api_key'; keyCreatorUserId: string }
+
+/** The id the workspace ROLE check runs against, for either principal kind. */
+function roleSubjectUserId(principal: TableAccessPrincipal): string {
+  return principal.kind === 'user' ? principal.userId : principal.keyCreatorUserId
+}
+
+/**
+ * The id whose permission group governs the request, or `null` when no group
+ * does. Only a `user` principal has one — see {@link TableAccessPrincipal}.
+ */
+function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
+  return principal.kind === 'user' ? principal.userId : null
+}
+
+/**
  * Access check returning `{ ok, table }` or `{ ok: false, status }`.
  *
  * The workspace role, then the permission group's `tables.use` capability — the
@@ -295,6 +338,11 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
  * exists, and refusing on capability first would tell a non-member which
  * modules the organization withholds.
  *
+ * The gate applies to a `user` principal only. `/api/v1/tables/**` shares this
+ * helper and authenticates with an API key, and a workspace key reports its
+ * creator as its user id; gating on that id would apply a bystander's group to
+ * every caller of a shared credential. See {@link TableAccessPrincipal}.
+ *
  * Nothing here exempts the executor. A workflow run reaches tables through
  * `tableOperations`, where the delegated-principal branch already withholds
  * capabilities from an executor subject; these HTTP routes are UI surfaces, and
@@ -302,7 +350,7 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
  */
 export async function checkAccess(
   tableId: string,
-  userId: string,
+  principal: TableAccessPrincipal,
   level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<AccessResult> {
   const table = await getTableById(tableId)
@@ -311,15 +359,21 @@ export async function checkAccess(
     return { ok: false, status: 404 }
   }
 
-  const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
+  const permission = await getUserEntityPermissions(
+    roleSubjectUserId(principal),
+    'workspace',
+    table.workspaceId
+  )
   if (!permissionSatisfies(permission, level)) {
     return { ok: false, status: 403 }
   }
 
   // permission-group-enforced: tables.use — raw routes that query directly and predate the operation boundary
+  const governedUserId = capabilityGovernedUserId(principal)
   if (
+    governedUserId &&
     table.workspaceId &&
-    (await isWorkspaceCapabilityWithheld(userId, table.workspaceId, 'tables.use'))
+    (await isWorkspaceCapabilityWithheld(governedUserId, table.workspaceId, 'tables.use'))
   ) {
     return { ok: false, status: 403, capability: 'tables.use' }
   }

@@ -45,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // Dual-grammar wire: downgrade a predicate to the legacy Filter the
     // dispatcher and scheduled runs still compile.
     const filter = toLegacyFilter(wireFilter)
-    const access = await checkAccess(tableId, auth.userId, 'write')
+    const access = await checkAccess(tableId, { kind: 'user', userId: auth.userId }, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 
     // Validate the filter up front (the dispatcher reuses it) so a bad field fails fast.

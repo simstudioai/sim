@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
+  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
   checkRateLimit: mocks.checkRateLimit,
   createRateLimitResponse: () => NextResponse.json({ error: 'Rate limit' }, { status: 429 }),
   validateWorkspaceAccess: mocks.validateWorkspaceAccess,

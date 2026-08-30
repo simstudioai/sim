@@ -11,8 +11,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -84,23 +83,15 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
     const viewerUserId = resolvePrincipalSubjectUserId(principal)
 
     /**
-     * permission-group-enforced: logs.trace_spans — a projection rather than a
-     * refusal: the log stays readable, its execution payloads do not. An
-     * actorless run has no group and reads its own workspace's logs whole.
-     *
-     * permission-group-enforced: logs.cost — the same projection, applied to
-     * spend: the run total, its itemized ledger and the per-block and per-span
-     * figures. Refusing the read instead would withhold the status and the
-     * error message too, which is not what an organization restricting spend
-     * visibility to admins asked for.
+     * A projection rather than a refusal: the log stays readable, its execution
+     * payloads and its spend do not. Resolved through the shared helper, which
+     * the v1 public API reads too — see {@link resolveLogFieldProjection}.
      */
-    const permissionConfig = viewerUserId
-      ? await resolvePermissionGroupConfig(
-          viewerUserId,
-          context.workspaceId,
-          context.workspaceOrganizationId
-        )
-      : null
+    const projection = await resolveLogFieldProjection(
+      viewerUserId,
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
 
     const detail = await readLogDetail({
       viewerUserId,
@@ -108,8 +99,7 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
       lookupColumn: input.lookupColumn,
       lookupValue: input.lookupValue,
       signal: input.signal,
-      hideTraceSpans: capabilityDeniedBy('logs.trace_spans', permissionConfig),
-      hideCostInfo: capabilityDeniedBy('logs.cost', permissionConfig),
+      ...projection,
     })
     input.signal?.throwIfAborted()
     if (!detail) throw new OrchestrationError('not_found', 'Not found')

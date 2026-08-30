@@ -66,7 +66,9 @@ interface FetchLogDetailArgs {
  * Applied before child traces are hydrated, so a withheld view does not pay for
  * a cross-workspace join whose result it discards.
  */
-function withheldExecutionData(executionData: Record<string, unknown>): Record<string, unknown> {
+export function withheldExecutionData(
+  executionData: Record<string, unknown>
+): Record<string, unknown> {
   const {
     traceSpans: _traceSpans,
     blockExecutions: _blockExecutions,

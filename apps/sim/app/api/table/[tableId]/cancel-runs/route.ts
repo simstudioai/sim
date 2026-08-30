@@ -40,7 +40,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     // legacy Filter the runners/persisted payloads still compile.
     const filter = toLegacyFilter(wireFilter)
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
     const { table } = result
 

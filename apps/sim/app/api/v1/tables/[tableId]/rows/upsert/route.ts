@@ -21,6 +21,7 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   resolveWorkspaceRequestActor,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -44,7 +45,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1UpsertTableRowContract, request, context, {
       validationErrorResponse: v1ValidationErrorResponse,
     })
@@ -59,7 +59,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
     }
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result

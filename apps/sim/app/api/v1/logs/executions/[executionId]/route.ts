@@ -3,10 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetExecutionContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { projectCostTotal, resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import { getPublicWorkflowLog } from '@/lib/logs/public-queries'
 import { sanitizeExecutionSnapshotState } from '@/lib/logs/snapshot-sanitizer'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   validateWorkspaceAccess,
@@ -62,6 +64,12 @@ export const GET = withRouteHandler(
        * treatment the v2 run detail applies. A snapshot the sanitizer cannot walk projects
        * as `null`, which keeps the pre-existing "not found" outcome for an absent one.
        */
+      /** `logs.cost` is a projection, not a gate — see `resolveLogFieldProjection`. */
+      const projection = await resolveLogFieldProjection(
+        capabilityGovernedUserId(rateLimit),
+        workflowLog.workspaceId
+      )
+
       const workflowState = sanitizeExecutionSnapshotState(workflowLog.workflowState)
       if (!workflowState) {
         return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
@@ -78,7 +86,7 @@ export const GET = withRouteHandler(
           totalDurationMs: workflowLog.totalDurationMs,
           // Sourced from the cost_total projection of the usage_log ledger
           // (the deprecated cost jsonb column was dropped).
-          cost: workflowLog.costTotal != null ? { total: Number(workflowLog.costTotal) } : null,
+          cost: projectCostTotal(workflowLog.costTotal, projection),
         },
       }
 

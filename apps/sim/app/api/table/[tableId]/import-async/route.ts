@@ -38,7 +38,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const { workspaceId, fileKey, fileName, mode, mapping, createColumns, timezone } =
     parsed.data.body
 
-  const access = await checkAccess(tableId, userId, 'write')
+  const access = await checkAccess(tableId, { kind: 'user', userId }, 'write')
   if (!access.ok) return accessError(access, requestId, tableId)
   const { table } = access
 
