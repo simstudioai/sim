@@ -140,6 +140,42 @@ describe('dateEditorRawValue', () => {
     container.remove()
   })
 
+  it('waits for the saved timezone before creating an ordinary date draft', () => {
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'Asia/Tokyo',
+      status: 'loading',
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSave = vi.fn()
+    const props = {
+      value: '2026-06-15T06:00:30-07:00',
+      column: column('date'),
+      onSave,
+      onCancel: vi.fn(),
+    }
+
+    act(() => root.render(createElement(InlineEditor, props)))
+
+    expect(container.querySelector('input')).toBeNull()
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading timezone…')
+
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
+    act(() => root.render(createElement(InlineEditor, props)))
+
+    const input = container.querySelector('input') as HTMLInputElement
+    act(() => changeInput(input, '09/01/2026 9:00 AM'))
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(onSave).toHaveBeenCalledWith('2026-09-01T09:00:00-07:00', 'enter')
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('rejects an impossible TTL draft without clearing the cell', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

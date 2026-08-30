@@ -69,17 +69,17 @@ function handleEditorWheel(e: React.WheelEvent<HTMLInputElement>) {
  * (including seconds), the time field keeps the day — and Enter/blur commits.
  */
 function InlineDateEditor(props: InlineEditorProps) {
-  const { column, onCancel } = props
+  const { onCancel } = props
   const timezoneState = useTimezoneState()
-  const ttlTimezoneUnavailable = column.type === 'ttl' && timezoneState.status !== 'ready'
+  const timezoneUnavailable = timezoneState.status !== 'ready'
 
   useEffect(() => {
-    if (column.type !== 'ttl' || timezoneState.status !== 'error') return
+    if (timezoneState.status !== 'error') return
     toast.error('Could not load timezone')
     onCancel()
-  }, [column.type, onCancel, timezoneState.status])
+  }, [onCancel, timezoneState.status])
 
-  if (ttlTimezoneUnavailable) {
+  if (timezoneUnavailable) {
     return (
       <span role='status' className='w-full min-w-0 truncate text-[var(--text-muted)] text-small'>
         {timezoneState.status === 'error' ? 'Timezone unavailable' : 'Loading timezone…'}
