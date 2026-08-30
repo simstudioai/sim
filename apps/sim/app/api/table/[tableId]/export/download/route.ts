@@ -6,14 +6,13 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  capabilityDeniedBy,
   capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
 import { getTableJob } from '@/lib/table/jobs/service'
 import type { TableExportJobPayload } from '@/lib/table/types'
 import { generatePresignedDownloadUrl } from '@/lib/uploads/core/storage-service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('TableExportDownload')
 
@@ -56,8 +55,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
    * file to anyone who can name a `jobId`, and the workspace job listing names
    * every colleague's.
    */
-  const permissionConfig = await getUserPermissionConfig(authResult.userId, workspaceId)
-  if (capabilityDeniedBy('tables.export', permissionConfig)) {
+  if (await isWorkspaceCapabilityWithheld(authResult.userId, workspaceId, 'tables.export')) {
     return NextResponse.json({ error: capabilityRefusal('tables.export') }, { status: 403 })
   }
 

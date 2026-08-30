@@ -44,7 +44,7 @@ import type {
 } from '@/lib/knowledge/orchestration/shared'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -119,8 +119,7 @@ const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
  *
  * No-op when no permission group governs the caller, which is what keeps
  * non-enterprise and ungoverned organizations unaffected.
- */
-/**
+ *
  * A permission group is a membership of users, so an actorless caller — a
  * schedule, or a webhook with no external subject — resolves no group and
  * passes through, exactly as the authorization funnel treats one. Requiring a
@@ -133,7 +132,7 @@ async function assertConnectorTypeAllowed(
   connectorType: string
 ): Promise<void> {
   if (!userId) return
-  const config = await getUserPermissionConfig(userId, workspaceId)
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
 
   throw new ForbiddenOperationError(

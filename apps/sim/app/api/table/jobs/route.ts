@@ -5,10 +5,9 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('TableJobsAPI')
 
@@ -45,8 +44,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
    * no exports they may act on, and erroring the tray would report a failure
    * where the honest answer is that there is nothing to show.
    */
-  const permissionConfig = await getUserPermissionConfig(authResult.userId, workspaceId)
-  if (capabilityDeniedBy('tables.export', permissionConfig)) {
+  if (await isWorkspaceCapabilityWithheld(authResult.userId, workspaceId, 'tables.export')) {
     return NextResponse.json({ success: true, data: { jobs: [] } })
   }
 

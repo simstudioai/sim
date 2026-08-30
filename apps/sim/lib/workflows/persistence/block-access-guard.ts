@@ -2,8 +2,8 @@ import {
   isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/block-access'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { toAllowedIntegrationTypes } from '@/lib/permission-groups/integration-allowlist'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
 
 /**
@@ -39,7 +39,11 @@ export async function findWithheldBlockType(params: {
   workspaceId: string
   blocks: Iterable<{ type?: string }>
 }): Promise<string | null> {
-  const permissionConfig = await getUserPermissionConfig(params.userId, params.workspaceId)
+  const permissionConfig = await resolvePermissionGroupConfig(
+    params.userId,
+    params.workspaceId,
+    undefined
+  )
   const allowed = toAllowedIntegrationTypes(permissionConfig?.allowedIntegrations ?? null)
 
   /**

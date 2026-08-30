@@ -16,8 +16,8 @@ import {
   capabilityDeniedBy,
   capabilityRefusal,
 } from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('LogsExportAPI')
 const LOG_EXPORT_PAGE_SIZE = 100
@@ -110,7 +110,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      * queries directly and predates that boundary; migrating it is worth doing,
      * and is not a reason to leave the export ungoverned meanwhile.
      */
-    const permissionConfig = await getUserPermissionConfig(userId, params.workspaceId)
+    const permissionConfig = await resolvePermissionGroupConfig(
+      userId,
+      params.workspaceId,
+      undefined
+    )
     if (capabilityDeniedBy('logs.export', permissionConfig)) {
       return NextResponse.json({ error: capabilityRefusal('logs.export') }, { status: 403 })
     }

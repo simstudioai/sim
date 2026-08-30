@@ -14,12 +14,11 @@ import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billi
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
 } from '@/lib/workspaces/policy-constants'
-import { getUserPermissionConfigForOrganization } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -366,8 +365,7 @@ export async function getWorkspaceCreationPolicy({
      * so exempting it would leave the gate answering only the case it is not for.
      */
     // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
-    const config = await getUserPermissionConfigForOrganization(governingOrganizationId)
-    if (capabilityDeniedBy('workspace.create', config)) {
+    if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
       return {
         canCreate: false,
         workspaceMode:

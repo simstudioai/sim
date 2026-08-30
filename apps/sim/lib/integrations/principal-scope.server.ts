@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 /**
  * The workspace integration gate, shared by every catalog that projects
@@ -15,7 +15,7 @@ import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-ch
  * first time either changed, and the two endpoints describe the same
  * integrations.
  *
- * Server-only: `getUserPermissionConfig` reads the database.
+ * Server-only: `resolvePermissionGroupConfig` reads the database.
  */
 
 /**
@@ -47,7 +47,9 @@ export async function allowedIntegrationTypes(
   workspaceId: string
 ): Promise<ReadonlySet<string> | null> {
   const userId = principalUserId(principal)
-  const permissionConfig = userId ? await getUserPermissionConfig(userId, workspaceId) : null
+  const permissionConfig = userId
+    ? await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+    : null
   const integrations = intersectIntegrationAllowlists(
     permissionConfig?.allowedIntegrations ?? null,
     getAllowedIntegrationsFromEnv()

@@ -20,12 +20,11 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  capabilityDeniedBy,
   capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WebhookAPI')
 
@@ -153,11 +152,12 @@ export const PATCH = withRouteHandler(
          * they cannot turn off.
          */
         if (isActive) {
-          const permissionConfig = await getUserPermissionConfig(
+          const withheld = await isWorkspaceCapabilityWithheld(
             userId,
-            webhooks[0].workflow.workspaceId ?? ''
+            webhooks[0].workflow.workspaceId ?? '',
+            'triggers.webhook'
           )
-          if (capabilityDeniedBy('triggers.webhook', permissionConfig)) {
+          if (withheld) {
             return NextResponse.json(
               { error: capabilityRefusal('triggers.webhook') },
               { status: 403 }

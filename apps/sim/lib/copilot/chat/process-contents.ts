@@ -37,6 +37,7 @@ import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { getColumnId } from '@/lib/table/column-keys'
 import { getRowsByIds } from '@/lib/table/rows/service'
@@ -47,7 +48,6 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -600,7 +600,7 @@ async function processBlockMetadata(
 ): Promise<AgentContext | null> {
   try {
     const [permissionConfig, visibility] = await Promise.all([
-      userId && workspaceId ? getUserPermissionConfig(userId, workspaceId) : null,
+      userId && workspaceId ? resolvePermissionGroupConfig(userId, workspaceId, undefined) : null,
       userId ? getBlockVisibilityForCopilot(userId, workspaceId) : null,
     ])
     const allowedIntegrations = intersectIntegrationAllowlists(

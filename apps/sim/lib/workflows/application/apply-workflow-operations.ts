@@ -9,6 +9,7 @@ import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/applic
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
@@ -54,7 +55,6 @@ import {
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
@@ -274,7 +274,7 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     const baseGraph = await resolveBaseGraph(principal, input, context)
 
     const [permissionConfig, blockVisibility] = await Promise.all([
-      getUserPermissionConfig(subjectUserId, context.workspaceId),
+      resolvePermissionGroupConfig(subjectUserId, context.workspaceId, undefined),
       getBlockVisibility({ userId: subjectUserId, orgId: context.workspaceOrganizationId }),
     ])
 
