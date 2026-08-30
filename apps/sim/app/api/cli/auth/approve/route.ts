@@ -36,6 +36,37 @@ async function cliAccessWithheld(userId: string, workspaceId?: string): Promise<
 }
 
 /**
+ * Whether `userId`'s permission group withholds minting the key this approval
+ * would redeem for.
+ *
+ * permission-group-enforced: api_keys.manage — a raw device-auth handler with
+ * inline queries, which the authorization funnel never sees.
+ *
+ * This is the door the workspace-key pass-through depends on. A
+ * `workspace_api_key` principal resolves no user and therefore no group, so the
+ * funnel's capability gate never applies to it; the whole safety argument for
+ * that pass-through (`workspace-authorization.ts`, `app/api/table/utils.ts`,
+ * `app/api/v1/middleware.ts` all state it) is that minting one is itself
+ * capability-gated. `/api/workspaces/[id]/api-keys` gates it; without this the
+ * terminal was the way around, and a member denied `api_keys.manage` could mint
+ * the identical key with `sim login --workspace` and then out-rank every other
+ * capability their group withholds.
+ *
+ * Resolved from the key's own scope, matching the surface that mints the same
+ * key: a bound key belongs to `workspaceId`, so the workspace group governs it,
+ * while a personal key is user-global and belongs to no workspace, so it falls
+ * back to the organization's default group exactly as
+ * `/api/users/me/api-keys` does.
+ */
+async function apiKeyMintWithheld(userId: string, workspaceId?: string): Promise<boolean> {
+  if (workspaceId) return isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')
+
+  const membership = await getUserOrganization(userId)
+  if (!membership) return false
+  return isOrganizationCapabilityWithheld(membership.organizationId, 'api_keys.manage')
+}
+
+/**
  * Records a signed-in user's approval of a CLI handoff so the waiting terminal's
  * poll can complete.
  *
@@ -43,11 +74,16 @@ async function cliAccessWithheld(userId: string, workspaceId?: string): Promise<
  * user id here would let any caller approve a request redeemable for someone
  * else's key. No key is generated until the CLI polls.
  *
- * Workspace binding and CLI-access permission are authorized here rather than at
- * poll time: the poll is unauthenticated by necessity, so it has no session to
- * check a permission against, and re-checking there would duplicate this
- * decision while racing a permission-group change made between the two calls.
- * Approving is the only moment a human is present.
+ * Workspace binding, CLI access, and permission to mint the key at all are
+ * authorized here rather than at poll time: the poll is unauthenticated by
+ * necessity, so it has no session to check a permission against, and re-checking
+ * there would duplicate this decision while racing a permission-group change
+ * made between the two calls. Approving is the only moment a human is present.
+ *
+ * That makes the approval record the sole carrier of the decision. The poll body
+ * is a request id and a secret and nothing else, so it cannot assert a scope, a
+ * workspace, or a binding of its own — a refusal here writes no record, and a
+ * poll driven directly against the same request id answers `pending` forever.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
@@ -107,6 +143,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workspaceId: workspaceId ?? null,
     })
     return NextResponse.json({ error: capabilityRefusal('cli.use') }, { status: 403 })
+  }
+
+  // The platform scope is the one that redeems for a Sim API key. A copilot
+  // approval mints from a separate key space that the API-keys surface does not
+  // manage, so `cli.use` above is the whole gate for it.
+  if (scope === 'platform') {
+    const mintWorkspaceId = bindKeyToWorkspace ? workspaceId : undefined
+    if (await apiKeyMintWithheld(session.user.id, mintWorkspaceId)) {
+      logger.warn('CLI key mint blocked by permission group', {
+        userId: session.user.id,
+        workspaceId: mintWorkspaceId ?? null,
+      })
+      return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
+    }
   }
 
   await createApproval(session.user.id, requestId, challenge, {

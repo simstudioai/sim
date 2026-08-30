@@ -18,16 +18,19 @@ const {
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
   mockGetUserPermissionConfigForOrganization,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
   mockGetUserPermissionConfigForOrganization: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mockGetUserPermissionConfigForOrganization,
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -202,6 +205,31 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.canCreate).toBe(false)
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
     expect(result.blockedReasonCode).toBe('permission-group-denied')
+  })
+
+  /**
+   * Creating a workspace names no workspace, so there is no workspace whose
+   * group could govern it — and a member may be governed by different groups in
+   * different workspaces, so there is no single scoped group to pick. The
+   * decision is read from the organization's default group and from nothing
+   * else, which is what `disableWorkspaceCreation`'s admin hint has to say.
+   */
+  it("reads workspace creation from the organization's default group and no workspace group", async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+    expect(mockGetUserPermissionConfig).not.toHaveBeenCalled()
   })
 
   it('blocks free users once they already own one non-organization workspace', async () => {

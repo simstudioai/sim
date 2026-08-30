@@ -395,7 +395,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-workspace-creation',
     label: 'Workspace Creation',
     category: 'Collaboration',
-    hint: 'Prevent creating new workspaces, which no existing group would govern.',
+    hint: "Prevent creating new workspaces, which no existing group would govern. Read from the organization's default group, because creating a workspace names none.",
   }),
   hideOrgMemberDirectory: booleanRestriction('capability', {
     id: 'hide-org-member-directory',
@@ -407,7 +407,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-cli-access',
     label: 'CLI Access',
     category: 'Credentials & Access',
-    hint: 'Prevent approving a CLI login, which mints a key for the public API.',
+    hint: "Prevent approving a CLI login, which mints a key for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
   }),
   disableWebhookTriggers: booleanRestriction('capability', {
     id: 'disable-webhook-triggers',

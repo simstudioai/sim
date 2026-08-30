@@ -170,6 +170,50 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockCreatePersonalApiKey).not.toHaveBeenCalled()
   })
 
+  /**
+   * `/api/cli/auth/approve` is where the session exists to check workspace-admin
+   * permission and the `api_keys.manage` capability, so it must be impossible to
+   * reach a workspace-key mint by driving this endpoint instead.
+   */
+  describe('cannot be driven past the approval-time capability gate', () => {
+    it('ignores a workspace binding asserted by the poll body', async () => {
+      mockPollApproval.mockResolvedValue(approved({ scope: 'platform' }))
+
+      const response = await POST(
+        pollRequest({
+          request: REQUEST,
+          verifier: VERIFIER,
+          workspaceId: 'ws-1',
+          bindKeyToWorkspace: true,
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockCreateWorkspaceApiKey).not.toHaveBeenCalled()
+      expect(mockCreatePersonalApiKey).toHaveBeenCalled()
+      await expect(response.json()).resolves.toMatchObject({
+        workspaceId: null,
+        workspaceBound: false,
+      })
+    })
+
+    it('mints nothing at all when approval was refused, however often it is polled', async () => {
+      // A refusal at approve writes no record, so the store answers `pending`
+      // forever — there is no state here for a caller to advance.
+      mockPollApproval.mockResolvedValue({ status: 'pending' })
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual({ status: 'pending' })
+      }
+
+      expect(mockCreateWorkspaceApiKey).not.toHaveBeenCalled()
+      expect(mockCreatePersonalApiKey).not.toHaveBeenCalled()
+      expect(mockGenerateCopilotApiKey).not.toHaveBeenCalled()
+    })
+  })
+
   it('releases the reservation (keeps the approval) when minting fails', async () => {
     mockPollApproval.mockResolvedValue(approved())
     mockGenerateCopilotApiKey.mockRejectedValue(new Error('mothership down'))
