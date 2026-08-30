@@ -9,7 +9,7 @@ import {
   updateUserSettingsContract,
 } from '@/lib/api/contracts/user'
 import { syncThemeToNextThemes } from '@/lib/core/utils/theme'
-import { getBrowserTimezone } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, isValidTimezone } from '@/lib/core/utils/timezone'
 
 const logger = createLogger('GeneralSettingsQuery')
 
@@ -164,8 +164,10 @@ export interface TimezoneState {
  */
 export function useTimezoneState(): TimezoneState {
   const { data, isError } = useGeneralSettings()
+  const savedTimezone = data?.timezone
   return {
-    timezone: data?.timezone ?? getBrowserTimezone(),
+    timezone:
+      savedTimezone && isValidTimezone(savedTimezone) ? savedTimezone : getBrowserTimezone(),
     status: data ? 'ready' : isError ? 'error' : 'loading',
   }
 }

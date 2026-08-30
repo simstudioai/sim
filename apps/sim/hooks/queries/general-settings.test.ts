@@ -3,8 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBrowserTimezone, mockUseQuery } = vi.hoisted(() => ({
+const { mockGetBrowserTimezone, mockIsValidTimezone, mockUseQuery } = vi.hoisted(() => ({
   mockGetBrowserTimezone: vi.fn(),
+  mockIsValidTimezone: vi.fn(),
   mockUseQuery: vi.fn(),
 }))
 
@@ -13,7 +14,10 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: mockUseQuery,
   useQueryClient: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/timezone', () => ({ getBrowserTimezone: mockGetBrowserTimezone }))
+vi.mock('@/lib/core/utils/timezone', () => ({
+  getBrowserTimezone: mockGetBrowserTimezone,
+  isValidTimezone: mockIsValidTimezone,
+}))
 
 import { useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
 
@@ -21,6 +25,7 @@ describe('useTimezone', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetBrowserTimezone.mockReturnValue('America/Los_Angeles')
+    mockIsValidTimezone.mockReturnValue(true)
   })
 
   it('uses the browser timezone while no preference is saved', () => {
@@ -38,6 +43,16 @@ describe('useTimezone', () => {
 
     expect(useTimezone()).toBe('Asia/Kathmandu')
     expect(mockGetBrowserTimezone).not.toHaveBeenCalled()
+  })
+
+  it('uses the browser timezone when the saved preference is invalid', () => {
+    mockUseQuery.mockReturnValue({ data: { timezone: 'Not/AZone' } })
+    mockIsValidTimezone.mockReturnValue(false)
+
+    expect(useTimezoneState()).toEqual({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
   })
 
   it('reads the current setting again after it changes', () => {
