@@ -21,18 +21,24 @@ export interface ActivePermissionGroupRestriction {
   description: string
 }
 
-/** Render order for the platform-feature category sections; unlisted ones follow. */
+/**
+ * Render order for the platform-feature category sections; unlisted ones follow.
+ *
+ * Named after what a group withholds, not after where the key's cosmetic
+ * ancestor used to hide a link. Every key here is server-enforced, so a section
+ * headed "Sidebar" or "Settings Tabs" would tell an admin they were tidying a
+ * nav bar while they were in fact revoking an API.
+ */
 export const PLATFORM_CATEGORY_ORDER: readonly string[] = [
-  'Sidebar',
-  'Deploy Tabs',
-  'Chat',
-  'Collaboration',
-  'Workflow Panel',
-  'Tools',
-  'Features',
-  'Settings Tabs',
-  'Logs',
+  'Modules',
+  'Knowledge Base',
+  'Tables',
   'Files',
+  'Deployment',
+  'Tools',
+  'Logs',
+  'Collaboration',
+  'Credentials & Access',
 ] as const
 
 const FIELD_ENTRIES = Object.entries(PERMISSION_GROUP_FIELDS) as Array<

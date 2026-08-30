@@ -39,10 +39,16 @@ interface PlatformFeatureMeta {
   readonly label: string
   readonly category: string
   /**
-   * What setting the key withholds, one sentence. Read twice — as the editor's
-   * hint and as the prose `getActivePermissionGroupRestrictions` reports for an
-   * active restriction — so it states the restriction rather than what remains
-   * permitted, which reads backwards in the second place.
+   * What the key withholds, in one or two short sentences. Read twice — as the
+   * editor's hint and as the prose `getActivePermissionGroupRestrictions`
+   * reports for an active restriction — so it states the restriction rather
+   * than what remains permitted, which reads backwards in the second place.
+   *
+   * It must describe the *access* withheld, never a surface hidden. Every key
+   * with `enforcement: 'capability'` refuses at the API, so a hint that says
+   * "hide from the sidebar" tells an admin they are tidying a nav bar when they
+   * are revoking a module. Twelve keys shipped worded that way while they were
+   * genuinely cosmetic; the wording outlived the behavior.
    */
   readonly hint: string
 }
@@ -215,55 +221,55 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-trace-spans',
     label: 'Trace Spans',
     category: 'Logs',
-    hint: 'Hide per-block trace spans in logs.',
+    hint: 'Withhold per-block trace spans from logs and from the API.',
   }),
   hideKnowledgeBaseTab: booleanRestriction('capability', {
     id: 'hide-knowledge-base',
     label: 'Knowledge Base',
-    category: 'Sidebar',
-    hint: 'Hide the Knowledge Base module from the sidebar.',
+    category: 'Knowledge Base',
+    hint: 'Revoke the Knowledge Base module. Members cannot open, search, or query any knowledge base.',
   }),
   hideTablesTab: booleanRestriction('capability', {
     id: 'hide-tables',
     label: 'Tables',
-    category: 'Sidebar',
-    hint: 'Hide the Tables module from the sidebar.',
+    category: 'Tables',
+    hint: 'Revoke the Tables module. Members cannot read or write any table.',
   }),
   hideCopilot: booleanRestriction('capability', {
     id: 'hide-copilot',
     label: 'Chat',
-    category: 'Workflow Panel',
-    hint: 'Hide the Chat panel so users cannot build or edit with natural language.',
+    category: 'Modules',
+    hint: 'Revoke Chat. Members cannot ask Sim to build or edit anything.',
   }),
   hideIntegrationsTab: booleanRestriction('capability', {
     id: 'hide-integrations',
     label: 'Integrations',
-    category: 'Settings Tabs',
-    hint: 'Hide the Integrations settings tab (OAuth connections).',
+    category: 'Credentials & Access',
+    hint: 'Revoke integration connections. Members cannot view, add, or remove an OAuth connection.',
   }),
   hideSecretsTab: booleanRestriction('capability', {
     id: 'hide-secrets',
     label: 'Secrets',
-    category: 'Settings Tabs',
-    hint: 'Hide the Secrets (environment variables) settings tab.',
+    category: 'Credentials & Access',
+    hint: 'Revoke secrets. Members cannot read, add, or change a workspace environment variable.',
   }),
   hideApiKeysTab: booleanRestriction('capability', {
     id: 'hide-api-keys',
     label: 'API Keys',
-    category: 'Settings Tabs',
-    hint: 'Hide the API Keys settings tab.',
+    category: 'Credentials & Access',
+    hint: 'Revoke workspace API keys. Members cannot list, create, or revoke one.',
   }),
   hideInboxTab: booleanRestriction('capability', {
     id: 'hide-inbox',
     label: 'Sim Mailer',
-    category: 'Features',
-    hint: 'Hide the Sim Mailer inbox.',
+    category: 'Modules',
+    hint: 'Revoke the Sim Mailer inbox. Members cannot read or send mail.',
   }),
   hideFilesTab: booleanRestriction('capability', {
     id: 'hide-files',
     label: 'Files',
-    category: 'Settings Tabs',
-    hint: 'Hide the Files settings tab.',
+    category: 'Files',
+    hint: 'Revoke the Files module. Members cannot list, upload, or download workspace files.',
   }),
   disableMcpTools: booleanRestriction('capability', {
     id: 'disable-mcp',
@@ -287,19 +293,19 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-invitations',
     label: 'Invitations',
     category: 'Collaboration',
-    hint: 'Prevent users from inviting others to workspaces.',
+    hint: 'Prevent inviting anyone to a workspace or to the organization.',
   }),
   disablePublicApi: booleanRestriction('capability', {
     id: 'disable-public-api',
     label: 'Public API',
-    category: 'Features',
-    hint: 'Disable public API access to deployed workflows.',
+    category: 'Deployment',
+    hint: 'Revoke public API access. Calls to a deployed workflow are refused.',
   }),
   disablePublicFileSharing: booleanRestriction('capability', {
     id: 'disable-public-file-sharing',
     label: 'Public Sharing',
     category: 'Files',
-    hint: 'Disable public file-share links.',
+    hint: 'Revoke public file sharing. Members cannot create a share link.',
   }),
   allowedFileShareAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:
@@ -308,21 +314,21 @@ export const PERMISSION_GROUP_FIELDS = {
   }),
   hideDeployApi: booleanRestriction('capability', {
     id: 'hide-deploy-api',
-    label: 'API',
-    category: 'Deploy Tabs',
-    hint: 'Hide the API deployment option.',
+    label: 'API Deployment',
+    category: 'Deployment',
+    hint: 'Prevent deploying a workflow as an API endpoint.',
   }),
   hideDeployMcp: booleanRestriction('capability', {
     id: 'hide-deploy-mcp',
-    label: 'MCP',
-    category: 'Deploy Tabs',
-    hint: 'Hide the MCP server deployment option.',
+    label: 'MCP Server',
+    category: 'Deployment',
+    hint: 'Prevent exposing a workflow as an MCP server.',
   }),
   hideDeployChatbot: booleanRestriction('capability', {
     id: 'hide-deploy-chatbot',
-    label: 'Deployment',
-    category: 'Chat',
-    hint: 'Hide the chat deployment option.',
+    label: 'Chat Deployment',
+    category: 'Deployment',
+    hint: 'Prevent publishing a workflow as a chat.',
   }),
   allowedChatDeployAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:
@@ -337,7 +343,7 @@ export const PERMISSION_GROUP_FIELDS = {
   disablePersonalApiKeys: booleanRestriction('capability', {
     id: 'disable-personal-api-keys',
     label: 'Personal API Keys',
-    category: 'Settings Tabs',
+    category: 'Credentials & Access',
     hint: 'Prevent members from using a personal API key against this workspace.',
   }),
   disableLogExport: booleanRestriction('capability', {
@@ -350,18 +356,18 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-cost-info',
     label: 'Execution Cost',
     category: 'Logs',
-    hint: 'Hide per-execution cost and token spend in logs.',
+    hint: 'Withhold execution cost. Logs and exports omit cost and token spend.',
   }),
   disableKnowledgeBaseCreation: booleanRestriction('capability', {
     id: 'disable-knowledge-base-creation',
     label: 'Knowledge Base Creation',
-    category: 'Sidebar',
+    category: 'Knowledge Base',
     hint: 'Prevent creating knowledge bases, leaving existing ones queryable.',
   }),
   disableKnowledgeBaseFileUpload: booleanRestriction('capability', {
     id: 'disable-knowledge-base-upload',
     label: 'Knowledge Base Uploads',
-    category: 'Sidebar',
+    category: 'Knowledge Base',
     hint: 'Prevent uploading local documents, leaving sanctioned connectors as the only source.',
   }),
   allowedKnowledgeConnectors: allowlist(z.string(), 'capability', {
@@ -371,13 +377,13 @@ export const PERMISSION_GROUP_FIELDS = {
   disableTableCreation: booleanRestriction('capability', {
     id: 'disable-table-creation',
     label: 'Table Creation',
-    category: 'Sidebar',
+    category: 'Tables',
     hint: 'Prevent creating tables, leaving existing ones usable.',
   }),
   disableTableExport: booleanRestriction('capability', {
     id: 'disable-table-export',
     label: 'Table Export',
-    category: 'Sidebar',
+    category: 'Tables',
     hint: 'Prevent downloading a whole table as CSV or JSON.',
   }),
   disableBulkFileDownload: booleanRestriction('capability', {
@@ -389,7 +395,7 @@ export const PERMISSION_GROUP_FIELDS = {
   disablePersonalCredentials: booleanRestriction('capability', {
     id: 'disable-personal-credentials',
     label: 'Personal Credentials',
-    category: 'Settings Tabs',
+    category: 'Credentials & Access',
     hint: 'Prevent connecting personal credentials, leaving only workspace-shared ones.',
   }),
   disableWorkspaceCreation: booleanRestriction('capability', {
@@ -402,18 +408,18 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-org-member-directory',
     label: 'Member Directory',
     category: 'Collaboration',
-    hint: 'Hide the names and email addresses of other organization members.',
+    hint: 'Withhold the member directory. Members cannot see the names or email addresses of other members.',
   }),
   disableCliAccess: booleanRestriction('capability', {
     id: 'disable-cli-access',
     label: 'CLI Access',
-    category: 'Features',
+    category: 'Credentials & Access',
     hint: 'Prevent approving a CLI login, which mints a key for the public API.',
   }),
   disableWebhookTriggers: booleanRestriction('capability', {
     id: 'disable-webhook-triggers',
     label: 'Webhook Triggers',
-    category: 'Deploy Tabs',
+    category: 'Deployment',
     hint: 'Prevent making a workflow reachable from an inbound webhook.',
   }),
   disableToolAutoApproval: booleanRestriction('capability', {

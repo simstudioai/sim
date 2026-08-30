@@ -17,6 +17,7 @@ Twelve keys once shipped with an admin checkbox, a hint describing what they res
 - `apps/sim/lib/permission-groups/fields.ts` — the registry every config surface derives from
 - `apps/sim/lib/permission-groups/capabilities.ts` — `CAPABILITY_IDS`, `CAPABILITY_RULES`
 - `apps/sim/lib/permission-groups/capability-assertions.ts` — the canonical assertion API
+- `apps/sim/lib/permission-groups/config-scope.server.ts` — `resolvePermissionGroupConfig`, the per-request memo every assertion resolves through
 - `apps/sim/lib/core/application/workspace-authorization.ts` — the funnel, and who bypasses it
 - `scripts/check-permission-group-enforcement.ts` — what the audit does and does not prove
 
@@ -28,6 +29,7 @@ Find the key in `PERMISSION_GROUP_FIELDS`. Record its builder (`booleanRestricti
 - **Named as a restriction?** `hideX` / `disableX` / `allowedX` / `deniedX`. The admin checkbox renders `checked={!editingConfig[feature.configKey]}` — ticked means allowed — so a positively-named boolean renders backwards.
 - **Position stable?** Declaration order is the wire order of `PermissionGroupConfig`, both zod schemas, and every config JSON crossing the API boundary. If `git log -p` shows the key was ever *moved* rather than appended, that shipped as a dirty-check regression in the group editor.
 - **Phrasing present and accurate?** An allowlist's `{ limited, empty }` and a denylist's string are read by `getActivePermissionGroupRestrictions` in `features.ts` and surface to users through the Copilot context and the group roster. Check the `empty` string genuinely says "none allowed" and not "unrestricted".
+- **Does the boolean's `hint` tell the truth?** This is the highest-value read in Step 1. A key with `enforcement: 'capability'` refuses at the API, so a hint saying it hides a tab, a panel, a module "from the sidebar", or a nav item is a **lie** an admin acts on — they believe they are tidying chrome while they are revoking access. The same string is read a second time as the prose for an *active* restriction, where "hide" is simply false. It must name what a member can no longer do. Twelve keys carried that wording for a release after they started 403-ing; treat any surviving "Hide the …" hint on a `'capability'` key as a finding, not a nit. Check `label` and `category` the same way — a section headed "Sidebar" or "Settings Tabs" makes the same claim structurally.
 
 ## Step 2: Schemas, type, defaults, parser
 
@@ -64,7 +66,7 @@ Then check the things the audit cannot:
 - **`kind` is right.** A rule whose decision needs a request value must be `'parameterized'`. A parameterized rule can never be declared on an operation — `defineWorkspaceOperation` throws at definition time — so if you find one named on an operation, that code does not run in production; something else is wrong.
 - **A narrower capability subsumes the broader one it replaced.** An operation carries exactly one capability. If this capability was split off a more general one, its rule must also read the general key. The precedent is `knowledge.create` and `knowledge.upload`, which both read `hideKnowledgeBaseTab` alongside their own key — without that, a group withholding the entire Knowledge Base module could still create one through the API. Check `git log` for a re-pointed `capability:` field and verify the narrower rule grew the broader key in the same commit.
 - **`detailCode` matches the remedy.** `FORBIDDEN_DETAIL_CODES` is closed over *remedies*, not causes. A distinct code is warranted only when a caller would act differently; otherwise `PERMISSION_GROUP_CAPABILITY_BLOCKED` is correct. Any code in use must have an entry in `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS`, which is a compile-time gate and also publishes the OpenAPI 403 text.
-- **`describe` reads correctly in the sentence.** `capabilityRefusalMessage` produces `"<describe> is not available under your organization's permission group"`.
+- **`describe` reads correctly in the sentence.** Two functions build it and there is no third: `refuseCapability(capability)` in `capabilities.ts` throws `"<describe> is not available under your organization's permission group"` as a `PermissionGroupCapabilityError`, and `capabilityRefusal(capability)` in `capability-assertions.ts` returns the same string for a raw route rendering its own body. `describe` must be a singular noun or gerund phrase that agrees with "is". Any call site that writes the sentence out itself is a drift finding.
 
 ## Step 5: Prove the enforcement — do not assume it
 
@@ -78,7 +80,7 @@ grep -rn "permission-group-enforced: <capability-id>" apps/sim
 Classify what you find into exactly one of:
 
 1. **Declared on operations.** `capability: '<id>'` on one or more `defineWorkspaceOperation` calls. The funnel enforces in `requireCurrentHumanAccess` → `requireCapability`. Verify the set of operations is *complete*: enumerate every route and tool that reaches the same behavior and check each one's operation declares it. One route declaring `capability: 'none'` for the same behavior is the hole.
-2. **Asserted at a call site**, with a `// permission-group-enforced: <id> — <reason>` annotation. Verify the assertion goes through `capability-assertions.ts` or a `CAPABILITY_RULES` entry rather than spelling the config key out inline — a call site reading `config.disableX` directly stops denying anything the moment the key is renamed, and its wording drifts from the funnel's. Some older helpers in `apps/sim/ee/access-control/utils/permission-check.ts` (`validatePublicFileSharing`, `validateChatDeployAuth`) still read config keys directly; note that as a finding rather than a blocker, and cite `assertConnectorTypeAllowed` in `apps/sim/lib/knowledge/application/connectors.ts` as the pattern they should converge on.
+2. **Asserted at a call site**, with a `// permission-group-enforced: <id> — <reason>` annotation. Verify the assertion goes through `capability-assertions.ts` or a `CAPABILITY_RULES` entry rather than spelling the config key out inline — a call site reading `config.disableX` directly stops denying anything the moment the key is renamed, and its wording drifts from the funnel's. Then check the second half, which is easy to miss because the decision looks right: does it *raise* through `refuseCapability`, or does it build its own `ForbiddenOperationError` with a hand-written message? `validatePublicFileSharing` and `validateChatDeployAuth` in `apps/sim/ee/access-control/utils/permission-check.ts` read the rule and call `refuseCapability` — that is the pattern. `assertConnectorTypeAllowed` in `apps/sim/lib/knowledge/application/connectors.ts` reads the rule but writes its own sentence; the decision is sound, the wording is a standing drift finding, not a new one.
 3. **Executor-gated.** Read by `assertPermissionsAllowed` in `permission-check.ts`, per block / tool / model. Verify the branch exists and throws a real error, and that the id it compares against is the same vocabulary the admin UI writes — `deniedTools` holds block `tools.access` ids verbatim, version suffix included.
 4. **Nothing.** Report it as a defect, with the sentence "an organization that sets this believes it applied a restriction that does not exist".
 
@@ -100,10 +102,10 @@ cd apps/sim && bun run type-check
 cd apps/sim && bunx vitest run lib/permission-groups
 ```
 
-Read the audit's output, not just its exit code. Two ways it can pass without proving what you want:
+Read the audit's output, not just its exit code. It is all-or-nothing — it either prints one success line or fails with findings; there is no count-down or migration mode that exits 0 with work outstanding, so do not go looking for a `pending enforcement:` list. What it can still do is pass without proving what you want:
 
-- **Count-down mode.** While any operation is still unannotated it prints `(N to go)` and exits 0 — and in that mode it *suppresses* the "capability declared but nothing enforces it" finding entirely. Check the `pending enforcement:` line for your capability by name. A capability listed there is unenforced and the build is green anyway.
 - **Vacuous parse.** The audit reads source text with regexes. It has a self-check that refuses to report success when `CAPABILITY_IDS`, `CAPABILITY_RULES`, or `PERMISSION_GROUP_FIELDS` parse to nothing, and it cross-checks that the rule count equals the capability count. If either of those errors fires, the audit is broken, not the code — fix the parsers rather than leaving it passing.
+- **A capability declared on an operation nothing routes to.** Assertion C is satisfied by the declaration alone. An operation that no route, tool, or use case actually invokes still counts as reaching the capability.
 
 The audit proves *reachability*, not correctness: it proves a capability is named somewhere and a key is read by some rule. It cannot tell whether the rule's logic is right, whether every relevant operation declares it, or whether an annotated call site actually calls anything. Step 5 is what covers that, and no amount of green CI substitutes for it.
 
@@ -124,4 +126,6 @@ For each item audited, state:
 2. **The refusal** — file, line, the error thrown, and what a caller sees (status, `detailCode`, message). Or: *nothing refuses*.
 3. **Proof** — the test that fails when the gate is removed, or the statement that no such test exists.
 4. **Coverage gaps** — routes, tools, or surfaces reaching the same behavior without the gate.
-5. **Findings**, ordered: unenforced key > incomplete operation coverage > fail-open coercion > allowlist three-state confusion > missing admin UI > missing test > cosmetic.
+5. **Findings**, ordered: unenforced key > incomplete operation coverage > fail-open coercion > allowlist three-state confusion > **admin copy that misstates the enforcement** > missing admin UI > missing test > cosmetic.
+
+A hint that says "hide" for a key that 403s is not cosmetic. It is the one defect an admin acts on directly: they tick it believing they hid a link, and members lose the module. Rank it with the enforcement findings, not the polish.

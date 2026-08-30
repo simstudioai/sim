@@ -451,58 +451,52 @@ function isModelDenied(config: PermissionGroupConfig, model: string): boolean {
   return config.deniedModels.some((denied) => denied.toLowerCase() === normalized)
 }
 
-export async function validateModelProvider(
-  userId: string | undefined,
-  workspaceId: string | undefined,
+/** Identifies the caller in a log line; never used for a decision. */
+interface PermissionSubject {
+  userId: string | undefined
+  workspaceId: string | undefined
+}
+
+/**
+ * Refuses `model` when the config withholds its provider or names it outright.
+ *
+ * Takes a loaded config rather than loading one, so the single-gate entry point
+ * and {@link assertPermissionsAllowed} share one copy of the decision. Two
+ * copies is how an allowlist stops matching in one of them.
+ */
+function assertModelAllowed(
+  config: PermissionGroupConfig,
   model: string,
-  ctx?: ExecutionContext
-): Promise<void> {
-  if (!userId || !workspaceId) {
-    return
-  }
-
-  const config = await getPermissionConfig(userId, workspaceId, ctx)
-
-  if (!config) {
-    return
-  }
-
+  subject: PermissionSubject
+): void {
   if (config.allowedModelProviders !== null) {
     const providerId = getProviderFromModel(model)
 
     if (!config.allowedModelProviders.includes(providerId)) {
-      logger.warn('Model provider blocked by permission group', {
-        userId,
-        workspaceId,
-        model,
-        providerId,
-      })
+      logger.warn('Model provider blocked by permission group', { ...subject, model, providerId })
       throw new ProviderNotAllowedError(providerId, model)
     }
   }
 
   if (isModelDenied(config, model)) {
-    logger.warn('Model blocked by permission group', { userId, workspaceId, model })
+    logger.warn('Model blocked by permission group', { ...subject, model })
     throw new ModelNotAllowedError(model)
   }
 }
 
-export async function validateBlockType(
-  userId: string | undefined,
-  workspaceId: string | undefined,
+/**
+ * Refuses `blockType` when the config's integration allowlist does not name it.
+ *
+ * Shared with {@link assertPermissionsAllowed} for the reason
+ * {@link assertModelAllowed} is. Callers screen out exempt block types first —
+ * the exemption also decides whether they need a config at all.
+ */
+function assertBlockTypeAllowed(
+  config: PermissionGroupConfig,
   blockType: string,
-  ctx?: ExecutionContext
-): Promise<void> {
-  if (isBlockTypeAccessControlExempt(blockType)) {
-    return
-  }
-
-  const config =
-    userId && workspaceId
-      ? await getPermissionConfig(userId, workspaceId, ctx)
-      : mergeEnvAllowlist(null)
-
-  if (!config || config.allowedIntegrations === null) {
+  subject: PermissionSubject
+): void {
+  if (config.allowedIntegrations === null) {
     return
   }
 
@@ -521,13 +515,53 @@ export async function validateBlockType(
       blockedByEnv
         ? 'Integration blocked by env allowlist'
         : 'Integration blocked by permission group',
-      { userId, workspaceId, blockType }
+      { ...subject, blockType }
     )
     throw new IntegrationNotAllowedError(
       blockType,
       blockedByEnv ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
     )
   }
+}
+
+export async function validateModelProvider(
+  userId: string | undefined,
+  workspaceId: string | undefined,
+  model: string,
+  ctx?: ExecutionContext
+): Promise<void> {
+  if (!userId || !workspaceId) {
+    return
+  }
+
+  const config = await getPermissionConfig(userId, workspaceId, ctx)
+  if (!config) {
+    return
+  }
+
+  assertModelAllowed(config, model, { userId, workspaceId })
+}
+
+export async function validateBlockType(
+  userId: string | undefined,
+  workspaceId: string | undefined,
+  blockType: string,
+  ctx?: ExecutionContext
+): Promise<void> {
+  if (isBlockTypeAccessControlExempt(blockType)) {
+    return
+  }
+
+  const config =
+    userId && workspaceId
+      ? await getPermissionConfig(userId, workspaceId, ctx)
+      : mergeEnvAllowlist(null)
+
+  if (!config) {
+    return
+  }
+
+  assertBlockTypeAllowed(config, blockType, { userId, workspaceId })
 }
 
 const INVITATIONS_RULE = CAPABILITY_RULES['invitations.send']
@@ -685,44 +719,14 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
       ? await getPermissionConfig(userId, workspaceId, ctx)
       : mergeEnvAllowlist(null)
 
-  if (model && config) {
-    if (config.allowedModelProviders !== null) {
-      const providerId = getProviderFromModel(model)
-      if (!config.allowedModelProviders.includes(providerId)) {
-        logger.warn('Model provider blocked by permission group', {
-          userId,
-          workspaceId,
-          model,
-          providerId,
-        })
-        throw new ProviderNotAllowedError(providerId, model)
-      }
-    }
+  const subject = { userId, workspaceId }
 
-    if (isModelDenied(config, model)) {
-      logger.warn('Model blocked by permission group', { userId, workspaceId, model })
-      throw new ModelNotAllowedError(model)
-    }
+  if (model && config) {
+    assertModelAllowed(config, model, subject)
   }
 
-  if (blockType && !blockTypeExempt) {
-    if (config && config.allowedIntegrations !== null) {
-      const allowlistType = resolveAccessControlBlockType(blockType).toLowerCase()
-      if (!config.allowedIntegrations.includes(allowlistType)) {
-        const envAllowlist = getAllowedIntegrationsFromEnv()
-        const blockedByEnv = envAllowlist !== null && !envAllowlist.includes(allowlistType)
-        logger.warn(
-          blockedByEnv
-            ? 'Integration blocked by env allowlist'
-            : 'Integration blocked by permission group',
-          { userId, workspaceId, blockType }
-        )
-        throw new IntegrationNotAllowedError(
-          blockType,
-          blockedByEnv ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
-        )
-      }
-    }
+  if (blockType && !blockTypeExempt && config) {
+    assertBlockTypeAllowed(config, blockType, subject)
   }
 
   if (toolId && !createToolAccessGate(config?.deniedTools)(toolId)) {

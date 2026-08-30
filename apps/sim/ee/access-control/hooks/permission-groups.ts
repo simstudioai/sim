@@ -108,7 +108,7 @@ export function useUserPermissionConfig(workspaceId?: string) {
   })
 }
 
-export interface CreatePermissionGroupData {
+interface CreatePermissionGroupData {
   organizationId: string
   name: string
   description?: string
@@ -135,7 +135,7 @@ export function useCreatePermissionGroup() {
   })
 }
 
-export interface UpdatePermissionGroupData {
+interface UpdatePermissionGroupData {
   id: string
   organizationId: string
   name?: string
@@ -164,7 +164,7 @@ export function useUpdatePermissionGroup() {
   })
 }
 
-export interface DeletePermissionGroupParams {
+interface DeletePermissionGroupParams {
   permissionGroupId: string
   organizationId: string
 }
@@ -204,7 +204,7 @@ export function useRemovePermissionGroupMember() {
   })
 }
 
-export interface BulkAddMembersData {
+interface BulkAddMembersData {
   organizationId: string
   permissionGroupId: string
   userIds?: string[]
