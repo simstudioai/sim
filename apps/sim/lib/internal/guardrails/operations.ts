@@ -11,7 +11,6 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
-import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -20,6 +19,7 @@ import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
 import { GuardrailsOperationError } from '@/lib/internal/guardrails/errors'
 import type { GuardrailsValidationInput } from '@/lib/internal/guardrails/input'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import {
   assertPermissionsAllowed,
   ModelNotAllowedError,

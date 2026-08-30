@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/resources/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { byResourceMenuOrder } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {

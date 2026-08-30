@@ -9,26 +9,26 @@ import {
   reorderCopilotChatResourcesContract,
 } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
+} from '@/lib/mothership/request/http'
 import {
   type ChatResource,
   serializeChatResourceWrite,
   setChatResourceTxTimeouts,
-} from '@/lib/copilot/resources/persistence'
-import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
+} from '@/lib/mothership/resources/persistence'
+import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import {
   canonicalizeDesktopSessionResource,
   mergeChatResource,
   reorderStoredChatResources,
   sanitizeChatResources,
-} from '@/lib/copilot/resources/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/resources/types'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 

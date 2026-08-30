@@ -9,7 +9,7 @@ vi.mock('@sim/emcn', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/lib/copilot/tools/tool-display', () => ({
+vi.mock('@/lib/mothership/tools/tool-display', () => ({
   humanizeToolName: (name: string) => name,
 }))
 

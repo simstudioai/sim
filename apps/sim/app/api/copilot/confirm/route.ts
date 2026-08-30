@@ -6,6 +6,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -15,7 +16,7 @@ import {
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
   isWorkflowToolExecutionClaimable,
-} from '@/lib/copilot/async-runs/lifecycle'
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   completeClaimedAsyncToolCall,
@@ -24,23 +25,23 @@ import {
   getAsyncToolCall,
   getClaimedWorkflowExecutionId,
   getRunSegment,
-} from '@/lib/copilot/async-runs/repository'
-import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
+} from '@/lib/mothership/async-runs/repository'
+import { CopilotConfirmOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { publishToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/request/http'
+import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 import {
   retainSealedClientToolContext,
   sealClientToolCompletion,
-} from '@/lib/copilot/request/tools/client-completion-seal.server'
+} from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
   type AsyncWorkflowDeploymentError,
   createStructuralWorkflowToolCompletionData,
@@ -50,8 +51,7 @@ import {
   getWorkflowToolConfirmationStatus,
   isWorkflowToolName,
   resolveWorkflowToolTargetId,
-} from '@/lib/copilot/tools/workflow-tools'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/tools/workflow-tools'
 import { getTrustedWorkflowToolExecution } from '@/lib/workflows/executor/execution-state'
 
 const logger = createLogger('CopilotConfirmAPI')

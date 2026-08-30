@@ -13,7 +13,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
-} from '@/lib/copilot/chat/selection-context'
+} from '@/lib/mothership/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'

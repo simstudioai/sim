@@ -10,10 +10,10 @@ import {
 } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
+import { getMothershipSourceEnvHeaders } from '@/lib/mothership/server/agent-url'
 
 /**
  * Enterprise BYOK key management for the current workspace's mothership.

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
 
 /**
- * Generate `apps/sim/lib/copilot/generated/trace-attribute-values-v1.ts`
+ * Generate `apps/sim/lib/mothership/generated/trace-attribute-values-v1.ts`
  * from the Go-side `contracts/trace-attribute-values-v1.schema.json`
  * contract.
  *
@@ -30,7 +30,7 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/trace-attribute-values-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-attribute-values-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/trace-attribute-values-v1.ts')
 
 interface ExtractedEnum {
   /** The Go type name — becomes the TS const + type name. */

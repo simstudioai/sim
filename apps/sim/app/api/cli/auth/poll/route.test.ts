@@ -28,7 +28,7 @@ vi.mock('@/lib/cli-auth/approval-store', () => ({
   releaseMint: mockReleaseMint,
 }))
 
-vi.mock('@/lib/copilot/server/api-keys', () => ({
+vi.mock('@/lib/mothership/server/api-keys', () => ({
   generateCopilotApiKey: mockGenerateCopilotApiKey,
   CopilotApiKeyError: class extends Error {},
 }))

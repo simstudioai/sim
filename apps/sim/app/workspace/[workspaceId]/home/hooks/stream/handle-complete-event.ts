@@ -1,4 +1,4 @@
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 
 type CompleteEvent = Extract<PersistedStreamEventEnvelope, { type: 'complete' }>

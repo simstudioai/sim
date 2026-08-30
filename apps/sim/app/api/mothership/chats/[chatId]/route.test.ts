@@ -23,42 +23,42 @@ const {
   mockGetLatestRunForStream: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatWithMessages: mockGetAccessibleCopilotChat,
 }))
 
-vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
+vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
-vi.mock('@/lib/copilot/request/session/buffer', () => ({
+vi.mock('@/lib/mothership/request/session/buffer', () => ({
   readEvents: mockReadEvents,
 }))
 
-vi.mock('@/lib/copilot/request/session/file-preview-session', () => ({
+vi.mock('@/lib/mothership/request/session/file-preview-session', () => ({
   readFilePreviewSessions: mockReadFilePreviewSessions,
 }))
 
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   getLatestRunForStream: mockGetLatestRunForStream,
 }))
 
-vi.mock('@/lib/copilot/request/session/types', () => ({
+vi.mock('@/lib/mothership/request/session/types', () => ({
   toStreamBatchEvent: (e: unknown) => e,
 }))
 
-vi.mock('@/lib/copilot/chat/effective-transcript', () => ({
+vi.mock('@/lib/mothership/chat/effective-transcript', () => ({
   buildEffectiveChatTranscript: ({ messages }: { messages: unknown[] }) => messages,
 }))
 
-vi.mock('@/lib/copilot/chat/persisted-message', () => ({
+vi.mock('@/lib/mothership/chat/persisted-message', () => ({
   normalizeMessage: (m: unknown) => m,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 

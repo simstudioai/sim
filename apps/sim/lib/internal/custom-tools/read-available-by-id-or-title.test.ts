@@ -21,7 +21,7 @@ vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   readAvailableCustomToolByIdOrTitleUseCase: mocks.readUseCase,
 }))
 
-vi.mock('@/lib/copilot/application/execute-custom-tool-use-case', () => ({
+vi.mock('@/lib/mothership/application/execute-custom-tool-use-case', () => ({
   executeCopilotCustomToolUseCase: mocks.executeCopilot,
 }))
 

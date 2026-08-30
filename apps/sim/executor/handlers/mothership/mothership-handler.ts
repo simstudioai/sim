@@ -5,7 +5,6 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import {
   projectModelSchemaAnnotations,
@@ -22,6 +21,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import {
   areModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,

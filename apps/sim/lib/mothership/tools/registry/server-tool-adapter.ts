@@ -1,0 +1,66 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionResult, ToolHandler } from '@/lib/mothership/tool-executor/types'
+import { routeExecution } from '@/lib/mothership/tools/server/router'
+
+const logger = createLogger('ServerToolAdapter')
+
+export function createServerToolHandler(toolId: string): ToolHandler {
+  return async (params, context): Promise<ToolExecutionResult> => {
+    const enrichedParams = { ...params }
+    if (!enrichedParams.workflowId && context.workflowId)
+      enrichedParams.workflowId = context.workflowId
+    if (context.workspaceId) enrichedParams.workspaceId = context.workspaceId
+
+    try {
+      const result = await routeExecution(toolId, enrichedParams, {
+        userId: context.userId,
+        workspaceId: context.workspaceId,
+        executionId: context.executionId,
+        toolCallId: context.toolCallId,
+        copilotToolExecution: context.copilotToolExecution,
+        billingAttribution: context.billingAttribution,
+        userPermission: context.userPermission ?? undefined,
+        chatId: context.chatId,
+        messageId: context.messageId,
+        parentToolCallId: context.parentToolCallId,
+        abortSignal: context.abortSignal,
+        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      })
+
+      const rec = isRecordLike(result) ? (result as Record<string, unknown>) : null
+      if (rec?.success === false) {
+        const message =
+          (typeof rec.error === 'string' && rec.error) ||
+          (typeof rec.message === 'string' && rec.message) ||
+          `${toolId} failed`
+        return { success: false, error: message, output: result }
+      }
+      return { success: true, output: result }
+    } catch (error) {
+      const caughtError = toError(error)
+      // The generic projection below records the swallowed cause on the active
+      // span itself (messageForCopilotApplicationError) so Tempo carries it.
+      logger.error(
+        'Server tool execution failed',
+        {
+          toolId,
+          abortSignalAborted: context.abortSignal?.aborted ?? false,
+        },
+        caughtError
+      )
+      const safeMessage = projectToolErrorMessageForCopilot(
+        messageForCopilotApplicationError(error),
+        context.resolvedSecretTraceRegistry,
+        toolId
+      )
+      return {
+        success: false,
+        error: `[${toolId}] ${safeMessage}`,
+      }
+    }
+  }
+}

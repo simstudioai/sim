@@ -12,7 +12,6 @@ const {
   mockCheckInternalAuth,
   mockComputeWorkspaceEntitlements,
   mockDecryptSecret,
-  mockGenerateWorkspaceContext,
   mockGetPersonalAndWorkspaceEnv,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
@@ -26,7 +25,6 @@ const {
   mockCheckInternalAuth: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
   mockDecryptSecret: vi.fn(),
-  mockGenerateWorkspaceContext: vi.fn(),
   mockGetPersonalAndWorkspaceEnv: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
@@ -46,32 +44,28 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
 }))
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
+vi.mock('@/lib/mothership/chat/payload', () => ({
   buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
 }))
 
-vi.mock('@/lib/copilot/chat/process-contents', () => ({
+vi.mock('@/lib/mothership/chat/process-contents', () => ({
   processContextsServer: mockProcessContextsServer,
 }))
 
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
-  generateWorkspaceContext: mockGenerateWorkspaceContext,
-}))
-
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: mockComputeWorkspaceEntitlements,
 }))
 
-vi.mock('@/lib/copilot/mcp-tools', () => ({
+vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildSelectedMcpToolSchemas: mockBuildSelectedMcpToolSchemas,
   buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
@@ -88,7 +82,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   isWorkspaceAccessDeniedError: vi.fn(() => false),
 }))
 
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import { buildExecuteResponsePayload, POST } from '@/app/api/mothership/execute/route'
 
 type Payload = Parameters<typeof buildExecuteResponsePayload>[0]
@@ -139,7 +133,6 @@ describe('mothership private trace provenance transport', () => {
       workspaceDecrypted: {},
       decryptionFailures: [],
     })
-    mockGenerateWorkspaceContext.mockResolvedValue({})
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
     mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
     mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
@@ -330,13 +323,15 @@ describe('mothership private trace provenance transport', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockGenerateWorkspaceContext).toHaveBeenCalledWith('workspace-1', 'user-1', {
-      workspaceAccess: expect.any(Object),
-      secretMountPolicy: {
-        secretScope: 'selected',
-        mountedSecrets: ['API_KEY'],
-      },
+    // The snapshot builder is gone (revamp): the mount policy stays server-only by riding
+    // the LIFECYCLE OPTIONS (sim-side tool execution), never the wire payload.
+    const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)!
+    expect(options.secretMountPolicy).toEqual({
+      secretScope: 'selected',
+      mountedSecrets: ['API_KEY'],
     })
+    expect(payload).not.toHaveProperty('secretMountPolicy')
+    expect(payload).not.toHaveProperty('workspaceContext')
   })
 
   it('fails model egress closed when catalog setup fails', async () => {

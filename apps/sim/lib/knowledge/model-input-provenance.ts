@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {

@@ -7,9 +7,9 @@ import { adminMothershipQuerySchema } from '@/lib/api/contracts/mothership-chats
 import { mothershipEnvironmentSchema } from '@/lib/api/contracts/user'
 import { searchParamsToObject, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 const ENV_URLS: Record<string, string | undefined> = {
   dev: env.MOTHERSHIP_DEV_URL,

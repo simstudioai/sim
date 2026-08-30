@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 const { queryClient, suspendBrowserScope, suspendTerminalScope } = vi.hoisted(() => ({
   queryClient: {

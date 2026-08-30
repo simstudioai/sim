@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { PillsRing } from '@sim/emcn'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import type { GenericResourceData } from '@/app/workspace/[workspaceId]/home/types'
 
 interface GenericResourceContentProps {

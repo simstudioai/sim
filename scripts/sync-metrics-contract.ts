@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
 
 /**
- * Generate `apps/sim/lib/copilot/generated/metrics-v1.ts` from the Go-side
+ * Generate `apps/sim/lib/mothership/generated/metrics-v1.ts` from the Go-side
  * `contracts/metrics-v1.schema.json` contract.
  *
  * The contract is a single-enum JSON Schema listing every canonical mothership
@@ -30,7 +30,7 @@ import { formatGeneratedSource } from './format-generated-source'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const DEFAULT_CONTRACT_PATH = resolve(ROOT, '../copilot/copilot/contracts/metrics-v1.schema.json')
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/metrics-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/metrics-v1.ts')
 
 function extractMetricNames(schema: Record<string, unknown>): string[] {
   const defs = (schema.$defs ?? {}) as Record<string, unknown>

@@ -66,7 +66,6 @@ import {
   showBrowserToolbarMenu,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
-import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
@@ -75,6 +74,7 @@ import {
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import { addMothershipContext } from '@/lib/mothership/events'
+import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/mothership/resources/types'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'

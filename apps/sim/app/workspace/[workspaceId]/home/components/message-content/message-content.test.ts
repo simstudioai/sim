@@ -14,10 +14,10 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
-import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
-import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getHiddenToolNames } from '@/lib/mothership/tools/client/hidden-tools'
+import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import {
   createTurnModel,
   reduceEvent,

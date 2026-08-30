@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server'
 import { persistFileDocContract } from '@/lib/api/contracts/file-doc'
 import { parseRequest } from '@/lib/api/server'
 import { persistFileDoc } from '@/lib/collab-doc/persist'
-import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 
 const logger = createLogger('FileDocPersistAPI')
 

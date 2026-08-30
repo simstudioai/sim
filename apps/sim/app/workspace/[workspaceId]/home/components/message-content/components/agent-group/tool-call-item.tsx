@@ -7,11 +7,14 @@ import {
   Read as ReadTool,
   Terminal as TerminalTool,
   Wait as WaitTool,
-} from '@/lib/copilot/generated/tool-catalog-v1'
-import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
+} from '@/lib/mothership/generated/tool-catalog-v1'
+import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import {
+  getToolStatusDisplayTitle,
+  getWaitCountdownTitle,
+} from '@/lib/mothership/tools/tool-display'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { resolveStreamingToolDisplayTitle } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
 import {
   type AgentNode,

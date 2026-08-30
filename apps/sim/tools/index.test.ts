@@ -27,9 +27,9 @@ import {
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,

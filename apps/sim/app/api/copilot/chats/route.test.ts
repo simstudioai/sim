@@ -13,7 +13,7 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/workspaces/utils', () => ({
   listAccessibleWorkspaceRowsForUser: vi

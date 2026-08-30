@@ -1,8 +1,8 @@
-import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
+import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type {
   FilePreviewSession,
   FilePreviewTargetKind,
-} from '@/lib/copilot/request/session/file-preview-session-contract'
+} from '@/lib/mothership/request/session/file-preview-session-contract'
 
 function toTargetKind(value: string | undefined): FilePreviewTargetKind | undefined {
   return value === 'new_file' || value === 'file_id' ? value : undefined

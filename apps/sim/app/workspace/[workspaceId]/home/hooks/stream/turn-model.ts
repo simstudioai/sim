@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
+import { resolveStreamToolOutcome } from '@/lib/mothership/chat/stream-tool-outcome'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -7,11 +7,11 @@ import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { CallIntegrationTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/copilot/tools/tool-display'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { CONTEXT_COMPACTION_DISPLAY_TITLE } from '@/lib/mothership/tools/tool-display'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the

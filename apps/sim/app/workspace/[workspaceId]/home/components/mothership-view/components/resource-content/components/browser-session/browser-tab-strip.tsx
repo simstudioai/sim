@@ -13,9 +13,9 @@ import type { BrowserTabState } from '@sim/browser-protocol'
 import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
 import { CircleAlert, Globe, Loader } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
-import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { getDesktopBridge } from '@/lib/desktop'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import {
   browserTabHostname,
   browserTabTitle,

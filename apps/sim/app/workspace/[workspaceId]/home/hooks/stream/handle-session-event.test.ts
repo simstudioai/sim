@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleSessionEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-session-event'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'

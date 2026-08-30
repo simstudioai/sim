@@ -10,11 +10,11 @@ const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted((
   mockPublishStatusChanged: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: {
     publishStatusChanged: mockPublishStatusChanged,
   },

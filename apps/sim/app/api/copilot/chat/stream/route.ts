@@ -5,20 +5,21 @@ import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStreamContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from '@/lib/copilot/generated/mothership-stream-v1'
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   CopilotResumeOutcome,
   CopilotTransport,
-} from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/mothership/request/http'
+import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
   checkForReplayGap,
   createEvent,
@@ -27,9 +28,8 @@ import {
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
-} from '@/lib/copilot/request/session'
-import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/session'
+import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 export const maxDuration = 3600
 

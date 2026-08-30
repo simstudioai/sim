@@ -10,25 +10,25 @@ import {
   updateMothershipChatContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
+import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import {
   getAccessibleCopilotChatAuth,
   getAccessibleCopilotChatWithMessages,
-} from '@/lib/copilot/chat/lifecycle'
-import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
-import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+} from '@/lib/mothership/chat/lifecycle'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { readEvents } from '@/lib/copilot/request/session/buffer'
-import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
-import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
+import { readEvents } from '@/lib/mothership/request/session/buffer'
+import { readFilePreviewSessions } from '@/lib/mothership/request/session/file-preview-session'
+import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')

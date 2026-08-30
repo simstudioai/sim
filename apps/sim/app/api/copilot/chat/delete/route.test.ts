@@ -19,12 +19,12 @@ const {
   mockGetAccessibleCopilotChatAuth: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChatAuth,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 

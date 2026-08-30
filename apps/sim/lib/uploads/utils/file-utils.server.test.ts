@@ -24,7 +24,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   parseWorkspaceFileKey: mockParseWorkspaceFileKey,
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 

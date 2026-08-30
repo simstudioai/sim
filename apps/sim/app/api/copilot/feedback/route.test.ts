@@ -7,7 +7,7 @@ import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock }
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
 import { GET, POST } from '@/app/api/copilot/feedback/route'
 

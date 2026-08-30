@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server'
 import { buildFileDocSeedContract } from '@/lib/api/contracts/file-doc'
 import { parseRequest } from '@/lib/api/server'
 import { buildFileDocSeed } from '@/lib/collab-doc/seed'
-import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 
 const logger = createLogger('FileDocSeedAPI')
 

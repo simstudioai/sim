@@ -6,17 +6,17 @@ import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,

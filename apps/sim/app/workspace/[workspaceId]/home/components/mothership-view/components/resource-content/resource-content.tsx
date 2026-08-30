@@ -17,14 +17,14 @@ import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import { prefersInPlaceNavigation } from '@/lib/desktop'
+import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { prefersInPlaceNavigation } from '@/lib/desktop'
+} from '@/lib/mothership/tools/client/run-tool-execution'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {

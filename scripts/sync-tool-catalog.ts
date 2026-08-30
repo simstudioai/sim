@@ -6,10 +6,10 @@ import { formatGeneratedSource } from './format-generated-source'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const DEFAULT_CATALOG_PATH = resolve(ROOT, '../copilot/copilot/contracts/tool-catalog-v1.json')
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/tool-catalog-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/tool-catalog-v1.ts')
 const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
   ROOT,
-  'apps/sim/lib/copilot/generated/tool-schemas-v1.ts'
+  'apps/sim/lib/mothership/generated/tool-schemas-v1.ts'
 )
 
 function snakeToPascal(s: string): string {

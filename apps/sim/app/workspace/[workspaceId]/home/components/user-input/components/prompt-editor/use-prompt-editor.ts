@@ -4,7 +4,7 @@ import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/uti
 import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
-} from '@/lib/copilot/chat/selection-clipboard'
+} from '@/lib/mothership/chat/selection-clipboard'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
   chipDisplayToken,

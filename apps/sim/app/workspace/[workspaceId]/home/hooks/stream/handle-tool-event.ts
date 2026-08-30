@@ -3,15 +3,15 @@ import { isTerminalToolName } from '@sim/terminal-protocol'
 import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { ApplyFileEdit, PrepareFileEdit } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { ApplyFileEdit, PrepareFileEdit } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
-} from '@/lib/copilot/resources/extraction'
-import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+} from '@/lib/mothership/resources/extraction'
+import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {

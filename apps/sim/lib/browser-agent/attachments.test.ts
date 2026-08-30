@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const BROWSER_RESOURCE: MothershipResource = {

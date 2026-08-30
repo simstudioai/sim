@@ -1,11 +1,11 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import type { RevealedSimKeysByMessage } from '@/lib/copilot/chat/sim-key-redaction'
-import { captureRevealedSimKeys } from '@/lib/copilot/chat/sim-key-redaction'
-import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
-import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-redaction'
+import { captureRevealedSimKeys } from '@/lib/mothership/chat/sim-key-redaction'
+import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
+import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import {
   createTurnModel,
   type TurnModel,

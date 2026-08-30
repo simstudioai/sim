@@ -9,7 +9,7 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/billing-protocol-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/billing-protocol-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/billing-protocol-v1.ts')
 
 type SchemaNode = Record<string, unknown>
 

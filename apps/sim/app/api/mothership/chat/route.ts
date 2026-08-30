@@ -5,8 +5,8 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { handleUnifiedChatPost, maxDuration } from '@/lib/copilot/chat/post'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { handleUnifiedChatPost, maxDuration } from '@/lib/mothership/chat/post'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
 export { maxDuration }
