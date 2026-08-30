@@ -245,6 +245,79 @@ describe('GET /api/v1/logs?details=full', () => {
   })
 })
 
+/**
+ * Blanking `cost` while still answering `minCost`/`maxCost` faithfully leaves
+ * the list a bisection oracle over the very figure it just withheld: one
+ * request per probe, with the page as the answer. The filter is therefore
+ * refused rather than silently dropped — dropping it would answer a question
+ * nobody asked, and a wrong answer presented as the right one is worse than a
+ * refusal.
+ */
+describe('GET /api/v1/logs cost-selective queries', () => {
+  function listFiltered(query: string) {
+    return listLogs(apiRequest(`/api/v1/logs?workspaceId=${WORKSPACE_ID}&${query}`))
+  }
+
+  it.each([['minCost=0.5'], ['maxCost=0.5'], ['minCost=0.1&maxCost=0.9']])(
+    'refuses %s for a group that withholds spend',
+    async (query) => {
+      governedBy({ hideCostInfo: true })
+
+      const response = await listFiltered(query)
+
+      expect(response.status).toBe(403)
+      expect(await response.json()).toEqual({
+        error: "Execution cost is not available under your organization's permission group",
+        details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+      })
+      expect(mockListPublicWorkflowLogs).not.toHaveBeenCalled()
+    }
+  )
+
+  it('answers the same filter for a group that withholds nothing', async () => {
+    const response = await listFiltered('minCost=0.5')
+
+    expect(response.status).toBe(200)
+    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ filters: expect.objectContaining({ minCost: 0.5 }) })
+    )
+  })
+
+  /** A workspace key has no user and therefore no group to refuse on behalf of. */
+  it('answers the same filter for a workspace API key', async () => {
+    mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+    governedBy({ hideCostInfo: true })
+
+    const response = await listFiltered('minCost=0.5')
+
+    expect(response.status).toBe(200)
+    expect(mockListPublicWorkflowLogs).toHaveBeenCalled()
+  })
+
+  /** Only the spend filter is refused; the rest of the query is unaffected. */
+  it('still answers a non-cost filter for a group that withholds spend', async () => {
+    governedBy({ hideCostInfo: true })
+
+    const response = await listFiltered('minDurationMs=100')
+
+    expect(response.status).toBe(200)
+  })
+
+  /**
+   * The refusal must come from the caller's own membership, not from the door:
+   * a non-member is told nothing about how the organization configured a group.
+   */
+  it('refuses a non-member for their access before naming the group', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    governedBy({ hideCostInfo: true })
+
+    const response = await listFiltered('minCost=0.5')
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Access denied' })
+  })
+})
+
 describe('GET /api/v1/logs/[id]', () => {
   it('withholds the execution payloads when the group hides trace spans', async () => {
     governedBy({ hideTraceSpans: true })
