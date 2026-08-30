@@ -2,48 +2,8 @@ import type {
   ElasticsearchDocumentResponse,
   ElasticsearchUpdateDocumentParams,
 } from '@/tools/elasticsearch/types'
+import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
-
-function buildBaseUrl(params: ElasticsearchUpdateDocumentParams): string {
-  if (params.deploymentType === 'cloud' && params.cloudId) {
-    const parts = params.cloudId.split(':')
-    if (parts.length >= 2) {
-      try {
-        const decoded = Buffer.from(parts[1], 'base64').toString('utf-8')
-        const [esHost] = decoded.split('$')
-        if (esHost) {
-          return `https://${parts[0]}.${esHost}`
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    throw new Error('Invalid Cloud ID format')
-  }
-
-  if (!params.host) {
-    throw new Error('Host is required for self-hosted deployments')
-  }
-
-  return params.host.replace(/\/$/, '')
-}
-
-function buildAuthHeaders(params: ElasticsearchUpdateDocumentParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  }
-
-  if (params.authMethod === 'api_key' && params.apiKey) {
-    headers.Authorization = `ApiKey ${params.apiKey}`
-  } else if (params.authMethod === 'basic_auth' && params.username && params.password) {
-    const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
-    headers.Authorization = `Basic ${credentials}`
-  } else {
-    throw new Error('Invalid authentication configuration')
-  }
-
-  return headers
-}
 
 export const updateDocumentTool: ToolConfig<
   ElasticsearchUpdateDocumentParams,
@@ -132,6 +92,7 @@ export const updateDocumentTool: ToolConfig<
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),
+    redirectPolicy: () => ({ mode: 'legacy', sendCredentialsOnCrossOriginRedirect: false }),
     body: (params) => {
       try {
         return { doc: JSON.parse(params.document) }
