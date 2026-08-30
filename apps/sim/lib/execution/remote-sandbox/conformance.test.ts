@@ -868,6 +868,59 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     ).rejects.toThrow(/over the 20-file export limit/)
   })
 
+  it('spends one file ceiling across declared and harvested outputs', async () => {
+    // The limit is what an execution exports, not what one directory holds, so a
+    // request that both declares and harvests cannot take 20 of each.
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    stubOutputFileSizes(provider, 1, 1)
+    stubOutputDirListing(
+      Array.from({ length: MAX_SANDBOX_OUTPUT_FILES - 1 }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+
+    await expect(
+      executeInSandbox({
+        code: 'x',
+        language: CodeLanguage.Python,
+        timeoutMs: 1000,
+        outputSandboxPaths: ['/out/first.txt', '/out/second.txt'],
+        outputSandboxDir: '/tmp/sim/outputs',
+      })
+    ).rejects.toThrow(/produced 21 files .* over the 20-file export limit/)
+  })
+
+  it('does not charge a declared path inside the harvest directory to the ceiling twice', async () => {
+    // The directory holds exactly the limit and the request names one of those
+    // files. Charging it on both sides would refuse a run exporting 20 files.
+    stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
+    // One inspection for the declared path, then one per file actually read.
+    stubOutputFileSizes(provider, ...Array.from({ length: MAX_SANDBOX_OUTPUT_FILES + 1 }, () => 1))
+    stubOutputDirListing(
+      Array.from({ length: MAX_SANDBOX_OUTPUT_FILES }, (_, index) => ({
+        path: `/tmp/sim/outputs/file-${index}.txt`,
+        size: 1,
+      }))
+    )
+    for (let index = 0; index < MAX_SANDBOX_OUTPUT_FILES; index += 1) {
+      stubOutputFileRead(provider, 'x')
+    }
+
+    const result = await executeInSandbox({
+      code: 'x',
+      language: CodeLanguage.Python,
+      timeoutMs: 1000,
+      outputSandboxPath: '/tmp/sim/outputs/file-0.txt',
+      outputSandboxDir: '/tmp/sim/outputs',
+    })
+
+    // Exported once as a declared path, rather than a second time as a harvest.
+    expect(Object.keys(result.exportedFiles ?? {})).toEqual(['/tmp/sim/outputs/file-0.txt'])
+    expect(result.collectedFiles).toHaveLength(MAX_SANDBOX_OUTPUT_FILES - 1)
+    expect(result.collectedFiles?.map((file) => file.relativePath)).not.toContain('file-0.txt')
+  })
+
   it('does not list the output directory when no harvest was requested', async () => {
     stubCodeRun(provider, `__SIM_RESULT__=${JSON.stringify('done')}`)
 
