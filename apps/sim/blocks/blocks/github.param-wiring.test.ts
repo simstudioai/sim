@@ -95,6 +95,27 @@ describe('gist_public coercion', () => {
     expect(map({ operation: 'github_create_gist' })).not.toHaveProperty('public')
   })
 
+  it.each([null, undefined, ''])('treats %o as unset rather than Secret', (unset) => {
+    expect(map({ gist_public: unset })).not.toHaveProperty('public')
+  })
+
+  /**
+   * The block declares this input as `boolean`, so a writer following that
+   * schema stores `false` rather than the dropdown's `'false'`. Both mean the
+   * user chose Secret, and a truthy presence check would silently drop one of
+   * them — letting a model-supplied `public: true` through on the agent path.
+   */
+  it.each([
+    ['false', false],
+    [false, false],
+  ])('treats %o as an explicit Secret selection', (input, expected) => {
+    expect(map({ gist_public: input }).public).toBe(expected)
+  })
+
+  it.each(['false', false])('overrides a model-supplied public for %o', (secret) => {
+    expect({ public: true, ...map({ gist_public: secret }) }.public).toBe(false)
+  })
+
   it('matches the dropdown option ids the block actually renders', () => {
     const sub = GitHubBlock.subBlocks.find((s) => s.id === 'gist_public')
     expect(sub?.options).toBeDefined()

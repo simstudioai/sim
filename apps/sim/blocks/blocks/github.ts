@@ -2316,8 +2316,20 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
          * 'true'/'false' while the tool declares `public` as a boolean. The
          * generic handler only JSON-parses `json`/`array` inputs, so nothing
          * else coerces it.
+         *
+         * Presence is tested rather than truthiness, because boolean `false` is
+         * a real selection: the block declares this input as `boolean`, so a
+         * writer following that schema stores `false` rather than `'false'`.
+         * Under a truthy check the two disagree — `'false'` would force the
+         * gist secret while `false` was dropped, letting a model-supplied
+         * `public: true` through on the agent path. Only an unset field
+         * (nullish or empty) defers to the tool's own default.
          */
-        if (params.gist_public) {
+        if (
+          params.gist_public !== undefined &&
+          params.gist_public !== null &&
+          params.gist_public !== ''
+        ) {
           result.public = params.gist_public === true || params.gist_public === 'true'
         }
 
