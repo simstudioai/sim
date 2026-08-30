@@ -89,7 +89,7 @@ Search indexed text across active workspace files using literal smart-case subst
 |   ↳ `text` | string | Matching line or bounded match-centered preview. |
 | `count` | number | Number of returned matching lines. |
 | `truncated` | boolean | Whether more matching lines exist beyond the configured hard cap. |
-| `complete` | boolean | Whether every current file revision is indexed without failures. |
+| `complete` | boolean | Whether indexing has no pending or failed current revisions; skipped and partial coverage is reported separately. |
 | `indexStatus` | object | Current workspace search-index coverage by file status. |
 |   ↳ `readyFiles` | number | Files whose current revision is searchable. |
 |   ↳ `pendingFiles` | number | Files still waiting to be indexed. |

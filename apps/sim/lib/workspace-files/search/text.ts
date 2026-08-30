@@ -110,6 +110,42 @@ export function truncateUtf8ToBytes(text: string, maxBytes: number): string {
   return encoded.subarray(0, end).toString('utf8')
 }
 
+function findFileSearchMatchRange(
+  line: string,
+  query: string,
+  caseSensitive: boolean
+): { start: number; end: number } {
+  if (caseSensitive) {
+    const start = Math.max(0, line.indexOf(query))
+    return { start, end: Math.min(line.length, start + query.length) }
+  }
+
+  const searchableLine = line.toLocaleLowerCase()
+  const searchableQuery = query.toLocaleLowerCase()
+  const foldedStart = searchableLine.indexOf(searchableQuery)
+  if (foldedStart < 0) return { start: 0, end: Math.min(line.length, query.length) }
+
+  const originalStarts: number[] = []
+  const originalEnds: number[] = []
+  for (let offset = 0; offset < line.length; ) {
+    const codePoint = line.codePointAt(offset)
+    if (codePoint === undefined) break
+    const character = String.fromCodePoint(codePoint)
+    const foldedCharacter = character.toLocaleLowerCase()
+    const end = offset + character.length
+    for (let foldedOffset = 0; foldedOffset < foldedCharacter.length; foldedOffset += 1) {
+      originalStarts.push(offset)
+      originalEnds.push(end)
+    }
+    offset = end
+  }
+
+  const foldedEnd = foldedStart + searchableQuery.length
+  const start = originalStarts[foldedStart] ?? 0
+  const end = originalEnds[foldedEnd - 1] ?? Math.min(line.length, start + query.length)
+  return { start, end }
+}
+
 export function createFileSearchPreview(
   line: string,
   query: string,
@@ -124,10 +160,7 @@ export function createFileSearchPreview(
     return `${boundaries.prefixOmitted ? '…' : ''}${line}${boundaries.suffixOmitted ? '…' : ''}`
   }
 
-  const searchableLine = caseSensitive ? line : line.toLocaleLowerCase()
-  const searchableQuery = caseSensitive ? query : query.toLocaleLowerCase()
-  const matchStart = Math.max(0, searchableLine.indexOf(searchableQuery))
-  const matchEnd = Math.min(line.length, matchStart + query.length)
+  const { start: matchStart, end: matchEnd } = findFileSearchMatchRange(line, query, caseSensitive)
   const leadingEllipsis = boundaries.prefixOmitted || matchStart > 0 ? '…' : ''
   const trailingEllipsis = boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
   const ellipsisBytes = Buffer.byteLength(leadingEllipsis + trailingEllipsis, 'utf8')

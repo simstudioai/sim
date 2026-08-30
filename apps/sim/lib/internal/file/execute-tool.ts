@@ -1,6 +1,6 @@
 import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
@@ -184,6 +184,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation dispatch failed', {
       error: isSearchFailure ? 'Workspace file search failed' : message,
+      errorType: isSearchFailure ? toError(error).name : undefined,
       requestId: request.requestId,
       toolId: request.toolId,
     })

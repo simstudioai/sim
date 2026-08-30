@@ -82,7 +82,8 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
     },
     complete: {
       type: 'boolean',
-      description: 'Whether every current file revision is indexed without failures.',
+      description:
+        'Whether indexing has no pending or failed current revisions; skipped and partial coverage is reported separately.',
     },
     indexStatus: {
       type: 'object',

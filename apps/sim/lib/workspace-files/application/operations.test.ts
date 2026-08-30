@@ -44,6 +44,7 @@ describe('file operation registry', () => {
     expect(executorOperationIds).toEqual([
       'files.read_metadata',
       'files.read_content',
+      'files.search_content',
       'files.download',
       'files.create',
       'files.update_content',

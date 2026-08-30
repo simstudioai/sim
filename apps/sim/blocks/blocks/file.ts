@@ -1254,10 +1254,13 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         const operation = params.operation || 'file_read'
 
         if (operation === 'file_search') {
-          const maxResults = Number.parseInt(String(params.maxResults ?? '50'), 10)
+          const maxResults = Number(params.maxResults ?? '50')
+          if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 200) {
+            throw new Error('Maximum Results must be an integer between 1 and 200')
+          }
           return {
             query: params.query,
-            maxResults: Number.isNaN(maxResults) ? 50 : maxResults,
+            maxResults,
           }
         }
 

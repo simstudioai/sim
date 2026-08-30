@@ -70,15 +70,47 @@ async function extractIndexText(
   }
 }
 
-async function clearRevision(fileId: string, sourceContentUpdatedAt: Date): Promise<void> {
+async function clearRevision(
+  workspaceId: string,
+  fileId: string,
+  sourceContentUpdatedAt: Date
+): Promise<void> {
   await db
     .delete(workspaceFileSearchSegment)
     .where(
       and(
+        eq(workspaceFileSearchSegment.workspaceId, workspaceId),
         eq(workspaceFileSearchSegment.fileId, fileId),
         eq(workspaceFileSearchSegment.sourceContentUpdatedAt, sourceContentUpdatedAt)
       )
     )
+}
+
+async function discardObsoleteRevision(options: {
+  workspaceId: string
+  fileId: string
+  sourceContentUpdatedAt: Date
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(workspaceFileSearchSegment)
+      .where(
+        and(
+          eq(workspaceFileSearchSegment.workspaceId, options.workspaceId),
+          eq(workspaceFileSearchSegment.fileId, options.fileId),
+          eq(workspaceFileSearchSegment.sourceContentUpdatedAt, options.sourceContentUpdatedAt)
+        )
+      )
+    await tx
+      .delete(workspaceFileSearchIndex)
+      .where(
+        and(
+          eq(workspaceFileSearchIndex.workspaceId, options.workspaceId),
+          eq(workspaceFileSearchIndex.fileId, options.fileId),
+          eq(workspaceFileSearchIndex.sourceContentUpdatedAt, options.sourceContentUpdatedAt)
+        )
+      )
+  })
 }
 
 async function markTerminal(options: {
@@ -114,6 +146,7 @@ async function markTerminal(options: {
         .delete(workspaceFileSearchSegment)
         .where(
           and(
+            eq(workspaceFileSearchSegment.workspaceId, options.workspaceId),
             eq(workspaceFileSearchSegment.fileId, options.fileId),
             eq(workspaceFileSearchSegment.sourceContentUpdatedAt, options.sourceContentUpdatedAt)
           )
@@ -122,6 +155,7 @@ async function markTerminal(options: {
         .delete(workspaceFileSearchIndex)
         .where(
           and(
+            eq(workspaceFileSearchIndex.workspaceId, options.workspaceId),
             eq(workspaceFileSearchIndex.fileId, options.fileId),
             eq(workspaceFileSearchIndex.sourceContentUpdatedAt, options.sourceContentUpdatedAt)
           )
@@ -234,12 +268,15 @@ export async function indexWorkspaceFileForSearch(
     throwOnError: true,
   })
   if (!file || !sameRevision(file.contentUpdatedAt, sourceContentUpdatedAt)) {
-    await clearRevision(payload.fileId, sourceContentUpdatedAt)
+    await discardObsoleteRevision({ ...payload, sourceContentUpdatedAt })
     return
   }
 
   const [state] = await db
-    .select({ status: workspaceFileSearchIndex.status })
+    .select({
+      status: workspaceFileSearchIndex.status,
+      workspaceId: workspaceFileSearchIndex.workspaceId,
+    })
     .from(workspaceFileSearchIndex)
     .where(
       and(
@@ -248,6 +285,10 @@ export async function indexWorkspaceFileForSearch(
       )
     )
     .limit(1)
+  if (state && state.workspaceId !== payload.workspaceId) {
+    await discardObsoleteRevision({ ...payload, sourceContentUpdatedAt })
+    return
+  }
   if (state?.status === 'ready' || state?.status === 'skipped') return
 
   await db
@@ -270,7 +311,7 @@ export async function indexWorkspaceFileForSearch(
         updatedAt: new Date(),
       },
     })
-  await clearRevision(payload.fileId, sourceContentUpdatedAt)
+  await clearRevision(payload.workspaceId, payload.fileId, sourceContentUpdatedAt)
 
   if (file.size > FILE_SEARCH_MAX_SOURCE_BYTES) {
     await markTerminal({
@@ -315,7 +356,7 @@ export async function indexWorkspaceFileForSearch(
   } catch (error) {
     if (signal.aborted) throw error
     if (isPayloadSizeLimitError(error)) {
-      await clearRevision(payload.fileId, sourceContentUpdatedAt)
+      await clearRevision(payload.workspaceId, payload.fileId, sourceContentUpdatedAt)
       await markTerminal({
         ...payload,
         sourceContentUpdatedAt,
@@ -324,7 +365,7 @@ export async function indexWorkspaceFileForSearch(
       })
       return
     }
-    await clearRevision(payload.fileId, sourceContentUpdatedAt)
+    await clearRevision(payload.workspaceId, payload.fileId, sourceContentUpdatedAt)
     logger.error('Workspace file search indexing failed', {
       workspaceId: payload.workspaceId,
       fileId: payload.fileId,
@@ -340,7 +381,7 @@ export async function markWorkspaceFileSearchIndexFailed(
 ): Promise<void> {
   const sourceContentUpdatedAt = new Date(payload.sourceContentUpdatedAt)
   if (Number.isNaN(sourceContentUpdatedAt.getTime())) return
-  await clearRevision(payload.fileId, sourceContentUpdatedAt)
+  await clearRevision(payload.workspaceId, payload.fileId, sourceContentUpdatedAt)
   await markTerminal({
     ...payload,
     sourceContentUpdatedAt,

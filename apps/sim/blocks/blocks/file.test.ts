@@ -83,6 +83,19 @@ describe('FileV5Block', () => {
     expect(maxResults?.value?.()).toBe('50')
   })
 
+  it.each(['10.5', '10results', '0', '201'])(
+    'rejects invalid builder-configured search cap %s',
+    (maxResults) => {
+      expect(() =>
+        buildParams({
+          operation: 'file_search',
+          query: 'needle',
+          maxResults,
+        })
+      ).toThrow('Maximum Results must be an integer between 1 and 200')
+    }
+  )
+
   it('read returns only the files output (no redundant file)', () => {
     expect(FileV5Block.outputs.files).toBeDefined()
     expect(FileV5Block.outputs.contents).toBeDefined()

@@ -43,6 +43,14 @@ describe('workspace file search text utilities', () => {
     expect(preview).not.toContain('�')
   })
 
+  it('maps case-folded offsets back to the original line', () => {
+    const line = `${'İ'.repeat(1200)}needle${'x'.repeat(1200)}`
+    const preview = createFileSearchPreview(line, 'needle', false)
+
+    expect(preview).toContain('needle')
+    expect(Buffer.byteLength(preview, 'utf8')).toBeLessThanOrEqual(2048)
+  })
+
   it('shows omitted logical-line content beyond the selected segment', () => {
     expect(
       createFileSearchPreview('needle and nearby text', 'needle', false, 2048, {

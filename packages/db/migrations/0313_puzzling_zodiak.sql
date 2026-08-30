@@ -59,11 +59,28 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-	IF TG_OP = 'INSERT'
+	IF (TG_OP = 'UPDATE' AND (
+		NEW.context IS DISTINCT FROM OLD.context
+		OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
+	))
+		OR NEW.context <> 'workspace'
+		OR NEW.workspace_id IS NULL
+		OR NEW.deleted_at IS NOT NULL THEN
+		DELETE FROM workspace_file_search_segment
+		WHERE file_id = NEW.id;
+
+		DELETE FROM workspace_file_search_index
+		WHERE file_id = NEW.id;
+	END IF;
+
+	IF NEW.context = 'workspace'
+		AND NEW.workspace_id IS NOT NULL
+		AND NEW.deleted_at IS NULL
+		AND (TG_OP = 'INSERT'
 		OR NEW.content_updated_at IS DISTINCT FROM OLD.content_updated_at
 		OR OLD.deleted_at IS NOT NULL
 		OR NEW.context IS DISTINCT FROM OLD.context
-		OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id THEN
+		OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id) THEN
 		DELETE FROM workspace_file_search_segment AS segment
 		USING workspace_file_search_index AS search_index
 		WHERE segment.file_id = NEW.id
@@ -127,5 +144,4 @@ $$;--> statement-breakpoint
 CREATE TRIGGER workspace_files_search_index_pending
 AFTER INSERT OR UPDATE OF content_updated_at, deleted_at, context, workspace_id ON workspace_files
 FOR EACH ROW
-WHEN (NEW.context = 'workspace' AND NEW.workspace_id IS NOT NULL AND NEW.deleted_at IS NULL)
 EXECUTE FUNCTION workspace_file_search_mark_pending();
