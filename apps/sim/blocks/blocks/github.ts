@@ -2279,6 +2279,46 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'github_repo_info'
         }
       },
+      /**
+       * Bridges the subBlock ids that do not match their tool's param name.
+       *
+       * A tool param is populated only when a subBlock's `id` equals it — the
+       * serializer keys values by subBlock id, and nothing else renames them.
+       * Each field below renders, accepts input, and then arrives under a name
+       * its tool never reads.
+       *
+       * Every assignment is guarded, and that is load-bearing rather than
+       * defensive. `generic-handler.ts` merges `{ ...inputs, ...params(inputs) }`
+       * and `providers/utils.ts` installs this same function as the provider
+       * `paramsTransform`, spreading its result over the model's tool-call
+       * arguments. An unconditional write would therefore clobber a
+       * model-supplied `content`/`title`/`sort` with `undefined` on the agent
+       * tool-calling path — which is the one path these fields work on today.
+       *
+       * `sort` has two sources and `title`/`description`/`state` share their
+       * names with fields on other operations. That is safe only because each
+       * source subBlock's `condition` binds it to a single operation, so at
+       * most one source of a given target is ever present in `params`.
+       */
+      params: (params) => {
+        const result: Record<string, unknown> = {}
+
+        if (params.reaction_content) result.content = params.reaction_content
+        if (params.milestone_title) result.title = params.milestone_title
+        if (params.milestone_description) result.description = params.milestone_description
+        if (params.milestone_state) result.state = params.milestone_state
+        if (params.milestone_sort) result.sort = params.milestone_sort
+        if (params.fork_name) result.name = params.fork_name
+        if (params.fork_sort) result.sort = params.fork_sort
+
+        // A dropdown stores its option id, so this arrives as the string
+        // 'true'/'false' while the tool declares `public` as a boolean.
+        if (params.gist_public) {
+          result.public = params.gist_public === true || params.gist_public === 'true'
+        }
+
+        return result
+      },
     },
   },
   inputs: {
