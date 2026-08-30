@@ -89,6 +89,7 @@ import {
   updateKnowledgeConnector,
   updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const crossWorkspaceContext = {
@@ -705,7 +706,7 @@ describe('knowledge connector application use cases', () => {
         createKnowledgeConnector.execute({ principal: delegatedPrincipal, input: createInput })
       ).rejects.toMatchObject({
         code: 'forbidden',
-        message: expect.stringContaining('confluence'),
+        message: capabilityRefusal('knowledge.connectors'),
       })
 
       expect(mocks.createConnector).not.toHaveBeenCalled()
