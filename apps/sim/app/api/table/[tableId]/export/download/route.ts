@@ -43,7 +43,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const { tableId } = parsed.data.params
   const { workspaceId, jobId } = parsed.data.query
 
-  const access = await checkAccess(tableId, authResult.userId, 'read')
+  const access = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'read')
   if (!access.ok) return accessError(access, requestId, tableId)
   if (access.table.workspaceId !== workspaceId) {
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })

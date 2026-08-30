@@ -41,7 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   }
   const format = formatValidation.data
 
-  const access = await checkAccess(tableId, auth.userId, 'read')
+  const access = await checkAccess(tableId, { kind: 'user', userId: auth.userId }, 'read')
   if (!access.ok) return accessError(access, requestId, tableId)
   const { table } = access
 

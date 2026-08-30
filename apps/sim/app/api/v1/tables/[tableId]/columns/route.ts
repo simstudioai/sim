@@ -24,6 +24,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -59,7 +60,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -125,7 +126,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -187,7 +188,7 @@ export const DELETE = withRouteHandler(
       const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
-      const result = await checkAccess(tableId, userId, 'write')
+      const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

@@ -29,6 +29,10 @@ const {
 
 vi.mock('@/app/api/v1/middleware', () => ({
   checkRateLimit: mockCheckRateLimit,
+  tableAccessPrincipal: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'workspace'
+      ? { kind: 'workspace_api_key', keyCreatorUserId: rateLimit.userId }
+      : { kind: 'user', userId: rateLimit.userId },
   checkWorkspaceScope: mockCheckWorkspaceScope,
   createRateLimitResponse: () => NextResponse.json({ error: 'Rate limited' }, { status: 429 }),
 }))
@@ -80,7 +84,7 @@ function makeContext() {
 describe('DELETE /api/v1/tables/[tableId] — orchestration failure projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'personal' })
     mockCheckWorkspaceScope.mockResolvedValue(null)
     mockGetTableById.mockResolvedValue({
       id: TABLE_ID,

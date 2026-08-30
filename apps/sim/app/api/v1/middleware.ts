@@ -24,6 +24,7 @@ import {
   getWorkspaceBilledAccountUserId,
   getWorkspaceBillingSettings,
 } from '@/lib/workspaces/utils'
+import type { TableAccessPrincipal } from '@/app/api/table/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')
@@ -91,6 +92,39 @@ export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
     throw new Error('Allowed public API request is missing a user ID')
   }
   return rateLimit.userId
+}
+
+/**
+ * The user whose permission group governs this request, or `null` when none
+ * does.
+ *
+ * `rateLimit.userId` is present for BOTH key kinds, and for a workspace key it
+ * is the key's *creator* — a bystander who may not be the caller. Any gate keyed
+ * on the presence of a user id therefore applies that bystander's group to every
+ * caller of a shared credential. `keyType` is the authoritative signal, and this
+ * is the one place v1 reads it for that purpose, so
+ * {@link resolveCapabilityRefusal}, {@link tableAccessPrincipal} and the log
+ * field projection cannot drift.
+ */
+export function capabilityGovernedUserId(rateLimit: RateLimitResult): string | null {
+  return rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null
+}
+
+/**
+ * The {@link TableAccessPrincipal} for a v1 table request.
+ *
+ * `/api/v1/tables/**` shares `checkAccess` with the raw internal table routes,
+ * which gate `tables.use` inside it. Those routes reject `x-api-key` outright,
+ * so every caller there is a person; v1's are API keys, and a workspace key must
+ * reach the table ungated. Built here rather than at each of the fourteen v1
+ * handlers, so the decision stays in the same module as every other `keyType`
+ * policy.
+ */
+export function tableAccessPrincipal(rateLimit: RateLimitResult): TableAccessPrincipal {
+  const userId = requireRateLimitUserId(rateLimit)
+  return capabilityGovernedUserId(rateLimit)
+    ? { kind: 'user', userId }
+    : { kind: 'workspace_api_key', keyCreatorUserId: userId }
 }
 
 export function requireRateLimitPrincipal(
@@ -284,7 +318,7 @@ export async function resolveCapabilityRefusal(
   capability: V1RouteCapability
 ): Promise<WorkspaceAccessError | null> {
   if (capability === 'none') return null
-  if (rateLimit.keyType !== 'personal') return null
+  if (!capabilityGovernedUserId(rateLimit)) return null
 
   if (!(await isWorkspaceCapabilityWithheld(userId, workspaceId, capability))) return null
 

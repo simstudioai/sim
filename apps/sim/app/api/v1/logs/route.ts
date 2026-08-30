@@ -6,9 +6,15 @@ import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import {
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -50,6 +56,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       'read'
     )
     if (accessError) return accessError
+
+    /**
+     * `logs.trace_spans` and `logs.cost` are projections, not gates, which is
+     * why this route declares `'none'` above and still has to withhold fields
+     * here. Same helper the internal/v2 detail path uses — a hidden tab
+     * withholds nothing from a caller reading the public API directly.
+     */
+    const projection = await resolveLogFieldProjection(
+      capabilityGovernedUserId(rateLimit),
+      params.workspaceId
+    )
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
@@ -106,7 +123,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         startedAt: log.startedAt.toISOString(),
         endedAt: log.endedAt?.toISOString() || null,
         totalDurationMs: log.totalDurationMs,
-        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+        cost: projectCostTotal(log.costTotal, projection),
         files: log.files || null,
       }
 
@@ -126,7 +143,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)
           if (log.executionData) {
-            const execData = (await materializeExecutionDataForDisplay(
+            const materialized = (await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown> | null,
               {
                 workspaceId: log.workspaceId,
@@ -134,11 +151,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 executionId: log.executionId,
                 userId,
               }
-            )) as any
-            if (params.includeFinalOutput && execData.finalOutput) {
+            )) as Record<string, unknown> | null
+            const execData = projectExecutionData(materialized, projection) as any
+            if (params.includeFinalOutput && execData?.finalOutput) {
               result.finalOutput = execData.finalOutput
             }
-            if (params.includeTraceSpans && execData.traceSpans) {
+            if (params.includeTraceSpans && execData?.traceSpans) {
               result.traceSpans = execData.traceSpans
             }
           }

@@ -17,6 +17,7 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  tableAccessPrincipal,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableDetailAPI')
@@ -38,7 +39,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1GetTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -60,7 +60,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'read')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -133,7 +133,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {
