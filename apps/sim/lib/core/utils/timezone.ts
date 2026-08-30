@@ -38,6 +38,23 @@ function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
 
+/** Formats years 0–9999 using ISO's four-digit representation. */
+export function formatIsoYear(year: number): string {
+  const serialized = String(year)
+  return year >= 0 && year <= 9999 ? serialized.padStart(4, '0') : serialized
+}
+
+/** Builds a UTC timestamp without `Date.UTC` remapping years 0–99 to 1900–1999. */
+function utcTimestamp(wall: WallClockParts): number {
+  if (wall.year < 0 || wall.year > 99) {
+    return Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second)
+  }
+  const date = new Date(0)
+  date.setUTCFullYear(wall.year, wall.month - 1, wall.day)
+  date.setUTCHours(wall.hour, wall.minute, wall.second, 0)
+  return date.getTime()
+}
+
 /** RFC 3339 offset suffix: `Z` for zero, else `±HH:MM`. */
 export function formatUtcOffsetSuffix(offsetMinutes: number): string {
   if (offsetMinutes === 0) return 'Z'
@@ -47,14 +64,7 @@ export function formatUtcOffsetSuffix(offsetMinutes: number): string {
 }
 
 function offsetMsFromWallClock(instant: Date, wall: WallClockParts): number {
-  const wallAsUtc = Date.UTC(
-    wall.year,
-    wall.month - 1,
-    wall.day,
-    wall.hour,
-    wall.minute,
-    wall.second
-  )
+  const wallAsUtc = utcTimestamp(wall)
   return wallAsUtc - instant.getTime()
 }
 
@@ -169,6 +179,7 @@ export function getWallClockParts(instant: Date, timeZone?: string): WallClockPa
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hourCycle: 'h23',
+    era: 'short',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -177,8 +188,10 @@ export function getWallClockParts(instant: Date, timeZone?: string): WallClockPa
     second: '2-digit',
   }).formatToParts(instant)
   const get = (type: string) => Number(parts.find((part) => part.type === type)?.value)
+  const year = get('year')
+  const era = parts.find((part) => part.type === 'era')?.value
   return {
-    year: get('year'),
+    year: era === 'BC' ? 1 - year : year,
     month: get('month'),
     day: get('day'),
     hour: get('hour'),
@@ -197,7 +210,7 @@ export function formatInstantInTimeZone(
   const wholeSecondInstant = new Date(Math.floor(instant.getTime() / 1000) * 1000)
   const exactOffsetMinutes = offsetMsFromWallClock(wholeSecondInstant, wall) / 60_000
   const offsetMinutes = roundOffsetMinutes(exactOffsetMinutes, options)
-  return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}${formatUtcOffsetSuffix(offsetMinutes)}`
+  return `${formatIsoYear(wall.year)}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}${formatUtcOffsetSuffix(offsetMinutes)}`
 }
 
 /**
@@ -207,7 +220,7 @@ export function formatInstantInTimeZone(
  */
 export function zonedWallClock(instant: Date, timeZone: string): string {
   const wall = getWallClockParts(instant, timeZone)
-  return `${wall.year}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}`
+  return `${formatIsoYear(wall.year)}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}`
 }
 
 /** The current wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm` string. */
@@ -261,7 +274,7 @@ function resolveZonedWallClock(
   const [datePart, timePart] = wallClock.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hour, minute, second = 0] = timePart.split(':').map(Number)
-  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second)
+  const utcGuess = utcTimestamp({ year, month, day, hour, minute, second })
   const dayMs = 24 * 60 * 60 * 1000
   const offsets = new Set(
     [-dayMs, 0, dayMs].map((distance) => timezoneOffsetMs(new Date(utcGuess + distance), timeZone))

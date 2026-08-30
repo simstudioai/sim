@@ -139,6 +139,18 @@ describe('TTL column type', () => {
     }
   })
 
+  it('round-trips a low-year expiration through the editor', () => {
+    const input = '0050-01-15T12:00:00'
+    const seconds = parseTtlEpochSeconds(input, { timezone: 'UTC' })
+
+    expect(seconds).toBe(Date.parse(`${input}Z`) / 1000)
+    const editable = ttlColumnType.formatForInput(seconds, column({ type: 'ttl' }), {
+      timezone: 'UTC',
+    })
+    expect(editable).toBe(`${input}Z`)
+    expect(parseTtlEpochSeconds(editable, { timezone: 'UTC' })).toBe(seconds)
+  })
+
   it('keeps the TTL repeated-hour policy separate from ordinary date behavior', () => {
     const input = '2026-11-01T01:30'
     const timezone = 'America/New_York'

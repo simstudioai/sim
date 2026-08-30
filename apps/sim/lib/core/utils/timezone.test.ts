@@ -6,12 +6,14 @@ import {
   getWallClockParts,
   wallClockNow,
   zonedClockDate,
+  zonedWallClock,
   zonedWallClockToUtc,
   zonedWallClockWithOffset,
 } from '@/lib/core/utils/timezone'
 
 describe('formatInstantInTimeZone', () => {
   it.each([
+    ['UTC', '0050-01-15T12:00:00Z', '0050-01-15T12:00:00Z'],
     ['UTC', '2026-06-15T00:15:30Z', '2026-06-15T00:15:30Z'],
     ['America/Los_Angeles', '2026-06-15T00:15:30Z', '2026-06-14T17:15:30-07:00'],
     ['Asia/Tokyo', '2026-06-15T00:15:30Z', '2026-06-15T09:15:30+09:00'],
@@ -43,6 +45,10 @@ describe('formatInstantInTimeZone', () => {
       expect(new Date(editable).getTime()).toBe(instant.getTime())
     }
   })
+
+  it('preserves a four-digit low year in naive wall-clock output', () => {
+    expect(zonedWallClock(new Date('0050-01-15T12:00:00Z'), 'UTC')).toBe('0050-01-15T12:00')
+  })
 })
 
 describe('getWallClockParts', () => {
@@ -62,6 +68,26 @@ describe('zonedWallClockToUtc', () => {
   it('treats a UTC wall-clock as the same instant', () => {
     expect(zonedWallClockToUtc('2026-06-15T09:00', 'UTC').toISOString()).toBe(
       '2026-06-15T09:00:00.000Z'
+    )
+  })
+
+  it.each(['0000', '0001', '0050', '0099'])(
+    'preserves the full year %s when resolving a wall-clock',
+    (year) => {
+      expect(zonedWallClockToUtc(`${year}-01-15T12:00`, 'UTC').toISOString()).toBe(
+        `${year}-01-15T12:00:00.000Z`
+      )
+    }
+  )
+
+  it('uses the requested low year when resolving historical timezone rules', () => {
+    const wallClock = '0050-01-15T12:00:00'
+
+    expect(zonedWallClockToUtc(wallClock, 'America/New_York').toISOString()).toBe(
+      '0050-01-15T16:56:02.000Z'
+    )
+    expect(zonedWallClockWithOffset(wallClock, 'America/New_York')).toBe(
+      '0050-01-15T12:00:00-04:56'
     )
   })
 
