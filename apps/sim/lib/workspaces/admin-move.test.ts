@@ -47,6 +47,7 @@ const {
   countPendingSeatInvitations,
   resolveSeatCapacity,
   collectWorkspaceCredentialSummary,
+  getSourceOrganization,
 } = vi.hoisted(() => ({
   resolveMoveEntitlements: vi.fn(() =>
     Promise.resolve({
@@ -75,7 +76,16 @@ const {
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
   resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
   collectWorkspaceCredentialSummary: vi.fn(),
+  getSourceOrganization: vi.fn(),
 }))
+
+const SOURCE_ORGANIZATION = {
+  id: 'org-source',
+  name: 'Source',
+  ownerId: 'source-owner',
+  ownerName: 'Source Owner',
+  ownerEmail: 'source-owner@example.com',
+}
 
 const EMPTY_CREDENTIALS = {
   items: [] as Array<{
@@ -99,6 +109,13 @@ const POPULATED_CREDENTIALS = {
   credentialGroupCount: 1,
   environmentVariableKeys: ['OPENAI_API_KEY'],
   byokKeyCount: 2,
+}
+
+/** A workspace whose secrets exceed the response bounds, so rows were dropped. */
+const TRUNCATED_CREDENTIALS = {
+  ...POPULATED_CREDENTIALS,
+  truncatedCredentials: 3,
+  truncatedEnvironmentVariableKeys: 7,
 }
 
 vi.mock('@sim/audit', () => ({
@@ -157,15 +174,7 @@ vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   findRetainedCollaboratorCaps: vi.fn(() => Promise.resolve([])),
   findUnpublishableCustomBlocks,
   findSourceOrgCustomBlocksForWorkspace,
-  getSourceOrganization: vi.fn(() =>
-    Promise.resolve({
-      id: 'org-source',
-      name: 'Source',
-      ownerId: 'source-owner',
-      ownerName: 'Source Owner',
-      ownerEmail: 'source-owner@example.com',
-    })
-  ),
+  getSourceOrganization,
   resolveMoveEntitlements,
   willBrandingChange: vi.fn(() => Promise.resolve(false)),
 }))
@@ -269,6 +278,7 @@ beforeEach(() => {
     capabilitiesLost: [],
   })
   collectWorkspaceCredentialSummary.mockResolvedValue(EMPTY_CREDENTIALS)
+  getSourceOrganization.mockResolvedValue(SOURCE_ORGANIZATION)
   changeWorkspaceStoragePayerInTx.mockResolvedValue({
     billableBytes: 128,
     newPayer: { type: 'organization', id: destination.id },
@@ -898,6 +908,33 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(view.credentials).toEqual(POPULATED_CREDENTIALS)
   })
 
+  /**
+   * A recorded id whose organization has since been deleted is the third state:
+   * the payload answered, but the answer can no longer be resolved to a name.
+   */
+  it('distinguishes a deleted source organization from an unrecorded one', async () => {
+    getSourceOrganization.mockResolvedValueOnce(null)
+    queueMoveOperationSelects({
+      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+      newBillingOwnerId: destination.ownerId,
+      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+      sourceOrganizationId: 'org-source',
+    })
+
+    const view = await getWorkspaceMoveOperation(
+      movedWorkspace.id,
+      destination.id,
+      movedWorkspace.ownerId,
+      'operation-1'
+    )
+
+    expect(view.sourceOrganization).toBeNull()
+    expect(view.notices).toEqual([
+      'The organization this workspace came from has since been deleted, so it can no longer be named.',
+    ])
+  })
+
   it('reports the workspace credentials in the applied summary', async () => {
     queueMoveSelects(organizationWorkspace)
     collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
@@ -916,6 +953,52 @@ describe('moveWorkspaceToOrganization retries', () => {
       expect.anything()
     )
     expect(summary.credentials).toEqual(POPULATED_CREDENTIALS)
+    /** Nothing was dropped, so the review is complete and says nothing about truncation. */
+    expect(summary.sourceOrganizationImpact.truncated).toBeNull()
+  })
+
+  /**
+   * The applied path used to hardcode these two counters to zero, which would
+   * present a truncated credential list as a complete one.
+   */
+  it('carries dropped credential counts into the applied truncation record', async () => {
+    queueMoveSelects(organizationWorkspace)
+    collectWorkspaceCredentialSummary.mockResolvedValueOnce(TRUNCATED_CREDENTIALS)
+
+    const summary = await moveWorkspaceToOrganization({
+      workspaceId: organizationWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      durableOperationId: 'operation-1',
+    })
+
+    expect(summary.sourceOrganizationImpact.truncated).toMatchObject({
+      credentials: 3,
+      environmentVariableKeys: 7,
+    })
+  })
+
+  it('carries dropped credential counts into a reloaded truncation record', async () => {
+    collectWorkspaceCredentialSummary.mockResolvedValueOnce(TRUNCATED_CREDENTIALS)
+    queueMoveOperationSelects({
+      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
+      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
+      newBillingOwnerId: destination.ownerId,
+      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
+      sourceOrganizationId: 'org-source',
+    })
+
+    const view = await getWorkspaceMoveOperation(
+      movedWorkspace.id,
+      destination.id,
+      movedWorkspace.ownerId,
+      'operation-1'
+    )
+
+    expect(view.sourceOrganizationImpact.truncated).toMatchObject({
+      credentials: 3,
+      environmentVariableKeys: 7,
+    })
   })
 
   it('reports the workspace credentials on a retry of a completed move', async () => {
