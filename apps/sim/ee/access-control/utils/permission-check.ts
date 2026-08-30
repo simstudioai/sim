@@ -20,6 +20,7 @@ import {
   refuseCapability,
   type StaticCapabilityRule,
 } from '@/lib/permission-groups/capabilities'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -302,7 +303,16 @@ export async function resolveVerifiedUserAccessControlContext(
   return resolveUserAccessControlContextForOrganization(userId, workspaceId, organizationId)
 }
 
-export async function resolveUserAccessControlContext(
+/**
+ * The unverified counterpart of {@link resolveVerifiedUserAccessControlContext}:
+ * it loads the workspace itself to learn the owning organization.
+ *
+ * Module-private on purpose — every caller outside this file has already
+ * access-checked the workspace and so holds the organization id, and exporting a
+ * resolver that looks it up again invites a second query on a path that does not
+ * need one. {@link getUserPermissionConfig} is the one caller.
+ */
+async function resolveUserAccessControlContext(
   userId: string,
   workspaceId: string
 ): Promise<UserAccessControlContext> {
@@ -342,7 +352,7 @@ export async function validatePublicFileSharing(
   workspaceId: string,
   authType?: ShareAuthType
 ): Promise<void> {
-  const config = await getUserPermissionConfig(userId, workspaceId)
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   if (!config) {
     return
   }
@@ -374,7 +384,7 @@ export async function validateChatDeployAuth(
   workspaceId: string,
   authType: ShareAuthType
 ): Promise<void> {
-  const config = await getUserPermissionConfig(userId, workspaceId)
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   if (!config) {
     return
   }
@@ -592,7 +602,7 @@ export async function validateInvitationsAllowed(
     typeof scope === 'string' ? { workspaceId: scope, organizationId: undefined } : scope
 
   if (workspaceId) {
-    const config = await getUserPermissionConfig(userId, workspaceId)
+    const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
     if (config && INVITATIONS_RULE.deniedBy(config)) {
       logger.warn('Invitations blocked by permission group', { userId, workspaceId })
       throw new InvitationsNotAllowedError()
@@ -631,7 +641,7 @@ export async function validatePublicApiAllowed(
     return
   }
 
-  const config = await getUserPermissionConfig(userId, workspaceId)
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
 
   if (!config) {
     return

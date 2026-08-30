@@ -37,6 +37,7 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { withPermissionGroupScope } from '@/lib/permission-groups/config-scope.server'
 import {
   assertPermissionsAllowed,
   CustomToolsNotAllowedError,
@@ -45,7 +46,6 @@ import {
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
-  resolveUserAccessControlContext,
   resolveVerifiedUserAccessControlContext,
   SkillsNotAllowedError,
   ToolNotAllowedError,
@@ -191,27 +191,37 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
   })
 })
 
-describe('resolveUserAccessControlContext', () => {
+describe('access control context resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
   })
 
-  it('describes a personal workspace without changing the config-only result', async () => {
+  it('loads the workspace to find its organization, archived workspaces included', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
 
-    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
-      organizationId: null,
-      entitled: false,
-      permissionGroup: null,
-      config: null,
-    })
     await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toBeNull()
+    expect(mockGetWorkspaceWithOwner).toHaveBeenCalledWith('workspace-1', {
+      includeArchived: true,
+    })
+    expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('resolves the group through the organization the workspace lookup returned', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      { id: 'g', config: { disableMcpTools: true }, isMember: true, hasMembers: true },
+    ])
+
+    await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toMatchObject({
+      disableMcpTools: true,
+    })
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1')
   })
 
   it('returns the explicit governing group and its effective config', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     queueGroupResolution([
       {
         id: 'group-explicit',
@@ -222,7 +232,9 @@ describe('resolveUserAccessControlContext', () => {
       },
     ])
 
-    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+    await expect(
+      resolveVerifiedUserAccessControlContext('user-123', 'workspace-1', 'org-1')
+    ).resolves.toEqual({
       organizationId: 'org-1',
       entitled: true,
       permissionGroup: {
@@ -234,8 +246,19 @@ describe('resolveUserAccessControlContext', () => {
     })
   })
 
+  it('describes a personal workspace as unentitled and ungoverned', async () => {
+    await expect(
+      resolveVerifiedUserAccessControlContext('user-123', 'workspace-1', null)
+    ).resolves.toEqual({
+      organizationId: null,
+      entitled: false,
+      permissionGroup: null,
+      config: null,
+    })
+  })
+
   it('identifies an all-members governing group', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     queueGroupResolution([
       {
         id: 'group-all-members',
@@ -246,7 +269,11 @@ describe('resolveUserAccessControlContext', () => {
       },
     ])
 
-    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-1'
+    )
 
     expect(context.permissionGroup).toEqual({
       id: 'group-all-members',
@@ -287,7 +314,7 @@ describe('resolveUserAccessControlContext', () => {
   })
 
   it('identifies the default group and preserves the environment allowlist', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
     queueGroupResolution(
       [],
@@ -300,7 +327,11 @@ describe('resolveUserAccessControlContext', () => {
       ]
     )
 
-    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-1'
+    )
 
     expect(context.permissionGroup).toEqual({
       id: 'group-default',
@@ -624,6 +655,17 @@ describe('validatePublicFileSharing', () => {
   it('no-ops when no auth type is provided (master switch only)', async () => {
     queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password'] } }])
     await validatePublicFileSharing('user-123', 'workspace-1')
+  })
+
+  it('resolves the group once per request scope, not once per assertion', async () => {
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: null } }])
+
+    await withPermissionGroupScope(async () => {
+      await validatePublicFileSharing('user-123', 'workspace-1', 'password')
+      await validatePublicFileSharing('user-123', 'workspace-1', 'email')
+    })
+
+    expect(mockGetWorkspaceWithOwner).toHaveBeenCalledTimes(1)
   })
 })
 

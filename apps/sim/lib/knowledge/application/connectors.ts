@@ -5,7 +5,6 @@ import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -43,7 +42,7 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
+import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
 interface KnowledgeConnectorApplicationInput {
@@ -125,6 +124,11 @@ const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
  * passes through, exactly as the authorization funnel treats one. Requiring a
  * subject here would turn every scheduled connector sync into a 500 rather than
  * a refusal anyone could act on.
+ *
+ * Refused through {@link refuseCapability} so the sentence reads exactly like
+ * every other capability refusal. The error it throws is a
+ * `ForbiddenOperationError` carrying this rule's own detail code, so the status
+ * and error contract are the ones this already raised.
  */
 async function assertConnectorTypeAllowed(
   userId: string | undefined,
@@ -135,10 +139,7 @@ async function assertConnectorTypeAllowed(
   const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
 
-  throw new ForbiddenOperationError(
-    CONNECTOR_ALLOWLIST_RULE.detailCode,
-    `The ${connectorType} connector is not available under your organization's permission group`
-  )
+  refuseCapability('knowledge.connectors')
 }
 
 function requireSuccessfulOutcome<T extends object>(
