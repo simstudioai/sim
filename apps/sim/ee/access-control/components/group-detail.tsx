@@ -1439,7 +1439,7 @@ export function GroupDetail({
   const filteredProvidersAllAllowed = filteredProviders.every((id) => isProviderAllowed(id))
   const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
   const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
-  const platformAllVisible = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
+  const platformAllAllowed = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
 
   return (
     <>
@@ -1777,13 +1777,13 @@ export function GroupDetail({
                   setEditingConfig((prev) => ({
                     ...prev,
                     ...Object.fromEntries(
-                      filteredPlatformFeatures.map((f) => [f.configKey, platformAllVisible])
+                      filteredPlatformFeatures.map((f) => [f.configKey, platformAllAllowed])
                     ),
                   }))
                 }
                 disabled={filteredPlatformFeatures.length === 0}
               >
-                {platformAllVisible ? 'Deselect All' : 'Select All'}
+                {platformAllAllowed ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
             {platformCategorySections.length === 0 && (

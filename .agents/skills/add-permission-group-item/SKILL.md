@@ -17,7 +17,8 @@ Read these completely before editing. Do not infer their shape from this documen
 - `apps/sim/lib/permission-groups/fields.ts` — the registry, the three field builders, the tolerant parser
 - `apps/sim/lib/permission-groups/capabilities.ts` — `CAPABILITY_IDS`, `CAPABILITY_RULES`, the static/parameterized split
 - `apps/sim/lib/permission-groups/capability-assertions.ts` — the only sanctioned way to ask whether a group withholds something
-- `apps/sim/lib/core/application/workspace-operation.ts` — the required `capability` field
+- `apps/sim/lib/permission-groups/config-scope.server.ts` — `resolvePermissionGroupConfig`, the per-request memo every assertion resolves through
+- `apps/sim/lib/core/application/workspace-operation.ts` — `capability` is a **required** field on `defineWorkspaceOperation`, typed `StaticPermissionGroupCapability | 'none'`
 - `apps/sim/lib/core/application/workspace-authorization.ts` — where the funnel enforces, and who passes through
 - `scripts/check-permission-group-enforcement.ts` — the audit you have to satisfy
 
@@ -51,10 +52,12 @@ Append one entry to `PERMISSION_GROUP_FIELDS`. **Append, never insert.**
   disableWidgetSharing: booleanRestriction('capability', {
     id: 'disable-widget-sharing',
     label: 'Widget Sharing',
-    category: 'Features',
+    category: 'Collaboration',
     hint: 'Prevent sharing a widget outside the workspace.',
   }),
 ```
+
+The object in the second argument is the field's `feature` property, typed `PlatformFeatureMeta`. `PLATFORM_FEATURES` spreads it and appends `configKey`, so `id`, `label`, `category` and `hint` are exactly what the editor renders.
 
 Declaration order here is the key order of `PermissionGroupConfig`, of both zod schemas, and of every config JSON that crosses the API boundary. The group editor in `apps/sim/ee/access-control/components/group-detail.tsx` runs its dirty check by comparing stringified configs, so moving an existing key makes every open editor read as having unsaved changes. The registry already carries a TSDoc note on `disablePersonalApiKeys` saying exactly this — extend the tail, do not tidy the middle.
 
@@ -64,7 +67,9 @@ Three things to get right in the entry itself:
 
 **The admin checkbox is inverted.** `group-detail.tsx` renders `checked={!editingConfig[feature.configKey]}` — ticked means *allowed*. A key named `allowX` would render backwards. Name it `hideX` or `disableX`.
 
-**The category must be in `PLATFORM_CATEGORY_ORDER`.** That constant lives in `apps/sim/lib/permission-groups/features.ts`. An unlisted category still renders, but at the end, after every ordered section.
+**The hint must describe revoked access, not a hidden surface.** Every `enforcement: 'capability'` key refuses at the API. A hint reading "Hide the Tables module from the sidebar" tells an admin they are tidying a nav bar when they are revoking a module — and the same string is read a second time by `getActivePermissionGroupRestrictions` as the prose explaining an *active* restriction, where "hide" is simply false. Write what the member can no longer do: "Revoke the Tables module. Members cannot read or write any table." That wording drift is not hypothetical — twelve keys carried "hide from the sidebar" hints for a release after they started returning 403.
+
+**The category must be in `PLATFORM_CATEGORY_ORDER`.** That constant lives in `apps/sim/lib/permission-groups/features.ts` and currently reads `Modules`, `Knowledge Base`, `Tables`, `Files`, `Deployment`, `Tools`, `Logs`, `Collaboration`, `Credentials & Access`. An unlisted category still renders, but at the end, after every ordered section. The names describe what a group withholds, not where a link used to be hidden — do not reintroduce a surface-shaped section like "Sidebar" or "Settings Tabs".
 
 Note that `PLATFORM_FEATURES` — the array the editor renders — is *derived* from the registry in `features.ts`, not hand-listed. A boolean key cannot reach the config without reaching the editor, which is deliberate: an unrendered key is one an admin can neither set nor see.
 
@@ -113,7 +118,7 @@ A static rule:
   },
 ```
 
-`configKeys` is what the audit reads to prove your key is enforced — it must list every key `deniedBy` actually reads. `describe` is substituted into `capabilityRefusalMessage`, which produces `"<describe> is not available under your organization's permission group"`, so write it as a noun phrase that fits.
+`configKeys` is what the audit reads to prove your key is enforced — it must list every key `deniedBy` actually reads. `describe` is the subject of one shared sentence, `"<describe> is not available under your organization's permission group"`, so write it as a singular noun or gerund phrase that agrees with the verb. Two functions build that sentence and there is no third: `refuseCapability(capability)` in `capabilities.ts` throws it as a `PermissionGroupCapabilityError`, and `capabilityRefusal(capability)` in `capability-assertions.ts` returns it as a string for a raw route rendering its own response body. Never write the sentence out at a call site.
 
 Use `'PERMISSION_GROUP_CAPABILITY_BLOCKED'` for `detailCode` unless a caller can act differently on this specific refusal. The set in `apps/sim/lib/core/application/forbidden.ts` is closed **over remedies, not over causes** — a new code is warranted only when the remedy differs from "ask an organization admin". Adding one also requires an entry in `FORBIDDEN_DETAIL_CODE_DESCRIPTIONS` (a compile-time gate) and publishes a new value in the generated OpenAPI 403 description.
 
@@ -158,7 +163,14 @@ export const shareWidget = defineWorkspaceOperation({
 
 If the domain wraps `defineWorkspaceOperation` in a same-file factory, the audit resolves the capability through it — either fixed in the factory body or taken as a positional second argument. `apps/sim/lib/table/application/operations.ts` shows both, and deliberately gives the positional form **no default**: a default would let a new operation inherit `tables.use` without anyone deciding it should, which is the unreviewed omission the whole gate exists to prevent.
 
-**Parameterized, or no operation to hang it on** — assert from inside the use case through `capability-assertions.ts`, and annotate the call site:
+**Static, but no operation to hang it on** — a raw route, or an organization-level action — call `assertWorkspaceCapability` / `assertOrganizationCapability` from `capability-assertions.ts` directly, and annotate the call site:
+
+```ts
+    // permission-group-enforced: logs.export — raw streaming route, no workspace operation to declare it on
+    await assertWorkspaceCapability(userId, workspaceId, 'logs.export', organizationId)
+```
+
+**Parameterized** — the rule needs a request value, so no helper in `capability-assertions.ts` fits (they are all typed `StaticPermissionGroupCapability`). Write a small module-local wrapper that reads the rule and refuses, and annotate the call site. `assertConnectorTypeAllowed` in `apps/sim/lib/knowledge/application/connectors.ts` is the shape:
 
 ```ts
     // permission-group-enforced: knowledge.connectors — needs the request's connector id, which the funnel never sees
@@ -169,7 +181,7 @@ If the domain wraps `defineWorkspaceOperation` in a same-file factory, the audit
     )
 ```
 
-Always route the decision through `CAPABILITY_RULES` (via `assertWorkspaceCapability`, `assertOrganizationCapability`, `capabilityDeniedBy`, or the `isWorkspaceCapabilityWithheld` / `isOrganizationCapabilityWithheld` non-throwing pair). Never spell the config key out at the call site: a renamed key would silently stop denying anything, and the refusal wording would drift from the funnel's.
+Always route the decision through `CAPABILITY_RULES` (via `assertWorkspaceCapability`, `assertOrganizationCapability`, `capabilityDeniedBy`, the `isWorkspaceCapabilityWithheld` / `isOrganizationCapabilityWithheld` non-throwing pair, or a direct `CAPABILITY_RULES['<id>'].deniedBy(config, value)` for a parameterized rule) and raise it with `refuseCapability`. Never spell the config key out at the call site, and never write the refusal sentence out: a renamed key silently stops denying anything, and a hand-written message drifts from the funnel's for the same refusal.
 
 Use `assertOrganizationCapability` for an action that names an organization rather than a workspace — creating a workspace, reading the member directory. It resolves the organization's *default* group, because a non-default group targets specific workspaces and has nothing to say about an action no workspace scopes.
 
@@ -205,7 +217,9 @@ Read the audit's success line, not just its exit code:
 ✓ permission-group enforcement: 287 operations declare a capability, 35 capabilities all enforced
 ```
 
-While any operation is still unannotated the audit runs in **count-down mode** and exits 0 with a `(N to go)` line — and in that mode it *suppresses* the "capability declared but nothing enforces it" finding. If your run prints a count-down, your new capability being unreachable will not fail the build. Check the `pending enforcement:` line for your capability id by name.
+The counts should have grown by your operation and your capability. The audit is now all-or-nothing — it either prints that line or fails with findings; there is no longer a count-down or migration mode that exits 0 with work outstanding. It does have a self-check that refuses to report success when `CAPABILITY_IDS`, `CAPABILITY_RULES` or `PERMISSION_GROUP_FIELDS` parse to nothing, and it fails when the rule count and the capability count disagree. If either fires, the script's regexes stopped matching a rename — fix the parsers rather than leaving it green.
+
+What the audit proves is *reachability*: your capability is named somewhere and your key is read by some rule. It cannot tell whether the rule's logic is right or whether every operation reaching the behavior declares it. Do not treat a green run as proof the gate fires.
 
 ## Traps
 
@@ -240,7 +254,8 @@ These are the ones that actually bite. Each has a reason; understand the reason 
 
 - [ ] Kind and `enforcement` chosen deliberately; `ui-only` justified in writing if used
 - [ ] Entry **appended** to `PERMISSION_GROUP_FIELDS`, permissive default, restriction-phrased name
-- [ ] Category present in `PLATFORM_CATEGORY_ORDER`
+- [ ] Category present in `PLATFORM_CATEGORY_ORDER`, named after what is withheld rather than a surface
+- [ ] `hint` says what access is revoked, never "hide" — it is also the prose for an active restriction
 - [ ] Non-boolean key has a `featureExtras` picker that refuses empty and collapses "all" to `null`
 - [ ] Capability id in `CAPABILITY_IDS`, rule in `CAPABILITY_RULES`, `configKeys` lists every key `deniedBy` reads
 - [ ] A narrower capability replacing a broader one also reads the broader key
