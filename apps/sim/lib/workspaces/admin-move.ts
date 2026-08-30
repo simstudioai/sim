@@ -407,7 +407,14 @@ function parseAdminWorkspaceMoveOperationPayload(
       previousBillingOwnerId: auditRecord.previousBillingOwnerId,
       newBillingOwnerId: auditRecord.newBillingOwnerId,
       organizationAssignedAt: auditRecord.organizationAssignedAt,
-      sourceOrganizationId: (auditRecord.sourceOrganizationId as string | null | undefined) ?? null,
+      /**
+       * Deliberately NOT collapsed to `null`. A recorded `null` is an answer —
+       * the workspace came from a personal source, so there is no organization
+       * to name and nothing was lost. Only an absent key leaves the origin
+       * unknown, and merging the two made every reload of a personal-source
+       * move report that its source organization had failed to persist.
+       */
+      sourceOrganizationId: auditRecord.sourceOrganizationId as string | null | undefined,
       unpublishedCustomBlocks:
         (auditRecord.unpublishedCustomBlocks as
           | Array<{ id: string; type: string; name: string }>
@@ -415,6 +422,62 @@ function parseAdminWorkspaceMoveOperationPayload(
       detachedPermissionGroupIds: (auditRecord.detachedPermissionGroupIds as string[]) ?? [],
     },
   }
+}
+
+/**
+ * Where a completed move came from, rebuilt from its durable payload alone.
+ * The payer transfer has already overwritten `workspace.organizationId` by the
+ * time any of these paths run, so the payload is the only surviving record.
+ *
+ * `unknown` is true only when the payload genuinely cannot answer: it predates
+ * {@link AdminWorkspaceMoveOperationPayload.audit.sourceOrganizationId}, or it
+ * names an organization that has since been deleted. A personal source is a
+ * recorded answer, not a gap, and must not be reported as one.
+ */
+async function resolveRecordedSourceOrganization(
+  audit: AdminWorkspaceMoveOperationPayload['audit'] | null,
+  executor: DbOrTx
+): Promise<{
+  id: string | null
+  organization: WorkspaceMoveSourceOrganization | null
+  /** False only for a payload written before the field existed. */
+  recorded: boolean
+  unknown: boolean
+}> {
+  const recorded = audit ? audit.sourceOrganizationId !== undefined : false
+  const id = audit?.sourceOrganizationId ?? null
+  const organization = id ? await getSourceOrganization(id, executor) : null
+  return {
+    id,
+    organization,
+    recorded,
+    unknown: !recorded || (id !== null && organization === null),
+  }
+}
+
+/**
+ * The truncation record for an applied summary, merging what the move's own
+ * lists dropped with what the credential summary dropped — the same merge
+ * preflight performs, so a partial applied review is never presented as a
+ * complete one.
+ */
+function buildAppliedTruncation(params: {
+  unpublishedCustomBlocks: number
+  detachedPermissionGroups: number
+  credentials: WorkspaceMoveCredentialSummary
+}): WorkspaceMoveSourceImpact['truncated'] {
+  const truncated = {
+    customBlocks: Math.max(params.unpublishedCustomBlocks - PREFLIGHT_LIST_LIMITS.customBlocks, 0),
+    permissionGroups: Math.max(
+      params.detachedPermissionGroups - PREFLIGHT_LIST_LIMITS.permissionGroups,
+      0
+    ),
+    collaboratorCaps: 0,
+    forkEdges: 0,
+    credentials: params.credentials.truncatedCredentials,
+    environmentVariableKeys: params.credentials.truncatedEnvironmentVariableKeys,
+  }
+  return Object.values(truncated).some((dropped) => dropped > 0) ? truncated : null
 }
 
 function workspaceMoveOperationMatches(
@@ -1033,15 +1096,22 @@ export async function moveWorkspaceToOrganization(params: {
            * them — discarding it here made the retry claim the source was
            * unrecoverable while the payload was sitting right there.
            */
-          const recordedSourceOrgId = recordedAudit?.sourceOrganizationId ?? null
-          const replayedSourceOrganization = recordedSourceOrgId
-            ? await getSourceOrganization(recordedSourceOrgId, tx)
-            : null
+          const recordedSource = await resolveRecordedSourceOrganization(recordedAudit, tx)
+          /**
+           * The workspace's own secrets are untouched by a move and by this
+           * no-op retry, so they are read rather than blanked: a retry that
+           * reported zero credentials told the admin the workspace had none.
+           */
+          const replayedCredentials = await collectWorkspaceCredentialSummary(
+            params.workspaceId,
+            recordedSource.id,
+            tx
+          )
           return {
             performedMove: false,
-            sourceOrganizationOutcome: recordedSourceOrgId
+            sourceOrganizationOutcome: recordedSource.id
               ? {
-                  sourceOrganizationId: recordedSourceOrgId,
+                  sourceOrganizationId: recordedSource.id,
                   unpublishedCustomBlocks: recordedAudit?.unpublishedCustomBlocks ?? [],
                   detachedPermissionGroupIds: recordedAudit?.detachedPermissionGroupIds ?? [],
                 }
@@ -1052,19 +1122,26 @@ export async function moveWorkspaceToOrganization(params: {
             durableAudit: recordedAudit,
             invitationEvents: [],
             summary: await getMovedWorkspaceSummary(tx, params.workspaceId, destination, {
-              sourceOrganization: replayedSourceOrganization,
-              sourceOrganizationImpact: EMPTY_SOURCE_IMPACT,
-              credentials: EMPTY_CREDENTIAL_SUMMARY,
+              sourceOrganization: recordedSource.organization,
+              sourceOrganizationImpact: {
+                ...EMPTY_SOURCE_IMPACT,
+                truncated: buildAppliedTruncation({
+                  unpublishedCustomBlocks: 0,
+                  detachedPermissionGroups: 0,
+                  credentials: replayedCredentials,
+                }),
+              },
+              credentials: replayedCredentials,
               entitlements: {
                 sourceIsEnterprise: false,
                 destinationIsEnterprise: false,
                 capabilitiesLost: [],
               },
-              notices: replayedSourceOrganization
-                ? []
-                : [
+              notices: recordedSource.unknown
+                ? [
                     'This workspace was already in the destination organization, so the organization it originally came from is no longer recoverable.',
-                  ],
+                  ]
+                : [],
             }),
           } satisfies MoveTransactionResult
         }
@@ -1339,6 +1416,19 @@ export async function moveWorkspaceToOrganization(params: {
             set: { permissionType: 'admin', updatedAt: now },
           })
 
+        /**
+         * Read against the PRE-move source organization, which is what
+         * `backedBySourceOrgMember` means. Every row this counts is workspace-
+         * scoped and travels with the move untouched, so unlike the source
+         * impact it is still fully reportable here — blanking it told the admin
+         * who just confirmed the move that the workspace carried no secrets.
+         */
+        const movedCredentials = await collectWorkspaceCredentialSummary(
+          params.workspaceId,
+          sourceOrganizationId,
+          tx
+        )
+
         return {
           performedMove: true,
           previousBillingOwnerId: workspaceRow.billedAccountUserId,
@@ -1385,27 +1475,13 @@ export async function moveWorkspaceToOrganization(params: {
                 PREFLIGHT_LIST_LIMITS.permissionGroups
               ).items.map((permissionGroupId) => ({ permissionGroupId, name: '' })),
               /** The applied response is bounded by the same limits as preflight. */
-              truncated:
-                unpublishedCustomBlocks.length > PREFLIGHT_LIST_LIMITS.customBlocks ||
-                cleanup.detachedPermissionGroupIds.length > PREFLIGHT_LIST_LIMITS.permissionGroups
-                  ? {
-                      customBlocks: Math.max(
-                        unpublishedCustomBlocks.length - PREFLIGHT_LIST_LIMITS.customBlocks,
-                        0
-                      ),
-                      permissionGroups: Math.max(
-                        cleanup.detachedPermissionGroupIds.length -
-                          PREFLIGHT_LIST_LIMITS.permissionGroups,
-                        0
-                      ),
-                      collaboratorCaps: 0,
-                      forkEdges: 0,
-                      credentials: 0,
-                      environmentVariableKeys: 0,
-                    }
-                  : null,
+              truncated: buildAppliedTruncation({
+                unpublishedCustomBlocks: unpublishedCustomBlocks.length,
+                detachedPermissionGroups: cleanup.detachedPermissionGroupIds.length,
+                credentials: movedCredentials,
+              }),
             },
-            credentials: EMPTY_CREDENTIAL_SUMMARY,
+            credentials: movedCredentials,
             /**
              * The fenced result, not the optimistic one: the response must
              * describe the entitlement state the move was actually allowed
@@ -1827,20 +1903,17 @@ export async function getWorkspaceMoveOperation(
    * response, which is exactly when the operator most needs to see what the
    * move did and where it came from.
    */
-  const recordedSourceOrganizationId = operationPayload.audit.sourceOrganizationId ?? null
-  const sourceOrganization = recordedSourceOrganizationId
-    ? await getSourceOrganization(recordedSourceOrganizationId)
-    : null
+  const recordedSource = await resolveRecordedSourceOrganization(operationPayload.audit, db)
 
   /**
    * Replay the source organization's loss audit. `recordAuditOnce` keys make it
    * idempotent, so this is a no-op when the original write landed and a repair
    * when the process died between commit and that fire-and-forget write.
    */
-  if (recordedSourceOrganizationId) {
+  if (recordedSource.id) {
     await recordSourceOrganizationMoveAudit({
       workspaceId,
-      sourceOrganizationId: recordedSourceOrganizationId,
+      sourceOrganizationId: recordedSource.id,
       destinationOrganizationId,
       adminEmail: operationPayload.audit.actor.email ?? 'admin-api@sim.ai',
       auditActor: operationPayload.audit.actor,
@@ -1850,21 +1923,42 @@ export async function getWorkspaceMoveOperation(
     })
   }
 
+  /**
+   * The workspace's secrets are workspace-scoped and travel with the move, so
+   * the reload reads them rather than reporting a blank. `backedBySourceOrgMember`
+   * resolves against the recorded source; a personal or unrecorded source has no
+   * members to match, which is exactly what a `null` id asks for.
+   */
+  const credentials = await collectWorkspaceCredentialSummary(workspaceId, recordedSource.id)
+
   return toWorkspaceMoveOperationView(
     await getMovedWorkspaceSummary(db, workspaceId, destination, {
-      sourceOrganization,
-      sourceOrganizationImpact: EMPTY_SOURCE_IMPACT,
-      credentials: EMPTY_CREDENTIAL_SUMMARY,
+      sourceOrganization: recordedSource.organization,
+      sourceOrganizationImpact: {
+        ...EMPTY_SOURCE_IMPACT,
+        truncated: buildAppliedTruncation({
+          unpublishedCustomBlocks: 0,
+          detachedPermissionGroups: 0,
+          credentials,
+        }),
+      },
+      credentials,
       entitlements: {
         sourceIsEnterprise: false,
         destinationIsEnterprise: false,
         capabilitiesLost: [],
       },
-      notices: recordedSourceOrganizationId
-        ? []
-        : [
-            'This move was recorded before the source organization was persisted, so it cannot be reported.',
-          ],
+      /**
+       * A recorded `null` means the workspace came from a personal source and
+       * there is nothing to name — not that the record is defective.
+       */
+      notices: recordedSource.unknown
+        ? [
+            recordedSource.recorded
+              ? 'The organization this workspace came from has since been deleted, so it can no longer be named.'
+              : 'This move was recorded before the source organization was persisted, so it cannot be reported.',
+          ]
+        : [],
     }),
     operationId
   )
